@@ -2,6 +2,7 @@ use openrust::database::{
     DatabaseFuture, DatabaseResult,
     migrations::{Migration, MigrationContext},
 };
+use openrust::translation::__;
 
 pub struct Definition;
 
@@ -13,32 +14,87 @@ impl Migration for Definition {
         Box::pin(async move {
             let mut schema = connection.getSchemaBuilder();
             schema
-                .create("users", |table| {
-                    table.id();
-                    table.string("name", 255);
-                    table.string("email", 255).unique();
-                    table.timestamp("email_verified_at", 0).nullable();
-                    table.string("password", 255);
-                    table.string("remember_token", 100).nullable();
-                    table.timestamps();
+                .create("users", |table| -> DatabaseResult<()> {
+                    table.comment(__("schema.tables.users", &Default::default())?);
+                    table
+                        .id()
+                        .comment(__("schema.columns.id", &Default::default())?);
+                    table
+                        .string("name", None)
+                        .comment(__("schema.columns.username", &Default::default())?);
+                    table
+                        .string("email", None)
+                        .unique()
+                        .comment(__("schema.columns.email", &Default::default())?);
+                    table
+                        .timestamp("email_verified_at", 0)
+                        .nullable()
+                        .comment(__("schema.columns.email_verified_at", &Default::default())?);
+                    table
+                        .string("password", None)
+                        .comment(__("schema.columns.password", &Default::default())?);
+                    table
+                        .rememberToken()
+                        .comment(__("schema.columns.remember_token", &Default::default())?);
+                    table
+                        .timestamp("created_at", None)
+                        .nullable()
+                        .comment(__("schema.columns.created_at", &Default::default())?);
+                    table
+                        .timestamp("updated_at", None)
+                        .nullable()
+                        .comment(__("schema.columns.updated_at", &Default::default())?);
+                    Ok(())
                 })
                 .await?;
             schema
-                .create("password_reset_tokens", |table| {
-                    table.string("email", 255).primary();
-                    table.string("token", 255);
-                    table.timestamp("created_at", 0).nullable();
+                .create("password_reset_tokens", |table| -> DatabaseResult<()> {
+                    table.comment(__(
+                        "schema.tables.password_reset_tokens",
+                        &Default::default(),
+                    )?);
+                    table
+                        .string("email", None)
+                        .primary()
+                        .comment(__("schema.columns.email", &Default::default())?);
+                    table
+                        .string("token", None)
+                        .comment(__("schema.columns.token", &Default::default())?);
+                    table
+                        .timestamp("created_at", 0)
+                        .nullable()
+                        .comment(__("schema.columns.created_at", &Default::default())?);
+                    Ok(())
                 })
                 .await?;
             schema
-                .create("sessions", |table| {
-                    table.string("id", 255).primary();
-                    table.foreignId("user_id").nullable();
-                    table.index(&["user_id"], None);
-                    table.string("ip_address", 45).nullable();
-                    table.text("user_agent").nullable();
-                    table.longText("payload");
-                    table.integer("last_activity").index();
+                .create("sessions", |table| -> DatabaseResult<()> {
+                    table.comment(__("schema.tables.sessions", &Default::default())?);
+                    table
+                        .string("id", None)
+                        .primary()
+                        .comment(__("schema.columns.id", &Default::default())?);
+                    table
+                        .foreignId("user_id")
+                        .nullable()
+                        .index()
+                        .comment(__("schema.columns.user_id", &Default::default())?);
+                    table
+                        .string("ip_address", 45)
+                        .nullable()
+                        .comment(__("schema.columns.ip_address", &Default::default())?);
+                    table
+                        .text("user_agent")
+                        .nullable()
+                        .comment(__("schema.columns.user_agent", &Default::default())?);
+                    table
+                        .longText("payload")
+                        .comment(__("schema.columns.session_data", &Default::default())?);
+                    table
+                        .integer("last_activity")
+                        .index()
+                        .comment(__("schema.columns.last_activity", &Default::default())?);
+                    Ok(())
                 })
                 .await
         })
@@ -50,9 +106,9 @@ impl Migration for Definition {
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
         Box::pin(async move {
             let mut schema = connection.getSchemaBuilder();
-            schema.dropIfExists("sessions").await?;
+            schema.dropIfExists("users").await?;
             schema.dropIfExists("password_reset_tokens").await?;
-            schema.dropIfExists("users").await
+            schema.dropIfExists("sessions").await
         })
     }
 }

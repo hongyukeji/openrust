@@ -101,6 +101,7 @@ pub enum DatabaseError {
     AttributeHashing(crate::hashing::HashError),
     InvalidSchema(&'static str),
     SchemaIo(std::io::Error),
+    Translation(Box<crate::translation::TranslationError>),
     DatabaseCreationDeclined,
     SchemaProcess {
         program: &'static str,
@@ -215,6 +216,7 @@ impl std::fmt::Display for DatabaseError {
                 )
             }
             Self::Pagination(error) => std::fmt::Display::fmt(error, formatter),
+            Self::Translation(error) => std::fmt::Display::fmt(error, formatter),
             Self::InvalidScalar => {
                 formatter.write_str("a scalar query must return exactly one column")
             }
@@ -258,6 +260,7 @@ impl std::error::Error for DatabaseError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::SchemaIo(source) => Some(source),
+            Self::Translation(source) => Some(source.as_ref()),
             Self::MigrationFailed { source, .. } | Self::SeederFailed { source, .. } => {
                 Some(source.as_ref())
             }
@@ -282,5 +285,11 @@ impl std::error::Error for DatabaseError {
 impl From<crate::pagination::PaginationError> for DatabaseError {
     fn from(error: crate::pagination::PaginationError) -> Self {
         Self::Pagination(error)
+    }
+}
+
+impl From<crate::translation::TranslationError> for DatabaseError {
+    fn from(error: crate::translation::TranslationError) -> Self {
+        Self::Translation(Box::new(error))
     }
 }

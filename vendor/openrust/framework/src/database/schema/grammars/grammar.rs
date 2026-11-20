@@ -248,6 +248,15 @@ impl Grammar {
                     definitions.push(self.column(&column, explicit_primary)?);
                     self.column_indexes(table, &column, &column.name, &mut indexes)?;
                     self.column_start(&qualified, &column, &mut starting_values);
+                    if self.postgres()
+                        && let Some(comment) = &column.comment
+                    {
+                        indexes.push(self.column_comment(
+                            &qualified,
+                            &column.name,
+                            Some(comment),
+                        )?);
+                    }
                 }
                 Command::Index(index) if index.kind == IndexType::Primary => {
                     if index.inplace || index.lock.is_some() {
@@ -269,7 +278,7 @@ impl Grammar {
                 }
                 Command::Foreign(foreign) => constraints.push(self.foreign(table, &foreign)?),
                 Command::TableComment(comment) => {
-                    if self.mysql() {
+                    if self.mysql() || self.postgres() {
                         indexes.push(self.table_comment(&qualified, &comment)?);
                     }
                 }
@@ -334,10 +343,26 @@ impl Grammar {
     }
 
     fn table_comment(&self, table: &str, comment: &str) -> DatabaseResult<String> {
-        Ok(format!(
-            "alter table {table} comment = {}",
-            self.string(comment)?
-        ))
+        let comment = self.string(comment)?;
+        Ok(if self.postgres() {
+            format!("comment on table {table} is {comment}")
+        } else {
+            format!("alter table {table} comment = {comment}")
+        })
+    }
+
+    fn column_comment(
+        &self,
+        table: &str,
+        column: &str,
+        comment: Option<&str>,
+    ) -> DatabaseResult<String> {
+        let name = self.identifier(column)?;
+        let comment = match comment {
+            Some(comment) => self.string(comment)?,
+            None => "null".into(),
+        };
+        Ok(format!("comment on column {table}.{name} is {comment}"))
     }
 
     pub fn alter(&self, table: &Table, blueprint: Blueprint) -> DatabaseResult<Vec<String>> {
@@ -447,6 +472,11 @@ impl Grammar {
                         &mut indexes,
                     )?;
                     self.column_start(&qualified, &column, &mut starting_values);
+                    if self.postgres()
+                        && let Some(comment) = &column.comment
+                    {
+                        sql.push(self.column_comment(&qualified, &column.name, Some(comment))?);
+                    }
                 }
                 Command::Index(index) if !drop_primary.is_empty() => {
                     let primary = self.primary_key(&index)?;
@@ -458,7 +488,7 @@ impl Grammar {
                 }
                 Command::Index(index) => self.add_index(table, &index, &mut sql)?,
                 Command::TableComment(comment) => {
-                    if self.mysql() {
+                    if self.mysql() || self.postgres() {
                         sql.push(self.table_comment(&qualified, &comment)?);
                     }
                 }

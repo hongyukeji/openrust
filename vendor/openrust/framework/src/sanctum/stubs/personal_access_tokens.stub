@@ -2,6 +2,7 @@ use openrust::database::{
     DatabaseFuture, DatabaseResult,
     migrations::{Migration, MigrationContext},
 };
+use openrust::translation::__;
 
 pub struct Definition;
 
@@ -13,15 +14,62 @@ impl Migration for Definition {
         Box::pin(async move {
             connection
                 .getSchemaBuilder()
-                .create("personal_access_tokens", |table| {
-                    table.id();
+                .create("personal_access_tokens", |table| -> DatabaseResult<()> {
+                    table.comment(__(
+                        "schema.tables.personal_access_tokens",
+                        &Default::default(),
+                    )?);
+                    table
+                        .id()
+                        .comment(__("schema.columns.id", &Default::default())?);
                     table.morphs("tokenable");
-                    table.text("name");
-                    table.string("token", 64).unique();
-                    table.text("abilities").nullable();
-                    table.timestamp("last_used_at", 0).nullable();
-                    table.timestamp("expires_at", 0).nullable().index();
-                    table.timestamps();
+                    table
+                        .text("name")
+                        .comment(__("schema.columns.name", &Default::default())?);
+                    table
+                        .string("token", 64)
+                        .unique()
+                        .comment(__("schema.columns.token", &Default::default())?);
+                    table
+                        .text("abilities")
+                        .nullable()
+                        .comment(__("schema.columns.abilities", &Default::default())?);
+                    table
+                        .timestamp("last_used_at", 0)
+                        .nullable()
+                        .comment(__("schema.columns.last_used_at", &Default::default())?);
+                    table
+                        .timestamp("expires_at", 0)
+                        .nullable()
+                        .index()
+                        .comment(__("schema.columns.expires_at", &Default::default())?);
+                    table
+                        .timestamp("created_at", None)
+                        .nullable()
+                        .comment(__("schema.columns.created_at", &Default::default())?);
+                    table
+                        .timestamp("updated_at", None)
+                        .nullable()
+                        .comment(__("schema.columns.updated_at", &Default::default())?);
+
+                    for column in table.getColumnsMut() {
+                        match column.getName() {
+                            "tokenable_type" => {
+                                column.comment(__(
+                                    "schema.columns.tokenable_type",
+                                    &Default::default(),
+                                )?);
+                            }
+                            "tokenable_id" => {
+                                column.comment(__(
+                                    "schema.columns.tokenable_id",
+                                    &Default::default(),
+                                )?);
+                            }
+                            _ => {}
+                        }
+                    }
+                    Ok(())
                 })
                 .await
         })

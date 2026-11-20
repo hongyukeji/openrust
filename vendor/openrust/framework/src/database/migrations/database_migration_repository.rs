@@ -161,12 +161,22 @@ impl MigrationRepositoryInterface for DatabaseMigrationRepository {
 
     fn create_repository(&mut self) -> DatabaseFuture<'_, DatabaseResult<()>> {
         Box::pin(async move {
+            let translator = self.manager.translator()?;
+            let translate = |key| translator.string(key, &Default::default(), None);
             self.connection()?
                 .getSchemaBuilder()
-                .create(&self.table, |table| {
-                    table.increments("id");
-                    table.string("migration", 255);
-                    table.integer("batch");
+                .create(&self.table, |table| -> DatabaseResult<()> {
+                    table.comment(translate("schema.tables.migrations")?);
+                    table
+                        .increments("id")
+                        .comment(translate("schema.columns.id")?);
+                    table
+                        .string("migration", 255)
+                        .comment(translate("schema.columns.migration")?);
+                    table
+                        .integer("batch")
+                        .comment(translate("schema.columns.batch")?);
+                    Ok(())
                 })
                 .await
         })

@@ -10,6 +10,8 @@
 
 ## 最新交接
 
+- 2026-11-21 [数据库注释翻译与迁移组织](audits/schema-comments.md)完成：复用现有分组翻译，三语82键可扩展，Laravel三条初始迁移＋SMS日期命名；PG18.6／MySQL8.4.13／SQLite3.54.1实际12迁移17表／五语言／回退／回滚／错误前置和三库Artisan、PG批次回归通过，多语专项连续五轮、严格workspace/all-targets Clippy／fmt及三语12＋6浏览器通过。开发库完整备份并实际恢复验证后写10表55列中文注释、ledger6→4，业务数据及既有定义保留，最终四条Ran无pending。独占target／dist已回收，全部卷保留；仅核范围本地提交，不推送。动态设置仍为方案，其他发布矩阵不计入本批。
+
 - 2026-11-21 核心侧完成[成熟机制核对与14项定向复验](audits/08-04/README.md#核心机制复验与成熟方案核对)：对照固定 Laravel、Axum／matchit、Rust 标准库与 tempfile；保留路由注册顺序、驱动迁移事务和共享安装锁，无新增依赖。修正旧路由缓存待实现描述；依赖复核仍有4条维护公告。数据库翻译 `022784d08` 已交付，三语API指南与全feature 10库联合导出／源码指纹／根与子目录浏览器均已复验，最终发布快照整合及认证PG令牌问题仍待。
 
 - 2026-11-21 [数据库翻译扩展](audits/translation-database/README.md)完成：核对 Spatie 2.8.3、Barryvdh 与旧版后，采用 language_lines 的 group／key／text 多语言 JSON 结构，显式 Connection／Loader 装配并复用 Lang 原子发布；文件覆盖、包命名空间文件回退、来源故障和应用隔离已验。Rust1.94＋PostgreSQL180006的8项行为／HTTP＋4示例、严格全feature Clippy／fmt、三语构建／12＋6浏览器通过；本包骨架状态已闭合。未验证其他数据库；API指南与指纹导出交核心对话更新。认证PG完整联测仍有独立未闭合问题，不计入本批。自有产物已清理，源码／日志／数据卷保留；仅本地提交。

@@ -397,8 +397,8 @@ impl ColumnDefinition {
         self
     }
 
-    pub fn comment(&mut self, comment: &str) -> &mut Self {
-        self.comment = Some(comment.to_owned());
+    pub fn comment(&mut self, comment: impl Into<String>) -> &mut Self {
+        self.comment = Some(comment.into());
         self
     }
 

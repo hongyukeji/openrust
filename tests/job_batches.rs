@@ -912,7 +912,7 @@ async fn exercise(mysql: Option<&str>) {
             "unexpected auxiliary table {table}"
         );
     }
-    assert_eq!(migrations::entries().len(), 6);
+    assert_eq!(migrations::entries().len(), 4);
     for command in ["queue:publish-batches", "queue:prune-chain-deliveries"] {
         artisan_status(&root.0, &[command], 1).await;
     }

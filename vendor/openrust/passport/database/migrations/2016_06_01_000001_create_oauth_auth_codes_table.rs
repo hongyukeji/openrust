@@ -1,3 +1,4 @@
+use openrust::translation::__;
 // Translated from Laravel Passport v13.10.0 (MIT, Taylor Otwell).
 use openrust::{
     contracts::config::Repository,
@@ -27,13 +28,31 @@ impl Migration for Definition {
         Box::pin(async move {
             connection
                 .getSchemaBuilder()
-                .create("oauth_auth_codes", |table| {
-                    table.char("id", 80).primary();
-                    table.foreignId("user_id").index();
-                    table.foreignUuid("client_id");
-                    table.text("scopes").nullable();
-                    table.boolean("revoked");
-                    table.dateTime("expires_at", None).nullable();
+                .create("oauth_auth_codes", |table| -> DatabaseResult<()> {
+                    table.comment(__("schema.tables.oauth_auth_codes", &Default::default())?);
+                    table
+                        .char("id", 80)
+                        .primary()
+                        .comment(__("schema.columns.id", &Default::default())?);
+                    table
+                        .foreignId("user_id")
+                        .index()
+                        .comment(__("schema.columns.user_id", &Default::default())?);
+                    table
+                        .foreignUuid("client_id")
+                        .comment(__("schema.columns.client_id", &Default::default())?);
+                    table
+                        .text("scopes")
+                        .nullable()
+                        .comment(__("schema.columns.scopes", &Default::default())?);
+                    table
+                        .boolean("revoked")
+                        .comment(__("schema.columns.revoked", &Default::default())?);
+                    table
+                        .dateTime("expires_at", None)
+                        .nullable()
+                        .comment(__("schema.columns.expires_at", &Default::default())?);
+                    Ok(())
                 })
                 .await
         })

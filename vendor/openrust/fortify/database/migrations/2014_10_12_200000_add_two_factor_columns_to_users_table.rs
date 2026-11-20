@@ -1,3 +1,4 @@
+use openrust::translation::__;
 // Translated from Laravel Fortify 1.43.0 (MIT, Taylor Otwell).
 use openrust::database::{
     DatabaseFuture, DatabaseResult,
@@ -13,16 +14,30 @@ impl Migration for Definition {
         Box::pin(async move {
             connection
                 .getSchemaBuilder()
-                .table("users", |table| {
-                    table.text("two_factor_secret").after("password").nullable();
+                .table("users", |table| -> DatabaseResult<()> {
+                    table.comment(__("schema.tables.users", &Default::default())?);
+                    table
+                        .text("two_factor_secret")
+                        .after("password")
+                        .nullable()
+                        .comment(__("schema.columns.two_factor_secret", &Default::default())?);
                     table
                         .text("two_factor_recovery_codes")
                         .after("two_factor_secret")
-                        .nullable();
+                        .nullable()
+                        .comment(__(
+                            "schema.columns.two_factor_recovery_codes",
+                            &Default::default(),
+                        )?);
                     table
                         .timestamp("two_factor_confirmed_at", None)
                         .after("two_factor_recovery_codes")
-                        .nullable();
+                        .nullable()
+                        .comment(__(
+                            "schema.columns.two_factor_confirmed_at",
+                            &Default::default(),
+                        )?);
+                    Ok(())
                 })
                 .await
         })

@@ -1,3 +1,4 @@
+use openrust::translation::__;
 // Translated from Laravel Passport v13.10.0 (MIT, Taylor Otwell).
 use openrust::{
     contracts::config::Repository,
@@ -27,16 +28,55 @@ impl Migration for Definition {
         Box::pin(async move {
             connection
                 .getSchemaBuilder()
-                .create("oauth_clients", |table| {
-                    table.uuid("id").primary();
+                .create("oauth_clients", |table| -> DatabaseResult<()> {
+                    table.comment(__("schema.tables.oauth_clients", &Default::default())?);
+                    table
+                        .uuid("id")
+                        .primary()
+                        .comment(__("schema.columns.id", &Default::default())?);
                     table.nullableMorphs("owner", None, None);
-                    table.string("name", None);
-                    table.string("secret", None).nullable();
-                    table.string("provider", None).nullable();
-                    table.text("redirect_uris");
-                    table.text("grant_types");
-                    table.boolean("revoked");
-                    table.timestamps();
+                    table
+                        .string("name", None)
+                        .comment(__("schema.columns.name", &Default::default())?);
+                    table
+                        .string("secret", None)
+                        .nullable()
+                        .comment(__("schema.columns.secret", &Default::default())?);
+                    table
+                        .string("provider", None)
+                        .nullable()
+                        .comment(__("schema.columns.provider", &Default::default())?);
+                    table
+                        .text("redirect_uris")
+                        .comment(__("schema.columns.redirect_uris", &Default::default())?);
+                    table
+                        .text("grant_types")
+                        .comment(__("schema.columns.grant_types", &Default::default())?);
+                    table
+                        .boolean("revoked")
+                        .comment(__("schema.columns.revoked", &Default::default())?);
+                    table
+                        .timestamp("created_at", None)
+                        .nullable()
+                        .comment(__("schema.columns.created_at", &Default::default())?);
+                    table
+                        .timestamp("updated_at", None)
+                        .nullable()
+                        .comment(__("schema.columns.updated_at", &Default::default())?);
+
+                    for column in table.getColumnsMut() {
+                        match column.getName() {
+                            "owner_type" => {
+                                column
+                                    .comment(__("schema.columns.owner_type", &Default::default())?);
+                            }
+                            "owner_id" => {
+                                column.comment(__("schema.columns.owner_id", &Default::default())?);
+                            }
+                            _ => {}
+                        }
+                    }
+                    Ok(())
                 })
                 .await
         })

@@ -159,3 +159,21 @@ pub struct ForeignKey {
     pub on_delete: String,
     pub on_update: String,
 }
+
+/// The result of configuring a schema blueprint. Fallible callbacks can use `?`.
+/// Existing callbacks returning `()` continue to work unchanged.
+pub trait BlueprintCallbackResult {
+    fn into_result(self) -> crate::database::DatabaseResult<()>;
+}
+
+impl BlueprintCallbackResult for () {
+    fn into_result(self) -> crate::database::DatabaseResult<()> {
+        Ok(())
+    }
+}
+
+impl BlueprintCallbackResult for crate::database::DatabaseResult<()> {
+    fn into_result(self) -> crate::database::DatabaseResult<()> {
+        self
+    }
+}

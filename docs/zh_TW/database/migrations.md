@@ -257,6 +257,53 @@ async fn create_customers() -> DatabaseResult<()> {
 
 用欄位層級的 `charset` 和 `collation` 覆寫文字編碼或比較規則。SQLite 套用欄位定序，並忽略 MySQL 專用的資料表設定。
 
+### 資料表與欄位註解 {#database-comments}
+
+使用 `.comment(...)` 撰寫簡明的資料庫說明，例如「使用者資料表」「使用者名稱」「電子郵件」。狀態欄位寫明實際值，例如「狀態：0=開啟，1=關閉」；金額、數字時間補充單位。下例的狀態欄位僅作示範，內建使用者資料表不會因此新增狀態欄位。
+
+```rust
+use openrust::{
+    database::{DatabaseResult, schema::Schema},
+    translation::__,
+};
+
+async fn create_users() -> DatabaseResult<()> {
+    Schema::create("users", |table| -> DatabaseResult<()> {
+        table.comment(__("schema.tables.users", &Default::default())?);
+        table.id().comment(__("schema.columns.id", &Default::default())?);
+        table.string("name", None)
+            .comment(__("schema.columns.username", &Default::default())?);
+        table.string("email", None)
+            .comment(__("schema.columns.email", &Default::default())?);
+        table.integer("status").default(0)
+            .comment(__("schema.columns.account_status", &Default::default())?);
+        Ok(())
+    }).await
+}
+```
+
+多語言沿用現有 `__()` 與 Laravel 風格的 JSON 翻譯檔案。例如在 `lang/zh_CN/schema.json` 中設定：
+
+```json
+{
+    "tables": { "users": "用户表" },
+    "columns": {
+        "id": "主键",
+        "email": "邮箱",
+        "username": "用户名",
+        "account_status": "状态：0=开启，1=关闭"
+    }
+}
+```
+
+翻譯由現有翻譯器依照 `app.locale`（`APP_LOCALE`）及 `app.fallback_locale` 選擇。新增 `lang/ja/schema.json`、`lang/fr/schema.json` 或其他語言檔案即可擴充語言，無須修改 Schema API。條目缺少時使用設定的後備語言；兩者都缺少則與 Laravel 一樣傳回翻譯鍵。直接 `.comment("電子郵件")` 則儲存原樣文字。語言識別碼的正規化與應用程式其他翻譯一致。
+
+回呼傳回 `DatabaseResult<()>`，透過 `?` 傳遞翻譯錯誤；該回呼中的 DDL 在設定成功後才執行。原有傳回 `()` 的回呼仍可使用。遷移產生器保留 Laravel 的 `id()`、`timestamps()` 骨架，依需求加入註解與翻譯。需要分別註解時間欄位時，可將時間輔助方法展開為明確欄位定義。
+
+PostgreSQL、MySQL 與 MariaDB 會儲存這些註解；目前 SQLite、SQL Server 實作不儲存。每個資料庫物件僅儲存一條註解，其語言於遷移執行時決定。修改應用程式語言或已執行的建表遷移，不會自動更新資料庫註解。更新資料表註解使用新遷移中的 `table.comment(...)`。透過 Schema 修改欄位時，提供完整欄位定義並呼叫 `.comment(...).change()`；PostgreSQL 僅更新中繼資料時，可透過現有 `MigrationContext::statement` 執行可信的 `COMMENT ON COLUMN` 陳述式，無須另設 Schema API。
+
+初始應用程式遷移遵循 Laravel：`0001_01_01_000000_create_users_table`、`0001_01_01_000001_create_cache_table`、`0001_01_01_000002_create_jobs_table`。工作遷移統一建立與回復 `jobs`、`job_batches`、`failed_jobs`。應用程式專屬遷移使用正常時間戳記命名。Rust 以 `.rs` 檔案、註冊的遷移型別、非同步執行和 `Result` 對應 PHP 匿名類別及例外。既有資料庫若使用拆分的佇列遷移，須先備份並校準遷移記錄，再使用合併遷移；僅重新命名原始碼檔案無法完成升級。
+
 ### 暫存資料表 {#temporary-tables}
 
 使用 `Blueprint::temporary()` 前先借用 Schema 工作階段。用該工作階段的 Schema Builder 建立資料表，再透過同一工作階段執行 SQL。`close().await?` 會先清理受管理的暫存資料表，再歸還連線。工作階段被捨棄時，清理操作會持有原實體連線，直到可以安全歸還。

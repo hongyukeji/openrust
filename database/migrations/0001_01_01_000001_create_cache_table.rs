@@ -2,6 +2,7 @@ use openrust::database::{
     DatabaseFuture, DatabaseResult,
     migrations::{Migration, MigrationContext},
 };
+use openrust::translation::__;
 
 pub struct Definition;
 
@@ -13,17 +14,37 @@ impl Migration for Definition {
         Box::pin(async move {
             let mut schema = connection.getSchemaBuilder();
             schema
-                .create("cache", |table| {
-                    table.string("key", 255).primary();
-                    table.longText("value");
-                    table.bigInteger("expiration").index();
+                .create("cache", |table| -> DatabaseResult<()> {
+                    table.comment(__("schema.tables.cache", &Default::default())?);
+                    table
+                        .string("key", None)
+                        .primary()
+                        .comment(__("schema.columns.key", &Default::default())?);
+                    table
+                        .mediumText("value")
+                        .comment(__("schema.columns.value", &Default::default())?);
+                    table
+                        .bigInteger("expiration")
+                        .index()
+                        .comment(__("schema.columns.expiration", &Default::default())?);
+                    Ok(())
                 })
                 .await?;
             schema
-                .create("cache_locks", |table| {
-                    table.string("key", 255).primary();
-                    table.string("owner", 255);
-                    table.bigInteger("expiration").index();
+                .create("cache_locks", |table| -> DatabaseResult<()> {
+                    table.comment(__("schema.tables.cache_locks", &Default::default())?);
+                    table
+                        .string("key", None)
+                        .primary()
+                        .comment(__("schema.columns.key", &Default::default())?);
+                    table
+                        .string("owner", None)
+                        .comment(__("schema.columns.owner", &Default::default())?);
+                    table
+                        .bigInteger("expiration")
+                        .index()
+                        .comment(__("schema.columns.expiration", &Default::default())?);
+                    Ok(())
                 })
                 .await
         })
@@ -35,8 +56,8 @@ impl Migration for Definition {
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
         Box::pin(async move {
             let mut schema = connection.getSchemaBuilder();
-            schema.dropIfExists("cache_locks").await?;
-            schema.dropIfExists("cache").await
+            schema.dropIfExists("cache").await?;
+            schema.dropIfExists("cache_locks").await
         })
     }
 }

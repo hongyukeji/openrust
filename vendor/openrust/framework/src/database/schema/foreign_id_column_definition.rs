@@ -32,6 +32,11 @@ impl<'a> ForeignIdColumnDefinition<'a> {
         column
     }
 
+    pub fn comment(mut self, comment: impl Into<String>) -> Self {
+        self.column().comment(comment);
+        self
+    }
+
     pub fn nullable(mut self) -> Self {
         self.column().nullable();
         self

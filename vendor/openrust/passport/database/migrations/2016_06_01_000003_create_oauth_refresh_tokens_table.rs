@@ -1,3 +1,4 @@
+use openrust::translation::__;
 // Translated from Laravel Passport v13.10.0 (MIT, Taylor Otwell).
 use openrust::{
     contracts::config::Repository,
@@ -27,11 +28,27 @@ impl Migration for Definition {
         Box::pin(async move {
             connection
                 .getSchemaBuilder()
-                .create("oauth_refresh_tokens", |table| {
-                    table.char("id", 80).primary();
-                    table.char("access_token_id", 80).index();
-                    table.boolean("revoked");
-                    table.dateTime("expires_at", None).nullable();
+                .create("oauth_refresh_tokens", |table| -> DatabaseResult<()> {
+                    table.comment(__(
+                        "schema.tables.oauth_refresh_tokens",
+                        &Default::default(),
+                    )?);
+                    table
+                        .char("id", 80)
+                        .primary()
+                        .comment(__("schema.columns.id", &Default::default())?);
+                    table
+                        .char("access_token_id", 80)
+                        .index()
+                        .comment(__("schema.columns.access_token_id", &Default::default())?);
+                    table
+                        .boolean("revoked")
+                        .comment(__("schema.columns.revoked", &Default::default())?);
+                    table
+                        .dateTime("expires_at", None)
+                        .nullable()
+                        .comment(__("schema.columns.expires_at", &Default::default())?);
+                    Ok(())
                 })
                 .await
         })

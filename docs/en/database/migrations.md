@@ -257,6 +257,53 @@ async fn create_customers() -> DatabaseResult<()> {
 
 Use column-level `charset` and `collation` to override text encoding or comparison rules. SQLite applies column collation and ignores the MySQL-specific table settings.
 
+### Table and column comments {#database-comments}
+
+Use `.comment(...)` for short, readable database descriptions, such as “Users”, “Username”, and “Email”. Include the actual values for status columns, such as “Status: 0=enabled, 1=disabled”, and units for amounts and numeric timestamps. The status below is an example, not a built-in users column.
+
+```rust
+use openrust::{
+    database::{DatabaseResult, schema::Schema},
+    translation::__,
+};
+
+async fn create_users() -> DatabaseResult<()> {
+    Schema::create("users", |table| -> DatabaseResult<()> {
+        table.comment(__("schema.tables.users", &Default::default())?);
+        table.id().comment(__("schema.columns.id", &Default::default())?);
+        table.string("name", None)
+            .comment(__("schema.columns.username", &Default::default())?);
+        table.string("email", None)
+            .comment(__("schema.columns.email", &Default::default())?);
+        table.integer("status").default(0)
+            .comment(__("schema.columns.account_status", &Default::default())?);
+        Ok(())
+    }).await
+}
+```
+
+For localization, reuse `__()` and Laravel-style grouped translations in JSON files. For example, put the following entries in `lang/zh_CN/schema.json`:
+
+```json
+{
+    "tables": { "users": "用户表" },
+    "columns": {
+        "id": "主键",
+        "email": "邮箱",
+        "username": "用户名",
+        "account_status": "状态：0=开启，1=关闭"
+    }
+}
+```
+
+`app.locale` (`APP_LOCALE`) and `app.fallback_locale` select translations through the existing translator. Add `lang/ja/schema.json`, `lang/fr/schema.json`, or another locale to support more languages; no schema API changes are needed. Missing entries use the configured fallback; if both catalogs lack the key, the translator returns the key as Laravel does. A plain `.comment("Email")` stores that literal text. Language identifiers follow the same normalization as other application translations.
+
+The callback returns `DatabaseResult<()>` so translation errors can propagate with `?` before its DDL is executed. Existing callbacks returning `()` still work. The standard migration generator keeps Laravel’s `id()` and `timestamps()` skeleton; add comments and translations as needed. Timestamp helpers can be expanded into explicit columns when each column needs its own comment.
+
+PostgreSQL, MySQL, and MariaDB store these comments. The current SQLite and SQL Server implementations do not store them. Each database object stores one comment, selected when the migration runs. Changing application locale or editing an executed create migration does not rewrite existing comments. Use a new migration with `table.comment(...)` for table comments. To modify a column through Schema, provide its complete definition with `.comment(...).change()`. For a PostgreSQL metadata-only update, use `MigrationContext::statement` with a trusted `COMMENT ON COLUMN` statement; this does not require a new schema API.
+
+The initial application migrations follow Laravel: `0001_01_01_000000_create_users_table`, `0001_01_01_000001_create_cache_table`, and `0001_01_01_000002_create_jobs_table`. The jobs migration creates and rolls back `jobs`, `job_batches`, and `failed_jobs` together. Application-specific migrations use normal timestamped names. Rust uses `.rs` files, registered migration types, asynchronous execution and `Result` in place of PHP’s anonymous classes and exceptions. Existing databases created with separate queue migrations must have their migration history reconciled after backup before using the combined migration; renaming source files alone is insufficient.
+
 ### Temporary Tables {#temporary-tables}
 
 Acquire a schema session before using `Blueprint::temporary()`. Create the table through the session’s Schema Builder and run SQL through the same session. `close().await?` drops the managed temporary tables before returning the connection to the pool. If the session is dropped, cleanup retains the physical connection until it can be safely released.

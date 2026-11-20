@@ -109,6 +109,16 @@ impl Blueprint {
         })
     }
 
+    /// Iterates over pending columns for setting modifiers on helper-created columns.
+    pub fn getColumnsMut(&mut self) -> impl Iterator<Item = &mut ColumnDefinition> {
+        self.commands
+            .iter_mut()
+            .filter_map(|command| match command {
+                Command::Column(column) => Some(column),
+                _ => None,
+            })
+    }
+
     pub fn getAddedColumns(&self) -> impl Iterator<Item = &ColumnDefinition> {
         self.getColumns().filter(|column| !column.change)
     }
@@ -612,9 +622,8 @@ impl Blueprint {
         self.engine("InnoDB");
     }
 
-    pub fn comment(&mut self, comment: &str) {
-        self.commands
-            .push(Command::TableComment(comment.to_owned()));
+    pub fn comment(&mut self, comment: impl Into<String>) {
+        self.commands.push(Command::TableComment(comment.into()));
     }
 
     pub fn temporary(&mut self) {

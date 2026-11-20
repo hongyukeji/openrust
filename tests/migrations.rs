@@ -26,6 +26,15 @@ impl Root {
         ));
         fs::create_dir_all(path.join("database")).unwrap();
         fs::File::create(path.join("database/database.sqlite")).unwrap();
+        for locale in ["en", "zh_CN", "zh_TW"] {
+            fs::create_dir_all(path.join(format!("lang/{locale}"))).unwrap();
+            fs::copy(
+                PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                    .join(format!("lang/{locale}/schema.json")),
+                path.join(format!("lang/{locale}/schema.json")),
+            )
+            .unwrap();
+        }
         Self(path)
     }
 
@@ -38,7 +47,9 @@ impl Root {
         command
             .current_dir(&self.0)
             .env("APP_BASE_PATH", &self.0)
-            .env("APP_ENV", environment);
+            .env("APP_ENV", environment)
+            .env("APP_LOCALE", "en")
+            .env("APP_FALLBACK_LOCALE", "en");
         if let Some(url) = mysql {
             command
                 .env(
@@ -477,7 +488,7 @@ async fn verify(mysql: Option<&str>) {
     assert!(success(run(&["migrate:status", "--pending=17"])).contains("No pending migrations"));
     assert_eq!(
         db.table("migrations").count("*").await.unwrap(),
-        6 + u64::from(sanctum_migration().is_some())
+        4 + u64::from(sanctum_migration().is_some())
     );
     assert!(
         success(run(&["migrate:rollback", "--pretend", "--batch", "1"])).contains("drop table")
@@ -496,11 +507,12 @@ async fn verify(mysql: Option<&str>) {
         #[cfg(not(feature = "sanctum"))]
         assert!(success(run(&["migrate:rollback", "--path", path, "--step=1"])).contains("DONE"));
     }
-    assert!(success(run(&["migrate:rollback", "--step=1"])).contains("create_job_batches_table"));
+    assert!(success(run(&["migrate:rollback", "--step=1"])).contains("create_jobs_table"));
     assert!(!schema.hasTable("job_batches").await.unwrap());
-    assert!(schema.hasTable("failed_jobs").await.unwrap());
+    assert!(!schema.hasTable("failed_jobs").await.unwrap());
+    assert!(!schema.hasTable("jobs").await.unwrap());
     let upgrade = success(run(&["migrate"]));
-    assert!(upgrade.contains("create_job_batches_table"));
+    assert!(upgrade.contains("create_jobs_table"));
     assert!(upgrade.contains("create_sms_deliveries_table"));
     assert!(!upgrade.contains("create_failed_jobs_table"));
     rollback_sms();
@@ -510,11 +522,8 @@ async fn verify(mysql: Option<&str>) {
                 .contains("create_personal_access_tokens_table")
         );
     }
-    assert!(success(run(&["migrate:rollback", "--step=1"])).contains("create_job_batches_table"));
-    assert!(success(run(&["migrate:rollback", "--step=1"])).contains("create_failed_jobs_table"));
+    assert!(success(run(&["migrate:rollback", "--step=1"])).contains("create_jobs_table"));
     assert!(!schema.hasTable("failed_jobs").await.unwrap());
-    assert!(schema.hasTable("jobs").await.unwrap());
-    assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
     assert!(!schema.hasTable("jobs").await.unwrap());
     assert!(schema.hasTable("cache").await.unwrap());
     assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
@@ -707,7 +716,7 @@ async fn mysql_fresh_wipes_the_selected_schema() {
     assert!(schema.hasTable("job_batches").await.unwrap());
     assert_eq!(
         db.table("migrations").count("*").await.unwrap(),
-        6 + u64::from(sanctum_migration().is_some())
+        4 + u64::from(sanctum_migration().is_some())
     );
     success(run(&["db:wipe", "--drop-views"]));
     assert!(

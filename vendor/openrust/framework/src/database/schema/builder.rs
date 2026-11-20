@@ -228,14 +228,14 @@ impl<'connection> Builder<'connection> {
         Ok(())
     }
 
-    pub async fn create(
+    pub async fn create<R: super::BlueprintCallbackResult>(
         &mut self,
         table: &str,
-        configure: impl FnOnce(&mut Blueprint),
+        configure: impl FnOnce(&mut Blueprint) -> R,
     ) -> DatabaseResult<()> {
         let mut resolved_table = self.grammar.table(table)?;
         let mut blueprint = self.blueprint(table, true);
-        configure(&mut blueprint);
+        configure(&mut blueprint).into_result()?;
         let online = self.online_blueprint(&blueprint)?;
         self.mariadb_version_for(&blueprint).await?;
         if blueprint.temporary {
@@ -296,15 +296,15 @@ impl<'connection> Builder<'connection> {
         Ok(format!("drop{temporary} table{guard} {table}"))
     }
 
-    pub async fn table(
+    pub async fn table<R: super::BlueprintCallbackResult>(
         &mut self,
         table: &str,
-        configure: impl FnOnce(&mut Blueprint),
+        configure: impl FnOnce(&mut Blueprint) -> R,
     ) -> DatabaseResult<()> {
         let resolved_table = self.resolve_table(table)?;
         let mut blueprint = self.blueprint(table, false);
         let table = resolved_table;
-        configure(&mut blueprint);
+        configure(&mut blueprint).into_result()?;
         let online = self.online_blueprint(&blueprint)?;
         let version = self.mariadb_version_for(&blueprint).await?;
         if version.is_some_and(|version| version < (10, 5, 2))

@@ -93,11 +93,17 @@ impl Schema {
         Self::default_builder()?.dropDatabaseIfExists(name).await
     }
 
-    pub async fn create(table: &str, configure: impl FnOnce(&mut Blueprint)) -> DatabaseResult<()> {
+    pub async fn create<R: super::BlueprintCallbackResult>(
+        table: &str,
+        configure: impl FnOnce(&mut Blueprint) -> R,
+    ) -> DatabaseResult<()> {
         Self::default_builder()?.create(table, configure).await
     }
 
-    pub async fn table(table: &str, configure: impl FnOnce(&mut Blueprint)) -> DatabaseResult<()> {
+    pub async fn table<R: super::BlueprintCallbackResult>(
+        table: &str,
+        configure: impl FnOnce(&mut Blueprint) -> R,
+    ) -> DatabaseResult<()> {
         Self::default_builder()?.table(table, configure).await
     }
 

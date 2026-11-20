@@ -1,3 +1,4 @@
+use openrust::translation::__;
 // Translated from Laravel Passport v13.10.0 (MIT, Taylor Otwell).
 use openrust::{
     contracts::config::Repository,
@@ -27,16 +28,44 @@ impl Migration for Definition {
         Box::pin(async move {
             connection
                 .getSchemaBuilder()
-                .create("oauth_device_codes", |table| {
-                    table.char("id", 80).primary();
-                    table.foreignId("user_id").nullable().index();
-                    table.foreignUuid("client_id").index();
-                    table.char("user_code", 8).unique();
-                    table.text("scopes");
-                    table.boolean("revoked");
-                    table.dateTime("user_approved_at", None).nullable();
-                    table.dateTime("last_polled_at", None).nullable();
-                    table.dateTime("expires_at", None).nullable();
+                .create("oauth_device_codes", |table| -> DatabaseResult<()> {
+                    table.comment(__("schema.tables.oauth_device_codes", &Default::default())?);
+                    table
+                        .char("id", 80)
+                        .primary()
+                        .comment(__("schema.columns.id", &Default::default())?);
+                    table
+                        .foreignId("user_id")
+                        .nullable()
+                        .index()
+                        .comment(__("schema.columns.user_id", &Default::default())?);
+                    table
+                        .foreignUuid("client_id")
+                        .index()
+                        .comment(__("schema.columns.client_id", &Default::default())?);
+                    table
+                        .char("user_code", 8)
+                        .unique()
+                        .comment(__("schema.columns.user_code", &Default::default())?);
+                    table
+                        .text("scopes")
+                        .comment(__("schema.columns.scopes", &Default::default())?);
+                    table
+                        .boolean("revoked")
+                        .comment(__("schema.columns.revoked", &Default::default())?);
+                    table
+                        .dateTime("user_approved_at", None)
+                        .nullable()
+                        .comment(__("schema.columns.user_approved_at", &Default::default())?);
+                    table
+                        .dateTime("last_polled_at", None)
+                        .nullable()
+                        .comment(__("schema.columns.last_polled_at", &Default::default())?);
+                    table
+                        .dateTime("expires_at", None)
+                        .nullable()
+                        .comment(__("schema.columns.expires_at", &Default::default())?);
+                    Ok(())
                 })
                 .await
         })
