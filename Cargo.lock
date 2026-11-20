@@ -3954,6 +3954,7 @@ dependencies = [
  "openrust-package-discovery",
  "openrust-pail",
  "openrust-passport",
+ "openrust-pay",
  "openrust-reverb",
  "openrust-settings",
  "openrust-socialite",
@@ -4165,6 +4166,25 @@ dependencies = [
  "serde_json",
  "sha2 0.10.9",
  "subtle",
+ "thiserror 2.0.21",
+ "tokio",
+ "url",
+ "zeroize",
+]
+
+[[package]]
+name = "openrust-pay"
+version = "0.0.0"
+dependencies = [
+ "aws-lc-rs",
+ "axum",
+ "base64 0.22.1",
+ "http 1.5.0",
+ "jiff 0.2.46",
+ "openrust-framework",
+ "rsa",
+ "serde",
+ "serde_json",
  "thiserror 2.0.21",
  "tokio",
  "url",

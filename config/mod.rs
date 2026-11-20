@@ -17,6 +17,8 @@ mod images;
 mod logging;
 mod mail;
 mod oidc;
+#[cfg(feature = "pay")]
+mod pay;
 mod queue;
 mod reverb;
 mod services;
@@ -42,6 +44,8 @@ pub(crate) fn load(
     Ok(BTreeMap::from([
         #[cfg(feature = "settings")]
         ("settings".to_owned(), settings::load()),
+        #[cfg(feature = "pay")]
+        ("pay".to_owned(), pay::load(env)?),
         ("auth".to_owned(), auth::load(env)?),
         ("broadcasting".to_owned(), broadcasting::load(env)?),
         ("cache".to_owned(), cache::load(base_path, env, app.name)?),

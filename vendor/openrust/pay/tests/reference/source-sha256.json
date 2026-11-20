@@ -1,0 +1,10 @@
+{
+  "alipay-aop/AopClient.php": "515374f25229e2ef8be4fd0e1b4f3a7cce44ac5258fe87db8226fcfb8ce7fe8f",
+  "alipay-aop/AlipayConfig.php": "2831a8e793ab1c93f4cc0d138691f2d7353b21230cec0c36a4a76127c8a6e112",
+  "alipay-aop/AopEncrypt.php": "f07d1cbf843674f7d7ba2c8da6615d43f0714148e9d487a4a07b1a878d0984e2",
+  "alipay-aop/EncryptParseItem.php": "a06c442396c138362710e10ccc038140add3f4bc7ea9fa548f9d6d36db6a121c",
+  "alipay-aop/EncryptResponseData.php": "4815d2d904662cd4fbbcb67a40769e1eb57183ae28342d787550fbe8f02f2426",
+  "alipay-aop/SignData.php": "664ae380566a066d9ec157fdf5aa832742b123c86b05913fc8de927d96b1e3b8",
+  "wechatpay-apiv3-wechatpay-php-src_Crypto_AesInterface.php": "133414c71dc277251594848c6c00a985fde9652aa2e641b7affd634558bdc473",
+  "wechatpay-apiv3-wechatpay-php-src_Crypto_AesGcm.php": "d588c14ce4232f98a017e9e4c5f6f2bf263ab802fac498202d64eae314e83aa9"
+}

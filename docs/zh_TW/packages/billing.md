@@ -13,3 +13,5 @@
 ## 範圍 {#scope}
 
 OpenRust 不提供此整合的安裝命令。不要因存在此導航入口就將 Laravel Composer 或 Artisan 命令照搬至 OpenRust。
+
+微信支付與支付寶的一次性收款見[支付擴充](pay.md)。

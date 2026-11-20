@@ -141,5 +141,6 @@
 - [Socialite 第三方登入](packages/socialite.md)
 - [OpenID Connect（擴充）](packages/oidc.md)
 - [資料庫設定（擴充）](packages/settings.md)
+- [支付（擴充）](packages/pay.md)
 - [Telescope 應用程式除錯](packages/telescope.md)
 - [Valet macOS 本機開發環境](packages/valet.md)

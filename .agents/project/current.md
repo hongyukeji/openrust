@@ -17,6 +17,8 @@
 
 ## 最新交接
 
+- 2026-11-21 [国内支付扩展](audits/pay/README.md)首期完成：独立openrust-pay／pay配置，微信APIv3公钥模式与支付宝RSA2直连商户；八种支付场景、查单／关单／部分退款／退款查询、支付成功回调验签／身份／金额核对及同事务持久去重。协议与安全10函数＋三库通知事务、根配置1＋支付2及三库原生Artisan迁移／数据保留／回滚、严格全feature Clippy／fmt、三语12＋12浏览器通过。PHP官方SDK固定对照一致；真实商户资金收付未验，订阅／Stripe／Paddle后置。全部数据卷保留，仅核范围本地提交，不推送。
+
 - 2026-11-21 [微信双入口与QQ互联](audits/api-s01/tencent.md)完成：采用固定SocialiteProviders的weixin／weixinweb／qq名称、独立应用凭据，复用Socialite与Session；请求内OpenID／UnionID隔离、GET交换／刷新／静默授权／错误与身份拒绝／脱敏已验。Rust1.94的完整Socialite42函数（含真实MySQL本地账户）＋根配置2函数、固定PHP对照／负样本、全workspace/all-targets/all-features严格Clippy／fmt及三语12＋6浏览器通过，集成bb9357b7a。真实微信／QQ应用凭据、扫码与供应商账号授权未验；不自动注册或合并本地账户。独占target／dist已清，全部卷保留；仅本地提交，不推送。
 
 - 2026-11-21 [短信统一管理](audits/06-06/sms-refactor.md#统一短信入口与-vonage-驱动)：按用户无需兼容旧数据及Vonage统一管理授权，移除独立Vonage渠道／消息／路由／配置，统一sms渠道、单一to_sms及SMS_VONAGE_*具名配置；凭据／发件人快照、Unicode、跟踪和回执选项保留。缺失配置明确失败，删除隐式兜底。短信8项、配置1＋init14、三库双队列Worker及原SIGKILL保护、三语12＋6浏览器通过；真实厂商投递未验，既有数据卷保留，仅核范围本地提交。

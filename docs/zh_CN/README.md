@@ -141,5 +141,6 @@
 - [Socialite 第三方登录](packages/socialite.md)
 - [OpenID Connect（扩展）](packages/oidc.md)
 - [数据库设置（扩展）](packages/settings.md)
+- [支付（扩展）](packages/pay.md)
 - [Telescope 应用调试](packages/telescope.md)
 - [Valet macOS 本地开发环境](packages/valet.md)

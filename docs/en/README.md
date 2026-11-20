@@ -141,5 +141,6 @@
 - [Socialite](packages/socialite.md)
 - [OpenID Connect (Extension)](packages/oidc.md)
 - [Database Settings (Extension)](packages/settings.md)
+- [Payments (Extension)](packages/pay.md)
 - [Telescope](packages/telescope.md)
 - [Valet](packages/valet.md)

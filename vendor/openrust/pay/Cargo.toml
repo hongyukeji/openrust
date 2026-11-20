@@ -1,0 +1,28 @@
+[package]
+name = "openrust-pay"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.94"
+license = "MIT"
+publish = false
+
+[package.metadata.openrust.discovery]
+version = 1
+providers = true
+
+[dependencies]
+openrust = { package = "openrust-framework", path = "../framework" }
+aws-lc-rs = { version = "1.19.0", default-features = false, features = ["alloc", "non-fips"] }
+rsa = { version = "=0.10.0", features = ["hazmat"] }
+base64 = "0.22"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0", features = ["raw_value"] }
+http = "1.4"
+url = "2.5"
+zeroize = "1.9"
+thiserror = "2"
+jiff = "=0.2.46"
+
+[dev-dependencies]
+axum = { version = "0.8.9", default-features = false, features = ["http1", "tokio"] }
+tokio = { version = "1.54.1", features = ["macros", "rt-multi-thread", "net", "sync", "time"] }

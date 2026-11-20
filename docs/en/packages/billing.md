@@ -13,3 +13,5 @@ See [HTTP Client](../digging-deeper/http-client.md) for the native interfaces an
 ## Scope {#scope}
 
 OpenRust does not provide an installation command for this integration. Do not copy a Laravel Composer or Artisan command into OpenRust on the assumption that this navigation entry implements it.
+
+For one-time WeChat Pay and Alipay payments, use [Payments](pay.md).

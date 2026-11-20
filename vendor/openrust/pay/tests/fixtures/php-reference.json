@@ -1,0 +1,10 @@
+{
+    "alipay_form": "app_id=app123&out_trade_no=order_001&seller_id=2088123456&sign_type=RSA2&subject=%E8%AE%A2%E5%8D%95+%26+coffee%3D1&total_amount=12.34&trade_no=ali_reference&trade_status=TRADE_SUCCESS&sign=l0b0Saun30kTCHNCAOWSVxNoZuWVh1A7JUoON02NRIxAWBrWF0U1tDi0btBEx%2BqEQZFuunWPCto91cTZpQ6qqkb4qdU9lmRFNPaUxJimyyoXDnwGvXABqftzqAFo6tI2qRKabMc314LNeaqneitTwAEHJH%2FMb1A7Ft74AaYRDxoNvdaQAp3dIH5KuvCHIH3j71w42y2SHjTGRIqRXQke%2BRB1oxp8z9Njm5%2BAJW5epxP5kB%2BI8J85OCgW%2FVvKVxROb1ZzN9AQoNmR50qvHTN3nOJWVBeUhRlMPCxdXDYQibFBqbIfT%2Bcgx%2FvtW%2B1OQSeWMidtVpG5NDGzhubtd%2B0tqw%3D%3D",
+    "wechat_resource": {
+        "algorithm": "AEAD_AES_256_GCM",
+        "original_type": "transaction",
+        "associated_data": "transaction",
+        "nonce": "fixture-nonc",
+        "ciphertext": "vYPlJHRZ7KXt0cfbdQDMQgeho5p1PBOaDm1rBS/HtA6+AyoWrBlw3ssqXphCkP+BKDKVHt7OI5wouI6Q53y+P6nPY+oV4uJL/pBYPJSlrsKYVNGzwMcb2Dh3H/arAwO2wyvpZQp3te3MH5lylkCz8LY228l+cr0S7cZ6pT+r1MCmLEzJEvaApZm3vFlS50mySU+wTRxSUh+46V7L9b/WhDcCP/uALHngQp463gPkQEx8UH0="
+    }
+}

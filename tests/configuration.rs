@@ -34,7 +34,7 @@ fn application_configuration_loads_all_sections_and_typed_overrides() {
         defaults
             .keys()
             .map(String::as_str)
-            .filter(|key| !matches!(*key, "api" | "sanctum"))
+            .filter(|key| !matches!(*key, "api" | "sanctum" | "settings" | "pay"))
             .collect::<Vec<_>>(),
         [
             "app",
