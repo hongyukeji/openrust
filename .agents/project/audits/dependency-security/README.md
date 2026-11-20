@@ -26,3 +26,16 @@
 证据目录`/private/tmp/openrust-dependency-security-20261120/`保留源码、原包、更新／失败尝试／定向测试／Clippy／格式／根入口／浏览器／审计日志。`source-sha256.json`覆盖验收及交付输入，`references.json`记录上游原包与官方公告SHA。容器已由批次夹具按标签清理，未删除任何数据卷。仅核范围本地提交，不推送；最终主线队列与PostgreSQL完整认证整合另行验收。
 
 差异检查保留上游原包中的4个文件原始空白（crypto-glue/Cargo.toml.orig、MPL许可证、sqlx-sqlite/deserialize.rs），不为Git空白提示改写许可证或原源码；其余本批文件通过`git diff --cached --check`。这些原文由上游SHA与源码差异清单约束。
+
+## 核心整合依赖复核
+
+2026-11-21，在 `b45427830` 干净归档中，以 Rust 1.94.0 执行 `cargo metadata --locked --offline --all-features --format-version 1`、`cargo deny --locked --workspace --all-features list --format json --layout crate` 及 `cargo deny --format json --locked --workspace --all-features check advisories`。前两项成功；公告检查退出 1，仍只有以下四条维护状态错误，没有 vulnerability 类型诊断，未加 ignore 或放宽策略：
+
+- chrono 0.4.45：RUSTSEC-2026-0543。
+- chrono-tz 0.10.4：RUSTSEC-2026-0555。
+- paste 1.0.15：RUSTSEC-2024-0436。
+- pin-utils 0.1.1：RUSTSEC-2026-0441。
+
+完整元数据共 683 包（668 registry、14 local、1 git），均声明许可证。许可证清单已导出，属于依赖盘点，不代表最终许可证批准。唯一 Git 依赖 oxideav-jpegxl 0.0.14 固定在 `1c2f5a86a052752b0e8181f842a9d4e3460ec0e5`；没有浮动 Git 分支。MPL-only 包为 crypto-glue、cssparser、cssparser-macros、dtoa-short、selectors、webauthn-attestation-ca、webauthn-rs-core、webauthn-rs-proto；既有第三方源码保留要求继续适用。本次不改变依赖或公开 Date API，四条维护问题和最终发布审计继续保留。
+
+证据在 `/private/tmp/openrust-core-review-20261121/`：`metadata.json`、`licenses.json`、`licenses.log`、`advisories-current.jsonl`。初次使用不受支持的 `--disable-fetch` 失败，未计成功；上述记录使用修正后的实际命令。该结论仅覆盖此固定源码与锁文件，不替代后续扩展提交后的整合审计。

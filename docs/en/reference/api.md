@@ -2,7 +2,7 @@
 
 The guides explain application behavior. Rustdoc lists the public Rust modules, types, methods, feature gates, and source links for the exact workspace snapshot used to build it.
 
-A listed crate or type is not a claim that every feature is implemented. `openrust-translation-database` currently exports a skeleton `DatabaseLoader`; database translation loading has not been implemented or behaviorally accepted.
+`openrust-translation-database` provides `DatabaseLoader` for explicitly loading database translations into the existing translator. See [database translations](../digging-deeper/localization.md#database-translation-loader) for setup, file fallback, and supported database targets.
 
 ## Build a source snapshot
 

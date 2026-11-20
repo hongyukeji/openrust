@@ -2,7 +2,7 @@
 
 使用指南介紹應用程式行為。Rustdoc 列出建置快照中公開的 Rust 模組、型別、方法、feature 條件及原始碼連結。
 
-列出套件或型別不代表其所有功能已實作。`openrust-translation-database` 目前僅匯出骨架 `DatabaseLoader`，資料庫翻譯載入尚未實作，也未完成行為驗收。
+`openrust-translation-database` 提供 `DatabaseLoader`，可明確將資料庫翻譯載入既有翻譯器。裝配、檔案回退及資料庫支援範圍見[資料庫翻譯](../digging-deeper/localization.md#database-translation-loader)。
 
 ## 建置原始碼快照
 

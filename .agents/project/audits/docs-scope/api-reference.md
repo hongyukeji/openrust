@@ -14,10 +14,16 @@ API 统一使用 `docs/scripts/build_api.py` 导出，再由 `DOCS_API_DIR` 接�
 - 同目录 `manifest-delivery.log` 和 `cli-delivery.log`：7种过期／非法导出拒绝与匹配接受、7个CLI拒绝测试通过；已有目录不覆盖，脏源码不允许伪装干净提交。
 - 核心侧最终复核目录 `/private/tmp/openrust-api-core-20261120/`：三语内容检查每语106导航／108 Markdown；源码与最终交接导出脚本一致；普通及API构建成功，匹配／拒绝检查通过。
 - `api-browser-final.log`：根路径／子目录下三语桌面／移动12组合实际点击 Rustdoc 入口，10库源码链接、Application搜索／类型页均通过，无页面脚本错误和本地HTTP错误。`api-guides-browser.log` 与 `guides-browser.log` 通用12组合通过；普通构建无API的专项检查通过。早期浏览器夹具失败和修正日志保留，不计入成功结果。
-- API导出列出 translation-database 骨架不代表数据库翻译已实现。没有改动Rust运行逻辑、依赖或数据库行为，本批未重复Clippy／数据库／根运行入口验收。V16发布快照与实际托管地址、V17最终整合及V18发布批准仍待；仅本地提交，不推送、不发布。
+- 该次API导出列出 translation-database 骨架不代表数据库翻译已实现（后续扩展交付与整合见下文）。没有改动Rust运行逻辑、依赖或数据库行为，本批未重复Clippy／数据库／根运行入口验收。V16发布快照与实际托管地址、V17最终整合及V18发布批准仍待；仅本地提交，不推送、不发布。
 
 ## 产物
 
 最终导出 `api-delivery/`、`api-delivery.tar.gz` 和 `site-delivery.tar.gz` 保留在交接目录；核心侧保留最终站点与日志。交接前仅回收该批闲置target和中间输出3,423,736 KiB，详见 `cleanup-delivery.json`。早期独立构建目录 `/private/var/folders/20/lxn_zjvn3614f836z2cm3vww0000gn/T/openrust-api-docs-20261120-m6zucjkh/` 的target／依赖已清，释放1,133,383,680字节，最终site和日志保留。全部共享缓存、源码、数据库与数据卷保留。
 
 核心侧最终普通站点验收后清理专属dist，逻辑大小60921061字节，可用空间增加64040960字节、剩余69703581696字节；源码、API站点、日志及共享依赖保留。
+
+## 数据库翻译交付后的 API 整合
+
+2026-11-21，数据库翻译扩展 `022784d08` 交付后，将三语 API 指南的骨架说明替换为实际 DatabaseLoader 与 localization 使用入口。API 导出基线 `18a44b15771301eae70050bbf589861a7efdb98c`，三语站点叠加本次指南修改；未纳入并行数据库注释、迁移合并与短信重构。
+
+在 `/private/tmp/openrust-core-review-20261121/combined-source/` 以 Rust1.94、全 feature 与显式 host 重新导出10库，构建三语联合站点。`check_api_export.mjs` 的7种拒绝与匹配接受、`check_api_snapshot.mjs` 的根／子目录三语桌面／移动12组合及10库源码／搜索、`check_browser.mjs` 的12通用组合全部通过；每语106导航／108 Markdown内容检查通过。日志为同批 `api-export.log`、`api-manifest.log`、`api-browser.log`、`browser.log`。这次验证不代表实际生产托管或最终生成应用验收完成；V16最终发布快照、V17整合与V18批准继续保留。

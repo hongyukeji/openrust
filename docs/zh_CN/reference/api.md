@@ -2,7 +2,7 @@
 
 使用指南介绍应用行为。Rustdoc 列出构建快照中公开的 Rust 模块、类型、方法、feature 条件及源码链接。
 
-列出包或类型不代表其所有功能已实现。`openrust-translation-database` 当前仅导出骨架 `DatabaseLoader`，数据库翻译加载尚未实现，也未完成行为验收。
+`openrust-translation-database` 提供 `DatabaseLoader`，可显式将数据库翻译加载到现有翻译器。装配、文件回退及数据库支持范围见[数据库翻译](../digging-deeper/localization.md#database-translation-loader)。
 
 ## 构建源码快照
 

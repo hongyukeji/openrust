@@ -9,6 +9,8 @@
 
 ## 最新交接
 
+- 2026-11-21 核心侧完成[成熟机制核对与14项定向复验](audits/08-04/README.md#核心机制复验与成熟方案核对)：对照固定 Laravel、Axum／matchit、Rust 标准库与 tempfile；保留路由注册顺序、驱动迁移事务和共享安装锁，无新增依赖。修正旧路由缓存待实现描述；依赖复核仍有4条维护公告。数据库翻译 `022784d08` 已交付，三语API指南与全feature 10库联合导出／源码指纹／根与子目录浏览器均已复验，最终发布快照整合及认证PG令牌问题仍待。
+
 - 2026-11-21 [数据库翻译扩展](audits/translation-database/README.md)完成：核对 Spatie 2.8.3、Barryvdh 与旧版后，采用 language_lines 的 group／key／text 多语言 JSON 结构，显式 Connection／Loader 装配并复用 Lang 原子发布；文件覆盖、包命名空间文件回退、来源故障和应用隔离已验。Rust1.94＋PostgreSQL180006的8项行为／HTTP＋4示例、严格全feature Clippy／fmt、三语构建／12＋6浏览器通过；本包骨架状态已闭合。未验证其他数据库；API指南与指纹导出交核心对话更新。认证PG完整联测仍有独立未闭合问题，不计入本批。自有产物已清理，源码／日志／数据卷保留；仅本地提交。
 
 - 2026-11-21 核心修复[非MySQL列排序提示](audits/02-05/README.md#非-mysql-列排序提示)：按固定Laravel grammar忽略first／after，保留MySQL输出；真实PG18认证列迁移及数据／列顺序／回滚、SQLite既有组列与三驱动SQL对比、严格workspace Clippy／fmt、三语构建／12浏览器均过。修复交Plan复跑完整认证；并行多语注释内容单独保留。

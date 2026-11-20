@@ -155,7 +155,7 @@ Windows Docker Desktop、生产 TLS 和托管 AWS SQS 标准／FIFO 的实机验
 
 ## Artisan 部署优化与缓存清理
 
-- 对照固定 Laravel v13.40.0 的 `OptimizeCommand`、`OptimizeClearCommand` 与 `ServiceProvider::optimizes()`。复核 `openrust-v0.x` 的编译 Provider 清单及 `clear-compiled`，复用当前正式版子命令和 `reload` 已验收的任务组织。支持按任务名或命令名排除、按应用注册 Provider 扩展，以及继续处理返回非零状态的任务。选择的 `--env` 继续由同一个 Artisan 命令定义解析并传给任务。当前持久化路由缓存仍待实现，路由继续在编译注册基础上启动装配。 [固定 Laravel OptimizeCommand](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Console/OptimizeCommand.php) · [固定 Laravel OptimizeClearCommand](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Console/OptimizeClearCommand.php)
+- 对照固定 Laravel v13.40.0 的 `OptimizeCommand`、`OptimizeClearCommand` 与 `ServiceProvider::optimizes()`。复核 `openrust-v0.x` 的编译 Provider 清单及 `clear-compiled`，复用当前正式版子命令和 `reload` 已验收的任务组织。支持按任务名或命令名排除、按应用注册 Provider 扩展，以及继续处理返回非零状态的任务。选择的 `--env` 继续由同一个 Artisan 命令定义解析并传给任务。该次快照尚无持久化路由缓存；后续已接通，当前实现见[路由缓存验收](../04-01/README.md#持久化路由匹配索引)。 [固定 Laravel OptimizeCommand](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Console/OptimizeCommand.php) · [固定 Laravel OptimizeClearCommand](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Console/OptimizeClearCommand.php)
 - 在隔离快照 `6b525df0e` 用实际应用二进制生成配置、事件发现和编译视图产物。实测 `--env=staging`、排除事件任务、HTTP 首页及 `/up`、包清单移除、清理后恢复读取默认环境。真实 Redis 8.10.3 验证排除 `cache:clear` 保留测试键，完整清理删除该键并支持幂等重跑。重跑真实 MySQL 8.4.13／Redis 的 Worker、跨进程调度和独立 Reverb HTTP／WebSocket，复验原有重载委派与排除行为。
 - 21 项 `console`、`feature`、`artisan_entry`、Rust 1.94.0 全仓格式、启用 Reverb 的工作区全目标严格 Clippy 通过。三语站点及根路径与 `/docs/` 下 18 项浏览器检查通过。临时 Redis、编译及站点产物已回收。磁盘可用 88.93 GB（82.82 GiB），提交前周额度剩余 26%，第二窗口无读数。验收日志保留于 `/private/tmp/openrust-artisan-optimize.LOtOxdzV`。
 
@@ -188,3 +188,13 @@ Windows Docker Desktop、生产 TLS 和托管 AWS SQS 标准／FIFO 的实机验
 - 在 `3155d59dc` 隔离快照构建 macOS ARM64 独立二进制，用只读发布根目录复现 `package:discover` 原路径权限失败。用新镜像的环境变量实测包清单生成、`optimize`、`config:cache`、`optimize:clear --except=cache`、重复 `clear-compiled`、自定义路径及相邻文件保留。使用配置缓存时实际首页和 `/up` 返回 200，SIGTERM 退出 0，`inspire` 正常。
 - Compose 配置解析确认存储挂载。Linux 容器夹具采用生产 Dockerfile 的相同环境变量和 UID 10001，以只读根文件系统及共享存储实际验证原目录拒写、首容器写入和次容器读取及清理。完整 OpenRust Linux 镜像随后通过 [原生 amd64 复验](docker.md#原生-linux-完整镜像包清单复验)和 [ARM64 交叉构建与原生运行复验](docker.md#arm64-完整镜像包清单复验)。Windows Docker Desktop、生产 TLS 和托管 SQS 仍按 [目标环境清单](#剩余实机环境复查) 跟踪。
 - Rust 1.94.0 全仓格式、启用 `standalone` 的工作区全目标严格 Clippy、三语站点构建和 18 项浏览器检查通过。临时镜像、编译及站点产物已回收，Docker 卷清单一致。提交前磁盘可用 52.43 GB（48.83 GiB），周额度剩余 19%，第二窗口无读数，按用户授权继续。验收日志保留于 `/Users/Home/openrust-docker-package-cache.ybE1t3Zw`。
+
+## 核心机制复验与成熟方案核对
+
+2026-11-21，从 `b45427830` 干净 Git 归档以 Rust 1.94.0、独占 target、jobs=2、关闭增量和 dev debug 执行定向复验。未纳入其他对话的数据库注释、迁移合并或扩展工作区改动。设计来源、固定提交与采用边界见[架构记录](../../architecture.md#成熟机制复用与适配边界)。
+
+- `cargo +1.94.0 test --locked --offline --test health --test config_cache --test configuration_cache --test container_lifecycle`：10 项通过，包含真实 HTTP／Artisan 的配置缓存、Provider 与 Facade 应用隔离、引导失败及健康路由。
+- `cargo +1.94.0 test --locked --offline -p openrust-framework --test routing_groups`：2 项通过，真实 TCP 验证域名、参数约束、方法及有／无／损坏索引；动态路由先注册时仍优先匹配。
+- 经 `tests/postgres_acceptance.py` 确认 PostgreSQL 180006，以 REQUIRE 防止缺服务跳过，根 `migrations::artisan_migrations_use_a_real_postgres_ledger` 通过；框架 `database_migrations::postgres_migration_transactions_roll_back_schema_and_data_before_updating_the_ledger` 通过，覆盖失败 up／down 的 Schema、数据和账本回滚。后者显式映射 `OPENRUST_TEST_MIGRATION_POSTGRES_URL` 与 `OPENRUST_REQUIRE_MIGRATION_POSTGRES=1`。
+
+合计 14 项测试函数通过；本批没有变更 Rust 实现，无新增依赖，不重复宣称其他驱动或全仓最终验收通过。公告与许可证盘点见[依赖复核](../dependency-security/README.md#核心整合依赖复核)。源码、日志与上游原文保留于 `/private/tmp/openrust-core-review-20261121/`。联网检索接口未返回正文，改为直接 HTTPS 读取官方仓库固定提交与官方文档；不把搜索摘要当作源码证据。发布最终快照仍须合并后重验。
