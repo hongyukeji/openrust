@@ -108,12 +108,12 @@ try {
  assert.deepEqual(results.map(r=>r.status()).sort(),[200,422]);
  for(const client of clients)await client.close();
  assert.equal((await expect('POST','/passkeys-acceptance-cascade',{})).remaining,0);
- console.log('Independent challenges with equal signed counters serialize under the MySQL row lock; user deletion cascades PASS');
+ console.log('Independent challenges with equal signed counters serialize under the database row lock; user deletion cascades PASS');
 
  if(customModel){
   const events=await expect('GET','/passkeys-acceptance-policy/events');
   assert.equal(events.registered_event,2);assert.ok(events.verified_event>=4,JSON.stringify(events));assert.equal(events.deleted_event,1);assert.equal(events.deleted,1);assert.ok(events.saved>=events.registered_event+events.verified_event);
   console.log('Custom Eloquent table/primary key/mutator/hidden/appends, dynamic user relation, native observers and typed event context PASS');
  }
- console.log('Fortify Passkeys installed application / MySQL / real Chrome / pinned official JS PASS');
+ console.log('Fortify Passkeys installed application / SQL database / real Chrome / pinned official JS PASS');
 } finally {await browser.close();}

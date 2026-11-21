@@ -258,7 +258,9 @@ def run():
             provider = generated / "app/providers/fortify_service_provider.rs"
             provider.write_text(provider.read_text().replace('.useUserModel::<User>();', '.useUserModel::<User>();\n            app.make::<openrust_fortify::passkeys::Passkeys>().await?.usePasskeyModel::<crate::app::models::custom_passkey::CustomPasskey>();\n            crate::app::models::custom_passkey::observe::<User>(app).await?;'))
             migration = next(generated.glob("database/migrations/*create_passkeys_table.rs"))
-            migration.write_text(migration.read_text().replace('.create("passkeys",', '.create("custom_passkeys",').replace('table.id();', 'table.idWith("pk");').replace('dropIfExists("passkeys")', 'dropIfExists("custom_passkeys")'))
+            migration_source = migration.read_text()
+            assert migration_source.count(".id()") == 1, "Expected one passkey primary key declaration"
+            migration.write_text(migration_source.replace('.create("passkeys",', '.create("custom_passkeys",').replace('.id()', '.idWith("pk")').replace('dropIfExists("passkeys")', 'dropIfExists("custom_passkeys")'))
             routes.write_text(routes.read_text().replace('        let mode=request.route("mode").unwrap_or_default();', '        let mode=request.route("mode").unwrap_or_default();\n        #[cfg(feature="fortify")]\n        if mode=="events" { return openrust::http::Response::json(openrust::http::StatusCode::OK,crate::app::models::custom_passkey::report()); }'))
         if init_auth:
             api = generated / "routes/api.rs"
