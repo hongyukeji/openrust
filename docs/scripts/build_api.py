@@ -42,11 +42,10 @@ def main():
     env = dict(os.environ)
     if not re.fullmatch(r"[0-9a-f]{40}", revision):
         parser.error("revision must be a full Git commit SHA")
-    env.update(CARGO_TARGET_DIR=str(target), CARGO_INCREMENTAL="0", RUSTUP_TOOLCHAIN="1.94.0")
+    env.update(CARGO_TARGET_DIR=str(target), RUSTUP_TOOLCHAIN="1.94.0")
     compiler = subprocess.check_output(["rustc", "+1.94.0", "-vV"], text=True)
     host = next(line.removeprefix("host: ") for line in compiler.splitlines() if line.startswith("host: "))
     env["CARGO_BUILD_TARGET"] = host
-    env.setdefault("CARGO_BUILD_JOBS", "3")
     env.setdefault("CARGO_PROFILE_DEV_DEBUG", "0")
     env["RUSTDOCFLAGS"] = " ".join(filter(None, [env.get("RUSTDOCFLAGS"), "-D rustdoc::broken_intra_doc_links -D rustdoc::private_intra_doc_links"]))
     cargo = ["cargo", "+1.94.0"]

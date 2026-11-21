@@ -45,7 +45,7 @@ def main():
         assert version.startswith("redis_version:8."), version
         address = docker("port", name, "6379/tcp").stdout.strip()
         print(name, version, flush=True)
-        temporary = Path(__file__).resolve().parents[4] / "tmp" / "horizon-runtime"
+        temporary = Path(__file__).resolve().parents[4] / "target" / "tmp" / "horizon-runtime"
         temporary.mkdir(parents=True, exist_ok=True)
         env = dict(os.environ, TMPDIR=str(temporary), HORIZON_TEST_REDIS_URL="redis://:" + password + "@" + address + "/0",
                    HORIZON_REQUIRE_REDIS="1", HORIZON_ACCEPTANCE_REDIS_CONTAINER=name)

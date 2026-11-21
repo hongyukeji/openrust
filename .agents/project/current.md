@@ -2,17 +2,58 @@
 
 - 2026-11-21 包清单启动入口定稿：bootstrap/packages.rs 的 manifest() 封装编译清单，bootstrap/app.rs 使用函数调用，应用 Provider 独立登记，保留 crate::bootstrap::packages::package_aliases。已按最终 packages.rs／PACKAGES 命名重跑启用／关闭／排除包的真实HTTP及Artisan、别名／隔离2项、根骨架2项、根standalone空PATH部署与/up、全workspace全部targets严格Clippy／fmt及三语构建／12＋12浏览器；详见[包开发记录](audits/07-07/README.md#包清单启动入口定稿2026-11-21)。核心代码已在4650f403b；本批验收结束后核对无人占用，已同盘迁入target/tmp/bootstrap-packages-20261121，覆盖下方尚待迁移记录。本轮文档、说明及规范／验收补充按用户授权本地提交，其他WIP保留，未推送。
 
-- 2026-11-21 用户确认开发与部署统一仅根.env；Docker专用参考模板放docker/.env.example，按需合并至根.env，覆盖此前docker/.env可选覆盖规则。Compose只加载../.env，容器连接使用DOCKER_DB_HOST／DOCKER_DB_PORT／DOCKER_REDIS_HOST可选覆盖及普通字段回退；旧docker/.env有效配置已迁入根文件，原文件已移除，宿主回环地址、密钥及数据保留。当前配置与三语文档同步，验收结果见Docker审计末尾。
+- 2026-11-21 用户将项目验收／临时产物根目录从 `tmp/` 改为 `target/tmp/`，覆盖下方旧目录约定。AGENTS、构建规范、文档构建命令及两个验收入口已同步；清理不得整体删除根 target 或对其裸跑 cargo clean，须保留 target/tmp 中的源码／日志／交付。已有 30 个闲置项同盘迁入，迁移清单见 `target/tmp/root-tmp-migration-20261121.json`；仍有占用待安全退出后迁入：bootstrap-packages-20261121、docker-review-20261121、extension-reference-acceptance、extension-repairs-20261121、nginx-public-entry-20261121、openrust-ecosystem-20261121。历史证据 `tmp/<名称>` 按清单映射至 `target/tmp/<名称>`，在用目录未提前记为已迁。应用运行期 tmp 目录与锁契约不属于本次仓库验收目录改名。
 
-- 2026-11-21 Docker成熟方案复核：以Laravel Sail、Laradock、serversideup/docker-php及Docker官方Rust示例／文档为主，OpenSpring仅作辅助。保留原生Compose和现有运行模型；补齐APP_BUILD_JOBS传参、Nginx 8 MiB请求上限（最终保留默认60秒代理空闲超时）及三语更新回滚说明。隔离真实代理已验证1.5 MiB转发、超限413、101升级、首个SSE即时送达及初轮300秒配置下65秒后第二事件，三语构建和12＋12浏览器检查通过；详情见[调研记录](audits/08-04/docker.md#成熟方案调研与代理边界完善2026-11-21)。当前未提交。
+- 2026-11-21 用户将仓库临时产物根目录由 `tmp/` 调整为 `target/tmp/`，覆盖下方历史位置约定。AGENTS、构建规范、文档构建命令及扩展／Horizon验收脚本已同步；禁止删除整个根target或对其执行无范围cargo clean，须保留其中源码、日志和独立交付。29个闲置项已同盘迁入，新位置按原目录名映射，清单见 `target/tmp/root-tmp-migration-20261121.json`；根tmp尚余7个在用项，等待Cargo自然退出及Docker文件句柄核对后迁移，不记为完成。应用运行期 `tmp/artisan-source.lock` 契约保持不变，历史审计不批量重写。
+
+- 2026-11-21 用户确认开发与部署统一仅根.env；Docker专用参考模板放docker/.env.example，按需合并至根.env，覆盖此前docker/.env可选覆盖规则。Compose只加载../.env，容器连接使用DOCKER_DB_HOST／DOCKER_DB_PORT／DOCKER_REDIS_HOST可选覆盖及普通字段回退；旧docker/.env有效配置已迁入根文件，原文件已移除，宿主回环地址、密钥及数据保留。当前配置与三语文档同步，验收结果见Docker审计末尾。
 
 - 2026-11-21 用户授权的[扩展审计六项修复](audits/extension-design-review.md#修复状态2026-11-21)已完成：Horizon 环境前缀与配置路由、Cashier 原名／供应商配置与逐项映射、Activitylog Support 路径、五包来源材料、固定 PHP 输入与实际 Scout Engine oracle、面板／协议库复用决定。四包65项、Redis独立9项、PG18／MySQL8.4各17项、根4项、全workspace全部feature严格Clippy／fmt、自定义路径真实进程和桌面／手机、三语构建及12＋6浏览器通过。保持完整PHPAPI／UI／正式API导出及真实供应商边界；用户随后授权本地提交，未推送，不联系其他对话，保留其他协作者认证／Docker／Reverb等WIP。
 
-- 2026-11-21 Docker当前配置：唯一Compose默认启动五服务（含Nginx）；直接使用原生Compose，仅根.env和Shell插值配置，容器连接通过DOCKER_DB_HOST／DOCKER_DB_PORT／DOCKER_REDIS_HOST按需覆盖；镜像仅APP_IMAGE_NAME:APP_IMAGE_VERSION，缺省openrust:latest，挂载及构建参数统一APP_前缀，不增加启动脚本，名称须小写；MySQL宿主默认3306，app等待依赖healthy，Redis端口统一用于监听／映射／健康检查／连接。旧数据已迁入docker/data/，账号root/root及已有应用密钥保留；本轮五服务healthy，应用与Nginx的/up均200，4项待执行迁移及幂等重跑通过。原生配置矩阵、真实Redis自定义端口、三语构建及12项通用＋12项部署页浏览器检查通过；未提交推送。见[当前Docker核对](audits/08-04/docker.md#当前配置与关联资料核对2026-11-21)。
+- 2026-11-21 Docker成熟方案复核：以Laravel Sail、Laradock、serversideup/docker-php及Docker官方Rust示例／文档为主，OpenSpring仅作辅助。保留原生Compose和现有运行模型；补齐APP_BUILD_JOBS传参、Nginx 8 MiB请求上限（最终保留默认60秒代理空闲超时）及三语更新回滚说明。隔离真实代理已验证1.5 MiB转发、超限413、101升级、首个SSE即时送达及初轮300秒配置下65秒后第二事件，三语构建和12＋12浏览器检查通过；详情见[调研记录](audits/08-04/docker.md#成熟方案调研与代理边界完善2026-11-21)。当前未提交。
+
+- 2026-11-21 [全量扩展方案复用与惯例审计](audits/extension-design-review.md)：覆盖全部18个独立包（含包发现基础设施），联网复核官方固定源码及成熟候选。主要实现有Laravel／Spatie／厂商依据，但发现Horizon环境配置／路由装配、Cashier公开API、Activitylog公开路径、来源归属材料、参考输入校验及候选比较记录六类待修正问题；均有位置、影响及关闭条件，未冒充已修复。三语内容检查通过，已验Rust／Cargo输入未漂移；本轮仅新增审计与交接记录，不改生产代码、不提交或推送，保留共享WIP。
 
 - 2026-11-21 用户要求本地提交：六扩展及必要核心接口／测试／三语文档按已验快照核定提交；其他共享工作区改动保留，未推送，正式API导出未执行。范围与核对见[扩展最终记录](audits/extension-final.md#本地提交核对2026-11-21)。
 
+- 2026-11-21 Docker当前配置：唯一Compose默认启动五服务（含Nginx）；直接使用原生Compose，仅根.env和Shell插值配置，容器连接通过DOCKER_DB_HOST／DOCKER_DB_PORT／DOCKER_REDIS_HOST按需覆盖；镜像仅APP_IMAGE_NAME:APP_IMAGE_VERSION，缺省openrust:latest，挂载及构建参数统一APP_前缀，不增加启动脚本，名称须小写；MySQL宿主默认3306，app等待依赖healthy，Redis端口统一用于监听／映射／健康检查／连接。旧数据已迁入docker/data/，账号root/root及已有应用密钥保留；本轮五服务healthy，应用与Nginx的/up均200，4项待执行迁移及幂等重跑通过。原生配置矩阵、真实Redis自定义端口、三语构建及12项通用＋12项部署页浏览器检查通过；未提交推送。见[当前Docker核对](audits/08-04/docker.md#当前配置与关联资料核对2026-11-21)。
+
 - 2026-11-21 [扩展当前源码组合验收](audits/extension-final.md)：O01–O06约定范围已实现，Scout首个引擎完成三库／Worker失败重试／固定PHP语义／根配置与关闭feature；Telescope补18类独立Watcher、应用级框架事件开关、已缓冲响应脱敏及实际路由字段，新增三库回归通过。六新扩展103项＋独立Redis10项、根全部feature17项、核心观察／契约与23个真实HTTP、Horizon真实进程及三面板桌面手机、全workspace严格Clippy／fmt、三语和19库WIP API已验。完整PHP反射／UI／Scout所有外部引擎未宣称等价，边界见记录。API未伪装成干净提交的正式导出；未暂存／提交／推送，保留共享WIP，不联系其他对话。以下旧保存点按历史时点阅读。
+
+
+- 2026-11-21 [Pulse单包最终验收](audits/pulse/README.md#o05单包最终验收2026-11-21)关闭：16项包组合、三库存储及根入口、三类缓存（database三库）、真实桌面手机／Vapor、相关核心7项、严格检查／fmt、三语构建及12＋12＋6浏览器通过。接续[Scout](audits/scout/README.md)，按固定上游默认collection引擎开发模型观察器／提交后同步／队列／导入清空／查询分页；Scout未交付，Horizon／Telescope完整差异及最终组合／API仍待。保留全部WIP，不联系其他对话。
+
+- 2026-11-21 Pulse接续完成原生记录器／公开注册、面板资源与Telescope逐轮存储；14项包组合、PG18.7／MySQL8.4别名存储、file／独立Redis8／三库database缓存和桌面手机原生HTTP已有通过证据，三语正文内容检查通过。O05最终重跑／关闭feature／三库根入口／指南浏览器仍待，之后接Scout；不联系其他对话，见[Pulse记录](audits/pulse/README.md)。本轮触发32GB停线并持六锁清空五target与三dist，实测恢复122.468GB（114.057GiB），保留全部源码／WIP／日志／依赖／数据库与卷。详见[产物记录](audits/build-artifacts.md#扩展验收触发32gb自动清理2026-11-21)。
+
+- 2026-11-21 [Telescope原生诊断验收](audits/telescope/README.md)：26项默认、三库仓储／Worker／出站HTTP、file／Redis／database缓存（database三库）、真实Chrome桌面手机、安装／配置缓存／骨架、全workspace全部targets严格Clippy及Rustdoc／三语构建导航通过。修复database缓存毫秒写入标准integer列的问题，已写入规范。完整上游UI／反射／公开Watcher结构等差异仍保留，最终全扩展组合／API待验；未暂存提交。独占缓存仍为tmp/openrust-extensions-20261121，保留复用。
+
+- 2026-11-21 [Pennant单包验收](audits/pennant/README.md)通过：16项、PG18.7／MySQL8.4.13／SQLite、原生配置与feature开关、真实认证及Worker、严格检查、独立三语构建和12＋12＋6浏览器。全部工作目录已迁入项目tmp/。本对话接续Pulse→Scout，按用户要求不联系其他对话，进展写入项目记录；全扩展组合与API仍待。
+
+- 2026-11-21 用户再次授权清空全部编译产物：五处target及三处dist持锁清理，保留六个Cargo锁原inode；实测释放48.617GiB，可用115.002GB（107.104GiB）。源码／WIP／日志／依赖下载／独立交付／数据库和卷保留。Pennant、core-ecosystem及API小crate已迁入项目tmp/同名目录，覆盖下方尚待迁移记录；最终扫描无剩余target编译文件及指南dist/cache。详见[构建产物清理记录](audits/build-artifacts.md#用户再次授权清空编译产物2026-11-21)。
+
+- 2026-11-21 用户要求本项目临时目录与编译构建产物统一使用项目根tmp/，禁止继续在项目外创建；根AGENTS及项目规范已更新，已通知所有在途负责人安全迁移其独占目录，保留缓存不复制。Activitylog／Telescope独占目录已迁入tmp/openrust-extensions-20261121；主对话已将共享上游openrust-ecosystem-20261121、HTTPS证据openrust-broadcast-tls-20261121及核心验收openrust-core-extension-contracts-20261121同盘迁入tmp/同名目录。历史审计旧路径按此迁移映射查找；Horizon与Pennant迁移由所属负责人收尾，禁止主对话并发搬动其在用目录。
+
+- 2026-11-21 用户要求所有本项目临时目录及构建产物统一归项目根 `tmp/`；已更新根AGENTS及构建规范，通知Activitylog／Telescope、Horizon与Pennant负责人安全结束当前命令后迁入所属目录并更新TMPDIR／CARGO_TARGET_DIR。迁移使用同盘rename、不复制target、不以外部软链继续写；正在使用的目录由各负责人核对占用后迁移，尚未确认前不记为已完成。
+
+- 2026-11-21 [Activitylog固定上游对齐](audits/activitylog/README.md)完成：包23项、PG18／MySQL8.4各10数据项、三库原生配置迁移缓存、默认骨架、严格检查与三语浏览器通过，主对话已核对日志并更新O01账本。负责人继续Telescope；Horizon修复实际进程树伸缩／完成计数问题；Pennant已再次确认可独占复用core-ecosystem target，主对话不再向该target构建。最终全包组合及API尚未验收。
+
+- 2026-11-21 并行源码冲突处置：Activitylog继续独占`/private/tmp/openrust-extensions-20261121/source`及target；原扩展对话开发Pennant，已要求迁入独立`/private/tmp/openrust-pennant-20261121/source`，核心完成本批验收后将闲置`/private/tmp/openrust-core-ecosystem-20261121/target`交其独占复用。主对话不同时向该target启动构建，不复制target、不清正常缓存；发生实际输入冲突才协调，不恢复扩展核心审批。
+
+- 2026-11-21 [API导出构建策略](audits/build-artifacts.md#api导出脚本残留策略清理2026-11-21)：移除build_api.py残留的禁增量与默认jobs3覆盖，继承调用者／Cargo原生策略；7项CLI拒绝回归和独立小crate两次实际Rustdoc导出通过，分别验证未设置环境不注入限制、显式incremental=1／jobs=2原样保留。最终全workspace API快照仍待并行扩展稳定。
+
+- 2026-11-21 [Rust Pusher 出站HTTPS](audits/08-04/README.md#2026-11-21-rust-pusher-出站-https-补验)模拟缺口已关闭：连接client_options.verify复用reqwest CA包机制，实际Artisan→HTTPS反代→Reverb→Echo/WSS投递及重连通过，默认信任／错误CA／hostname拒绝；配置＋transport6项、Reverb包严格Clippy／快照fmt／三语构建／12＋12浏览器通过。真实托管账号、正式部署与最终全包API仍待，Activitylog／Horizon／Pennant继续各自开发；不宣称六包完整或最终组合通过。
+
+- 2026-11-21 用户调整协作规则：扩展需要的代码由扩展负责人直接修改完成，包括必要的核心框架／配置／依赖及对应验收，无需先沟通、转交核心或等待批准；仅实际并行文件冲突或外部阻塞需要协调。本条覆盖下方历史的“核心缺口报告主对话处理／扩展不得修改框架”分工。已同步根AGENTS、项目规范、运维扩展计划与对齐账本，并通知在途Activitylog／Horizon协作者。
+
+- 2026-11-21 用户明确“现在恢复开发”，覆盖下方此前暂停和等待恢复指令的状态。当前可用约86.4 GB；核心继续通用生命周期及扩展前置接口，扩展对话继续所属生态能力。沿用32 GB停线自动安全清理规则，不恢复已撤回的构建限制。
+
+- 2026-11-21 [通用进程内延迟回调](audits/07-04/README.md#通用进程内延迟回调2026-11-21)：开放support::defer(future,name,always)，复用HTTP／Artisan／Worker既有生命周期，捕获原scoped实例；6项新公开入口与既有核心共26项通过，四类Worker attempt在SQLite／PG18／MySQL8.4分别通过，全workspace全部feature严格Clippy／fmt与三语构建／12组浏览器通过。取消／硬超时／SIGKILL不保证执行，不替代持久队列。当前核心源码与隔离验收副本逐字节一致；扩展负责人按最新规则自行实现所需改动并验收，Activitylog及Horizon仍在进行，最终组合API待新源码。缓存保留复用，全部数据卷保留。
+
+- 2026-11-21 用户追加长期规则：以后触发32 GB磁盘停线，自动清理本项目全部编译产物，无需再次确认清理，覆盖此前“只清废弃缓存”和“一次性授权”的适用限制；正常空间下继续保留增量、原生并发与复用缓存。根AGENTS和[构建产物管理](conventions.md#构建产物管理)已同步安全清理范围及锁要求。本次开发仍按用户此前指令暂停，本条不构成恢复开发授权。
+
+- 2026-11-21 用户要求保持停线、先清磁盘，随后明确授权清空本项目关联编译产物。本次已取得Cargo锁并清除根／核心／扩展三处target产物及八处指南dist，实测净释放54.046GB，可用恢复至86.412GB（80.477GiB）。源码／并行WIP／日志／独立API交付／依赖下载／全部数据卷保留，三处target只余锁文件；未关闭增量或改变并发。当时为一次清理授权，后续停线自动清理规则见顶部最新条目；不恢复每批清空规则；**开发继续暂停，等待用户恢复指令**。详见[完整产物清理](audits/build-artifacts.md#用户授权的一次性完整产物清理2026-11-21)。下方旧可用空间读数及“缓存保留”描述为对应历史时点，已由本条覆盖。
+
+- 2026-11-21 [当前核心模拟验收复核](audits/08-04/README.md#2026-11-21-当前核心提交的模拟验收复核)：核对14类真实目标清单与既有服务日志；固定98469b32f隔离源码重跑40项HTTP回归及12个Mailpit TLS／认证／收件箱场景全部通过，另2既有数据库忽略函数不计。删除0数据卷，复用target保留；扩展WIP、全服务矩阵、最终API／跨平台／外部账号设备资金及发布批准不计本轮通过。
 
 - 2026-11-21 [HTTP核心观察钩子](audits/04-02/README.md#请求完成事件与出站-http-观察钩子2026-11-21)：补齐foundation::http::events::RequestHandled与Factory／Http全局中间件、PendingRequest局部中间件、Response.handlerStats／transferStats。事件在当前应用／请求作用域观察响应元数据、属性和耗时，不读取正文；出站按顺序包裹每跳与重试，超时／连接失败可观察，fake不伪造网络时间。Rust1.94隔离快照40定向通过（另2既有数据库函数忽略不计）、全feature严格Clippy／fmt与三语构建／12通用＋6导航＋24新章节浏览器通过。复用core-ecosystem target并保留缓存，未修改扩展／root依赖，最终API及扩展修正组合待新快照；仅核范围本地提交，不推送。
 
@@ -48,6 +89,12 @@
 - 历史额度读数和停工记录仅供追溯，不再作为执行前提。验收完成后按核定范围本地提交，不推送。
 
 ## 最新交接
+
+- 2026-11-21 用户要求闭合全部遗留后的保存点：重新核对活跃扩展对话及逐项账本，**尚未全部完成**。核心新增前置依赖为跨HTTP／Artisan／Worker结束生命周期的可复用terminating钩子，须优先核对现有机制并补齐后回传；已交付resolvedUser只读取已解析身份，不能替代此依赖。扩展侧继续负责Activitylog上游关系／模型开关／定制模型与配置／迁移及自动flush，Horizon进程层级／命令／仓储／标签通知／完整面板，以及Telescope／Pennant／Pulse／Scout。全部实现后仍须固定最终组合、驱动与原生入口验收、三语文档／API快照及核范围本地提交；外部真实商户／账号设备／最终平台与发布批准继续单列。范围、状态和关闭条件以[扩展对齐账本](audits/extension-parity.md)为准，不能把已验子集改标整体完成。
+
+- 本次起始Available=31,240,368KiB（31.990GB／29.793GiB）低于32GB停线，已告知扩展保存工作、不得新增构建。核对无活跃构建、无lsof占用、非API产物后，仅回收已被新指南快照取代的 `/private/tmp/openrust-http-hooks-20261121/source/docs/.vitepress/dist` 与 `/private/tmp/openrust-core-ecosystem-20261121/source/docs/.vitepress/dist`；清理窗口Available从31,418,896至31,548,512KiB，实测增加129,616KiB，恢复至32.306GB／30.087GiB。复用target、源码、日志、正式API交付及全部数据卷保留。按下方停止条件，等待用户确认恢复后继续，不开启新构建／模块或本地提交。
+
+- 2026-11-21 [扩展协作核心接口](audits/05-01/README.md#扩展协作核心接口2026-11-21)：补齐模型保护／软删除访问器、公开生产确认、认证模型 morph 标识、可选 Guard 的同步已解析身份读取及请求开始 Unix 毫秒；专项20项、全feature严格Clippy／fmt、三语构建和12组浏览器通过，已向扩展对话回传签名和边界。同步入口不触发惰性认证，Activitylog／Horizon／Pulse 的完整集成由原扩展对话继续验收，不混入本阶段核心源码快照。
 
 - 2026-11-21 [国内支付扩展](audits/pay/README.md)首期完成：独立openrust-pay／pay配置，微信APIv3公钥模式与支付宝RSA2直连商户；八种支付场景、查单／关单／部分退款／退款查询、支付成功回调验签／身份／金额核对及同事务持久去重。协议与安全10函数＋三库通知事务、根配置1＋支付2及三库原生Artisan迁移／数据保留／回滚、严格全feature Clippy／fmt、三语12＋12浏览器通过。PHP官方SDK固定对照一致；真实商户资金收付未验，订阅／Stripe／Paddle后置。全部数据卷保留，仅核范围本地提交，不推送。
 
@@ -423,7 +470,7 @@
 ## 持续开发停止条件
 
 - 开始新交付单元、大型构建和本地提交前，以及耗时验收的阶段边界，核对项目磁盘空间；不读取或核对账户额度。
-- 主对话在项目目录执行 `df -kP .`，以 `Available` 列（KiB）判断空间。读数小于或等于 31,250,000 KiB（32 GB）时，停止开启新任务、大型构建及新模块，保存工作并报告实测 GB／GiB、未完成项和恢复步骤；空间恢复且用户确认后继续。
+- 主对话在项目目录执行 `df -kP .`，以 `Available` 列（KiB）判断空间。读数小于或等于 31,250,000 KiB（32 GB）时，停止开启新任务、大型构建及新模块，保存工作，按[构建产物管理](conventions.md#构建产物管理)自动清理本项目全部编译产物，无需再次确认清理；先协调构建安全退出并取得锁，保留源码、日志、依赖下载、独立交付文件和全部数据库／数据卷。复查并报告实测 GB／GiB、净释放量、未完成项和恢复步骤；空间恢复且用户确认后继续，明确暂停指令仍有效。
 - 保留用户及其他代理的改动。暂存、提交和推送按用户当次授权。
 
 ## 当前 Git 授权

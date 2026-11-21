@@ -1,8 +1,8 @@
 """Reproduce fixed PHP references and reject tampered inputs, using PHP 8.5.12.
 
 Run from the repository root:
-python3 -B tests/extension_reference_acceptance.py --upstream tmp/.../upstream --framework tmp/.../framework
-All writable fixtures stay under project tmp/. No external account is used.
+python3 -B tests/extension_reference_acceptance.py --upstream target/tmp/.../upstream --framework target/tmp/.../framework
+All writable fixtures stay under project target/tmp/. No external account is used.
 """
 import argparse
 import json
@@ -19,7 +19,7 @@ def main():
     parser.add_argument('--framework', type=Path, required=True)
     args = parser.parse_args()
     project = Path(__file__).resolve().parents[1]
-    temporary = project / 'tmp' / 'extension-reference-acceptance'
+    temporary = project / 'target' / 'tmp' / 'extension-reference-acceptance'
     temporary.mkdir(parents=True, exist_ok=True)
     cases = [
         ('activitylog', 'changes_reference', 'spatie-laravel-activitylog', 'changes.json'),

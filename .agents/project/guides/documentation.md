@@ -65,9 +65,9 @@ API 参考统一通过可追溯导出接入站点。Python 3.11+、Rust 1.94.0�
 
 ```sh
 npm --prefix docs ci
-python3 -B docs/scripts/build_api.py --output "$PWD/tmp/openrust-api" --target-dir "$PWD/tmp/openrust-api-target"
-DOCS_API_DIR="$PWD/tmp/openrust-api" npm --prefix docs run build
-DOCS_API_DIR="$PWD/tmp/openrust-api" node docs/tests/check_api_export.mjs
+python3 -B docs/scripts/build_api.py --output "$PWD/target/tmp/openrust-api" --target-dir "$PWD/target/tmp/openrust-api-target"
+DOCS_API_DIR="$PWD/target/tmp/openrust-api" npm --prefix docs run build
+DOCS_API_DIR="$PWD/target/tmp/openrust-api" node docs/tests/check_api_export.mjs
 node docs/tests/check_api_snapshot.mjs
 node docs/tests/check_browser.mjs
 python3 -B docs/tests/check_api_cli.py -v
