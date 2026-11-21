@@ -503,6 +503,56 @@ async fn framework_application(
     app
 }
 
+struct TlsProxy(std::process::Child);
+
+impl TlsProxy {
+    fn start(port: u16) -> (Self, u16) {
+        use std::io::BufRead;
+        let script = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../tests/reverb_tls_acceptance.py");
+        let mut child = Self(
+            std::process::Command::new("python3")
+                .args(["-B", "-u"])
+                .arg(script)
+                .args(["--proxy", &port.to_string()])
+                .stdout(std::process::Stdio::piped())
+                .spawn()
+                .unwrap(),
+        );
+        let mut address = String::new();
+        std::io::BufReader::new(child.0.stdout.take().unwrap())
+            .read_line(&mut address)
+            .unwrap();
+        let port = address.trim().parse().expect("TLS proxy did not start");
+        (child, port)
+    }
+}
+
+impl Drop for TlsProxy {
+    fn drop(&mut self) {
+        let _ = self.0.kill();
+        let _ = self.0.wait();
+    }
+}
+
+async fn configure_tls_publishing(app: &openrust::foundation::Application, port: u16) {
+    use openrust::contracts::foundation::Application as _;
+    app.config()
+        .unwrap()
+        .set(
+            "broadcasting.connections.pusher.options",
+            json!({"host":"localhost", "scheme":"https", "port":port, "path":PREFIX}),
+        )
+        .unwrap();
+    app.config()
+        .unwrap()
+        .set(
+            "broadcasting.connections.pusher.client_options.verify",
+            json!(std::env::var("OPENRUST_REVERB_TLS_CA").unwrap()),
+        )
+        .unwrap();
+}
+
 #[tokio::test]
 async fn framework_broadcaster_signs_guard_identity_and_delivers_to_real_client() {
     verify_framework_broadcast("reverb").await;
@@ -515,7 +565,7 @@ async fn named_pusher_connection_authorizes_and_publishes_through_artisan() {
 
 async fn verify_framework_broadcast(driver: &'static str) {
     use openrust::{
-        broadcasting::{BroadcastChannel, BroadcastManager, PresenceChannel},
+        broadcasting::{BroadcastChannel, BroadcastManager, BroadcastPayload, PresenceChannel},
         contracts::{broadcasting::Factory as _, http::Kernel as _},
         foundation::http::Kernel,
     };
@@ -526,7 +576,13 @@ async fn verify_framework_broadcast(driver: &'static str) {
     let reverb = Running::start(vec![configuration]).await;
     let root = std::env::temp_dir();
     let reverb_port = reverb.address.port();
+    let tls = (driver == "pusher" && std::env::var_os("OPENRUST_REVERB_TLS_CERT").is_some())
+        .then(|| TlsProxy::start(reverb_port));
+    let publish_port = tls.as_ref().map(|(_, port)| *port);
     let app = framework_application(&root, reverb_port, driver).await;
+    if let Some(port) = publish_port {
+        configure_tls_publishing(&app, port).await;
+    }
     let connection = app
         .make::<BroadcastManager>()
         .await
@@ -547,6 +603,9 @@ async fn verify_framework_broadcast(driver: &'static str) {
                     let test_root = test_root.clone();
                     async move {
                         let artisan = framework_application(&test_root, reverb_port, driver).await;
+                        if let Some(port) = publish_port {
+                            configure_tls_publishing(&artisan, port).await;
+                        }
                         match artisan
                             .handleCommand(&["pusher:probe".into(), sequence.to_string().into()])
                             .await
@@ -623,6 +682,59 @@ async fn verify_framework_broadcast(driver: &'static str) {
         .await
         .unwrap();
     assert_eq!(expected(&mut websocket, "message").await, json!({"id":9}));
+    if let Some(port) = publish_port {
+        use openrust::contracts::foundation::Application as _;
+        for failure in ["default", "wrong-ca", "hostname"] {
+            let rejected = framework_application(&root, reverb_port, driver).await;
+            configure_tls_publishing(&rejected, port).await;
+            let config = rejected.config().unwrap();
+            match failure {
+                "default" => config
+                    .set(
+                        "broadcasting.connections.pusher.client_options.verify",
+                        json!(true),
+                    )
+                    .unwrap(),
+                "wrong-ca" => config
+                    .set(
+                        "broadcasting.connections.pusher.client_options.verify",
+                        json!(std::env::var("OPENRUST_REVERB_TLS_WRONG_CA").unwrap()),
+                    )
+                    .unwrap(),
+                _ => config
+                    .set(
+                        "broadcasting.connections.pusher.options.host",
+                        json!("127.0.0.1"),
+                    )
+                    .unwrap(),
+            }
+            let broadcaster = rejected
+                .make::<BroadcastManager>()
+                .await
+                .unwrap()
+                .connection(None)
+                .unwrap();
+            let result = broadcaster
+                .broadcast(
+                    &[BroadcastChannel::Presence(PresenceChannel {
+                        name: "room.9".into(),
+                    })],
+                    "must-not-deliver",
+                    &BroadcastPayload::new(),
+                    None,
+                )
+                .await;
+            assert!(result.is_err(), "TLS {failure} must reject the request");
+        }
+        assert!(
+            timeout(Duration::from_millis(100), websocket.next())
+                .await
+                .is_err()
+        );
+        println!(
+            "Rust Pusher HTTPS: trusted CA delivered; default trust, wrong CA and hostname rejected"
+        );
+    }
     if driver == "pusher" {
         let response = client
             .post(format!("http://{address}/fixture/publish/1"))

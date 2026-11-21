@@ -27,6 +27,16 @@ The restart command writes a signal to the application's cache. Use a shared cac
 
 Set `BROADCAST_CONNECTION=reverb` and follow the [broadcasting guide](../digging-deeper/broadcasting.md) to enable private and presence authorization. Connect a Pusher protocol client to `/app/{key}` with the configured server path prefix. Set the application's `allowed_origins` to trusted host names for production and terminate TLS at the reverse proxy.
 
+For outbound HTTPS publishing through the `reverb` or `pusher` connection, certificates and host names are verified by default. For a private CA, set `client_options.verify` in that connection in `config/broadcasting.rs` to an absolute PEM CA bundle path:
+
+```rust
+serde_json::json!({
+    "client_options": { "verify": "/etc/openrust/reverb-ca.pem" }
+})
+```
+
+The bundle replaces the default trust roots for that connection; the server certificate chain and host name still have to match. An unreadable, invalid, or empty bundle fails when the connection is resolved. Omit `verify` or use `true` for platform trust. `false` disables certificate verification and should only be used for isolated local debugging. Other Guzzle client options are not exposed through this setting.
+
 Set `REVERB_SCALING_ENABLED=true` on each instance. Nodes for one app use the same `REVERB_APP_ID`, `REVERB_APP_KEY`, `REVERB_APP_SECRET`, `REVERB_SCALING_CHANNEL`, and Redis connection settings. Use `REDIS_URL` or the separate Redis settings. Give different apps distinct IDs on a shared scaling channel. All nodes on a scaling channel should run the same OpenRust Reverb version.
 
 New presence subscriptions receive the cluster-wide member list and count. A user with multiple sockets counts once, and other subscribers see that user's first join and last leave. Graceful exits remove the sockets when Redis is reachable. After an abrupt exit, a surviving node with subscribers prunes expired sockets using a 10-second lease and a roughly 2-second check. A new subscription also removes expired entries before returning the roster.

@@ -73,6 +73,13 @@ struct Settings {
     secret: String,
     app_id: String,
     options: Options,
+    #[serde(default)]
+    client_options: ClientOptions,
+}
+
+#[derive(Default, Deserialize)]
+struct ClientOptions {
+    verify: Option<Value>,
 }
 
 #[derive(Deserialize)]
@@ -122,11 +129,25 @@ impl ReverbBroadcaster {
         } else {
             url.set_path(&format!("/{prefix}{signing_path}"));
         }
-        let client = reqwest::Client::builder()
+        let mut client = reqwest::Client::builder()
             .redirect(reqwest::redirect::Policy::none())
-            .timeout(Duration::from_secs(10))
-            .build()
-            .map_err(backend)?;
+            .timeout(Duration::from_secs(10));
+        match settings.client_options.verify {
+            None | Some(Value::Bool(true)) => {}
+            Some(Value::Bool(false)) => {
+                client = client.tls_danger_accept_invalid_certs(true);
+            }
+            Some(Value::String(path)) => {
+                let pem = std::fs::read(path).map_err(backend)?;
+                let certificates = reqwest::Certificate::from_pem_bundle(&pem).map_err(backend)?;
+                if certificates.is_empty() {
+                    return Err(configuration_error());
+                }
+                client = client.tls_certs_only(certificates);
+            }
+            Some(_) => return Err(configuration_error()),
+        }
+        let client = client.build().map_err(backend)?;
         Ok(Self {
             key: settings.key,
             secret: settings.secret,

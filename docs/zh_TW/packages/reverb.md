@@ -27,6 +27,16 @@
 
 設定 `BROADCAST_CONNECTION=reverb`，依[廣播文件](../digging-deeper/broadcasting.md)啟用私人與在線頻道授權。Pusher 通訊協定用戶端連線至設定前綴下的 `/app/{key}`。正式環境可在應用程式的 `allowed_origins` 設定受信任的主機名稱，由反向代理終止 TLS。
 
+`reverb` 和 `pusher` 連線透過 HTTPS 發布時，預設校驗憑證及主機名稱。使用私有 CA 時，在 `config/broadcasting.rs` 對應連線的 `client_options.verify` 中設定 PEM CA 憑證包的絕對路徑：
+
+```rust
+serde_json::json!({
+    "client_options": { "verify": "/etc/openrust/reverb-ca.pem" }
+})
+```
+
+該憑證包取代此連線的預設信任根，伺服器憑證鏈和主機名稱仍須相符。憑證包無法讀取、無效或為空時，解析連線立即失敗。省略 `verify` 或設為 `true` 使用平台信任；`false` 關閉憑證校驗，僅適合隔離的本機除錯。此設定尚未提供其他 Guzzle 用戶端選項。
+
 在各執行個體設定 `REVERB_SCALING_ENABLED=true`。同一應用程式的節點共用 `REVERB_APP_ID`、`REVERB_APP_KEY`、`REVERB_APP_SECRET`、`REVERB_SCALING_CHANNEL` 和 Redis 連線設定。可以使用 `REDIS_URL` 或分別設定 Redis 參數。不同應用程式共用擴展頻道時應使用不同的應用程式 ID。同一擴展頻道的節點應執行相同版本的 OpenRust Reverb。
 
 訂閱在線頻道時，用戶端會收到全域成員清單和人數。同一使用者建立多個連線仍只計一人，其他訂閱者只會看到該使用者首次加入與最後一次離開。Redis 可用時，節點正常結束會移除其連線。節點異常結束後，仍有訂閱者的節點大約每 2 秒檢查一次，清理已逾 10 秒租期的連線。新訂閱傳回成員清單前也會清理過期連線。

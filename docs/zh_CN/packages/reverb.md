@@ -27,6 +27,16 @@
 
 设置 `BROADCAST_CONNECTION=reverb`，按[广播文档](../digging-deeper/broadcasting.md)启用私有和在线频道授权。Pusher 协议客户端连接配置前缀下的 `/app/{key}`。生产环境可在应用的 `allowed_origins` 设置受信任的主机名，由反向代理终止 TLS。
 
+`reverb` 和 `pusher` 连接通过 HTTPS 发布时，默认校验证书及主机名。使用私有 CA 时，在 `config/broadcasting.rs` 对应连接的 `client_options.verify` 中设置 PEM CA 证书包的绝对路径：
+
+```rust
+serde_json::json!({
+    "client_options": { "verify": "/etc/openrust/reverb-ca.pem" }
+})
+```
+
+该证书包替换此连接的默认信任根，服务端证书链和主机名仍须匹配。证书包不可读、无效或为空时，解析连接立即失败。省略 `verify` 或设为 `true` 使用平台信任；`false` 关闭证书校验，仅适合隔离的本地调试。此配置尚未提供其他 Guzzle 客户端选项。
+
 在各实例设置 `REVERB_SCALING_ENABLED=true`。同一应用的节点共用 `REVERB_APP_ID`、`REVERB_APP_KEY`、`REVERB_APP_SECRET`、`REVERB_SCALING_CHANNEL` 和 Redis 连接配置。可以使用 `REDIS_URL` 或分别设置 Redis 参数。不同应用共用扩展频道时应使用不同的应用 ID。同一个扩展频道的节点应运行相同版本的 OpenRust Reverb。
 
 订阅在线频道时，客户端收到全局成员列表和人数。同一用户建立多条连接仍只计一人，其他订阅者只会看到该用户的首次加入和最后一次离开。Redis 可用时，节点正常退出会移除其连接。节点异常退出后，仍有订阅者的节点大约每 2 秒检查一次，清理 10 秒租期已到期的连接。新订阅返回成员列表前也会清理过期连接。

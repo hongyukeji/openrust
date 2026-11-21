@@ -237,7 +237,7 @@ Windows Docker Desktop、生产 TLS 和托管 AWS SQS 标准／FIFO 的实机验
 | V10 Windows Desktop | 本轮启动既有 Windows11 VM；来宾 exec 随后无法建立 Parallels Tools 会话，未可靠取得当前 Desktop 后端状态。保留历史 ARM64 原生/x64仿真与 Docker 路径证据 | 实际 Windows Docker Desktop Linux 后端、挂载权限、容器生命周期与全应用；本轮不能声称虚拟化/后端实测通过或确认缺失 |
 | V11 TLS/部署 | 本地 CA 反代实际 production 模式根应用，TLS1.2/1.3，首页和/up 200，错误 CA/hostname 拒绝；实际 migrate --force/status、inspire、SIGTERM=0 | 最终授权域名/公开可信证书/真实反代拓扑、转发及签名配置、线上实例版本和只读命令核验 |
 | V12 SQS | ElasticMQ1.6.15，Standard/FIFO；独立 Artisan+MySQL，overflow off/always/retain 三轮全部通过，含可见性/延迟/重投/顺序/去重/TTL/失败账本/跨后端链和恢复 | AWS托管服务 IAM/STS会话、实际角色/KMS、服务端限制和指标。保留既有独立 SigV4/token 验证，不把模拟器当 IAM 授权验证 |
-| V13 广播 | Reverb/Pusher 五项 transport；Chromium+Laravel Echo2.2.6/pusher-js8.6.0 的公共/私有/presence、Guard身份、签名投递、断线重连和新socket重新认证；另以HTTPS反代+WSS重复五项通过 | 托管Pusher app/cluster和部署。浏览器仅固定本批证书SPKI，Node HTTPS按私有CA验证；Reverb签名发布穿过HTTPS。Pusher分支Rust Artisan发布到Reverb的后端一段仍是HTTP，不能声称Rust Pusher出站TLS已验证 |
+| V13 广播 | Reverb/Pusher 五项 transport；Chromium+Laravel Echo2.2.6/pusher-js8.6.0 的公共/私有/presence、Guard身份、签名投递、断线重连和新socket重新认证；另以HTTPS反代+WSS重复五项通过。后续补齐 Rust Pusher 命名连接及 Artisan HTTPS 发布，默认信任／错误CA／错误hostname拒绝，见下文“Rust Pusher出站HTTPS” | 托管Pusher app/cluster和部署。浏览器仅固定本批证书SPKI，Node HTTPS及Rust发布均按显式私有CA验证；TLS终止于本地反代，不代表托管供应商或生产拓扑已验 |
 | V14 邮件/通知 | Mailpit1.27.10真实收件箱、STARTTLS/SMTPS、TLS1.2/1.3握手、535/550、错误CA/hostname和禁止凭据明文降级共12场景；SMTP安全4函数、供应商3函数、7个SMTP/MySQL/Redis/Slack/附件/通知HTTP→Artisan场景 | SMTP最终邮箱和供应商证书/权限；SES、SESv2、Postmark、Resend、Mailgun、Cloudflare逐家发件域名/账号/最终收信及回执；Slack Bot/Webhook真实工作区/权限/收信 |
 | V14 短信 | Aliyun/Tencent/Twilio/Vonage/HTTP协议2函数；现有sms_worker在SQLite3.54.1、PG18.6、MySQL8.4.13三库分别覆盖database+Redis队列、签名/命名配置、密钥保护、未知结果不重发、429及SIGKILL前后无重复供应商调用 | 各家真实号码/模板/发送资格、地区网络、最终投递状态和适用退订/合规流程 |
 | V15 S3 | RustFS1.0.5三个精确专项：9MiB multipart、Unicode/空对象、并发替换、源错误/取消清理、代理重试、presign上传/下载/临时origin/version | AWS公网、真实凭据链/角色/STS及其他承诺厂商/大对象上限；独立SeaweedFS ACL/ObjectOwnership历史已过，不再列缺口 |
@@ -254,7 +254,7 @@ Windows Docker Desktop、生产 TLS 和托管 AWS SQS 标准／FIFO 的实机验
 - Redis Cluster队列限流此前只有单实例验收，新增正式Cluster入口专项；多键与两个并发Artisan只允许一个处理器执行，剩余释放/重试与缺失/无限制策略复用现有断言。
 - 最终只读复核后将两个TLS代理的初始化移入既有try/finally，确保第二个初始化失败时第一个也被清理；该收尾调整通过Node语法检查，HTTP/WS和HTTPS/WSS功能结果对应调整前的通过记录，未重新构建。隔离source与输入摘要同步。
 - 扩展测试修正自定义Passkeys主键声明匹配，详见独立提交`9ee4881ca`；没有修改扩展产品逻辑。
-- 首轮DynamoDB故障代理错误转发空批次及返回空未处理列表，按服务协议修正代理后重跑三项通过；未改变生产重试规则。WSS首轮误将Pusher策略名配置成wss（策略名应为ws，由forceTLS选择wss），修正并加入localhost允许origin后通过。尝试将Rust Pusher发布也指向本地私有CA时返回500；依赖源码显示macOS reqwest0.13默认使用平台验证器，本次SSL_CERT_FILE未使该客户端完成请求；未输出原始TLS错误，根因没有独立确认。没有导入系统信任或关闭校验，最终保留前表所述后端HTTP边界，失败证据继续保留。
+- 首轮DynamoDB故障代理错误转发空批次及返回空未处理列表，按服务协议修正代理后重跑三项通过；未改变生产重试规则。WSS首轮误将Pusher策略名配置成wss（策略名应为ws，由forceTLS选择wss），修正并加入localhost允许origin后通过。尝试将Rust Pusher发布也指向本地私有CA时返回500；依赖源码显示macOS reqwest0.13默认使用平台验证器，本次SSL_CERT_FILE未使该客户端完成请求；未输出原始TLS错误，根因没有独立确认。没有导入系统信任或关闭校验，当时保留后端HTTP边界，失败证据继续保留；该模拟验收缺口已由下文“Rust Pusher出站HTTPS”后续修复与复验关闭。
 
 ### 复现与证据
 
@@ -295,3 +295,33 @@ Windows Docker Desktop、生产 TLS 和托管 AWS SQS 标准／FIFO 的实机验
 收尾后开发mysql／postgres／redis仍运行，本轮临时服务已退出；数据库／全部卷保留。独占target约14GiB及文档产物作为修正后组合工作流的可复用缓存登记保留，不重复冷构建或因本轮退出清空。收尾可用约70.96GB（66.09GiB），高于32GB停线，详见临时closeout.json。未修改扩展实现；本次仅核范围提交核心审计与交接记录，不提交并行扩展。最终修正后功能对齐、跨平台与统一API导出仍待新快照，真实账号／设备／商户资金及部署边界沿用前节。
 
 收尾核对2,921份代码／测试／文档输入，其中Horizon的options测试、supervisor／options／repository实现4份已由扩展对话开始修正；其余固定输入一致。该4份新源码未纳入本轮快照通过结论，差异见临时closeout.json。
+
+
+## 2026-11-21 当前核心提交的模拟验收复核
+
+再次按用户要求核对所有需要真实目标的项目。清单沿用上文14类范围，覆盖安装／认证、Windows后端、生产TLS、SQS、广播、邮件／通知、短信、S3、缓存／队列／DynamoDB、数据库／embedding、支付、文档和最终发行；扩展明细仍归[扩展模拟记录](../extensions-simulation/README.md)。核对原始日志，确认SQS三种overflow、HTTP/WS与HTTPS/WSS广播各5函数、Redis Cluster六专项与两个TLS函数、DynamoDB三专项、embedding两函数及短信三库成功记录实际存在，不把旧失败、忽略或模拟结果算成外部目标通过。
+
+本次独立源码为已提交核心 `98469b32f78c7bb29990c98b2483760afdff1b05` 的Git归档。与前轮生产模拟快照比较，framework/src、framework/tests、reverb及根tests范围仅12份HTTP观察钩子相关输入不同；不据此宣称其他所有包与依赖输入均一致。使用Rust1.94.0及既有core-ecosystem独占target，沿用Cargo原生并发和增量，dev/test debug=0。在新快照实际重跑HTTP观察、客户端、事件、中间件生命周期与异常渲染：40通过，另2个既有数据库函数ignored未计通过。重新编译邮件测试后，以固定digest的Mailpit1.27.10运行正式smtp_acceptance入口，12个STARTTLS／SMTPS、TLS1.2／1.3、错误密码／CA／hostname、禁止明文降级和收件人拒绝场景全部通过；成功邮件进入隔离收件箱，失败零新增投递，没有向外部发送邮件。未修改产品实现。
+
+本轮证据在 `/private/tmp/openrust-simulation-review-20261121/`，包括revision、build/http/smtp日志、SMTP逐场景结果、旧日志复核、源码差异和results.json。所有本轮进程已退出，临时Mailpit已回收，前后确认删除0数据卷，开发mysql/postgres/redis仍运行；保留复用target及证据。收尾磁盘约44.92GB（41.84GiB），高于32GB停线。进行中的Activitylog／Horizon工作区与根Cargo改动未进入本轮源码或结论；旧子集验收不能替代扩展修正后验收。此次仅新增验收记录，未重新执行完整外部服务矩阵、API导出、依赖审计或跨平台发布矩阵。
+
+真实账号／权限／最终收件人、商户与资金、物理认证器／凭据同步、托管AWS与Pusher、商业embedding、实际公开域名／证书／反代、Windows Desktop后端和最终发行批准继续保持未验；Pusher Rust发布后端TLS及Windows单项Passport安装路径也仍未闭合。模拟不能消除这些边界，不将本次复核标记为正式发布验收完成。
+
+
+## 2026-11-21 Rust Pusher 出站 HTTPS 补验
+
+本节关闭前述 V13 的 Rust Pusher 后端仍走 HTTP 的模拟缺口，不覆盖托管 Pusher 账号／正式部署及最终发行快照。固定 Laravel `1449bf241017087fbd38c118ecaabef3f6797fdc` 的 `BroadcastManager::pusher` 将连接 `client_options` 交给 Guzzle；Guzzle 7.10.0 的 `verify` 接受系统信任、显式 CA 证书包或关闭校验。采用同名 `client_options.verify`，复用 reqwest 0.13.5 的 `tls_certs_only`，不增加验证器或依赖。省略／true 保留平台信任，路径替换连接信任根且继续校验 hostname，false 按上游关闭校验（验收未使用）；错误类型、空／非法／不可读证书包在解析连接时失败。尚不支持其余 Guzzle client_options，不声称完整 Guzzle 选项等价。
+
+来源：[固定 Laravel BroadcastManager](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Broadcasting/BroadcastManager.php#L367)、[Guzzle 7.10.0 verify](https://github.com/guzzle/guzzle/blob/7.10.0/docs/request-options.rst#verify)、[reqwest 0.13.5 ClientBuilder](https://github.com/seanmonstar/reqwest/blob/v0.13.5/src/async_impl/client.rs)。联网工具没有返回正文，直接 HTTPS 保存官方原文于本批临时目录；Guzzle 文档站403后改取固定 GitHub 原文。旧版 `6d1a81924451e15f595f68c8dfb520ad6d6c44cf` 的 Git 文件树未找到 broadcasting／pusher／reverb 实现，未冒称复用旧包。
+
+新增 `tests/reverb_tls_acceptance.py -- <transport测试命令>`：生成一天有效的独立 CA／错误 CA、仅适用 localhost 的叶证书及用途约束；进程内环境传递证书，不导入系统信任。Rust transport 的 Pusher 分支启动专属 Python TLS 反代，将命名连接与真实 Artisan 发布全部指向 HTTPS。正向发布到实际 Reverb 并收到 WebSocket 消息；默认信任、错误 CA、正确 CA 配错误 hostname 均拒绝且不投递。Python 代理随 Rust 子进程 Drop 退出，证书随 wrapper 退出清理；Reverb 本地监听器仍由反代终止 TLS。
+
+源码在 `/private/tmp/openrust-core-extension-contracts-20261121/source`（既有98469b32f核心接口快照）叠加本批七份源码／三语正文，复用核心 `/private/tmp/openrust-core-ecosystem-20261121/target`，未混入进行中的 Activitylog／Horizon／Pennant。Rust1.94.0，dev／test debug=0；不关闭增量、不固定并发。证据 `/private/tmp/openrust-broadcast-tls-20261121/`：
+
+- `tests.log`：CA配置1项与HTTPS transport5项通过，含三类信任拒绝。
+- `echo-tls-final.log`：Laravel Echo2.2.6／pusher-js8.6.0＋真实Chromium，Reverb与Pusher的公共／私有／presence、Guard身份、签名投递及断线重连均通过；Pusher Rust Artisan出站也穿过受信CA的HTTPS。浏览器仅固定当次证书SPKI，Node HTTPS按NODE_EXTRA_CA_CERTS正常校验，未把浏览器例外描述为系统信任。
+- `plain.log`：相同配置与transport六项明文兼容回归通过。
+- `clippy.log`：受影响Reverb包all-targets严格Clippy通过；既有核心全workspace检查见前节，不将包级检查冒充最终并行组合检查。`fmt-final.log`：快照全workspace格式通过；第三方既有弃用／cfg warning仍保留。
+- `docs-build.log`、`docs-browser.log`、`docs-page-browser.log`：三语构建、通用12组合、Reverb正文三语／桌面手机／根及子目录12组合通过。
+
+复现：在隔离源码设置 `CARGO_TARGET_DIR` 为上述独占target，以及 `CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0 RUSTUP_TOOLCHAIN=1.94.0`，执行 `python3 -B tests/reverb_tls_acceptance.py -- cargo test --locked -p openrust-reverb --test transport --test client_options -- --nocapture`；Echo浏览器额外设置固定客户端目录的 `OPENRUST_REVERB_ECHO_MODULES`、`DOCS_PLAYWRIGHT_MODULE` 与 `DOCS_BROWSER_PATH`。正常空间保留复用缓存与固定客户端；未改数据库／容器／数据卷，未发布。
