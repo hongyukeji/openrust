@@ -17,3 +17,7 @@ HTTP 核心執行[中介軟體](../the-basics/middleware.md)，並透過框架[�
 路由或中介軟體傳回 HTTP 錯誤時，核心套用 `bootstrap/app.rs` 中宣告的[例外轉譯策略](../the-basics/errors.md#將例外轉譯為-json)。
 
 延遲 Provider 在首次解析服務時載入。Console Kernel 在註冊命令前載入所有剩餘延遲 Provider；HTTP Kernel 保留未使用項目。執行順序及非同步解析見[延遲服務提供者](providers.md#延遲服務提供者)。
+
+## 請求完成事件 {#request-handled}
+
+中介軟體執行結束或例外渲染為回應後，HTTP Kernel 在目前應用程式作用域派發 `openrust::foundation::http::events::RequestHandled`。使用既有 `Event::listen` 或 `Event::listenClass` 監聽 `OpenRust\Foundation\Http\Events\RequestHandled`。事件提供 `request`、`response` 中繼資料快照（`RequestParts` / `ResponseParts`）、獨立的 `attributes` 屬性映射、`routeName` 及單調時鐘計量的 `duration: Duration`。建立事件不讀取或緩衝本文，串流回應保持串流；事件表示回應產生完成，不表示下載傳送完成。請求在產生回應前被取消時不派發。

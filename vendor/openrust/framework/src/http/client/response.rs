@@ -3,9 +3,37 @@ use serde::de::DeserializeOwned;
 
 use super::{Error, Result, transport_error};
 
+/// Transport timing for the final HTTP hop. Fake responses have no network handler stats.
+#[derive(Clone, Debug)]
+pub struct TransferStats {
+    pub(super) duration: std::time::Duration,
+    pub(super) network: bool,
+}
+#[allow(
+    non_snake_case,
+    reason = "Matches Guzzle transfer statistics consumed by Laravel"
+)]
+impl TransferStats {
+    pub fn getTransferTime(&self) -> f64 {
+        self.duration.as_secs_f64()
+    }
+    pub fn getHandlerStats(&self) -> std::collections::HashMap<&'static str, f64> {
+        if self.network {
+            [("total_time", self.getTransferTime())].into()
+        } else {
+            Default::default()
+        }
+    }
+}
+
 /// A response whose body is available for repeated inspection.
 #[derive(Clone)]
+#[allow(
+    non_snake_case,
+    reason = "Matches Laravel Response transferStats property"
+)]
 pub struct Response {
+    pub transferStats: Option<TransferStats>,
     status: StatusCode,
     headers: HeaderMap,
     body: axum::body::Bytes,
@@ -24,10 +52,19 @@ impl std::fmt::Debug for Response {
 impl Response {
     pub fn new(status: StatusCode, headers: HeaderMap, body: impl Into<Vec<u8>>) -> Self {
         Self {
+            transferStats: None,
             status,
             headers,
             body: axum::body::Bytes::from(body.into()),
         }
+    }
+
+    /// Returns measured transport statistics; durations are seconds, never fabricated phase timings.
+    pub fn handlerStats(&self) -> std::collections::HashMap<&'static str, f64> {
+        self.transferStats
+            .as_ref()
+            .map(TransferStats::getHandlerStats)
+            .unwrap_or_default()
     }
 
     pub fn status(&self) -> StatusCode {

@@ -33,6 +33,36 @@ impl Facade for Http {
 
 #[allow(non_snake_case, reason = "Matches Laravel's HTTP facade API")]
 impl Http {
+    pub fn globalMiddleware(
+        middleware: impl for<'a> Fn(super::Request, super::Next<'a>) -> HttpFuture<'a, Result<Response>>
+        + Send
+        + Sync
+        + 'static,
+    ) -> Result<()> {
+        Self::getFacadeRoot()
+            .map_err(Error::Unavailable)?
+            .globalMiddleware(middleware);
+        Ok(())
+    }
+
+    pub fn globalRequestMiddleware(
+        middleware: impl Fn(&mut super::Request) -> Result<()> + Send + Sync + 'static,
+    ) -> Result<()> {
+        Self::getFacadeRoot()
+            .map_err(Error::Unavailable)?
+            .globalRequestMiddleware(middleware);
+        Ok(())
+    }
+
+    pub fn globalResponseMiddleware(
+        middleware: impl Fn(Response) -> Result<Response> + Send + Sync + 'static,
+    ) -> Result<()> {
+        Self::getFacadeRoot()
+            .map_err(Error::Unavailable)?
+            .globalResponseMiddleware(middleware);
+        Ok(())
+    }
+
     pub fn pendingRequest() -> Result<PendingRequest> {
         Ok(Self::getFacadeRoot()
             .map_err(Error::Unavailable)?

@@ -157,3 +157,22 @@ let failures = events.dispatched(failed);
 assert_eq!(failures.len(), 1);
 assert_eq!(failures[0].downcast_ref::<ConnectionFailed>().unwrap().request.url.as_str(), unavailable);
 ```
+
+## 全域中介軟體與傳輸耗時 {#global-middleware-and-timing}
+
+在應用程式 Provider 中使用 `Http::globalMiddleware` 包裹每一跳出站請求；獨立用戶端可用 `Factory::globalMiddleware`。回呼接收擁有所有權的請求和續體 `next`，傳回 `Box::pin(async move { ... })`；`next.run(request).await` 傳回回應或包含逾時在內的傳輸錯誤。中介軟體按註冊順序進入、反序傳回，重新導向和重試都會再次經過。註冊作用於隨後建立的 PendingRequest，同一 Factory 的複本共用註冊，應用程式之間隔離。
+
+`globalRequestMiddleware` 透過 `&mut Request` 修改請求並傳回 `Result<()>`；`globalResponseMiddleware` 將 `Response` 映射為 `Result<Response>`。單個 PendingRequest 使用 `withMiddleware`、`withRequestMiddleware`、`withResponseMiddleware`；既有 `beforeSending` 與 `afterResponse` 仍可使用。
+
+```rust
+use openrust::http::client::Http;
+
+Http::globalMiddleware(|request, next| Box::pin(async move {
+    let response = next.run(request).await?;
+    let seconds = response.handlerStats().get("total_time").copied();
+    // Use `seconds` with the application's metrics collector.
+    Ok(response)
+}))?;
+```
+
+`Response::handlerStats()` 的 `total_time` 以秒記錄最後一次網路傳輸及緩衝本文讀取的耗時，不包含重試間隔，也不是全部重新導向或嘗試的總時長。`response.transferStats.as_ref().map(|stats| stats.getTransferTime())` 提供相同耗時。fake 回應的傳輸時間為0且沒有網路 handler stats；未呼叫傳輸的中介軟體自建回應不具有傳輸統計。reqwest 不提供 cURL 分階段統計，因此不偽造 DNS、連線和 TLS 耗時。脫敏回應事件保留計時，不額外暴露本文或憑據。

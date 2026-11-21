@@ -1,5 +1,7 @@
 # 当前交接
 
+- 2026-11-21 [HTTP核心观察钩子](audits/04-02/README.md#请求完成事件与出站-http-观察钩子2026-11-21)：补齐foundation::http::events::RequestHandled与Factory／Http全局中间件、PendingRequest局部中间件、Response.handlerStats／transferStats。事件在当前应用／请求作用域观察响应元数据、属性和耗时，不读取正文；出站按顺序包裹每跳与重试，超时／连接失败可观察，fake不伪造网络时间。Rust1.94隔离快照40定向通过（另2既有数据库函数忽略不计）、全feature严格Clippy／fmt与三语构建／12通用＋6导航＋24新章节浏览器通过。复用core-ecosystem target并保留缓存，未修改扩展／root依赖，最终API及扩展修正组合待新快照；仅核范围本地提交，不推送。
+
 - 2026-11-21 [扩展已实现子集组合复验](audits/08-04/README.md#2026-11-21-扩展已实现子集与核心组合复验)：核心9eea6eee5与固定时点Activitylog／Horizon WIP统一快照，全feature严格Clippy／fmt、包与原生配置／骨架、Activitylog三库、Redis与原生监督进程、桌面／手机面板、三语构建与12＋6＋12＋12浏览器通过。完整Chrome1243未授权403导航差异保留，headless shell1243通过。用户随后要求严格对齐上游，Horizon分配算法及标签／通知／快照等缺口由扩展对话修正；本轮只证明旧子集组合运行，不能计作Laravel功能完整或最终组合。待新源码后重新固定快照／API；target与文档产物保留复用，数据库和卷保留，仅核范围本地提交记录。
 
 - 2026-11-21 [构建缓存策略纠正](audits/build-artifacts.md#用户纠正后的现行策略)：撤回146aff771中的全局关闭增量／固定jobs3、强制串行／每批冷构建／8GiB根缓存准入，删除自制build_session入口及配套测试；日常沿用Cargo原生策略，验收按工作流复用独占缓存，只清已废弃且确认闲置的产物，32GB可用空间停线保留。Rust1.94独立小项目验证默认增量启用、二次检查Fresh且不调用rustc、修改后同target增量重编译通过，未作全项目性能基准。本条覆盖下方此前构建治理要求；上轮已删除的缓存不宣称恢复，后续自然重建，不再主动清空在用缓存。

@@ -17,3 +17,7 @@ HTTP 内核运行[中间件](../the-basics/middleware.md)，并通过框架[路�
 路由或中间件返回 HTTP 错误时，内核应用 `bootstrap/app.rs` 中声明的[异常渲染策略](../the-basics/errors.md#将异常渲染为-json)。
 
 延迟 Provider 在首次解析服务时加载。Console Kernel 在注册命令前加载所有剩余延迟 Provider；HTTP Kernel 保留未使用项。执行顺序及异步解析见[延迟服务提供者](providers.md#延迟服务提供者)。
+
+## 请求完成事件 {#request-handled}
+
+中间件执行结束或异常渲染为响应后，HTTP Kernel 在当前应用作用域派发 `openrust::foundation::http::events::RequestHandled`。使用现有 `Event::listen` 或 `Event::listenClass` 监听 `OpenRust\Foundation\Http\Events\RequestHandled`。事件提供 `request`、`response` 元数据快照（`RequestParts` / `ResponseParts`）、独立的 `attributes` 属性映射、`routeName` 及单调时钟计量的 `duration: Duration`。创建事件不读取或缓冲正文，流式响应保持流式；事件表示响应生成完成，不表示下载发送完成。请求在生成响应前被取消时不派发。

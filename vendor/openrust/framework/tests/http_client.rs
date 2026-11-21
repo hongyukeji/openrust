@@ -1129,3 +1129,254 @@ async fn retry_callback_modifies_the_next_request_and_preserves_changes_on_later
     factory.assertSentCount(5);
     server.abort();
 }
+
+#[tokio::test]
+async fn global_middleware_wraps_each_redirect_and_retry_with_network_transfer_stats() {
+    use std::sync::Mutex;
+    let calls = Arc::new(AtomicUsize::new(0));
+    let pending = calls.clone();
+    let (base, server) = serve(
+        Router::new()
+            .route(
+                "/redirect",
+                get(|| async { (StatusCode::FOUND, [(header::LOCATION, "/measured")]) }),
+            )
+            .route(
+                "/measured",
+                get(move |headers: HeaderMap| {
+                    let calls = pending.clone();
+                    async move {
+                        assert_eq!(headers["x-global"], "present");
+                        tokio::time::sleep(Duration::from_millis(8)).await;
+                        let status = if calls.fetch_add(1, Ordering::SeqCst) == 0 {
+                            StatusCode::SERVICE_UNAVAILABLE
+                        } else {
+                            StatusCode::OK
+                        };
+                        (status, "measured")
+                    }
+                }),
+            ),
+    )
+    .await;
+    let factory = Factory::new().unwrap();
+    let phases = Arc::new(Mutex::new(Vec::new()));
+    let observed = phases.clone();
+    factory.globalMiddleware(move |request, next| {
+        let observed = observed.clone();
+        let path = request.url().path().to_owned();
+        Box::pin(async move {
+            observed.lock().unwrap().push(format!("enter:{path}"));
+            let response = next.run(request).await?;
+            assert!(response.handlerStats()["total_time"] > 0.0);
+            observed.lock().unwrap().push(format!("leave:{path}"));
+            Ok(response)
+        })
+    });
+    factory.globalRequestMiddleware(|request| {
+        request
+            .headers_mut()
+            .insert("x-global", HeaderValue::from_static("present"));
+        Ok(())
+    });
+    factory.globalResponseMiddleware(|response| {
+        assert!(response.handlerStats()["total_time"] > 0.0);
+        Ok(response)
+    });
+    let observed = phases.clone();
+    let response = factory
+        .pendingRequest()
+        .withMiddleware(move |request, next| {
+            let observed = observed.clone();
+            Box::pin(async move {
+                observed.lock().unwrap().push("local:enter".into());
+                let response = next.run(request).await?;
+                observed.lock().unwrap().push("local:leave".into());
+                Ok(response)
+            })
+        })
+        .withResponseMiddleware(|response| {
+            Ok(Response::new(
+                response.status(),
+                response.headers().clone(),
+                response.body().to_vec(),
+            ))
+        })
+        .retry(2, Duration::ZERO)
+        .get(&format!("{base}/redirect"))
+        .await
+        .unwrap();
+    assert_eq!(response.body(), b"measured");
+    assert!(response.handlerStats()["total_time"] >= 0.008);
+    assert_eq!(
+        response.handlerStats()["total_time"],
+        response.transferStats.as_ref().unwrap().getTransferTime()
+    );
+    let expected: Vec<String> = ["/redirect", "/measured", "/redirect", "/measured"]
+        .into_iter()
+        .flat_map(|path| {
+            [
+                format!("enter:{path}"),
+                "local:enter".into(),
+                "local:leave".into(),
+                format!("leave:{path}"),
+            ]
+        })
+        .collect();
+    assert_eq!(*phases.lock().unwrap(), expected);
+    server.abort();
+}
+
+#[tokio::test]
+async fn global_middleware_is_factory_local_snapshotted_and_runs_on_fakes_and_short_circuits() {
+    let factory = Factory::new().unwrap();
+    factory.fake(|request| {
+        Some(Ok(Response::from_json(
+            StatusCode::OK,
+            &json!({"header":request.headers().contains_key("x-global")}),
+        )
+        .unwrap()))
+    });
+    let before = factory.pendingRequest();
+    factory.globalRequestMiddleware(|request| {
+        request
+            .headers_mut()
+            .insert("x-global", HeaderValue::from_static("present"));
+        Ok(())
+    });
+    let response = before.get("https://fixture.test/before").await.unwrap();
+    assert_eq!(response.json::<Value>().unwrap()["header"], false);
+    let response = factory
+        .clone()
+        .get("https://fixture.test/after")
+        .await
+        .unwrap();
+    assert_eq!(response.json::<Value>().unwrap()["header"], true);
+    assert_eq!(response.transferStats.unwrap().getTransferTime(), 0.0);
+    let response = factory.get("https://fixture.test/fake").await.unwrap();
+    assert!(response.handlerStats().is_empty());
+    let isolated = Factory::new().unwrap();
+    isolated.fake(|request| {
+        assert!(!request.headers().contains_key("x-global"));
+        Some(Ok(Response::new(
+            StatusCode::OK,
+            HeaderMap::new(),
+            Vec::new(),
+        )))
+    });
+    isolated.get("https://fixture.test/isolated").await.unwrap();
+    let short = Factory::new().unwrap();
+    short.preventStrayRequests(true);
+    short.globalMiddleware(|_, _| {
+        Box::pin(async {
+            Ok(Response::new(
+                StatusCode::ACCEPTED,
+                HeaderMap::new(),
+                b"intercepted",
+            ))
+        })
+    });
+    assert_eq!(
+        short
+            .get("https://fixture.test/no-network")
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::ACCEPTED
+    );
+    assert!(short.recorded().is_empty());
+}
+
+#[tokio::test]
+async fn global_middleware_observes_failures_and_redacted_events_keep_measured_duration() {
+    use openrust::http::client::events::ResponseReceived;
+    use std::sync::Mutex;
+    let (base, server) = serve(Router::new().route(
+        "/slow",
+        get(|| async {
+            tokio::time::sleep(Duration::from_millis(30)).await;
+            "private response"
+        }),
+    ))
+    .await;
+    let dispatcher = Arc::new(openrust::events::Dispatcher::new());
+    let events = dispatcher.fake(&[]);
+    let factory = Factory::new().unwrap().withDispatcher(dispatcher);
+    let failures = Arc::new(Mutex::new(Vec::new()));
+    let observed = failures.clone();
+    factory.globalMiddleware(move |request, next| {
+        let observed = observed.clone();
+        Box::pin(async move {
+            let result = next.run(request).await;
+            if let Err(error) = &result {
+                observed.lock().unwrap().push(error.to_string());
+            }
+            result
+        })
+    });
+    let response = factory
+        .pendingRequest()
+        .redactPayload()
+        .get(&format!("{base}/slow?secret=hidden"))
+        .await
+        .unwrap();
+    assert!(response.handlerStats()["total_time"] >= 0.03);
+    let events = events.dispatched(r"OpenRust\Http\Client\Events\ResponseReceived");
+    let event = events[0].downcast_ref::<ResponseReceived>().unwrap();
+    assert!(event.request.url.query().is_none());
+    assert!(event.response.body().is_empty());
+    assert_eq!(
+        event.response.handlerStats()["total_time"],
+        response.handlerStats()["total_time"]
+    );
+    assert!(matches!(
+        factory
+            .pendingRequest()
+            .timeout(Duration::from_millis(1))
+            .get(&format!("{base}/slow"))
+            .await,
+        Err(Error::Timeout)
+    ));
+    // Transport timeout and connection failures both return through the middleware continuation.
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let broken = tokio::spawn(async move {
+        let (stream, _) = listener.accept().await.unwrap();
+        drop(stream);
+    });
+    assert!(matches!(
+        factory.get(&format!("http://{address}/broken")).await,
+        Err(Error::Connection)
+    ));
+    assert_eq!(failures.lock().unwrap().len(), 2);
+    broken.await.unwrap();
+    server.abort();
+}
+
+#[tokio::test]
+async fn handler_stats_include_network_response_body_reads() {
+    let (base, server) = serve(Router::new().route(
+        "/body",
+        get(|| async {
+            axum::body::Body::from_stream(futures_util::stream::unfold(0, |index| async move {
+                if index == 2 {
+                    return None;
+                }
+                tokio::time::sleep(Duration::from_millis(10)).await;
+                Some((
+                    Ok::<_, std::io::Error>(axum::body::Bytes::from_static(b"a")),
+                    index + 1,
+                ))
+            }))
+        }),
+    ))
+    .await;
+    let response = Factory::new()
+        .unwrap()
+        .get(&format!("{base}/body"))
+        .await
+        .unwrap();
+    assert_eq!(response.body(), b"aa");
+    assert!(response.handlerStats()["total_time"] >= 0.02);
+    server.abort();
+}

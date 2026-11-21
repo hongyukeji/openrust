@@ -32,6 +32,13 @@ impl RequestIdentity {
 }
 
 impl RequestAttributes {
+    pub(crate) fn snapshot(&self) -> HashMap<String, ParameterValue> {
+        self.0
+            .lock()
+            .expect("request attributes lock poisoned")
+            .clone()
+    }
+
     pub fn get(&self, name: &str) -> Option<ParameterValue> {
         self.0
             .lock()

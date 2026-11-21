@@ -17,3 +17,7 @@ The default application loads Web routes, console routes and the health path thr
 When routing or middleware returns an HTTP error, the kernel applies the [exception rendering policy](../the-basics/errors.md#rendering-exceptions-as-json) declared in `bootstrap/app.rs`.
 
 Deferred providers are loaded by first service resolution. The Console Kernel loads all remaining deferred providers before command registration; the HTTP kernel leaves unused providers deferred. See [deferred providers](providers.md#deferred-providers) for ordering and asynchronous resolution.
+
+## Request completion events {#request-handled}
+
+After middleware completes or an exception is rendered, the HTTP kernel dispatches `openrust::foundation::http::events::RequestHandled` in the application scope. Register listeners through the existing `Event::listen` or `Event::listenClass` API using `OpenRust\Foundation\Http\Events\RequestHandled`. The event contains `request` and `response` metadata (`RequestParts` / `ResponseParts`), a detached `attributes` map, `routeName`, and a monotonic `duration: Duration`. Bodies are not read or buffered: streamed responses remain streamed. The event observes response generation, before transport sends the body; it does not measure completed downloads. A cancelled request that has not produced a response does not emit it.

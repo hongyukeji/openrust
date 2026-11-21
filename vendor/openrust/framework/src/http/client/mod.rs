@@ -5,6 +5,7 @@ mod digest;
 pub mod events;
 mod facade;
 mod factory;
+mod middleware;
 mod pending_request;
 mod pool;
 mod response;
@@ -14,11 +15,12 @@ mod uri_template;
 pub use batch::{Batch, BatchProgress, BatchResults};
 pub use facade::{Http, HttpClientServiceProvider};
 pub use factory::{Factory, RecordedRequest, ResponseSequence};
+pub use middleware::{Middleware, Next};
 pub use pending_request::PendingRequest;
 pub use pool::Pool;
 pub use reqwest::Request;
 pub use reqwest::multipart::{Form, Part};
-pub use response::Response;
+pub use response::{Response, TransferStats};
 
 use std::fmt;
 

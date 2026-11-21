@@ -157,3 +157,22 @@ let failures = events.dispatched(failed);
 assert_eq!(failures.len(), 1);
 assert_eq!(failures[0].downcast_ref::<ConnectionFailed>().unwrap().request.url.as_str(), unavailable);
 ```
+
+## 全局中间件与传输耗时 {#global-middleware-and-timing}
+
+在应用 Provider 中使用 `Http::globalMiddleware` 包裹每一跳出站请求；独立客户端可用 `Factory::globalMiddleware`。回调接收拥有所有权的请求和续体 `next`，返回 `Box::pin(async move { ... })`；`next.run(request).await` 返回响应或包括超时在内的传输错误。中间件按注册顺序进入、反序返回，重定向和重试都会再次经过。注册作用于随后创建的 PendingRequest，同一 Factory 的克隆共享注册，应用之间隔离。
+
+`globalRequestMiddleware` 通过 `&mut Request` 修改请求并返回 `Result<()>`；`globalResponseMiddleware` 将 `Response` 映射为 `Result<Response>`。单个 PendingRequest 使用 `withMiddleware`、`withRequestMiddleware`、`withResponseMiddleware`；现有 `beforeSending` 与 `afterResponse` 仍可使用。
+
+```rust
+use openrust::http::client::Http;
+
+Http::globalMiddleware(|request, next| Box::pin(async move {
+    let response = next.run(request).await?;
+    let seconds = response.handlerStats().get("total_time").copied();
+    // Use `seconds` with the application's metrics collector.
+    Ok(response)
+}))?;
+```
+
+`Response::handlerStats()` 的 `total_time` 以秒记录最后一次网络传输及缓冲正文读取的耗时，不包含重试间隔，也不是全部重定向或尝试的总时长。`response.transferStats.as_ref().map(|stats| stats.getTransferTime())` 提供相同耗时。fake 响应的传输时间为0且没有网络 handler stats；未调用传输的中间件自建响应不具有传输统计。reqwest 不提供 cURL 分阶段统计，因此不伪造 DNS、连接和 TLS 耗时。脱敏响应事件保留计时，不额外暴露正文或凭据。

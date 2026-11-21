@@ -13,6 +13,7 @@ use super::{
 };
 
 pub(super) struct Transport<'a> {
+    pub middleware: &'a [std::sync::Arc<super::Middleware>],
     pub factory: &'a Factory,
     pub client: &'a reqwest::Client,
     pub before_sending: &'a [Box<RequestMiddleware>],
@@ -29,83 +30,126 @@ pub(super) struct Transport<'a> {
 impl Transport<'_> {
     pub(super) async fn send(&self, mut request: Request) -> Result<Response> {
         let has_events = self.factory.events.is_some();
-        let mut started_at = None;
+        let started_at = Instant::now();
         let mut redirects = 0;
         let mut authentications = 0;
         loop {
-            let sending = has_events.then(|| self.snapshot(&request));
-            if let Some(request) = &sending {
-                self.factory
-                    .emit(RequestSending {
-                        request: request.clone(),
-                    })
-                    .await?;
-            }
-            for callback in self.before_sending {
-                callback(&mut request)?;
-            }
-
+            let mut sending = None;
+            let mut sent = None;
+            let mut redirect = None;
+            let mut replay = None;
+            let mut stats = None;
             let recording = self.factory.is_recording();
-            let sent = (recording || has_events).then(|| self.snapshot(&request));
-            let redirect = (self.max_redirects > 0).then(|| Redirect::from(&request));
-            let replay = (authentications < 2
-                && self.digest.is_some()
-                && self.digest_origin == request.url().origin()
-                && (authentications > 0 || !request.headers().contains_key(header::AUTHORIZATION)))
-            .then(|| request.try_clone())
-            .flatten();
-            let started_at = *started_at.get_or_insert_with(Instant::now);
             let remaining = self.timeout.saturating_sub(started_at.elapsed());
-            let result = tokio::time::timeout(remaining, async {
-                let incoming = self.factory.dispatch(self.client, request).await?;
-                let authenticated = replay
-                    .filter(|_| incoming.status() == StatusCode::UNAUTHORIZED)
-                    .and_then(|request| {
-                        self.digest?
-                            .authenticate(request, incoming.headers(), authentications > 0)
-                    });
-                if authenticated.is_some() {
-                    let response = incoming.finish(self.body_limit, true).await?;
-                    return Ok((response, authenticated, true));
+            let next = super::Next::new(|mut request: Request| {
+                Box::pin(async {
+                    sending = has_events.then(|| self.snapshot(&request));
+                    if let Some(request) = &sending {
+                        self.factory
+                            .emit(RequestSending {
+                                request: request.clone(),
+                            })
+                            .await?;
+                    }
+                    for callback in self.before_sending {
+                        callback(&mut request)?;
+                    }
+                    sent = (recording || has_events).then(|| self.snapshot(&request));
+                    redirect = (self.max_redirects > 0).then(|| Redirect::from(&request));
+                    replay = (authentications < 2
+                        && self.digest.is_some()
+                        && self.digest_origin == request.url().origin()
+                        && (authentications > 0
+                            || !request.headers().contains_key(header::AUTHORIZATION)))
+                    .then(|| request.try_clone())
+                    .flatten();
+                    let transfer_started = Instant::now();
+                    let (mut response, network) = tokio::time::timeout(remaining, async {
+                        let incoming = self.factory.dispatch(self.client, request).await?;
+                        let network = matches!(&incoming, Incoming::Network(_));
+                        // Redirect/authentication bodies remain unbuffered, as in the original transport.
+                        let following = (incoming.status() == StatusCode::UNAUTHORIZED
+                            && replay
+                                .as_ref()
+                                .and_then(Request::try_clone)
+                                .and_then(|request| {
+                                    self.digest?.authenticate(
+                                        request,
+                                        incoming.headers(),
+                                        authentications > 0,
+                                    )
+                                })
+                                .is_some())
+                            || redirect.as_ref().is_some_and(|redirect| {
+                                redirect.can_follow(incoming.status(), incoming.headers())
+                            });
+                        Ok((incoming.finish(self.body_limit, following).await?, network))
+                    })
+                    .await
+                    .unwrap_or(Err(Error::Timeout))?;
+                    let measured = super::TransferStats {
+                        duration: if network {
+                            transfer_started.elapsed()
+                        } else {
+                            Duration::ZERO
+                        },
+                        network,
+                    };
+                    stats = Some(measured.clone());
+                    response.transferStats = Some(measured);
+                    Ok(response)
+                })
+            });
+            let result = super::middleware::run(self.middleware, request, next).await;
+            let result = result.map(|mut response| {
+                if response.transferStats.is_none() {
+                    response.transferStats = stats;
                 }
-                let next = redirect
-                    .and_then(|redirect| redirect.follow(incoming.status(), incoming.headers()));
-                if next.is_some() && redirects == self.max_redirects {
-                    return Err(Error::RedirectLimit);
-                }
-                let response = incoming.finish(self.body_limit, next.is_some()).await?;
-                Ok((response, next, false))
-            })
-            .await
-            .unwrap_or(Err(Error::Timeout));
-
-            if recording && !matches!(result, Err(Error::StrayRequest)) {
+                response
+            });
+            if recording
+                && !matches!(result, Err(Error::StrayRequest))
+                && let Some(sent) = &sent
+            {
                 self.factory.record(
-                    sent.as_ref().expect("recording snapshot").clone(),
+                    sent.clone(),
                     result
                         .as_ref()
                         .ok()
-                        .map(|(response, _, _)| self.observed_response(response)),
+                        .map(|response| self.observed_response(response)),
                 );
             }
-            let (response, next, authenticated) = match result {
-                Ok(outcome) => outcome,
+            let response = match result {
+                Ok(response) => response,
                 Err(error) => {
-                    if has_events && let Some(exception) = ConnectionFailure::from_error(&error) {
+                    if has_events
+                        && let Some(request) = sent
+                        && let Some(exception) = ConnectionFailure::from_error(&error)
+                    {
                         self.factory
-                            .emit(ConnectionFailed {
-                                request: sent.expect("connection failure snapshot"),
-                                exception,
-                            })
+                            .emit(ConnectionFailed { request, exception })
                             .await?;
                     }
                     return Err(error);
                 }
             };
+            let authenticated = replay
+                .filter(|_| response.status() == StatusCode::UNAUTHORIZED)
+                .and_then(|request| {
+                    self.digest?
+                        .authenticate(request, response.headers(), authentications > 0)
+                });
+            let is_authenticated = authenticated.is_some();
+            let next = authenticated.or_else(|| {
+                redirect.and_then(|redirect| redirect.follow(response.status(), response.headers()))
+            });
             if let Some(next) = next {
-                if authenticated {
+                if is_authenticated {
                     authentications += 1;
                 } else {
+                    if redirects == self.max_redirects {
+                        return Err(Error::RedirectLimit);
+                    }
                     redirects += 1;
                     authentications = 0;
                 }
@@ -126,7 +170,9 @@ impl Transport<'_> {
 
     fn observed_response(&self, response: &Response) -> Response {
         if self.redact_response {
-            Response::new(response.status(), http::HeaderMap::new(), Vec::new())
+            let mut redacted = Response::new(response.status(), http::HeaderMap::new(), Vec::new());
+            redacted.transferStats.clone_from(&response.transferStats);
+            redacted
         } else {
             response.clone()
         }
@@ -165,6 +211,12 @@ impl From<&Request> for Redirect {
 }
 
 impl Redirect {
+    fn can_follow(&self, status: StatusCode, headers: &HeaderMap) -> bool {
+        let mut candidate = Self::from(&self.request);
+        candidate.replayable = self.replayable;
+        candidate.follow(status, headers).is_some()
+    }
+
     fn follow(self, status: StatusCode, headers: &HeaderMap) -> Option<Request> {
         let mut request = self.request;
         match status {

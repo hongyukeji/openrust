@@ -157,3 +157,22 @@ let failures = events.dispatched(failed);
 assert_eq!(failures.len(), 1);
 assert_eq!(failures[0].downcast_ref::<ConnectionFailed>().unwrap().request.url.as_str(), unavailable);
 ```
+
+## Global middleware and transfer timing {#global-middleware-and-timing}
+
+Register `Http::globalMiddleware` in your application provider to wrap each outgoing hop; `Factory::globalMiddleware` also supports standalone clients. A wrapper receives the owned request and a continuation `next`, and returns `Box::pin(async move { ... })`. `next.run(request).await` returns the response or transport error, including timeout. Wrappers run in registration order and unwind in reverse; redirects and retries re-enter them. Registration applies to subsequently created pending requests, is shared by clones of the same factory, and stays isolated between applications.
+
+`globalRequestMiddleware` edits the request through `&mut Request` and returns `Result<()>`; `globalResponseMiddleware` maps a `Response` to `Result<Response>`. For a single pending request use `withMiddleware`, `withRequestMiddleware`, or `withResponseMiddleware`. Existing `beforeSending` and `afterResponse` callbacks remain available.
+
+```rust
+use openrust::http::client::Http;
+
+Http::globalMiddleware(|request, next| Box::pin(async move {
+    let response = next.run(request).await?;
+    let seconds = response.handlerStats().get("total_time").copied();
+    // Use `seconds` with the application's metrics collector.
+    Ok(response)
+}))?;
+```
+
+`Response::handlerStats()` reports `total_time` in seconds for the final network hop, including buffered response-body reads. It excludes retry delays and is not a sum of redirects or attempts. `response.transferStats.as_ref().map(|stats| stats.getTransferTime())` exposes the same duration. Fake responses have zero transfer time and no network handler stats; a middleware-generated response has no transport stats unless a transport ran. The reqwest transport does not expose cURL phase breakdowns, so DNS, connection, and TLS timings are not fabricated. Redacted response events retain timing without exposing bodies or credentials.

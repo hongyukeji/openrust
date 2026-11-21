@@ -1,5 +1,6 @@
 //! HTTP request lifecycle for a bootstrapped application.
 
+pub mod events;
 mod form_request;
 mod health_check;
 pub mod middleware;
@@ -49,6 +50,72 @@ impl Kernel {
             ready: false,
             termination_tasks: TaskTracker::new(),
             routes: None,
+        }
+    }
+
+    async fn request_handled(
+        &self,
+        request: &mut Request,
+        mut response: Response,
+        started_at: std::time::Instant,
+        head: bool,
+    ) -> Response {
+        self.prepare_response(request, &mut response, head);
+        let event = Arc::new(events::RequestHandled::new(
+            request,
+            &response,
+            started_at.elapsed(),
+        ));
+        let dispatched = match self
+            .application
+            .container()
+            .make::<crate::events::Dispatcher>()
+        {
+            Ok(dispatcher) => {
+                use crate::contracts::events::Dispatcher as _;
+                dispatcher
+                    .dispatch(event, &mut crate::events::EventContext::new())
+                    .await
+                    .map_err(|source| crate::http::HttpError::Internal {
+                        source: Box::new(source),
+                    })
+            }
+            Err(source) => Err(crate::http::HttpError::Internal {
+                source: Box::new(source),
+            }),
+        };
+        if let Err(error) = dispatched {
+            response = self
+                .application
+                .shared
+                .exceptions
+                .render_http(request, &error)
+                .await;
+            self.prepare_response(request, &mut response, head);
+        }
+        response
+    }
+
+    fn prepare_response(&self, request: &Request, response: &mut Response, head: bool) {
+        response.prepare_binary_file(request.method(), request.headers());
+        if !Response::allows_body(response.status()) {
+            drop(response.take_body());
+            for name in [
+                ::http::header::CONTENT_TYPE,
+                ::http::header::CONTENT_LENGTH,
+                ::http::header::TRANSFER_ENCODING,
+            ] {
+                response.parts_mut().headers.remove(name);
+            }
+        } else if head {
+            let body = response.take_body();
+            if let Some(length) = body.size_hint().exact() {
+                response
+                    .parts_mut()
+                    .headers
+                    .entry(::http::header::CONTENT_LENGTH)
+                    .or_insert_with(|| ::http::HeaderValue::from(length));
+            }
         }
     }
 
@@ -187,6 +254,9 @@ impl http::Kernel for Kernel {
                 if !self.ready {
                     return Response::empty(StatusCode::SERVICE_UNAVAILABLE);
                 }
+                let started_at = std::time::Instant::now();
+                request.matched_route = false;
+                request.route_name = None;
                 let previous_api_prefix = request.api_prefix.replace(
                     self.application
                         .shared
@@ -205,6 +275,10 @@ impl http::Kernel for Kernel {
                         .shared
                         .exceptions
                         .render_http(request, &error)
+                        .await;
+                    let head = request.method() == Method::HEAD;
+                    let response = self
+                        .request_handled(request, response, started_at, head)
                         .await;
                     request.api_prefix = previous_api_prefix;
                     return response;
@@ -245,13 +319,16 @@ impl http::Kernel for Kernel {
                     request.getBaseUrl().to_owned(),
                     attributes,
                     crate::view::middleware::request_scope(
-                        crate::cookie::middleware::request_scope(
-                            Next::new(
+                        crate::cookie::middleware::request_scope(async {
+                            let response = Next::new(
                                 &self.middleware.global,
                                 self.routes.as_ref().expect("ready kernel has routes"),
                             )
-                            .run(request),
-                        ),
+                            .run(request)
+                            .await;
+                            self.request_handled(request, response, started_at, head)
+                                .await
+                        }),
                     ),
                 ));
                 let request_lifecycle = crate::log::context::Origin::scope(
@@ -259,8 +336,7 @@ impl http::Kernel for Kernel {
                     log_origin,
                     request_lifecycle,
                 );
-                let mut response = deferred.scope(request_lifecycle).await;
-                response.prepare_binary_file(request.method(), request.headers());
+                let response = deferred.scope(request_lifecycle).await;
                 request.exceptions = previous_exceptions;
                 request.api_prefix = previous_api_prefix;
                 let mut middleware = std::mem::take(&mut request.route_terminators);
@@ -286,25 +362,6 @@ impl http::Kernel for Kernel {
                     extensions.insert(views);
                 } else {
                     extensions.remove::<Arc<Factory>>();
-                }
-                if !Response::allows_body(response.status()) {
-                    drop(response.take_body());
-                    for name in [
-                        ::http::header::CONTENT_TYPE,
-                        ::http::header::CONTENT_LENGTH,
-                        ::http::header::TRANSFER_ENCODING,
-                    ] {
-                        response.parts_mut().headers.remove(name);
-                    }
-                } else if head {
-                    let body = response.take_body();
-                    if let Some(length) = body.size_hint().exact() {
-                        response
-                            .parts_mut()
-                            .headers
-                            .entry(::http::header::CONTENT_LENGTH)
-                            .or_insert_with(|| ::http::HeaderValue::from(length));
-                    }
                 }
                 response
             },

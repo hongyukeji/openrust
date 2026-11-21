@@ -78,6 +78,7 @@ enum Payload {
 /// Builder for one outbound request.
 pub struct PendingRequest {
     factory: Factory,
+    middleware: Vec<Arc<super::Middleware>>,
     base_url: Option<String>,
     headers: HeaderMap,
     invalid_header: bool,
@@ -101,8 +102,10 @@ pub struct PendingRequest {
 #[allow(non_snake_case, reason = "Matches Laravel's pending HTTP request API")]
 impl PendingRequest {
     pub(super) fn new(factory: Factory) -> Self {
+        let middleware = factory.middleware();
         Self {
             factory,
+            middleware,
             base_url: None,
             headers: HeaderMap::new(),
             invalid_header: false,
@@ -243,6 +246,49 @@ impl PendingRequest {
     ) -> Self {
         self.attributes.extend(attributes);
         self
+    }
+
+    pub fn withMiddleware(
+        mut self,
+        middleware: impl for<'a> Fn(
+            reqwest::Request,
+            super::Next<'a>,
+        ) -> crate::http::HttpFuture<'a, Result<Response>>
+        + Send
+        + Sync
+        + 'static,
+    ) -> Self {
+        self.middleware.push(Arc::new(middleware));
+        self
+    }
+
+    pub fn withRequestMiddleware(
+        self,
+        middleware: impl Fn(&mut reqwest::Request) -> Result<()> + Send + Sync + 'static,
+    ) -> Self {
+        self.withMiddleware(move |mut request, next| match middleware(&mut request) {
+            Ok(()) => next.run(request),
+            Err(error) => Box::pin(async move { Err(error) }),
+        })
+    }
+
+    pub fn withResponseMiddleware(
+        self,
+        middleware: impl Fn(Response) -> Result<Response> + Send + Sync + 'static,
+    ) -> Self {
+        let middleware = Arc::new(middleware);
+        self.withMiddleware(move |request, next| {
+            let middleware = middleware.clone();
+            Box::pin(async move {
+                let response = next.run(request).await?;
+                let stats = response.transferStats.clone();
+                let mut response = middleware(response)?;
+                if response.transferStats.is_none() {
+                    response.transferStats = stats;
+                }
+                Ok(response)
+            })
+        })
     }
 
     pub fn beforeSending(
@@ -423,6 +469,7 @@ impl PendingRequest {
         };
         let transport = Transport {
             factory: &self.factory,
+            middleware: &self.middleware,
             client: &client,
             before_sending: &self.before_sending,
             attributes: &self.attributes,
@@ -438,9 +485,15 @@ impl PendingRequest {
         loop {
             let result = transport.send(request).await;
             let result = result.and_then(|response| {
-                self.after_response
+                let stats = response.transferStats.clone();
+                let mut response = self
+                    .after_response
                     .iter()
-                    .try_fold(response, |response, callback| callback(response))
+                    .try_fold(response, |response, callback| callback(response))?;
+                if response.transferStats.is_none() {
+                    response.transferStats = stats;
+                }
+                Ok(response)
             });
             let error = match result {
                 Ok(response)

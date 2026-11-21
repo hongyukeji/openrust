@@ -245,3 +245,33 @@
 - Laravel `Request::capture` 从 PHP 请求全局变量捕获并启用方法覆盖。OpenRust 由 `Kernel::handleTransport` 接收拥有所有权的原生 HTTP 请求，调用现有 `Request::from`，在内核流程中按请求处理代理和方法覆盖。完成三语说明，保留现有框架入口。 [Laravel Request 捕获](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/Request.php#L76)
 - 隔离基线 `900661ae0` 真实 TCP 验证原生 409、请求感知 422、原始 404、最终回调及请求方法覆盖；PHP 8.5 用固定 Laravel 执行请求捕获和响应型 abort 对照。现有真实 HTTP 请求转换夹具验证可信代理、原始路径、请求头与请求体。
 - 真实 HTTP、固定 Laravel、71 项定向回归、Artisan、严格 Clippy、三语构建和 18 项浏览器检查通过。实际二进制健康请求、路径校验与 SIGTERM 退出通过。清理本批独占编译和站点缓存后磁盘可用 90.55 GB（84.33 GiB），提交前周额度剩余 21%，按用户授权继续。验收日志位于 `/private/tmp/openrust-abort-response.yOXJf6SE`。
+
+
+## 请求完成事件与出站 HTTP 观察钩子（2026-11-21）
+
+扩展对话提出 Telescope／Pulse 共用的两处核心缺口，本次在框架完成，不让扩展重复HTTP内核或修改默认应用Provider。
+
+### 依据与语言适配
+
+固定Laravel Framework `1449bf241017087fbd38c118ecaabef3f6797fdc`，通过官方原始HTTPS核对 [RequestHandled](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Http/Events/RequestHandled.php)、[Kernel::handle](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Http/Kernel.php)、[Client Factory](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/Client/Factory.php)、[PendingRequest处理栈](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/Client/PendingRequest.php)及[Response统计](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/Client/Response.php)。搜索工具未返回正文，不能将搜索摘要作为依据；原始五文件存本轮临时reference目录。另查旧版 `v0.x`／`6d1a81924451e15f595f68c8dfb520ad6d6c44cf` 的 `framework/src/http/client.rs`，无当前同名钩子；沿用已有单调计时、资源边界原则，复用现行事件Dispatcher／Factory／Transport，不搬入旧客户端或新增依赖。
+
+- `foundation::http::events::RequestHandled` 在中间件或异常渲染产生响应后、发送正文之前派发，事件名为`OpenRust\Foundation\Http\Events\RequestHandled`。事件位于当前应用／请求作用域，监听器失败经既有异常渲染返回500，不递归再派发。事件保存请求／响应Parts快照、独立attributes映射、routeName及duration；有效URI包含可信代理处理结果。HEAD及无正文状态规范化后才观察；未产生响应的取消请求不派发，尚未bootstrap的503不派发。
+- 查阅旧版`6d1a81924451e15f595f68c8dfb520ad6d6c44cf`的`framework/src/http/client.rs`共享客户端／超时实现；本次复用当前Factory、事件Dispatcher及请求上下文，不搬回旧传输内核或增加依赖。
+- PHP共享请求／响应对象适配成Rust事件`Any + Send + Sync`可持有的元数据快照，避免移动／读取Body、阻塞流式响应或让观察者修改原响应；属性映射独立复制，内部共享值保留原所有权。该接口不声称提供正文或下载发送完毕耗时。无需另建事件总线。
+- `Factory`／`Http`补齐`globalMiddleware`、`globalRequestMiddleware`、`globalResponseMiddleware`；PendingRequest补齐`withMiddleware`、`withRequestMiddleware`、`withResponseMiddleware`。全局注册按应用隔离、同Factory克隆共享，对后续PendingRequest创建时做快照；按注册顺序进入、逆序返回。通用回调持有Request与一次性Next续体，返回HttpFuture，兼容网络、fake、短路、每跳重定向、Digest及每次重试。
+- `Response.transferStats`／`handlerStats()`提供真实最后一跳传输的`total_time`秒，计入正文缓冲读取，不累计重试等待；`TransferStats::getTransferTime`／`getHandlerStats`与之对应。reqwest没有公开cURL的DNS／连接／TLS分段时间，不伪造这些值。fake统计保持0秒且handlerStats空；短路且未调用传输时没有统计。脱敏观察仍删除正文／敏感字段，只额外保留不含URL或凭据的计时；响应映射保留统计。连接／超时错误经Next返回，观察中间件可自行计失败耗时。
+
+### 验收与交付边界
+
+隔离源码`/private/tmp/openrust-http-hooks-20261121/source`，来自当时核心与扩展工作树快照，包含已提交`623b07e79`对应的命令文档规则；非干净发行快照。复用已登记`/private/tmp/openrust-core-ecosystem-20261121/target`，不在活跃树编译，不覆盖并行Horizon改动。Rust1.94、Cargo原生并发／增量，仅本批dev/test debug=0。
+
+- `cargo +1.94.0 test --locked --offline -p openrust-framework --test http_observation --test http_client --test events --test middleware_lifecycle --test exception_rendering`：40通过；events另2个既有真实数据库函数默认忽略，未计通过。本次不改变SQL／缓存逻辑，也不声称数据库／供应商复验。
+- 新增4项入站函数涵盖真实TCP成功／异常响应、单请求一次派发、属性／命名路由、HEAD、404／422／畸形路径400、未读取流、取消、监听器失败500及两应用隔离。首轮测试把`/%zz`当作无效UTF-8，现行规则会保留为普通路径并返回404；改用`/%FF`验证既有400契约，没有为测试修改路径验证器。
+- HTTP Client共18函数，新增4项：注册顺序与反向返回、局部／全局组合、每跳重定向与重试、Factory快照／克隆与隔离、fake／短路、真实超时／断连、脱敏事件保留计时和分块正文读取耗时；原有Digest、pool、batch和逐跳事件回归同过。
+- 全workspace／all-targets／all-features严格Clippy通过（既有第三方cfg／弃用警告仍存在）；没有为本次核心钩子修改Cargo.toml或锁项。三语正文同步到生命周期和HTTP Client章节，文档验收收尾另补。
+
+扩展仅复用这些通用接口；Telescope／Pulse自身实现与上游完整对齐不在本次验收结论内。最终发行API导出仍需扩展修正完成后的统一提交快照，不将本次WIP快照冒充正式发布。
+
+三语生命周期／HTTP Client正文同步。完整内容／命令门禁与构建通过；通用12组、全部导航6组（23个支持边界页）及两个新章节在三语／桌面手机／根与子目录共24组实际浏览器检查通过，无整页水平溢出或脚本错误。`fmt-accepted.log`退出0，18份本批代码／测试／开发者文档与验收source逐字节一致，摘要仅留临时目录，不另存Git可重建备份。
+
+日志与官方参考保留于`/private/tmp/openrust-http-hooks-20261121/`：`regression-accepted.log`、`clippy.log`、`fmt-accepted.log`、`docs-*.log`及`validated-inputs.json`。未接真实供应商、未改变数据库和卷，未导出声称覆盖新钩子的最终API。可复用target与文档产物保留，未以本轮完成为由清空缓存。收尾可用45.94GB（42.79GiB），高于32GB停线。并行Horizon／Activitylog及根feature／Cargo.lock保留，只提交本次核心钩子、三语用法及交接记录，不推送。扩展接入与严格对齐修正后仍须新统一快照，不能用此处固定子集替代最终组合。

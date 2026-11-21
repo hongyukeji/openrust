@@ -14,7 +14,9 @@ use crate::{
     support::Str,
 };
 
-use super::{Batch, Error, PendingRequest, Pool, Response, Result, transport::Incoming};
+use super::{
+    Batch, Error, Middleware, Next, PendingRequest, Pool, Response, Result, transport::Incoming,
+};
 
 pub(super) const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 pub(super) const TIMEOUT: Duration = Duration::from_secs(30);
@@ -27,6 +29,7 @@ type Stub = dyn Fn(&reqwest::Request) -> Option<Result<Response>> + Send + Sync;
 pub struct Factory {
     pub(super) client: reqwest::Client,
     testing: Arc<Mutex<Testing>>,
+    middleware: Arc<Mutex<Vec<Arc<Middleware>>>>,
     pub(super) events: Option<Arc<Dispatcher>>,
 }
 
@@ -131,6 +134,7 @@ impl Factory {
         Ok(Self {
             client: build_client(CONNECT_TIMEOUT)?,
             testing: Arc::default(),
+            middleware: Arc::default(),
             events: None,
         })
     }
@@ -156,6 +160,60 @@ impl Factory {
                 .map_err(Error::Event)?;
         }
         Ok(())
+    }
+
+    /// Registers a wrapper for subsequently created pending requests in this factory.
+    pub fn globalMiddleware(
+        &self,
+        middleware: impl for<'a> Fn(
+            reqwest::Request,
+            Next<'a>,
+        ) -> crate::http::HttpFuture<'a, Result<Response>>
+        + Send
+        + Sync
+        + 'static,
+    ) -> &Self {
+        self.middleware
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .push(Arc::new(middleware));
+        self
+    }
+
+    pub fn globalRequestMiddleware(
+        &self,
+        middleware: impl Fn(&mut reqwest::Request) -> Result<()> + Send + Sync + 'static,
+    ) -> &Self {
+        self.globalMiddleware(move |mut request, next| match middleware(&mut request) {
+            Ok(()) => next.run(request),
+            Err(error) => Box::pin(async move { Err(error) }),
+        })
+    }
+
+    pub fn globalResponseMiddleware(
+        &self,
+        middleware: impl Fn(Response) -> Result<Response> + Send + Sync + 'static,
+    ) -> &Self {
+        let middleware = Arc::new(middleware);
+        self.globalMiddleware(move |request, next| {
+            let middleware = middleware.clone();
+            Box::pin(async move {
+                let response = next.run(request).await?;
+                let stats = response.transferStats.clone();
+                let mut response = middleware(response)?;
+                if response.transferStats.is_none() {
+                    response.transferStats = stats;
+                }
+                Ok(response)
+            })
+        })
+    }
+
+    pub(super) fn middleware(&self) -> Vec<Arc<Middleware>> {
+        self.middleware
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone()
     }
 
     pub fn pendingRequest(&self) -> PendingRequest {
