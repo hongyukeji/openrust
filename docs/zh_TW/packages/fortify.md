@@ -10,20 +10,18 @@ Fortify 管理註冊、Session 登入與憑證變更。[Sanctum](sanctum.md) 的
 
 ## 安裝
 
-啟用 `fortify` Cargo 功能後執行編譯後的命令：
+在應用程式 `Cargo.toml` 的 `[features].default` 清單中加入 `fortify`，保留已有功能，然後使用原始碼入口：
 
 ```sh
-cargo +1.94.0 build --locked --features fortify --bin main
-./target/debug/main artisan fortify:install
+./artisan fortify:install
 ```
 
 命令發佈 `config/fortify.rs`、`app/actions/fortify/`、應用 Provider、雙因素欄位與 Passkeys 遷移，註冊 Rust 模組、設定與 Provider，並為預設 User 接入所需能力。已有發佈檔案會保留；無法辨識的原始碼配置會明確要求手動註冊。安裝不會執行遷移。
 
-修改發佈設定：預設 User 須啟用 `email-verification`；設定視圖回呼或將 `views` 設為 `false`。接著重新編譯並遷移：
+修改發佈設定：預設 User 須啟用 `email-verification`；設定視圖回呼或將 `views` 設為 `false`。接著執行遷移；原始碼入口會在需要時重新編譯應用程式：
 
 ```sh
-cargo +1.94.0 build --locked --features fortify --bin main
-./target/debug/main artisan migrate --no-interaction
+./artisan migrate --no-interaction
 ```
 
 自動探索的 `FortifyResourcesServiceProvider` 僅提供安裝資源。明確註冊的 `openrust_fortify::FortifyServiceProvider` 啟用執行階段認證，產生的應用 Provider 連接動作、模型與具名限流。編譯型應用在原始碼變更後需要重新建置。

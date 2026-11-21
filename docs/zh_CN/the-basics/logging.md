@@ -285,23 +285,22 @@ Rust JSON 无符号整数保留原始精度；超过 PHP 有符号整数范围�
 
 ## 使用 Pail 跟踪日志 {#tailing-log-messages-using-pail}
 
-把可选包编入应用后运行实际 Artisan 命令：
+在应用 `Cargo.toml` 的 `[features].default` 列表中加入 `pail`，保留已有功能，然后使用源码入口：
 
 ```sh
-cargo build --locked --features pail
-./target/debug/main artisan pail --timeout=1
-./target/debug/main artisan pail --timeout=0 --level=error --message=payment -vv
+./artisan pail --timeout=1
+./artisan pail --timeout=0 --level=error --message=payment -vv
 ```
 
 `pail` 跟随应用日志事件，不依赖日志渠道的存储后端。每次调用在当前应用存储路径的 `pail/` 目录创建独立会话，并发调用分别接收日志。`--filter`、`--message`、`--level`、`--auth` 和 `--user` 使用上文的筛选规则，`--auth` 优先于别名 `--user`。执行超时默认 3600 秒，零表示关闭超时；超时打印“Maximum execution time exceeded.”后成功退出。Ctrl+C 或 SIGTERM 停止跟随并删除本次会话。无效记录或输出错误令命令失败，同样清理会话；`--quiet` 和 `--silent` 抑制输出。
 
-Rust 原生跟随文件，支持分段 UTF-8 行、截断和按名称重新打开轮换文件，无需 PHP、PCNTL 或 `tail` 子进程。初次读取已有内容遵循末十行规则。在检测到截断或替换时丢弃未完成行，避免拼接不同文件代际；完整 JSON 记录立即筛选并打印。Windows 上先运行 `cargo build --features pail`，再用 `.\target\debug\main.exe artisan pail --timeout=0`。原生控制台 Ctrl+C 和正常超时均会停止命令并删除本次捕获会话。
+Rust 原生跟随文件，支持分段 UTF-8 行、截断和按名称重新打开轮换文件，无需 PHP、PCNTL 或 `tail` 子进程。初次读取已有内容遵循末十行规则。在检测到截断或替换时丢弃未完成行，避免拼接不同文件代际；完整 JSON 记录立即筛选并打印。Windows 上使用 `.\artisan.bat pail --timeout=0`。原生控制台 Ctrl+C 和正常超时均会停止命令并删除本次捕获会话。
 
 Provider 通过所属应用的 ConsoleKernel 注册命令，沿用捕获的 testing／Vapor 门禁。Rust 没有 PHP 全局 SAPI 标志：仅启动 HTTP 不执行命令注册回调，独立和程序化 Artisan 使用同一回调。取消捕获调用会清理会话并恢复调用方输出状态。本实现不增加心跳：与上游一样，即使 `--timeout=0`，超过一小时没有写入的会话也可能被下一次日志生产清理。清理保留 `.gitignore`。加载 Provider 后也会向 [Artisan dev](../digging-deeper/artisan.md#the-dev-command)添加默认 `logs` 进程。
 
 ### 开发进程注册
 
-以 `--features pail` 构建时，包发现加载 Provider，`./target/debug/main artisan dev:list --json` 会列出执行 `pail --timeout=0` 的 `logs`。用 `./target/debug/main artisan dev --inline` 启动，监督器复用同一二进制，不调用 Cargo，也不要求 PHP／PCNTL。未编译 Pail，或应用未加载其 Provider 时，没有默认 `logs` 条目。查询列表不会创建捕获会话。
+启用 `pail` 后，包发现加载 Provider，`./artisan dev:list --json` 会列出执行 `pail --timeout=0` 的 `logs`。用 `./artisan dev --inline` 启动，监督器复用同一二进制，不调用 Cargo，也不要求 PHP／PCNTL。未编译 Pail，或应用未加载其 Provider 时，没有默认 `logs` 条目。查询列表不会创建捕获会话。
 
 注册按 Provider 身份判断，独立于捕获门禁。在 testing 或 Vapor 环境中，已加载的 Provider 仍提供默认 `logs`，但 `pail` 命令被门禁禁用，除非设置 PAIL_TESTS 例外。此类应用可用 `DevCommands::except(&["logs"])?` 排除它。Windows 监督器向默认 `logs` 进程发送控制台关停信号，并通过 Windows 作业回收进程树。正常 Ctrl+C 关停会删除本次 Pail 会话。
 

@@ -285,23 +285,22 @@ Rust JSON 無符號整數保留原始精度；超過 PHP 有號整數範圍的�
 
 ## 使用 Pail 追蹤日誌 {#tailing-log-messages-using-pail}
 
-將可選套件編入應用程式後執行實際 Artisan 命令：
+在應用程式 `Cargo.toml` 的 `[features].default` 清單中加入 `pail`，保留已有功能，然後使用原始碼入口：
 
 ```sh
-cargo build --locked --features pail
-./target/debug/main artisan pail --timeout=1
-./target/debug/main artisan pail --timeout=0 --level=error --message=payment -vv
+./artisan pail --timeout=1
+./artisan pail --timeout=0 --level=error --message=payment -vv
 ```
 
 `pail` 跟隨應用程式日誌事件，不依賴日誌通道的儲存後端。每次呼叫在目前應用程式儲存路徑的 `pail/` 目錄建立獨立工作階段，並行呼叫分別接收日誌。`--filter`、`--message`、`--level`、`--auth` 和 `--user` 使用上文的篩選規則，`--auth` 優先於別名 `--user`。執行逾時預設 3600 秒，零表示停用逾時；逾時印出「Maximum execution time exceeded.」後成功退出。Ctrl+C 或 SIGTERM 停止跟隨並刪除本次工作階段。無效記錄或輸出錯誤令命令失敗，同樣清理工作階段；`--quiet` 和 `--silent` 抑制輸出。
 
-Rust 原生跟隨檔案，支援分段 UTF-8 行、截斷及依名稱重新開啟輪換檔案，無需 PHP、PCNTL 或 `tail` 子程序。初次讀取已有內容遵循末十行規則。偵測到截斷或替換時會捨棄未完成行，避免串接不同檔案世代；完整 JSON 記錄立即篩選並印出。Windows 上先執行 `cargo build --features pail`，再用 `.\target\debug\main.exe artisan pail --timeout=0`。原生主控台 Ctrl+C 和正常逾時均會停止命令並刪除本次擷取工作階段。
+Rust 原生跟隨檔案，支援分段 UTF-8 行、截斷及依名稱重新開啟輪換檔案，無需 PHP、PCNTL 或 `tail` 子程序。初次讀取已有內容遵循末十行規則。偵測到截斷或替換時會捨棄未完成行，避免串接不同檔案世代；完整 JSON 記錄立即篩選並印出。Windows 上使用 `.\artisan.bat pail --timeout=0`。原生主控台 Ctrl+C 和正常逾時均會停止命令並刪除本次擷取工作階段。
 
 Provider 透過所屬應用程式的 ConsoleKernel 註冊命令，沿用擷取的 testing／Vapor 門禁。Rust 沒有 PHP 全域 SAPI 旗標：僅啟動 HTTP 不執行命令註冊回呼，獨立與程式化 Artisan 使用同一回呼。取消擷取呼叫會清理工作階段並恢復呼叫端輸出狀態。本實作不增加心跳：與上游一樣，即使 `--timeout=0`，超過一小時沒有寫入的工作階段也可能被下一次日誌生產清理。清理保留 `.gitignore`。載入 Provider 後也會向 [Artisan dev](../digging-deeper/artisan.md#the-dev-command)加入預設 `logs` 程序。
 
 ### 開發程序註冊
 
-以 `--features pail` 建置時，套件探索載入 Provider，`./target/debug/main artisan dev:list --json` 會列出執行 `pail --timeout=0` 的 `logs`。用 `./target/debug/main artisan dev --inline` 啟動，監督器沿用同一執行檔，不呼叫 Cargo，也不要求 PHP／PCNTL。未編譯 Pail，或應用程式未載入其 Provider 時，沒有預設 `logs` 項目。查詢清單不會建立擷取工作階段。
+啟用 `pail` 後，套件探索載入 Provider，`./artisan dev:list --json` 會列出執行 `pail --timeout=0` 的 `logs`。用 `./artisan dev --inline` 啟動，監督器沿用同一執行檔，不呼叫 Cargo，也不要求 PHP／PCNTL。未編譯 Pail，或應用程式未載入其 Provider 時，沒有預設 `logs` 項目。查詢清單不會建立擷取工作階段。
 
 註冊依 Provider 身分判斷，獨立於擷取門禁。在 testing 或 Vapor 環境中，已載入的 Provider 仍提供預設 `logs`，但 `pail` 命令被門禁停用，除非設定 PAIL_TESTS 例外。此類應用程式可用 `DevCommands::except(&["logs"])?` 排除它。Windows 監督器向預設 `logs` 程序傳送主控台關停訊號，並透過 Windows 作業回收程序樹。正常 Ctrl+C 關停會刪除本次 Pail 工作階段。
 

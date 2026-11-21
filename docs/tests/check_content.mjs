@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {readFileSync,existsSync,readdirSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import path from 'node:path';
+import {assertCommandEntrypoints} from './command_entrypoints.mjs';
 const root=fileURLToPath(new URL('../',import.meta.url));
 const languages=['en','zh_CN','zh_TW'];
 // Developer guides must stand on their own, without internal project records.
@@ -34,6 +35,7 @@ for(const language of languages){
  walk(base);for(const target of filesOnDisk){
   const text=readFileSync(target,'utf8');
   assert(text.trim(),`Empty Markdown: ${target}`);
+  assertCommandEntrypoints(text,path.relative(root,target));
   for(const pattern of internalContent)assert(!pattern.test(text),`${path.relative(root,target)}: internal project content ${pattern}`);
  }
  console.log(`${language}: ${new Set(files).size} navigation chapters and ${filesOnDisk.length} Markdown files have content PASS`);

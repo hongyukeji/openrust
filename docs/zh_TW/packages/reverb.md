@@ -2,11 +2,7 @@
 
 ## 安裝
 
-建置時啟用 Cargo 的 `reverb` 功能。該功能註冊 Reverb Provider、`reverb` 廣播驅動程式與 Artisan 命令。
-
-```sh
-cargo build --features reverb
-```
+在應用程式 `Cargo.toml` 的 `[features].default` 清單中加入 `reverb`，保留已有功能。此功能註冊 Reverb Provider、`reverb` 廣播驅動程式與 Artisan 命令。原始碼命令使用 `./artisan`。
 
 套件本身提供預設伺服器設定，啟用 feature 不會產生 `config/reverb.rs`。需要應用覆寫時執行 `./artisan vendor:publish --tag=reverb-config`，在 `config/mod.rs` 的模組宣告與設定映射中分別加入 `mod reverb;` 與 `("reverb".to_owned(), reverb::load(env)?),`，然後重新建置。明確執行 `init --extensions=reverb` 會發布並登記此設定；重複初始化保留既有自訂，除非傳入 `--force`。
 
@@ -19,8 +15,8 @@ cargo build --features reverb
 需要獨立程序時，設定 `REVERB_MODE=standalone` 並透過 Artisan 啟動：
 
 ```sh
-./target/debug/main artisan reverb:start --host=127.0.0.1 --port=8080
-./target/debug/main artisan reverb:restart
+./artisan reverb:start --host=127.0.0.1 --port=8080
+./artisan reverb:restart
 ```
 
 `reverb:start --hostname=edge.example.com` 會在綁定位址旁顯示用戶端連線的主機名稱，預設讀取 `REVERB_HOST`。實際綁定由 `--host` 和 `--port` 決定。使用 `--debug` 在終端機顯示連線、協定事件和發布診斷。

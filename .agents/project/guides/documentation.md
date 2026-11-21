@@ -55,6 +55,8 @@ node tests/check_scope.mjs
 
 `node docs/tests/check_content.mjs` 检查三语正文、导航、相对链接及内部任务编号、项目记录路径和交付过程用语。自动检查只覆盖可识别模式；评审仍需确认正文面向应用开发者，并把验收经过、实现追踪和待办迁到 `.agents/project/` 对应主题。
 
+命令入口按[文档规范](../conventions.md#文档规范)使用源码 `./artisan` 或部署后的 `./main artisan`。内容检查拒绝直接运行构建目录内二进制的 Artisan 示例，覆盖 debug／release、目标平台子目录、Windows 路径及 shell 续行；构建产物的位置说明和复制命令不受影响。`npm run build` 先执行入口规则正反例，再检查三语正文，违规时在站点构建前退出。修改规则时运行 `node --test docs/tests/command_entrypoints.test.mjs`，并在隔离文档快照中注入违规示例，确认内容检查和构建入口实际失败。
+
 内部材料只保留仍有效的信息并归入已有主题；一次性检查保存简短结论、实际验证结果和提交号即可。历史原文与差异通过 Git 追溯，不另建逐页文档备份。
 
 ## 可追溯 API 快照

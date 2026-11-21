@@ -285,23 +285,22 @@ The live [Pail command](#tailing-log-messages-using-pail) uses this printer. The
 
 ## Tailing Log Messages Using Pail {#tailing-log-messages-using-pail}
 
-Build the optional package into your application, then run the real Artisan command:
+Add `pail` to the application’s `[features].default` list in `Cargo.toml`, preserving existing features, then use the source launcher:
 
 ```sh
-cargo build --locked --features pail
-./target/debug/main artisan pail --timeout=1
-./target/debug/main artisan pail --timeout=0 --level=error --message=payment -vv
+./artisan pail --timeout=1
+./artisan pail --timeout=0 --level=error --message=payment -vv
 ```
 
 `pail` follows application log events regardless of the channel's storage backend. Each invocation creates its own file under the current application storage path's `pail/` directory. Concurrent invocations receive their own copies. `--filter`, `--message`, `--level`, `--auth` and `--user` use the filters described above; `--auth` takes precedence over its `--user` alias. The execution timeout defaults to 3600 seconds; zero disables it. Timeout prints “Maximum execution time exceeded.” and exits successfully. Ctrl+C or SIGTERM stops following and removes the owned session. Invalid records and output errors fail the command and still clean up. `--quiet` and `--silent` suppress output.
 
-Rust follows the file natively, including partial UTF-8 lines, truncation and replacement by name, without PHP, PCNTL or a `tail` subprocess. Initial existing content follows the last-ten-lines rule. An incomplete line is discarded at a detected truncation or replacement boundary to avoid combining different file generations. A completed JSON record is filtered and printed immediately. On Windows, use `.\target\debug\main.exe artisan pail --timeout=0` after building with `cargo build --features pail`. Native console Ctrl+C stops the command and removes its capture session, as does a normal timeout.
+Rust follows the file natively, including partial UTF-8 lines, truncation and replacement by name, without PHP, PCNTL or a `tail` subprocess. Initial existing content follows the last-ten-lines rule. An incomplete line is discarded at a detected truncation or replacement boundary to avoid combining different file generations. A completed JSON record is filtered and printed immediately. On Windows, use `.\artisan.bat pail --timeout=0`. Native console Ctrl+C stops the command and removes its capture session, as does a normal timeout.
 
 The provider registers commands through the current application's ConsoleKernel, under the same testing/Vapor gates as capture. There is no PHP global SAPI flag: HTTP-only boot does not execute the registrar, while standalone and programmatic Artisan share it. Cancelling a captured command removes its session and restores the caller's output metadata. This does not add a heartbeat: as upstream, a session older than one hour without writes may be removed by the next producer even with `--timeout=0`. The `.gitignore` remains after cleanup.
 
 ### Development Process Registration
 
-With `--features pail`, package discovery loads the provider and `./target/debug/main artisan dev:list --json` includes `logs` with `pail --timeout=0`. Start it with `./target/debug/main artisan dev --inline`. The supervisor uses the same executable; it does not invoke Cargo or require PHP/PCNTL. A build without Pail, or an application that does not load its provider, has no default `logs` entry. Listing processes never creates a capture session.
+With `pail` enabled, package discovery loads the provider and `./artisan dev:list --json` includes `logs` with `pail --timeout=0`. Start it with `./artisan dev --inline`. The supervisor uses the same executable; it does not invoke Cargo or require PHP/PCNTL. A build without Pail, or an application that does not load its provider, has no default `logs` entry. Listing processes never creates a capture session.
 
 Registration tests the provider identity, independently of capture gates. In `testing` or Vapor environments the loaded provider still yields a default `logs` entry, even though its `pail` command is disabled unless `PAIL_TESTS` overrides the gate. Use `DevCommands::except(&["logs"])?` to exclude it in such an application. On Windows, the supervisor sends console shutdown signals to the default `logs` process and reclaims its process tree through Windows jobs. A normal Ctrl+C shutdown removes the owned Pail session.
 

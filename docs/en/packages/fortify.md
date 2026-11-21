@@ -10,20 +10,18 @@ Fortify manages registration, session login and credential changes. Use [Sanctum
 
 ## Installation
 
-Enable the `fortify` Cargo feature and run the compiled command:
+Add `fortify` to the application’s `[features].default` list in `Cargo.toml`, preserving existing features, then use the source launcher:
 
 ```sh
-cargo +1.94.0 build --locked --features fortify --bin main
-./target/debug/main artisan fortify:install
+./artisan fortify:install
 ```
 
 The command publishes `config/fortify.rs`, `app/actions/fortify/`, the application provider and the two-factor columns and Passkeys migrations. It registers their Rust modules, configuration and providers, and adds the default User capability. Existing published files are preserved. Unsupported source layouts fail with a manual registration diagnostic. Installation does not run migrations.
 
-Edit the published configuration: enable `email-verification` for the default User; provide view callbacks or set `views` to `false`. Then rebuild and migrate:
+Edit the published configuration: enable `email-verification` for the default User; provide view callbacks or set `views` to `false`. Then run the migration; the source launcher rebuilds the application when needed:
 
 ```sh
-cargo +1.94.0 build --locked --features fortify --bin main
-./target/debug/main artisan migrate --no-interaction
+./artisan migrate --no-interaction
 ```
 
 The discovery provider `FortifyResourcesServiceProvider` makes installation resources available. The explicitly registered `openrust_fortify::FortifyServiceProvider` enables runtime authentication. The generated application provider connects actions, models and named limiters. Compiled applications require rebuilding after source changes.

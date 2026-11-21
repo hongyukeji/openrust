@@ -2,11 +2,7 @@
 
 ## Installation
 
-Build the application with the `reverb` Cargo feature. The feature registers the Reverb service provider, the `reverb` broadcast driver, and the Artisan commands.
-
-```sh
-cargo build --features reverb
-```
+Add `reverb` to the application’s `[features].default` list in `Cargo.toml`, preserving existing features. The feature registers the Reverb service provider, the `reverb` broadcast driver, and the Artisan commands. Use `./artisan` to run source commands.
 
 The package supplies its own default server configuration; enabling the feature does not create `config/reverb.rs`. For application overrides, run `./artisan vendor:publish --tag=reverb-config`, add `mod reverb;` and `("reverb".to_owned(), reverb::load(env)?),` to the declarations and configuration map in `config/mod.rs`, then rebuild. Explicit `init --extensions=reverb` publishes and registers this configuration. Repeated initialization preserves existing configuration unless `--force` is supplied.
 
@@ -19,8 +15,8 @@ Set `REVERB_ENABLED=true` for the default embedded mode. Starting the applicatio
 For a separate process, set `REVERB_MODE=standalone` and start Reverb through Artisan:
 
 ```sh
-./target/debug/main artisan reverb:start --host=127.0.0.1 --port=8080
-./target/debug/main artisan reverb:restart
+./artisan reverb:start --host=127.0.0.1 --port=8080
+./artisan reverb:restart
 ```
 
 `reverb:start --hostname=edge.example.com` displays the public hostname alongside the bound address. It defaults to `REVERB_HOST`. The listener still binds to `--host` and `--port`. Use `--debug` for connection, protocol-event, and publication diagnostics in the terminal.
