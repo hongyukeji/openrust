@@ -153,33 +153,55 @@ Bind the application to a private address and terminate TLS at your reverse prox
 
 ## Docker deployment {#docker-deployment}
 
-Use Docker Engine with Compose and Buildx on Linux, or Docker Desktop in Linux-container mode on macOS or Windows. The same Dockerfile builds Linux `amd64` and `arm64` images. Run the commands below from the repository root. On Windows PowerShell use `Copy-Item docker/.env.example docker/.env` for the first step.
+Use Docker Engine with Compose 2.24+ and Buildx on Linux, or Docker Desktop in Linux-container mode on macOS and Windows. Compose 2.24+ is required for optional environment files. The Dockerfile supports Linux `amd64` and `arm64`. Run these commands from the repository root. Use the single `docker/docker-compose.yml` and root `.env`. If `.env` does not exist, copy `.env.example` to `.env` (PowerShell: `Copy-Item .env.example .env`); edit an existing file in place.
 
-On Windows ARM64 the Docker Desktop backend requires working WSL 2. A Windows virtual machine needs nested virtualization exposed by its hypervisor. See the [Docker Desktop requirements](https://docs.docker.com/desktop/setup/install/windows-install/#system-requirements).
+Use native Docker Compose without a startup wrapper. The root `.env` provides defaults; optional `docker/.env` overrides matching values. The image is `${APP_IMAGE_NAME:-openrust}:${APP_IMAGE_VERSION:-latest}`. Use a valid lowercase image repository name for `APP_IMAGE_NAME`. Set `APP_IMAGE_VERSION` for a release tag, or leave it unset to use `latest`. Compose does not read Cargo; the application still uses its compiled Cargo version when no application version is configured. Put container-only `DB_HOST=postgres` (or `mysql`) and `REDIS_HOST=redis` in `docker/.env` so host applications keep their root configuration. Store only differences; both actual environment files stay ignored by Git.
 
-For local development, start MySQL 8.4 and Redis and run the app on the host. Set the application's root `.env` to `DB_CONNECTION=mysql`, `DB_HOST=127.0.0.1`, `DB_PORT=33060`, `REDIS_HOST=127.0.0.1`, and `REDIS_PORT=16379`. Use the same MySQL database, username and password as `docker/.env`. Set `CACHE_STORE=redis` and `QUEUE_CONNECTION=redis` to use Redis. Generate an application key if it is empty, then run `./artisan migrate` and `cargo run`. On Windows PowerShell use `.\artisan.bat`.
-
-For a containerized application on a single host:
-
-1. Copy the template below. For production set `APP_ENV=production`, `APP_DEBUG=false`, a strong `DB_PASSWORD`, and the public `APP_URL` before initializing MySQL. Keep `docker/.env` private.
-2. Start the backing services and build the application image. Obtain an application key using the container's Artisan and save it as `APP_KEY` in `docker/.env`. Keep the same key on upgrades and across replicas.
+When `docker/.env` exists, append `--env-file docker/.env` after `--env-file .env` in every command below. For example, start backing services first:
 
 ```sh
-cp docker/.env.example docker/.env
-docker compose --env-file docker/.env -f docker/docker-compose.yml --profile local up -d --wait mysql redis
-docker compose --env-file docker/.env -f docker/docker-compose.yml build app
-docker compose --env-file docker/.env -f docker/docker-compose.yml run --rm app artisan key:generate --show
+docker compose --env-file .env --env-file docker/.env -f docker/docker-compose.yml up -d --wait postgres mysql redis
 ```
 
-3. The app runs as UID/GID 10001. Grant that identity write access to `docker/data/storage`. On Linux, for a fresh directory, use `sudo chown 10001:10001 docker/data/storage`. On Docker Desktop the directory must be shared with Docker and writable in the container. Run the migration once, then start the app.
+The application container loads the root `.env` and optional `docker/.env` in that order. Service `env_file` does not supply Compose interpolation; pass CLI environment files in the same order. Shell variables retain native Compose precedence. Without an override file, pass only the root file. Compose fixes the internal listener at `0.0.0.0:8000`; `APP_HOST` and `APP_PORT` set the host binding.
+
+Windows ARM64 requires a working WSL 2 backend. Windows virtual machines require nested virtualization. See the [Docker Desktop system requirements](https://docs.docker.com/desktop/setup/install/windows-install/#system-requirements).
+
+### Local databases and cache
+
+Set non-empty `DB_DATABASE`, `DB_USERNAME` and `DB_PASSWORD` in the root `.env`. Local database credentials use `DB_USERNAME=root` and `DB_PASSWORD=root`. MySQL initializes its root account through `MYSQL_ROOT_PASSWORD`. Start PostgreSQL 18, MySQL 8.4 and Redis 8 with the commands below, or select services explicitly, for example `up -d --wait postgres redis`.
 
 ```sh
-docker compose --env-file docker/.env -f docker/docker-compose.yml run --rm app artisan migrate --force
-docker compose --env-file docker/.env -f docker/docker-compose.yml up -d --wait app
+docker compose --env-file .env -f docker/docker-compose.yml up -d --wait postgres mysql redis
+docker compose --env-file .env -f docker/docker-compose.yml ps
 ```
 
-Open `http://localhost:8000/up` or use the configured `APP_PUBLISHED_PORT`. The host port defaults to loopback for use with a reverse proxy. MySQL, Redis and application storage default to relative host directories under `docker/data/`. To bind-mount static files read-only, add `-f docker/docker-compose.public.yml` to the Compose command. The default source is the repository's `public/`. With that override the host directory supplies the complete contents served at `public/`.
+The default project name is `openrust`; containers use `${APP_NAME}-service` names. The application image is `${APP_IMAGE_NAME:-openrust}:${APP_IMAGE_VERSION:-latest}`. PostgreSQL `5432`, MySQL `3306` and Redis `6379` bind to loopback by default. Data lives under `docker/data/postgres`, `docker/data/mysql` and `docker/data/redis`; PostgreSQL 18 mounts all of `/var/lib/postgresql`. `POSTGRES_PORT` and `MYSQL_PORT` change only host mappings; database container ports stay fixed. `REDIS_PORT` changes the Redis listener, host mapping, health check and application connection port together. Database credentials initialize empty data directories only; changing existing passwords requires updating actual accounts.
 
-The image sets `APP_PACKAGES_CACHE=storage/framework/cache/packages.json`, within the mounted storage. `package:discover` and `clear-compiled` use that path across one-off containers. If you override it, choose a writable path in the same mount.
+For an application running on the host, set `DB_CONNECTION=pgsql` or `mysql`, `DB_HOST=127.0.0.1`, the matching database port (PostgreSQL `5432`, MySQL `3306`), `REDIS_HOST=127.0.0.1` and `REDIS_PORT=6379` in the root `.env`. Keep the same database name and credentials. Set `CACHE_STORE=redis` and `QUEUE_CONNECTION=redis` as needed, generate the application key, run `./artisan migrate` and start the application. On Windows use `.\artisan.bat`.
 
-For multiple hosts, deploy the same image and omit the `local` profile. Set `OPENRUST_IMAGE`, shared `DB_HOST` and `REDIS_HOST`, and matching application key, cache/queue settings and credentials. Deploy with `up -d --no-build --wait app` after pulling or loading that image. Run migration once per release and use a load balancer with TLS and shared storage (such as S3) for uploads. If only one instance should run the scheduler, set `APP_DISABLED_RUNNERS=schedule` on the others. For optional Cargo features such as `reverb` or `sanctum`, set `APP_BUILD_FEATURES` at build time.
+### Application container
+
+The application and all backing services start by default. To start only databases and Redis, append `postgres mysql redis` to the startup command. Set container-accessible hostnames in `docker/.env` (or the root `.env`): `DB_HOST=postgres` or `mysql`, the container port (PostgreSQL `5432`, MySQL `3306`), and `REDIS_HOST=redis` for these Compose services. For external services, use their actual addresses. In production set `APP_ENV=production`, `APP_DEBUG=false`, a strong password and the public `APP_URL`.
+
+Keep an existing `APP_KEY`. Only run the generation command below when the key is missing, and save its output in the root `.env`. The application runs as UID/GID `10001`. Create `docker/data/storage` and make it writable; on Linux use `sudo chown 10001:10001 docker/data/storage`. The root `public/` directory is mounted read-only. Set `APP_PUBLIC_PATH` in the root `.env` to use another existing directory; relative paths are resolved from `docker/`.
+
+```sh
+docker compose --env-file .env -f docker/docker-compose.yml build app
+docker compose --env-file .env -f docker/docker-compose.yml run --rm --no-deps app artisan key:generate --show
+```
+
+```sh
+docker compose --env-file .env -f docker/docker-compose.yml run --rm --no-deps app artisan migrate --force
+docker compose --env-file .env -f docker/docker-compose.yml up -d --wait
+```
+
+Open `http://localhost:8000/up`. Set `APP_PORT` to change the host port, which binds to loopback by default. The image uses `APP_PACKAGES_CACHE=storage/framework/cache/packages.json`; one-off commands and the application share writable storage. Use `up -d --wait` to start the application together with all backing services.
+
+For multiple hosts, use the same `APP_IMAGE_NAME` / `APP_IMAGE_VERSION`, application key, external database and shared cache/queue settings, then run `up -d --no-build --no-deps --wait app`. Run migrations once per release, terminate TLS at the load balancer and use shared storage such as S3 for uploads. Set `APP_DISABLED_RUNNERS=schedule` on replicas that should not run the scheduler. Select optional features with `APP_BUILD_FEATURES` when building.
+
+### Public Nginx entry point {#nginx}
+
+Nginx starts by default and forwards HTTP requests to `app:8000`, listening publicly on `0.0.0.0:8080`. Set `NGINX_PORT` in the root `.env` or optional `docker/.env` to change the host port, and `NGINX_HOST` to restrict the bind address. Nginx always listens on container port `80`. For example, `NGINX_HOST=127.0.0.1` and `NGINX_PORT=18080` restrict access to the local host. Set the application's `APP_URL` to its actual public address, such as `http://localhost:8080`.
+
+The proxy configuration in `docker/nginx/default.conf` preserves the request path and Host, forwards client and protocol information, supports WebSocket upgrades and disables response buffering for streaming. Nginx waits for a healthy application and resolves its address again through Docker DNS after recreation. Use the Nginx port for external access; `APP_HOST` and `APP_PORT` still control direct application access. Configure TLS at the HTTPS entry point used by your deployment.

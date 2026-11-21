@@ -153,33 +153,55 @@ $app = Join-Path $PWD 'release/main.exe'
 
 ## Docker 部署 {#docker-deployment}
 
-Linux 使用具備 Compose 與 Buildx 的 Docker Engine，macOS 與 Windows 使用 Linux 容器模式的 Docker Desktop。同一份 Dockerfile 支援建置 Linux `amd64` 與 `arm64` 映像。以下命令從儲存庫根目錄執行，Windows PowerShell 第一步使用 `Copy-Item docker/.env.example docker/.env`。
+Linux 使用具備 Compose 2.24+ 與 Buildx 的 Docker Engine，macOS 與 Windows 使用 Linux 容器模式的 Docker Desktop。Compose 需要 2.24+，以支援可選環境檔。同一份 Dockerfile 支援 Linux `amd64` 與 `arm64`。以下命令從儲存庫根目錄執行，統一使用 `docker/docker-compose.yml` 與根目錄 `.env`；檔案尚不存在時，複製 `.env.example` 為 `.env`（PowerShell 使用 `Copy-Item .env.example .env`），已有檔案直接編輯。
 
-Windows ARM64 的 Docker Desktop 後端需要可運作的 WSL 2。Windows 虛擬機器需要虛擬化平台提供巢狀虛擬化。請參閱 [Docker Desktop 系統需求](https://docs.docker.com/desktop/setup/install/windows-install/#system-requirements)。
+直接使用原生 Docker Compose，無須額外啟動腳本。根 `.env` 提供預設設定，可選 `docker/.env` 覆寫同名值；映像名稱為 `${APP_IMAGE_NAME:-openrust}:${APP_IMAGE_VERSION:-latest}`。`APP_IMAGE_NAME` 使用合法小寫映像倉庫名稱，`APP_IMAGE_VERSION` 可指定發布標籤，未設定時使用 `latest`。Compose 不讀取 Cargo；應用程式本身未設定版本時仍使用編譯時的 Cargo 版本。容器專用的 `DB_HOST=postgres`（或 `mysql`）及 `REDIS_HOST=redis` 可放在 `docker/.env`，主機應用程式繼續使用根設定。覆寫檔案只寫差異，兩份實際環境檔案均不提交 Git。
 
-本機開發可只啟動 MySQL 8.4 與 Redis，應用程式在主機執行。根目錄的應用程式 `.env` 設定 `DB_CONNECTION=mysql`、`DB_HOST=127.0.0.1`、`DB_PORT=33060`、`REDIS_HOST=127.0.0.1` 與 `REDIS_PORT=16379`。MySQL 資料庫名稱、使用者與密碼須與 `docker/.env` 一致。使用 Redis 快取與佇列時設定 `CACHE_STORE=redis` 與 `QUEUE_CONNECTION=redis`。應用程式金鑰為空時先產生金鑰，再執行 `./artisan migrate` 和 `cargo run`。Windows PowerShell 使用 `.\artisan.bat`。
-
-單機部署應用程式容器的步驟如下。
-
-1. 複製環境範本。正式環境在初始化 MySQL 前設定 `APP_ENV=production`、`APP_DEBUG=false`、高強度的 `DB_PASSWORD` 與公開的 `APP_URL`。妥善保存 `docker/.env`。
-2. 啟動相依服務並建置映像。使用容器內的 Artisan 產生應用程式金鑰，填入 `docker/.env` 的 `APP_KEY`。升級與多執行個體部署仍使用原金鑰。
+存在 `docker/.env` 時，下方所有命令都在 `--env-file .env` 後加上 `--env-file docker/.env`。例如先啟動配套服務：
 
 ```sh
-cp docker/.env.example docker/.env
-docker compose --env-file docker/.env -f docker/docker-compose.yml --profile local up -d --wait mysql redis
-docker compose --env-file docker/.env -f docker/docker-compose.yml build app
-docker compose --env-file docker/.env -f docker/docker-compose.yml run --rm app artisan key:generate --show
+docker compose --env-file .env --env-file docker/.env -f docker/docker-compose.yml up -d --wait postgres mysql redis
 ```
 
-3. 應用程式以 UID/GID 10001 執行，需能寫入 `docker/data/storage`。在 Linux 上可對新目錄執行 `sudo chown 10001:10001 docker/data/storage`。Docker Desktop 上請確認目錄已分享給 Docker 且容器可寫入。執行一次遷移，再啟動應用程式。
+應用程式容器按根 `.env`、可選 `docker/.env` 的順序載入環境檔案。服務 `env_file` 不負責 Compose 插值，命令也須按相同順序傳入環境檔案；Shell 環境仍按 Compose 原生規則優先。沒有覆寫檔案時只傳根檔案。Compose 固定容器內部監聽 `0.0.0.0:8000`，主機繫結重用 `APP_HOST` 和 `APP_PORT`。
+
+Windows ARM64 後端需要可運作的 WSL 2；Windows 虛擬機需要巢狀虛擬化。參見 [Docker Desktop 系統要求](https://docs.docker.com/desktop/setup/install/windows-install/#system-requirements)。
+
+### 本機資料庫與快取
+
+在根 `.env` 填寫非空的 `DB_DATABASE`、`DB_USERNAME` 與 `DB_PASSWORD`。本機資料庫使用者名稱與密碼統一使用 `root`，即 `DB_USERNAME=root`、`DB_PASSWORD=root`。MySQL 透過專用的 `MYSQL_ROOT_PASSWORD` 初始化 root 帳號。以下命令啟動 PostgreSQL 18、MySQL 8.4 與 Redis 8；也可指定所需服務，例如 `up -d --wait postgres redis`。
 
 ```sh
-docker compose --env-file docker/.env -f docker/docker-compose.yml run --rm app artisan migrate --force
-docker compose --env-file docker/.env -f docker/docker-compose.yml up -d --wait app
+docker compose --env-file .env -f docker/docker-compose.yml up -d --wait postgres mysql redis
+docker compose --env-file .env -f docker/docker-compose.yml ps
 ```
 
-開啟 `http://localhost:8000/up`，連接埠可透過 `APP_PUBLISHED_PORT` 修改。主機連接埠預設繫結回送位址，便於搭配反向代理。MySQL、Redis 與應用程式儲存預設掛載到 `docker/data/` 下的相對目錄。若須唯讀掛載靜態資源，在 Compose 命令加入 `-f docker/docker-compose.public.yml`。預設來源為儲存庫的 `public/`，由主機目錄提供完整的公開檔案。
+預設專案名稱為 `openrust`，容器使用 `${APP_NAME}-服務名` 命名。應用程式映像使用 `${APP_IMAGE_NAME:-openrust}:${APP_IMAGE_VERSION:-latest}`。PostgreSQL `5432`、MySQL `3306`、Redis `6379` 預設僅映射回送位址；資料分別位於 `docker/data/postgres`、`docker/data/mysql`、`docker/data/redis`，PostgreSQL 18 掛載整個 `/var/lib/postgresql`。`POSTGRES_PORT`、`MYSQL_PORT` 只改變主機映射；容器資料庫連接埠不變。`REDIS_PORT` 同時改變 Redis 內部監聽、主機映射、健康檢查及應用程式連線埠。環境中的資料庫憑據只在空資料目錄首次初始化時生效，後續改密須更新實際帳號。
 
-映像預設設定 `APP_PACKAGES_CACHE=storage/framework/cache/packages.json`，套件清單保存在掛載的 `storage` 中。一次性容器執行 `package:discover` 或 `clear-compiled` 時也使用這個路徑。自訂路徑時，選擇掛載目錄內可寫入的位置。
+應用程式在主機執行時，根 `.env` 設定 `DB_CONNECTION=pgsql` 或 `mysql`、`DB_HOST=127.0.0.1`、對應資料庫連接埠（PostgreSQL `5432`、MySQL `3306`），以及 `REDIS_HOST=127.0.0.1`、`REDIS_PORT=6379`。資料庫名稱與憑據仍使用同一份設定。按需設定 `CACHE_STORE=redis`、`QUEUE_CONNECTION=redis`，產生應用程式金鑰、執行 `./artisan migrate` 並啟動應用程式。Windows 使用 `.\artisan.bat`。
 
-多台主機部署使用同一個映像，省略 `local` profile。設定 `OPENRUST_IMAGE`、共用的 `DB_HOST` 與 `REDIS_HOST`，各執行個體使用一致的應用程式金鑰、快取／佇列設定及憑證。拉取或載入映像後以 `up -d --no-build --wait app` 啟動。每次發行集中執行一次遷移，由負載平衡器處理 TLS，上傳檔案使用 S3 等共用儲存。若排程器只需在一台執行個體執行，其他執行個體設定 `APP_DISABLED_RUNNERS=schedule`。建置時以 `APP_BUILD_FEATURES` 選擇 `reverb`、`sanctum` 等選用功能。
+### 應用程式容器
+
+預設啟動應用程式與全部配套服務；只需資料庫與快取時，在啟動命令末尾指定 `postgres mysql redis`。在 `docker/.env`（或根 `.env`）設定容器可存取的主機名稱：使用本設定的服務時，填寫 `DB_HOST=postgres` 或 `mysql`、對應容器連接埠（PostgreSQL `5432`、MySQL `3306`），以及 `REDIS_HOST=redis`。使用外部服務時填寫其實際位址。正式環境設定 `APP_ENV=production`、`APP_DEBUG=false`、強密碼與公開 `APP_URL`。
+
+先檢查 `APP_KEY`：已有金鑰直接保留；僅首次缺少金鑰時執行下方產生命令，並將結果填入根 `.env`。應用程式使用 UID/GID `10001`；先建立 `docker/data/storage` 並確保可寫，Linux 可用 `sudo chown 10001:10001 docker/data/storage`。公共資源預設唯讀掛載根目錄 `public/`，可在根 `.env` 設定 `APP_PUBLIC_PATH`，相對路徑以 `docker/` 為基準；目錄必須存在。
+
+```sh
+docker compose --env-file .env -f docker/docker-compose.yml build app
+docker compose --env-file .env -f docker/docker-compose.yml run --rm --no-deps app artisan key:generate --show
+```
+
+```sh
+docker compose --env-file .env -f docker/docker-compose.yml run --rm --no-deps app artisan migrate --force
+docker compose --env-file .env -f docker/docker-compose.yml up -d --wait
+```
+
+開啟 `http://localhost:8000/up`，主機連接埠可用 `APP_PORT` 修改，預設繫結回送位址。映像使用 `APP_PACKAGES_CACHE=storage/framework/cache/packages.json`，一次性命令與應用程式共用可寫儲存。使用 `up -d --wait` 可同時啟動應用程式與全部配套服務。
+
+多機部署使用相同 `APP_IMAGE_NAME` / `APP_IMAGE_VERSION`、應用程式金鑰、外部資料庫及共享快取／佇列設定，執行 `up -d --no-build --no-deps --wait app`。每次發布集中執行一次遷移，由負載平衡器終止 TLS，上傳檔案使用 S3 等共享儲存。只需一台執行排程器時，其他執行個體設定 `APP_DISABLED_RUNNERS=schedule`。建置時以 `APP_BUILD_FEATURES` 選擇可選功能。
+
+### Nginx 對外入口 {#nginx}
+
+預設啟動的 Nginx 將 HTTP 請求轉送至 `app:8000`，對外監聽 `0.0.0.0:8080`。在根 `.env` 或可選 `docker/.env` 設定 `NGINX_PORT` 可修改主機連接埠，設定 `NGINX_HOST` 可限制繫結位址；Nginx 容器內部固定監聽 `80`。例如 `NGINX_HOST=127.0.0.1`、`NGINX_PORT=18080` 表示只供本機存取。應用程式的 `APP_URL` 應填寫實際對外位址，例如 `http://localhost:8080`。
+
+代理設定位於 `docker/nginx/default.conf`，保留請求路徑和 Host，傳遞用戶端及協定資訊，支援 WebSocket 升級並關閉回應緩衝以適配串流回應。Nginx 等待應用程式健康後啟動；應用程式重建後會透過 Docker DNS 重新解析位址。外部存取使用 Nginx 連接埠，`APP_HOST`／`APP_PORT` 繼續控制應用程式的直接存取入口。TLS 由實際部署的 HTTPS 入口設定。

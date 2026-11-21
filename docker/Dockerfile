@@ -2,7 +2,7 @@ FROM --platform=$BUILDPLATFORM rust:1.94.0-bookworm AS build
 ARG BUILDARCH
 ARG TARGETARCH
 ARG APP_BUILD_FEATURES=""
-ARG OPENRUST_BUILD_JOBS=4
+ARG APP_BUILD_JOBS=4
 ENV CARGO_TARGET_DIR=/cargo-target
 WORKDIR /src
 
@@ -35,7 +35,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
         arm64) export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc ;; \
       esac; \
     fi; \
-    cargo build --locked --release --jobs "$OPENRUST_BUILD_JOBS" --bin main --target "$triple" \
+    cargo build --locked --release --jobs "$APP_BUILD_JOBS" --bin main --target "$triple" \
       --features "standalone $APP_BUILD_FEATURES"; \
     install -D -m 0755 "$CARGO_TARGET_DIR/$triple/release/main" /out/main
 

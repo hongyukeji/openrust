@@ -1,60 +1,115 @@
+name: openrust
+
 services:
   app:
-    image: ${OPENRUST_IMAGE:-openrust:local}
+    image: ${APP_IMAGE_NAME:-openrust}:${APP_IMAGE_VERSION:-latest}
     build:
       context: ..
       dockerfile: docker/Dockerfile
       args:
         APP_BUILD_FEATURES: ${APP_BUILD_FEATURES:-}
+    container_name: ${APP_NAME:-openrust}-app
+    restart: unless-stopped
     env_file:
-      - ${OPENRUST_ENV_FILE:-.env}
+      - path: ../.env
+        required: true
+      - path: .env
+        required: false
     environment:
       APP_HOST: 0.0.0.0
       APP_PORT: "8000"
     ports:
-      - "${APP_BIND_HOST:-127.0.0.1}:${APP_PUBLISHED_PORT:-8000}:8000"
+      - "${APP_HOST:-127.0.0.1}:${APP_PORT:-8000}:8000"
     volumes:
       - type: bind
-        source: ${OPENRUST_STORAGE_PATH:-./data/storage}
+        source: ${APP_STORAGE_PATH:-./data/storage}
         target: /app/storage
+      - type: bind
+        source: ${APP_PUBLIC_PATH:-../public}
+        target: /app/public
+        read_only: true
+        bind:
+          create_host_path: false
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     init: true
-    restart: unless-stopped
     stop_grace_period: 60s
+
+  nginx:
+    image: nginx:stable-alpine
+    container_name: ${APP_NAME:-openrust}-nginx
+    restart: unless-stopped
+    ports:
+      - "${NGINX_HOST:-0.0.0.0}:${NGINX_PORT:-8080}:80"
+    volumes:
+      - type: bind
+        source: ./nginx/default.conf
+        target: /etc/nginx/conf.d/default.conf
+        read_only: true
+        bind:
+          create_host_path: false
+    depends_on:
+      app:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/up"]
+      interval: 10s
+      timeout: 3s
+      start_period: 5s
+      retries: 5
+
+  postgres:
+    image: postgres:18
+    container_name: ${APP_NAME:-openrust}-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_DATABASE:?Set DB_DATABASE in .env or docker/.env}
+      POSTGRES_USER: ${DB_USERNAME:?Set DB_USERNAME in .env or docker/.env}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env or docker/.env}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - ./data/postgres:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", 'PGPASSWORD="$$POSTGRES_PASSWORD" psql -h 127.0.0.1 -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -Atc "SELECT 1"']
+      interval: 5s
+      timeout: 5s
+      retries: 30
 
   mysql:
     image: mysql:8.4
-    profiles: [local]
+    container_name: ${APP_NAME:-openrust}-mysql
     restart: unless-stopped
     environment:
-      MYSQL_RANDOM_ROOT_PASSWORD: "yes"
-      MYSQL_DATABASE: ${DB_DATABASE:-openrust}
-      MYSQL_USER: ${DB_USERNAME:-openrust}
-      MYSQL_PASSWORD: ${DB_PASSWORD:-}
+      MYSQL_DATABASE: ${DB_DATABASE:?Set DB_DATABASE in .env or docker/.env}
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env or docker/.env}
+      MYSQL_ROOT_HOST: "%"
     ports:
-      - "127.0.0.1:${MYSQL_FORWARD_PORT:-33060}:3306"
+      - "127.0.0.1:${MYSQL_PORT:-3306}:3306"
     volumes:
-      - type: bind
-        source: ${OPENRUST_MYSQL_PATH:-./data/mysql}
-        target: /var/lib/mysql
+      - ./data/mysql:/var/lib/mysql
     healthcheck:
-      test: ["CMD-SHELL", 'MYSQL_PWD="$$MYSQL_PASSWORD" mysql --protocol=TCP -h 127.0.0.1 -u "$$MYSQL_USER" "$$MYSQL_DATABASE" -e "SELECT 1"']
+      test: ["CMD-SHELL", 'MYSQL_PWD="$$MYSQL_ROOT_PASSWORD" mysql --protocol=TCP -h 127.0.0.1 -u root "$$MYSQL_DATABASE" -e "SELECT 1"']
       interval: 5s
       timeout: 5s
       retries: 30
 
   redis:
     image: redis:8
-    profiles: [local]
+    container_name: ${APP_NAME:-openrust}-redis
     restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes"]
+    command: ["redis-server", "--appendonly", "yes", "--port", "${REDIS_PORT:-6379}"]
     ports:
-      - "127.0.0.1:${REDIS_FORWARD_PORT:-16379}:6379"
+      - "127.0.0.1:${REDIS_PORT:-6379}:${REDIS_PORT:-6379}"
     volumes:
-      - type: bind
-        source: ${OPENRUST_REDIS_PATH:-./data/redis}
-        target: /data
+      - ./data/redis:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-p", "${REDIS_PORT:-6379}", "ping"]
       interval: 5s
       timeout: 3s
       retries: 20

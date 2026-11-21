@@ -55,6 +55,16 @@
 6. **三语一起校验。** 同步更新三个语言版本的正文和导航，统一术语、标题层级与章节顺序。检查章节路径和内部链接，运行 `node docs/tests/check_content.mjs`、文档构建及现有浏览器验收。自动检查之外，逐段判断内容是否服务于应用开发者；站点命令见[维护指南](guides/documentation.md)。
 7. **命令使用正式入口。** 面向开发者的源码命令统一使用 `./artisan`，部署后的命令使用 `./main artisan`，Windows 分别使用 `.\artisan.bat` 与 `.\main.exe artisan`。不得将 `target/debug/`、`target/release/` 或目标平台子目录中的二进制作为 Artisan 使用入口；构建与部署章节可以说明产物位置和复制操作。源码入口运行可选扩展时，须说明在应用 `Cargo.toml` 的 `[features].default` 中启用所需 feature，保留已有功能，避免只给出一次性的 `cargo build --features` 后又通过默认 Cargo 配置运行命令。现有内容检查和 `npm --prefix docs run build` 必须通过命令入口门禁。
 
+## Docker 配置
+
+Docker 专用变量统一使用 `APP_` 前缀（如 `APP_IMAGE_NAME`、`APP_IMAGE_VERSION`、`APP_STORAGE_PATH`、`APP_PUBLIC_PATH`、`APP_BUILD_FEATURES`、`APP_BUILD_JOBS`），不新增 `OPENRUST_` 别名；数据库、Redis及Nginx沿用所属服务的变量命名。
+
+- Compose 只维护 `docker/docker-compose.yml`，默认启动应用与全部配套服务，需要部分服务时显式指定服务名，不再新增dev／public覆盖文件。环境模板仅保留根 `.env.example`；根 `.env` 提供默认配置，可选 `docker/.env` 覆盖同名字段（docker/.env > 根.env）。应用容器按顺序加载 `../.env` 与可选 `.env`；使用覆盖文件时，原生 Compose 命令从根目录依次传 `--env-file .env --env-file docker/.env`，没有覆盖文件时仅传前者；不增加启动包装器或为读取版本引入额外运行依赖。不能把服务env_file误认为Compose插值来源，避免数据库与应用读取不同凭据；shell环境和服务显式environment仍遵循Compose原生优先级。覆盖文件只写差异并保持Git忽略，不复制整份环境模板。修改前核对现有项目名、容器及数据挂载，避免创建平行空数据库；不得为合并配置重建或删除已有数据库数据。
+
+容器统一使用 `${APP_NAME:-openrust}-服务名` 命名；应用宿主绑定复用 `APP_HOST`／`APP_PORT`，容器内部固定监听 `0.0.0.0:8000`；不再增加重复的绑定地址、端口变量或应用 profile。应用镜像为 `${APP_IMAGE_NAME:-openrust}:${APP_IMAGE_VERSION:-latest}`，名称使用合法的小写镜像仓库名；发布版本显式配置APP_IMAGE_VERSION，未配置时使用标准latest开发标签。Compose不解析Cargo.toml，应用自身版本仍按原有Cargo默认逻辑；不为自动同步镜像版本增加脚本，镜像名称与标签分别由APP_IMAGE_NAME和APP_IMAGE_VERSION配置。`REDIS_PORT` 同时控制 Redis 服务监听、宿主映射、健康检查和应用连接端口。应用等待配套服务健康后启动。Compose 变更须同步根环境模板、README、三语配置／部署正文、服务指南与当前交接；历史审计注明版本边界，不将旧结果写成新配置已验收。
+
+本项目本地Compose数据库账号按用户要求统一为根 `.env` 的 `DB_USERNAME=root`、`DB_PASSWORD=root`。MySQL root使用镜像专用 `MYSQL_ROOT_PASSWORD` 初始化，不设置 `MYSQL_USER=root`；已有数据目录须通过SQL修改实际账号并验证，再更新容器环境，不能仅改.env后宣称账号已生效，不能清空数据目录重建。
+
 ## 配置文件注释
 
 - **配置组。** 在每组上方使用 Laravel 风格的简体中文 `/* … */` 块注释，标题上下加横线，标题和正文各行以 `|` 起首。说明用途和对应环境变量，按需写明默认值、回退行为或覆盖顺序。调整配置时同步更新注释。 [应用配置](../../config/app.rs)

@@ -54,7 +54,7 @@ cargo build --release --locked --features standalone
 
 从[简体中文文档](docs/zh_CN/README.md)查阅应用生命周期、路由、中间件和 Artisan 的用法。站点的预览、构建与部署方式见[文档站指南](docs/README.md)。
 
-用 Docker 启动本地 MySQL／Redis 或部署应用镜像，见[部署文档](docs/zh_CN/getting-started/deployment.md)。
+用 Docker Compose 启动应用、Nginx 及 PostgreSQL／MySQL／Redis，或显式选择所需服务，见[部署文档](docs/zh_CN/getting-started/deployment.md)。
 
 ## 贡献
 

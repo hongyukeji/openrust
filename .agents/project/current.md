@@ -1,5 +1,7 @@
 # 当前交接
 
+- 2026-11-21 Docker当前配置：唯一Compose默认启动五服务（含Nginx）；直接使用原生Compose，根.env、可选docker/.env和Shell依次覆盖；镜像仅APP_IMAGE_NAME:APP_IMAGE_VERSION，缺省openrust:latest，挂载及构建参数统一APP_前缀，不增加启动脚本，名称须小写；MySQL宿主默认3306，app等待依赖healthy，Redis端口统一用于监听／映射／健康检查／连接。旧数据已迁入docker/data/，账号root/root及已有应用密钥保留；本轮五服务healthy，应用与Nginx的/up均200，4项待执行迁移及幂等重跑通过。原生配置矩阵、真实Redis自定义端口、三语构建及12项通用＋12项部署页浏览器检查通过；未提交推送。见[当前Docker核对](audits/08-04/docker.md#当前配置与关联资料核对2026-11-21)。
+
 - 2026-11-21 用户要求本地提交：六扩展及必要核心接口／测试／三语文档按已验快照核定提交；其他共享工作区改动保留，未推送，正式API导出未执行。范围与核对见[扩展最终记录](audits/extension-final.md#本地提交核对2026-11-21)。
 
 - 2026-11-21 [扩展当前源码组合验收](audits/extension-final.md)：O01–O06约定范围已实现，Scout首个引擎完成三库／Worker失败重试／固定PHP语义／根配置与关闭feature；Telescope补18类独立Watcher、应用级框架事件开关、已缓冲响应脱敏及实际路由字段，新增三库回归通过。六新扩展103项＋独立Redis10项、根全部feature17项、核心观察／契约与23个真实HTTP、Horizon真实进程及三面板桌面手机、全workspace严格Clippy／fmt、三语和19库WIP API已验。完整PHP反射／UI／Scout所有外部引擎未宣称等价，边界见记录。API未伪装成干净提交的正式导出；未暂存／提交／推送，保留共享WIP，不联系其他对话。以下旧保存点按历史时点阅读。
