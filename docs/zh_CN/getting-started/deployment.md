@@ -182,4 +182,4 @@ docker compose --env-file docker/.env -f docker/docker-compose.yml up -d --wait 
 
 镜像默认设置 `APP_PACKAGES_CACHE=storage/framework/cache/packages.json`，包清单保存在挂载的 `storage` 中。一次性容器运行 `package:discover` 或 `clear-compiled` 时也使用该路径。自定义路径时，选择挂载目录中的可写位置。
 
-多机部署使用同一应用镜像，省略 `local` profile。设置 `OPENRUST_IMAGE`、共用的 `DB_HOST` 和 `REDIS_HOST`，各实例使用一致的应用密钥、缓存和队列配置及凭据。拉取或载入镜像后用 `up -d --no-build --wait app` 启动。每次发布集中执行一次迁移，入口由负载均衡器处理 TLS，上传文件使用 S3 等共享存储。如果调度器只需运行在一台实例上，其他实例设置 `APP_DISABLED_RUNNERS=schedule`。构建时用 `OPENRUST_FEATURES` 选择 `reverb`、`sanctum` 等可选功能。
+多机部署使用同一应用镜像，省略 `local` profile。设置 `OPENRUST_IMAGE`、共用的 `DB_HOST` 和 `REDIS_HOST`，各实例使用一致的应用密钥、缓存和队列配置及凭据。拉取或载入镜像后用 `up -d --no-build --wait app` 启动。每次发布集中执行一次迁移，入口由负载均衡器处理 TLS，上传文件使用 S3 等共享存储。如果调度器只需运行在一台实例上，其他实例设置 `APP_DISABLED_RUNNERS=schedule`。构建时用 `APP_BUILD_FEATURES` 选择 `reverb`、`sanctum` 等可选功能。

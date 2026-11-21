@@ -1,7 +1,7 @@
 FROM --platform=$BUILDPLATFORM rust:1.94.0-bookworm AS build
 ARG BUILDARCH
 ARG TARGETARCH
-ARG OPENRUST_FEATURES=""
+ARG APP_BUILD_FEATURES=""
 ARG OPENRUST_BUILD_JOBS=4
 ENV CARGO_TARGET_DIR=/cargo-target
 WORKDIR /src
@@ -36,7 +36,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
       esac; \
     fi; \
     cargo build --locked --release --jobs "$OPENRUST_BUILD_JOBS" --bin main --target "$triple" \
-      --features "standalone $OPENRUST_FEATURES"; \
+      --features "standalone $APP_BUILD_FEATURES"; \
     install -D -m 0755 "$CARGO_TARGET_DIR/$triple/release/main" /out/main
 
 FROM debian:bookworm-slim AS runtime

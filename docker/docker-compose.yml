@@ -5,7 +5,7 @@ services:
       context: ..
       dockerfile: docker/Dockerfile
       args:
-        OPENRUST_FEATURES: ${OPENRUST_FEATURES:-}
+        APP_BUILD_FEATURES: ${APP_BUILD_FEATURES:-}
     env_file:
       - ${OPENRUST_ENV_FILE:-.env}
     environment:
