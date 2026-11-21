@@ -1,0 +1,10 @@
+{
+  "heading": "Let’s get started",
+  "description": "This application follows Laravel’s structure and development workflow in Rust.",
+  "read": "Read the",
+  "documentation": "Documentation",
+  "explore": "Explore the",
+  "source": "Source code",
+  "deployment": "Deployment guide",
+  "changelog": "View changelog"
+}

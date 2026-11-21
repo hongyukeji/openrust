@@ -25,7 +25,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 -->
-<html lang="en">
+<html lang="{{ $language }}">
     <head>
         <meta charset="utf-8">
         <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
@@ -323,25 +323,25 @@ THE SOFTWARE.
     <body>
         <main>
             <section class="introduction" aria-labelledby="welcome-heading">
-                <h1 id="welcome-heading">Let’s get started</h1>
-                <p>This application follows Laravel’s structure and development workflow in Rust.</p>
+                <h1 id="welcome-heading">{{ $heading }}</h1>
+                <p>{{ $description }}</p>
 
                 <ul class="steps">
                     <li>
                         <span class="step-dot" aria-hidden="true"></span>
-                        <span>Read the <a class="text-link" href="https://github.com/hongyukeji/openrust/blob/master/docs/en/README.md">Documentation <span class="arrow" aria-hidden="true">↗</span></a></span>
+                        <span>{{ $read }} <a class="text-link" href="https://github.com/hongyukeji/openrust/blob/master/docs/{{ $docs_locale }}/README.md">{{ $documentation }} <span class="arrow" aria-hidden="true">↗</span></a></span>
                     </li>
                     <li>
                         <span class="step-dot" aria-hidden="true"></span>
-                        <span>Explore the <a class="text-link" href="https://github.com/hongyukeji/openrust">Source code <span class="arrow" aria-hidden="true">↗</span></a></span>
+                        <span>{{ $explore }} <a class="text-link" href="https://github.com/hongyukeji/openrust">{{ $source }} <span class="arrow" aria-hidden="true">↗</span></a></span>
                     </li>
                 </ul>
 
-                <a class="button" href="https://github.com/hongyukeji/openrust/blob/master/docs/en/getting-started/deployment.md">Deployment guide</a>
+                <a class="button" href="https://github.com/hongyukeji/openrust/blob/master/docs/{{ $docs_locale }}/getting-started/deployment.md">{{ $deployment }}</a>
 
                 <p class="release">
                     {{ $name }} v{{ $version }}
-                    <a class="text-link" href="https://github.com/hongyukeji/openrust/blob/master/CHANGELOG.md">View changelog <span class="arrow" aria-hidden="true">↗</span></a>
+                    <a class="text-link" href="https://github.com/hongyukeji/openrust/blob/master/CHANGELOG.md">{{ $changelog }} <span class="arrow" aria-hidden="true">↗</span></a>
                 </p>
             </section>
             <div class="artwork" aria-hidden="true">

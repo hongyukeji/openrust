@@ -4,6 +4,12 @@
 
 透過 `APP_LOCALE` 設定應用程式的預設語言，透過 `APP_FALLBACK_LOCALE` 設定群組翻譯的備援語言。使用 `Lang::withLocale` 為一次請求或工作操作指定語言，操作結束後恢復先前的語言。
 
+### 歡迎頁語言 {#welcome-page-language}
+
+歡迎頁按瀏覽器 `Accept-Language` 的權重選擇英文、簡體中文或繁體中文，略過 `q=0` 項目。`zh-Hans`、`zh-CN`、`zh-SG` 對應簡體；`zh-Hant`、`zh-TW`、`zh-HK`、`zh-MO` 對應繁體。明確的文字體系優先於地區，僅 `zh` 時使用簡體。缺少、無效或沒有符合項目時，使用支援的 `APP_LOCALE`，否則回退英文。自動識別僅作用於歡迎頁。
+
+修改 `lang/en/welcome.json`、`lang/zh_CN/welcome.json` 和 `lang/zh_TW/welcome.json` 可自訂文字，文件連結隨頁面語言切換。回應包含 `Content-Language` 和 `Vary: Accept-Language`，不寫入 Cookie，也不改變全域語言。
+
 ## 發佈語言檔案 {#publishing-the-language-files}
 
 執行 `./artisan lang:publish` 發佈驗證身分、分頁、密碼重設和欄位驗證的英文 JSON 語言檔案。預設寫入 `lang/en`，應用程式已有 `resources/lang` 時寫入 `resources/lang/en`。預設保留既有檔案。用 `--force` 覆寫四份檔案，用 `--existing` 僅覆寫已發佈的檔案。兩個選項同時使用時，由 `--existing` 決定範圍。

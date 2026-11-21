@@ -4,6 +4,12 @@
 
 Set `APP_LOCALE` for the application default and `APP_FALLBACK_LOCALE` for missing group translations. Use `Lang::withLocale` around a request or task operation to select another locale. The previous locale is restored when the operation ends.
 
+### Welcome Page Language {#welcome-page-language}
+
+The welcome page selects English, Simplified Chinese, or Traditional Chinese from the browser's `Accept-Language` header, respecting quality weights and skipping `q=0` entries. `zh-Hans`, `zh-CN`, and `zh-SG` select Simplified Chinese; `zh-Hant`, `zh-TW`, `zh-HK`, and `zh-MO` select Traditional Chinese. An explicit script takes precedence over the region; bare `zh` selects Simplified Chinese. Missing, invalid, or unmatched preferences use a supported `APP_LOCALE`, then English. The selection applies only to the welcome page.
+
+Edit `lang/en/welcome.json`, `lang/zh_CN/welcome.json`, and `lang/zh_TW/welcome.json` to customize its text. Documentation links follow the selected language. The response includes `Content-Language` and `Vary: Accept-Language`; no cookie or global locale is changed.
+
 ## Publishing Language Files {#publishing-the-language-files}
 
 Run `./artisan lang:publish` to publish the English authentication, pagination, password reset, and validation JSON catalogs. The command writes to `lang/en` or to `resources/lang/en` when the application already uses `resources/lang`. It preserves existing files by default. Use `--force` to replace all four files, or `--existing` to replace only previously published files. When both flags are set, `--existing` determines the scope.
