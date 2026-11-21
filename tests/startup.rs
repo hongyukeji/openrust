@@ -182,7 +182,7 @@ fn artisan_installs_optional_routes_without_overwriting_or_duplication() {
     let config_source = fs::read_to_string(auth_config).unwrap();
     assert_eq!(
         config_source
-            .matches("model!(crate::app::models::User);")
+            .matches("model!(crate::app::models::User)")
             .count(),
         1
     );

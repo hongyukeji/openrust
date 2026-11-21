@@ -4,8 +4,6 @@ use serde_json::json;
 use super::env::get;
 
 pub(super) fn load(env: &Environment) -> Result<Value, ConfigError> {
-    // 对应 Laravel 的 User::class，配置缓存保留类名，类型工厂随应用编译。
-    let auth_model = openrust::auth::model!(crate::app::models::User);
     Ok(json!({
         /*
         |--------------------------------------------------------------------------
@@ -32,7 +30,10 @@ pub(super) fn load(env: &Environment) -> Result<Value, ConfigError> {
             "web": {"driver": "session", "provider": "users"},
         },
         "providers": {
-            "users": {"driver": "eloquent", "model": get(env, "AUTH_MODEL", auth_model)?},
+            "users": {
+                "driver": "eloquent",
+                "model": get(env, "AUTH_MODEL", openrust::auth::model!(crate::app::models::User))?,
+            },
         },
 
         /*

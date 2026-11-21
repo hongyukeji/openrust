@@ -559,8 +559,8 @@ fn insert_config_hook(
 
 fn wire_sanctum(root: &Path, warnings: &mut Vec<ConsoleError>) -> Result<(), ConsoleError> {
     const IMPL: &str = "impl openrust::sanctum::HasApiTokens for User {}";
-    const USER: &str = "openrust::auth::model!(crate::app::models::User);";
-    const REGISTER: &str = "openrust::auth::model!(crate::app::models::User, sanctum);";
+    const USER: &str = "openrust::auth::model!(crate::app::models::User)";
+    const REGISTER: &str = "openrust::auth::model!(crate::app::models::User, sanctum)";
     const CONFIG: &str = r#"("sanctum".to_owned(), sanctum::load(env)?),"#;
 
     let model = root.join("app/models/user.rs");
@@ -572,29 +572,16 @@ fn wire_sanctum(root: &Path, warnings: &mut Vec<ConsoleError>) -> Result<(), Con
             line.trim() == "impl Authenticatable for User {"
         });
         let add_reference = (|| {
-            if config_source
-                .lines()
-                .any(|line| line.trim().ends_with(REGISTER))
-            {
+            if config_source.contains(REGISTER) {
                 return Ok(config_source.clone());
             }
-            let original = config_source
-                .lines()
-                .map(str::trim)
-                .find(|line| line.starts_with("let ") && line.ends_with(USER))
-                .ok_or_else(manual_token_model)?;
-            let statement = format!("{}{REGISTER}", original.strip_suffix(USER).unwrap());
-            source_hook(&config_source, &auth_config, &statement, |line| {
-                line.trim() == original
-            })
-            .and_then(|source| {
-                insert_before(
-                    &source,
-                    &auth_config,
-                    r#"#[cfg(not(feature = "sanctum"))]"#,
-                    |line| line.trim() == original,
-                )
-            })
+            if config_source.matches(USER).count() != 1 {
+                return Err(manual_token_model());
+            }
+            let reference = format!(
+                "{{\n                    #[cfg(feature = \"sanctum\")]\n                    {{ {REGISTER} }}\n                    #[cfg(not(feature = \"sanctum\"))]\n                    {{ {USER} }}\n                }}"
+            );
+            Ok(config_source.replacen(USER, &reference, 1))
         })();
         match (add_impl, add_reference) {
             (Ok(model_update), Ok(config_update)) => {

@@ -44,3 +44,10 @@ Rust 不支持 PHP 的运行时类加载，不能仅凭任意字符串实例化�
 最终检查完成后再次触及磁盘停线；确认没有 Cargo／rustc 进程，取得各编译目录排他锁，保留原锁 inode 后清理已核对的编译产物和文档 dist。未删除根 target 或其中的 tmp 源码与日志。本次实测释放 75.13 GiB，剩余 110.65 GB（103.05 GiB）。证据为新工作流 `cleanup-candidates.json`、`cleanup.log`、`cleanup-result.json`。验收结束后未新增构建。
 
 用户已授权将当前改动按主题提交至本地，不推送；并行包发现任务的既有提交独立保留。
+
+
+## 配置表达式简化（2026-11-21）
+
+按用户反馈删除配置函数顶部的解释性注释与 `auth_model` 临时变量，直接在 `providers.users.model` 的环境变量默认值中使用类引用。`install:api` 改为替换单个类引用表达式，不依赖局部变量或分号，旧变量声明和新内联写法均可接入；Sanctum feature 分支仍保留，已接入时不重复改写。
+
+同一工作流隔离源码的安装器定向回归通过；认证模型本地行为与缓存绕过加载器回归通过，缺少连接变量的 MySQL／PostgreSQL 入口不算新数据库验收。证据：`inline-model-startup.log`、`inline-model-auth.log`。全 workspace 格式检查和 all-targets 严格 Clippy 通过（`inline-model-fmt.log`、`inline-model-clippy.log`）。本轮未重新执行数据库或文档浏览器矩阵，前节结果仍对应其验收时点。
