@@ -112,3 +112,10 @@ Rust 1.94.0、jobs=2、dev debug=0、关闭增量，最终验收结果：
 ## 2026-11-21 模拟验收组合依赖复核
 
 244842943隔离快照叠加SMTP已有rustls-native-certs feature及9ee4881ca测试，以Rust1.94运行锁定全workspace/all-features的cargo deny公告检查及许可证来源list，均退出0。公告摘要0 errors/0 warnings，启用来源/许可证清单642包；工具未找到配置而使用默认策略，无新增ignore。本轮不升级依赖版本，仅lettre锁项新增已有依赖边。证据`/private/tmp/openrust-production-simulation-20261121/{advisories-final.jsonl,licenses-final.json,licenses-final.log}`；不包含并行Activitylog/Horizon，也不代替最终分发许可/敏感信息/版本/发布批准。
+
+
+## 2026-11-21 最终本地收尾复核
+
+`0855b54f2` 与本轮已验快照的依赖输入相同：锁定全feature公告0 errors／0 warnings；启用图672项均有许可证声明，唯一Git来源仍为固定oxideav-jpegxl `1c2f5a86a052752b0e8181f842a9d4e3460ec0e5`。38个本地包的LICENSE／NOTICE条目齐备，Docker交付复制根LICENSE及THIRD_PARTY_NOTICES。有限敏感模式扫描未跟踪运行.env；9处命中均为公开测试密钥、无效示例或文档marker，经人工核对。声明齐备及扫描通过不代替实际发行许可审查，也不证明不存在其他秘密。
+
+证据统一在项目内 `target/tmp/final-acceptance-20261121/{advisories.jsonl,licenses.json,release-checks.json}`。最终发布版本、tag、推送、Release及部署均未授权，继续保留用户批准门禁。

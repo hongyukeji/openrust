@@ -325,3 +325,43 @@ Windows Docker Desktop、生产 TLS 和托管 AWS SQS 标准／FIFO 的实机验
 - `docs-build.log`、`docs-browser.log`、`docs-page-browser.log`：三语构建、通用12组合、Reverb正文三语／桌面手机／根及子目录12组合通过。
 
 复现：在隔离源码设置 `CARGO_TARGET_DIR` 为上述独占target，以及 `CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0 RUSTUP_TOOLCHAIN=1.94.0`，执行 `python3 -B tests/reverb_tls_acceptance.py -- cargo test --locked -p openrust-reverb --test transport --test client_options -- --nocapture`；Echo浏览器额外设置固定客户端目录的 `OPENRUST_REVERB_ECHO_MODULES`、`DOCS_PLAYWRIGHT_MODULE` 与 `DOCS_BROWSER_PATH`。正常空间保留复用缓存与固定客户端；未改数据库／容器／数据卷，未发布。
+
+
+## 2026-11-21 发布前本地收尾
+
+本轮基线 `b5854f596574026e6acfeb063d8db01f94a00bab`，修复提交 `0855b54f2`。按用户要求独立完成可执行的本地收尾，真实服务暂不可用，统一列入 [todo.md](../../todo.md)，不计通过。另一个对话新增的 Laravel 对照报告保留未跟踪，不属于本轮提交；本轮结果不表示所有 Laravel API 全面等价。
+
+### 修复与方案
+
+Telescope 在执行批准的命令／请求前不采集启动事件；默认忽略 `init`、`init:resources`，空队列终止不强制初始化存储，存储结束先停止采集再传播错误，避免诊断自身错误循环写入。参考 [固定 Laravel Telescope](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/Telescope.php)：`start` 先判断命令是否批准、`store` 空队列直接返回并抑制自身报告采集。OpenRust 初始化命令属于项目适配，不冒称上游同名命令。不修改核心框架作用域机制。
+
+数据库缓存本来按整秒向上取整保存有效期；测试改为有上限的轮询及适用的锁等待，不修改生产 TTL 语义。生成应用测试只排除根运行目录，保留包内同名 `storage` 源码；归档在嵌套仓库中使用自己的完整源码，不误用外层 Git 清单。快照同步不保留旧 mtime，防止 Cargo 复用旧调试对象；规则已写入项目规范。
+
+### 验收范围
+
+证据批次为项目内 `target/tmp/final-acceptance-20261121/`。Rust 1.94.0、macOS ARM64，项目内 TMPDIR 与独占 Cargo target；源码、日志和独立交付保留。最终代码／测试输入与修复提交归档逐字节一致。
+
+| 范围 | 实际结果及证据 |
+| --- | --- |
+| 根应用／六扩展 | 根17个目标69项通过，六扩展110项通过；11个Redis忽略项另在真实隔离Redis8.10.3补跑全部通过。`root-final.log`、`extensions-final.log`、`redis-ignored.log` |
+| 三库／三缓存 | PostgreSQL18.7、MySQL8.4.13、SQLite及Redis／database／file定向组合通过；显式配置必需服务，缺变量提前返回不计数据库验收。`pgsql-matrix-resume.log`、`mysql-matrix.log`、`redis-matrix.log`及对应分项日志 |
+| 生成应用 | PostgreSQL和MySQL完整init、安装／重试／定制保留、重构建、迁移、Sanctum／Passport守卫、Fortify HTTP／CSRF／Session／SMTP／密码／2FA／恢复／限流及feature-off通过。`init-auth-pg.log`、`init-auth-mysql.log`；另 `init-resources-final.log` 通过重复初始化、资源安装和实际HTTP |
+| 代码检查／示例 | 全workspace／all-targets／all-features严格Clippy、fmt及三个扩展示例编译通过；最终Python夹具语法检查通过。`clippy-final.log`、`fmt-final.log`、`examples-final.log` |
+| 真实本地进程／界面 | Telescope／Horizon／Pulse授权、安全、桌面手机界面与生命周期通过，Horizon含真实Redis监督进程／Worker替换、暂停、信号和回收。`telescope-http-browser.log`、`horizon-process-browser.log`、`pulse-browser-final.log` |
+| 独立部署 | 开发profile二进制在空PATH、不同cwd和搬迁后运行；Artisan、迁移、队列、调度、静态文件、首页／健康检查、SIGTERM及端口回收通过。`standalone-smoke-final2.log`。未执行优化release构建 |
+| Linux | ARM64 Debian Bookworm，固定rust1.94.0-bookworm镜像，最终四个目标13个runner通过，其中条件式auth模型测试不作Linux数据库通过。`linux-final-source.log` |
+| Windows | Windows11 ARM64 10.0.26300.9974、Rust1.94；UNC与映射盘均遭Rust archive临时目录删除 `os error 87`，未完成构建，未计通过。日志保留，后续原生文件系统与目标矩阵见待办 |
+| 依赖与来源 | 锁定全feature公告0 errors／0 warnings；672项启用来源均有许可证声明，38个本地包notice齐备；有限敏感模式命中经人工核对，不表示证明不存在其他秘密。`advisories.jsonl`、`licenses.json`、`release-checks.json`；实际分发许可仍待批准 |
+
+前期失败日志全部保留：临时复制遗漏包内storage、保留mtime导致旧调试库复用、共用数据库造成Telescope条目污染、Linux并行链接OOM、独立部署夹具缺密钥占位／TIME_WAIT绑定等，均修正夹具或采用有依据的单job Linux构建后完成对应最终复验。初始化故意使用不可达数据库仍可能受Pulse错误采集等待影响，未扩大修改其语义，不声称所有失败命令瞬时返回。
+
+Linux闲置target在持有Cargo锁后删除编译内容并保留锁inode、源码和日志，释放7,486,048 KiB；仅清理本批容器，不删除任何数据卷。Windows无本批Cargo进程后移除本轮O:映射，恢复初始suspended状态，保留原有Z:映射。常规mac缓存仍供本批API导出复用，未触发32GB停线不全量清空。
+
+
+### 最终 API 与三语联合产物
+
+从修复提交 `0855b54f2a984ac25b68ab74d4e2ca83962d68fc` 的全新Git归档执行正式 `build_api.py`，导出19个workspace库、2,171项源码输入、全部feature、Rust1.94.0及aarch64-apple-darwin目标，严格Rustdoc链接检查通过。源码指纹与收尾工作区仍一致，后续记录提交不改变API输入。独立API交付为 `target/tmp/final-acceptance-20261121/api-export/`；三语联合站点为同批 `api-source/docs/.vitepress/dist/`，不将内部交接记录注入开发者站点。
+
+`api-build.log`、`docs-api-build.log`、`api-export.log`、`api-snapshot.log`、`docs-browser-final.log`、`docs-scope-final.log`、`api-cli.log` 全部退出0。覆盖匹配导出正例、14个非法／过期输入负例、7个CLI拒绝测试；API三语根／子目录桌面手机12组合，两个挂载位置逐库源码链接与搜索；普通站点12组合，完整导航6组合、每组19个明确支持边界页面。构建保留VitePress包体大小提示，未以压制提示代替功能验收。
+
+最终本批临时Linux容器已删除，Windows11恢复suspended，本轮O:映射已删除；原开发五服务保留。最后磁盘可用57,898,212 KiB（约59.29 GB／55.22 GiB），高于停线；源码、证据、API交付及可复用mac缓存保留。没有推送、tag、Release、生产部署、改发布版本或删除数据卷。真实目标、Windows阻塞和最终发行批准统一留待办。
