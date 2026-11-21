@@ -1,27 +1,40 @@
 use openrust::{
-    auth::AuthManager,
-    contracts::{container::Container as _, foundation::Application as _},
     foundation::Application,
     http::HttpFuture,
     support::{ProviderResult, ServiceProvider},
 };
 
-/// The default registration and boot hooks for application services.
+/**
+ * 应用服务的注册与启动入口。
+ *
+ * 应用启动时，先按注册顺序执行各非延迟 Provider 的 register()；
+ * 全部注册完成后，再按顺序执行这些 Provider 的 boot()。
+ * register() 用于向容器绑定服务；boot() 用于使用已注册的服务完成初始化。
+ */
 pub(crate) struct AppServiceProvider;
 
-impl ServiceProvider for AppServiceProvider {
-    fn register<'a>(
-        &'a mut self,
-        app: &'a Application,
-    ) -> openrust::http::HttpFuture<'a, ProviderResult> {
-        Box::pin(async move {
-            let auth = app.container().make::<AuthManager>()?;
-            auth.registerModel::<crate::app::models::User>("app::models::User");
+#[rustfmt::skip]
+impl ServiceProvider for AppServiceProvider
+{
+    /**
+     * 注册应用服务。
+     */
+    fn register<'a>(&'a mut self, _app: &'a Application) -> HttpFuture<'a, ProviderResult>
+    {
+        Box::pin(async {
+            //
             Ok(())
         })
     }
 
-    fn boot(&mut self, _app: &Application) -> HttpFuture<'_, ProviderResult> {
-        Box::pin(async { Ok(()) })
+    /**
+     * 启动应用服务。
+     */
+    fn boot(&mut self, _app: &Application) -> HttpFuture<'_, ProviderResult>
+    {
+        Box::pin(async {
+            //
+            Ok(())
+        })
     }
 }
