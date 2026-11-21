@@ -1,17 +1,33 @@
 pub(crate) struct {{class}};
 
-impl openrust::support::ServiceProvider for {{class}} {
+#[rustfmt::skip]
+impl openrust::support::ServiceProvider for {{class}}
+{
+    /**
+     * Register any application services.
+     */
     fn register<'a>(
         &'a mut self,
         _app: &'a openrust::foundation::Application,
-    ) -> openrust::http::HttpFuture<'a, openrust::support::ProviderResult> {
-        Box::pin(async { Ok(()) })
+    ) -> openrust::http::HttpFuture<'a, openrust::support::ProviderResult>
+    {
+        Box::pin(async {
+            //
+            Ok(())
+        })
     }
 
+    /**
+     * Bootstrap any application services.
+     */
     fn boot<'a>(
         &'a mut self,
         _app: &'a openrust::foundation::Application,
-    ) -> openrust::http::HttpFuture<'a, openrust::support::ProviderResult> {
-        Box::pin(async { Ok(()) })
+    ) -> openrust::http::HttpFuture<'a, openrust::support::ProviderResult>
+    {
+        Box::pin(async {
+            //
+            Ok(())
+        })
     }
 }
