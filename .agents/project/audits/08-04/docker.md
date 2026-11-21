@@ -100,3 +100,38 @@ Docker Compose v5.7.1在项目tmp/compose-env-overrides-20261121独立夹具验�
 用户要求Docker相关应用变量使用APP_前缀；存储与公共目录改为APP_STORAGE_PATH、APP_PUBLIC_PATH，Dockerfile构建并发参数改为APP_BUILD_JOBS，镜像与feature参数沿用APP_IMAGE_NAME、APP_IMAGE_VERSION及APP_BUILD_FEATURES。现行配置和三语文档同步，历史验收原变量按历史时点保留。
 
 提交前复核：Docker相关变量统一为APP_前缀，挂载改用APP_STORAGE_PATH／APP_PUBLIC_PATH，构建并发参数改用APP_BUILD_JOBS；现行Compose、Dockerfile及三语部署正文无OPENRUST_变量。默认及自定义镜像／挂载路径配置解析通过，Dockerfile的build --check无警告；三语站点重新构建、12项通用与12项部署页浏览器检查通过。此次参数改名未重新编译完整Rust镜像；沿用此前完整构建运行证据，当前五服务healthy。提交限定Docker相关14文件，共享规范／交接仅暂存Docker段落，其余WIP保留。
+
+## 成熟方案调研与代理边界完善（2026-11-21）
+
+以官方源码、文档与实际行为为判断依据，不按Star数直接引入方案。OpenSpring目录只作辅助对照；本轮未修改该项目。
+
+| 参考 | 核对版本／提交 | 采用与取舍 |
+| --- | --- | --- |
+| [Laravel Sail](https://github.com/laravel/sail/tree/2688e6018a6421e5aa68ec4008bdcddb607342c1) | 1.x，2688e6018a6421e5aa68ec4008bdcddb607342c1 | 核对compose.stub与MySQL／Redis模板；保留分服务、环境变量及健康检查。Sail服务面向PHP开发环境，不搬入其启动包装器、PHP/Xdebug及源码挂载运行方式。其MYSQL_USER=root设置不适用本项目root账号约定。 |
+| [Laradock](https://github.com/laradock/laradock/tree/0fd82a558b314346be12bd9ad9325abae218478c) | master，0fd82a558b314346be12bd9ad9325abae218478c | 借鉴独立服务和按需选择；不复制大量可选服务及其配置层。保持用户要求的唯一Compose，部分启动按服务名选择。 |
+| [serversideup/docker-php](https://github.com/serversideup/docker-php/tree/ec58b57bd546004446cb8d0bc7dd070c35f23b41)／[Laravel指南](https://serversideup.net/open-source/docker-php/docs/laravel/laravel-automations) | main，ec58b57bd546004446cb8d0bc7dd070c35f23b41 | 核对非特权运行、健康检查与显式迁移策略。Laravel自动迁移默认关闭；本项目保留单次Artisan迁移，不增加PHP／S6运行环境。未复制其代码，不新增包依赖。 |
+| [Docker awesome-compose Rust示例](https://github.com/docker/awesome-compose/tree/503c0dcef31b07fb77b2d4c5556bfafdf86f4f1a/react-rust-postgres) | master，503c0dcef31b07fb77b2d4c5556bfafdf86f4f1a | 多阶段编译、精简运行镜像与当前方向一致。样例仍包含buster与PostgreSQL12，不直接复用版本及生产配置；保留本项目MSRV和PG18。 |
+| [Docker Rust指南](https://docs.docker.com/guides/rust/develop/)／[启动顺序](https://docs.docker.com/compose/how-tos/startup-order/)／[日志驱动](https://docs.docker.com/engine/logging/configure/) | 2026-11-21读取 | 沿用BuildKit缓存、service_healthy和原生Compose。实查当前Docker日志驱动为local，已有轮转，不再重复增加日志配置。 |
+| [Nginx核心模块](https://nginx.org/en/docs/http/ngx_http_core_module.html#client_max_body_size)／[代理模块](https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_read_timeout) | 2026-11-21读取 | 请求体及空闲超时在现有配置中直接声明，不引入模板渲染或新环境变量层。 |
+
+发现及修复：
+
+- APP_BUILD_JOBS原来只定义于Dockerfile，Compose未传参；增加对应build.args映射，默认4，实测设置2后解析值为2。
+- 1.5 MiB POST /up直连应用返回405，经原Nginx却返回413，确认代理默认上限提前拦截。显式client_max_body_size 8m，对齐framework http/request/input.rs的8 MiB输入限制。初轮以300秒代理空闲超时完成流式验收；最终配置保留Nginx默认60秒，文档说明使用心跳或按需调整，不新增固定长超时。
+- 三语部署文档补齐构建参数、挂载权限、代理边界、源码／镜像更新、保留APP_KEY、单次迁移和回滚的数据兼容限制。
+
+验收使用项目tmp/docker-review-20261121/独占夹具，不启动或迁移开发数据库：官方Nginx与已有PHP镜像仅提供隔离HTTP协议后端，不成为应用部署依赖。真实1.5 MiB请求及Host／scheme／client转发、超过8 MiB拒绝、WebSocket 101握手、首个SSE即时送达全部通过，初轮300秒配置下65秒无数据后第二事件通过（不作为最终默认60秒配置的验收结论），nginx -t通过，专属容器及网络已回收。Compose config与自定义build参数解析通过；未重编当前共享WIP Rust镜像，Dockerfile中其他协作者的许可证改动保留。本轮观察到既有app与nginx已正常退出，未擅自恢复其运行状态；代理验收结果不冒充当前开发服务已启动。
+
+资料下载及测试日志位于项目tmp/docker-review-20261121/；三语隔离构建通过（仅既有包体积提示）；根路径与/docs/下12项通用及12项部署页浏览器检查通过，git diff --check通过。未新增启动脚本、Python运行依赖或Composer／Cargo依赖，未提交推送。
+
+## 开发与部署统一根环境（2026-11-21）
+
+本条覆盖此前可选docker/.env覆盖规则。按用户最终要求：根.env为唯一运行配置；Docker专用参考模板放docker/.env.example，文档说明按需合并至根.env，不能复制覆盖已有根文件或创建第二份docker/.env运行配置。普通应用模板仍在根.env.example，简短连接注释为“容器连接”。
+
+采用Compose原生environment与嵌套插值，不新增入口脚本、运行依赖或环境加载机制。DB_HOST／DB_PORT／REDIS_HOST保留宿主连接；DOCKER_DB_HOST／DOCKER_DB_PORT／DOCKER_REDIS_HOST只覆盖容器目标，未设置或为空时复用普通字段，再回退postgres／5432／redis。MySQL填写mysql／3306；外部服务省略容器覆盖即可复用实际地址。容器监听与宿主绑定保持既有分工。
+
+已把旧docker/.env的四项有效设置合并到根文件：DB_HOST与REDIS_HOST映射为DOCKER_DB_HOST与DOCKER_REDIS_HOST；APP_NAME及APP_URL保留此前Docker实际值，保持现有容器身份和公开地址。旧文件已移除，宿主DB_HOST和REDIS_HOST仍为127.0.0.1；对照既有应用容器环境，APP_KEY、数据库账号／密码／库名、容器名称、连接目标及URL均一致，不输出秘密或额外持久化配置副本。
+
+10项原生配置验收通过：宿主与容器PG、MySQL及不同宿主端口、外部地址复用、空覆盖回退、缺省服务目标、Shell覆盖、自定义Redis端口一致、旧Docker环境文件不生效、根文件缺失拒绝，以及当前迁移配置保留身份和密钥。现有镜像用唯一根文件执行真实Artisan migrate:status成功，四项迁移均Ran；没有执行新迁移、建删表、重建数据库或删除数据卷。三语文档及现行规范、上下文、指南和交接同步；最终文档构建通过，根路径与/docs/下三语桌面／移动端的12项通用浏览器检查和12项Docker部署流程检查全部通过，仅有既有构建分块体积提示。
+
+证据在项目tmp/docker-root-env-20261121/；临时测试中的Python不作为Docker启动依赖，正常启动仍为docker compose --env-file .env -f docker/docker-compose.yml up -d --wait。当前未提交推送。

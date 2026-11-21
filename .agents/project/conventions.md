@@ -57,13 +57,15 @@
 
 ## Docker 配置
 
-Docker 专用变量统一使用 `APP_` 前缀（如 `APP_IMAGE_NAME`、`APP_IMAGE_VERSION`、`APP_STORAGE_PATH`、`APP_PUBLIC_PATH`、`APP_BUILD_FEATURES`、`APP_BUILD_JOBS`），不新增 `OPENRUST_` 别名；数据库、Redis及Nginx沿用所属服务的变量命名。
+镜像、构建及应用挂载变量保留已约定的 `APP_` 前缀（如 `APP_IMAGE_NAME`、`APP_IMAGE_VERSION`、`APP_STORAGE_PATH`、`APP_PUBLIC_PATH`、`APP_BUILD_FEATURES`、`APP_BUILD_JOBS`）；容器连接覆盖专用变量使用 `DOCKER_` 前缀（DOCKER_DB_HOST、DOCKER_DB_PORT、DOCKER_REDIS_HOST），不新增 `OPENRUST_` 别名；数据库、Redis及Nginx沿用所属服务的变量命名。
 
-- Compose 只维护 `docker/docker-compose.yml`，默认启动应用与全部配套服务，需要部分服务时显式指定服务名，不再新增dev／public覆盖文件。环境模板仅保留根 `.env.example`；根 `.env` 提供默认配置，可选 `docker/.env` 覆盖同名字段（docker/.env > 根.env）。应用容器按顺序加载 `../.env` 与可选 `.env`；使用覆盖文件时，原生 Compose 命令从根目录依次传 `--env-file .env --env-file docker/.env`，没有覆盖文件时仅传前者；不增加启动包装器或为读取版本引入额外运行依赖。不能把服务env_file误认为Compose插值来源，避免数据库与应用读取不同凭据；shell环境和服务显式environment仍遵循Compose原生优先级。覆盖文件只写差异并保持Git忽略，不复制整份环境模板。修改前核对现有项目名、容器及数据挂载，避免创建平行空数据库；不得为合并配置重建或删除已有数据库数据。
+- Compose 只维护 `docker/docker-compose.yml`，默认启动应用与全部配套服务，需要部分服务时显式指定服务名，不新增dev／public覆盖文件。通用环境模板为根 `.env.example`，Docker专用配置参考集中在 `docker/.env.example`，按镜像／构建／挂载／容器连接／配套服务分组，文档说明将所需项合并至根.env；该参考模板不构成第二份运行配置。本地与部署均只加载各自的根 `.env`，不再创建或读取docker/.env。命令从根目录统一传`--env-file .env`，应用env_file固定为../.env，不增加启动包装器或额外运行依赖。宿主连接使用DB_HOST／DB_PORT／REDIS_HOST，容器可用DOCKER_DB_HOST／DOCKER_DB_PORT／DOCKER_REDIS_HOST覆盖；未设置时依次回退普通连接参数和postgres／5432／redis。MySQL须按实际驱动设置主机名及3306，不能把pgsql默认端口用于MySQL。显式environment覆盖env_file同名字段，插值保留Shell原生优先级。整合旧文件须迁移有效值、保留应用密钥、实际账号、容器命名及数据挂载；不得为配置整合清空数据。
 
 容器统一使用 `${APP_NAME:-openrust}-服务名` 命名；应用宿主绑定复用 `APP_HOST`／`APP_PORT`，容器内部固定监听 `0.0.0.0:8000`；不再增加重复的绑定地址、端口变量或应用 profile。应用镜像为 `${APP_IMAGE_NAME:-openrust}:${APP_IMAGE_VERSION:-latest}`，名称使用合法的小写镜像仓库名；发布版本显式配置APP_IMAGE_VERSION，未配置时使用标准latest开发标签。Compose不解析Cargo.toml，应用自身版本仍按原有Cargo默认逻辑；不为自动同步镜像版本增加脚本，镜像名称与标签分别由APP_IMAGE_NAME和APP_IMAGE_VERSION配置。`REDIS_PORT` 同时控制 Redis 服务监听、宿主映射、健康检查和应用连接端口。应用等待配套服务健康后启动。Compose 变更须同步根环境模板、README、三语配置／部署正文、服务指南与当前交接；历史审计注明版本边界，不将旧结果写成新配置已验收。
 
 本项目本地Compose数据库账号按用户要求统一为根 `.env` 的 `DB_USERNAME=root`、`DB_PASSWORD=root`。MySQL root使用镜像专用 `MYSQL_ROOT_PASSWORD` 初始化，不设置 `MYSQL_USER=root`；已有数据目录须通过SQL修改实际账号并验证，再更新容器环境，不能仅改.env后宣称账号已生效，不能清空数据目录重建。
+
+Docker 方案调研区分开发环境与发布运行环境：Sail／Laradock用于核对服务装配和命名，不直接搬用PHP运行时、工具包装器或全套可选服务。优先复用原生Compose、BuildKit及现有Artisan入口；构建参数须确认Compose实际传入Dockerfile。反向代理请求大小与超时须和框架及流式／WebSocket行为一起核对，避免代理以更低默认值提前拒绝请求；发布迁移显式执行，镜像回滚不等于数据库回滚。
 
 ## 配置文件注释
 

@@ -1,8 +1,12 @@
 # 当前交接
 
+- 2026-11-21 用户确认开发与部署统一仅根.env；Docker专用参考模板放docker/.env.example，按需合并至根.env，覆盖此前docker/.env可选覆盖规则。Compose只加载../.env，容器连接使用DOCKER_DB_HOST／DOCKER_DB_PORT／DOCKER_REDIS_HOST可选覆盖及普通字段回退；旧docker/.env有效配置已迁入根文件，原文件已移除，宿主回环地址、密钥及数据保留。当前配置与三语文档同步，验收结果见Docker审计末尾。
+
+- 2026-11-21 Docker成熟方案复核：以Laravel Sail、Laradock、serversideup/docker-php及Docker官方Rust示例／文档为主，OpenSpring仅作辅助。保留原生Compose和现有运行模型；补齐APP_BUILD_JOBS传参、Nginx 8 MiB请求上限（最终保留默认60秒代理空闲超时）及三语更新回滚说明。隔离真实代理已验证1.5 MiB转发、超限413、101升级、首个SSE即时送达及初轮300秒配置下65秒后第二事件，三语构建和12＋12浏览器检查通过；详情见[调研记录](audits/08-04/docker.md#成熟方案调研与代理边界完善2026-11-21)。当前未提交。
+
 - 2026-11-21 用户授权的[扩展审计六项修复](audits/extension-design-review.md#修复状态2026-11-21)已完成：Horizon 环境前缀与配置路由、Cashier 原名／供应商配置与逐项映射、Activitylog Support 路径、五包来源材料、固定 PHP 输入与实际 Scout Engine oracle、面板／协议库复用决定。四包65项、Redis独立9项、PG18／MySQL8.4各17项、根4项、全workspace全部feature严格Clippy／fmt、自定义路径真实进程和桌面／手机、三语构建及12＋6浏览器通过。保持完整PHPAPI／UI／正式API导出及真实供应商边界；用户随后授权本地提交，未推送，不联系其他对话，保留其他协作者认证／Docker／Reverb等WIP。
 
-- 2026-11-21 Docker当前配置：唯一Compose默认启动五服务（含Nginx）；直接使用原生Compose，根.env、可选docker/.env和Shell依次覆盖；镜像仅APP_IMAGE_NAME:APP_IMAGE_VERSION，缺省openrust:latest，挂载及构建参数统一APP_前缀，不增加启动脚本，名称须小写；MySQL宿主默认3306，app等待依赖healthy，Redis端口统一用于监听／映射／健康检查／连接。旧数据已迁入docker/data/，账号root/root及已有应用密钥保留；本轮五服务healthy，应用与Nginx的/up均200，4项待执行迁移及幂等重跑通过。原生配置矩阵、真实Redis自定义端口、三语构建及12项通用＋12项部署页浏览器检查通过；未提交推送。见[当前Docker核对](audits/08-04/docker.md#当前配置与关联资料核对2026-11-21)。
+- 2026-11-21 Docker当前配置：唯一Compose默认启动五服务（含Nginx）；直接使用原生Compose，仅根.env和Shell插值配置，容器连接通过DOCKER_DB_HOST／DOCKER_DB_PORT／DOCKER_REDIS_HOST按需覆盖；镜像仅APP_IMAGE_NAME:APP_IMAGE_VERSION，缺省openrust:latest，挂载及构建参数统一APP_前缀，不增加启动脚本，名称须小写；MySQL宿主默认3306，app等待依赖healthy，Redis端口统一用于监听／映射／健康检查／连接。旧数据已迁入docker/data/，账号root/root及已有应用密钥保留；本轮五服务healthy，应用与Nginx的/up均200，4项待执行迁移及幂等重跑通过。原生配置矩阵、真实Redis自定义端口、三语构建及12项通用＋12项部署页浏览器检查通过；未提交推送。见[当前Docker核对](audits/08-04/docker.md#当前配置与关联资料核对2026-11-21)。
 
 - 2026-11-21 用户要求本地提交：六扩展及必要核心接口／测试／三语文档按已验快照核定提交；其他共享工作区改动保留，未推送，正式API导出未执行。范围与核对见[扩展最终记录](audits/extension-final.md#本地提交核对2026-11-21)。
 

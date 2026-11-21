@@ -150,20 +150,19 @@ $app = Join-Path $PWD 'release/main.exe'
 
 將應用程式綁定在私有位址，由反向代理或負載平衡器終止 TLS。將 `APP_URL` 設為公開 HTTPS 位址，並設定代理轉送公開主機名稱和通訊協定。從用戶端驗證憑證鏈和主機名稱，檢查 HTTPS 首頁及健康路由。
 
-
 ## Docker 部署 {#docker-deployment}
 
-Linux 使用具備 Compose 2.24+ 與 Buildx 的 Docker Engine，macOS 與 Windows 使用 Linux 容器模式的 Docker Desktop。Compose 需要 2.24+，以支援可選環境檔。同一份 Dockerfile 支援 Linux `amd64` 與 `arm64`。以下命令從儲存庫根目錄執行，統一使用 `docker/docker-compose.yml` 與根目錄 `.env`；檔案尚不存在時，複製 `.env.example` 為 `.env`（PowerShell 使用 `Copy-Item .env.example .env`），已有檔案直接編輯。
+Linux 使用具備 Compose 與 Buildx 的 Docker Engine，macOS 與 Windows 使用 Linux 容器模式的 Docker Desktop。同一份 Dockerfile 支援 Linux `amd64` 與 `arm64`。以下命令從儲存庫根目錄執行，統一使用 `docker/docker-compose.yml` 與根目錄 `.env`；檔案尚不存在時，複製 `.env.example` 為 `.env`（PowerShell 使用 `Copy-Item .env.example .env`），已有檔案直接編輯。
 
-直接使用原生 Docker Compose，無須額外啟動腳本。根 `.env` 提供預設設定，可選 `docker/.env` 覆寫同名值；映像名稱為 `${APP_IMAGE_NAME:-openrust}:${APP_IMAGE_VERSION:-latest}`。`APP_IMAGE_NAME` 使用合法小寫映像倉庫名稱，`APP_IMAGE_VERSION` 可指定發布標籤，未設定時使用 `latest`。Compose 不讀取 Cargo；應用程式本身未設定版本時仍使用編譯時的 Cargo 版本。容器專用的 `DB_HOST=postgres`（或 `mysql`）及 `REDIS_HOST=redis` 可放在 `docker/.env`，主機應用程式繼續使用根設定。覆寫檔案只寫差異，兩份實際環境檔案均不提交 Git。
+直接使用原生 Docker Compose，無須額外啟動腳本，只載入專案根目錄 `.env`。映像名稱為 `${APP_IMAGE_NAME:-openrust}:${APP_IMAGE_VERSION:-latest}`；名稱使用合法小寫映像倉庫名稱，`APP_IMAGE_VERSION` 可指定發布標籤，未設定時使用 `latest`。Compose 不讀取 Cargo；應用程式版本仍使用編譯時的 Cargo 預設值。開發機與部署伺服器各自維護根 `.env`，實際環境檔案不提交 Git。
 
-存在 `docker/.env` 時，下方所有命令都在 `--env-file .env` 後加上 `--env-file docker/.env`。例如先啟動配套服務：
+Docker 專用設定範例見 `docker/.env.example`，依需要將設定項合併至根 `.env`。它僅作為參考模板，Compose 仍只載入根 `.env`。
 
 ```sh
-docker compose --env-file .env --env-file docker/.env -f docker/docker-compose.yml up -d --wait postgres mysql redis
+docker compose --env-file .env -f docker/docker-compose.yml up -d --wait postgres mysql redis
 ```
 
-應用程式容器按根 `.env`、可選 `docker/.env` 的順序載入環境檔案。服務 `env_file` 不負責 Compose 插值，命令也須按相同順序傳入環境檔案；Shell 環境仍按 Compose 原生規則優先。沒有覆寫檔案時只傳根檔案。Compose 固定容器內部監聽 `0.0.0.0:8000`，主機繫結重用 `APP_HOST` 和 `APP_PORT`。
+命令從專案根目錄執行，統一傳入 `--env-file .env`。Shell 值遵循 Compose 原生插值優先順序。應用程式載入同一份檔案，容器明確設定保持內部監聽 `0.0.0.0:8000`，主機繫結由 `APP_HOST` 和 `APP_PORT` 控制。
 
 Windows ARM64 後端需要可運作的 WSL 2；Windows 虛擬機需要巢狀虛擬化。參見 [Docker Desktop 系統要求](https://docs.docker.com/desktop/setup/install/windows-install/#system-requirements)。
 
@@ -182,7 +181,7 @@ docker compose --env-file .env -f docker/docker-compose.yml ps
 
 ### 應用程式容器
 
-預設啟動應用程式與全部配套服務；只需資料庫與快取時，在啟動命令末尾指定 `postgres mysql redis`。在 `docker/.env`（或根 `.env`）設定容器可存取的主機名稱：使用本設定的服務時，填寫 `DB_HOST=postgres` 或 `mysql`、對應容器連接埠（PostgreSQL `5432`、MySQL `3306`），以及 `REDIS_HOST=redis`。使用外部服務時填寫其實際位址。正式環境設定 `APP_ENV=production`、`APP_DEBUG=false`、強密碼與公開 `APP_URL`。
+預設啟動應用程式與全部配套服務；僅需資料庫與快取時，在命令末尾指定 `postgres mysql redis`。主機開發保留 `DB_HOST=127.0.0.1` 和 `REDIS_HOST=127.0.0.1`；同一份根 `.env` 設定 `DOCKER_DB_HOST=postgres`、`DOCKER_REDIS_HOST=redis` 供應用程式容器使用。使用 MySQL 時設定 `DOCKER_DB_HOST=mysql`、`DOCKER_DB_PORT=3306`；容器連接埠與主機 `DB_PORT` 不同時才需要覆寫 `DOCKER_DB_PORT`，PostgreSQL 內部使用 `5432`。使用外部服務時，省略這些容器覆寫項，直接填寫實際 `DB_HOST`、`DB_PORT`、`REDIS_HOST`，需要時再個別覆寫。正式環境設定 `APP_ENV=production`、`APP_DEBUG=false`、強密碼和公開 `APP_URL`。
 
 先檢查 `APP_KEY`：已有金鑰直接保留；僅首次缺少金鑰時執行下方產生命令，並將結果填入根 `.env`。應用程式使用 UID/GID `10001`；先建立 `docker/data/storage` 並確保可寫，Linux 可用 `sudo chown 10001:10001 docker/data/storage`。公共資源預設唯讀掛載根目錄 `public/`，可在根 `.env` 設定 `APP_PUBLIC_PATH`，相對路徑以 `docker/` 為基準；目錄必須存在。
 
@@ -202,8 +201,16 @@ docker compose --env-file .env -f docker/docker-compose.yml up -d --wait
 
 ### Nginx 對外入口 {#nginx}
 
-預設啟動的 Nginx 將 HTTP 請求轉送至 `app:8000`，對外監聽 `0.0.0.0:8080`。在根 `.env` 或可選 `docker/.env` 設定 `NGINX_PORT` 可修改主機連接埠，設定 `NGINX_HOST` 可限制繫結位址；Nginx 容器內部固定監聽 `80`。例如 `NGINX_HOST=127.0.0.1`、`NGINX_PORT=18080` 表示只供本機存取。應用程式的 `APP_URL` 應填寫實際對外位址，例如 `http://localhost:8080`。
+預設啟動的 Nginx 將 HTTP 請求轉送至 `app:8000`，對外監聽 `0.0.0.0:8080`。在根 `.env` 設定 `NGINX_PORT` 可修改主機連接埠，設定 `NGINX_HOST` 可限制繫結位址；Nginx 容器內部固定監聽 `80`。例如 `NGINX_HOST=127.0.0.1`、`NGINX_PORT=18080` 表示只供本機存取。應用程式的 `APP_URL` 應填寫實際對外位址，例如 `http://localhost:8080`。
 
 代理設定位於 `docker/nginx/default.conf`，保留請求路徑和 Host，傳遞用戶端及協定資訊，支援 WebSocket 升級並關閉回應緩衝以適配串流回應。Nginx 等待應用程式健康後啟動；應用程式重建後會透過 Docker DNS 重新解析位址。外部存取使用 Nginx 連接埠，`APP_HOST`／`APP_PORT` 繼續控制應用程式的直接存取入口。TLS 由實際部署的 HTTPS 入口設定。
 
+建置參數使用 `APP_BUILD_FEATURES` 和 `APP_BUILD_JOBS`（預設 `4`），由 Compose 傳入 Dockerfile。`APP_STORAGE_PATH` 可修改儲存掛載路徑，相對路徑從 `docker/` 計算，目錄須對 UID/GID `10001` 可寫。
+
 Nginx 請求本文上限為 8 MiB，與框架輸入限制一致。代理讀取與傳送逾時使用 Nginx 預設的 60 秒；串流回應與 WebSocket 應及時傳送資料或心跳。確需更長閒置等待時，在 `docker/nginx/default.conf` 中按需設定相應逾時。
+
+### 更新與回復
+
+先備份資料庫和儲存內容，保留已有 `APP_KEY`。原始碼發布依序執行 `build app`、`run --rm --no-deps app artisan migrate --force`、`up -d --no-build --wait`；每條命令均使用上文相同的 Compose 及環境檔案參數。使用發布映像時設定固定的 `APP_IMAGE_NAME` / `APP_IMAGE_VERSION`，以 `pull app` 取代 `build app`。遷移每次發布集中執行一次，不在每個容器啟動時自動執行。
+
+回復時選擇仍保留的上一版映像標籤，再執行 `up -d --no-build --wait`。映像回復不會撤銷資料庫遷移，須先確認資料表結構相容，必要時使用備份還原。`stop` 保留資料；更新時不要刪除 `docker/data/` 或使用 `down -v`。

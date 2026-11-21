@@ -8,16 +8,16 @@ services:
       dockerfile: docker/Dockerfile
       args:
         APP_BUILD_FEATURES: ${APP_BUILD_FEATURES:-}
+        APP_BUILD_JOBS: ${APP_BUILD_JOBS:-4}
     container_name: ${APP_NAME:-openrust}-app
     restart: unless-stopped
-    env_file:
-      - path: ../.env
-        required: true
-      - path: .env
-        required: false
+    env_file: ../.env
     environment:
       APP_HOST: 0.0.0.0
       APP_PORT: "8000"
+      DB_HOST: ${DOCKER_DB_HOST:-${DB_HOST:-postgres}}
+      DB_PORT: ${DOCKER_DB_PORT:-${DB_PORT:-5432}}
+      REDIS_HOST: ${DOCKER_REDIS_HOST:-${REDIS_HOST:-redis}}
     ports:
       - "${APP_HOST:-127.0.0.1}:${APP_PORT:-8000}:8000"
     volumes:
@@ -68,9 +68,9 @@ services:
     container_name: ${APP_NAME:-openrust}-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${DB_DATABASE:?Set DB_DATABASE in .env or docker/.env}
-      POSTGRES_USER: ${DB_USERNAME:?Set DB_USERNAME in .env or docker/.env}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env or docker/.env}
+      POSTGRES_DB: ${DB_DATABASE:?Set DB_DATABASE in the root .env}
+      POSTGRES_USER: ${DB_USERNAME:?Set DB_USERNAME in the root .env}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in the root .env}
     ports:
       - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
@@ -86,8 +86,8 @@ services:
     container_name: ${APP_NAME:-openrust}-mysql
     restart: unless-stopped
     environment:
-      MYSQL_DATABASE: ${DB_DATABASE:?Set DB_DATABASE in .env or docker/.env}
-      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env or docker/.env}
+      MYSQL_DATABASE: ${DB_DATABASE:?Set DB_DATABASE in the root .env}
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in the root .env}
       MYSQL_ROOT_HOST: "%"
     ports:
       - "127.0.0.1:${MYSQL_PORT:-3306}:3306"
