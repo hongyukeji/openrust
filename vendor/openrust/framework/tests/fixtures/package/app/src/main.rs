@@ -8,8 +8,9 @@ use openrust::{
     routing::RoutingError,
     support::{ServiceProvider, facades::Route},
 };
-include!(concat!(env!("OUT_DIR"), "/openrust_packages.rs"));
 use serde_json::json;
+
+mod packages;
 
 fn config(_: &Path, _: &Environment) -> Result<BTreeMap<String, Value>, ConfigError> {
     let database = env::var("PROBE_MYSQL_URL").ok().map_or_else(
@@ -82,7 +83,7 @@ fn ready(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 fn application() -> Result<Application, Box<dyn Error + Send + Sync>> {
     Ok(Application::configure(env::current_dir()?)
         .withConfig(config)
-        .withPackages(OPENRUST_PACKAGES)
+        .withPackages(packages::manifest())
         .withProviders(vec![Box::new(HostProvider)])
         .create()?)
 }

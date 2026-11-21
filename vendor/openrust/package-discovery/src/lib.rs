@@ -11,7 +11,7 @@ use std::{
 
 use serde_json::Value;
 
-/// Generate `OUT_DIR/openrust_packages.rs` for the current target and features.
+/// Generate `OUT_DIR/packages.rs` for the current target and features.
 pub fn generate() -> io::Result<()> {
     let app = directory("CARGO_MANIFEST_DIR")?;
     let output = directory("OUT_DIR")?;
@@ -51,7 +51,7 @@ pub fn generate() -> io::Result<()> {
         Path::new(workspace).join("Cargo.lock").display()
     );
     fs::write(
-        output.join("openrust_packages.rs"),
+        output.join("packages.rs"),
         render(&graph, &manifest, &active)?,
     )
 }
@@ -212,7 +212,7 @@ fn render(graph: &Value, manifest: &Path, active: &[&str]) -> io::Result<String>
     }
     candidates.sort_unstable_by_key(|&(name, version, library, _)| (name, version, library));
     let mut generated = String::from(
-        "pub const OPENRUST_PACKAGES: ::openrust::foundation::PackageManifest = ::openrust::foundation::PackageManifest::new(&[\n",
+        "pub const PACKAGES: ::openrust::foundation::PackageManifest = ::openrust::foundation::PackageManifest::new(&[\n",
     );
     let mut aliases = BTreeMap::new();
     for (name, version, library, options) in candidates {
