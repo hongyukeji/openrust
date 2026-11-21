@@ -10,6 +10,7 @@ mod eloquent_user_provider;
 pub mod events;
 pub mod listeners;
 pub mod middleware;
+mod model_class;
 pub mod notifications;
 pub mod passwords;
 mod request_guard;
@@ -19,10 +20,17 @@ mod token_guard;
 
 use std::{future::Future, pin::Pin};
 
+/// Configuration class reference with a compiled Eloquent authentication factory.
+/// `model!(crate::app::models::User)` corresponds to PHP's `User::class`.
+pub use crate::__auth_model as model;
 pub use auth_manager::AuthManager;
 pub use auth_service_provider::AuthServiceProvider;
 pub use database_user_provider::{DatabaseUser, DatabaseUserProvider};
 pub use eloquent_user_provider::EloquentUserProvider;
+#[doc(hidden)]
+pub use inventory as __inventory;
+#[doc(hidden)]
+pub use model_class::ModelClass as __ModelClass;
 pub use request_guard::RequestGuard;
 pub use session_guard::SessionGuard;
 pub use token_guard::TokenGuard;

@@ -559,30 +559,51 @@ fn insert_config_hook(
 
 fn wire_sanctum(root: &Path, warnings: &mut Vec<ConsoleError>) -> Result<(), ConsoleError> {
     const IMPL: &str = "impl openrust::sanctum::HasApiTokens for User {}";
-    const USER: &str = r#"auth.registerModel::<crate::app::models::User>("app::models::User");"#;
-    const REGISTER: &str =
-        r#"auth.registerSanctumModel::<crate::app::models::User>("app::models::User");"#;
+    const USER: &str = "openrust::auth::model!(crate::app::models::User);";
+    const REGISTER: &str = "openrust::auth::model!(crate::app::models::User, sanctum);";
     const CONFIG: &str = r#"("sanctum".to_owned(), sanctum::load(env)?),"#;
 
     let model = root.join("app/models/user.rs");
-    let provider = root.join("app/providers/app_service_provider.rs");
-    if model.is_file() && provider.is_file() {
+    let auth_config = root.join("config/auth.rs");
+    if model.is_file() && auth_config.is_file() {
         let model_source = read(&model)?;
-        let provider_source = read(&provider)?;
+        let config_source = read(&auth_config)?;
         let add_impl = source_hook(&model_source, &model, IMPL, |line| {
             line.trim() == "impl Authenticatable for User {"
         });
-        let add_registration = source_hook(&provider_source, &provider, REGISTER, |line| {
-            line.trim() == USER
-        });
-        match (add_impl, add_registration) {
-            (Ok(model_update), Ok(provider_update)) => {
-                replace(&model, &model_source, &model_update)?;
-                replace(&provider, &provider_source, &provider_update)?;
+        let add_reference = (|| {
+            if config_source
+                .lines()
+                .any(|line| line.trim().ends_with(REGISTER))
+            {
+                return Ok(config_source.clone());
             }
-            (model_update, provider_update) => {
+            let original = config_source
+                .lines()
+                .map(str::trim)
+                .find(|line| line.starts_with("let ") && line.ends_with(USER))
+                .ok_or_else(manual_token_model)?;
+            let statement = format!("{}{REGISTER}", original.strip_suffix(USER).unwrap());
+            source_hook(&config_source, &auth_config, &statement, |line| {
+                line.trim() == original
+            })
+            .and_then(|source| {
+                insert_before(
+                    &source,
+                    &auth_config,
+                    r#"#[cfg(not(feature = "sanctum"))]"#,
+                    |line| line.trim() == original,
+                )
+            })
+        })();
+        match (add_impl, add_reference) {
+            (Ok(model_update), Ok(config_update)) => {
+                replace(&model, &model_source, &model_update)?;
+                replace(&auth_config, &config_source, &config_update)?;
+            }
+            (model_update, config_update) => {
                 warnings.extend(model_update.err());
-                warnings.extend(provider_update.err());
+                warnings.extend(config_update.err());
                 warnings.push(manual_token_model());
             }
         }
@@ -627,7 +648,7 @@ fn source_hook(
 
 fn manual_token_model() -> ConsoleError {
     ConsoleError::new(
-        "For a custom user model, implement openrust::sanctum::HasApiTokens and register it manually with AuthManager::registerSanctumModel.",
+        "For a custom user model, implement openrust::sanctum::HasApiTokens and reference it with openrust::auth::model!(YourUser, sanctum) in config/auth.rs, or register it manually with AuthManager::registerSanctumModel.",
     )
 }
 

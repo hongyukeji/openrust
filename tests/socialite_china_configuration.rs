@@ -1,6 +1,9 @@
 use openrust::foundation::bootstrap::LoadEnvironmentVariables;
 use serde_json::json;
 use std::{fs, path::PathBuf};
+#[path = "support/config_app.rs"]
+mod app;
+
 #[path = "../config/mod.rs"]
 mod config;
 struct Root(PathBuf);

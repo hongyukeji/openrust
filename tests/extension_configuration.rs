@@ -11,6 +11,9 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
 };
 
+#[path = "support/config_app.rs"]
+mod app;
+
 #[path = "../config/mod.rs"]
 mod config;
 

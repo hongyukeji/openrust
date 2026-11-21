@@ -60,6 +60,35 @@ impl AuthManager {
         }
     }
 
+    fn load_model_class(&self, name: &str) -> AuthResult<()> {
+        if self
+            .extensions
+            .read()
+            .expect("auth extensions lock")
+            .models
+            .contains_key(name)
+        {
+            return Ok(());
+        }
+        if let Some(model) = super::model_class::ModelClass::named(name)? {
+            model.register(self);
+        }
+        Ok(())
+    }
+
+    fn load_model_type(&self, user: &dyn Authenticatable) {
+        if !self
+            .extensions
+            .read()
+            .expect("auth extensions lock")
+            .model_classes
+            .contains_key(&user.type_id())
+            && let Some(model) = super::model_class::ModelClass::for_type(user.type_id())
+        {
+            model.register(self);
+        }
+    }
+
     pub fn provider(
         &self,
         driver: impl Into<String>,
@@ -123,6 +152,7 @@ impl AuthManager {
     ///
     /// Non-model identities return `None`; model morph-map errors are preserved.
     pub fn userMorphClass(&self, user: &dyn Authenticatable) -> AuthResult<Option<&'static str>> {
+        self.load_model_type(user);
         let resolver = self
             .extensions
             .read()
@@ -136,6 +166,7 @@ impl AuthManager {
     /// Returns the registered concrete Eloquent class behind an erased identity.
     #[allow(non_snake_case, reason = "Matches authentication model accessors")]
     pub fn userClass(&self, user: &dyn Authenticatable) -> Option<&'static str> {
+        self.load_model_type(user);
         self.extensions
             .read()
             .expect("auth extensions lock")
@@ -149,6 +180,7 @@ impl AuthManager {
         &self,
         user: &dyn Authenticatable,
     ) -> AuthResult<serde_json::Map<String, Value>> {
+        self.load_model_type(user);
         let serializer = self
             .extensions
             .read()
@@ -182,6 +214,7 @@ impl AuthManager {
 
     #[cfg(feature = "sanctum")]
     pub(crate) fn supports_sanctum_tokens(&self, user: &dyn Authenticatable) -> bool {
+        self.load_model_type(user);
         self.extensions
             .read()
             .expect("auth extensions lock")
@@ -201,6 +234,9 @@ impl AuthManager {
 
     #[cfg(feature = "sanctum")]
     pub(crate) fn same_registered_model(&self, configured: &str, actual: &str) -> bool {
+        if self.load_model_class(configured).is_err() || self.load_model_class(actual).is_err() {
+            return false;
+        }
         let extensions = self.extensions.read().expect("auth extensions lock");
         let models = &extensions.models;
         let configured_type = models.get(configured).map_or(configured, |(name, _)| *name);
@@ -214,6 +250,7 @@ impl AuthManager {
         model: &str,
         id: &super::AuthIdentifier,
     ) -> AuthResult<Option<Box<dyn Authenticatable>>> {
+        self.load_model_class(model)?;
         let factory = {
             let extensions = self.extensions.read().expect("auth extensions lock");
             extensions
@@ -456,14 +493,16 @@ impl AuthManager {
         match driver {
             "eloquent" => {
                 let model = text(&config, "model")?;
-                let factory = self
-                    .extensions
-                    .read()
-                    .expect("auth extensions lock")
-                    .models
-                    .get(model)
-                    .map(|(_, factory)| factory.clone())
-                    .ok_or(AuthError::Configuration("compiled Eloquent model"))?;
+                self.load_model_class(model)?;
+                let factory = {
+                    let extensions = self.extensions.read().expect("auth extensions lock");
+                    extensions
+                        .models
+                        .get(model)
+                        .or_else(|| extensions.models.values().find(|(name, _)| *name == model))
+                        .map(|(_, factory)| factory.clone())
+                        .ok_or(AuthError::Configuration("compiled Eloquent model"))?
+                };
                 factory(&container, &config)
             }
             "database" => {

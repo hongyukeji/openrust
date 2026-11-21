@@ -1370,7 +1370,12 @@ async fn sanctum_checks_configured_request_guard_without_a_session() {
             Ok([
                 (
                     "auth".into(),
-                    json!({"guards":{"frontend":{"driver":"trusted-header"}}}),
+                    json!({
+                        "guards":{"frontend":{"driver":"trusted-header"}},
+                        "providers":{"users":{"driver":"eloquent","model":
+                            openrust::auth::model!(User<true>, "other-users", sanctum)
+                        }}
+                    }),
                 ),
                 ("sanctum".into(), json!({"guard":["sanctum","frontend"]})),
             ]
@@ -1381,7 +1386,6 @@ async fn sanctum_checks_configured_request_guard_without_a_session() {
         .unwrap();
     app.boot().await.unwrap();
     let auth = app.container().make::<AuthManager>().unwrap();
-    auth.registerSanctumModel::<User<true>>("other-users");
     auth.viaRequest("trusted-header", |request| {
         let trusted = request
             .headers()

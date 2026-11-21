@@ -22,8 +22,11 @@ use serde_json::json;
 #[path = "../app/http/mod.rs"]
 mod http;
 
+#[path = "../app/models/mod.rs"]
+pub(crate) mod models;
+
 mod app {
-    pub(crate) use crate::http;
+    pub(crate) use crate::{http, models};
 }
 
 #[path = "../routes/web.rs"]
@@ -47,14 +50,12 @@ fn artisan_installs_optional_routes_without_overwriting_or_duplication() {
     fs::write(&modules, "pub(crate) mod console;\npub(crate) mod web;\n").unwrap();
     fs::write(&bootstrap, "custom bootstrap\n").unwrap();
     let model = root.0.join("app/models/user.rs");
+    let auth_config = root.0.join("config/auth.rs");
     let provider = root.0.join("app/providers/app_service_provider.rs");
     let config_module = root.0.join("config/mod.rs");
     for (path, source) in [
         (&model, "impl Authenticatable for User {\n}\n"),
-        (
-            &provider,
-            "            auth.registerModel::<crate::app::models::User>(\"app::models::User\");\n",
-        ),
+        (&auth_config, include_str!("../config/auth.rs")),
         (
             &config_module,
             "pub(crate) mod app;\nmod services;\n        (\"auth\".to_owned(), auth::load(env)?),\n        (\"services\".to_owned(), services::load(env)?),\n",
@@ -63,6 +64,9 @@ fn artisan_installs_optional_routes_without_overwriting_or_duplication() {
         fs::create_dir_all(path.parent().unwrap()).unwrap();
         fs::write(path, source).unwrap();
     }
+    let provider_source = include_str!("../app/providers/app_service_provider.rs");
+    fs::create_dir_all(provider.parent().unwrap()).unwrap();
+    fs::write(&provider, provider_source).unwrap();
     let run = |args: &[&str]| {
         Command::new(env!("CARGO_BIN_EXE_main"))
             .arg("artisan")
@@ -167,13 +171,27 @@ fn artisan_installs_optional_routes_without_overwriting_or_duplication() {
     assert_eq!(fs::read_to_string(&migration).unwrap(), custom);
     for (path, statement) in [
         (model, "impl openrust::sanctum::HasApiTokens for User"),
-        (provider, "auth.registerSanctumModel"),
+        (auth_config.clone(), "User, sanctum"),
         (config_module.clone(), "sanctum::load"),
     ] {
         let source = fs::read_to_string(path).unwrap();
         assert_eq!(source.matches(statement).count(), 1);
         assert!(source.contains("#[cfg(feature = \"sanctum\")]"));
     }
+    assert_eq!(fs::read_to_string(provider).unwrap(), provider_source);
+    let config_source = fs::read_to_string(auth_config).unwrap();
+    assert_eq!(
+        config_source
+            .matches("model!(crate::app::models::User);")
+            .count(),
+        1
+    );
+    assert_eq!(
+        config_source
+            .matches("#[cfg(not(feature = \"sanctum\"))]")
+            .count(),
+        1
+    );
     let loader = fs::read_to_string(config_module).unwrap();
     assert_eq!(loader.matches("mod api;").count(), 1);
     assert_eq!(loader.matches("api::load(env)?").count(), 1);

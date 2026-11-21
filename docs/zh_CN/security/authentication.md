@@ -152,7 +152,19 @@ fn register_password_routes() -> Result<(), RoutingError> {
 
 ## 自定义 Guard 和提供器
 
-默认应用注册编译后的 Eloquent `User`。用 `AuthManager::registerModel` 注册其他模型，或为 `database` 提供器配置表名和列名。用 `provider` 注册提供器，用 `viaRequest` 注册无状态请求解析器。内置 `token` Guard 读取 Bearer 请求头，支持对令牌哈希后再查库。
+认证模型按 Laravel 的机制在 `config/auth.rs` 的 `auth.providers` 中选择。`openrust::auth::model!` 对应 PHP 的模型类引用：返回类名，并保留编译后的类型工厂。`AppServiceProvider` 和 `bootstrap/app.rs` 无需登记模型：
+
+```rust
+let user = openrust::auth::model!(crate::app::models::User);
+let admin = openrust::auth::model!(crate::app::models::Admin);
+
+let providers = serde_json::json!({
+    "users": {"driver": "eloquent", "model": user},
+    "admins": {"driver": "eloquent", "model": admin},
+});
+```
+
+使用前在应用的模型模块中声明 `Admin`。新增模型类引用后须重新构建；`AUTH_MODEL` 可选择已引用且编译的模型，未知类名在解析 Eloquent 提供器时失败。即使配置缓存绕过加载函数，链接器仍保留类型工厂。框架按需解析工厂，不查询用户表，可变认证状态按应用隔离。可用第二个参数指定稳定别名，例如 `model!(Admin, "app::models::Admin")`。`AuthManager::registerModel` 保留为显式运行时扩展入口。也可为 `database` 提供器配置表和字段；用 `provider` 注册提供器，用 `viaRequest` 注册无状态请求解析器。内置 `token` 守卫读取 Bearer 标头，支持将令牌哈希后再查询数据库。
 
 对于通过 `AuthManager::registerModel` 注册的身份，`manager.userMorphClass(user)?` 返回真实 Eloquent 多态标识，遵循模型连接及自定义 `getMorphClass`。此 Rust 适配入口保留多态映射错误，未注册身份返回 `None`；非模型操作者应显式配置，不猜测表名或类型名。
 

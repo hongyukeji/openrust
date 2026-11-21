@@ -16,6 +16,9 @@ use openrust::{
     foundation::Application,
 };
 
+#[path = "support/config_app.rs"]
+mod app;
+
 #[path = "../config/mod.rs"]
 mod config;
 

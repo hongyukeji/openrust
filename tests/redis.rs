@@ -20,6 +20,9 @@ use openrust::{
 };
 use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
 
+#[path = "support/config_app.rs"]
+mod app;
+
 #[path = "../config/mod.rs"]
 mod config;
 

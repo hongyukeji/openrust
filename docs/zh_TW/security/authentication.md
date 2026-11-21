@@ -152,7 +152,19 @@ fn register_password_routes() -> Result<(), RoutingError> {
 
 ## 自訂 Guard 和提供器
 
-預設應用程式註冊編譯後的 Eloquent `User`。用 `AuthManager::registerModel` 註冊其他模型，或為 `database` 提供器設定資料表與欄位。用 `provider` 註冊提供器，用 `viaRequest` 註冊無狀態請求解析器。內建 `token` Guard 讀取 Bearer 標頭，支援將權杖雜湊後再查詢資料庫。
+驗證模型依 Laravel 的機制在 `config/auth.rs` 的 `auth.providers` 中選擇。`openrust::auth::model!` 對應 PHP 的模型類別參照：回傳類別名稱，並保留編譯後的型別工廠。`AppServiceProvider` 和 `bootstrap/app.rs` 無須註冊模型：
+
+```rust
+let user = openrust::auth::model!(crate::app::models::User);
+let admin = openrust::auth::model!(crate::app::models::Admin);
+
+let providers = serde_json::json!({
+    "users": {"driver": "eloquent", "model": user},
+    "admins": {"driver": "eloquent", "model": admin},
+});
+```
+
+使用前在應用程式的模型模組中宣告 `Admin`。新增模型類別參照後須重新建置；`AUTH_MODEL` 可選擇已參照且編譯的模型，未知類別名稱在解析 Eloquent 提供器時失敗。即使設定快取略過載入函式，連結器仍保留型別工廠。框架按需解析工廠，不查詢使用者資料表，可變驗證狀態按應用程式隔離。可用第二個參數指定穩定別名，例如 `model!(Admin, "app::models::Admin")`。`AuthManager::registerModel` 保留為明確的執行階段擴充入口。也可為 `database` 提供器設定資料表與欄位；用 `provider` 註冊提供器，用 `viaRequest` 註冊無狀態請求解析器。內建 `token` Guard 讀取 Bearer 標頭，支援將權杖雜湊後再查詢資料庫。
 
 對於透過 `AuthManager::registerModel` 註冊的身分，`manager.userMorphClass(user)?` 回傳真實 Eloquent 多型識別，遵循模型連線及自訂 `getMorphClass`。此 Rust 適配入口保留多型對應錯誤，未註冊身分回傳 `None`；非模型操作者應明確設定，不猜測資料表或型別名稱。
 

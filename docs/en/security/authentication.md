@@ -152,7 +152,19 @@ fn register_password_routes() -> Result<(), RoutingError> {
 
 ## Custom Guards and Providers
 
-The default application registers its compiled Eloquent `User`. Register other models with `AuthManager::registerModel`, or configure a `database` provider with a table and column names. Register a provider implementation with `provider` and a stateless request resolver with `viaRequest`. The built-in `token` guard reads the Bearer header and supports hashing tokens before database lookup.
+Authentication models are selected in `config/auth.rs`, following Laravel's `auth.providers` configuration. `openrust::auth::model!` is the Rust counterpart of a PHP model class reference: it returns the class name and retains its compiled factory. Neither `AppServiceProvider` nor `bootstrap/app.rs` needs model registration:
+
+```rust
+let user = openrust::auth::model!(crate::app::models::User);
+let admin = openrust::auth::model!(crate::app::models::Admin);
+
+let providers = serde_json::json!({
+    "users": {"driver": "eloquent", "model": user},
+    "admins": {"driver": "eloquent", "model": admin},
+});
+```
+
+Declare `Admin` in your application's models module before using it. Adding a model class reference requires rebuilding. `AUTH_MODEL` can select any referenced, compiled model; an unknown class fails when its Eloquent provider is resolved. The linker retains factories even when configuration caching skips the loader. Factories are resolved lazily without querying user tables, and mutable authentication state stays within its application. An explicit second argument, such as `model!(Admin, "app::models::Admin")`, sets a stable class alias. `AuthManager::registerModel` remains available for explicit runtime extensions. Alternatively, configure a `database` provider with a table and column names. Register a provider implementation with `provider` and a stateless request resolver with `viaRequest`. The built-in `token` guard reads the Bearer header and supports hashing tokens before database lookup.
 
 For an identity registered with `AuthManager::registerModel`, `manager.userMorphClass(user)?` returns its actual Eloquent morph discriminator, including the model’s connection and custom `getMorphClass` behavior. This Rust adapter preserves morph-map errors and returns `None` for unregistered identities. Configure non-model causers explicitly instead of guessing a table or type name.
 

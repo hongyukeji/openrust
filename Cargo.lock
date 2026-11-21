@@ -3138,6 +3138,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fb4842b834ce672019651d2dab56a63cb3ab07d222d892eecbf90b45f21256b8"
 
 [[package]]
+name = "inventory"
+version = "0.3.25"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6928282826c822ad91bf1c9a1cb90a30ba1c26770749929b4656cd6be829cd7c"
+dependencies = [
+ "rustversion",
+]
+
+[[package]]
 name = "io-extras"
 version = "0.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4151,6 +4160,7 @@ dependencies = [
  "indexmap 2.14.2",
  "infer",
  "intl",
+ "inventory",
  "iri-string",
  "jiff 0.2.46",
  "jixel",

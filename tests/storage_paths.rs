@@ -8,6 +8,9 @@ use openrust::{
 };
 use serde_json::json;
 
+#[path = "support/config_app.rs"]
+mod app;
+
 #[path = "../config/mod.rs"]
 mod config;
 

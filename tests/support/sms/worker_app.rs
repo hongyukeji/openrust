@@ -1,3 +1,5 @@
+#[path = "../config_app.rs"]
+mod app;
 #[path = "../../../config/mod.rs"]
 mod config;
 #[path = "../../../database/migrations/mod.rs"]
