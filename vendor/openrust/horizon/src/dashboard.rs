@@ -11,7 +11,10 @@ use openrust::{
 };
 use std::{
     collections::BTreeSet,
-    sync::{Arc, RwLock},
+    sync::{
+        Arc, RwLock,
+        atomic::{AtomicBool, Ordering},
+    },
 };
 
 type Authorize =
@@ -20,6 +23,7 @@ type Authorize =
 #[derive(Default)]
 pub struct Dashboard {
     authorize: RwLock<Option<Authorize>>,
+    routesRegistered: AtomicBool,
 }
 impl Dashboard {
     pub(crate) fn repository(&self) -> Result<Arc<Repository>> {
@@ -114,13 +118,25 @@ impl Horizon {
         Ok(())
     }
     pub fn routes() -> std::result::Result<(), openrust::routing::RoutingError> {
-        Self::routesAt("/horizon")
+        let config = openrust::support::facades::Config::getFacadeRoot()
+            .map_err(|source| openrust::routing::RoutingError::ContainerFailed { source })?;
+        let path = config.get("horizon.path").unwrap_or("horizon".into());
+        let path = path
+            .as_str()
+            .ok_or_else(|| openrust::routing::RoutingError::InvalidUri {
+                uri: path.to_string(),
+            })?;
+        Self::routesAt(&format!("/{}", path.trim_matches('/')))
     }
     pub fn routesAt(path: &str) -> std::result::Result<(), openrust::routing::RoutingError> {
         // Static application-owned paths only; no route parameters or encoded separators.
-        let path = path.trim_end_matches('/');
+        let path = if path == "/" {
+            "/"
+        } else {
+            path.trim_end_matches('/')
+        };
         if !path.starts_with('/')
-            || path.len() < 2
+            || path.is_empty()
             || path.len() > 200
             || !path
                 .bytes()
@@ -128,43 +144,80 @@ impl Horizon {
         {
             return Err(openrust::routing::RoutingError::InvalidUri { uri: path.into() });
         }
-        Route::get(path, page)?;
-        Route::get(&format!("{path}/api/stats"), stats)?;
-        for suffix in [
-            "workload",
-            "masters",
-            "monitoring",
-            "monitoring/{tag}",
-            "metrics/jobs",
-            "metrics/jobs/{id}",
-            "metrics/queues",
-            "metrics/queues/{id}",
-            "batches",
-            "batches/{id}",
-            "jobs/pending",
-            "jobs/completed",
-            "jobs/silenced",
-            "jobs/failed",
-            "jobs/failed/{id}",
-            "jobs/{id}",
-        ] {
-            Route::get(&format!("{path}/api/{suffix}"), api)?;
+        let dashboard = Self::manager()
+            .map_err(|source| openrust::routing::RoutingError::ContainerFailed { source })?;
+        if dashboard.routesRegistered.load(Ordering::SeqCst) {
+            return Ok(());
         }
-        for suffix in [
-            "monitoring",
-            "jobs/retry/{id}",
-            "batches/retry/{id}",
-            "pause",
-            "continue",
-            "terminate",
-        ] {
-            Route::r#match(&[http::Method::POST], &format!("{path}/api/{suffix}"), api)?;
+        let config = openrust::support::facades::Config::getFacadeRoot()
+            .map_err(|source| openrust::routing::RoutingError::ContainerFailed { source })?;
+        let mut group = openrust::routing::RouteGroup::new();
+        if let Some(domain) = config
+            .get("horizon.domain")
+            .filter(|value| !value.is_null())
+        {
+            group = group.domain(domain.as_str().ok_or_else(|| {
+                openrust::routing::RoutingError::InvalidUri {
+                    uri: domain.to_string(),
+                }
+            })?);
         }
-        Route::r#match(
-            &[http::Method::DELETE],
-            &format!("{path}/api/monitoring/{{tag}}"),
-            api,
-        )?;
+        let middleware = config
+            .get("horizon.middleware")
+            .unwrap_or(serde_json::json!(["web"]));
+        for name in middleware.as_array().ok_or_else(|| {
+            openrust::routing::RoutingError::UnknownMiddleware {
+                name: middleware.to_string(),
+            }
+        })? {
+            group = group.middleware_name(name.as_str().ok_or_else(|| {
+                openrust::routing::RoutingError::UnknownMiddleware {
+                    name: name.to_string(),
+                }
+            })?);
+        }
+        Route::group(group, |router| {
+            router.get(path, page)?;
+            let path = path.trim_end_matches('/');
+            router.get(&format!("{path}/api/stats"), stats)?;
+            for suffix in [
+                "workload",
+                "masters",
+                "monitoring",
+                "monitoring/{tag}",
+                "metrics/jobs",
+                "metrics/jobs/{id}",
+                "metrics/queues",
+                "metrics/queues/{id}",
+                "batches",
+                "batches/{id}",
+                "jobs/pending",
+                "jobs/completed",
+                "jobs/silenced",
+                "jobs/failed",
+                "jobs/failed/{id}",
+                "jobs/{id}",
+            ] {
+                router.get(&format!("{path}/api/{suffix}"), api)?;
+            }
+            for suffix in [
+                "monitoring",
+                "jobs/retry/{id}",
+                "batches/retry/{id}",
+                "pause",
+                "continue",
+                "terminate",
+            ] {
+                router.r#match(&[http::Method::POST], &format!("{path}/api/{suffix}"), api)?;
+            }
+            router.r#match(
+                &[http::Method::DELETE],
+                &format!("{path}/api/monitoring/{{tag}}"),
+                api,
+            )?;
+            Ok(())
+        })?;
+        dashboard.routesRegistered.store(true, Ordering::SeqCst);
         Ok(())
     }
 }
@@ -465,5 +518,24 @@ impl Facade for FailedJobs {
     type Service = dyn openrust::queue::failed::FailedJobProviderInterface;
     fn getFacadeAccessor() -> ServiceKey {
         "queue.failer".into()
+    }
+}
+
+pub(crate) fn configuredRoutes() -> std::result::Result<(), openrust::routing::RoutingError> {
+    let config = openrust::support::facades::Config::getFacadeRoot()
+        .map_err(|source| openrust::routing::RoutingError::ContainerFailed { source })?;
+    if Horizon::manager()
+        .map_err(|source| openrust::routing::RoutingError::ContainerFailed { source })?
+        .routesRegistered
+        .load(Ordering::SeqCst)
+    {
+        return Ok(());
+    }
+    match config.get("horizon.routes") {
+        Some(serde_json::Value::Bool(false)) => Ok(()),
+        Some(serde_json::Value::Bool(true)) | None => Horizon::routes(),
+        Some(value) => Err(openrust::routing::RoutingError::InvalidUri {
+            uri: value.to_string(),
+        }),
     }
 }

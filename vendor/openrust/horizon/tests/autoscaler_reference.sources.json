@@ -1,0 +1,8 @@
+{
+  "repository": "https://github.com/laravel/horizon",
+  "commit": "b86d5aa87ca474db352ea2668bdd1df3a90bf8aa",
+  "files": {
+    "src/SupervisorOptions.php": "36fdea89465dd5c8b52c1a3ad791bb9f11385ef76f6ce9de17d3bb37e76dcedc",
+    "src/AutoScaler.php": "74881073612ade2b9e55c9763beaa71dff32a57da59b5266542d2b81819c57b0"
+  }
+}

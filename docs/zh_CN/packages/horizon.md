@@ -15,7 +15,9 @@
 
 ## 配置 {#configuration}
 
-复用 `database.redis` 中的单机 Redis 连接和 `queue.connections` 中的 Redis 队列连接。`horizon.use` 选择元数据连接，默认 `default`；`horizon.prefix` 默认 `horizon:`，须按应用和环境隔离。不支持 Redis Cluster。原生[队列](../digging-deeper/queues.md)仍按自身契约支持其他传输。
+复用 `database.redis` 中的单机 Redis 连接和 `queue.connections` 中的 Redis 队列连接。`horizon.use` 选择元数据连接，默认 `default`；`horizon.prefix` 读取 `HORIZON_PREFIX`，默认将 `APP_NAME` 转为下划线 slug 后追加 `_horizon:`；共享 Redis 的不同环境应使用独立前缀。不支持 Redis Cluster。原生[队列](../digging-deeper/queues.md)仍按自身契约支持其他传输。
+
+已有部署若使用此前的 `horizon:` 元数据前缀，应显式设置 `HORIZON_PREFIX=horizon:`，让相关 Worker 继续使用同一前缀。排空旧 Master 后再切换前缀；新前缀拥有独立的控制状态与历史记录。
 
 `horizon.defaults` 按监督器名称配置；`horizon.environments` 选择第一条匹配 `app.env` 的模式，支持 `*`。未匹配时不启动监督器，`maxProcesses: 0` 禁用对应监督器。环境选项与默认值递归合并，数组按索引覆盖。默认模板在 `production` 使用 10 个进程预算，在 `local` 使用 3 个。
 
@@ -29,7 +31,7 @@ Worker 的 `timeout` 必须短于队列的 `retry_after`，默认分别为 60 �
 
 ## 面板授权 {#authorization}
 
-在应用路由装配中注册授权回调及路由。每次请求（包括指标接口）都须通过回调，否则拒绝访问。回调使用应用已有的登录会话与授权策略。
+包 Provider 自动注册面板路由。在应用 Provider 或路由装配中注册授权回调。每次请求（包括指标接口）都须通过回调，否则拒绝访问。回调使用应用已有的登录会话与授权策略。
 
 ```rust
 use openrust::http::{HttpError, HttpFuture, Request};
@@ -47,7 +49,7 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
 }
 ```
 
-`Horizon::routes()` 注册 `/horizon` 面板及其 `/api` 接口；使用 `routesAt("/operations/horizon")` 指定其他静态路径。现有路由组继续应用自身前缀与中间件。面板每五秒刷新，设置严格的内容安全策略并禁用响应缓存，支持队列负载、Master 与监督器、待处理／完成／静默／失败任务、任务载荷与异常、监控标签、指标快照和批次。失败任务及批次失败任务通过已配置的原生失败任务提供器重试。
+`HORIZON_PATH` 控制 `horizon.path`（默认 `horizon`），`HORIZON_DOMAIN` 控制可选的 `horizon.domain`；`horizon.middleware` 默认 `["web"]`。设置 `horizon.routes=false` 关闭自动注册。`Horizon::routes()` 使用这些配置；显式 `routesAt("/operations/horizon")` 优先于自动注册，每个应用只注册一次。现有路由组继续应用自身前缀与中间件。面板每五秒刷新，设置严格的内容安全策略并禁用响应缓存，支持队列负载、Master 与监督器、待处理／完成／静默／失败任务、任务载荷与异常、监控标签、指标快照和批次。失败任务及批次失败任务通过已配置的原生失败任务提供器重试。
 
 暂停、继续、终止、监控变更和重试均须逐次通过授权回调。浏览器对写操作发送 `X-Horizon-Request: 1`，直接调用接口也须携带该请求头；拒绝跨站浏览器写操作。为整个路由组应用已有的认证与中间件。面板授权包含查看任务数据和执行运维控制的权限。
 

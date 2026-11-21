@@ -51,6 +51,7 @@ WORKDIR /app
 COPY --from=build /out/main /app/main
 COPY resources/ /app/resources/
 COPY public/ /app/public/
+COPY LICENSE THIRD_PARTY_NOTICES.md /app/
 ENV APP_HOST=0.0.0.0 APP_PORT=8000 APP_ENV=production APP_DEBUG=false LOG_CHANNEL=stderr
 ENV APP_PACKAGES_CACHE=storage/framework/cache/packages.json
 USER 10001:10001

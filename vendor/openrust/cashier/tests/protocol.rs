@@ -87,6 +87,14 @@ async fn stripe_subscription_items_proration_trial_cancel_resume_and_immediate_c
         .create(Some("pm_1"), "subscribe:1")
         .await
         .unwrap();
+    assert_eq!(
+        s.asStripeSubscription(json!({})).await.unwrap()["id"],
+        "sub_1"
+    );
+    assert!(matches!(
+        s.asPaddleSubscription(json!({})).await,
+        Err(Error::Unsupported)
+    ));
     assert!(s.active());
     assert!(b.subscribed("default").await.unwrap());
     let s = s
@@ -431,4 +439,91 @@ async fn http_recording_redacts_authorization_keys_and_request_response_payloads
         );
         assert!(response.unwrap().body().is_empty());
     }
+}
+
+#[tokio::test]
+async fn stripe_original_customer_and_portal_names_enforce_provider_semantics() {
+    let db = Db::new(true).await;
+    let stripe = Server::new(Provider::Stripe).await;
+    let b = openrust_cashier::Billable::new(stripe.client(), db.store.clone(), "original-customer")
+        .unwrap();
+    assert!(!b.hasStripeId().await.unwrap());
+    assert_eq!(
+        b.createAsStripeCustomer(json!({"name":"Agent"}), "create-original")
+            .await
+            .unwrap()["id"],
+        "cus_1"
+    );
+    assert!(b.hasStripeId().await.unwrap());
+    assert!(matches!(
+        b.createAsStripeCustomer(json!({}), "duplicate").await,
+        Err(Error::CustomerAlreadyCreated)
+    ));
+    b.createOrGetStripeCustomer(json!({"expand":["tax"]}), "read-existing")
+        .await
+        .unwrap();
+    assert_eq!(stripe.requests().last().unwrap().params["expand[0]"], "tax");
+    b.updateStripeCustomer(json!({"name":"Updated"}), "update-original")
+        .await
+        .unwrap();
+    b.updateOrCreateStripeCustomer(json!({"email":"user@example.test"}), "upsert-original")
+        .await
+        .unwrap();
+    assert_eq!(b.asStripeCustomer(&[]).await.unwrap()["id"], "cus_1");
+    assert_eq!(
+        b.billingPortalUrl(
+            "https://shop.test/account",
+            json!({"locale":"en"}),
+            "url-original"
+        )
+        .await
+        .unwrap(),
+        "https://billing.example/portal"
+    );
+    let response = b
+        .redirectToBillingPortal("https://shop.test/account", json!({}), "redirect-original")
+        .await
+        .unwrap();
+    assert_eq!(response.status(), http::StatusCode::FOUND);
+    assert_eq!(
+        response.headers()[http::header::LOCATION],
+        "https://billing.example/portal"
+    );
+    stripe.state.lock().unwrap().failure = Some(401);
+    assert!(matches!(
+        b.updateStripeCustomer(json!({}), "rejected-original").await,
+        Err(Error::Rejected(401))
+    ));
+    let paddle = Server::new(Provider::Paddle).await;
+    let p = openrust_cashier::Billable::new(paddle.client(), db.store.clone(), "paddle-original")
+        .unwrap();
+    assert!(matches!(
+        p.createOrGetStripeCustomer(json!({}), "wrong-provider")
+            .await,
+        Err(Error::Unsupported)
+    ));
+    assert!(matches!(
+        p.billingPortalUrl("https://shop.test/account", json!({}), "wrong-portal")
+            .await,
+        Err(Error::Unsupported)
+    ));
+    assert!(paddle.requests().is_empty());
+    assert!(matches!(
+        p.createAsCustomer(json!({}), "missing-email").await,
+        Err(Error::InvalidInput(_))
+    ));
+    assert!(paddle.requests().is_empty());
+    assert!(matches!(
+        b.createAsCustomer(json!({}), "wrong-provider").await,
+        Err(Error::Unsupported)
+    ));
+    p.createAsCustomer(json!({"email":"paddle@example.test"}), "paddle-create")
+        .await
+        .unwrap();
+    assert_eq!(
+        p.createAsCustomer(json!({}), "paddle-existing")
+            .await
+            .unwrap()["id"],
+        "cus_1"
+    );
 }

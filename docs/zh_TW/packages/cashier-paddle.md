@@ -8,12 +8,12 @@
 
 ```dotenv
 CASHIER_DRIVER=paddle
-CASHIER_LIVE=false
+PADDLE_SANDBOX=true
 PADDLE_API_KEY=pdl_sdbx_apikey_...
 PADDLE_WEBHOOK_SECRET=pdl_ntfset_...
 ```
 
-預設呼叫 sandbox API；正式環境使用新的具名帳戶或獨立資料庫，設定 `live:true` 與正式憑證。Paddle.js 使用公開 client-side token，API key 和 Webhook secret 只保存在伺服器。先在 Paddle 設定產品、價格、預設付款連結和通知目標。
+`PADDLE_SANDBOX` 依 Cashier Paddle 預設 `false`，沙箱憑據應明確設定 `true`；`PADDLE_AUTH_CODE` 優先於 `PADDLE_API_KEY`。明確設定的 `CASHIER_LIVE` 保留舊模式覆寫，具名帳戶直接設定 `live`。`createAsCustomer(options, key)` 重用已綁定客戶，新客戶要求明確電子郵件；回傳供應商 JSON 並儲存身分映射，不模擬 PHP morphOne，也不依電子郵件自動關聯既有客戶。關聯既有帳戶使用經過身分驗證的 `attachCustomer`。API 與 Webhook 密鑰僅儲存在伺服器端。
 
 ## Checkout 與試用 {#checkout}
 
@@ -24,7 +24,7 @@ use serde_json::json;
 let client = Cashier::driver("paddle")?;
 let store = BillingStore::new(connection.clone());
 let user = Billable::new(client.clone(), store.clone(), "users:42")?;
-user.createOrGetCustomer(json!({"email":"buyer@example.com"}), "customer:42").await?;
+user.createAsCustomer(json!({"email":"buyer@example.com"}), "customer:42").await?;
 let transaction = user.newSubscription("default", vec![Price::new("pri_monthly", 1)?])?
     .withCoupon("dsc_welcome")?
     .checkout(json!({}), "subscription:42:first").await?;

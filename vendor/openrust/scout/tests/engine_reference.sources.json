@@ -1,0 +1,20 @@
+{
+  "sources": [
+    {
+      "repository": "https://github.com/laravel/scout",
+      "commit": "6f6560dbcda3ec99d9ba90bd6eebed5e0f16e363",
+      "files": {
+        "src/Builder.php": "39d3e41b56a24da88a9d8ba4509c7576ec4091c6ef9c8dcd158ca804e52ae99e",
+        "src/Engines/Engine.php": "46ff769732194bc0695cff9799b12e47a2c4e5d96b3c49dc521bd2270b29fa91",
+        "src/Engines/CollectionEngine.php": "527332bed3b7f945c9d10f7699a57ef69f6de12dc602f393110d83df9b34c883"
+      }
+    },
+    {
+      "repository": "https://github.com/laravel/framework",
+      "commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+      "files": {
+        "src/Illuminate/Support/Str.php": "4b66dbc1fa0f7dbf44a452e31c0433e10ac731df3a190d45c5dd28fa8b827c79"
+      }
+    }
+  ]
+}

@@ -1,4 +1,5 @@
 //! State owned by one request, command, or job. Never store mutable logging state globally.
+pub use crate::{ActivityLogger, ChangeDetector, PendingActivityLog};
 use crate::{IntoLogName, Result, Subject};
 use std::{
     future::Future,

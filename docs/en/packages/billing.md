@@ -17,13 +17,17 @@ STRIPE_WEBHOOK_SECRET=whsec_...
 
 The Stripe API is pinned to `2026-11-18.endive`; configure the webhook endpoint with the same version. Use `CASHIER_LIVE=true` and production credentials in production. Keep API and webhook secrets on the server. Stripe.js uses a public publishable key, never `STRIPE_SECRET`.
 
-The package loads `cashier.default` and `cashier.drivers.stripe` / `paddle` from the environment. Your application configuration loader can override the `cashier` group: application values take precedence and `drivers` is replaced as a whole. Each named profile specifies `driver`, `secret`, `webhook_secret` and `live`; `webhook_secrets` supports secret rotation. A profile name identifies one stable merchant account and mode. Use another name or database for a different merchant or for production instead of reassigning an existing profile.
+The package loads `cashier.default`, Stripe `cashier.key`, `cashier.secret`, `cashier.webhook.secret`, and Paddle `cashier.paddle.api_key`, `cashier.paddle.webhook_secret`, `cashier.paddle.sandbox`. The Paddle namespace separates the two upstream packages within one Rust crate. `cashier.drivers` contains explicit named accounts; a matching account overrides its canonical provider configuration. Your application configuration loader can override the `cashier` group: application values take precedence and `drivers` is replaced as a whole. Each named profile specifies `driver`, `secret`, `webhook_secret` and `live`; `webhook_secrets` supports secret rotation. A profile name identifies one stable merchant account and mode. Use another name or database for a different merchant or for production instead of reassigning an existing profile.
 
 `Cashier::driver("stripe")` and `Cashier::defaultDriver()` resolve clients in application scope. `CashierManager::getDefaultDriver()` returns the configured name. `forgetDrivers()` reloads configuration on subsequent resolutions; existing clients retain their credential snapshots. Cached configuration remains authoritative; rebuild it after changing environment settings as described in [configuration](../getting-started/configuration.md).
 
 ## Customers and Checkout {#customers-and-checkout}
 
 `Billable` binds a trusted, authenticated application identity. Do not infer ownership from an email, webhook field or Checkout query string. Profile names and local identities isolate customer mappings; a remote customer can be associated only once.
+
+Stripe customer APIs retain `stripeId`, `hasStripeId`, `createAsStripeCustomer`, `createOrGetStripeCustomer`, `updateStripeCustomer`, `updateOrCreateStripeCustomer` and `asStripeCustomer(&["tax"])`. Creation rejects an existing customer with `CustomerAlreadyCreated`; create-or-get retrieves the existing customer and honors `expand`. `billingPortalUrl(return_url, options, key)` returns a validated HTTPS URL; `redirectToBillingPortal` returns an HTTP 302 response. Stripe-only methods reject Paddle accounts before sending a request. Existing `createOrGetCustomer`, `updateCustomer` and `billingPortal` remain explicit cross-provider conveniences.
+
+`Billable` is a trusted identity adapter rather than a PHP model trait. Provide customer name/email/address in `options`; no reflection reads application model fields. Provider objects remain JSON values, while local subscription/invoice records are typed. `subscription()` returns `SubscriptionHandle`, which owns operations and dereferences the stored `Subscription`; `asStripeSubscription` and `asPaddleSubscription` retain their provider boundaries. `rawBalance()` returns Stripe minor units; the existing integer `balance()` is a convenience alias, without PHP localized currency formatting. Mutation keys are explicit Rust arguments to retain retry safety.
 
 ```rust
 use openrust_cashier::{Billable, BillingStore, Price, facades::Cashier};
@@ -32,7 +36,7 @@ use serde_json::json;
 let client = Cashier::driver("stripe")?;
 let store = BillingStore::new(connection.clone());
 let user = Billable::new(client.clone(), store.clone(), "users:42")?;
-user.createOrGetCustomer(json!({"email":"buyer@example.com"}), "customer:42").await?;
+user.createOrGetStripeCustomer(json!({"email":"buyer@example.com"}), "customer:42").await?;
 let session = user.newSubscription("default", vec![Price::new("price_monthly", 1)?])?
     .trialDays(14)?
     .withCoupon("coupon_welcome")?

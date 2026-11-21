@@ -38,6 +38,16 @@ namespace Laravel\Horizon {
     }
 }
 namespace {
+    // Reject a different upstream revision before executing its code.
+    $manifest = json_decode(file_get_contents(__DIR__.'/autoscaler_reference.sources.json'), true, 512, JSON_THROW_ON_ERROR);
+    $sourceRoot = ($argv[1] ?? '');
+    foreach ($manifest['files'] as $file => $sha256) {
+        $source = $sourceRoot.'/'.$file;
+        if (!is_file($source) || hash_file('sha256', $source) !== $sha256) {
+            throw new \RuntimeException('Unexpected pinned reference source: '.$file.' at '.$manifest['commit']);
+        }
+    }
+
     function collect($items) { return new \Illuminate\Support\Collection($items); }
     class Pool {
         public function __construct(public string $name, public int $active, public int $terminating = 0) {}

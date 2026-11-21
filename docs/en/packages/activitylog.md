@@ -14,6 +14,8 @@ For `activitylog.connection`, explicitly register `ActivitylogServiceProvider::m
 
 `ActivityLogger` provides fluent recording; `ActivityRepository` handles queries, transaction writes and cleanup. Use trusted identities for subjects and causers. Explicit properties are retained by default; the application chooses which data may be logged.
 
+The upstream Support namespace is available as `openrust_activitylog::support::{ActivityLogger, PendingActivityLog, ChangeDetector}`; crate-root imports remain available.
+
 ```rust
 use openrust_activitylog::{ActivityLogger, CauserResolver, Subject};
 use serde_json::json;

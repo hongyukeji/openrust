@@ -1,8 +1,9 @@
 mod support;
+use openrust::contracts::config::Repository as _;
 use openrust::{config::Value, foundation::Application};
 use openrust_cashier::{CashierManager, CashierServiceProvider, Provider, facades::Cashier};
 use serde_json::json;
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, sync::Arc};
 use support::*;
 fn config(
     _: &std::path::Path,
@@ -87,7 +88,7 @@ async fn package_environment_defaults_load_only_after_provider_registration() {
     let path =
         std::env::temp_dir().join(format!("openrust-cashier-provider-{}", std::process::id()));
     std::fs::create_dir_all(&path).unwrap();
-    std::fs::write(path.join(".env"),"CASHIER_DRIVER=paddle\nCASHIER_LIVE=true\nSTRIPE_SECRET=stripe_env_secret\nSTRIPE_WEBHOOK_SECRET=stripe_endpoint_secret\nPADDLE_API_KEY=paddle_env_secret\nPADDLE_WEBHOOK_SECRET=paddle_endpoint_secret\n").unwrap();
+    std::fs::write(path.join(".env"),"CASHIER_DRIVER=paddle\nCASHIER_LIVE=true\nSTRIPE_SECRET=stripe_env_secret\nSTRIPE_WEBHOOK_SECRET=stripe_endpoint_secret\nPADDLE_API_KEY=lower_priority_secret\nPADDLE_AUTH_CODE=paddle_env_secret\nPADDLE_SANDBOX=true\nPADDLE_WEBHOOK_SECRET=paddle_endpoint_secret\n").unwrap();
     let mut app = Application::configure(path.clone())
         .withConfig(|_, _| Ok(BTreeMap::new()))
         .withProviders(vec![Box::new(CashierServiceProvider)])
@@ -100,9 +101,9 @@ async fn package_environment_defaults_load_only_after_provider_registration() {
         .unwrap();
     let values = config.get("cashier").unwrap();
     assert_eq!(values["default"], "paddle");
-    assert_eq!(values["drivers"]["stripe"]["secret"], "stripe_env_secret");
-    assert_eq!(values["drivers"]["paddle"]["secret"], "paddle_env_secret");
-    assert_eq!(values["drivers"]["paddle"]["live"], true);
+    assert_eq!(values["secret"], "stripe_env_secret");
+    assert_eq!(values["paddle"]["api_key"], "paddle_env_secret");
+    assert_eq!(values["paddle"]["sandbox"], false);
     let manager = app.make::<CashierManager>().await.unwrap();
     assert_eq!(
         manager.driver("paddle").unwrap().provider(),
@@ -116,4 +117,41 @@ async fn package_environment_defaults_load_only_after_provider_registration() {
         .unwrap();
     assert!(invalid.boot().await.is_err());
     std::fs::remove_dir_all(path).unwrap();
+}
+
+#[tokio::test]
+async fn canonical_provider_configuration_and_named_account_overrides_are_distinct() {
+    let server = Server::new(Provider::Stripe).await;
+    let repo = Arc::new(openrust::config::Repository::new(BTreeMap::from([(
+        "cashier".into(),
+        json!({
+            "default":"stripe", "secret":"canonical_secret", "webhook":{"secret":"whsec_canonical"},
+            "paddle":{"api_key":"canonical_paddle","webhook_secret":"whsec_paddle","sandbox":true},
+            "drivers":{"stripe":profile(Provider::Stripe,&server.url)}
+        }),
+    )])));
+    let manager = CashierManager::new(
+        repo.clone(),
+        Arc::new(openrust::http::client::Factory::new().unwrap()),
+    );
+    assert_eq!(
+        manager.driver("paddle").unwrap().provider(),
+        Provider::Paddle
+    );
+    manager
+        .driver("stripe")
+        .unwrap()
+        .retrieve("customers", "cus_1")
+        .await
+        .unwrap();
+    assert_eq!(
+        server.requests()[0].headers["authorization"],
+        "Bearer api_secret_fixture"
+    );
+    repo.set("cashier.drivers", json!({})).unwrap();
+    manager.forgetDrivers();
+    assert_eq!(
+        manager.driver("stripe").unwrap().provider(),
+        Provider::Stripe
+    );
 }

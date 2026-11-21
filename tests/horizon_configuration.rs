@@ -44,6 +44,22 @@ fn native_artisan_discovers_horizon_and_preserves_published_and_cached_configura
                 },
             )
             .env("LOG_CHANNEL", "null")
+            .env(
+                "HORIZON_PREFIX",
+                if cached {
+                    "changed:"
+                } else {
+                    "cached_horizon:"
+                },
+            )
+            .env(
+                "HORIZON_PATH",
+                if cached {
+                    "changed-path"
+                } else {
+                    "operations/queue"
+                },
+            )
             .arg("artisan")
             .args(args)
             .output()
@@ -93,5 +109,10 @@ fn native_artisan_discovers_horizon_and_preserves_published_and_cached_configura
     );
     run(&["config:cache"], false);
     run(&["help", "horizon"], true);
+    let cached = run(&["config:show", "horizon"], true);
+    let cached = String::from_utf8(cached.stdout).unwrap();
+    assert!(cached.contains("cached_horizon:"), "{cached}");
+    assert!(cached.contains("operations/queue"), "{cached}");
+    assert!(!cached.contains("changed-path"), "{cached}");
     run(&["config:clear"], true);
 }

@@ -292,15 +292,13 @@ impl CashierManager {
         if let Some(client) = drivers.get(name) {
             return Ok(client.clone());
         }
-        let profiles = self
-            .config
-            .get("cashier.drivers")
-            .ok_or(Error::Configuration("cashier.drivers"))?;
-        let client = Client::new(
-            name,
-            profiles.get(name).ok_or(Error::Configuration("account"))?,
-            self.http.clone(),
-        )?;
+        // Named accounts override the provider's canonical configuration as a whole.
+        let profile = self.config.get(&format!("cashier.drivers.{name}")).or_else(|| match name {
+            "stripe" => Some(json!({"driver":"stripe", "secret":self.config.get("cashier.secret"), "webhook_secret":self.config.get("cashier.webhook.secret"), "live":self.config.get("cashier.live").unwrap_or(false.into())})),
+            "paddle" => Some(json!({"driver":"paddle", "secret":self.config.get("cashier.paddle.api_key"), "webhook_secret":self.config.get("cashier.paddle.webhook_secret"), "live":!self.config.get("cashier.paddle.sandbox").and_then(|v|v.as_bool()).unwrap_or(false)})),
+            _ => None,
+        }).ok_or(Error::Configuration("account"))?;
+        let client = Client::new(name, &profile, self.http.clone())?;
         drivers.insert(name.into(), client.clone());
         Ok(client)
     }

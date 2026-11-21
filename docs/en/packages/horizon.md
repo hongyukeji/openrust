@@ -15,7 +15,9 @@ Published configuration takes effect after recompiling the application. Repeatin
 
 ## Configuration {#configuration}
 
-Use existing standalone Redis connections from `database.redis` and Redis queue connections from `queue.connections`. `horizon.use` selects the metadata connection (default `default`); `horizon.prefix` defaults to `horizon:` and must isolate applications and environments. Redis Cluster is unsupported. Core [queues](../digging-deeper/queues.md) still support their own transports.
+Use existing standalone Redis connections from `database.redis` and Redis queue connections from `queue.connections`. `horizon.use` selects the metadata connection (default `default`); `horizon.prefix` reads `HORIZON_PREFIX`, defaulting to the underscore slug of `APP_NAME` followed by `_horizon:`. Use separate prefixes for environments sharing Redis. Redis Cluster is unsupported. Core [queues](../digging-deeper/queues.md) still support their own transports.
+
+For an existing deployment using the former `horizon:` metadata prefix, set `HORIZON_PREFIX=horizon:` while keeping its workers on that prefix. Change prefixes only after draining the old master; a new prefix has separate control state and history.
 
 `horizon.defaults` maps supervisor names to options. `horizon.environments` selects the first pattern matching `app.env`, including `*`. An unmatched environment starts no supervisors; `maxProcesses: 0` disables a supervisor. Environment options merge recursively with defaults, replacing array entries by index. The default template uses a budget of 10 processes in `production` and 3 in `local`.
 
@@ -29,7 +31,7 @@ The process supervisor targets Unix deployments. Signal-based supervisor control
 
 ## Dashboard authorization {#authorization}
 
-Register authorization and routes in the application's route setup. Access is denied unless the callback authorizes each request, including the stats endpoint. Use the application's existing authenticated session and authorization rules.
+The package Provider registers dashboard routes automatically. Register authorization in an application Provider or route setup. Access is denied unless the callback authorizes each request, including the stats endpoint. Use the application's existing authenticated session and authorization rules.
 
 ```rust
 use openrust::http::{HttpError, HttpFuture, Request};
@@ -47,7 +49,7 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
 }
 ```
 
-`Horizon::routes()` registers the dashboard at `/horizon` and its `/api` endpoints; `routesAt("/operations/horizon")` chooses another static path. Existing route groups apply their own prefix and middleware. The dashboard refreshes every five seconds, uses a restrictive content security policy and disables response caching. It provides queue workload, masters and supervisors, pending/completed/silenced/failed jobs, job payloads and exceptions, monitored tags, metric snapshots and batches. Failed jobs and batch failures can be retried through the configured native failed-job provider.
+`HORIZON_PATH` controls `horizon.path` (default `horizon`); `HORIZON_DOMAIN` controls the optional `horizon.domain`. `horizon.middleware` defaults to `["web"]`. Set `horizon.routes` to `false` to disable automatic registration. `Horizon::routes()` uses these settings; an explicit `routesAt("/operations/horizon")` takes precedence over automatic registration. Routes register once per application. Existing route groups apply their own prefix and middleware. The dashboard refreshes every five seconds, uses a restrictive content security policy and disables response caching. It provides queue workload, masters and supervisors, pending/completed/silenced/failed jobs, job payloads and exceptions, monitored tags, metric snapshots and batches. Failed jobs and batch failures can be retried through the configured native failed-job provider.
 
 Pause, continue, terminate, monitoring changes and retries require the authorization callback on every request. The browser sends `X-Horizon-Request: 1` for mutations; direct API clients must supply the same header. Cross-site browser mutations are rejected. Apply your application's authentication and middleware to the entire route group. Access to this dashboard permits inspection of job data and operational controls.
 

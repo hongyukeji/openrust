@@ -17,13 +17,17 @@ STRIPE_WEBHOOK_SECRET=whsec_...
 
 Stripe API 固定為 `2026-11-18.endive`；Webhook 使用相同版本。正式環境使用 `CASHIER_LIVE=true` 並替換 API 和 Webhook 金鑰。私密金鑰只保存在伺服器。前端 Stripe.js 使用公開的 publishable key，不能使用 `STRIPE_SECRET`。
 
-套件從環境載入 `cashier.default` 和 `cashier.drivers.stripe`／`paddle`。應用設定載入器可回傳 `cashier` 群組覆寫預設值；應用設定優先，`drivers` 整組替換。具名帳戶需明確填寫 `driver`、`secret`、`webhook_secret`、`live`。`webhook_secrets` 陣列支援金鑰輪替。每個名稱代表穩定的商戶帳戶與模式；不要把已使用的名稱重新分配給其他商戶或從測試切換到正式模式，改用獨立資料庫或新帳戶名稱。
+套件載入 `cashier.default`、Stripe 的 `cashier.key`／`cashier.secret`／`cashier.webhook.secret`，以及 Paddle 的 `cashier.paddle.api_key`／`cashier.paddle.webhook_secret`／`cashier.paddle.sandbox`。同一 Rust crate 使用 Paddle 設定命名空間區分兩個上游套件。`cashier.drivers` 儲存明確具名帳戶，同名帳戶優先於供應商原生設定。應用設定載入器可回傳 `cashier` 群組覆寫預設值；應用設定優先，`drivers` 整組替換。具名帳戶需明確填寫 `driver`、`secret`、`webhook_secret`、`live`。`webhook_secrets` 陣列支援金鑰輪替。每個名稱代表穩定的商戶帳戶與模式；不要把已使用的名稱重新分配給其他商戶或從測試切換到正式模式，改用獨立資料庫或新帳戶名稱。
 
 `Cashier::driver("stripe")`、`Cashier::defaultDriver()` 在應用作用域解析帳戶。`CashierManager::getDefaultDriver()` 回傳設定名稱；`forgetDrivers()` 後新解析實例載入新設定，已持有實例保留原憑證快照。啟用設定快取時保留快取快照；變更環境後需按[設定文件](../getting-started/configuration.md)重建快取。
 
 ## 客戶與 Checkout {#customers-and-checkout}
 
 `Billable` 綁定已經應用驗證的身分，不透過通知參數、電子郵件或 Checkout 查詢字串推斷使用者。帳戶名稱與本地身分共同隔離客戶對應，同一遠端客戶只能關聯一次。
+
+Stripe 客戶介面保留 `stripeId`、`hasStripeId`、`createAsStripeCustomer`、`createOrGetStripeCustomer`、`updateStripeCustomer`、`updateOrCreateStripeCustomer` 和 `asStripeCustomer(&["tax"])`。已存在客戶時建立回傳 `CustomerAlreadyCreated`；建立或取得會讀取現有客戶並傳遞 `expand`。`billingPortalUrl(return_url, options, key)` 回傳經過驗證的 HTTPS 位址，`redirectToBillingPortal` 回傳 HTTP 302 回應。Stripe 專用介面在送出請求前拒絕 Paddle 帳戶。既有 `createOrGetCustomer`、`updateCustomer` 和 `billingPortal` 保留為明確的跨供應商便利入口。
+
+`Billable` 是綁定可信身分的適配器；客戶姓名、電子郵件、地址透過 `options` 提供，不反射應用模型欄位。供應商物件回傳 JSON，本地訂閱和帳單紀錄使用型別。`subscription()` 回傳持有操作能力並解參考至 `Subscription` 資料的 `SubscriptionHandle`；`asStripeSubscription` 與 `asPaddleSubscription` 分別驗證供應商。`rawBalance()` 回傳 Stripe 最小貨幣單位；既有整數 `balance()` 是便利別名，不提供 PHP 的在地化貨幣格式。修改請求明確傳入業務冪等鍵以保留重試安全。
 
 ```rust
 use openrust_cashier::{Billable, BillingStore, Price, facades::Cashier};
@@ -32,7 +36,7 @@ use serde_json::json;
 let client = Cashier::driver("stripe")?;
 let store = BillingStore::new(connection.clone());
 let user = Billable::new(client.clone(), store.clone(), "users:42")?;
-user.createOrGetCustomer(json!({"email":"buyer@example.com"}), "customer:42").await?;
+user.createOrGetStripeCustomer(json!({"email":"buyer@example.com"}), "customer:42").await?;
 let session = user.newSubscription("default", vec![Price::new("price_monthly", 1)?])?
     .trialDays(14)?
     .withCoupon("coupon_welcome")?

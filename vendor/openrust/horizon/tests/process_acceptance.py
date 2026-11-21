@@ -48,7 +48,8 @@ def main():
         master = None
         child_pids = set()
         try:
-            endpoint = f'http://127.0.0.1:{port}/horizon'
+            path = env.get('HORIZON_PATH', 'horizon').strip('/')
+            endpoint = f'http://127.0.0.1:{port}/{path}'
             def request(path='', allowed=True):
                 headers = {'x-test-operator': 'operator'} if allowed else {}
                 try:

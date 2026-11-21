@@ -1,0 +1,7 @@
+{
+  "repository": "https://github.com/spatie/laravel-activitylog",
+  "commit": "fdcc5ee063cbf91114679336c4fbf92837196419",
+  "files": {
+    "src/Support/ChangeDetector.php": "448881b526074be6b82d55484a09879244aa3d8ced7dd25df5755b72a39bcf29"
+  }
+}

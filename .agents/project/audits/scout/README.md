@@ -37,3 +37,7 @@ O06 约定的首个引擎范围已实现并通过单包验收；最终组合结�
 静态 trait 与显式泛型注册替代 PHP 动态 trait boot／反射，公开方法沿用上游拼写；异步 I/O 返回 Future／Result。Builder 分页显式传入页大小和页码，缺失／非正尺寸拒绝；不伪造当前 HTTP 页码解析。未提供 PHP 动态宏或任意对象反射。
 
 本阶段为路线中明确的“引擎契约与首个引擎”：不内置 Scout database／Algolia／Meilisearch／Typesense／Turbopuffer、外部索引设置同步、导入队列编排及语义服务。未知驱动及未支持语义／混合搜索明确报错，不能称为全部 Scout 驱动已移植。核心原有 database::eloquent::Searchable 数据库全文能力是独立入口，三语 search 指南已与 Scout 区分。默认应用未添加演示模型／Provider／配置，许可证随包保留。
+
+## 扩展审计修复（2026-11-21）
+
+新增实际执行固定 Builder／Engine／CollectionEngine／Str 的 PHP oracle，覆盖 Unicode、过滤、映射及分页；逐源摘要与篡改拒绝通过，表达式 fixture 扩充非 ASCII 大小写，两个参考经三库原生引擎验证。未扩大已交付 Engine 范围。 统一命令、环境、结果和边界见[全量扩展修复记录](../extension-design-review.md#修复验收与交付边界)。

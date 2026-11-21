@@ -824,3 +824,50 @@ async fn collection_matches_fixed_php_scalar_and_json_reference() {
         assert_eq!(actual, expected, "query: {}", case["query"]);
     }
 }
+
+#[tokio::test]
+async fn collection_matches_original_engine_unicode_filter_mapping_and_pagination() {
+    let fixture = Fixture::new(true).await;
+    let reference: Json =
+        serde_json::from_str(include_str!("fixtures/collection-engine.json")).unwrap();
+    for record in reference["records"].as_array().unwrap() {
+        let mut article = fixture.article(
+            record["id"].as_i64().unwrap(),
+            record["title"].as_str().unwrap(),
+            record["status"].as_str().unwrap(),
+        );
+        article.setAttribute("category", record["category"].as_i64().unwrap());
+        article.save().await.unwrap();
+    }
+    for case in reference["cases"].as_array().unwrap() {
+        let model = Article::newInstanceOn(&fixture.db, Default::default()).unwrap();
+        let mut builder = Builder::new(
+            model,
+            case["query"].as_str().unwrap(),
+            fixture.manager.clone(),
+        )
+        .orderBy("id", "asc");
+        match case["mode"].as_str().unwrap() {
+            "in" => builder = builder.whereIn("category", vec![2_i64.into()]),
+            "not_in" => builder = builder.whereNotIn("category", vec![2_i64.into()]),
+            "where" => builder = builder.r#where("id", ">", 2_i64),
+            "limit" => builder = builder.take(2),
+            _ => {}
+        }
+        let engine = CollectionEngine;
+        let result = if case["mode"] == "page" {
+            engine.paginate(&builder, 2, 2).await.unwrap()
+        } else {
+            engine.search(&builder).await.unwrap()
+        };
+        let ids: Vec<i64> = result.ids.iter().map(number).collect();
+        assert_eq!(json!(ids), case["ids"], "{case}");
+        assert_eq!(json!(result.total), case["total"], "{case}");
+        let mapped = engine.map(&builder, &result).await.unwrap();
+        let mapped: Vec<i64> = mapped
+            .iter()
+            .map(|model| number(model.getKey().unwrap()))
+            .collect();
+        assert_eq!(json!(mapped), case["mapped"], "{case}");
+    }
+}

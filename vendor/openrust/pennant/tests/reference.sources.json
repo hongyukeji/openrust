@@ -1,0 +1,13 @@
+{
+  "repository": "https://github.com/laravel/pennant",
+  "commit": "9046466feb0146b6223db8b8e9c589aeba23f7f0",
+  "files": {
+    "src/Contracts/CanListStoredFeatures.php": "db093b60aaed9510d6303adc79f4ecb8abda4f9f37e7ba5d9c20786abafe8e17",
+    "src/Contracts/Driver.php": "fb4b0278a4d28fd6cea5b31152d63bc730eccc573b3dd77ba1e49edfa2fd2867",
+    "src/Contracts/HasFlushableCache.php": "5a941f0813855d3b63ddbd599970bc4edf7665428cb84ccbdb9fab3f7c21c310",
+    "src/Events/UnknownFeatureResolved.php": "e14214df47f098dc98ec5c595bfc4cd7baa4c39adba28e9c4210796d9bd60968",
+    "src/functions.php": "4925800f776aefd167fe7fb537b79dd842d8c8e7f8a1d3d9501c9e08730c4921",
+    "src/Drivers/ArrayDriver.php": "047287e91ae9570508bf24e995714432eeca8f6c4439f52e5adb83ae520acd2d",
+    "src/PendingScopedFeatureInteraction.php": "ba06a253a0479b87ad4dbdd10ef4924f34bf4bb0dda2b606e28d2e1eb529678f"
+  }
+}

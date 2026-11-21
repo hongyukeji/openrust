@@ -14,6 +14,8 @@
 
 `ActivityLogger` 提供流式記錄；`ActivityRepository` 負責查詢、交易寫入與清理。操作者及對象使用可信業務身分；顯式傳入的屬性預設保留，由應用選擇可記錄資料。
 
+上游 Support 命名空間對應 `openrust_activitylog::support::{ActivityLogger, PendingActivityLog, ChangeDetector}`，也保留 crate 根匯入。
+
 ```rust
 use openrust_activitylog::{ActivityLogger, CauserResolver, Subject};
 use serde_json::json;

@@ -10,7 +10,6 @@ impl ServiceProvider for HorizonServiceProvider {
     fn boot<'a>(&'a mut self, _app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async {
             Horizon::auth(authorize)?;
-            Horizon::routes()?;
             Ok(())
         })
     }

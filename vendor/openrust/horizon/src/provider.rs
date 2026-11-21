@@ -90,6 +90,7 @@ impl ServiceProvider for HorizonServiceProvider {
                 "horizon-provider",
             )?;
             self.commands(app, crate::console::register);
+            self.loadRoutesFrom(app, crate::dashboard::configuredRoutes)?;
             let dispatcher = app.make::<openrust::events::Dispatcher>().await?;
             let listener = Arc::new(JobListener);
             for name in [

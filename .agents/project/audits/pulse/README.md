@@ -51,3 +51,7 @@ MySQL8.4.13别名模式最初因value列歧义失败，已按固定上游分别�
 证据位于tmp/openrust-pulse-20261121/：tests-final.log、storage-postgres-final.log、storage-mysql-alias.log、cache-*-final.log、configuration-final-combined.log、configuration-off.log、configuration-{postgres,mysql}.log、browser-final.log、clippy-final.log、fmt-final.log、core-regressions.log、docs-build-final.log及docs-*-final.log。Cargo.lock与隔离快照包集合和依赖内容一致，未替换其他协作者锁文件。
 
 O05单包验收关闭，接续O06。语言适配明确保留：原生HTML／JS替换PHP Livewire；显式Recorder注册替代反射；css重载用withCss；aggregateTotal切片统一返回按类型结果；带类型异常由class／location表达并异步派发；用户默认通用认证Provider逐ID查询，自定义ResolvesUsers可批量；legacy users用ID映射；应用作用域自动选择容器，无setContainer变更操作。无调试符号时不保证源码定位，错误与取消不保证持久入库。最终全扩展／API组合及Horizon／Telescope完整上游差异继续单列，不能计为整个路线图完成。
+
+## 扩展审计修复（2026-11-21）
+
+参考生成器固定 Entry／DatabaseStorage 原文件与来源，原聚合 fixture 复现并逐个拒绝篡改；Livewire／原生视图取舍补候选比较，未改生产功能。 统一命令、环境、结果和边界见[全量扩展修复记录](../extension-design-review.md#修复验收与交付边界)。

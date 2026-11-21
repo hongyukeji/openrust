@@ -8,12 +8,12 @@ To customize the compiled configuration, run `artisan vendor:publish --tag=cashi
 
 ```dotenv
 CASHIER_DRIVER=paddle
-CASHIER_LIVE=false
+PADDLE_SANDBOX=true
 PADDLE_API_KEY=pdl_sdbx_apikey_...
 PADDLE_WEBHOOK_SECRET=pdl_ntfset_...
 ```
 
-The default endpoint is sandbox. Use a new named account or separate database, `live:true` and production credentials for production. Paddle.js uses a public client-side token; keep API and webhook secrets on the server. Configure products, prices, a default payment link and a notification destination in Paddle.
+`PADDLE_SANDBOX` defaults to `false`, following Cashier Paddle; set it to `true` for sandbox credentials. `PADDLE_AUTH_CODE` takes precedence over `PADDLE_API_KEY`. An explicitly set `CASHIER_LIVE` retains the previous mode override. Named accounts specify `live` directly. `createAsCustomer(options, key)` reuses an attached customer and otherwise requires an explicit email. It returns provider JSON with a stored owner mapping; it does not implement PHP morphOne or automatically attach an existing customer found by email. Use authenticated `attachCustomer` when linking an existing account. Keep API keys and webhook secrets on the server. Paddle.js uses a public client-side token. Configure products, prices, a default payment link and a notification destination in Paddle.
 
 ## Checkout and trials {#checkout}
 
@@ -24,7 +24,7 @@ use serde_json::json;
 let client = Cashier::driver("paddle")?;
 let store = BillingStore::new(connection.clone());
 let user = Billable::new(client.clone(), store.clone(), "users:42")?;
-user.createOrGetCustomer(json!({"email":"buyer@example.com"}), "customer:42").await?;
+user.createAsCustomer(json!({"email":"buyer@example.com"}), "customer:42").await?;
 let transaction = user.newSubscription("default", vec![Price::new("pri_monthly", 1)?])?
     .withCoupon("dsc_welcome")?
     .checkout(json!({}), "subscription:42:first").await?;

@@ -1,0 +1,454 @@
+{
+    "records": [
+        {
+            "id": 1,
+            "title": "ÄPFEL",
+            "status": "published",
+            "category": 1
+        },
+        {
+            "id": 2,
+            "title": "ÉCOLE",
+            "status": "published",
+            "category": 2
+        },
+        {
+            "id": 3,
+            "title": "ΑΘΉΝΑ",
+            "status": "published",
+            "category": 1
+        },
+        {
+            "id": 4,
+            "title": "МОСКВА",
+            "status": "published",
+            "category": 2
+        },
+        {
+            "id": 5,
+            "title": "Rust",
+            "status": "published",
+            "category": 1
+        },
+        {
+            "id": 6,
+            "title": "rust",
+            "status": "draft",
+            "category": 1
+        }
+    ],
+    "cases": [
+        {
+            "query": "äpfel",
+            "mode": "all",
+            "ids": [
+                1
+            ],
+            "mapped": [
+                1
+            ],
+            "total": 1
+        },
+        {
+            "query": "äpfel",
+            "mode": "in",
+            "ids": [],
+            "mapped": [],
+            "total": 0
+        },
+        {
+            "query": "äpfel",
+            "mode": "not_in",
+            "ids": [
+                1
+            ],
+            "mapped": [
+                1
+            ],
+            "total": 1
+        },
+        {
+            "query": "äpfel",
+            "mode": "where",
+            "ids": [],
+            "mapped": [],
+            "total": 0
+        },
+        {
+            "query": "äpfel",
+            "mode": "limit",
+            "ids": [
+                1
+            ],
+            "mapped": [
+                1
+            ],
+            "total": 1
+        },
+        {
+            "query": "äpfel",
+            "mode": "page",
+            "ids": [],
+            "mapped": [],
+            "total": 1
+        },
+        {
+            "query": "école",
+            "mode": "all",
+            "ids": [
+                2
+            ],
+            "mapped": [
+                2
+            ],
+            "total": 1
+        },
+        {
+            "query": "école",
+            "mode": "in",
+            "ids": [
+                2
+            ],
+            "mapped": [
+                2
+            ],
+            "total": 1
+        },
+        {
+            "query": "école",
+            "mode": "not_in",
+            "ids": [],
+            "mapped": [],
+            "total": 0
+        },
+        {
+            "query": "école",
+            "mode": "where",
+            "ids": [],
+            "mapped": [],
+            "total": 0
+        },
+        {
+            "query": "école",
+            "mode": "limit",
+            "ids": [
+                2
+            ],
+            "mapped": [
+                2
+            ],
+            "total": 1
+        },
+        {
+            "query": "école",
+            "mode": "page",
+            "ids": [],
+            "mapped": [],
+            "total": 1
+        },
+        {
+            "query": "αθήνα",
+            "mode": "all",
+            "ids": [
+                3
+            ],
+            "mapped": [
+                3
+            ],
+            "total": 1
+        },
+        {
+            "query": "αθήνα",
+            "mode": "in",
+            "ids": [],
+            "mapped": [],
+            "total": 0
+        },
+        {
+            "query": "αθήνα",
+            "mode": "not_in",
+            "ids": [
+                3
+            ],
+            "mapped": [
+                3
+            ],
+            "total": 1
+        },
+        {
+            "query": "αθήνα",
+            "mode": "where",
+            "ids": [
+                3
+            ],
+            "mapped": [
+                3
+            ],
+            "total": 1
+        },
+        {
+            "query": "αθήνα",
+            "mode": "limit",
+            "ids": [
+                3
+            ],
+            "mapped": [
+                3
+            ],
+            "total": 1
+        },
+        {
+            "query": "αθήνα",
+            "mode": "page",
+            "ids": [],
+            "mapped": [],
+            "total": 1
+        },
+        {
+            "query": "москва",
+            "mode": "all",
+            "ids": [
+                4
+            ],
+            "mapped": [
+                4
+            ],
+            "total": 1
+        },
+        {
+            "query": "москва",
+            "mode": "in",
+            "ids": [
+                4
+            ],
+            "mapped": [
+                4
+            ],
+            "total": 1
+        },
+        {
+            "query": "москва",
+            "mode": "not_in",
+            "ids": [],
+            "mapped": [],
+            "total": 0
+        },
+        {
+            "query": "москва",
+            "mode": "where",
+            "ids": [
+                4
+            ],
+            "mapped": [
+                4
+            ],
+            "total": 1
+        },
+        {
+            "query": "москва",
+            "mode": "limit",
+            "ids": [
+                4
+            ],
+            "mapped": [
+                4
+            ],
+            "total": 1
+        },
+        {
+            "query": "москва",
+            "mode": "page",
+            "ids": [],
+            "mapped": [],
+            "total": 1
+        },
+        {
+            "query": "RUST",
+            "mode": "all",
+            "ids": [
+                5
+            ],
+            "mapped": [
+                5
+            ],
+            "total": 1
+        },
+        {
+            "query": "RUST",
+            "mode": "in",
+            "ids": [],
+            "mapped": [],
+            "total": 0
+        },
+        {
+            "query": "RUST",
+            "mode": "not_in",
+            "ids": [
+                5
+            ],
+            "mapped": [
+                5
+            ],
+            "total": 1
+        },
+        {
+            "query": "RUST",
+            "mode": "where",
+            "ids": [
+                5
+            ],
+            "mapped": [
+                5
+            ],
+            "total": 1
+        },
+        {
+            "query": "RUST",
+            "mode": "limit",
+            "ids": [
+                5
+            ],
+            "mapped": [
+                5
+            ],
+            "total": 1
+        },
+        {
+            "query": "RUST",
+            "mode": "page",
+            "ids": [],
+            "mapped": [],
+            "total": 1
+        },
+        {
+            "query": "",
+            "mode": "all",
+            "ids": [
+                1,
+                2,
+                3,
+                4,
+                5
+            ],
+            "mapped": [
+                1,
+                2,
+                3,
+                4,
+                5
+            ],
+            "total": 5
+        },
+        {
+            "query": "",
+            "mode": "in",
+            "ids": [
+                2,
+                4
+            ],
+            "mapped": [
+                2,
+                4
+            ],
+            "total": 2
+        },
+        {
+            "query": "",
+            "mode": "not_in",
+            "ids": [
+                1,
+                3,
+                5
+            ],
+            "mapped": [
+                1,
+                3,
+                5
+            ],
+            "total": 3
+        },
+        {
+            "query": "",
+            "mode": "where",
+            "ids": [
+                3,
+                4,
+                5
+            ],
+            "mapped": [
+                3,
+                4,
+                5
+            ],
+            "total": 3
+        },
+        {
+            "query": "",
+            "mode": "limit",
+            "ids": [
+                1,
+                2
+            ],
+            "mapped": [
+                1,
+                2
+            ],
+            "total": 2
+        },
+        {
+            "query": "",
+            "mode": "page",
+            "ids": [
+                3,
+                4
+            ],
+            "mapped": [
+                3,
+                4
+            ],
+            "total": 5
+        },
+        {
+            "query": "missing",
+            "mode": "all",
+            "ids": [],
+            "mapped": [],
+            "total": 0
+        },
+        {
+            "query": "missing",
+            "mode": "in",
+            "ids": [],
+            "mapped": [],
+            "total": 0
+        },
+        {
+            "query": "missing",
+            "mode": "not_in",
+            "ids": [],
+            "mapped": [],
+            "total": 0
+        },
+        {
+            "query": "missing",
+            "mode": "where",
+            "ids": [],
+            "mapped": [],
+            "total": 0
+        },
+        {
+            "query": "missing",
+            "mode": "limit",
+            "ids": [],
+            "mapped": [],
+            "total": 0
+        },
+        {
+            "query": "missing",
+            "mode": "page",
+            "ids": [],
+            "mapped": [],
+            "total": 0
+        }
+    ]
+}

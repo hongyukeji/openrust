@@ -1,0 +1,8 @@
+{
+  "repository": "https://github.com/laravel/pulse",
+  "commit": "33cc6fc68cd3052aa06227e88e8d933dd3d70a51",
+  "files": {
+    "src/Entry.php": "10ac062906166c0347016e097c8422940d1ac190f375bd610d665205baf2b667",
+    "src/Storage/DatabaseStorage.php": "e9205647147893200f9688ac616e83c2a09c0c02fc786342d76c5d0e921a42f9"
+  }
+}

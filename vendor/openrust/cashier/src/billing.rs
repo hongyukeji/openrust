@@ -44,6 +44,118 @@ impl Billable {
         }
         self.store.attach(&self.client, &self.owner, id).await
     }
+    /// Stripe's persisted customer identifier; Paddle accounts reject Stripe-only APIs.
+    pub async fn stripeId(&self) -> Result<Option<String>> {
+        self.stripe()?;
+        self.store.customer(&self.client, &self.owner).await
+    }
+    pub async fn hasStripeId(&self) -> Result<bool> {
+        Ok(self.stripeId().await?.is_some())
+    }
+    pub async fn createAsStripeCustomer(&self, options: Value, key: &str) -> Result<Value> {
+        self.stripe()?;
+        if self.hasStripeId().await? {
+            return Err(Error::CustomerAlreadyCreated);
+        }
+        self.createOrGetCustomer(options, key).await
+    }
+    pub async fn asStripeCustomer(&self, expand: &[&str]) -> Result<Value> {
+        self.stripe()?;
+        let id = self.customerId().await?;
+        self.client
+            .call(
+                Method::GET,
+                &self.client.path("customers", Some(&id)),
+                &json!({"expand":expand}),
+                None,
+            )
+            .await
+    }
+    pub async fn createOrGetStripeCustomer(&self, options: Value, key: &str) -> Result<Value> {
+        self.stripe()?;
+        object(&options)?;
+        if self.hasStripeId().await? {
+            let expand = match options.get("expand") {
+                None => Vec::new(),
+                Some(value) => value
+                    .as_array()
+                    .ok_or(Error::InvalidInput("expand"))?
+                    .iter()
+                    .map(|v| v.as_str().ok_or(Error::InvalidInput("expand")))
+                    .collect::<Result<Vec<_>>>()?,
+            };
+            return self.asStripeCustomer(&expand).await;
+        }
+        self.createAsStripeCustomer(options, key).await
+    }
+    pub async fn updateStripeCustomer(&self, options: Value, key: &str) -> Result<Value> {
+        self.stripe()?;
+        self.updateCustomer(options, key).await
+    }
+    pub async fn updateOrCreateStripeCustomer(&self, options: Value, key: &str) -> Result<Value> {
+        self.stripe()?;
+        if self.hasStripeId().await? {
+            self.updateStripeCustomer(options, key).await
+        } else {
+            self.createAsStripeCustomer(options, key).await
+        }
+    }
+    /// Paddle returns a provider payload; its PHP morphOne customer relationship is not emulated.
+    pub async fn createAsCustomer(&self, options: Value, key: &str) -> Result<Value> {
+        self.paddle()?;
+        if self
+            .store
+            .customer(&self.client, &self.owner)
+            .await?
+            .is_none()
+        {
+            options
+                .get("email")
+                .and_then(Value::as_str)
+                .filter(|s| !s.is_empty())
+                .ok_or(Error::InvalidInput("Paddle customer email"))?;
+        }
+        self.createOrGetCustomer(options, key).await
+    }
+    pub async fn billingPortalUrl(
+        &self,
+        returnUrl: &str,
+        mut options: Value,
+        key: &str,
+    ) -> Result<String> {
+        self.stripe()?;
+        https(returnUrl)?;
+        object(&options)?;
+        options["customer"] = json!(self.customerId().await?);
+        options["return_url"] = json!(returnUrl);
+        let session = self
+            .mutate(
+                Method::POST,
+                "billing_portal/sessions",
+                None,
+                None,
+                options,
+                key,
+            )
+            .await?;
+        let url = crate::types::text(&session, "url")?;
+        https(&url)?;
+        Ok(url)
+    }
+    pub async fn redirectToBillingPortal(
+        &self,
+        returnUrl: &str,
+        options: Value,
+        key: &str,
+    ) -> Result<openrust::http::Response> {
+        let url = self.billingPortalUrl(returnUrl, options, key).await?;
+        Ok(
+            openrust::http::Response::empty(http::StatusCode::FOUND).header(
+                http::header::LOCATION,
+                http::HeaderValue::from_str(&url).map_err(|_| Error::InvalidInput("portal URL"))?,
+            ),
+        )
+    }
     pub async fn createOrGetCustomer(&self, options: Value, key: &str) -> Result<Value> {
         if let Some(id) = self.store.customer(&self.client, &self.owner).await? {
             return self.client.retrieve("customers", &id).await;
@@ -471,6 +583,9 @@ impl Billable {
         .await
     }
     /// The unformatted customer balance in the account currency's minor unit.
+    pub async fn rawBalance(&self) -> Result<i64> {
+        self.balance().await
+    }
     pub async fn balance(&self) -> Result<i64> {
         self.stripe()?;
         let c = self
@@ -760,6 +875,14 @@ impl std::ops::Deref for SubscriptionHandle {
     }
 }
 impl SubscriptionHandle {
+    pub async fn asStripeSubscription(&self, parameters: Value) -> Result<Value> {
+        self.billable.stripe()?;
+        self.asProviderSubscription(parameters).await
+    }
+    pub async fn asPaddleSubscription(&self, parameters: Value) -> Result<Value> {
+        self.billable.paddle()?;
+        self.asProviderSubscription(parameters).await
+    }
     pub async fn asProviderSubscription(&self, parameters: Value) -> Result<Value> {
         object(&parameters)?;
         let value = self

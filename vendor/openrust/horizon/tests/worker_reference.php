@@ -15,6 +15,16 @@ namespace Illuminate\Queue {
     }
 }
 namespace {
+    // Reject a different upstream revision before executing its code.
+    $manifest = json_decode(file_get_contents(__DIR__.'/worker_reference.sources.json'), true, 512, JSON_THROW_ON_ERROR);
+    $sourceRoot = dirname($argv[1] ?? '');
+    foreach ($manifest['files'] as $file => $sha256) {
+        $source = $sourceRoot.'/'.$file;
+        if (!is_file($source) || hash_file('sha256', $source) !== $sha256) {
+            throw new \RuntimeException('Unexpected pinned reference source: '.$file.' at '.$manifest['commit']);
+        }
+    }
+
     require $argv[1];
     $class = new \ReflectionClass(\Illuminate\Queue\Console\WorkCommand::class);
     $method = $class->getMethod('gatherWorkerOptions');

@@ -23,6 +23,16 @@ namespace Laravel\Pennant {
     }
 }
 namespace {
+    // Reject a different upstream revision before executing its code.
+    $manifest = json_decode(file_get_contents(__DIR__.'/reference.sources.json'), true, 512, JSON_THROW_ON_ERROR);
+    $sourceRoot = ($argv[1] ?? '');
+    foreach ($manifest['files'] as $file => $sha256) {
+        $source = $sourceRoot.'/'.$file;
+        if (!is_file($source) || hash_file('sha256', $source) !== $sha256) {
+            throw new \RuntimeException('Unexpected pinned reference source: '.$file.' at '.$manifest['commit']);
+        }
+    }
+
     function with($value, $fn) { return $fn($value); }
     $root = $argv[1];
     foreach (['Contracts/CanListStoredFeatures.php', 'Contracts/Driver.php', 'Contracts/HasFlushableCache.php', 'Events/UnknownFeatureResolved.php', 'functions.php', 'Drivers/ArrayDriver.php', 'PendingScopedFeatureInteraction.php'] as $file) { require "$root/src/$file"; }

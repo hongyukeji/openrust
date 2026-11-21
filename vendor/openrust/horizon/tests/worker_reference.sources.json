@@ -1,0 +1,7 @@
+{
+  "repository": "https://github.com/laravel/framework",
+  "commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "files": {
+    "WorkCommand.php": "996e7ddcd85c2d34fa75b35c538ad4512d7fdf61abc835ceb37087808dafaf44"
+  }
+}

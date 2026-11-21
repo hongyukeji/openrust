@@ -62,3 +62,7 @@ PHP Horizon 的 JobPayload::id 优先 UUID，重试时 preparePayload 改写 UUI
 验收结束检查未残留Horizon Cargo／fixture／watcher，专属Redis／数据库夹具均已退出；无数据库数据卷变动。最终`df`可用79,819,424KiB，target约11GiB继续保留复用，未触及停线。
 
 本轮未提交、推送、打 tag 或部署；保留其他协作者的工作区改动。真实收件人通知、Linux／Windows 平台实机和最终全部扩展组合不在本地模拟结果内。
+
+## 扩展审计修复（2026-11-21）
+
+Horizon 环境前缀／APP_NAME 默认、配置驱动路由、显式优先与去重、域名／路径／中间件／关闭入口已修正。默认拒绝访问；配置缓存、同 Redis 总前缀的独立隔离、真实进程与自定义路径桌面／手机通过。 统一命令、环境、结果和边界见[全量扩展修复记录](../extension-design-review.md#修复验收与交付边界)。

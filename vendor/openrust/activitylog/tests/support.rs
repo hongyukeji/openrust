@@ -200,3 +200,19 @@ async fn explicit_causer_resolver_can_select_anonymous_for_raw_identifiers() {
     assert!(subject.is_none());
     assert_eq!(attributes, serde_json::json!({}));
 }
+
+#[test]
+fn support_namespace_preserves_upstream_public_types_and_root_identity() {
+    use openrust_activitylog::support::{ActivityLogger, ChangeDetector, PendingActivityLog};
+    fn identity_logger(value: ActivityLogger) -> openrust_activitylog::ActivityLogger {
+        value
+    }
+    fn identity_pending(value: PendingActivityLog) -> openrust_activitylog::PendingActivityLog {
+        value
+    }
+    let _ = (identity_logger, identity_pending);
+    assert_eq!(
+        std::any::TypeId::of::<ChangeDetector>(),
+        std::any::TypeId::of::<openrust_activitylog::ChangeDetector>()
+    );
+}

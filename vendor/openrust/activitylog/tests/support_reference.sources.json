@@ -1,0 +1,8 @@
+{
+  "repository": "https://github.com/spatie/laravel-activitylog",
+  "commit": "fdcc5ee063cbf91114679336c4fbf92837196419",
+  "files": {
+    "src/Support/LogOptions.php": "ecdb2851a22064cb691664292687a78c8980117af2ffc05b297852f78d2b6075",
+    "src/Support/ActivityLogStatus.php": "710c7de524f4a8fea5c856abda1895e8d312fa488761ed70ba968490815b3d14"
+  }
+}

@@ -1,5 +1,7 @@
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    #[error("billing customer already exists for this owner")]
+    CustomerAlreadyCreated,
     #[error("invalid billing configuration: {0}")]
     Configuration(&'static str),
     #[error("invalid billing input: {0}")]

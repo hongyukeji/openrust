@@ -24,3 +24,7 @@ Provider单例保存定义，scoped manager保存值缓存／array状态；HTTP�
 PHP动态类发现由编译模块和显式异步factory注册替代；typed instance与nameMap保留可观察定义信息，值为JSON而非任意PHP对象。默认无Request的入口读取已解析认证快照，显式`forRequest`异步解析原生guard；中间件主动解析，三语正文已说明并由真实HTTP认证测试验证。自定义驱动stored／definedFeaturesForScope可选，未声明批量写入能力时按逐项写入→缓存→事件执行，失败即停。
 
 O04本包交付关闭；与最终核心及Horizon／Telescope／Pulse／Scout的全feature组合、最终API导出仍须单独验收，不从本包结果推断全部扩展完成。
+
+## 扩展审计修复（2026-11-21）
+
+参考生成器在执行固定 ArrayDriver／PendingScopedFeatureInteraction 前校验全部 require 输入摘要与来源，复现原 fixture 并逐个拒绝篡改；未改生产功能。 统一命令、环境、结果和边界见[全量扩展修复记录](../extension-design-review.md#修复验收与交付边界)。
