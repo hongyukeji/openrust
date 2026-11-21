@@ -271,3 +271,27 @@ Windows Docker Desktop、生产 TLS 和托管 AWS SQS 标准／FIFO 的实机验
 
 
 资源收尾：全部本批服务/测试退出且专属target无占用后，删除check-target、普通指南dist与本批echo客户端node_modules；保留source/官方原文/日志/MIME/所有SQLite与数据卷。`cleanup-accepted.json`记录可用空间77,809,025,024→82,819,829,760字节，实测净增5,010,804,736字节（约5.01 GB）；并行活动会影响净值，不当作本批所有产物逻辑总量。开发mysql/postgres/redis仍运行，最终仅保留上述匿名卷，删除0卷。15份本批/扩展代码及三语文档与隔离source逐字节一致，临时`validated-inputs.json`留证；本批不包含并行构建入口/Activitylog/Horizon和默认导航的改动。后续新批按当时新落地的统一build_session规则执行，不追溯声称本批早先已使用该入口。
+
+
+## 2026-11-21 扩展已实现子集与核心组合复验
+
+收到 Activitylog／Horizon 阶段交付后，以核心 `9eea6eee59134eb6523e069d7e0fddca955d6c02` 叠加当时两包、根 feature／依赖／锁项和三语文档固定源码到 `/private/tmp/openrust-core-ecosystem-20261121/source`，保留此前核心 SMTP 原生证书与邮件／队列测试。临时 `snapshot-inputs.json` 记录输入，`verify.py`、`resume.py` 与逐项日志用于复现，不将这些 WIP 归给基线提交。
+
+用户随后明确要求严格对照 Laravel 生态。扩展对话已重开 O01／O02 差异审计，Horizon 自定义分配算法与固定上游不等价，标签／通知／快照等仍有缺口。本节仅验证固定时点已实现子集的组合运行，不将测试通过表述为 Laravel 功能完整、最终组合验收或新版本 API 导出。修正后须重新固定源码并验收。
+
+本轮在隔离源码运行 Rust 1.94.0，全 workspace／all-targets／all-features 严格 Clippy 与 fmt 通过；沿用 Cargo 原生并发和增量，独占 target 可复用。仅本批验证命令的 dev／test 调试符号设为0，未修改根 IDE 配置或共享缓存策略。
+
+已通过的当前子集：
+
+- 两包8个非忽略配置／持久化／Provider／授权函数；Horizon另2个需Redis函数经专属Redis8.10.3与REQUIRE入口实际执行通过，不把默认忽略计作通过。
+- 全feature原生根应用4项：默认骨架2项、Activitylog配置／迁移／缓存1项、Horizon配置／缓存1项；feature关闭的默认骨架2项。
+- Activitylog相同持久化2函数与根应用1函数在SQLite、PostgreSQL18.6、MySQL8.4.13分别执行；使用专属数据库包装器，原生子进程实际完成发现／发布／迁移／数据保留／缓存／清理／回滚。SQLite包含在前述包与根配置测试内。
+- 独立Redis与Horizon原生监督进程：暂停／恢复、积压扩容、异常Worker补位、失败重试／删除、SIGTERM排空、terminate代次与Redis停止后回收；Chromium1243 headless shell桌面／手机面板授权、刷新、CSP、脱敏与布局通过。
+
+首次显式使用完整Chrome1243时，未授权页面的HTTP403导航抛出`ERR_HTTP_RESPONSE_CODE_FAILURE`；脚本此前的原生HTTP403已通过。去掉executablePath又因运行时默认寻找本机未安装的1234失败；最终显式使用已有headless shell1243通过全部进程与浏览器断言，未下载浏览器或修改生产代码。原失败保留于`process.log`／`process-headless.log`，成功见`process-headless-1243.log`；不能将此记成所有浏览器一致，已向扩展对话同步。
+
+三语内容检查／完整构建、通用12组、完整导航6组（各23个支持边界页）、Activitylog12组、Horizon12组浏览器检查通过。证据保留于`/private/tmp/openrust-core-ecosystem-20261121/`，包括固定source、snapshot-inputs.json、results.json、clippy／extensions／native／redis／process／三库及docs日志。
+
+收尾后开发mysql／postgres／redis仍运行，本轮临时服务已退出；数据库／全部卷保留。独占target约14GiB及文档产物作为修正后组合工作流的可复用缓存登记保留，不重复冷构建或因本轮退出清空。收尾可用约70.96GB（66.09GiB），高于32GB停线，详见临时closeout.json。未修改扩展实现；本次仅核范围提交核心审计与交接记录，不提交并行扩展。最终修正后功能对齐、跨平台与统一API导出仍待新快照，真实账号／设备／商户资金及部署边界沿用前节。
+
+收尾核对2,921份代码／测试／文档输入，其中Horizon的options测试、supervisor／options／repository实现4份已由扩展对话开始修正；其余固定输入一致。该4份新源码未纳入本轮快照通过结论，差异见临时closeout.json。
