@@ -13,14 +13,11 @@ use openrust::{
  */
 pub(crate) struct AppServiceProvider;
 
-#[rustfmt::skip]
-impl ServiceProvider for AppServiceProvider
-{
+impl ServiceProvider for AppServiceProvider {
     /**
      * 注册应用服务。
      */
-    fn register<'a>(&'a mut self, _app: &'a Application) -> HttpFuture<'a, ProviderResult>
-    {
+    fn register<'a>(&'a mut self, _app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async {
             //
             Ok(())
@@ -30,8 +27,7 @@ impl ServiceProvider for AppServiceProvider
     /**
      * 启动应用服务。
      */
-    fn boot(&mut self, _app: &Application) -> HttpFuture<'_, ProviderResult>
-    {
+    fn boot(&mut self, _app: &Application) -> HttpFuture<'_, ProviderResult> {
         Box::pin(async {
             //
             Ok(())
