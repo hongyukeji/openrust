@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use axum::{extract::State, handler::Handler as _};
 use openrust::{
     auth::{Auth, AuthError, AuthFuture, AuthIdentifier, AuthManager, AuthResult, Credentials},
@@ -39,25 +41,25 @@ struct Account {
 }
 
 impl Authenticatable for Account {
-    fn get_auth_identifier_name(&self) -> &str {
+    fn getAuthIdentifierName(&self) -> &str {
         "id"
     }
-    fn get_auth_identifier(&self) -> AuthIdentifier {
+    fn getAuthIdentifier(&self) -> AuthIdentifier {
         "001".into()
     }
-    fn get_auth_password_name(&self) -> &str {
+    fn getAuthPasswordName(&self) -> &str {
         "password"
     }
-    fn get_auth_password(&self) -> Option<&str> {
+    fn getAuthPassword(&self) -> Option<&str> {
         Some(&self.hash)
     }
-    fn get_remember_token(&self) -> Option<&str> {
+    fn getRememberToken(&self) -> Option<&str> {
         self.token.as_deref()
     }
-    fn set_remember_token(&mut self, token: Option<String>) {
+    fn setRememberToken(&mut self, token: Option<String>) {
         self.token = token;
     }
-    fn get_remember_token_name(&self) -> &str {
+    fn getRememberTokenName(&self) -> &str {
         "remember_token"
     }
     fn getAuthAttribute(&self, name: &str) -> AuthResult<Option<Value>> {
@@ -81,39 +83,39 @@ impl Accounts {
 }
 
 impl UserProvider for Accounts {
-    fn retrieve_by_id<'a>(
+    fn retrieveById<'a>(
         &'a self,
         id: &'a AuthIdentifier,
     ) -> AuthFuture<'a, AuthResult<Option<Box<dyn Authenticatable>>>> {
         Box::pin(async { Ok((*id == AuthIdentifier::from("001")).then(|| self.snapshot())) })
     }
 
-    fn retrieve_by_token<'a>(
+    fn retrieveByToken<'a>(
         &'a self,
         id: &'a AuthIdentifier,
         token: &'a str,
     ) -> AuthFuture<'a, AuthResult<Option<Box<dyn Authenticatable>>>> {
         Box::pin(async {
             Ok(self
-                .retrieve_by_id(id)
+                .retrieveById(id)
                 .await?
-                .filter(|user| user.get_remember_token() == Some(token)))
+                .filter(|user| user.getRememberToken() == Some(token)))
         })
     }
 
-    fn update_remember_token<'a>(
+    fn updateRememberToken<'a>(
         &'a self,
         user: &'a mut dyn Authenticatable,
         token: &'a str,
     ) -> AuthFuture<'a, AuthResult<()>> {
         Box::pin(async {
             self.user.lock().unwrap().token = Some(token.to_owned());
-            user.set_remember_token(Some(token.to_owned()));
+            user.setRememberToken(Some(token.to_owned()));
             Ok(())
         })
     }
 
-    fn retrieve_by_credentials<'a>(
+    fn retrieveByCredentials<'a>(
         &'a self,
         credentials: &'a Credentials,
     ) -> AuthFuture<'a, AuthResult<Option<Box<dyn Authenticatable>>>> {
@@ -131,7 +133,7 @@ impl UserProvider for Accounts {
         })
     }
 
-    fn validate_credentials<'a>(
+    fn validateCredentials<'a>(
         &'a self,
         user: &'a dyn Authenticatable,
         credentials: &'a Credentials,
@@ -140,7 +142,7 @@ impl UserProvider for Accounts {
             self.hasher
                 .check(
                     credentials.password().as_bytes(),
-                    user.get_auth_password().unwrap(),
+                    user.getAuthPassword().unwrap(),
                     &HashOptions::new(),
                 )
                 .await
@@ -148,7 +150,7 @@ impl UserProvider for Accounts {
         })
     }
 
-    fn rehash_password_if_required<'a>(
+    fn rehashPasswordIfRequired<'a>(
         &'a self,
         _: &'a mut dyn Authenticatable,
         credentials: &'a Credentials,
@@ -550,7 +552,7 @@ async fn authentication_and_password_confirmation_callbacks_are_application_scop
         }));
         fortify.confirmPasswordsUsing(Arc::new(|user, password| {
             Box::pin(async move {
-                Ok(user.get_auth_identifier() == AuthIdentifier::from("001")
+                Ok(user.getAuthIdentifier() == AuthIdentifier::from("001")
                     && password == Some("custom-confirm"))
             })
         }));
@@ -642,25 +644,25 @@ impl Model for SqlUser {
 }
 
 impl Authenticatable for SqlUser {
-    fn get_auth_identifier_name(&self) -> &str {
+    fn getAuthIdentifierName(&self) -> &str {
         "identity"
     }
-    fn get_auth_identifier(&self) -> AuthIdentifier {
+    fn getAuthIdentifier(&self) -> AuthIdentifier {
         self.getKey().unwrap().try_into().unwrap()
     }
-    fn get_auth_password_name(&self) -> &str {
+    fn getAuthPasswordName(&self) -> &str {
         "password"
     }
-    fn get_auth_password(&self) -> Option<&str> {
+    fn getAuthPassword(&self) -> Option<&str> {
         field(self, "password")
     }
-    fn get_remember_token(&self) -> Option<&str> {
+    fn getRememberToken(&self) -> Option<&str> {
         field(self, "remember_token")
     }
-    fn set_remember_token(&mut self, token: Option<String>) {
+    fn setRememberToken(&mut self, token: Option<String>) {
         self.setAttribute("remember_token", token.map_or(Value::Null, Value::Text));
     }
-    fn get_remember_token_name(&self) -> &str {
+    fn getRememberTokenName(&self) -> &str {
         "remember_token"
     }
     fn getAuthAttribute(&self, name: &str) -> AuthResult<Option<Value>> {

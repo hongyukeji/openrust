@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use super::*;
 use openrust_passport::{Client, GrantLifetime};
 struct OptionalClient {
@@ -313,13 +315,13 @@ fn resolver<'a>(
         };
         if Hash::check(
             password,
-            user.get_auth_password().unwrap(),
+            user.getAuthPassword().unwrap(),
             &Default::default(),
         )
         .await
         .unwrap()
         {
-            Ok(Some(user.get_auth_identifier()))
+            Ok(Some(user.getAuthIdentifier()))
         } else {
             Ok(None)
         }
@@ -723,45 +725,45 @@ struct NativeProvider {
     validations: Arc<AtomicUsize>,
 }
 impl openrust::contracts::auth::UserProvider for NativeProvider {
-    fn retrieve_by_id<'a>(
+    fn retrieveById<'a>(
         &'a self,
         id: &'a AuthIdentifier,
     ) -> openrust::auth::AuthFuture<'a, openrust::auth::AuthResult<Option<Box<dyn Authenticatable>>>>
     {
-        self.inner.retrieve_by_id(id)
+        self.inner.retrieveById(id)
     }
-    fn retrieve_by_token<'a>(
+    fn retrieveByToken<'a>(
         &'a self,
         id: &'a AuthIdentifier,
         token: &'a str,
     ) -> openrust::auth::AuthFuture<'a, openrust::auth::AuthResult<Option<Box<dyn Authenticatable>>>>
     {
-        self.inner.retrieve_by_token(id, token)
+        self.inner.retrieveByToken(id, token)
     }
-    fn update_remember_token<'a>(
+    fn updateRememberToken<'a>(
         &'a self,
         user: &'a mut dyn Authenticatable,
         token: &'a str,
     ) -> openrust::auth::AuthFuture<'a, openrust::auth::AuthResult<()>> {
-        self.inner.update_remember_token(user, token)
+        self.inner.updateRememberToken(user, token)
     }
-    fn retrieve_by_credentials<'a>(
+    fn retrieveByCredentials<'a>(
         &'a self,
         credentials: &'a Credentials,
     ) -> openrust::auth::AuthFuture<'a, openrust::auth::AuthResult<Option<Box<dyn Authenticatable>>>>
     {
         self.lookups.fetch_add(1, Ordering::Relaxed);
-        self.inner.retrieve_by_credentials(credentials)
+        self.inner.retrieveByCredentials(credentials)
     }
-    fn validate_credentials<'a>(
+    fn validateCredentials<'a>(
         &'a self,
         user: &'a dyn Authenticatable,
         credentials: &'a Credentials,
     ) -> openrust::auth::AuthFuture<'a, openrust::auth::AuthResult<bool>> {
         self.validations.fetch_add(1, Ordering::Relaxed);
-        self.inner.validate_credentials(user, credentials)
+        self.inner.validateCredentials(user, credentials)
     }
-    fn rehash_password_if_required<'a>(
+    fn rehashPasswordIfRequired<'a>(
         &'a self,
         _user: &'a mut dyn Authenticatable,
         _credentials: &'a Credentials,

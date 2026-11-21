@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use std::sync::Arc;
 
 use ::http::{HeaderName, HeaderValue, header::RETRY_AFTER};
@@ -221,7 +223,7 @@ async fn numeric_limit(parameters: &str, request: &mut Request) -> Result<Limit,
     }
     .ok_or_else(invalid)?;
     let key = match user {
-        Some(user) => match user.get_auth_identifier() {
+        Some(user) => match user.getAuthIdentifier() {
             AuthIdentifier::Integer(id) => format!("{prefix}:user:{id}"),
             AuthIdentifier::UnsignedInteger(id) => format!("{prefix}:user:{id}"),
             AuthIdentifier::String(id) => format!("{prefix}:user:{id}"),

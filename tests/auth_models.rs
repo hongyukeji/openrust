@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use std::{
     collections::BTreeMap,
     fs,
@@ -164,7 +166,7 @@ async fn custom_models(database: Value) {
         .await
         .unwrap();
     let user = provider
-        .retrieve_by_id(&AuthIdentifier::Integer(7))
+        .retrieveById(&AuthIdentifier::Integer(7))
         .await
         .unwrap()
         .unwrap();

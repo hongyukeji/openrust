@@ -102,14 +102,14 @@ impl MigrationRepositoryInterface for DatabaseMigrationRepository {
     fn get_last(&mut self) -> DatabaseFuture<'_, DatabaseResult<Vec<MigrationRecord>>> {
         Box::pin(async move {
             let connection = self.connection()?;
-            let latest = connection
+            let mut latest = connection
                 .table(&self.table)
                 .selectRaw("max(batch)", vec![]);
             connection
                 .table(&self.table)
                 .useWritePdo()
                 .select(["id", "migration", "batch"])
-                .whereSub("batch", "=", &latest)?
+                .whereSub("batch", "=", &mut latest)?
                 .orderByDesc("migration")
                 .get()
                 .await?

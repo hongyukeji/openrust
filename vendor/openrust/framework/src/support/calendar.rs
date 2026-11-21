@@ -245,3 +245,7 @@ fn limit_error() -> CalendarError {
 #[cfg(test)]
 #[path = "../../tests/unit/calendar_intervals.rs"]
 mod tests;
+
+pub(crate) fn valid_date(value: &str) -> bool {
+    parse::valid_date(value)
+}

@@ -529,7 +529,7 @@ use openrust::{cache::Ttl, queue::QueueResult, support::facades::Queue};
 
 async fn pause_default_queue() -> QueueResult<()> {
     let connection = Queue::connection(None)?;
-    let name = connection.get_connection_name();
+    let name = connection.getConnectionName();
     Queue::pauseFor(name, "default", Ttl::Seconds(3)).await?;
     assert!(Queue::isPaused(name, "default").await?);
     assert_eq!(Queue::getPausedQueues(name, &["low", "default"]).await?, ["default"]);

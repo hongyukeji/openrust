@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use std::{
     fmt::Write as _,
     sync::Arc,
@@ -78,7 +80,7 @@ impl VerifyEmail {
             "verification.verify",
             expiry,
             &[
-                RouteParameter::named("id", route_id(&user.get_auth_identifier())),
+                RouteParameter::named("id", route_id(&user.getAuthIdentifier())),
                 RouteParameter::named("hash", email_hash(user.getEmailForVerification())),
             ],
             SignatureMode::Absolute,

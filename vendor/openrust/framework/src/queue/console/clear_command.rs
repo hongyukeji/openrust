@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use clap::{Arg, ArgAction, Command as Syntax};
 
 use crate::{
@@ -53,7 +55,7 @@ impl Command for ClearCommand {
             let clearable = queue.clearable().ok_or_else(|| {
                 ConsoleError::new(format!(
                     "Clearing queues is not supported on [{}].",
-                    queue.get_connection_name()
+                    queue.getConnectionName()
                 ))
             })?;
             let selected = args

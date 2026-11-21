@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use crate::{AccessToken, ClientRepository, ResourceServer};
 use openrust::{
     auth::{AuthError, AuthFuture, AuthIdentifier, AuthManager, AuthResult},
@@ -82,7 +84,7 @@ impl TokenGuard {
                     .make::<AuthManager>()
                     .map_err(backend)?
                     .createUserProvider(provider)?
-                    .retrieve_by_id(&user_id)
+                    .retrieveById(&user_id)
                     .await
                     .unwrap_or(None);
                 if user.is_some() {
@@ -138,7 +140,7 @@ impl TokenGuard {
             let manager = container.make::<AuthManager>().map_err(backend)?;
             let user = manager
                 .createUserProvider(provider)?
-                .retrieve_by_id(&AuthIdentifier::from(id))
+                .retrieveById(&AuthIdentifier::from(id))
                 .await
                 .unwrap_or(None);
             if user.is_some() {

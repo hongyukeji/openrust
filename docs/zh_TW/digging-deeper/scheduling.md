@@ -180,3 +180,7 @@ for name in [
 前景任務執行前派送 `ScheduledTaskStarting`。命令執行結束時派送 `ScheduledTaskFinished`，結束碼非零時接著派送 `ScheduledTaskFailed`。執行拋錯時，開始事件之後派送失敗事件。完成和失敗事件攜帶耗時 `Duration`，失敗事件也會攜帶例外。
 
 任務因篩選條件、暫停、單機選舉或重疊鎖定而跳過時派送 `ScheduledTaskSkipped`。
+
+## 長任務回呼
+
+用 `Schedule::whenTaskRunsLongerThan(Duration, callback)` 監聽執行時間嚴格大於門檻的已完成或失敗任務。相等不觸發，失敗事件沒有 runtime 時也不觸發。回呼接收任務與 Duration；不會增加另一套計時器。背景父程序完成事件與背景子程序後續完成事件依實際事件分別處理。

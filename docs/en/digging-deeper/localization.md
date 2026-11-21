@@ -234,3 +234,11 @@ APP_LOCALE=zh_Hant ./artisan help list
 To customize help, use keys such as `options`, `commands.list.description` and `commands.list.arguments.namespace` inside the console group. See [Artisan output formats](./artisan.md#command-help-and-output-formats).
 
 Production confirmations and cancellation messages use the same translation group. Override the message with `confirm.production` or `confirm.cancelled` in `console.json`. Answer with `y` or `yes` to proceed. An empty answer declines.
+
+## Locale contract methods
+
+The Translator contract, concrete translator, and Lang facade expose `getLocale`, `setLocale`, `getFallback`, and `setFallback`. Boot-time changes configure application defaults; request/queue changes stay in the current scope. Nested `withLocale` restores its caller’s locale; fallback is set separately. Migrate old snake_case contract calls to these names.
+
+## Locale Ownership
+
+Locale and fallback getters return owned `String` snapshots. Setters take `&self` and return `TranslationResult<()>`; invalid locale identifiers return an error. Locale identifiers are canonicalized, for example `zh-CN` becomes `zh_CN`. Boot-time values form the defaults; changes during a request or queue task stay in that container scope. `withLocale` temporarily overrides only the active task and restores the enclosing locale after completion.

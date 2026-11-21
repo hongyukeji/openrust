@@ -208,6 +208,44 @@ impl Facade for View {
 }
 
 impl View {
+    #[allow(non_snake_case, reason = "遵循 Laravel View 原名")]
+    pub fn renderWhen(
+        condition: bool,
+        view: &str,
+        data: &crate::view::ViewData,
+    ) -> crate::view::ViewResult<String> {
+        Self::getFacadeRoot()
+            .map_err(crate::view::ViewError::Unavailable)?
+            .renderWhen(condition, view, data)
+    }
+    #[allow(non_snake_case, reason = "遵循 Laravel View 原名")]
+    pub fn renderUnless(
+        condition: bool,
+        view: &str,
+        data: &crate::view::ViewData,
+    ) -> crate::view::ViewResult<String> {
+        Self::getFacadeRoot()
+            .map_err(crate::view::ViewError::Unavailable)?
+            .renderUnless(condition, view, data)
+    }
+    #[allow(non_snake_case, reason = "遵循 Laravel View 原名")]
+    pub fn renderEach(
+        view: &str,
+        data: impl IntoIterator<Item = (crate::view::ViewValue, crate::view::ViewValue)>,
+        iterator: &str,
+        empty: &str,
+    ) -> crate::view::ViewResult<String> {
+        Self::getFacadeRoot()
+            .map_err(crate::view::ViewError::Unavailable)?
+            .renderEach(view, data, iterator, empty)
+    }
+    #[allow(non_snake_case, reason = "遵循 Laravel View 原名")]
+    pub fn getShared() -> crate::view::ViewResult<crate::view::ViewData> {
+        Ok(Self::getFacadeRoot()
+            .map_err(crate::view::ViewError::Unavailable)?
+            .getShared())
+    }
+
     /// Resolves the application view factory through its public contract.
     pub fn contract() -> crate::view::ViewResult<Arc<dyn crate::contracts::view::Factory>> {
         let factory = Self::getFacadeRoot().map_err(crate::view::ViewError::Unavailable)?;

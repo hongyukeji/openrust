@@ -38,28 +38,29 @@ impl Model for User {
     }
 }
 
+#[allow(non_snake_case, reason = "认证契约沿用 Laravel 原名")]
 impl Authenticatable for User {
-    fn get_auth_identifier_name(&self) -> &str {
+    fn getAuthIdentifierName(&self) -> &str {
         self.getKeyName()
     }
-    fn get_auth_identifier(&self) -> AuthIdentifier {
+    fn getAuthIdentifier(&self) -> AuthIdentifier {
         self.getKey()
             .and_then(|value| value.try_into().ok())
             .unwrap_or_else(|| AuthIdentifier::String(String::new()))
     }
-    fn get_auth_password_name(&self) -> &str {
+    fn getAuthPasswordName(&self) -> &str {
         "password"
     }
-    fn get_auth_password(&self) -> Option<&str> {
+    fn getAuthPassword(&self) -> Option<&str> {
         text(self.getAttribute("password"))
     }
-    fn get_remember_token(&self) -> Option<&str> {
+    fn getRememberToken(&self) -> Option<&str> {
         text(self.getAttribute("remember_token"))
     }
-    fn set_remember_token(&mut self, token: Option<String>) {
+    fn setRememberToken(&mut self, token: Option<String>) {
         self.setAttribute("remember_token", token.map_or(Value::Null, Value::Text));
     }
-    fn get_remember_token_name(&self) -> &str {
+    fn getRememberTokenName(&self) -> &str {
         "remember_token"
     }
     fn getAuthAttribute(&self, name: &str) -> AuthResult<Option<Value>> {
@@ -134,7 +135,7 @@ impl User {
             .r#where(
                 self.getKeyName(),
                 "=",
-                Value::from(self.get_auth_identifier()),
+                Value::from(self.getAuthIdentifier()),
             )
             .whereExactText("email", self.getEmailForVerification());
         let query = if verified {

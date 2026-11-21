@@ -37,3 +37,8 @@ Provider 可以解析 `BroadcastManager`，用 `extend` 注册驱动名和构造
 锁已被持有时，队列派发 `UniqueJobSkipped`。重试期间继续持锁，任务成功或永久失败后释放。同步广播无需唯一锁。显式 Rust 事务中的唯一队列投递在提交时获取锁，事务回滚会丢弃待投递任务。事务活跃期间，唯一投递若显式指定 `broadcastAfterCommit() == Some(false)`，会返回配置错误。
 
 内置连接为 `null` 和 `log`。启用 [Reverb 扩展包](../packages/reverb.md) 后可使用兼容 Pusher 的传输。
+## 用户认证路由
+
+`Broadcast::userRoutes(group, connection)` 注册 GET、POST `/broadcasting/user-auth`，使用 web 中间件组并豁免 CSRF。默认路由组或连接传入 `None`。通过 `authenticateUserUsing` 登记可读取当前请求的解析回调，返回用户 JSON 数据，访客返回无用户。用户认证和频道认证各自独立。
+
+Reverb 驱动校验 socket ID，并按 Pusher 协议签名用户认证响应，具名连接使用各自凭据。其他未实现的驱动返回 `UnsupportedUserAuthentication`。该接口不会为 Reverb 服务端增加 `pusher:signin` 处理器；托管平台和完整客户端登录仍需单独集成。

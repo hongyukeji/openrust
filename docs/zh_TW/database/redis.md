@@ -61,3 +61,7 @@ pub async fn redis_report() -> RedisResult<Option<Vec<u8>>> {
 將 `REDIS_CACHE_CONNECTION` 或 `REDIS_CACHE_LOCK_CONNECTION` 設定為叢集名稱，可將快取值或個別鎖放在叢集上。跨槽批次讀取維持輸入順序，批次寫入逐項路由。`cache:clear` 清空所有主節點。叢集也支援快取標籤。清除與修剪用法見[快取標籤](../digging-deeper/cache.md#cache-tags)。收到明確的槽重新導向時，快取批次讀取會逐鍵查詢。
 
 僅清除鎖支援獨立的 Redis 邏輯資料庫或獨立的 Redis Cluster。Redis 會清空整個鎖後端。快取連線與鎖連線須指向不同的邏輯資料庫或叢集。涉及叢集時，需允許 `CLUSTER INFO`、`CLUSTER NODES`，直連的一端另需允許 `INFO CLUSTER`，以便框架在清除前辨識指向同一叢集的別名。
+
+## 連線重建與擴充
+
+`RedisManager::purge(name)` 移除具名連線快取；下次解析建立新連線，已持有的 `Arc<Connection>` 仍可使用。`extend(client, creator)` 註冊實際連線工廠，接收 Manager、連線名與設定；回傳既有 Connection 型別並支援原有連線事件。未知 client 不會自動冒充預設驅動。

@@ -90,7 +90,8 @@ pub struct PendingRequest {
     redact_response: bool,
     connect_timeout: Duration,
     timeout: Duration,
-    redirects: usize,
+    redirects: Option<usize>,
+    sink: Option<std::path::PathBuf>,
     body_limit: usize,
     payload: Payload,
     retry: Retry,
@@ -117,7 +118,8 @@ impl PendingRequest {
             redact_response: false,
             connect_timeout: CONNECT_TIMEOUT,
             timeout: TIMEOUT,
-            redirects: 5,
+            redirects: Some(5),
+            sink: None,
             body_limit: BODY_LIMIT,
             payload: Payload::Json,
             retry: Retry::default(),
@@ -142,8 +144,40 @@ impl PendingRequest {
     }
 
     pub fn replaceHeaders(mut self, headers: HeaderMap) -> Self {
-        self.headers = headers;
-        self.invalid_header = false;
+        for name in headers.keys() {
+            self.headers.remove(name);
+            for value in headers.get_all(name) {
+                self.headers.append(name, value.clone());
+            }
+        }
+        self
+    }
+
+    pub fn withHeader(mut self, name: http::HeaderName, value: HeaderValue) -> Self {
+        self.headers.append(name, value);
+        self
+    }
+
+    pub fn contentType(mut self, content_type: HeaderValue) -> Self {
+        self.headers.insert(header::CONTENT_TYPE, content_type);
+        self
+    }
+
+    pub fn asMultipart(mut self) -> Self {
+        if !matches!(self.payload, Payload::Multipart(_)) {
+            self.payload = Payload::Multipart(Form::new());
+        }
+        self
+    }
+
+    pub fn maxRedirects(mut self, maximum: usize) -> Self {
+        self.redirects = Some(maximum);
+        self
+    }
+
+    /// 将已受响应大小限制的响应保存到文件；文件错误保留原始原因。
+    pub fn sink(mut self, path: impl Into<std::path::PathBuf>) -> Self {
+        self.sink = Some(path.into());
         self
     }
 
@@ -318,7 +352,7 @@ impl PendingRequest {
     }
 
     pub fn withoutRedirecting(mut self) -> Self {
-        self.redirects = 0;
+        self.redirects = None;
         self
     }
 
@@ -452,7 +486,27 @@ impl PendingRequest {
             (Payload::Json, Some(data)) => request.json(data),
             (Payload::Form, Some(data)) => request.form(data),
             (Payload::Raw(body), _) => request.body(body),
-            (Payload::Multipart(form), _) => request.multipart(form),
+            (Payload::Multipart(mut form), data) => {
+                if let Some(data) = data {
+                    let value = serde_json::to_value(data).map_err(Error::InvalidJson)?;
+                    let serde_json::Value::Object(fields) = value else {
+                        return Err(Error::InvalidRequest);
+                    };
+                    for (name, value) in fields {
+                        let text = match value {
+                            serde_json::Value::String(value) => value,
+                            serde_json::Value::Number(value) => value.to_string(),
+                            serde_json::Value::Bool(value) => {
+                                if value { "1" } else { "" }.to_owned()
+                            }
+                            serde_json::Value::Null => String::new(),
+                            _ => return Err(Error::InvalidRequest),
+                        };
+                        form = form.text(name, text);
+                    }
+                }
+                request.multipart(form)
+            }
             _ => request,
         };
         let request = request.build().map_err(|_| Error::InvalidRequest)?;
@@ -484,6 +538,11 @@ impl PendingRequest {
         let mut request = request;
         loop {
             let result = transport.send(request).await;
+            if let (Some(path), Ok(response)) = (&self.sink, &result) {
+                tokio::fs::write(path, response.body())
+                    .await
+                    .map_err(Error::Sink)?;
+            }
             let result = result.and_then(|response| {
                 let stats = response.transferStats.clone();
                 let mut response = self

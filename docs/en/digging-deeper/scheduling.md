@@ -180,3 +180,7 @@ for name in [
 A foreground task emits `ScheduledTaskStarting` before execution. A completed command emits `ScheduledTaskFinished`, followed by `ScheduledTaskFailed` if the exit status is nonzero. An execution error emits `ScheduledTaskFailed` after the starting event. The finished and failed events include the elapsed `Duration`. The failed event also carries the exception.
 
 A task skipped by a filter, pause, server election, or overlap lock emits `ScheduledTaskSkipped`.
+
+## Long-running task callbacks
+
+Use `Schedule::whenTaskRunsLongerThan(Duration, callback)` for finished or failed tasks whose runtime is strictly greater than the threshold. Equality does not trigger it, nor does a failure without runtime. The callback receives the task and duration; it uses existing lifecycle events. Distinguish the background parent’s finish event from the child’s later completion event.

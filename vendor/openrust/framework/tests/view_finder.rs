@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -417,25 +419,25 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
     }
 
     impl Authenticatable for ViewIdentity {
-        fn get_auth_identifier_name(&self) -> &str {
+        fn getAuthIdentifierName(&self) -> &str {
             "id"
         }
-        fn get_auth_identifier(&self) -> AuthIdentifier {
+        fn getAuthIdentifier(&self) -> AuthIdentifier {
             AuthIdentifier::String("blade".into())
         }
-        fn get_auth_password_name(&self) -> &str {
+        fn getAuthPasswordName(&self) -> &str {
             "password"
         }
-        fn get_auth_password(&self) -> Option<&str> {
+        fn getAuthPassword(&self) -> Option<&str> {
             None
         }
-        fn get_remember_token_name(&self) -> &str {
+        fn getRememberTokenName(&self) -> &str {
             "remember_token"
         }
-        fn get_remember_token(&self) -> Option<&str> {
+        fn getRememberToken(&self) -> Option<&str> {
             None
         }
-        fn set_remember_token(&mut self, _: Option<String>) {}
+        fn setRememberToken(&mut self, _: Option<String>) {}
     }
 
     struct Badge;

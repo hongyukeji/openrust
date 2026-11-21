@@ -23,11 +23,39 @@ impl Facade for Storage {
 }
 
 impl Storage {
+    #[allow(non_snake_case, reason = "遵循 Laravel Storage 原名")]
+    pub async fn readStream(path: &str) -> FilesystemResult<Option<super::FilesystemReader>> {
+        Self::disk(None)?.readStream(path).await
+    }
+    #[allow(non_snake_case, reason = "遵循 Laravel Storage 原名")]
+    pub async fn writeStream(
+        path: &str,
+        reader: &mut (impl tokio::io::AsyncRead + Unpin),
+    ) -> FilesystemResult<bool> {
+        Self::disk(None)?.writeStream(path, reader).await
+    }
+
     #[allow(non_snake_case, reason = "Matches Laravel's Storage facade API")]
     pub fn getDefaultCloudDriver() -> FilesystemResult<String> {
         Self::getFacadeRoot()
             .map_err(FilesystemError::Unavailable)?
             .getDefaultCloudDriver()
+    }
+
+    pub async fn copy(from: &str, to: &str) -> FilesystemResult<bool> {
+        Self::disk(None)?.copy(from, to).await
+    }
+    pub async fn r#move(from: &str, to: &str) -> FilesystemResult<bool> {
+        Self::disk(None)?.r#move(from, to).await
+    }
+    pub async fn append(path: &str, data: &str, separator: &str) -> FilesystemResult<bool> {
+        Self::disk(None)?.append(path, data, separator).await
+    }
+    pub async fn prepend(path: &str, data: &str, separator: &str) -> FilesystemResult<bool> {
+        Self::disk(None)?.prepend(path, data, separator).await
+    }
+    pub async fn json(path: &str) -> FilesystemResult<Option<serde_json::Value>> {
+        Self::disk(None)?.json(path).await
     }
 
     pub fn disk(name: Option<&str>) -> FilesystemResult<Arc<FilesystemAdapter>> {

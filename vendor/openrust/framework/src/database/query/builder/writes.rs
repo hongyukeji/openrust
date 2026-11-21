@@ -13,6 +13,7 @@ impl Builder<'_> {
         if rows.is_empty() {
             return Ok(true);
         }
+        self.applyBeforeQueryCallbacks()?;
         let (sql, bindings) = self.compile_insert(rows, false)?;
         match &mut self.executor {
             Executor::Connection(connection) => connection.insert(&sql, &bindings).await,
@@ -25,6 +26,7 @@ impl Builder<'_> {
         if rows.is_empty() {
             return Ok(0);
         }
+        self.applyBeforeQueryCallbacks()?;
         let (sql, bindings) = self.compile_insert(rows, true)?;
         self.affect(&sql, &bindings).await
     }
@@ -46,6 +48,7 @@ impl Builder<'_> {
                 "insert or ignore returning",
             ));
         }
+        self.applyBeforeQueryCallbacks()?;
         let (mut sql, bindings) = self.compile_insert(rows, false)?;
         sql.push_str(" on conflict");
         if let Some(columns) = unique_by {
@@ -74,6 +77,7 @@ impl Builder<'_> {
 
     /// Uses a named PostgreSQL return column or the driver's native generated ID.
     pub async fn insertGetIdFor(mut self, values: Record, key: &str) -> DatabaseResult<Value> {
+        self.applyBeforeQueryCallbacks()?;
         let (mut sql, bindings) = self.compile_insert(&[values], false)?;
         if self.grammar.is_postgres() {
             sql.push_str(" returning ");
@@ -88,14 +92,18 @@ impl Builder<'_> {
         }
     }
 
-    pub async fn insertUsing(self, columns: &[&str], source: &Builder<'_>) -> DatabaseResult<u64> {
+    pub async fn insertUsing(
+        self,
+        columns: &[&str],
+        source: &mut Builder<'_>,
+    ) -> DatabaseResult<u64> {
         self.insert_using(columns, source, false).await
     }
 
     pub async fn insertOrIgnoreUsing(
         self,
         columns: &[&str],
-        source: &Builder<'_>,
+        source: &mut Builder<'_>,
     ) -> DatabaseResult<u64> {
         self.insert_using(columns, source, true).await
     }
@@ -103,9 +111,10 @@ impl Builder<'_> {
     async fn insert_using(
         mut self,
         columns: &[&str],
-        source: &Builder<'_>,
+        source: &mut Builder<'_>,
         ignore: bool,
     ) -> DatabaseResult<u64> {
+        self.applyBeforeQueryCallbacks()?;
         let mut sql = self.insert_target(ignore)?;
         let source = self.subquery_expression(source)?;
         if !columns.is_empty() && columns != ["*"] {
@@ -175,6 +184,7 @@ impl Builder<'_> {
         if update.is_empty() {
             return Err(DatabaseError::InvalidQuery("upsert update columns"));
         }
+        self.applyBeforeQueryCallbacks()?;
         if self.grammar.is_sql_server() {
             return self.sql_server_upsert(rows, unique_by, update).await;
         }
@@ -344,6 +354,7 @@ impl Builder<'_> {
         if !self.grammar.is_postgres() {
             return Err(DatabaseError::UnsupportedOperation("updateFrom"));
         }
+        self.applyBeforeQueryCallbacks()?;
         let target = self.source.table_name()?;
         let table = self.grammar.table(target)?;
         let qualifier = self.grammar.table(table_reference(target))?;
@@ -411,6 +422,7 @@ impl Builder<'_> {
         arithmetic: Record,
         operator: &str,
     ) -> DatabaseResult<u64> {
+        self.applyBeforeQueryCallbacks()?;
         self.validate_write_query()?;
         let table = self.source.table_name()?;
         let mut sql = format!("update {}", self.grammar.table(table)?);
@@ -455,6 +467,7 @@ impl Builder<'_> {
     }
 
     pub async fn delete(mut self) -> DatabaseResult<u64> {
+        self.applyBeforeQueryCallbacks()?;
         self.validate_write_query()?;
         let table = self.source.table_name()?;
         let mut bindings = Vec::new();
@@ -476,6 +489,7 @@ impl Builder<'_> {
     }
 
     pub async fn truncate(mut self) -> DatabaseResult<()> {
+        self.applyBeforeQueryCallbacks()?;
         let table = self.source.table_name()?;
         let target = self.grammar.table(table)?;
         if table_alias(table).is_some() {

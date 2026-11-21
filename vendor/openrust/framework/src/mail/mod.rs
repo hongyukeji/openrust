@@ -41,7 +41,6 @@ pub type MailResult<T> = Result<T, MailError>;
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum MailError {
-    Cancelled,
     UnknownMailer {
         name: String,
     },
@@ -57,7 +56,6 @@ pub enum MailError {
 impl std::fmt::Display for MailError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Cancelled => f.write_str("Mail delivery was cancelled by a listener."),
             Self::UnknownMailer { name } => write!(f, "Mailer [{name}] is not defined."),
             Self::Composition { source } => write!(f, "Mail composition failed: {source}"),
             Self::Transport { source } => write!(f, "Mail transport failed: {source}"),
@@ -69,7 +67,7 @@ impl std::fmt::Display for MailError {
 impl Error for MailError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
-            Self::Cancelled | Self::UnknownMailer { .. } => None,
+            Self::UnknownMailer { .. } => None,
             Self::Composition { source } | Self::Transport { source } => Some(source.as_ref()),
             Self::Queue(source) => Some(source),
         }
@@ -90,3 +88,5 @@ fn transport(source: impl Into<Box<dyn Error + Send + Sync>>) -> MailError {
 
 pub(crate) use pending_mail::Recipients;
 pub(crate) use send_queued_mailable::PreparedMail;
+
+mod address_defaults;

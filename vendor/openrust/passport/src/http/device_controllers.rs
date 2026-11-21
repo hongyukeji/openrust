@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 //! Device/browser endpoints with the existing authentication, Session and CSRF path.
 use super::{
     AuthorizationViewParameters,
@@ -135,7 +137,7 @@ impl DeviceAuthorizationController {
                 "deviceCode",
                 serde_json::to_value(PendingDevice {
                     code: id,
-                    user: user.get_auth_identifier(),
+                    user: user.getAuthIdentifier(),
                 })
                 .map_err(internal)?,
             )?;
@@ -189,7 +191,7 @@ fn complete(request: &mut Request, approved: bool) -> HttpFuture<'_, Result<Resp
         let pending: PendingDevice =
             serde_json::from_value(pending.ok_or(HttpError::InvalidRequest)?)
                 .map_err(|_| HttpError::InvalidRequest)?;
-        if pending.user != user.get_auth_identifier() {
+        if pending.user != user.getAuthIdentifier() {
             return Err(HttpError::Unauthenticated);
         }
         let server = AuthorizationServer::getFacadeRoot().map_err(internal)?;

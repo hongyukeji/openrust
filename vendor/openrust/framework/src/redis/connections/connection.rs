@@ -41,7 +41,8 @@ enum Transport {
 }
 
 impl Connection {
-    pub(crate) fn new(client: Client, config: ConnectionManagerConfig, prefix: String) -> Self {
+    /// 通过原生 redis 客户端配置创建惰性连接，供自定义连接器复用。
+    pub fn new(client: Client, config: ConnectionManagerConfig, prefix: String) -> Self {
         Self {
             client: Backend::Standalone { client, config },
             transport: OnceCell::new(),

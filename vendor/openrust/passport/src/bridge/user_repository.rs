@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use crate::{ClientRecord, OAuthError, Passport};
 use openrust::{
     auth::{AuthFuture, AuthIdentifier, AuthManager, AuthResult, Credentials},
@@ -50,18 +52,18 @@ impl UserRepository {
             .map_err(internal)?;
         let credentials = Credentials::new([("email", Value::Text(username.into()))], password);
         let Some(user) = provider
-            .retrieve_by_credentials(&credentials)
+            .retrieveByCredentials(&credentials)
             .await
             .map_err(internal)?
         else {
             return Ok(None);
         };
         if provider
-            .validate_credentials(user.as_ref(), &credentials)
+            .validateCredentials(user.as_ref(), &credentials)
             .await
             .map_err(internal)?
         {
-            Ok(Some(user.get_auth_identifier()))
+            Ok(Some(user.getAuthIdentifier()))
         } else {
             Ok(None)
         }

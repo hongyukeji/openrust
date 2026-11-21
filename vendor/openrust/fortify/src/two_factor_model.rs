@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 //! Application-owned type erasure for explicitly registered Eloquent models.
 use crate::{
     Fortify, FortifyError, FortifyResult, TwoFactorAuthenticatable,
@@ -141,7 +143,7 @@ impl<T: TwoFactorAuthenticatable> Account for TypedAccount<T> {
     fn emit(&self, event: AccountEvent) -> HttpFuture<'_, Result<(), HttpError>> {
         Box::pin(async move {
             use crate::events::*;
-            let user = self.0.get_auth_identifier();
+            let user = self.0.getAuthIdentifier();
             match event {
                 AccountEvent::Challenged => {
                     crate::actions::emit(TwoFactorAuthenticationChallenged { user }, &[&self.0])

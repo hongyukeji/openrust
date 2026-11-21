@@ -234,3 +234,11 @@ APP_LOCALE=zh_Hant ./artisan help list
 可在 `console` 群組中使用 `options`、`commands.list.description` 和 `commands.list.arguments.namespace` 等鍵調整說明。請參閱 [Artisan 輸出格式](./artisan.md#command-help-and-output-formats)。
 
 正式環境確認提示和取消訊息使用同一翻譯群組。可在 `console.json` 中覆寫 `confirm.production` 或 `confirm.cancelled`。輸入 `y` 或 `yes` 確認，直接按 Enter 取消。
+
+## 契約語言設定
+
+Translator 契約、具體實作與 Lang Facade 都提供 `getLocale`、`setLocale`、`getFallback`、`setFallback`。啟動時設定應用程式預設值；請求／佇列作用域內設定僅影響目前執行。`withLocale` 支援巢狀並在離開後恢復，回退語言獨立設定。舊自訂消費者應將契約中的 snake_case 呼叫遷移為上述原名。
+
+## 語言設定的所有權
+
+語言及回退語言的讀取方法傳回擁有所有權的 `String` 快照。設定方法接收 `&self`，傳回 `TranslationResult<()>`，非法語言標識傳回錯誤。語言標識會正規化，例如 `zh-CN` 轉為 `zh_CN`。啟動值作為預設值，請求或佇列工作期間的修改只保留在目前容器作用域。`withLocale` 只暫時覆蓋目前工作，完成後恢復外層語言。

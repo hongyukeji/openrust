@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use std::time::Duration;
 
 use crate::queue::{Delay, Payload, QueueFuture, QueueResult};
@@ -17,7 +19,7 @@ pub struct QueueMetrics {
 /// Dispatches and reserves jobs on a queue connection.
 #[allow(non_snake_case, reason = "Matches Laravel's queue monitoring API")]
 pub trait Queue: Send + Sync {
-    fn get_connection_name(&self) -> &str;
+    fn getConnectionName(&self) -> &str;
 
     fn clearable(&self) -> Option<&dyn ClearableQueue> {
         None

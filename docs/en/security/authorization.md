@@ -11,7 +11,7 @@ fn register_settings_gate(gate: &GateRegistry) {
     gate.define("edit-settings", |user, _| {
         Box::pin(async move {
             Ok(Response::from(
-                user.get_auth_identifier() == AuthIdentifier::String("owner".into()),
+                user.getAuthIdentifier() == AuthIdentifier::String("owner".into()),
             ))
         })
     });

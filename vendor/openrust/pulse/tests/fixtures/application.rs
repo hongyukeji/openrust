@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 //! Native HTTP acceptance host; never installed in the application skeleton.
 use openrust::{
     foundation::{Application, configuration::Routing, run_application},
@@ -7,23 +9,23 @@ use openrust::{
 use serde_json::json;
 struct Operator;
 impl openrust::contracts::auth::Authenticatable for Operator {
-    fn get_auth_identifier_name(&self) -> &str {
+    fn getAuthIdentifierName(&self) -> &str {
         "id"
     }
-    fn get_auth_identifier(&self) -> openrust::auth::AuthIdentifier {
+    fn getAuthIdentifier(&self) -> openrust::auth::AuthIdentifier {
         42_u64.into()
     }
-    fn get_auth_password_name(&self) -> &str {
+    fn getAuthPasswordName(&self) -> &str {
         "password"
     }
-    fn get_auth_password(&self) -> Option<&str> {
+    fn getAuthPassword(&self) -> Option<&str> {
         None
     }
-    fn get_remember_token(&self) -> Option<&str> {
+    fn getRememberToken(&self) -> Option<&str> {
         None
     }
-    fn set_remember_token(&mut self, _: Option<String>) {}
-    fn get_remember_token_name(&self) -> &str {
+    fn setRememberToken(&mut self, _: Option<String>) {}
+    fn getRememberTokenName(&self) -> &str {
         "remember_token"
     }
 }

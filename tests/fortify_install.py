@@ -36,7 +36,7 @@ fn fortify_acceptance_state(request: &mut openrust::http::Request) -> openrust::
         let verified = user.as_ref().and_then(|u|u.as_email_verification()).is_some_and(|u|u.hasVerifiedEmail());
         let session = request.session()?;
         openrust::http::Response::json(openrust::http::StatusCode::OK, serde_json::json!({
-            "user":user.map(|u|u.get_auth_identifier()),"email":email,"verified":verified,
+            "user":user.map(|u|u.getAuthIdentifier()),"email":email,"verified":verified,
             "csrf":session.token(),"session":session.getId(),"confirmed":session.get("auth.password_confirmed_at")
         }))
     })
@@ -410,7 +410,7 @@ fn passkeys_acceptance_cascade(request: &mut openrust::http::Request) -> openrus
     Box::pin(async move {
         use openrust::database::eloquent::Model;
         let user=openrust::auth::Auth::user(request).await?.ok_or(openrust::http::HttpError::Unauthenticated)?;
-        let key=openrust::database::Value::from(user.get_auth_identifier());
+        let key=openrust::database::Value::from(user.getAuthIdentifier());
         let mut user=crate::app::models::User::find(key.clone()).await.map_err(|e|openrust::http::HttpError::Internal{source:Box::new(e)})?.unwrap();
         user.delete().await.map_err(|e|openrust::http::HttpError::Internal{source:Box::new(e)})?;
         use openrust_fortify::passkeys::PasskeyAuthenticatable as _;

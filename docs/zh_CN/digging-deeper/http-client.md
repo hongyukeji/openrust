@@ -176,3 +176,10 @@ Http::globalMiddleware(|request, next| Box::pin(async move {
 ```
 
 `Response::handlerStats()` 的 `total_time` 以秒记录最后一次网络传输及缓冲正文读取的耗时，不包含重试间隔，也不是全部重定向或尝试的总时长。`response.transferStats.as_ref().map(|stats| stats.getTransferTime())` 提供相同耗时。fake 响应的传输时间为0且没有网络 handler stats；未调用传输的中间件自建响应不具有传输统计。reqwest 不提供 cURL 分阶段统计，因此不伪造 DNS、连接和 TLS 耗时。脱敏响应事件保留计时，不额外暴露正文或凭据。
+
+## 请求选项
+
+`replaceHeaders` 仅替换传入的同名请求头，保留其他头和多值。`withHeader`、`contentType`、`asMultipart`、`maxRedirects` 沿用原请求构建链。`sink(path)` 将成功读取的响应正文写入文件，写入错误返回 `Error::Sink`；当前仍缓冲正文并受 `body_limit` 限制，不适合无限流或超大文件下载。
+## Multipart 字段值
+
+`asMultipart().post(data)` 接受由标量字段组成的对象。布尔值按 PHP 方式编码为 `1` 或空字符串，null 编码为空字符串。嵌套对象或数组返回 `InvalidRequest`；文件使用 `attach`。该入口不接收 Guzzle 的全部 multipart 选项。

@@ -18,6 +18,21 @@ pub trait Factory: Send + Sync {
 }
 
 pub trait Broadcaster: Send + Sync {
+    fn resolveAuthenticatedUserUsing(
+        &self,
+        _: Arc<crate::broadcasting::AuthenticatedUserResolver>,
+    ) -> BroadcastResult<()> {
+        Err(crate::broadcasting::BroadcastException::UnsupportedUserAuthentication)
+    }
+    fn resolveAuthenticatedUser<'a>(
+        &'a self,
+        _: &'a mut Request,
+    ) -> BroadcastFuture<'a, BroadcastResult<Option<Response>>> {
+        Box::pin(async {
+            Err(crate::broadcasting::BroadcastException::UnsupportedUserAuthentication)
+        })
+    }
+
     /// Authenticates the subscriber, authorizes the channel through the application's
     /// `ChannelRegistry`, and produces the driver's authorization response.
     fn auth<'a>(

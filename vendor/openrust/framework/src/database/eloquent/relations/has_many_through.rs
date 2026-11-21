@@ -361,7 +361,7 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
                 .select([query::Expression::new("1")])
                 .whereColumn(&join.intermediate_key, "=", &join.related_key)
                 .whereColumn(&join.match_key, "=", &outer.match_key);
-            candidates.whereExists(&join.filter_intermediate(middle))
+            candidates.whereExists(&mut join.filter_intermediate(middle))
         })
     }
 

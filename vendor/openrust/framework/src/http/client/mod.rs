@@ -28,6 +28,7 @@ use std::fmt;
 #[non_exhaustive]
 pub enum Error {
     Configuration,
+    Sink(std::io::Error),
     InvalidRequest,
     InvalidUriTemplate,
     Connection,
@@ -47,6 +48,7 @@ pub enum Error {
 impl fmt::Display for Error {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Sink(error) => write!(formatter, "保存 HTTP 响应失败：{error}"),
             Self::Configuration => formatter.write_str("invalid HTTP client configuration"),
             Self::InvalidRequest => formatter.write_str("invalid outgoing HTTP request"),
             Self::InvalidUriTemplate => {

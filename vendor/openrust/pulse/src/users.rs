@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use crate::{Error, PulseFuture, Result};
 use openrust::{
     contracts::auth::Authenticatable,
@@ -17,7 +19,7 @@ pub struct User {
 /// Resolves metric identifiers and dashboard user details in the active application.
 pub trait ResolvesUsers: Send + Sync {
     fn key(&self, user: &dyn Authenticatable) -> Option<String> {
-        Some(user.get_auth_identifier().to_string())
+        Some(user.getAuthIdentifier().to_string())
     }
     fn setFieldResolver(&self, _resolver: Arc<FieldResolver>) -> Result<()> {
         Err(Error::InvalidConfiguration(
@@ -72,7 +74,7 @@ impl Users {
             None => "https://gravatar.com/avatar?d=mp".into(),
         });
         Ok(User {
-            name: text("name")?.unwrap_or_else(|| format!("ID: {}", user.get_auth_identifier())),
+            name: text("name")?.unwrap_or_else(|| format!("ID: {}", user.getAuthIdentifier())),
             extra: email,
             avatar: Some(avatar),
         })
@@ -95,7 +97,7 @@ impl ResolvesUsers for Users {
                 let provider = auth.createUserProvider(&provider).map_err(Error::Auth)?;
                 for key in keys {
                     if let Some(user) = provider
-                        .retrieve_by_id(&key.clone().into())
+                        .retrieveById(&key.clone().into())
                         .await
                         .map_err(Error::Auth)?
                     {

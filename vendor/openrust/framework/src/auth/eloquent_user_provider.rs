@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use std::{marker::PhantomData, sync::Arc};
 
 use crate::{
@@ -29,9 +31,9 @@ impl<M: Model + Authenticatable> EloquentUserProvider<M> {
         Self {
             connection,
             hasher,
-            identifier: prototype.get_auth_identifier_name().into(),
-            password: prototype.get_auth_password_name().into(),
-            remember: prototype.get_remember_token_name().into(),
+            identifier: prototype.getAuthIdentifierName().into(),
+            password: prototype.getAuthPasswordName().into(),
+            remember: prototype.getRememberTokenName().into(),
             model: PhantomData,
         }
     }
@@ -42,7 +44,7 @@ impl<M: Model + Authenticatable> UserProvider for EloquentUserProvider<M> {
         Some(std::any::TypeId::of::<M>())
     }
 
-    fn retrieve_by_id<'a>(
+    fn retrieveById<'a>(
         &'a self,
         id: &'a AuthIdentifier,
     ) -> AuthFuture<'a, AuthResult<Option<Box<dyn Authenticatable>>>> {
@@ -51,19 +53,19 @@ impl<M: Model + Authenticatable> UserProvider for EloquentUserProvider<M> {
             query.r#where(&self.identifier, "=", Value::from(id.clone()));
             let user = query.first().await.map_err(AuthError::backend)?;
             Ok(user
-                .filter(|user| providers::same_identity(id, &user.get_auth_identifier()))
+                .filter(|user| providers::same_identity(id, &user.getAuthIdentifier()))
                 .map(erase))
         })
     }
 
-    fn retrieve_by_token<'a>(
+    fn retrieveByToken<'a>(
         &'a self,
         id: &'a AuthIdentifier,
         token: &'a str,
     ) -> AuthFuture<'a, AuthResult<Option<Box<dyn Authenticatable>>>> {
         Box::pin(async move {
             Ok(self
-                .retrieve_by_id(id)
+                .retrieveById(id)
                 .await?
                 .filter(|user| providers::matches_token(user.as_ref(), token)))
         })
@@ -86,7 +88,7 @@ impl<M: Model + Authenticatable> UserProvider for EloquentUserProvider<M> {
         })
     }
 
-    fn update_remember_token<'a>(
+    fn updateRememberToken<'a>(
         &'a self,
         user: &'a mut dyn Authenticatable,
         token: &'a str,
@@ -97,7 +99,7 @@ impl<M: Model + Authenticatable> UserProvider for EloquentUserProvider<M> {
         })
     }
 
-    fn retrieve_by_credentials<'a>(
+    fn retrieveByCredentials<'a>(
         &'a self,
         credentials: &'a Credentials,
     ) -> AuthFuture<'a, AuthResult<Option<Box<dyn Authenticatable>>>> {
@@ -117,7 +119,7 @@ impl<M: Model + Authenticatable> UserProvider for EloquentUserProvider<M> {
         })
     }
 
-    fn validate_credentials<'a>(
+    fn validateCredentials<'a>(
         &'a self,
         user: &'a dyn Authenticatable,
         credentials: &'a Credentials,
@@ -125,7 +127,7 @@ impl<M: Model + Authenticatable> UserProvider for EloquentUserProvider<M> {
         Box::pin(providers::validate(self.hasher.as_ref(), user, credentials))
     }
 
-    fn rehash_password_if_required<'a>(
+    fn rehashPasswordIfRequired<'a>(
         &'a self,
         user: &'a mut dyn Authenticatable,
         credentials: &'a Credentials,

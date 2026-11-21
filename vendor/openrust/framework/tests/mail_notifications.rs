@@ -670,7 +670,7 @@ fn mail_events_from_http(_: &mut Request) -> HttpFuture<'_, Result<Response, Htt
             .unwrap()
             .sendNow(&NamedReceipt("fixture", false))
             .await;
-        let forced_blocked = matches!(forced, Err(openrust::mail::MailError::Cancelled));
+        let forced_blocked = forced.unwrap().is_none();
         Response::json(
             http::StatusCode::OK,
             json!({"delivered":delivered,"blocked":blocked,"forced_blocked":forced_blocked}),
@@ -1317,7 +1317,7 @@ impl Command for SendFixture {
                 .sendNow(mailable)
                 .await
                 .map_err(|error| ConsoleError::new(error.to_string()))?;
-            let mime = String::from_utf8(sent.message.formatted()).unwrap();
+            let mime = String::from_utf8(sent.expect("邮件未被取消").message.formatted()).unwrap();
             output.comment(
                 mime.lines()
                     .find(|line| line.starts_with("X-Message-ID:"))
@@ -1619,7 +1619,7 @@ async fn mail_provider_adapters_and_composites_use_the_configured_transports() {
                 };
                 let ses = send("ses", false).await.unwrap();
                 assert!(
-                    String::from_utf8(ses.message.formatted())
+                    String::from_utf8(ses.expect("邮件未被取消").message.formatted())
                         .unwrap()
                         .contains("X-SES-Message-ID: ses-id")
                 );
@@ -1791,6 +1791,7 @@ async fn artisan_delivers_through_ses_v2_mailgun_and_cloudflare() {
         "mailgun":{"secret":"test-mailgun","domain":"mg.example.test","endpoint":base},
         "cloudflare":{"token":"test-cloudflare","account_id":"fixture-account"},
     });
+    config["mail"]["return_path"] = json!({"address":"bounce@example.test"});
     config["mail"]["mailers"] = json!({
         "ses-v2":{"transport":"ses-v2","endpoint":base,"options":{
             "ConfigurationSetName":"ses-config", "EmailTags":[{"Name":"kind","Value":"receipt"}],
@@ -1831,6 +1832,8 @@ async fn artisan_delivers_through_ses_v2_mailgun_and_cloudflare() {
         ses["Destination"]["ToAddresses"],
         json!(["to@example.test", "blind@example.test"])
     );
+    assert_eq!(ses["FeedbackForwardingEmailAddress"], "bounce@example.test");
+    assert_ne!(ses["FromEmailAddress"], "bounce@example.test");
     assert_eq!(ses["ConfigurationSetName"], "ses-config");
     assert_eq!(
         ses["ListManagementOptions"]["ContactListName"],
@@ -3175,8 +3178,16 @@ async fn mail_composes_views_mime_headers_and_keeps_application_capture_isolated
                     .sendNow(&Receipt)
                     .await
                     .unwrap();
-                assert_eq!(sent.message.recipients().len(), 3);
-                let mime = String::from_utf8(sent.message.formatted()).unwrap();
+                assert_eq!(
+                    sent.as_ref()
+                        .expect("邮件未被取消")
+                        .message
+                        .recipients()
+                        .len(),
+                    3
+                );
+                let mime =
+                    String::from_utf8(sent.expect("邮件未被取消").message.formatted()).unwrap();
                 for value in [
                     "OpenRust receipt",
                     "plain receipt",

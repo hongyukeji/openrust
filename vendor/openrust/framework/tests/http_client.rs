@@ -1380,3 +1380,104 @@ async fn handler_stats_include_network_response_body_reads() {
     assert!(response.handlerStats()["total_time"] >= 0.02);
     server.abort();
 }
+
+#[tokio::test]
+async fn laravel_header_replacement_preserves_other_keys_multi_values_and_sink_failures() {
+    async fn echo(headers: HeaderMap) -> String {
+        serde_json::json!({
+            "keep": headers.get("x-keep").unwrap().to_str().unwrap(),
+            "replace": headers.get_all("x-replace").iter().map(|v| v.to_str().unwrap()).collect::<Vec<_>>(),
+            "type": headers.get("content-type").map(|v| v.to_str().unwrap())
+        }).to_string()
+    }
+    let (origin, task) = serve(Router::new().route("/", any(echo))).await;
+    let factory = Factory::new().unwrap();
+    let mut initial = HeaderMap::new();
+    initial.insert("x-keep", HeaderValue::from_static("keep"));
+    initial.append("x-replace", HeaderValue::from_static("old"));
+    let mut replacement = HeaderMap::new();
+    replacement.append("x-replace", HeaderValue::from_static("one"));
+    replacement.append("x-replace", HeaderValue::from_static("two"));
+    let output = tempfile::tempdir().unwrap();
+    let file = output.path().join("response.json");
+    let response = factory
+        .pendingRequest()
+        .withHeaders(initial)
+        .replaceHeaders(replacement)
+        .contentType(HeaderValue::from_static("text/plain"))
+        .sink(&file)
+        .get(&origin)
+        .await
+        .unwrap();
+    let body: Value = response.json().unwrap();
+    assert_eq!(body["keep"], "keep");
+    assert_eq!(body["replace"], json!(["one", "two"]));
+    assert_eq!(body["type"], "text/plain");
+    assert_eq!(std::fs::read(file).unwrap(), response.body());
+    assert!(matches!(
+        factory
+            .pendingRequest()
+            .withHeader(
+                http::HeaderName::from_static("x-keep"),
+                HeaderValue::from_static("keep")
+            )
+            .sink(output.path().join("missing/out"))
+            .get(&origin)
+            .await,
+        Err(Error::Sink(_))
+    ));
+    task.abort();
+}
+
+#[tokio::test]
+async fn multipart_redirect_limits_and_invalid_header_state_use_the_real_transport() {
+    async fn echo(request: axum::extract::Request) -> impl IntoResponse {
+        let (parts, body) = request.into_parts();
+        let body = axum::body::to_bytes(body, 65536).await.unwrap();
+        json!({"type":parts.headers.get(header::CONTENT_TYPE).unwrap().to_str().unwrap(),"body":String::from_utf8_lossy(&body)}).to_string()
+    }
+    let (base, task) = serve(Router::new().route("/echo", any(echo)).route(
+        "/redirect",
+        get(|| async { (StatusCode::FOUND, [(header::LOCATION, "/echo")]) }),
+    ))
+    .await;
+    let factory = Factory::new().unwrap();
+    let body: Value = factory
+        .pendingRequest()
+        .asMultipart()
+        .post(&format!("{base}/echo"), &json!({"title":"value"}))
+        .await
+        .unwrap()
+        .json()
+        .unwrap();
+    assert!(
+        body["type"]
+            .as_str()
+            .unwrap()
+            .starts_with("multipart/form-data; boundary=")
+    );
+    assert!(
+        body["body"]
+            .as_str()
+            .unwrap()
+            .contains("name=\"title\"\r\n\r\nvalue")
+    );
+    assert!(matches!(
+        factory
+            .pendingRequest()
+            .maxRedirects(0)
+            .get(&format!("{base}/redirect"))
+            .await,
+        Err(Error::RedirectLimit)
+    ));
+    assert!(matches!(
+        factory
+            .pendingRequest()
+            .withToken("invalid\nvalue")
+            .replaceHeaders(HeaderMap::new())
+            .get(&base)
+            .await,
+        Err(Error::InvalidRequest)
+    ));
+    task.abort();
+}

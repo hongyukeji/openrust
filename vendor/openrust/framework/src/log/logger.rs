@@ -61,10 +61,67 @@ pub struct Logger {
     pub(super) processors: Vec<Arc<Processor>>,
     pub(super) emergency: Arc<Emergency>,
     pub(super) context_owner: Weak<Container>,
+    pub(super) context_fallback: Arc<super::channel_context::ChannelContext>,
+    pub(super) context_identity: Arc<()>,
     pub(super) listeners: Arc<super::events::Listeners>,
 }
 
 impl Logger {
+    fn channel_context(&self) -> Arc<super::channel_context::ChannelContext> {
+        self.context_owner
+            .upgrade()
+            .and_then(|owner| owner.make().ok())
+            .unwrap_or_else(|| self.context_fallback.clone())
+    }
+    fn context_key(&self) -> usize {
+        Arc::as_ptr(&self.context_identity).addr()
+    }
+    fn merged_context(&self, context: &LogContext) -> LogContext {
+        let state = self.channel_context();
+        let mut fields = state.0.lock().expect("日志上下文锁中毒");
+        let shared = fields.shared.clone();
+        let mut merged = fields
+            .channels
+            .entry(self.context_key())
+            .or_insert_with(|| (self.context_identity.clone(), shared))
+            .1
+            .clone();
+        merged.extend(context.clone());
+        merged
+    }
+    #[allow(non_snake_case, reason = "遵循 Laravel 日志原名")]
+    pub fn withContext(&self, context: LogContext) -> &Self {
+        let state = self.channel_context();
+        let mut fields = state.0.lock().expect("日志上下文锁中毒");
+        let shared = fields.shared.clone();
+        fields
+            .channels
+            .entry(self.context_key())
+            .or_insert_with(|| (self.context_identity.clone(), shared))
+            .1
+            .extend(context);
+        self
+    }
+    #[allow(non_snake_case, reason = "遵循 Laravel 日志原名")]
+    pub fn withoutContext(&self, keys: Option<&[&str]>) -> &Self {
+        let state = self.channel_context();
+        let mut fields = state.0.lock().expect("日志上下文锁中毒");
+        let shared = fields.shared.clone();
+        let context = &mut fields
+            .channels
+            .entry(self.context_key())
+            .or_insert_with(|| (self.context_identity.clone(), shared))
+            .1;
+        if let Some(keys) = keys {
+            for key in keys {
+                context.remove(*key);
+            }
+        } else {
+            context.clear();
+        }
+        self
+    }
+
     pub fn name(&self) -> &str {
         &self.name
     }
@@ -80,6 +137,8 @@ impl Logger {
             processors: self.processors.clone(),
             emergency: self.emergency.clone(),
             context_owner: self.context_owner.clone(),
+            context_fallback: self.context_fallback.clone(),
+            context_identity: self.context_identity.clone(),
             listeners: self.listeners.clone(),
         }
     }
@@ -190,6 +249,8 @@ impl Logger {
         extra: &LogContext,
         exception: Option<&Value>,
     ) -> LogResult<()> {
+        let merged = self.merged_context(context);
+        let context = &merged;
         let fallback = || {
             self.emergency.write_record(&LogRecord::new(
                 "openrust", level, message, context, extra, false,
@@ -236,6 +297,8 @@ impl Logger {
         context: &LogContext,
         exception: Option<&Value>,
     ) -> LogResult<()> {
+        let merged = self.merged_context(context);
+        let context = &merged;
         let extra = self.extra();
         let fallback = || {
             self.emergency.write_record(&LogRecord::new(

@@ -91,3 +91,8 @@ impl Error for ValidationError {
         }
     }
 }
+
+mod standard_rules;
+
+/// 拥有回调的 Rust 适配，避免表单在验证期间的重复可变借用。
+pub type AfterValidation = Box<dyn Fn(&mut Validator) -> ValidationResult<()> + Send + Sync>;

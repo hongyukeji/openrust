@@ -3,14 +3,14 @@ use std::path::Path;
 use openrust::config::{ConfigError, Environment, Value};
 use serde_json::json;
 
-use super::env::{get, optional_bool, path, snake};
+use super::env::{get, optional_bool, path, slug};
 
 pub(super) fn load(
     base_path: &Path,
     env: &Environment,
     app_name: &str,
 ) -> Result<Value, ConfigError> {
-    let cookie = format!("{}_session", snake(app_name));
+    let cookie = format!("{}-session", slug(app_name));
     let same_site = match env.get_utf8("SESSION_SAME_SITE")? {
         Some(_) => get(env, "SESSION_SAME_SITE", Value::Null)?,
         None => Value::from("lax"),

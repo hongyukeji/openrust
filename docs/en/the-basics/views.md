@@ -79,3 +79,6 @@ Blade templates compile on first use. When the source changes, OpenRust regenera
 ./artisan view:cache
 ./artisan view:clear
 ```
+## Conditional and Collection Rendering
+
+`View::renderWhen` renders only when its condition is true; `renderUnless` reverses it. `renderEach(view, data, iterator, empty)` accepts key/value pairs, exposes each key as `key` and each value under the iterator name, and concatenates rendered views. An empty collection renders the empty view, or returns the text following `raw|`. Item views inherit shared data, not arbitrary parent-view locals. `getShared` returns an owned snapshot. Boot-time `share` values are defaults; changes inside a request or queue scope stay in that scope, and explicit view data overrides shared keys.

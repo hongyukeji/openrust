@@ -41,14 +41,31 @@ struct Counters {
     prepared: AtomicUsize,
     authorized: AtomicUsize,
     passed: AtomicUsize,
+    with_validator: AtomicUsize,
+    after: AtomicUsize,
+    phases: std::sync::Mutex<Vec<&'static str>>,
     actions: AtomicUsize,
     persistence: OnceLock<(openrust::database::Connection, String)>,
 }
 #[derive(Default)]
 struct Form(Arc<Counters>);
 impl FormRequest for Form {
+    fn withValidator(&mut self, _: &mut openrust::validation::Validator) -> ValidationResult<()> {
+        self.0.with_validator.fetch_add(1, Ordering::SeqCst);
+        self.0.phases.lock().unwrap().push("withValidator");
+        Ok(())
+    }
+    fn after(&self) -> Vec<openrust::validation::AfterValidation> {
+        let counters = self.0.clone();
+        vec![Box::new(move |_| {
+            counters.after.fetch_add(1, Ordering::SeqCst);
+            counters.phases.lock().unwrap().push("after");
+            Ok(())
+        })]
+    }
     fn prepareForValidation(&mut self, _: &mut Data) -> ValidationResult<()> {
         self.0.prepared.fetch_add(1, Ordering::SeqCst);
+        self.0.phases.lock().unwrap().push("prepare");
         Ok(())
     }
     fn authorize<'a>(
@@ -58,6 +75,7 @@ impl FormRequest for Form {
     ) -> ValidationFuture<'a, Result<(), AuthorizationError>> {
         Box::pin(async move {
             self.0.authorized.fetch_add(1, Ordering::SeqCst);
+            self.0.phases.lock().unwrap().push("authorize");
             if request.headers().contains_key("x-denied") {
                 return Err(AuthorizationError::Denied(Authorization::deny("Forbidden")));
             }
@@ -88,6 +106,7 @@ impl FormRequest for Form {
     }
     fn passedValidation(&mut self, _: &mut Request, _: &ValidatedInput) -> ValidationResult<()> {
         self.0.passed.fetch_add(1, Ordering::SeqCst);
+        self.0.phases.lock().unwrap().push("passed");
         Ok(())
     }
 }
@@ -173,7 +192,27 @@ fn precognitive_api() -> openrust::http::ApiResponse<Value> {
 async fn injected(form: ValidatedFormRequest<Form>) -> Result<Response, HttpError> {
     Response::json(StatusCode::OK, form.validated().all())
 }
+#[derive(Default)]
+struct RejectAfter;
+impl FormRequest for RejectAfter {
+    fn rules(&self) -> ValidationResult<RuleSet> {
+        RuleSet::parse([("name", "required")])
+    }
+    fn after(&self) -> Vec<openrust::validation::AfterValidation> {
+        vec![Box::new(|validator| {
+            validator.errors_mut().add("after", "提交后的附加检查失败");
+            Ok(())
+        })]
+    }
+    fn passedValidation(&mut self, _: &mut Request, _: &ValidatedInput) -> ValidationResult<()> {
+        panic!("after 验证失败不得执行 passedValidation")
+    }
+}
+async fn rejected_after(_: ValidatedFormRequest<RejectAfter>) -> Result<Response, HttpError> {
+    panic!("after 验证失败不得调用控制器")
+}
 fn routes() -> Result<(), RoutingError> {
+    Route::r#match(&[http::Method::POST], "/after", rejected_after)?;
     Route::r#match(
         &[Method::POST],
         "/raw",
@@ -249,6 +288,10 @@ async fn precognition_resolves_dependencies_authorizes_and_never_calls_actions()
             && response.contains("vary: Precognition\r\n")
     );
     assert!(response.ends_with("\r\n\r\n"));
+    assert_eq!(
+        *c.phases.lock().unwrap(),
+        ["prepare", "authorize", "withValidator", "after", "passed"]
+    );
     assert_eq!(c.factories.load(Ordering::SeqCst), 1);
     assert_eq!(c.prepared.load(Ordering::SeqCst), 1);
     assert_eq!(c.authorized.load(Ordering::SeqCst), 1);
@@ -271,7 +314,10 @@ async fn precognition_resolves_dependencies_authorizes_and_never_calls_actions()
     )
     .await;
     assert_eq!(c.passed.load(Ordering::SeqCst), 1);
+    assert_eq!(c.with_validator.load(Ordering::SeqCst), 3);
+    assert_eq!(c.after.load(Ordering::SeqCst), 3);
     let invalid = send(addr, "form", PRE, "{}", 422).await;
+    assert_eq!(c.after.load(Ordering::SeqCst), 4);
     assert!(invalid.contains("precognition: true\r\n"));
     assert!(!invalid.contains("precognition-success:"));
     send(
@@ -282,6 +328,8 @@ async fn precognition_resolves_dependencies_authorizes_and_never_calls_actions()
         403,
     )
     .await;
+    assert_eq!(c.with_validator.load(Ordering::SeqCst), 4);
+    assert_eq!(c.after.load(Ordering::SeqCst), 4);
     for path in ["plain", "closure", "injected", "view", "api-response"] {
         send(addr, path, PRE, VALID, 204).await;
     }
@@ -679,6 +727,18 @@ async fn official_frontend_helper_works_in_chromium() {
         "{}",
         String::from_utf8_lossy(&output.stderr)
     );
+    assert_eq!(c.actions.load(Ordering::SeqCst), 1);
+    server.abort();
+    let _ = server.await;
+}
+
+#[tokio::test]
+async fn after_hook_can_fail_valid_input_and_cannot_leak_to_another_request() {
+    let c = Arc::new(Counters::default());
+    let (addr, server) = start(c.clone()).await;
+    let failed = send(addr, "after", "", VALID, 422).await;
+    assert!(failed.contains("after"));
+    send(addr, "form", "", VALID, 200).await;
     assert_eq!(c.actions.load(Ordering::SeqCst), 1);
     server.abort();
     let _ = server.await;

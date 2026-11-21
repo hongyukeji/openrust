@@ -18,7 +18,7 @@ use crate::{
     support::facades::{application_scope, current_container},
 };
 
-use super::listener_registry::ListenerSource;
+use super::listener_registry::{ListenerSource, Registration};
 
 use super::{
     Delivery, DispatchResult, EventContext, EventError, EventFake, EventFuture, EventResult,
@@ -68,11 +68,30 @@ tokio::task_local! {
     static SCOPED_FAKES: Vec<ScopedFake>;
 }
 
+#[derive(Default)]
+pub(crate) struct PushedEvents(Mutex<PushedState>);
+
+#[derive(Default)]
+struct PushedState {
+    events: HashMap<String, Vec<Registration>>,
+    forgotten_through: Option<u64>,
+}
+
+struct PushedEvent {
+    name: String,
+}
+impl Event for PushedEvent {
+    fn name(&self) -> &str {
+        &self.name
+    }
+}
+
 /// Registers and dispatches events to listeners in one application.
 #[derive(Clone, Default)]
 pub struct Dispatcher {
     registrations: Arc<RwLock<Registrations>>,
     owner: Weak<Container>,
+    pushed: Arc<PushedEvents>,
 }
 
 #[allow(non_snake_case, reason = "Matches Laravel's dispatcher names")]
@@ -86,6 +105,62 @@ impl Dispatcher {
             owner,
             ..Self::default()
         }
+    }
+
+    fn pushed_events(&self) -> EventResult<Arc<PushedEvents>> {
+        match self.owner.upgrade() {
+            Some(owner) => owner
+                .make::<PushedEvents>()
+                .map_err(EventError::Unavailable),
+            None => Ok(self.pushed.clone()),
+        }
+    }
+
+    pub fn push(&self, event: Arc<dyn Event>) -> EventResult<()> {
+        let name = format!("{}_pushed", event.name());
+        let sequence = self.write().listeners.next_sequence();
+        self.pushed_events()?
+            .0
+            .lock()
+            .expect("事件暂存锁中毒")
+            .events
+            .entry(name)
+            .or_default()
+            .push(Registration {
+                source: ListenerSource::Pushed(event),
+                label: "pushed",
+                after_commit: false,
+                sequence,
+            });
+        Ok(())
+    }
+
+    pub async fn flush(&self, name: &str, context: &mut EventContext<'_>) -> EventResult<()> {
+        self.dispatch(
+            Arc::new(PushedEvent {
+                name: format!("{name}_pushed"),
+            }),
+            context,
+        )
+        .await?;
+        Ok(())
+    }
+
+    pub fn forgetPushed(&self) -> EventResult<()> {
+        let state = self.pushed_events()?;
+        let mut state = state.0.lock().expect("事件暂存锁中毒");
+        state.events.clear();
+        if self
+            .owner
+            .upgrade()
+            .is_some_and(|owner| owner.has_active_scope())
+        {
+            // 只屏蔽当前执行作用域已经存在的精确监听器，不能删除其他请求的注册。
+            state.forgotten_through = Some(self.read().listeners.sequence());
+        } else {
+            self.write().listeners.forget_pushed();
+        }
+        Ok(())
     }
 
     fn queue(&self) -> EventResult<Arc<crate::queue::QueueManager>> {
@@ -166,15 +241,41 @@ impl Dispatcher {
     }
 
     pub(crate) fn observes(&self, name: &str) -> bool {
-        let registrations = self.read();
-        registrations.listeners.has_listeners(name)
-            || self
-                .active_fake(&registrations)
-                .is_some_and(|fake| fake.may_match_name(name))
+        let fake_matches = self
+            .active_fake(&self.read())
+            .is_some_and(|fake| fake.may_match_name(name));
+        self.has_listeners(name) || fake_matches
     }
 
     pub fn listing(&self) -> Vec<(String, Vec<&'static str>)> {
-        self.read().listeners.listing()
+        let Ok(state) = self.pushed_events() else {
+            return self.read().listeners.listing();
+        };
+        let state = state.0.lock().expect("事件暂存锁中毒");
+        let registry = self.read();
+        let mut names: Vec<_> = registry
+            .listeners
+            .listing()
+            .into_iter()
+            .map(|(name, _)| name)
+            .collect();
+        for name in state.events.keys() {
+            if !names.contains(name) {
+                names.push(name.clone());
+            }
+        }
+        names
+            .into_iter()
+            .filter_map(|name| {
+                // 列表按注册项展示，通配匹配仍在实际派发阶段执行。
+                let listeners = registry.listeners.listed_with_pushed(
+                    &name,
+                    state.events.get(&name).map_or(&[], Vec::as_slice),
+                    state.forgotten_through,
+                );
+                (!listeners.is_empty()).then_some((name, listeners))
+            })
+            .collect()
     }
 
     /// Returns matching listeners in delivery order with their actual queue contracts.
@@ -455,11 +556,28 @@ impl Dispatcher {
         self.broadcast(event.as_ref(), context).await?;
         let name = event.name();
         let interfaces = event.interfaces();
-        let listeners = self.read().listeners.selected(name, interfaces);
+        let state = self.pushed_events()?;
+        let (pushed, forgotten_through) = {
+            let state = state.0.lock().expect("事件暂存锁中毒");
+            (
+                state.events.get(name).cloned().unwrap_or_default(),
+                state.forgotten_through,
+            )
+        };
+        let listeners = self.read().listeners.selected_with_pushed(
+            name,
+            interfaces,
+            &pushed,
+            forgotten_through,
+        );
         let mut responses = Vec::with_capacity(listeners.len());
         for registration in listeners {
             let after_commit = registration.after_commit;
             let response = match registration.source {
+                ListenerSource::Pushed(pushed) => {
+                    self.dispatch(pushed, context).await?;
+                    None
+                }
                 ListenerSource::Queued(queued) => {
                     let payload =
                         crate::queue::Payload::new(&queued.name, (queued.encode)(event.as_ref())?)
@@ -516,7 +634,20 @@ impl Contract for Dispatcher {
     }
 
     fn has_listeners(&self, event: &str) -> bool {
-        self.read().listeners.has_listeners(event)
+        let Ok(state) = self.pushed_events() else {
+            return false;
+        };
+        let state = state.0.lock().expect("事件暂存锁中毒");
+        !self
+            .read()
+            .listeners
+            .selected_with_pushed(
+                event,
+                &[],
+                state.events.get(event).map_or(&[], Vec::as_slice),
+                state.forgotten_through,
+            )
+            .is_empty()
     }
 
     fn subscribe(&self, subscriber: &dyn Subscriber) -> EventResult<()> {
@@ -524,6 +655,9 @@ impl Contract for Dispatcher {
     }
 
     fn forget(&self, event: &str) {
+        if let Ok(state) = self.pushed_events() {
+            state.0.lock().expect("事件暂存锁中毒").events.remove(event);
+        }
         let removed = self.write().listeners.forget(event);
         drop(removed);
     }

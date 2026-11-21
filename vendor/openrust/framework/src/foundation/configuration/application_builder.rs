@@ -20,6 +20,8 @@ use crate::{
 /// Collects the configuration used to create an application.
 pub struct ApplicationBuilder {
     base_path: PathBuf,
+    lifecycle: [Vec<super::super::application::LifecycleCallback>; 3],
+    schedule_configurators: Vec<super::super::application::ScheduleConfigurator>,
     load_config: ConfigLoader,
     providers: Vec<Box<dyn ServiceProvider>>,
     packages: crate::foundation::PackageManifest,
@@ -42,6 +44,8 @@ impl ApplicationBuilder {
     pub(crate) fn new(base_path: PathBuf) -> Self {
         Self {
             base_path,
+            lifecycle: Default::default(),
+            schedule_configurators: Vec::new(),
             load_config: |_, _| Ok(BTreeMap::new()),
             providers: Vec::new(),
             packages: Default::default(),
@@ -54,6 +58,99 @@ impl ApplicationBuilder {
             grpc: None,
             exceptions: None,
             runners: None,
+        }
+    }
+
+    pub fn registered(
+        mut self,
+        callback: impl FnOnce(&Application) -> crate::support::ProviderResult + Send + Sync + 'static,
+    ) -> Self {
+        self.lifecycle[0].push(Box::new(callback));
+        self
+    }
+    pub fn booting(
+        mut self,
+        callback: impl FnOnce(&Application) -> crate::support::ProviderResult + Send + Sync + 'static,
+    ) -> Self {
+        self.lifecycle[1].push(Box::new(callback));
+        self
+    }
+    pub fn booted(
+        mut self,
+        callback: impl FnOnce(&Application) -> crate::support::ProviderResult + Send + Sync + 'static,
+    ) -> Self {
+        self.lifecycle[2].push(Box::new(callback));
+        self
+    }
+
+    /// Rust 按类型注册单项工厂，可连续调用以声明多个绑定。
+    pub fn withBindings<T, F>(self, factory: F) -> Self
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(
+                &crate::container::Container,
+            ) -> Result<Arc<T>, crate::contracts::container::BindingResolutionError>
+            + Send
+            + Sync
+            + 'static,
+    {
+        self.registered(move |app| {
+            app.container_handle().bind::<T, _>(factory)?;
+            Ok(())
+        })
+    }
+    pub fn withSingletons<T, F>(self, factory: F) -> Self
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(
+                &crate::container::Container,
+            ) -> Result<Arc<T>, crate::contracts::container::BindingResolutionError>
+            + Send
+            + Sync
+            + 'static,
+    {
+        self.registered(move |app| {
+            app.container_handle().singleton::<T, _>(factory)?;
+            Ok(())
+        })
+    }
+    pub fn withScopedSingletons<T, F>(self, factory: F) -> Self
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(
+                &crate::container::Container,
+            ) -> Result<Arc<T>, crate::contracts::container::BindingResolutionError>
+            + Send
+            + Sync
+            + 'static,
+    {
+        self.registered(move |app| {
+            app.container_handle().scoped::<T, _>(factory)?;
+            Ok(())
+        })
+    }
+    pub fn withSchedule(
+        mut self,
+        callback: impl Fn(
+            &mut crate::console::scheduling::Schedule,
+        ) -> Result<(), crate::console::ConsoleError>
+        + Send
+        + Sync
+        + 'static,
+    ) -> Self {
+        self.schedule_configurators.push(Box::new(callback));
+        self
+    }
+    pub fn prefersJsonResponses(self, prefer: bool) -> Self {
+        if prefer {
+            self.booted(|app| {
+                app.shared
+                    .prefer_json
+                    .store(true, std::sync::atomic::Ordering::Release);
+                Ok(())
+            })
+        } else {
+            self
         }
     }
 
@@ -175,6 +272,16 @@ impl ApplicationBuilder {
             self.commands,
             self.exceptions,
         );
+        *application
+            .shared
+            .lifecycle
+            .lock()
+            .expect("应用生命周期锁中毒") = self.lifecycle;
+        *application
+            .shared
+            .schedule_configurators
+            .lock()
+            .expect("调度配置锁中毒") = self.schedule_configurators;
         let _ = application.shared.package_manifest.set(self.packages);
         let container = &application.shared.container;
         if let Some(entries) = self.migrations {

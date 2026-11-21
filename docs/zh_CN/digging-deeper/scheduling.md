@@ -180,3 +180,7 @@ for name in [
 前台任务执行前派发 `ScheduledTaskStarting`。命令执行结束时派发 `ScheduledTaskFinished`，退出码非零时接着派发 `ScheduledTaskFailed`。执行抛错时，开始事件之后派发失败事件。完成和失败事件携带耗时 `Duration`，失败事件还携带异常。
 
 任务因过滤条件、暂停、单机选举或重叠锁被跳过时派发 `ScheduledTaskSkipped`。
+
+## 长任务回调
+
+用 `Schedule::whenTaskRunsLongerThan(Duration, callback)` 监听运行时间严格大于阈值的已完成或失败任务。相等不触发，失败事件没有 runtime 时也不触发。回调接收任务和 Duration；不会增加另一套计时器。后台父进程完成事件与后台子进程的后续完成事件应按实际事件分别处理。

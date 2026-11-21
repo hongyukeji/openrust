@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use std::{
     borrow::Cow,
     collections::{HashMap, HashSet},
@@ -477,7 +479,7 @@ impl QueueManager {
         let queue = if queue.is_empty() { "default" } else { queue };
         let configured = self.resolve(connection)?;
         configured.queue_name(Some(queue))?;
-        Ok((configured.queue.get_connection_name().into(), queue.into()))
+        Ok((configured.queue.getConnectionName().into(), queue.into()))
     }
 
     pub async fn dispatch(
@@ -806,7 +808,7 @@ impl QueueManager {
                 return Err(QueueError::InvalidPayload);
             }
             self.resolve_batch_destination(
-                &batch.options(destination.queue.get_connection_name(), queue),
+                &batch.options(destination.queue.getConnectionName(), queue),
             )?;
         }
         Ok(())
@@ -1050,7 +1052,7 @@ impl QueueManager {
                 .upgrade()
                 .ok_or(QueueError::InvalidConfiguration)?;
             let queue = connector(&owner, name, &raw)?;
-            if queue.get_connection_name() != name
+            if queue.getConnectionName() != name
                 || settings
                     .queue
                     .as_deref()
@@ -1290,7 +1292,7 @@ async fn emit_queueing(
         .map_err(QueueError::Unavailable)?;
     if dispatcher.observes(super::events::JobQueueing::NAME) {
         let event = super::events::JobQueueing {
-            connection_name: queue.get_connection_name().into(),
+            connection_name: queue.getConnectionName().into(),
             queue: super::queue_name(options.queue.as_deref(), queue.default_queue())?.into(),
             job: payload.clone(),
         };

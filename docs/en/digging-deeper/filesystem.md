@@ -233,3 +233,9 @@ async fn daily_reports(disk: &FilesystemAdapter) -> FilesystemResult<Vec<String>
 ```
 
 Use `makeDirectory` to create missing parents with the disk’s directory visibility, and `deleteDirectory` to remove a directory and its contents. Listing skips symbolic links and temporary writes. Directory creation and deletion require a named relative path. The same methods are available on `Storage` for the default disk.
+
+## Contracts and common operations
+
+The container resolves `dyn contracts::filesystem::Factory`, the default `Filesystem`, and the configured `Cloud` through the existing manager and adapters. Contract stream methods are `read_stream` / `write_stream`; adapters and the Storage facade use `readStream` / `writeStream`. Use `copy`, `r#move`, `append`, `prepend`, and `json` on the selected disk. Missing files and invalid JSON return empty results; path traversal remains rejected. Resolving `Cloud` depends on `filesystems.cloud` and does not give a local disk S3 presigned upload capabilities.
+
+Rust requires an explicit separator for `append(path, text, separator)` and `prepend(path, text, separator)`. Pass `"\n"` for a line break, or `"\r\n"` when Windows line endings are required. `r#move` uses Rust’s raw identifier syntax because `move` is reserved.

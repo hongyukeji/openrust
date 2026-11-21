@@ -703,7 +703,7 @@ impl<M: Model> Builder<'static, M> {
     pub(super) fn require_relation_subquery(
         mut self,
         column: &str,
-        query: &query::Builder<'_>,
+        query: &mut query::Builder<'_>,
     ) -> DatabaseResult<Self> {
         self.query = self.query.whereSub(column, "=", query)?;
         Ok(self)
@@ -808,9 +808,10 @@ impl<M: Model> Builder<'static, M> {
         or: bool,
         negated: bool,
     ) -> DatabaseResult<Self> {
-        let related = relation.getRelationExistenceQuery(&self.connection, self.table_name())?;
+        let mut related =
+            relation.getRelationExistenceQuery(&self.connection, self.table_name())?;
         self.predicates
-            .raw(or, self.query.exists_expression(&related, negated)?);
+            .raw(or, self.query.exists_expression(&mut related, negated)?);
         Ok(self)
     }
 
@@ -828,10 +829,10 @@ impl<M: Model> Builder<'static, M> {
             }
         }
         let related = relation.getRelationExistenceQuery(&self.connection, self.table_name())?;
-        let related = related.select_related_aggregate("count", "*")?;
+        let mut related = related.select_related_aggregate("count", "*")?;
         let expression = self
             .query
-            .related_count_expression(&related, operator, count)?;
+            .related_count_expression(&mut related, operator, count)?;
         self.predicates.raw(false, expression);
         Ok(self)
     }
@@ -1037,9 +1038,10 @@ impl<M: Model> Builder<'static, M> {
             .iter()
             .map(|model| model.getKey().cloned().unwrap_or(Value::Null))
             .collect();
-        let query = relation.existence_query(&self.connection, self.table_name(), Some(keys))?;
+        let mut query =
+            relation.existence_query(&self.connection, self.table_name(), Some(keys))?;
         self.predicates
-            .raw(or, self.query.exists_expression(&query, false)?);
+            .raw(or, self.query.exists_expression(&mut query, false)?);
         Ok(self)
     }
 
@@ -1358,13 +1360,13 @@ impl<M: Model> Builder<'static, M> {
         let projection = self.qualifyColumn("*");
         let parent = self.query.select_default(&projection);
         self.query = if matches!(aggregate, RelationAggregate::Exists) {
-            let related = related.reorder().select([query::Expression::new("1")]);
+            let mut related = related.reorder().select([query::Expression::new("1")]);
             self.existence_attributes.insert(alias.clone());
-            parent.select_exists(&related, &alias)?
+            parent.select_exists(&mut related, &alias)?
         } else {
             let (function, column) = aggregate.function();
-            let related = related.select_related_aggregate(function, column)?;
-            parent.selectSub(&related, &alias)?
+            let mut related = related.select_related_aggregate(function, column)?;
+            parent.selectSub(&mut related, &alias)?
         };
         Ok(self)
     }

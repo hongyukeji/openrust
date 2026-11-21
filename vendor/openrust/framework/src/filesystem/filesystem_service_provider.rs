@@ -25,6 +25,42 @@ impl ServiceProvider for FilesystemServiceProvider {
                 "filesystem",
                 crate::container::ServiceKey::typed::<FilesystemManager>(),
             )?;
+            container.singleton::<dyn crate::contracts::filesystem::Factory, _>(|container| {
+                Ok(container.make::<FilesystemManager>()?)
+            })?;
+            container.singleton::<dyn crate::contracts::filesystem::Filesystem, _>(
+                |container| {
+                    container
+                        .make::<FilesystemManager>()?
+                        .disk(None)
+                        .map(|disk| disk as Arc<dyn crate::contracts::filesystem::Filesystem>)
+                        .map_err(|source| {
+                            crate::contracts::container::BindingResolutionError::FactoryFailed {
+                                service: "filesystem.disk",
+                                source: Box::new(source),
+                            }
+                        })
+                },
+            )?;
+            container.singleton::<dyn crate::contracts::filesystem::Cloud, _>(|container| {
+                let manager = container.make::<FilesystemManager>()?;
+                manager
+                    .disk(Some(&manager.getDefaultCloudDriver().map_err(
+                        |source| {
+                            crate::contracts::container::BindingResolutionError::FactoryFailed {
+                                service: "filesystem.cloud",
+                                source: Box::new(source),
+                            }
+                        },
+                    )?))
+                    .map(|disk| disk as Arc<dyn crate::contracts::filesystem::Cloud>)
+                    .map_err(|source| {
+                        crate::contracts::container::BindingResolutionError::FactoryFailed {
+                            service: "filesystem.cloud",
+                            source: Box::new(source),
+                        }
+                    })
+            })?;
             Ok(())
         })
     }

@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 #[path = "support/local_login.rs"]
 mod recipe;
 use axum::{
@@ -56,25 +58,25 @@ fn text<'a>(u: &'a User, key: &str) -> Option<&'a str> {
     }
 }
 impl Authenticatable for User {
-    fn get_auth_identifier_name(&self) -> &str {
+    fn getAuthIdentifierName(&self) -> &str {
         "id"
     }
-    fn get_auth_identifier(&self) -> AuthIdentifier {
+    fn getAuthIdentifier(&self) -> AuthIdentifier {
         AuthIdentifier::try_from(self.getKey().unwrap()).unwrap()
     }
-    fn get_auth_password_name(&self) -> &str {
+    fn getAuthPasswordName(&self) -> &str {
         "password"
     }
-    fn get_auth_password(&self) -> Option<&str> {
+    fn getAuthPassword(&self) -> Option<&str> {
         text(self, "password")
     }
-    fn get_remember_token(&self) -> Option<&str> {
+    fn getRememberToken(&self) -> Option<&str> {
         text(self, "remember_token")
     }
-    fn set_remember_token(&mut self, v: Option<String>) {
+    fn setRememberToken(&mut self, v: Option<String>) {
         self.setAttribute("remember_token", v.map_or(DbValue::Null, DbValue::Text));
     }
-    fn get_remember_token_name(&self) -> &str {
+    fn getRememberTokenName(&self) -> &str {
         "remember_token"
     }
     fn getAuthAttribute(&self, key: &str) -> AuthResult<Option<DbValue>> {
@@ -169,7 +171,7 @@ fn who(r: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         let session = r.session()?;
         Response::json(
             StatusCode::OK,
-            json!({"user":user.as_ref().map(|u|u.get_auth_identifier().to_string()),"session":session.getId(),"csrf":session.token()}),
+            json!({"user":user.as_ref().map(|u|u.getAuthIdentifier().to_string()),"session":session.getId(),"csrf":session.token()}),
         )
     })
 }

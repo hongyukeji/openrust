@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 //! Explicit compiled models preserve the primary key independently of the auth identifier.
 use crate::resolver::internal;
 use openrust::{
@@ -49,7 +51,7 @@ impl<T: Model + MustVerifyEmail> Account for TypedAccount<T> {
             if !self.0.hasVerifiedEmail() && self.0.markEmailAsVerified().await? {
                 crate::actions::emit(
                     openrust::auth::events::Verified {
-                        user: self.0.get_auth_identifier(),
+                        user: self.0.getAuthIdentifier(),
                     },
                     &[],
                 )

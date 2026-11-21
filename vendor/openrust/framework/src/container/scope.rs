@@ -455,3 +455,16 @@ where
     }
     .await
 }
+
+/// 阻塞渲染沿用当前请求的容器作用域；关闭请求仍由原有守卫负责。
+pub(crate) struct ScopeSnapshot(Arc<HashMap<Identity, Arc<Context>>>);
+
+impl ScopeSnapshot {
+    pub(crate) fn capture() -> Self {
+        Self(CURRENT.try_with(Clone::clone).unwrap_or_default())
+    }
+
+    pub(crate) fn run<R>(&self, operation: impl FnOnce() -> R) -> R {
+        CURRENT.sync_scope(self.0.clone(), operation)
+    }
+}

@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use crate::{
     Fortify, FortifyError, RecoveryCode, TwoFactorAuthenticatable,
     contracts::TwoFactorAuthenticationProvider,
@@ -85,7 +87,7 @@ impl EnableTwoFactorAuthentication {
         .map_err(internal)?;
         super::emit(
             TwoFactorAuthenticationEnabled {
-                user: user.get_auth_identifier(),
+                user: user.getAuthIdentifier(),
             },
             &[user],
         )
@@ -142,7 +144,7 @@ impl ConfirmTwoFactorAuthentication {
             .map_err(internal)?;
         super::emit(
             TwoFactorAuthenticationConfirmed {
-                user: user.get_auth_identifier(),
+                user: user.getAuthIdentifier(),
             },
             &[user],
         )
@@ -187,7 +189,7 @@ impl DisableTwoFactorAuthentication {
             .map_err(internal)?;
         super::emit(
             TwoFactorAuthenticationDisabled {
-                user: user.get_auth_identifier(),
+                user: user.getAuthIdentifier(),
             },
             &[user],
         )
@@ -217,7 +219,7 @@ impl GenerateNewRecoveryCodes {
         .map_err(internal)?;
         super::emit(
             RecoveryCodesGenerated {
-                user: user.get_auth_identifier(),
+                user: user.getAuthIdentifier(),
             },
             &[user],
         )

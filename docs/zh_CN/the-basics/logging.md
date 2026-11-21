@@ -305,3 +305,6 @@ Provider 通过所属应用的 ConsoleKernel 注册命令，沿用捕获的 test
 注册按 Provider 身份判断，独立于捕获门禁。在 testing 或 Vapor 环境中，已加载的 Provider 仍提供默认 `logs`，但 `pail` 命令被门禁禁用，除非设置 PAIL_TESTS 例外。此类应用可用 `DevCommands::except(&["logs"])?` 排除它。Windows 监督器向默认 `logs` 进程发送控制台关停信号，并通过 Windows 作业回收进程树。正常 Ctrl+C 关停会删除本次 Pail 会话。
 
 每次解析进程列表都会检查 Provider 的加载状态，因此在 Pail 注册之前查询列表，不会导致后续永久漏掉 `logs`。
+## 频道上下文
+
+使用 `withContext`、`withoutContext` 设置或移除频道上下文。`shareContext` 合并到已解析及未来的频道，每条日志的同名字段优先。`sharedContext` 读取未来频道的默认值。`flushSharedContext` 只清空这些默认值，不删除已合并到频道的字段；移除频道字段使用 `withoutContext`。启动阶段默认值由请求或队列任务继承，动态上下文按作用域隔离，复用频道句柄也不会跨请求共享。

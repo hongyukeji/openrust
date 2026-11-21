@@ -38,6 +38,9 @@ pub enum BootstrapError {
         name: &'static str,
         source: Box<dyn Error + Send + Sync>,
     },
+    LifecycleFailed {
+        source: Box<dyn Error + Send + Sync>,
+    },
     PreviousBootFailed,
 }
 
@@ -66,6 +69,7 @@ impl fmt::Display for BootstrapError {
             Self::ProviderBootFailed { name, .. } => {
                 write!(f, "provider {name} failed during boot")
             }
+            Self::LifecycleFailed { .. } => f.write_str("应用生命周期回调失败"),
             Self::PreviousBootFailed => f.write_str("application startup failed previously"),
         }
     }
@@ -80,7 +84,8 @@ impl Error for BootstrapError {
             Self::ConfigurationFailed { source } => Some(source),
             Self::RoutingFailed { source } => Some(source),
             Self::CommandRegistrationFailed { source } => Some(source),
-            Self::ProviderRegistrationFailed { source, .. }
+            Self::LifecycleFailed { source }
+            | Self::ProviderRegistrationFailed { source, .. }
             | Self::GrpcRegistrationFailed { source }
             | Self::ProviderBootFailed { source, .. } => Some(source.as_ref()),
             _ => None,

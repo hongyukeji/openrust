@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use std::{
     io::{Read as _, Write as _},
     net::SocketAddr,
@@ -32,23 +34,23 @@ struct Probe(Arc<Item>, Arc<String>, Arc<String>, bool);
 struct Identity(String);
 
 impl Authenticatable for Identity {
-    fn get_auth_identifier_name(&self) -> &str {
+    fn getAuthIdentifierName(&self) -> &str {
         "id"
     }
-    fn get_auth_identifier(&self) -> AuthIdentifier {
+    fn getAuthIdentifier(&self) -> AuthIdentifier {
         self.0.as_str().into()
     }
-    fn get_auth_password_name(&self) -> &str {
+    fn getAuthPasswordName(&self) -> &str {
         "password"
     }
-    fn get_auth_password(&self) -> Option<&str> {
+    fn getAuthPassword(&self) -> Option<&str> {
         None
     }
-    fn get_remember_token(&self) -> Option<&str> {
+    fn getRememberToken(&self) -> Option<&str> {
         None
     }
-    fn set_remember_token(&mut self, _: Option<String>) {}
-    fn get_remember_token_name(&self) -> &str {
+    fn setRememberToken(&mut self, _: Option<String>) {}
+    fn getRememberTokenName(&self) -> &str {
         "remember_token"
     }
 }
@@ -97,7 +99,7 @@ impl AuthProbe {
             assert!(self.0.bind(&mut other_request).is_err());
             let id = |user: &Option<Arc<dyn Authenticatable>>| {
                 user.as_ref()
-                    .map(|user| user.get_auth_identifier().to_string())
+                    .map(|user| user.getAuthIdentifier().to_string())
             };
             let guard_id = self.0.bind(request)?.id().await?.map(|id| id.to_string());
             assert_eq!(guard_id, id(&self.1));

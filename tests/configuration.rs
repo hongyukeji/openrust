@@ -316,7 +316,7 @@ fn application_configuration_loads_all_sections_and_typed_overrides() {
     assert_eq!(configured["session"]["lifetime"], 90);
     assert_eq!(configured["session"]["secure"], false);
     assert_eq!(configured["session"]["same_site"], Value::Null);
-    assert_eq!(configured["session"]["cookie"], "example_store_session");
+    assert_eq!(configured["session"]["cookie"], "examplestore-session");
     assert_eq!(
         configured["logging"]["channels"]["stack"]["channels"],
         json!(["single", "stderr"])
@@ -469,4 +469,46 @@ fn application_configuration_loads_all_sections_and_typed_overrides() {
         config::load(&root, &environment),
         Err(ConfigError::InvalidType { key, .. }) if key == "SESSION_LIFETIME"
     ));
+}
+
+#[test]
+fn laravel_slug_defaults_keep_explicit_session_cache_and_redis_names() {
+    let root = std::env::temp_dir().join(format!("alignment-slug-{}", std::process::id()));
+    fs::create_dir_all(&root).unwrap();
+    struct Cleanup(std::path::PathBuf);
+    impl Drop for Cleanup {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+    let _cleanup = Cleanup(root.clone());
+    for (name, slug) in [
+        ("My App", "my-app"),
+        ("ExampleStore", "examplestore"),
+        ("Café @ Home", "cafe-at-home"),
+        ("foo__bar", "foo-bar"),
+    ] {
+        fs::write(
+            root.join(".env"),
+            format!("APP_NAME=\"{name}\"\nDB_DATABASE=explicit\n"),
+        )
+        .unwrap();
+        let env = LoadEnvironmentVariables::bootstrap(&root, None).unwrap();
+        let values = config::load(&root, &env).unwrap();
+        assert_eq!(values["session"]["cookie"], format!("{slug}-session"));
+        assert_eq!(values["cache"]["prefix"], format!("{slug}-cache-"));
+        assert_eq!(
+            values["database"]["redis"]["options"]["prefix"],
+            format!("{slug}-database-")
+        );
+    }
+    fs::write(root.join(".env"),"APP_NAME=\"My App\"\nDB_DATABASE=explicit\nSESSION_COOKIE=chosen\nCACHE_PREFIX=cache-chosen\nREDIS_PREFIX=redis-chosen\n").unwrap();
+    let env = LoadEnvironmentVariables::bootstrap(&root, None).unwrap();
+    let values = config::load(&root, &env).unwrap();
+    assert_eq!(values["session"]["cookie"], "chosen");
+    assert_eq!(values["cache"]["prefix"], "cache-chosen");
+    assert_eq!(
+        values["database"]["redis"]["options"]["prefix"],
+        "redis-chosen"
+    );
 }

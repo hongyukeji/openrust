@@ -99,3 +99,16 @@ fn source_trim(text: &str) -> &str {
 fn invalid() -> super::CalendarError {
     calendar_error("input_date_invalid")
 }
+
+/// 复用 timelib 扫描分量，在归一化前按 PHP checkdate 拒绝非法日期。
+pub(super) fn valid_date(text: &str) -> bool {
+    let Ok(zone) = ResolvedTimezone::parse("UTC") else {
+        return false;
+    };
+    let now = CalendarInstant {
+        epoch_seconds: 0,
+        microseconds: 0,
+    };
+    scan(text, now, &zone, false)
+        .is_ok_and(|state| state.valid_calendar_date() && state.finish().is_ok())
+}

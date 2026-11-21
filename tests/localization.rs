@@ -373,14 +373,11 @@ async fn localizes_http_requests_with_isolated_defaults_and_fallback() {
 
 #[test]
 fn normalizes_simplified_chinese_at_each_translator_entry() {
-    use openrust::{
-        contracts::translation::Translator as _,
-        translation::{FileLoader, Translator},
-    };
+    use openrust::translation::{FileLoader, Translator};
 
     let root = Root::new("locale-aliases");
     let lang = root.0.join("lang");
-    let mut translator =
+    let translator =
         Translator::new(FileLoader::new(lang.clone()), "zh-Hans".into(), "en".into()).unwrap();
     let args = BTreeMap::new();
     assert_eq!(translator.locale(), "zh_CN");
@@ -395,12 +392,12 @@ fn normalizes_simplified_chinese_at_each_translator_entry() {
             "你好"
         );
     }
-    translator.set_locale("zh-CN");
-    assert_eq!(translator.get_locale(), "zh_CN");
-    translator.set_locale("zh-SG");
-    assert_eq!(translator.get_locale(), "zh_SG");
-    translator.set_locale("../zh-CN");
-    assert_eq!(translator.get_locale(), "zh_SG");
+    translator.setLocale("zh-CN").unwrap();
+    assert_eq!(translator.getLocale(), "zh_CN");
+    translator.setLocale("zh-SG").unwrap();
+    assert_eq!(translator.getLocale(), "zh_SG");
+    assert!(translator.setLocale("../zh-CN").is_err());
+    assert_eq!(translator.getLocale(), "zh_SG");
 
     for (input, canonical) in [
         ("EN-gb", "en_GB"),
@@ -424,8 +421,8 @@ fn normalizes_simplified_chinese_at_each_translator_entry() {
             format!(r#"{{"locale":"{canonical}"}}"#),
         )
         .unwrap();
-        translator.set_locale(input);
-        assert_eq!(translator.get_locale(), canonical);
+        translator.setLocale(input).unwrap();
+        assert_eq!(translator.getLocale(), canonical);
         assert_eq!(
             translator
                 .string("identity.locale", &args, Some(input))

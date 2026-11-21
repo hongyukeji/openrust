@@ -37,7 +37,7 @@ async fn exact_text_compiles_with_bound_values_for_each_database_family() {
         } else {
             "fixture"
         };
-        let query = connection(json!({"driver":driver,"database":database}))
+        let mut query = connection(json!({"driver":driver,"database":database}))
             .table("users")
             .r#where("id", "=", 7)
             .whereExactText("email", text);
@@ -205,7 +205,7 @@ async fn postgres_transaction_pool_binds_without_named_statements() {
 async fn compiles_dialect_identifiers_and_bindings_in_clause_order() {
     for (driver, delimiter) in [("sqlite", '"'), ("mysql", '`')] {
         let db = connection(json!({"driver": driver, "database": ":memory:", "prefix":"app_"}));
-        let builder = db
+        let mut builder = db
             .table("items AS i")
             .orderByRaw("case when score = ? then 0 else 1 end", vec![80.into()])
             .havingRaw("count(*) > ?", vec![70.into()])
@@ -610,7 +610,7 @@ async fn value_ranges_and_explicit_ordering_run_on_mysql_8_4() {
     .await
     .unwrap();
     let table = || db.table("order_ranges");
-    let visible = table()
+    let mut visible = table()
         .whereValueBetween(5, ["lower_bound", "upper_bound"])
         .inOrderOf("status", vec!["active".into(), "pending".into()])
         .orderBy("id", "asc");
@@ -691,7 +691,7 @@ async fn value_ranges_and_explicit_ordering_run_on_mysql_8_4() {
     let union = table()
         .select(["id", "status"])
         .r#where("id", "=", 1)
-        .unionAll(&table().select(["id", "status"]).r#where("id", "=", 2))
+        .unionAll(&mut table().select(["id", "status"]).r#where("id", "=", 2))
         .unwrap()
         .inOrderOf("status", vec!["active".into()]);
     assert_eq!(
@@ -772,7 +772,7 @@ async fn group_limits_rank_each_partition_on_mysql_8_4() {
     );
     let ids = db
         .table("group_items")
-        .fromSub(&ranked(), "ranked_items")
+        .fromSub(&mut ranked(), "ranked_items")
         .unwrap()
         .orderBy("id", "asc")
         .pluck("id")
@@ -780,19 +780,20 @@ async fn group_limits_rank_each_partition_on_mysql_8_4() {
         .unwrap();
     assert_eq!(ids, [2.into(), 5.into()]);
 
-    let union = db
+    let mut union = db
         .table("group_items")
         .select(["id", "category", "score"])
         .whereIn("id", vec![1.into(), 2.into()])
         .unionAll(
-            &db.table("group_items")
+            &mut db
+                .table("group_items")
                 .select(["id", "category", "score"])
                 .whereIn("id", vec![4.into(), 5.into()]),
         )
         .unwrap();
     assert!(
         db.table("group_items")
-            .unionAll(&db.table("group_items"))
+            .unionAll(&mut db.table("group_items"))
             .unwrap()
             .groupLimit(1, "category")
             .toSql()
@@ -800,7 +801,7 @@ async fn group_limits_rank_each_partition_on_mysql_8_4() {
     );
     let mut combined = db
         .table("group_items")
-        .fromSub(&union, "candidates")
+        .fromSub(&mut union, "candidates")
         .unwrap()
         .orderByDesc("score")
         .groupLimit(1, "category")
@@ -854,7 +855,7 @@ async fn verify_json_predicates(db: Connection, mysql: bool) {
     let marker = "j.document->settings->marker";
     let ids = |ids: &[i64]| ids.iter().copied().map(Value::from).collect::<Vec<_>>();
 
-    let query = table().r#where("j.id", ">", 0).whereNested(|group| {
+    let mut query = table().r#where("j.id", ">", 0).whereNested(|group| {
         group
             .whereJsonContains(tags, json!("de"))
             .orWhereJsonLength(tags, "=", 0)
@@ -961,7 +962,7 @@ async fn verify_json_predicates(db: Connection, mysql: bool) {
             ids(&[1])
         );
         assert!(table().whereJsonContainsKey("j.document").toSql().is_err());
-        let overlap = table().r#where("j.id", ">", 0).whereNested(|group| {
+        let mut overlap = table().r#where("j.id", ">", 0).whereNested(|group| {
             group
                 .whereJsonOverlaps(tags, json!(["de", "fr"]))
                 .orWhereJsonDoesntOverlap(

@@ -66,7 +66,7 @@ async fn vector_queries_compile_native_expressions_and_keep_binding_order() {
         ),
     ] {
         let connection = connection(driver, None);
-        let query = connection
+        let mut query = connection
             .table("documents as d")
             .orderByVectorDistance("d.embedding", &[0.0, 1.0])
             .unwrap()
@@ -90,12 +90,12 @@ async fn vector_queries_compile_native_expressions_and_keep_binding_order() {
                 "[0.0,1.0]".into(),
             ]
         );
-        let other = connection.table("documents").select(["embedding"]);
-        let union = connection
+        let mut other = connection.table("documents").select(["embedding"]);
+        let mut union = connection
             .table("documents")
             .select(["embedding"])
             .r#where("id", ">", 3)
-            .unionAll(&other)
+            .unionAll(&mut other)
             .unwrap()
             .orderByVectorDistance("embedding", &[1.0, 0.0])
             .unwrap();
@@ -140,7 +140,7 @@ async fn vector_queries_reject_unsupported_drivers_and_invalid_inputs() {
 async fn nested_vector_predicates_compile_with_the_outer_query_grammar() {
     for driver in ["pgsql", "mariadb"] {
         let db = connection(driver, None);
-        let query = db
+        let mut query = db
             .table("documents")
             .r#where("id", "<", 3)
             .whereNested(|group| {

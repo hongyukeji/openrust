@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use std::time::Duration;
 
 use clap::{Arg, ArgAction, Command as Syntax, value_parser};
@@ -212,7 +214,7 @@ impl Command for WorkCommand {
                 let (signal_state, state) = watch::channel(WorkerSignalState::Running);
                 cadence.signal_state = Some(state);
                 let mut signals = WorkerSignals::new(
-                    connection.get_connection_name(),
+                    connection.getConnectionName(),
                     if queues.is_empty() {
                         connection.default_queue().to_owned()
                     } else {

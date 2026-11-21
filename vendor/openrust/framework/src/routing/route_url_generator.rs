@@ -48,6 +48,7 @@ impl RouteUrlGenerator {
         parameters: &[RouteParameter],
         absolute: bool,
         defaults: &HashMap<String, String>,
+        formatter: Option<&super::UrlGenerator>,
     ) -> UrlResult<String> {
         let mut remaining = parameters.to_vec();
         if !defaults.is_empty() {
@@ -59,24 +60,34 @@ impl RouteUrlGenerator {
             .map(|domain| self.substitute(domain, &mut remaining, defaults, true))
             .transpose()?;
         let path = self.substitute(&self.path, &mut remaining, defaults, false)?;
-        let mut output = String::new();
-        if absolute {
-            if let Some(domain) = domain {
-                let mut origin = root.clone();
-                origin
-                    .set_host(Some(&domain))
-                    .map_err(|_| UrlError::InvalidParameter)?;
-                origin.set_path("/");
-                output.push_str(origin.as_str().trim_end_matches('/'));
+        let root_text = if let Some(domain) = domain {
+            let mut origin = root.clone();
+            origin
+                .set_host(Some(&domain))
+                .map_err(|_| UrlError::InvalidParameter)?;
+            origin.set_path("/");
+            origin.as_str().trim_end_matches('/').to_owned()
+        } else {
+            root.as_str().trim_end_matches('/').to_owned()
+        };
+        let path = format!("/{}", path.trim_start_matches('/'));
+        let output = if let Some(formatter) = formatter {
+            formatter.format(&root_text, &path, Some(self))
+        } else {
+            format!("{root_text}{path}")
+        };
+        // Laravel 先格式化完整 URL，编码后才移除相对 URL 的源和基础路径。
+        let mut output = utf8_percent_encode(&output, ROUTE_ENCODE).to_string();
+        if !absolute {
+            let parsed = ::url::Url::parse(&output).map_err(|_| UrlError::InvalidParameter)?;
+            let path = parsed.path();
+            let base = root.path().trim_end_matches('/');
+            output = if !base.is_empty() && path.starts_with(&format!("{base}/")) {
+                path[base.len()..].to_owned()
             } else {
-                output.push_str(root.as_str().trim_end_matches('/'));
-            }
+                path.to_owned()
+            };
         }
-        let path = path.trim_start_matches('/');
-        if !absolute || !path.is_empty() {
-            output.push('/');
-        }
-        output.push_str(&utf8_percent_encode(path, ROUTE_ENCODE).to_string());
         let query = query_string(&remaining, true)?;
         if !query.is_empty() {
             output.push(if output.contains('?') { '&' } else { '?' });

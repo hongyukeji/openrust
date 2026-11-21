@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use std::{
     net::SocketAddr,
     sync::{Arc, Mutex},
@@ -150,10 +152,10 @@ async fn application(
         .set(
             "queue.connections",
             json!({
-                "database":{"driver":"database","table":table,"retry_after":1},
-                "after":{"driver":"database","table":table,"retry_after":1,"after_commit":true},
-                "redis":{"driver":"redis","retry_after":1},
-                "blocking":{"driver":"redis","retry_after":1,"block_for":2},
+                "database":{"driver":"database","table":table,"retry_after":5},
+                "after":{"driver":"database","table":table,"retry_after":5,"after_commit":true},
+                "redis":{"driver":"redis","retry_after":5},
+                "blocking":{"driver":"redis","retry_after":5,"block_for":2},
                 "sync":{"driver":"sync"},
             }),
         )
@@ -187,7 +189,7 @@ struct ExtensionQueue {
 }
 
 impl QueueContract for ExtensionQueue {
-    fn get_connection_name(&self) -> &str {
+    fn getConnectionName(&self) -> &str {
         &self.name
     }
 
@@ -283,11 +285,11 @@ async fn exercise_storage(
     let (one, two) = (one.unwrap(), two.unwrap());
     assert_ne!(one.is_some(), two.is_some());
     let mut first = one.or(two).unwrap();
-    assert_eq!(first.get_job_id(), first_id);
+    assert_eq!(first.getJobId(), first_id);
     assert_eq!(first.attempts(), 1);
     let uuid = first.uuid().to_owned();
-    // The expired handle may not acknowledge a later reservation of the same job.
-    sleep(Duration::from_millis(1100)).await;
+    // 为并发领取留足租约余量；过期句柄不能确认后续的保留。
+    sleep(Duration::from_millis(5100)).await;
     let mut second = queue.pop(None).await.unwrap().unwrap();
     assert_eq!(second.uuid(), uuid);
     assert_eq!(second.attempts(), 2);
@@ -296,14 +298,14 @@ async fn exercise_storage(
         Err(QueueError::LostReservation)
     ));
     second.release(Duration::ZERO).await.unwrap();
-    assert!(second.is_released());
+    assert!(second.isReleased());
     let mut third = queue.pop(None).await.unwrap().unwrap();
     assert_eq!(third.uuid(), uuid);
     assert_eq!(third.attempts(), 3);
     let mut context = JobContext::default();
     third.fire(&mut context).await.unwrap();
     third.delete().await.unwrap();
-    assert!(third.is_deleted());
+    assert!(third.isDeleted());
     assert_eq!(queue.size(None).await.unwrap(), 0);
     assert_eq!(
         handler.0.lock().unwrap().as_slice(),
@@ -325,7 +327,7 @@ async fn exercise_storage(
     assert!(queue.pop(Some("delayed")).await.unwrap().is_none());
     sleep(Duration::from_millis(3100)).await;
     let mut delayed = queue.pop(Some("delayed")).await.unwrap().unwrap();
-    assert_eq!(delayed.get_queue(), "delayed");
+    assert_eq!(delayed.getQueue(), "delayed");
     delayed.delete().await.unwrap();
 }
 

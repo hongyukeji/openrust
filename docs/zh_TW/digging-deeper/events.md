@@ -181,3 +181,7 @@ fake.assertDispatchedOnce("orders.created")
 ```
 
 使用 `dispatchedWhere` 依派發順序讀取符合條件的酬載。帶有 `Where` 的方法接收篩選回呼，依名稱的方法沿用現有簽章。
+
+## 暫存事件
+
+`Dispatcher::push(Arc<dyn Event>)` 暫存事件，`flush(name, context)` 派發對應的 `_pushed` 監聽器。重複 flush 會再次派發，需用 `forgetPushed` 明確清除；這與 `defer`、交易提交後派發不同。應用程式中的暫存資料依請求／佇列作用域隔離；作用域內清除不會刪除其他請求的共享監聽器。

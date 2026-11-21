@@ -172,3 +172,6 @@ use openrust::http::TrustedProxyHeaders;
 ```
 
 啟用 `subdomains` 可同時信任 `app.url` 的主機及其子網域。用 `trustHostsWith` 可在每次請求時非同步取得模式。環境名稱恰好為 `local` 或 `testing` 時會略過 Host 驗證。
+## 請求中繼資料
+
+`ajax()` 檢查 `X-Requested-With: XMLHttpRequest`，`pjax()` 檢查 `X-PJAX`。`prefetch()` 對 `X-Moz`、`Purpose`、`Sec-Purpose` 與 `prefetch` 進行忽略大小寫的完整比較。預取請求不覆蓋 Session 上一頁位址和路由。`userAgent()` 傳回可選標頭值。`fingerprint()` 要求已匹配路由，按方法、網域、URI 和用戶端 IP 產生摘要。透過 `user(guard).await` 使用指定 Guard 解析目前使用者。

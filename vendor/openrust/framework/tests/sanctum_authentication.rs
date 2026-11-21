@@ -1,3 +1,4 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
 #![cfg(feature = "sanctum")]
 
 use std::sync::{Arc, Mutex};
@@ -239,26 +240,26 @@ impl<const SERVICE: bool, const TEXT: u8> Model for User<SERVICE, TEXT> {
 }
 
 impl<const SERVICE: bool, const TEXT: u8> Authenticatable for User<SERVICE, TEXT> {
-    fn get_auth_identifier_name(&self) -> &str {
+    fn getAuthIdentifierName(&self) -> &str {
         "id"
     }
-    fn get_auth_identifier(&self) -> AuthIdentifier {
+    fn getAuthIdentifier(&self) -> AuthIdentifier {
         self.getKey().unwrap().try_into().unwrap()
     }
-    fn get_auth_password_name(&self) -> &str {
+    fn getAuthPasswordName(&self) -> &str {
         "password"
     }
-    fn get_auth_password(&self) -> Option<&str> {
+    fn getAuthPassword(&self) -> Option<&str> {
         match self.getAttribute("password") {
             Some(openrust::database::Value::Text(password)) => Some(password),
             _ => None,
         }
     }
-    fn get_remember_token(&self) -> Option<&str> {
+    fn getRememberToken(&self) -> Option<&str> {
         None
     }
-    fn set_remember_token(&mut self, _: Option<String>) {}
-    fn get_remember_token_name(&self) -> &str {
+    fn setRememberToken(&mut self, _: Option<String>) {}
+    fn getRememberTokenName(&self) -> &str {
         "remember_token"
     }
 }
@@ -325,7 +326,7 @@ fn whoami(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
         };
         Response::json(
             StatusCode::OK,
-            json!({"user":user.get_auth_identifier(),"token":token}),
+            json!({"user":user.getAuthIdentifier(),"token":token}),
         )
     })
 }
@@ -694,8 +695,8 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
         .unwrap()
         .unwrap();
     assert_eq!(
-        json!(related_owner.get_auth_identifier()),
-        json!(fresh_user.get_auth_identifier())
+        json!(related_owner.getAuthIdentifier()),
+        json!(fresh_user.getAuthIdentifier())
     );
     assert_eq!(relation.get().await.unwrap().len(), 1);
     let case_variant = tokens
@@ -720,7 +721,7 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
         assert_eq!(chain.get().await.unwrap().len(), 1);
         let relation = user.tokensRelation::<T>(sanctum).unwrap();
         let mut owners = User::<false, KEY>::queryOn(db).with("tokens", relation);
-        owners.whereKey(SqlValue::from(user.get_auth_identifier()));
+        owners.whereKey(SqlValue::from(user.getAuthIdentifier()));
         let owner = owners.first().await.unwrap().unwrap();
         let tokens = owner
             .getRelation::<openrust::database::eloquent::RelatedCollection<T>>("tokens")
@@ -1478,7 +1479,7 @@ async fn acting_as_isolated_to_test_app_and_selected_guard() {
         user
     };
     let selected = Sanctum::actingAs(&mut app, user(), &["read"], None);
-    assert_eq!(selected.get_auth_identifier(), AuthIdentifier::from(42_u64));
+    assert_eq!(selected.getAuthIdentifier(), AuthIdentifier::from(42_u64));
     for path in ["/api/user", "/api/any", "/api/default"] {
         let response = app.get(path).await.unwrap();
         response.assertOk();

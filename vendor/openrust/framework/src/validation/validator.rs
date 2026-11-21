@@ -8,8 +8,9 @@ use super::{
     Data, DatabasePresenceVerifier, Rule, RuleContext, RuleFailure, RuleSet, ValidatedInput,
     ValidationError, ValidationException, ValidationFuture, ValidationResult, Value, path,
     rule::{Kind, integer, is_empty, size},
-    rules::size_failure,
 };
+
+type AfterValidation = dyn Fn(&mut Validator) -> ValidationResult<()> + Send + Sync;
 
 /// Evaluates the configured rules against one input value.
 pub struct Validator {
@@ -22,6 +23,8 @@ pub struct Validator {
     attributes: BTreeMap<String, String>,
     errors: MessageBag,
     result: Option<ValidatedInput>,
+    after: Vec<Arc<AfterValidation>>,
+    stop_on_first_failure: bool,
 }
 
 impl Validator {
@@ -43,7 +46,67 @@ impl Validator {
             attributes,
             errors: MessageBag::default(),
             result: None,
+            after: Vec::new(),
+            stop_on_first_failure: false,
         }
+    }
+
+    pub fn after(
+        &mut self,
+        callback: impl Fn(&mut Self) -> ValidationResult<()> + Send + Sync + 'static,
+    ) -> &mut Self {
+        self.after.push(Arc::new(callback));
+        self
+    }
+
+    #[allow(non_snake_case, reason = "遵循 Laravel Validator 命名")]
+    pub fn stopOnFirstFailure(&mut self, stop: bool) -> &mut Self {
+        self.stop_on_first_failure = stop;
+        self
+    }
+
+    pub fn safe(&self) -> ValidationResult<ValidatedInput> {
+        self.validated()
+    }
+
+    pub fn errors_mut(&mut self) -> &mut MessageBag {
+        &mut self.errors
+    }
+
+    pub fn sometimes(
+        &mut self,
+        attribute: &str,
+        rules: Vec<Rule>,
+        condition: impl Fn(&Data, Option<&Value>) -> bool,
+    ) -> ValidationResult<&mut Self> {
+        for (path, _) in self.data.attributes(attribute)? {
+            let parent = if attribute.contains('*') {
+                path.rsplit_once('.')
+                    .map(|(parent, _)| parent)
+                    .unwrap_or("")
+            } else {
+                ""
+            };
+            let item = if parent.is_empty() {
+                Some(self.data.as_value())
+            } else {
+                self.data
+                    .attributes(parent)?
+                    .into_iter()
+                    .next()
+                    .and_then(|(_, value)| value)
+            };
+            if condition(&self.data, item) {
+                if let Some((_, existing)) =
+                    self.rules.fields.iter_mut().find(|(name, _)| name == &path)
+                {
+                    existing.extend(rules.clone());
+                } else {
+                    self.rules = self.rules.clone().field(path, rules.clone())?;
+                }
+            }
+        }
+        Ok(self)
     }
 
     #[allow(non_snake_case, reason = "Matches Laravel's Validator API")]
@@ -91,14 +154,17 @@ impl Validator {
     ) -> ValidationResult<()> {
         self.result = None;
         self.errors = MessageBag::default();
+        let mut excluded: Vec<String> = Vec::new();
         let mut errors = MessageBag::default();
         let mut budget = path::Budget::default();
         let mut fields = Vec::new();
-        for (index, (pattern, rules)) in self.rules.fields.iter().enumerate() {
+        'fields: for (index, (pattern, rules)) in self.rules.fields.iter().enumerate() {
             let nullable = contains(rules, |rule| matches!(rule, Kind::Nullable));
             let sometimes = contains(rules, |rule| matches!(rule, Kind::Sometimes));
             let bail = contains(rules, |rule| matches!(rule, Kind::Bail));
-            let numeric = contains(rules, |rule| matches!(rule, Kind::Integer));
+            let numeric = contains(rules, |rule| {
+                matches!(rule, Kind::Integer | Kind::StrictInteger | Kind::Numeric)
+            });
             let presence_rules = contains(rules, |rule| {
                 matches!(rule, Kind::Exists(_) | Kind::Unique(_))
             });
@@ -108,6 +174,15 @@ impl Validator {
                     .iter()
                     .any(|part| matches!(part, path::Segment::Any));
             for (attribute, value) in path::expand(self.data.as_value(), &segments, &mut budget)? {
+                if excluded
+                    .iter()
+                    .any(|field| attribute == *field || attribute.starts_with(&format!("{field}.")))
+                {
+                    continue;
+                }
+                if self.stop_on_first_failure && !errors.is_empty() {
+                    break 'fields;
+                }
                 if !self.rules.accepts(index, &unescape(&attribute)) {
                     continue;
                 }
@@ -124,10 +199,40 @@ impl Validator {
                     let mut failed =
                         presence_rules && !errors.get(&unescape(&attribute)).is_empty();
                     for Rule(rule) in rules {
+                        if let Kind::ExcludeIf(other, values) = rule {
+                            let other = dependent_path(pattern, &attribute, other)?;
+                            if condition_matches(&self.data, &other, values)? {
+                                excluded.push(attribute.clone());
+                                break;
+                            }
+                        }
                         if failed && matches!(rule, Kind::Exists(_) | Kind::Unique(_)) {
                             continue;
                         }
-                        let failures = if let Kind::CurrentPassword(guard) = rule {
+                        let failures = if let Kind::RequiredIf(other, values) = rule {
+                            let other = dependent_path(pattern, &attribute, other)?;
+                            if condition_matches(&self.data, &other, values)?
+                                && value.is_none_or(is_empty)
+                                && self.data.file(&attribute).is_none()
+                            {
+                                {
+                                    let mut failure = RuleFailure::new("validation.required_if");
+                                    let actual = self
+                                        .data
+                                        .attributes(&other)?
+                                        .into_iter()
+                                        .next()
+                                        .and_then(|(_, value)| value);
+                                    failure.replacements.extend([
+                                        ("other".into(), self.display_attribute(&other, &other)),
+                                        ("value".into(), self.display_value(&other, actual)),
+                                    ]);
+                                    vec![failure]
+                                }
+                            } else {
+                                Vec::new()
+                            }
+                        } else if let Kind::CurrentPassword(guard) = rule {
                             super::current_password::failures(
                                 value,
                                 guard.as_deref(),
@@ -149,7 +254,14 @@ impl Validator {
                         };
                         failed |= !failures.is_empty();
                         let stop = !failures.is_empty()
-                            && (bail || matches!(rule, Kind::Required | Kind::Present));
+                            && (bail
+                                || matches!(
+                                    rule,
+                                    Kind::Required
+                                        | Kind::RequiredIf(..)
+                                        | Kind::Accepted
+                                        | Kind::Present
+                                ));
                         for failure in failures {
                             errors.add(
                                 unescape(&attribute),
@@ -161,13 +273,50 @@ impl Validator {
                         }
                     }
                 }
-                fields.push((attribute, value));
+                fields.push(attribute);
             }
         }
+        for field in &excluded {
+            self.data.forget(field)?;
+        }
+        let retained = |field: &str| {
+            !excluded
+                .iter()
+                .any(|excluded| field == excluded || field.starts_with(&format!("{excluded}.")))
+        };
+        let mut retained_errors = MessageBag::default();
+        for (field, messages) in errors.messages() {
+            if retained(&field) {
+                for message in messages {
+                    retained_errors.add(field.clone(), message);
+                }
+            }
+        }
+        errors = retained_errors;
         if errors.is_empty() {
+            let fields = fields
+                .iter()
+                .filter(|field| retained(field))
+                .map(|field| {
+                    Ok((
+                        field.clone(),
+                        self.data
+                            .attributes(field)?
+                            .into_iter()
+                            .next()
+                            .and_then(|(_, value)| value),
+                    ))
+                })
+                .collect::<ValidationResult<Vec<_>>>()?;
             self.result = Some(ValidatedInput::project(&self.data, &fields)?);
         }
         self.errors = errors;
+        for callback in self.after.clone() {
+            callback(self)?;
+        }
+        if !self.errors.is_empty() {
+            self.result = None;
+        }
         Ok(())
     }
 
@@ -186,21 +335,37 @@ impl Validator {
         }
         let file = self.data.file(attribute);
         if let Some(file) = file {
-            let bounds = match rule {
-                Kind::Min(bound) => Some((Some(*bound), None)),
-                Kind::Max(bound) => Some((None, Some(*bound))),
-                Kind::Size(bound) => Some((Some(*bound), Some(*bound))),
-                Kind::Between(min, max) => Some((Some(*min), Some(*max))),
-                _ => None,
+            let observed = bigdecimal::BigDecimal::from(file.getSize() as u64) / 1024;
+            let (kind, bounds, passes) = match rule {
+                Kind::Min(bound) => ("min", vec![("min", bound)], observed >= *bound),
+                Kind::Max(bound) => ("max", vec![("max", bound)], observed <= *bound),
+                Kind::Size(bound) => ("size", vec![("size", bound)], observed == *bound),
+                Kind::Between(min, max) => (
+                    "between",
+                    vec![("min", min), ("max", max)],
+                    observed >= *min && observed <= *max,
+                ),
+                _ => ("", Vec::new(), true),
             };
-            if let Some((min, max)) = bounds {
-                return Ok(size_failure(file.getSize(), min, max).into_iter().collect());
+            if !kind.is_empty() {
+                return Ok(if passes {
+                    Vec::new()
+                } else {
+                    let mut failure = RuleFailure::new(format!("validation.{kind}.file"));
+                    failure.replacements.extend(
+                        bounds
+                            .into_iter()
+                            .map(|(name, value)| (name.into(), value.to_string())),
+                    );
+                    vec![failure]
+                });
             }
         }
         let failure = match (rule, value) {
             (Kind::Required, value) if file.is_none() && value.is_none_or(is_empty) => {
                 Some("required")
             }
+            (Kind::Accepted, value) if value.is_none_or(is_empty) => Some("accepted"),
             (Kind::Present, None) => Some("present"),
             (_, None) => None,
             (_, Some(Value::Null)) if nullable && file.is_none() => None,
@@ -213,6 +378,91 @@ impl Validator {
             }
             (Kind::String, Some(value)) if !value.is_string() => Some("string"),
             (Kind::Integer, Some(value)) if integer(value).is_none() => Some("integer"),
+            (Kind::StrictInteger, Some(value))
+                if !value.is_i64()
+                    && value
+                        .as_u64()
+                        .is_none_or(|value| i64::try_from(value).is_err()) =>
+            {
+                Some("integer")
+            }
+            (Kind::StrictBoolean, Some(value)) if !value.is_boolean() => Some("boolean"),
+            (Kind::Numeric, Some(value)) if !super::standard_rules::numeric(value) => {
+                Some("numeric")
+            }
+            (Kind::Date, Some(value))
+                if !matches!(value, Value::String(_) | Value::Number(_))
+                    || !super::standard_rules::text(value)
+                        .is_some_and(|text| super::standard_rules::date(&text)) =>
+            {
+                Some("date")
+            }
+            (Kind::Accepted, Some(value))
+                if !matches!(value, Value::Bool(true))
+                    && value.as_i64() != Some(1)
+                    && !matches!(value.as_str(), Some("yes" | "on" | "1" | "true")) =>
+            {
+                Some("accepted")
+            }
+            (Kind::Url, Some(value))
+                if !value
+                    .as_str()
+                    .is_some_and(|value| crate::support::Str::isUrl(value, &[])) =>
+            {
+                Some("url")
+            }
+            (Kind::Uuid, Some(value))
+                if !value
+                    .as_str()
+                    .is_some_and(|value| crate::support::Str::isUuid(value, None)) =>
+            {
+                Some("uuid")
+            }
+            (Kind::In(values), Some(value))
+                if !{
+                    let array_rule = self
+                        .rules
+                        .fields
+                        .iter()
+                        .find(|(name, _)| name == pattern)
+                        .is_some_and(|(_, rules)| {
+                            contains(rules, |rule| {
+                                matches!(rule, Kind::Array | Kind::ArrayKeys(_))
+                            })
+                        });
+                    match value {
+                        Value::Array(items) if array_rule => items.iter().all(|item| {
+                            super::standard_rules::text(item)
+                                .is_some_and(|item| values.contains(&item))
+                        }),
+                        Value::Object(items) if array_rule => items.values().all(|item| {
+                            super::standard_rules::text(item)
+                                .is_some_and(|item| values.contains(&item))
+                        }),
+                        _ => super::standard_rules::text(value)
+                            .is_some_and(|value| values.contains(&value)),
+                    }
+                } =>
+            {
+                Some("in")
+            }
+            (Kind::Regex(regex), Some(value))
+                if !super::standard_rules::text(value)
+                    .is_some_and(|value| regex.is_match(value.as_bytes()).unwrap_or(false)) =>
+            {
+                Some("regex")
+            }
+            (Kind::ArrayKeys(keys), Some(value))
+                if match value {
+                    Value::Object(value) => value.keys().any(|key| !keys.contains(key)),
+                    Value::Array(value) => {
+                        (0..value.len()).any(|index| !keys.contains(&index.to_string()))
+                    }
+                    _ => true,
+                } =>
+            {
+                Some("array")
+            }
             (Kind::Boolean, Some(value))
                 if !value.is_boolean()
                     && !matches!(value.as_i64(), Some(0 | 1))
@@ -249,33 +499,23 @@ impl Validator {
             }
             (Kind::File(rule), Some(_)) => return rule.failures(file),
             (Kind::Size(bound), Some(value)) => {
-                return Ok(scalar_size(
-                    value,
-                    numeric,
-                    "size",
-                    &[("size", *bound)],
-                    |n| n == *bound as i128,
-                ));
+                return scalar_size(value, numeric, "size", &[("size", bound)], |n| n == bound);
             }
             (Kind::Between(min, max), Some(value)) => {
-                return Ok(scalar_size(
+                return scalar_size(
                     value,
                     numeric,
                     "between",
-                    &[("min", *min), ("max", *max)],
-                    |n| n >= *min as i128 && n <= *max as i128,
-                ));
+                    &[("min", min), ("max", max)],
+                    |n| n >= min && n <= max,
+                );
             }
             (Kind::Min(bound) | Kind::Max(bound), Some(value)) => {
                 let minimum = matches!(rule, Kind::Min(_));
                 let kind = if minimum { "min" } else { "max" };
-                return Ok(scalar_size(value, numeric, kind, &[(kind, *bound)], |n| {
-                    if minimum {
-                        n >= *bound as i128
-                    } else {
-                        n <= *bound as i128
-                    }
-                }));
+                return scalar_size(value, numeric, kind, &[(kind, bound)], |n| {
+                    if minimum { n >= bound } else { n <= bound }
+                });
             }
             (Kind::Exists(_), Some(_)) if file.is_some() => Some("exists"),
             (Kind::Unique(_), Some(_)) if file.is_some() => Some("unique"),
@@ -324,16 +564,14 @@ impl Validator {
             })
     }
 
-    fn format_message(&self, pattern: &str, attribute: &str, mut failure: RuleFailure) -> String {
-        let attribute = unescape(attribute);
-        let display = self
-            .attributes
-            .get(&attribute)
+    fn display_attribute(&self, pattern: &str, attribute: &str) -> String {
+        self.attributes
+            .get(attribute)
             .or_else(|| self.attributes.get(pattern))
             .cloned()
             .or_else(|| {
                 let translator = self.translator.as_ref()?;
-                [&attribute, pattern].into_iter().find_map(|field| {
+                [attribute, pattern].into_iter().find_map(|field| {
                     let key = format!("validation.attributes.{field}");
                     translator
                         .string(&key, &Default::default(), None)
@@ -341,7 +579,34 @@ impl Validator {
                         .filter(|text| text != &key)
                 })
             })
-            .unwrap_or_else(|| attribute.replace('_', " "));
+            .unwrap_or_else(|| attribute.replace('_', " "))
+    }
+
+    fn display_value(&self, field: &str, value: Option<&Value>) -> String {
+        if value.is_some_and(|value| value.is_array() || value.is_object()) {
+            return "array".into();
+        }
+        let key_value = value
+            .and_then(super::standard_rules::text)
+            .unwrap_or_default();
+        if let Some(translator) = &self.translator {
+            let key = format!("validation.values.{field}.{key_value}");
+            if let Ok(text) = translator.string(&key, &Default::default(), None)
+                && text != key
+            {
+                return text;
+            }
+        }
+        match value {
+            Some(Value::Bool(value)) => value.to_string(),
+            None | Some(Value::Null) => "empty".into(),
+            _ => key_value,
+        }
+    }
+
+    fn format_message(&self, pattern: &str, attribute: &str, mut failure: RuleFailure) -> String {
+        let attribute = unescape(attribute);
+        let display = self.display_attribute(pattern, &attribute);
         failure
             .replacements
             .entry("attribute".into())
@@ -424,12 +689,15 @@ fn scalar_size(
     value: &Value,
     numeric: bool,
     rule: &str,
-    bounds: &[(&str, usize)],
-    passes: impl FnOnce(i128) -> bool,
-) -> Vec<RuleFailure> {
+    bounds: &[(&str, &bigdecimal::BigDecimal)],
+    passes: impl FnOnce(&bigdecimal::BigDecimal) -> bool,
+) -> ValidationResult<Vec<RuleFailure>> {
+    if numeric {
+        super::standard_rules::check_exponent(value)?;
+    }
     let observed = size(value, numeric);
-    if observed.is_some_and(|(number, _)| passes(number)) {
-        return Vec::new();
+    if observed.as_ref().is_some_and(|(number, _)| passes(number)) {
+        return Ok(Vec::new());
     }
     let category = observed.map_or(
         if numeric { "numeric" } else { "string" },
@@ -441,7 +709,7 @@ fn scalar_size(
             .iter()
             .map(|(key, bound)| ((*key).into(), bound.to_string())),
     );
-    vec![failure]
+    Ok(vec![failure])
 }
 
 fn unescape(attribute: &str) -> String {
@@ -500,6 +768,14 @@ fn fallback(rule: &str) -> &str {
         "password.letters" => "The :attribute field must contain at least one letter.",
         "password.numbers" => "The :attribute field must contain at least one number.",
         "password.symbols" => "The :attribute field must contain at least one symbol.",
+        "numeric" => "The :attribute field must be a number.",
+        "date" => "The :attribute field must be a valid date.",
+        "accepted" => "The :attribute field must be accepted.",
+        "url" => "The :attribute field must be a valid URL.",
+        "uuid" => "The :attribute field must be a valid UUID.",
+        "in" => "The selected :attribute is invalid.",
+        "regex" => "The :attribute field format is invalid.",
+        "required_if" => "The :attribute field is required when :other is :value.",
         "required" => "The :attribute field is required.",
         "present" => "The :attribute field must be present.",
         "string" => "The :attribute field must be a string.",
@@ -588,4 +864,29 @@ fn dependent_path(pattern: &str, attribute: &str, other: &str) -> ValidationResu
         }
     }
     Ok(result)
+}
+
+fn condition_matches(data: &Data, field: &str, values: &[String]) -> ValidationResult<bool> {
+    let value = data
+        .attributes(field)?
+        .into_iter()
+        .next()
+        .and_then(|(_, value)| value);
+    Ok(value.is_some_and(|value| {
+        values.iter().any(|expected| match value {
+            Value::Bool(value) => expected == if *value { "true" } else { "false" },
+            Value::Null => expected == "null",
+            Value::Number(_) | Value::String(_) => {
+                let actual = super::standard_rules::text(value).unwrap_or_default();
+                match (
+                    super::standard_rules::number(value),
+                    super::standard_rules::number(&Value::String(expected.clone())),
+                ) {
+                    (Some(actual), Some(expected)) => actual == expected,
+                    _ => actual == *expected,
+                }
+            }
+            _ => false,
+        })
+    }))
 }

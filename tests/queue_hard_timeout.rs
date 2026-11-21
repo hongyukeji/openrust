@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 //! Runs real Artisan workers and their isolated job executors.
 #[cfg(not(any(unix, windows)))]
 fn main() {}
@@ -988,10 +990,10 @@ mod acceptance {
             }
         };
         let busy = root.join("busy.json");
-        let target = format!("{}:clear-one,clear-two", queue.get_connection_name());
+        let target = format!("{}:clear-one,clear-two", queue.getConnectionName());
         let output = monitor(&[&target, "--max=4", "--json"]).await;
         let rows: Vec<Value> = serde_json::from_str(&output).unwrap();
-        assert_eq!(rows[0]["connection"], queue.get_connection_name());
+        assert_eq!(rows[0]["connection"], queue.getConnectionName());
         assert_eq!(rows[0]["queue"], "clear-one");
         assert_eq!(rows[0]["size"], 3);
         assert_eq!(rows[0]["pending"], 1);
@@ -1009,7 +1011,7 @@ mod acceptance {
         let event: Value = serde_json::from_slice(&std::fs::read(&busy).unwrap()).unwrap();
         assert_eq!(
             event,
-            json!({"connection_name": queue.get_connection_name(), "queue": "clear-one", "size": 3})
+            json!({"connection_name": queue.getConnectionName(), "queue": "clear-one", "size": 3})
         );
         std::fs::remove_file(&busy).unwrap();
 
@@ -1110,7 +1112,7 @@ mod acceptance {
         assert_eq!(queue.size(Some("clear-one")).await.unwrap(), 3);
         assert_eq!(queue.size(Some("clear-two")).await.unwrap(), 1);
 
-        let connection = queue.get_connection_name();
+        let connection = queue.getConnectionName();
         let args = [connection, selection[0], "--force"];
         let (code, _, error) = clear(&args, true, true).await;
         assert_eq!(code, Some(1), "{error}");
@@ -1655,10 +1657,9 @@ mod acceptance {
             assert_eq!(record.payload.data().as_str(), Some(kind));
             assert_eq!(record.exception, "queue job execution failed");
             let marker = std::fs::read_to_string(root.join(format!("{kind}.failed"))).unwrap();
-            assert!(marker.starts_with(&format!(
-                "{}:callback-probe:1:",
-                queue.get_connection_name()
-            )));
+            assert!(
+                marker.starts_with(&format!("{}:callback-probe:1:", queue.getConnectionName()))
+            );
             let event = std::fs::read_to_string(root.join(format!("{kind}.event"))).unwrap();
             assert!(event.contains("original probe error"), "{event}");
         }
@@ -1780,7 +1781,7 @@ mod acceptance {
             provider
                 .log(&FailedJob {
                     id: id.into(),
-                    connection: queue.get_connection_name().into(),
+                    connection: queue.getConnectionName().into(),
                     queue: name.into(),
                     payload,
                     exception: "original failure".into(),
@@ -1854,7 +1855,7 @@ mod acceptance {
         );
         assert!(provider.ids(None).await.unwrap().is_empty());
 
-        if queue.get_connection_name() == "database" {
+        if queue.getConnectionName() == "database" {
             let payload = Payload::new("hard-timeout-probe", "race").unwrap();
             provider
                 .log(&FailedJob {
@@ -1906,7 +1907,7 @@ mod acceptance {
             provider
                 .log(&FailedJob {
                     id: kind.into(),
-                    connection: queue.get_connection_name().into(),
+                    connection: queue.getConnectionName().into(),
                     queue: kind.into(),
                     payload,
                     exception: "original failure".into(),
@@ -2861,7 +2862,7 @@ mod acceptance {
         tokio::time::sleep(Duration::from_millis(1100)).await;
         let mut first = queue.pop_now(None).await.unwrap().unwrap();
         assert_eq!(first.attempts(), 1);
-        assert_eq!(first.get_queue(), standard);
+        assert_eq!(first.getQueue(), standard);
         assert!(queue.pop_now(None).await.unwrap().is_none());
         first.release(Duration::ZERO).await.unwrap();
         let second = queue.pop_now(None).await.unwrap().unwrap();
@@ -3026,7 +3027,7 @@ mod acceptance {
         });
         let published = published.unwrap().unwrap();
         let mut reserved = reserved.unwrap().unwrap();
-        assert_eq!(reserved.get_job_id(), published);
+        assert_eq!(reserved.getJobId(), published);
         reserved.delete().await.unwrap();
 
         let pending = Payload::new("hard-timeout-probe", "beanstalk-probe").unwrap();

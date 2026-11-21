@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use crate::{
     container::Container,
     contracts::{
@@ -176,7 +178,7 @@ async fn worker_flushes_each_attempt_after_event_with_original_scope_and_failure
             .await
             .unwrap();
         let result = worker
-            .run_next_job(
+            .runNextJob(
                 connection.as_ref(),
                 None,
                 &WorkerOptions {

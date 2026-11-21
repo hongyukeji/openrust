@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use super::*;
 use openrust::support::facades::Facade;
 use openrust::{
@@ -73,7 +75,7 @@ fn pat(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
             .map_err(|_| HttpError::InvalidRequest)?
             .unwrap_or_default();
         let result =
-            PersonalAccessTokenFactory::make(user.get_auth_identifier(), &name, &scopes, "users")
+            PersonalAccessTokenFactory::make(user.getAuthIdentifier(), &name, &scopes, "users")
                 .await;
         match result {
             Ok(result) => Response::json(StatusCode::OK, result),
@@ -938,7 +940,7 @@ async fn mysql_native_user_token_trait_and_testing_substitutions_stay_in_one_req
                         .await
                         .unwrap()
                         .unwrap()
-                        .get_auth_identifier()
+                        .getAuthIdentifier()
                         .to_string(),
                     "77"
                 );

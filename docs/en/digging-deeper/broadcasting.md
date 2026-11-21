@@ -37,3 +37,8 @@ Implement `contracts::broadcasting::ShouldBeUnique` and register the type with `
 The queue emits `UniqueJobSkipped` when a lock already exists. The lock remains held across retries and is released when the worker succeeds or the job fails permanently. Synchronous broadcasts do not take a uniqueness lock. Within an explicit Rust transaction, unique queue deliveries acquire the lock at commit. A rollback drops the pending delivery. An active transaction rejects an explicit `broadcastAfterCommit() == Some(false)` on a unique delivery.
 
 The built-in connections are `null` and `log`. Enable the [Reverb package](../packages/reverb.md) for a Pusher-compatible transport.
+## User Authentication Routes
+
+`Broadcast::userRoutes(group, connection)` registers GET and POST `/broadcasting/user-auth` routes, with the web middleware group and CSRF exemption. Supply `None` for the default group or connection. Register a request-aware resolver with `authenticateUserUsing`; it returns the current user's JSON data, or no user for a guest. Channel authentication remains separate.
+
+The Reverb driver signs the user response using the Pusher protocol and validates the socket ID. Named connections use their own credentials. Other drivers return `UnsupportedUserAuthentication` unless implemented. This endpoint does not add a `pusher:signin` handler to the Reverb server; hosted-service and complete client sign-in behavior require separate integration.

@@ -21,6 +21,18 @@ impl ServiceProvider for LogServiceProvider {
             let listeners = Arc::new(super::events::Listeners::default());
             container.instance(listeners.clone())?;
             container.instance(Arc::new(super::context::Hooks::default()))?;
+            let defaults = Arc::new(super::channel_context::ChannelContext::default());
+            container.scoped::<super::channel_context::ChannelContext, _>(move |container| {
+                Ok(if container.has_active_scope() {
+                    Arc::new(super::channel_context::ChannelContext(
+                        std::sync::Mutex::new(
+                            defaults.0.lock().expect("日志默认上下文锁中毒").clone(),
+                        ),
+                    ))
+                } else {
+                    defaults.clone()
+                })
+            })?;
             container.scopedIf::<Repository, _>(|container| {
                 if !container.has_active_scope() {
                     return Err(crate::contracts::container::BindingResolutionError::ScopeClosed);

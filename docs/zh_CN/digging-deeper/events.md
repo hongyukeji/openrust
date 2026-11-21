@@ -181,3 +181,7 @@ fake.assertDispatchedOnce("orders.created")
 ```
 
 用 `dispatchedWhere` 按派发顺序读取符合条件的负载。带 `Where` 的方法接收筛选回调，按名称的方法沿用现有签名。
+
+## 暂存事件
+
+`Dispatcher::push(Arc<dyn Event>)` 暂存事件，`flush(name, context)` 派发对应的 `_pushed` 监听器。重复 flush 会再次派发，需用 `forgetPushed` 显式清除；这与 `defer`、事务提交后派发不同。应用中的暂存数据随请求／队列作用域隔离；作用域内清除不会删除其他请求的共享监听器。

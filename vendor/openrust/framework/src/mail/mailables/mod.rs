@@ -25,6 +25,8 @@ impl From<&str> for Address {
 #[derive(Clone, Default, Deserialize, Serialize)]
 pub struct Envelope {
     pub from: Option<Address>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub return_path: Option<String>,
     pub to: Vec<Address>,
     pub cc: Vec<Address>,
     pub bcc: Vec<Address>,

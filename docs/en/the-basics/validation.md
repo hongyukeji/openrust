@@ -192,3 +192,14 @@ fn configure(exceptions: &mut Exceptions) {
     exceptions.dontFlash(["profile.secret"]);
 }
 ```
+## Standard Rules and Validation Hooks
+
+The rule parser accepts `numeric`, `date`, `in:a,b`, `regex:/pattern/u`, `required_if:field,value`, `exclude_if:field,value`, `accepted`, `url`, `uuid`, and `array:key1,key2`, alongside the rules described above. `array:key1,key2` rejects unlisted keys; `in` checks each array element when combined with `array`. Excluded fields, including uploaded files, are removed from validated data. Rules run in declaration order.
+
+Default `integer` follows PHP integer validation, including integral floats and `true`; `integer:strict` requires a JSON integer and `boolean:strict` requires a JSON boolean. Numeric size rules accept negative and decimal bounds and compare decimal values without converting them to binary floats. Scientific-notation exponents outside -1000 to 1000 return an execution error.
+
+Use `Rule::parse` inside a `RuleSet::field` array for regular expressions containing `|`, so the separator is not interpreted as another rule. PCRE2 modifiers `i m s x u A U J n D` are supported. `D` makes `$` match only the end of the subject unless multiline mode is enabled. Other unsupported modifiers return `InvalidRule`; the parser does not claim every PHP PCRE option.
+
+`Validator::after` runs after rule checks and can add errors. `sometimes` conditionally adds rules; wildcard callbacks receive the parent item. `stopOnFirstFailure(true)` stops checks across fields, while `bail` stops one field. `safe()` requires successful validation and exposes only validated data.
+
+Form requests execute `prepareForValidation`, `authorize`, `withValidator`, validation and `after`, then `passedValidation`. Authorization and validation failure stop the action. Precognition with `Precognition-Validate-Only` does not call `passedValidation`; successful Precognition without that header may call it before short-circuiting the action. Each request has its own validator.

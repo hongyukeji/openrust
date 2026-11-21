@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 //! Queue and worker lifecycle events.
 
 use std::{error::Error as _, time::Duration};
@@ -152,8 +154,8 @@ pub struct JobSnapshot {
 impl JobSnapshot {
     pub(super) fn from_job(job: &dyn Job) -> Self {
         Self {
-            id: job.get_job_id().to_owned(),
-            queue: job.get_queue().to_owned(),
+            id: job.getJobId().to_owned(),
+            queue: job.getQueue().to_owned(),
             attempts: job.attempts(),
             payload: job.payload().clone(),
         }

@@ -121,6 +121,23 @@ impl Message {
                 .map_err(|_| composition("Invalid mail header name."))?;
             builder = builder.raw_header(header::HeaderValue::new(name, header_text(value)?));
         }
+        if let Some(path) = &api_envelope.return_path {
+            let sender = path.parse().map_err(composition)?;
+            builder = builder.raw_header(header::HeaderValue::new(
+                header::HeaderName::new_from_ascii("Return-Path".into()).map_err(composition)?,
+                format!("<{}>", header_text(path.clone())?),
+            ));
+            let recipients = api_envelope
+                .to
+                .iter()
+                .chain(&api_envelope.cc)
+                .chain(&api_envelope.bcc)
+                .map(|address| address.address.parse().map_err(composition))
+                .collect::<MailResult<Vec<_>>>()?;
+            builder = builder.envelope(
+                lettre::address::Envelope::new(Some(sender), recipients).map_err(composition)?,
+            );
+        }
         let body = if inline_attachments.is_empty() {
             match (text.clone(), html.clone()) {
                 (Some(text), Some(html)) => {

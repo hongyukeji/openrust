@@ -15,3 +15,8 @@
 装配入口通过 `withRouting` 声明 Web 路由、控制台路由和健康路径。Rust 用 `Routing` Builder 表达这些选项，并通过 `withConfig`、`withProviders` 和 `withCommands` 注册编译进应用的配置、Provider 和命令。
 
 框架使用这些声明的顺序见[请求生命周期](../architecture-concepts/lifecycle.md)。
+## 应用构建钩子
+
+`Application::configure` 支持 `withBindings::<T, _>`、`withSingletons::<T, _>`、`withScopedSingletons::<T, _>` 工厂。按 Rust 类型逐项链式注册，工厂返回 `Result<Arc<T>, BindingResolutionError>`。普通绑定每次解析，单例属于应用，作用域单例属于当前请求或队列任务。
+
+`registered`、`booting`、`booted` 围绕 Provider 启动依次执行，成功启动后重复 boot 不再执行。钩子失败会停止后续阶段并返回启动错误。`withSchedule` 延迟登记调度配置，不在应用启动时执行任务。`prefersJsonResponses(true)` 在 booted 阶段启用宽泛 Accept 请求头的 JSON 偏好，显式异常 JSON 策略仍优先。

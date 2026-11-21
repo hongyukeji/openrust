@@ -69,3 +69,6 @@ fn article_url() -> Result<String, openrust::routing::UrlError> {
 ```
 
 網域路由優先，同類生效路由中取第一筆註冊。Rust 註冊編譯好的處理常式，因此明確宣告動作識別碼。
+## 產生策略
+
+複製請求的 `UrlGenerator` 後，可呼叫 `forceScheme`、`forceHttps`、`forceRootUrl`、`formatHostUsing`、`formatPathUsing`。這些方法需要該產生器的可變借用，不修改其他請求的策略。傳入 `None` 清除強制協定或根位址。格式化器作用於產生路徑和具名路由，包括簽章位址；驗證簽章時使用產生時相同的絕對或相對模式。信任代理需另行設定，使請求來源使用預期的轉送網域和協定。

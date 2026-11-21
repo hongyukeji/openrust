@@ -84,20 +84,20 @@ async fn inserted_ids_and_conflict_returning_follow_driver_contracts() {
         );
 
         let archive = db.table("result_archive");
-        let source = archive
+        let mut source = archive
             .subquery("result_items")
             .select(["code"])
             .r#where("code", "=", "a");
         assert_eq!(
             archive
-                .insertOrIgnoreUsing(&["code"], &source)
+                .insertOrIgnoreUsing(&["code"], &mut source)
                 .await
                 .unwrap(),
             1
         );
         assert_eq!(
             db.table("result_archive")
-                .insertOrIgnoreUsing(&["code"], &source)
+                .insertOrIgnoreUsing(&["code"], &mut source)
                 .await
                 .unwrap(),
             0
@@ -164,7 +164,7 @@ async fn inserted_ids_and_conflict_returning_follow_driver_contracts() {
     }
     let sql_server = connection(json!({"url":"sqlsrv://sa:fixture@localhost/unused"}));
     let rows = &[record([("code", "untouched".into())])];
-    let source = sql_server.table("source");
+    let mut source = sql_server.table("source");
     assert!(matches!(
         sql_server.table("dest").insertOrIgnore(rows).await,
         Err(DatabaseError::UnsupportedOperation("insert or ignore"))
@@ -172,7 +172,7 @@ async fn inserted_ids_and_conflict_returning_follow_driver_contracts() {
     assert!(matches!(
         sql_server
             .table("dest")
-            .insertOrIgnoreUsing(&["code"], &source)
+            .insertOrIgnoreUsing(&["code"], &mut source)
             .await,
         Err(DatabaseError::UnsupportedOperation("insert or ignore"))
     ));
@@ -230,7 +230,7 @@ async fn update_assignments_accept_values_expressions_and_scalar_queries() {
         }
         let mut transaction = db.beginTransaction().await.unwrap();
         let accounts = transaction.table("credit_accounts as a");
-        let credits = accounts
+        let mut credits = accounts
             .subquery("credit_events as e")
             .selectRaw("sum(amount)", vec![])
             .whereColumn("e.account_id", "=", "a.id")
@@ -242,7 +242,7 @@ async fn update_assignments_accept_values_expressions_and_scalar_queries() {
                 .orderBy("a.id", "asc")
                 .limit(1)
                 .updateWith(BTreeMap::from([
-                    ("credits".into(), UpdateValue::Subquery(&credits)),
+                    ("credits".into(), UpdateValue::Subquery(&mut credits)),
                     ("enabled".into(), 1.into()),
                     (
                         "note".into(),
@@ -290,14 +290,14 @@ async fn update_assignments_accept_values_expressions_and_scalar_queries() {
         );
 
         let account = db.table("credit_accounts as a").r#where("a.id", "=", 3);
-        let empty = account
+        let mut empty = account
             .subquery("credit_events as e")
             .select(["e.amount"])
             .whereColumn("e.account_id", "=", "a.id");
         account
             .updateWith(BTreeMap::from([(
                 "credits".into(),
-                UpdateValue::Subquery(&empty),
+                UpdateValue::Subquery(&mut empty),
             )]))
             .await
             .unwrap();
@@ -315,7 +315,7 @@ async fn update_assignments_accept_values_expressions_and_scalar_queries() {
             db.table("credit_accounts")
                 .updateWith(BTreeMap::from([(
                     "credits".into(),
-                    UpdateValue::Subquery(&foreign.table("outside"))
+                    UpdateValue::Subquery(&mut foreign.table("outside"))
                 ),]))
                 .await,
             Err(DatabaseError::InvalidQuery("subquery connection"))
@@ -391,7 +391,7 @@ async fn native_query_locks_skip_and_revisit_rows() {
             db.unprepared("create index idx_lock_id on lock_rows (id)")
                 .await
                 .unwrap();
-            let combination = db.table("lock_rows").forceIndex("idx_lock_id").lock(native);
+            let mut combination = db.table("lock_rows").forceIndex("idx_lock_id").lock(native);
             assert!(
                 combination
                     .toSql()
@@ -440,7 +440,7 @@ async fn native_query_locks_skip_and_revisit_rows() {
             1.into()
         );
         let mut reader = db.beginTransaction().await.unwrap();
-        let query = reader
+        let mut query = reader
             .table("lock_rows")
             .lock(native)
             .r#where("id", ">", 0)
@@ -488,7 +488,7 @@ async fn query_index_hints_follow_driver_rules() {
         .await
         .unwrap();
     let table = || sqlite.table("index_items as i");
-    let query = table()
+    let mut query = table()
         .useIndex("unused")
         .forceIndex(" idx_score ")
         .r#where("i.score", "=", 7);
@@ -500,7 +500,7 @@ async fn query_index_hints_follow_driver_rules() {
     );
     assert_eq!(query.getBindings().unwrap(), [7.into()]);
     assert_eq!(query.value("i.id").await.unwrap(), 1.into());
-    for query in [
+    for mut query in [
         table().useIndex("ignored"),
         table().forceIndex("idx_score").ignoreIndex("ignored"),
         table().forceIndex("PRIMARY"),
@@ -557,7 +557,7 @@ async fn query_index_hints_follow_driver_rules() {
             .await
             .unwrap();
         let table = || db.table("index_items as i").r#where("i.score", "=", 7);
-        for (query, expected) in [
+        for (mut query, expected) in [
             (
                 table().useIndex("PRIMARY,idx_score"),
                 "use index (PRIMARY,idx_score)",
@@ -609,7 +609,7 @@ async fn sql_server_combines_index_and_lock_hints() {
         table().forceIndex("idx_score, another").toSql(),
         Err(DatabaseError::InvalidQuery("index name"))
     ));
-    let query = table().forceIndex("idx_score");
+    let mut query = table().forceIndex("idx_score");
     assert!(
         query
             .toSql()
@@ -618,7 +618,7 @@ async fn sql_server_combines_index_and_lock_hints() {
     );
     assert_eq!(query.value("i.id").await.unwrap(), 1.into());
     let mut transaction = db.beginTransaction().await.unwrap();
-    let query = transaction
+    let mut query = transaction
         .table("dbo.index_items as i")
         .forceIndex("idx_score")
         .lockForUpdate()
@@ -658,11 +658,11 @@ async fn cross_and_straight_join_variants() {
             db.unprepared(sql).await.unwrap();
         }
         let orders = || db.table("join_orders as o");
-        let labels = orders()
+        let mut labels = orders()
             .subquery("join_labels")
             .r#where("code", "=", "blue");
-        let cross = orders()
-            .crossJoinSub(&labels, "b")
+        let mut cross = orders()
+            .crossJoinSub(&mut labels, "b")
             .unwrap()
             .r#where("o.id", ">", 1)
             .orderBy("o.id", "asc");
@@ -673,9 +673,9 @@ async fn cross_and_straight_join_variants() {
             [2.into(), 2.into(), 3.into(), 3.into()]
         );
 
-        let straight = orders().straightJoin("join_labels as b", "o.id", "=", "b.order_id");
+        let mut straight = orders().straightJoin("join_labels as b", "o.id", "=", "b.order_id");
         let straight_sub = orders()
-            .straightJoinSub(&labels, "b", |join| {
+            .straightJoinSub(&mut labels, "b", |join| {
                 join.on("o.id", "=", "b.order_id")
                     .r#where("b.order_id", ">", 1)
             })
@@ -756,14 +756,14 @@ async fn postgres_update_from_sources_conditions_and_rollback() {
 
     let mut transaction = db.beginTransaction().await.unwrap();
     let orders = transaction.table("update_probe.orders as o");
-    let prices = orders
+    let mut prices = orders
         .subquery("update_probe.prices")
         .r#where("currency", "=", "USD");
     db.enableQueryLog();
     assert_eq!(
         orders
             .selectRaw("?", vec![999.into()])
-            .joinSub(&prices, "p", |join| join
+            .joinSub(&mut prices, "p", |join| join
                 .on("o.id", "=", "p.order_id")
                 .r#where("p.amount", ">", 9))
             .unwrap()
@@ -914,7 +914,7 @@ async fn correlated_lateral_joins_on_postgres_and_sql_server() {
                 .r#where("g.id", ">", 0)
                 .orderBy("g.id", "asc")
         };
-        let items = groups()
+        let mut items = groups()
             .subquery("lateral_items as i")
             .select(["i.id as item_id"])
             .whereColumn("i.group_id", "=", "g.id")
@@ -922,7 +922,7 @@ async fn correlated_lateral_joins_on_postgres_and_sql_server() {
             .orderByDesc("i.score")
             .limit(1);
 
-        let inner = groups().joinLateral(&items, "best").unwrap();
+        let mut inner = groups().joinLateral(&mut items, "best").unwrap();
         let sql = inner.toSql().unwrap();
         assert!(sql.contains(inner_operator));
         assert_eq!(
@@ -938,7 +938,7 @@ async fn correlated_lateral_joins_on_postgres_and_sql_server() {
             [12.into(), 21.into()]
         );
 
-        let left = groups().leftJoinLateral(&items, "best").unwrap();
+        let mut left = groups().leftJoinLateral(&mut items, "best").unwrap();
         assert!(left.toSql().unwrap().contains(left_operator));
         let rows = left.get().await.unwrap();
         assert_eq!(rows.len(), 3);
@@ -948,7 +948,7 @@ async fn correlated_lateral_joins_on_postgres_and_sql_server() {
 
         let other = connection(json!({"url":url, "prefix":"app_"}));
         assert!(matches!(
-            groups().joinLateral(&other.table("lateral_items"), "best"),
+            groups().joinLateral(&mut other.table("lateral_items"), "best"),
             Err(DatabaseError::InvalidQuery("subquery connection"))
         ));
 
@@ -960,7 +960,7 @@ async fn correlated_lateral_joins_on_postgres_and_sql_server() {
         let group = transaction
             .table("lateral_groups as g")
             .r#where("g.id", "=", 3);
-        let item = group
+        let mut item = group
             .subquery("lateral_items as i")
             .select(["i.id as item_id"])
             .whereColumn("i.group_id", "=", "g.id")
@@ -968,7 +968,7 @@ async fn correlated_lateral_joins_on_postgres_and_sql_server() {
             .limit(1);
         assert_eq!(
             group
-                .joinLateral(&item, "best")
+                .joinLateral(&mut item, "best")
                 .unwrap()
                 .value("best.item_id")
                 .await
@@ -1574,12 +1574,12 @@ async fn verify(db: Connection, mysql: bool) {
     );
 
     let base = db.table("q_items as i");
-    let sub = base
+    let mut sub = base
         .subquery("q_groups as g")
         .select(["g.id"])
         .r#where("g.region", "=", "east");
     assert_eq!(
-        base.joinSub(&sub, "s", |join| join.on("i.group_id", "=", "s.id"))
+        base.joinSub(&mut sub, "s", |join| join.on("i.group_id", "=", "s.id"))
             .unwrap()
             .orderBy("i.code", "asc")
             .pluck("i.code")
@@ -1589,12 +1589,12 @@ async fn verify(db: Connection, mysql: bool) {
     );
 
     let base = db.table("q_items as i");
-    let exists = base
+    let mut exists = base
         .subquery("q_groups as g")
         .whereColumn("g.id", "=", "i.group_id")
         .r#where("g.region", "=", "west");
     assert_eq!(
-        base.whereExists(&exists)
+        base.whereExists(&mut exists)
             .unwrap()
             .pluck("i.code")
             .await
@@ -1603,13 +1603,13 @@ async fn verify(db: Connection, mysql: bool) {
     );
 
     let base = items().select(["code"]).r#where("stock", "=", 8).limit(1);
-    let other = base
+    let mut other = base
         .subquery("q_items")
         .select(["code"])
         .r#where("code", "=", "c");
     let union = base
         .orderBy("code", "asc")
-        .unionAll(&other)
+        .unionAll(&mut other)
         .unwrap()
         .orderBy("code", "desc");
     assert_eq!(union.getBindings().unwrap(), [8.into(), "c".into()]);
@@ -1619,16 +1619,19 @@ async fn verify(db: Connection, mysql: bool) {
     );
 
     let base = items();
-    let inner = base
+    let mut inner = base
         .subquery("q_items")
         .select(["code"])
         .r#where("stock", ">", 8);
-    let outer = base.fromSub(&inner, "high").unwrap().select(["high.code"]);
+    let outer = base
+        .fromSub(&mut inner, "high")
+        .unwrap()
+        .select(["high.code"]);
     assert_eq!(outer.getBindings().unwrap(), [8.into()]);
     assert_eq!(outer.get().await.unwrap()[0].get("code"), Some(&"c".into()));
 
     let base = db.table("q_groups as g");
-    let inner = base
+    let mut inner = base
         .subquery("q_items as i")
         .select(["i.code"])
         .whereColumn("i.group_id", "=", "g.id")
@@ -1636,7 +1639,7 @@ async fn verify(db: Connection, mysql: bool) {
         .limit(1);
     if mysql {
         assert_eq!(
-            base.joinLateral(&inner, "top_item")
+            base.joinLateral(&mut inner, "top_item")
                 .unwrap()
                 .orderBy("g.id", "asc")
                 .pluck("top_item.code")
@@ -1646,26 +1649,29 @@ async fn verify(db: Connection, mysql: bool) {
         );
     } else {
         assert!(matches!(
-            base.joinLateral(&inner, "top_item"),
+            base.joinLateral(&mut inner, "top_item"),
             Err(DatabaseError::InvalidQuery("lateral join dialect"))
         ));
     }
 
-    let foreign = connection(json!({"driver":"sqlite","database":":memory:"})).table("q_items");
+    let mut foreign = connection(json!({"driver":"sqlite","database":":memory:"})).table("q_items");
     assert!(matches!(
-        items().whereExists(&foreign),
+        items().whereExists(&mut foreign),
         Err(DatabaseError::InvalidQuery("subquery connection"))
     ));
 
     let archive = db.table("q_archive");
-    let source = archive
+    let mut source = archive
         .subquery("q_items")
         .select(["code"])
         .r#where("code", "=", "a");
-    assert_eq!(archive.insertUsing(&["code"], &source).await.unwrap(), 1);
+    assert_eq!(
+        archive.insertUsing(&["code"], &mut source).await.unwrap(),
+        1
+    );
     assert_eq!(
         db.table("q_archive")
-            .insertOrIgnoreUsing(&["code"], &source)
+            .insertOrIgnoreUsing(&["code"], &mut source)
             .await
             .unwrap(),
         0
@@ -2076,14 +2082,14 @@ async fn mysql_qualifies_subqueries_from_another_schema_without_executing_the_in
     let catalog = connection(json!({"url":catalog_url.as_str()}));
     db.unprepared("CREATE TABLE q_cross_catalog (column_name VARCHAR(40) PRIMARY KEY); INSERT INTO q_cross_catalog VALUES ('column_name'), ('unlisted'); CREATE TABLE q_cross_catalog_archive (name VARCHAR(40))").await.unwrap();
 
-    let source = catalog
+    let mut source = catalog
         .table("COLUMNS as c")
         .select(["c.COLUMN_NAME"])
         .r#where("c.TABLE_SCHEMA", "=", db.getDatabaseName())
         .r#where("c.TABLE_NAME", "=", "q_cross_catalog");
-    let outer = db
+    let mut outer = db
         .table("q_cross_catalog")
-        .whereInSub("column_name", &source)
+        .whereInSub("column_name", &mut source)
         .unwrap();
     assert!(
         outer
@@ -2111,7 +2117,7 @@ async fn mysql_qualifies_subqueries_from_another_schema_without_executing_the_in
     let mut tx = db.beginTransaction().await.unwrap();
     assert_eq!(
         tx.table("q_cross_catalog_archive")
-            .insertUsing(&["name"], &source)
+            .insertUsing(&["name"], &mut source)
             .await
             .unwrap(),
         1
@@ -2132,34 +2138,34 @@ async fn mysql_qualifies_subqueries_from_another_schema_without_executing_the_in
         0
     );
 
-    let qualified = catalog
+    let mut qualified = catalog
         .table("information_schema.COLUMNS as c")
         .select(["c.COLUMN_NAME"]);
     let sql = db
         .table("q_cross_catalog")
-        .whereInSub("column_name", &qualified)
+        .whereInSub("column_name", &mut qualified)
         .unwrap()
         .toSql()
         .unwrap();
     assert_eq!(sql.matches("`information_schema`").count(), 1);
 
     let prefixed = connection(json!({"url":catalog_url.as_str(),"prefix":"p_"}));
-    let query = prefixed.table("COLUMNS AS c").select(["c.COLUMN_NAME"]);
+    let mut query = prefixed.table("COLUMNS AS c").select(["c.COLUMN_NAME"]);
     let sql = db
         .table("q_cross_catalog")
-        .selectSub(&query, "matched")
+        .selectSub(&mut query, "matched")
         .unwrap()
         .toSql()
         .unwrap();
     assert!(sql.contains("`information_schema`.`p_COLUMNS` as `p_c`"));
 
     let same_database = connection(json!({"url":url}));
-    let source = same_database
+    let mut source = same_database
         .table("q_cross_catalog")
         .select(["column_name"]);
     assert_eq!(
         db.table("q_cross_catalog")
-            .whereInSub("column_name", &source)
+            .whereInSub("column_name", &mut source)
             .unwrap()
             .count("*")
             .await
@@ -2174,7 +2180,7 @@ async fn mysql_qualifies_subqueries_from_another_schema_without_executing_the_in
     let foreign = connection(json!({"url":catalog_url.as_str(),"acquire_timeout":1}));
     assert!(matches!(
         db.table("q_cross_catalog")
-            .whereExists(&foreign.table("COLUMNS")),
+            .whereExists(&mut foreign.table("COLUMNS")),
         Err(DatabaseError::InvalidQuery("subquery connection"))
     ));
     db.unprepared("DROP TABLE q_cross_catalog_archive; DROP TABLE q_cross_catalog")

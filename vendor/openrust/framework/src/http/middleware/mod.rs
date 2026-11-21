@@ -11,3 +11,6 @@ pub use set_cache_headers::SetCacheHeaders;
 pub(super) use set_cache_headers::set_public_cache_control;
 pub use validate_path_encoding::ValidatePathEncoding;
 pub use validate_post_size::ValidatePostSize;
+
+mod prefers_json_responses;
+pub use prefers_json_responses::PrefersJsonResponses;

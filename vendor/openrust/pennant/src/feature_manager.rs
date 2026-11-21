@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use crate::{
     Error, PendingScopedFeatureInteraction, Result, Scope,
     contracts::Definitions,
@@ -278,7 +280,7 @@ impl FeatureManager {
         Ok(Scope::Model {
             class: class.into(),
             morph,
-            key: user.get_auth_identifier().to_string(),
+            key: user.getAuthIdentifier().to_string(),
         })
     }
     /// Resolves a lazy guard when the caller has the native HTTP request.

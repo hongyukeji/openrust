@@ -22,7 +22,7 @@ pub(super) struct Transport<'a> {
     pub redact_response: bool,
     pub digest: Option<&'a DigestCredentials>,
     pub digest_origin: url::Origin,
-    pub max_redirects: usize,
+    pub max_redirects: Option<usize>,
     pub timeout: Duration,
     pub body_limit: usize,
 }
@@ -55,7 +55,10 @@ impl Transport<'_> {
                         callback(&mut request)?;
                     }
                     sent = (recording || has_events).then(|| self.snapshot(&request));
-                    redirect = (self.max_redirects > 0).then(|| Redirect::from(&request));
+                    redirect = self
+                        .max_redirects
+                        .is_some()
+                        .then(|| Redirect::from(&request));
                     replay = (authentications < 2
                         && self.digest.is_some()
                         && self.digest_origin == request.url().origin()
@@ -147,7 +150,7 @@ impl Transport<'_> {
                 if is_authenticated {
                     authentications += 1;
                 } else {
-                    if redirects == self.max_redirects {
+                    if Some(redirects) == self.max_redirects {
                         return Err(Error::RedirectLimit);
                     }
                     redirects += 1;

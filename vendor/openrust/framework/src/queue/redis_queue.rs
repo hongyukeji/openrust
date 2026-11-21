@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use std::{
     sync::Arc,
     time::{Duration, SystemTime, UNIX_EPOCH},
@@ -308,7 +310,7 @@ impl Contract for RedisQueue {
         Some(self)
     }
 
-    fn get_connection_name(&self) -> &str {
+    fn getConnectionName(&self) -> &str {
         &self.name
     }
 

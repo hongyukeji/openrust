@@ -75,8 +75,8 @@ impl DatabaseStorage {
         }
         Ok(graph)
     }
-    fn mapKeys(&self, query: Builder<'static>, columns: &[String]) -> Result<Builder<'static>> {
-        let keys = self
+    fn mapKeys(&self, mut query: Builder<'static>, columns: &[String]) -> Result<Builder<'static>> {
+        let mut keys = self
             .connection
             .table("pulse_entries as keys")
             .select(["key"])
@@ -86,8 +86,8 @@ impl DatabaseStorage {
             .connection
             .table("pulse_entries")
             .select(columns.iter().map(String::as_str))
-            .selectSub(&keys, "key")?
-            .fromSub(&query, "aggregated")?)
+            .selectSub(&mut keys, "key")?
+            .fromSub(&mut query, "aggregated")?)
     }
     pub async fn aggregate(
         &self,
@@ -142,13 +142,13 @@ impl DatabaseStorage {
                 .r#where("aggregate", "=", current.as_str())
                 .r#where("bucket", ">=", oldest)
                 .groupBy(&["key_hash"]);
-            tail = tail.unionAll(&buckets)?;
+            tail = tail.unionAll(&mut buckets)?;
         }
         let mut grouped = self
             .connection
             .table("pulse_entries")
             .select(["key_hash"])
-            .fromSub(&tail, "results")?;
+            .fromSub(&mut tail, "results")?;
         for a in aggregates {
             grouped = grouped.selectRaw(
                 &format!("{} as {}", self.aggregateSql(a, a), self.wrap(a)),
@@ -229,12 +229,12 @@ impl DatabaseStorage {
             .r#where("aggregate", "=", aggregate)
             .r#where("bucket", ">=", oldest)
             .groupBy(&["key_hash"]);
-        tail = tail.unionAll(&buckets)?;
+        tail = tail.unionAll(&mut buckets)?;
         let mut grouped = self
             .connection
             .table("pulse_entries")
             .select(["key_hash"])
-            .fromSub(&tail, "results")?;
+            .fromSub(&mut tail, "results")?;
         for t in types {
             grouped = grouped.selectRaw(
                 &format!("{} as {}", self.aggregateSql(aggregate, t), self.wrap(t)),
@@ -269,7 +269,7 @@ impl DatabaseStorage {
             .r#where("timestamp", ">=", window)
             .r#where("timestamp", "<=", oldest - 1)
             .groupBy(&["type"]);
-        let buckets = self
+        let mut buckets = self
             .connection
             .table("pulse_aggregates")
             .select(["type"])
@@ -286,7 +286,7 @@ impl DatabaseStorage {
             .r#where("aggregate", "=", aggregate)
             .r#where("bucket", ">=", oldest)
             .groupBy(&["type"]);
-        tail = tail.unionAll(&buckets)?;
+        tail = tail.unionAll(&mut buckets)?;
         let rows = self
             .connection
             .table("pulse_entries")
@@ -299,7 +299,7 @@ impl DatabaseStorage {
                 ),
                 vec![],
             )
-            .fromSub(&tail, "child")?
+            .fromSub(&mut tail, "child")?
             .groupBy(&["type"])
             .get()
             .await?;

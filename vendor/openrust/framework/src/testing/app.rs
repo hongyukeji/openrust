@@ -102,8 +102,21 @@ impl TestApp {
         let body =
             tokio::time::timeout(RESPONSE_TIMEOUT, axum::body::to_bytes(body, RESPONSE_LIMIT))
                 .await;
+        use crate::contracts::session::Session as _;
+        let session = request
+            .session()
+            .ok()
+            .map(|session| serde_json::to_value(session.all()).expect("Session 可序列化"))
+            .unwrap_or_default();
         kernel.terminate(request.parts(), &parts).await;
-        Ok(TestResponse::new(parts.status, parts.headers, body??))
+        let encrypter = self
+            .app
+            .container()
+            .make::<dyn crate::contracts::encryption::Encrypter>()
+            .ok();
+        Ok(TestResponse::new(parts.status, parts.headers, body??)
+            .with_session(session)
+            .with_encrypter(encrypter))
     }
 
     /// Dispatches a GET request through the application's HTTP kernel.

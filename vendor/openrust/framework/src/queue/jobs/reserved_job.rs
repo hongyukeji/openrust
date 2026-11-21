@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use std::{sync::Arc, time::Duration};
 
 use crate::contracts::queue::Job;
@@ -32,13 +34,13 @@ impl Job for ReservedJob {
     fn uuid(&self) -> &str {
         self.payload.uuid()
     }
-    fn get_job_id(&self) -> &str {
+    fn getJobId(&self) -> &str {
         &self.id
     }
-    fn get_connection_name(&self) -> &str {
+    fn getConnectionName(&self) -> &str {
         self.context.connection()
     }
-    fn get_queue(&self) -> &str {
+    fn getQueue(&self) -> &str {
         self.context.queue()
     }
     fn payload(&self) -> &Payload {
@@ -50,16 +52,16 @@ impl Job for ReservedJob {
     fn attempts(&self) -> u32 {
         self.context.attempts()
     }
-    fn is_deleted(&self) -> bool {
+    fn isDeleted(&self) -> bool {
         self.deleted
     }
-    fn is_released(&self) -> bool {
+    fn isReleased(&self) -> bool {
         self.released
     }
-    fn has_failed(&self) -> bool {
+    fn hasFailed(&self) -> bool {
         self.failed
     }
-    fn mark_as_failed(&mut self) {
+    fn markAsFailed(&mut self) {
         self.failed = true;
     }
 

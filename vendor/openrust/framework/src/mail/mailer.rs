@@ -13,8 +13,7 @@ use crate::{
 };
 
 use super::{
-    MailError, MailFuture, MailResult, Mailable, Message, MessageDraft, SendQueuedMailable,
-    SentMessage,
+    MailFuture, MailResult, Mailable, Message, MessageDraft, SendQueuedMailable, SentMessage,
     mailables::Address,
     message_customization::MessageCustomizers,
     pending_mail::Recipients,
@@ -25,6 +24,8 @@ use super::{
 pub struct Mailer {
     pub(crate) name: String,
     pub(super) from: Option<Address>,
+    pub(super) defaults: std::sync::Mutex<super::address_defaults::Defaults>,
+    pub(super) owner: std::sync::Weak<crate::container::Container>,
     pub(super) views: Arc<view::Factory>,
     pub(super) markdown: super::Markdown,
     pub(super) events: Arc<Dispatcher>,
@@ -36,6 +37,72 @@ pub struct Mailer {
 
 #[allow(non_snake_case, reason = "Matches Laravel's Mailer API")]
 impl Mailer {
+    fn changeAddress(
+        &self,
+        change: impl FnOnce(&mut super::address_defaults::Defaults),
+    ) -> MailResult<()> {
+        use crate::contracts::container::Container as _;
+        let owner = self
+            .owner
+            .upgrade()
+            .ok_or_else(|| super::composition("邮件应用不可用"))?;
+        if owner.has_active_scope() {
+            let state = owner
+                .make::<super::address_defaults::AddressOverrides>()
+                .map_err(super::composition)?;
+            change(
+                state
+                    .0
+                    .lock()
+                    .expect("邮件地址覆盖锁中毒")
+                    .entry(self.name.clone())
+                    .or_default(),
+            );
+        } else {
+            // Provider 启动配置属于应用默认值；请求／任务中的覆盖只留在当前作用域。
+            change(&mut self.defaults.lock().expect("邮件默认地址锁中毒"));
+        }
+        Ok(())
+    }
+
+    pub fn alwaysFrom(&self, address: impl Into<Address>) -> MailResult<()> {
+        self.changeAddress(|defaults| defaults.from = Some(address.into()))
+    }
+    pub fn alwaysTo(&self, address: impl Into<Address>) -> MailResult<()> {
+        self.changeAddress(|defaults| defaults.to = Some(address.into()))
+    }
+    pub fn alwaysReplyTo(&self, address: impl Into<Address>) -> MailResult<()> {
+        self.changeAddress(|defaults| defaults.reply_to = Some(address.into()))
+    }
+    pub fn alwaysReturnPath(&self, address: impl Into<String>) -> MailResult<()> {
+        self.changeAddress(|defaults| defaults.return_path = Some(address.into()))
+    }
+
+    fn addresses(&self) -> super::address_defaults::Defaults {
+        use crate::contracts::container::Container as _;
+        let mut defaults = self.defaults.lock().expect("邮件默认地址锁中毒").clone();
+        if let Some(state) = self.owner.upgrade().and_then(|owner| {
+            owner
+                .make::<super::address_defaults::AddressOverrides>()
+                .ok()
+        }) && let Some(overrides) = state.0.lock().expect("邮件地址覆盖锁中毒").get(&self.name)
+        {
+            if overrides.from.is_some() {
+                defaults.from.clone_from(&overrides.from);
+            }
+            if overrides.to.is_some() {
+                defaults.to.clone_from(&overrides.to);
+            }
+            if overrides.reply_to.is_some() {
+                defaults.reply_to.clone_from(&overrides.reply_to);
+            }
+            if overrides.return_path.is_some() {
+                defaults.return_path.clone_from(&overrides.return_path);
+            }
+        }
+        defaults
+    }
+
     pub fn sent(&self) -> Option<Vec<SentMessage>> {
         self.captured.as_ref().map(|transport| transport.messages())
     }
@@ -44,7 +111,7 @@ impl Mailer {
         self.deliver(mailable, Recipients::default()).await
     }
 
-    pub async fn sendNow(&self, mailable: &dyn Mailable) -> MailResult<SentMessage> {
+    pub async fn sendNow(&self, mailable: &dyn Mailable) -> MailResult<Option<SentMessage>> {
         self.send_now_to(mailable, Recipients::default()).await
     }
 
@@ -74,10 +141,8 @@ impl Mailer {
         &self,
         mailable: &dyn Mailable,
         recipients: Recipients,
-    ) -> MailResult<SentMessage> {
-        self.send_immediately(mailable, recipients)
-            .await?
-            .ok_or(MailError::Cancelled)
+    ) -> MailResult<Option<SentMessage>> {
+        self.send_immediately(mailable, recipients).await
     }
 
     pub(super) async fn send_immediately(
@@ -153,10 +218,17 @@ impl Mailer {
         mailable: &dyn Mailable,
         recipients: &Recipients,
     ) -> MailResult<Message> {
+        let defaults = self.addresses();
         let mut envelope = mailable.envelope()?;
         recipients.fill(&mut envelope);
         if envelope.from.is_none() {
-            envelope.from.clone_from(&self.from);
+            envelope.from = defaults.from.clone().or_else(|| self.from.clone());
+        }
+        if let Some(address) = defaults.reply_to {
+            envelope.reply_to.insert(0, address);
+        }
+        if envelope.return_path.is_none() {
+            envelope.return_path = defaults.return_path;
         }
         let mut draft = MessageDraft::render(
             envelope,
@@ -166,6 +238,11 @@ impl Mailer {
             &self.markdown,
         )?;
         self.customizers.apply(&mut draft)?;
+        if let Some(address) = defaults.to {
+            draft.envelope.to = vec![address];
+            draft.envelope.cc.clear();
+            draft.envelope.bcc.clear();
+        }
         // Storage and URL resolution can hold large transport futures.
         for source in std::mem::take(&mut draft.attachment_sources) {
             draft.attachments.push(Box::pin(source.resolve()).await?);
@@ -212,7 +289,7 @@ impl Contract for Mailer {
         Box::pin(self.send(mailable))
     }
 
-    fn send_now<'a>(
+    fn sendNow<'a>(
         &'a self,
         mailable: &'a dyn Mailable,
     ) -> MailFuture<'a, MailResult<Option<SentMessage>>> {

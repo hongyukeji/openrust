@@ -56,22 +56,7 @@ pub(super) fn list(value: &str) -> Vec<&str> {
 }
 
 pub(super) fn slug(name: &str) -> String {
-    name.split(|character: char| !character.is_alphanumeric())
-        .filter(|part| !part.is_empty())
-        .map(str::to_lowercase)
-        .collect::<Vec<_>>()
-        .join("-")
-}
-
-pub(super) fn snake(name: &str) -> String {
-    let mut result = String::new();
-    for character in name.chars().filter(|character| !character.is_whitespace()) {
-        if character.is_uppercase() && !result.is_empty() {
-            result.push('_');
-        }
-        result.extend(character.to_lowercase());
-    }
-    result
+    openrust::support::Str::slug(name)
 }
 
 pub(super) fn path(value: &Path) -> Result<&str, ConfigError> {

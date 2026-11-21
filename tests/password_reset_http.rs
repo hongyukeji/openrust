@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use std::{
     net::SocketAddr,
     path::{Path, PathBuf},
@@ -193,10 +195,10 @@ fn reset(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
                         .await
                         .map_err(backend)?;
                     model.setAttribute("password", hash);
-                    model.set_remember_token(Some("rotated".into()));
+                    model.setRememberToken(Some("rotated".into()));
                     model.save().await.map_err(backend)?;
                     Event::dispatch(PasswordReset {
-                        user: model.get_auth_identifier(),
+                        user: model.getAuthIdentifier(),
                     })
                     .await
                     .map_err(backend)?;
@@ -240,7 +242,7 @@ fn verify(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
         let authenticated = Auth::user(request)
             .await?
             .ok_or(HttpError::Unauthenticated)?;
-        let mut user = User::find(Value::from(authenticated.get_auth_identifier()))
+        let mut user = User::find(Value::from(authenticated.getAuthIdentifier()))
             .await
             .map_err(backend)?
             .ok_or(HttpError::Unauthenticated)?;

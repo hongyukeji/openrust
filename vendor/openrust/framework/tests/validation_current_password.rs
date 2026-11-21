@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use axum::{extract::State, handler::Handler as _};
 use openrust::{
     auth::{Auth, AuthIdentifier, AuthManager},
@@ -27,23 +29,23 @@ use tokio::{
 
 struct User(String);
 impl Authenticatable for User {
-    fn get_auth_identifier_name(&self) -> &str {
+    fn getAuthIdentifierName(&self) -> &str {
         "id"
     }
-    fn get_auth_identifier(&self) -> AuthIdentifier {
+    fn getAuthIdentifier(&self) -> AuthIdentifier {
         "user".into()
     }
-    fn get_auth_password_name(&self) -> &str {
+    fn getAuthPasswordName(&self) -> &str {
         "password"
     }
-    fn get_auth_password(&self) -> Option<&str> {
+    fn getAuthPassword(&self) -> Option<&str> {
         Some(&self.0)
     }
-    fn get_remember_token(&self) -> Option<&str> {
+    fn getRememberToken(&self) -> Option<&str> {
         None
     }
-    fn set_remember_token(&mut self, _: Option<String>) {}
-    fn get_remember_token_name(&self) -> &str {
+    fn setRememberToken(&mut self, _: Option<String>) {}
+    fn getRememberTokenName(&self) -> &str {
         "remember_token"
     }
 }

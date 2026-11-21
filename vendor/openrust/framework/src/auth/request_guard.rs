@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use std::sync::Arc;
 
 use crate::{
@@ -43,7 +45,7 @@ impl Guard for RequestGuard<'_> {
     }
 
     fn id(&mut self) -> AuthFuture<'_, AuthResult<Option<AuthIdentifier>>> {
-        Box::pin(async move { Ok(self.user().await?.map(Authenticatable::get_auth_identifier)) })
+        Box::pin(async move { Ok(self.user().await?.map(Authenticatable::getAuthIdentifier)) })
     }
 
     fn check(&mut self) -> AuthFuture<'_, AuthResult<bool>> {

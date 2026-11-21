@@ -302,6 +302,67 @@ impl FilesystemAdapter {
         self.or_default(result.map_err(FilesystemError::from))
     }
 
+    pub async fn copy(&self, from: &str, to: &str) -> FilesystemResult<bool> {
+        validate_path(from)?;
+        validate_path(to)?;
+        if let Driver::S3(disk) = &self.driver {
+            return self.or_default(disk.copy(from, to).await.map(|()| true));
+        }
+        let Some(mut reader) = self.readStream(from).await? else {
+            return Ok(false);
+        };
+        let visibility = self.getVisibility(from).await?;
+        self.writeStreamWithOptions(
+            to,
+            &mut reader,
+            WriteOptions {
+                visibility: Some(visibility),
+            },
+        )
+        .await
+    }
+
+    pub async fn r#move(&self, from: &str, to: &str) -> FilesystemResult<bool> {
+        validate_path(from)?;
+        validate_path(to)?;
+        if from == to {
+            return self.exists(from).await;
+        }
+        if self.copy(from, to).await? {
+            self.delete(from).await
+        } else {
+            Ok(false)
+        }
+    }
+
+    pub async fn append(&self, path: &str, data: &str, separator: &str) -> FilesystemResult<bool> {
+        let exists = self.exists(path).await?;
+        let mut bytes = self.get(path).await?.unwrap_or_default();
+        if exists {
+            bytes.extend_from_slice(separator.as_bytes());
+        }
+        bytes.extend_from_slice(data.as_bytes());
+        self.put(path, bytes).await
+    }
+
+    pub async fn prepend(&self, path: &str, data: &str, separator: &str) -> FilesystemResult<bool> {
+        let exists = self.exists(path).await?;
+        let existing = self.get(path).await?.unwrap_or_default();
+        let mut bytes = data.as_bytes().to_vec();
+        if exists {
+            bytes.extend_from_slice(separator.as_bytes());
+        }
+        bytes.extend_from_slice(&existing);
+        self.put(path, bytes).await
+    }
+
+    pub async fn json(&self, path: &str) -> FilesystemResult<Option<serde_json::Value>> {
+        Ok(self
+            .get(path)
+            .await?
+            .and_then(|bytes| serde_json::from_slice(&bytes).ok()))
+    }
+
     pub async fn size(&self, path: &str) -> FilesystemResult<u64> {
         validate_path(path)?;
         let Driver::Local(disk) = &self.driver else {

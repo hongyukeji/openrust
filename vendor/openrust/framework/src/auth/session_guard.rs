@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use std::{
     collections::HashMap,
     sync::{Arc, Weak},
@@ -284,13 +286,13 @@ impl<'a> SessionGuard<'a> {
             .and_then(|session| session.get(&self.session_key))
             .and_then(|value| serde_json::from_value::<AuthIdentifier>(value.clone()).ok());
         if let Some(id) = id
-            && let Some(user) = self.provider.retrieve_by_id(&id).await?
+            && let Some(user) = self.provider.retrieveById(&id).await?
         {
             return self.setUser(user).await;
         }
         if let Some(user) = self.recall().await? {
             let user: Arc<dyn Authenticatable> = user.into();
-            self.update_session(&user.get_auth_identifier()).await?;
+            self.update_session(&user.getAuthIdentifier()).await?;
             AuthContext::set_shared(self.request, &self.name, Some(user.clone()), true);
             return self
                 .emit(
@@ -325,7 +327,7 @@ impl<'a> SessionGuard<'a> {
         };
         let user = self
             .provider
-            .retrieve_by_token(&recaller.id, &recaller.token)
+            .retrieveByToken(&recaller.id, &recaller.token)
             .await?;
         Ok(user.filter(|user| {
             fingerprint(user.as_ref()).is_some_and(|current| {
@@ -350,17 +352,17 @@ impl<'a> SessionGuard<'a> {
             )
             .await?;
         }
-        let candidate = self.provider.retrieve_by_credentials(credentials).await?;
+        let candidate = self.provider.retrieveByCredentials(credentials).await?;
         if let Some(user) = &candidate
             && self
                 .provider
-                .validate_credentials(user.as_ref(), credentials)
+                .validateCredentials(user.as_ref(), credentials)
                 .await?
         {
             self.emit(
                 Validated {
                     guard: self.name.clone(),
-                    user: user.get_auth_identifier(),
+                    user: user.getAuthIdentifier(),
                 },
                 &[user.as_ref() as &Argument],
             )
@@ -432,13 +434,10 @@ impl<'a> SessionGuard<'a> {
         };
         if self.rehash {
             self.provider
-                .rehash_password_if_required(user.as_mut(), credentials, false)
+                .rehashPasswordIfRequired(user.as_mut(), credentials, false)
                 .await?;
             if remember {
-                return self
-                    .provider
-                    .retrieve_by_id(&user.get_auth_identifier())
-                    .await;
+                return self.provider.retrieveById(&user.getAuthIdentifier()).await;
             }
         }
         Ok(Some(user))
@@ -450,7 +449,7 @@ impl<'a> SessionGuard<'a> {
         remember: bool,
     ) -> AuthResult<()> {
         self.session()?;
-        let id = user.get_auth_identifier();
+        let id = user.getAuthIdentifier();
         if matches!(&id, AuthIdentifier::String(id) if id.is_empty()) {
             return Err(AuthError::InvalidIdentity);
         }
@@ -459,12 +458,12 @@ impl<'a> SessionGuard<'a> {
                 return Err(AuthError::UnprotectedRememberCookie);
             }
             let password = fingerprint(user.as_ref()).ok_or(AuthError::InvalidIdentity)?;
-            let token = match user.get_remember_token().filter(|token| !token.is_empty()) {
+            let token = match user.getRememberToken().filter(|token| !token.is_empty()) {
                 Some(token) => token.to_owned(),
                 None => {
                     let token = random_token()?;
                     self.provider
-                        .update_remember_token(user.as_mut(), &token)
+                        .updateRememberToken(user.as_mut(), &token)
                         .await?;
                     token
                 }
@@ -520,11 +519,11 @@ impl<'a> SessionGuard<'a> {
             return Ok(());
         };
         let remembered = state.via_remember;
-        let id = user.get_auth_identifier();
+        let id = user.getAuthIdentifier();
         self.session()?;
         let mut user = self
             .provider
-            .retrieve_by_id(&id)
+            .retrieveById(&id)
             .await?
             .ok_or(AuthError::InvalidIdentity)?;
         let credentials = Credentials::new(
@@ -533,7 +532,7 @@ impl<'a> SessionGuard<'a> {
         );
         if !self
             .provider
-            .validate_credentials(user.as_ref(), &credentials)
+            .validateCredentials(user.as_ref(), &credentials)
             .await?
         {
             return Err(AuthError::InvalidPassword);
@@ -543,11 +542,11 @@ impl<'a> SessionGuard<'a> {
             && (self.request.cookie(Some(&self.recaller))?.is_some()
                 || Cookie::hasQueued(&self.recaller, None).map_err(AuthError::backend)?);
         self.provider
-            .rehash_password_if_required(user.as_mut(), &credentials, true)
+            .rehashPasswordIfRequired(user.as_mut(), &credentials, true)
             .await?;
         let user: Arc<dyn Authenticatable> = self
             .provider
-            .retrieve_by_id(&id)
+            .retrieveById(&id)
             .await?
             .ok_or(AuthError::InvalidIdentity)?
             .into();
@@ -562,14 +561,14 @@ impl<'a> SessionGuard<'a> {
                 .get::<dyn Repository>("config")
                 .map_err(AuthError::backend)?;
             let value =
-                SessionFingerprint::from_config(config.as_ref()).sign(user.get_auth_password());
+                SessionFingerprint::from_config(config.as_ref()).sign(user.getAuthPassword());
             let key = SessionFingerprint::session_key(&self.name);
             self.session()?
                 .put(&key, serde_json::json!(value))
                 .map_err(AuthError::backend)?;
         }
         if refresh_cookie
-            && let Some(token) = user.get_remember_token().filter(|token| !token.is_empty())
+            && let Some(token) = user.getRememberToken().filter(|token| !token.is_empty())
         {
             let cookie = self.remember_cookie(id, token.to_owned(), changed)?;
             Cookie::queue(cookie).map_err(AuthError::backend)?;
@@ -590,7 +589,7 @@ impl<'a> SessionGuard<'a> {
         let Some(id) = self.id().await? else {
             return Ok(false);
         };
-        let Some(user) = self.provider.retrieve_by_id(&id).await? else {
+        let Some(user) = self.provider.retrieveById(&id).await? else {
             return Ok(false);
         };
         let credentials = Credentials::new(
@@ -599,7 +598,7 @@ impl<'a> SessionGuard<'a> {
         );
         if !self
             .provider
-            .validate_credentials(user.as_ref(), &credentials)
+            .validateCredentials(user.as_ref(), &credentials)
             .await?
         {
             return Ok(false);
@@ -636,15 +635,15 @@ impl<'a> SessionGuard<'a> {
             }
             if let Some(user) = &user
                 && user
-                    .get_remember_token()
+                    .getRememberToken()
                     .is_some_and(|token| !token.is_empty())
                 && let Some(mut current) = self
                     .provider
-                    .retrieve_by_id(&user.get_auth_identifier())
+                    .retrieveById(&user.getAuthIdentifier())
                     .await?
             {
                 self.provider
-                    .update_remember_token(current.as_mut(), &random_token()?)
+                    .updateRememberToken(current.as_mut(), &random_token()?)
                     .await?;
             }
             self.emit(
@@ -678,7 +677,7 @@ impl<'a> SessionGuard<'a> {
 }
 
 fn fingerprint(user: &dyn Authenticatable) -> Option<String> {
-    Some(URL_SAFE_NO_PAD.encode(digest(&SHA256, user.get_auth_password()?.as_bytes())))
+    Some(URL_SAFE_NO_PAD.encode(digest(&SHA256, user.getAuthPassword()?.as_bytes())))
 }
 
 fn random_token() -> AuthResult<String> {
@@ -696,7 +695,7 @@ impl Guard for SessionGuard<'_> {
     }
 
     fn id(&mut self) -> AuthFuture<'_, AuthResult<Option<AuthIdentifier>>> {
-        Box::pin(async move { Ok(self.user().await?.map(Authenticatable::get_auth_identifier)) })
+        Box::pin(async move { Ok(self.user().await?.map(Authenticatable::getAuthIdentifier)) })
     }
 
     fn check(&mut self) -> AuthFuture<'_, AuthResult<bool>> {
@@ -745,7 +744,7 @@ impl StatefulGuard for SessionGuard<'_> {
             };
             if self.rehash {
                 self.provider
-                    .rehash_password_if_required(user.as_mut(), credentials, false)
+                    .rehashPasswordIfRequired(user.as_mut(), credentials, false)
                     .await?;
             }
             self.setUser(user).await?;
@@ -767,7 +766,7 @@ impl StatefulGuard for SessionGuard<'_> {
         remember: bool,
     ) -> AuthFuture<'a, AuthResult<Option<&'a dyn Authenticatable>>> {
         Box::pin(async move {
-            let Some(user) = self.provider.retrieve_by_id(id).await? else {
+            let Some(user) = self.provider.retrieveById(id).await? else {
                 return Ok(None);
             };
             self.persist(user, remember).await?;
@@ -777,7 +776,7 @@ impl StatefulGuard for SessionGuard<'_> {
 
     fn once_using_id<'a>(&'a mut self, id: &'a AuthIdentifier) -> AuthFuture<'a, AuthResult<bool>> {
         Box::pin(async move {
-            let Some(user) = self.provider.retrieve_by_id(id).await? else {
+            let Some(user) = self.provider.retrieveById(id).await? else {
                 return Ok(false);
             };
             self.setUser(user).await?;

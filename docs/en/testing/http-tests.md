@@ -20,3 +20,6 @@ async fn health_route_responds() -> Result<(), Box<dyn std::error::Error + Send 
 ## Inspecting responses
 
 The returned `TestResponse` exposes status, headers, and body. Chain `assertStatus`, `assertHeader`, `assertContent`, or `assertExactJson` to check them. Body capture has a 1 MiB limit and a five-second timeout. Use a running listener and an HTTP client to test transport behavior such as connection metadata.
+## Response Assertions
+
+Use `assertJsonPath` for dot paths, `assertJsonStructure` for nested/wildcard structure, and `assertJsonValidationErrors` for keys in the JSON `errors` object. `assertRedirect`, `assertSessionHas`, and `assertDownload` inspect actual response and session state. `assertCookie` decrypts and validates framework encrypted string cookies when an expected value is supplied; use `assertPlainCookie` for unencrypted cookies. PHP cookie unserialization and the full set of optional PHP assertion arguments are not provided. Each failed assertion panics with the mismatched value or missing key.

@@ -20,12 +20,14 @@ pub(super) struct Registration {
     pub source: ListenerSource,
     pub(super) label: &'static str,
     pub after_commit: bool,
+    pub sequence: u64,
 }
 
 type ListenerResolver = fn(&Container) -> EventFuture<'_, EventResult<Arc<dyn Listener>>>;
 
 #[derive(Clone)]
 pub(super) enum ListenerSource {
+    Pushed(Arc<dyn Event>),
     Instance(Arc<dyn Listener>),
     Container(ListenerResolver),
     Queued(Arc<QueuedRegistration>),
@@ -40,6 +42,7 @@ pub(super) struct QueuedRegistration {
 
 #[derive(Default)]
 pub struct ListenerRegistry {
+    sequence: u64,
     exact: IndexMap<String, Vec<Registration>>,
     wildcard: IndexMap<String, Vec<Registration>>,
 }
@@ -103,12 +106,23 @@ impl ListenerRegistry {
                 label,
                 source,
                 after_commit,
+                sequence: 0,
             },
         );
         Ok(())
     }
 
-    fn add(&mut self, event: &str, registration: Registration) {
+    pub(super) fn sequence(&self) -> u64 {
+        self.sequence
+    }
+
+    pub(super) fn next_sequence(&mut self) -> u64 {
+        self.sequence += 1;
+        self.sequence
+    }
+
+    fn add(&mut self, event: &str, mut registration: Registration) {
+        registration.sequence = self.next_sequence();
         let registrations = if event.contains('*') {
             &mut self.wildcard
         } else {
@@ -147,6 +161,7 @@ impl ListenerRegistry {
                 label: listener.name(),
                 source: ListenerSource::Queued(Arc::new(queued)),
                 after_commit: false,
+                sequence: 0,
             },
         );
         Ok(())
@@ -181,7 +196,12 @@ impl ListenerRegistry {
             (&mut self.wildcard, other.wildcard),
         ] {
             for (name, listeners) in incoming {
-                existing.entry(name).or_default().extend(listeners);
+                let incoming = existing.entry(name).or_default();
+                for mut listener in listeners {
+                    self.sequence += 1;
+                    listener.sequence = self.sequence;
+                    incoming.push(listener);
+                }
             }
         }
     }
@@ -192,14 +212,6 @@ impl ListenerRegistry {
         } else {
             self.exact.shift_remove(event)
         }
-    }
-
-    pub(super) fn has_listeners(&self, event: &str) -> bool {
-        self.exact.contains_key(event)
-            || self
-                .wildcard
-                .keys()
-                .any(|pattern| wildcard_matches(pattern, event))
     }
 
     pub(super) fn selected(&self, name: &str, interfaces: &[&str]) -> Vec<Registration> {
@@ -224,6 +236,53 @@ impl ListenerRegistry {
             .flatten()
             .cloned()
             .collect()
+    }
+
+    pub(super) fn selected_with_pushed(
+        &self,
+        name: &str,
+        interfaces: &[&str],
+        pushed: &[Registration],
+        forgotten_through: Option<u64>,
+    ) -> Vec<Registration> {
+        let exact_len = self.exact.get(name).map_or(0, Vec::len);
+        let mut selected = self.selected(name, interfaces);
+        let tail = selected.split_off(exact_len);
+        if name.ends_with("_pushed")
+            && let Some(sequence) = forgotten_through
+        {
+            selected.retain(|registration| registration.sequence > sequence);
+        }
+        selected.extend_from_slice(pushed);
+        selected.sort_by_key(|registration| registration.sequence);
+        selected.extend(tail);
+        selected
+    }
+
+    pub(super) fn listed_with_pushed(
+        &self,
+        name: &str,
+        pushed: &[Registration],
+        forgotten: Option<u64>,
+    ) -> Vec<&'static str> {
+        let mut entries: Vec<_> = self
+            .exact
+            .get(name)
+            .or_else(|| self.wildcard.get(name))
+            .into_iter()
+            .flatten()
+            .filter(|entry| {
+                !name.ends_with("_pushed") || forgotten.is_none_or(|seq| entry.sequence > seq)
+            })
+            .cloned()
+            .collect();
+        entries.extend_from_slice(pushed);
+        entries.sort_by_key(|entry| entry.sequence);
+        entries.iter().map(|entry| entry.label).collect()
+    }
+
+    pub(super) fn forget_pushed(&mut self) {
+        self.exact.retain(|name, _| !name.ends_with("_pushed"));
     }
 
     pub(super) fn listing(&self) -> Vec<(String, Vec<&'static str>)> {

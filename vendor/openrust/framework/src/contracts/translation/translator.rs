@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "遵循 Laravel 翻译契约原名")]
+
 use std::collections::BTreeMap;
 
 use crate::translation::{Lines, TranslationResult};
@@ -26,6 +28,8 @@ pub trait Translator: Send + Sync {
         locale: Option<&str>,
     ) -> TranslationResult<Lines>;
 
-    fn get_locale(&self) -> &str;
-    fn set_locale(&mut self, locale: &str);
+    fn getLocale(&self) -> String;
+    fn setLocale(&self, locale: &str) -> TranslationResult<()>;
+    fn getFallback(&self) -> String;
+    fn setFallback(&self, fallback: &str) -> TranslationResult<()>;
 }

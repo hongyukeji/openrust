@@ -15,7 +15,37 @@ impl Facade for Log {
     }
 }
 
+#[allow(non_snake_case, reason = "遵循 Laravel 日志原名")]
 impl Log {
+    pub fn withContext(context: LogContext) -> LogResult<Arc<Logger>> {
+        Self::getFacadeRoot()
+            .map_err(LogError::Unavailable)?
+            .withContext(context)
+    }
+    pub fn withoutContext(keys: Option<&[&str]>) -> LogResult<()> {
+        Self::getFacadeRoot()
+            .map_err(LogError::Unavailable)?
+            .withoutContext(keys);
+        Ok(())
+    }
+    pub fn shareContext(context: LogContext) -> LogResult<()> {
+        Self::getFacadeRoot()
+            .map_err(LogError::Unavailable)?
+            .shareContext(context);
+        Ok(())
+    }
+    pub fn sharedContext() -> LogResult<LogContext> {
+        Ok(Self::getFacadeRoot()
+            .map_err(LogError::Unavailable)?
+            .sharedContext())
+    }
+    pub fn flushSharedContext() -> LogResult<()> {
+        Self::getFacadeRoot()
+            .map_err(LogError::Unavailable)?
+            .flushSharedContext();
+        Ok(())
+    }
+
     pub fn listen(
         listener: impl Fn(&super::events::MessageLogged) -> LogResult<()> + Send + Sync + 'static,
     ) -> LogResult<()> {

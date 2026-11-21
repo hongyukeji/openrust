@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use crate::{
     ActivityBuffer, ActivityLogContext, ActivityLogStatus, ActivityRepository, CauserResolver,
     Redaction, actions::LogActivityAction,
@@ -154,7 +156,7 @@ impl ServiceProvider for ActivitylogServiceProvider {
                                     let user = auth
                                         .createUserProvider(&provider)
                                         .map_err(|_| crate::Error::InvalidConfiguration)?
-                                        .retrieve_by_id(&id)
+                                        .retrieveById(&id)
                                         .await
                                         .map_err(|_| crate::Error::InvalidActivity)?
                                         .ok_or(crate::Error::InvalidActivity)?;
@@ -168,7 +170,7 @@ impl ServiceProvider for ActivitylogServiceProvider {
                                     Ok((
                                         crate::Subject::new(
                                             kind,
-                                            user.get_auth_identifier().to_string(),
+                                            user.getAuthIdentifier().to_string(),
                                         )?,
                                         attributes.into(),
                                     ))
@@ -179,7 +181,7 @@ impl ServiceProvider for ActivitylogServiceProvider {
                                 else {
                                     return Ok(serde_json::json!({}));
                                 };
-                                if user.get_auth_identifier().to_string() != subject.id {
+                                if user.getAuthIdentifier().to_string() != subject.id {
                                     return Ok(serde_json::json!({}));
                                 }
                                 let kind = defaultAuth
@@ -202,7 +204,7 @@ impl ServiceProvider for ActivitylogServiceProvider {
                                 .userMorphClass(user.as_ref())
                                 .map_err(|_| crate::Error::InvalidActivity)?
                                 .ok_or(crate::Error::InvalidActivity)?;
-                            crate::Subject::new(kind, user.get_auth_identifier().to_string())
+                            crate::Subject::new(kind, user.getAuthIdentifier().to_string())
                                 .map(Some)
                         }),
                 ))

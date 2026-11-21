@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use std::{
     collections::HashMap,
     sync::{Arc, RwLock, Weak},
@@ -191,14 +193,14 @@ impl AuthManager {
         let mut attributes = match serializer {
             Some(serialize) => serialize(user)?,
             None => [(
-                user.get_auth_identifier_name().to_owned(),
-                serde_json::to_value(user.get_auth_identifier()).map_err(AuthError::backend)?,
+                user.getAuthIdentifierName().to_owned(),
+                serde_json::to_value(user.getAuthIdentifier()).map_err(AuthError::backend)?,
             )]
             .into_iter()
             .collect(),
         };
-        attributes.remove(user.get_auth_password_name());
-        attributes.remove(user.get_remember_token_name());
+        attributes.remove(user.getAuthPasswordName());
+        attributes.remove(user.getRememberTokenName());
         Ok(attributes)
     }
 
@@ -266,7 +268,7 @@ impl AuthManager {
             .container
             .upgrade()
             .ok_or(AuthError::Configuration("application scope"))?;
-        factory(&container, &Value::Null)?.retrieve_by_id(id).await
+        factory(&container, &Value::Null)?.retrieveById(id).await
     }
 
     /// Registers a compiled guard resolver with Laravel's guard name and configuration.
@@ -321,7 +323,7 @@ impl AuthManager {
     }
 
     pub fn shouldUse(&self, request: &mut Request, name: &str) -> AuthResult<()> {
-        self.should_use(request, name)
+        <Self as Factory>::shouldUse(self, request, name)
     }
 
     pub fn sessionGuard<'a>(
@@ -607,7 +609,7 @@ impl Factory for AuthManager {
         }
     }
 
-    fn should_use(&self, request: &mut Request, name: &str) -> AuthResult<()> {
+    fn shouldUse(&self, request: &mut Request, name: &str) -> AuthResult<()> {
         self.guard_config(request, Some(name))?;
         AuthContext::mutable(request).selected = Some(name.to_owned());
         AuthContext::publish(request);

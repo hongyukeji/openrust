@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use std::{
     ffi::OsString,
     net::SocketAddr,
@@ -1249,7 +1251,7 @@ fn dispatch(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
             }
         } else if kind == "timed_pause" {
             let connection = Queue::connection(None)?;
-            let name = connection.get_connection_name();
+            let name = connection.getConnectionName();
             Queue::pauseFor(name, "default", Ttl::Seconds(3)).await?;
             assert!(Queue::isPaused(name, "default").await?);
             assert_eq!(

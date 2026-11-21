@@ -61,3 +61,7 @@ Set `CACHE_STORE=redis` to select Redis as the default cache. The cache uses `RE
 Set `REDIS_CACHE_CONNECTION` or `REDIS_CACHE_LOCK_CONNECTION` to a cluster name for cache values or individual locks. Cluster batch reads preserve input order across slots. Batch writes route each entry separately. `cache:clear` clears all primary nodes. Tagged cache also supports clusters. See [cache tags](../digging-deeper/cache.md#cache-tags) for flushing and pruning. During an explicit slot redirection, cache batch reads fall back to individual key reads.
 
 Lock-only clearing supports a dedicated standalone database or a dedicated cluster. Redis flushes the entire lock backend. The cache and lock connections must point to different databases or clusters. When a cluster is involved, allow `CLUSTER INFO`, `CLUSTER NODES`, and `INFO CLUSTER` on a standalone peer so OpenRust can detect aliases before clearing.
+
+## Rebuilding and extending connections
+
+`RedisManager::purge(name)` removes the cached named connection. Resolution creates a new connection while existing `Arc<Connection>` handles remain usable. `extend(client, creator)` registers a real connection factory receiving the manager, name, and configuration, returning the existing connection type with its event support. Unknown client names do not silently select the default driver.

@@ -163,7 +163,7 @@ pub fn consent(request: &mut Request, params: AuthorizationViewParameters)
         Response::json(StatusCode::OK, serde_json::json!({
             "auth_token": params.auth_token,
             "csrf": request.session()?.token(),
-            "user": params.user.get_auth_identifier(),
+            "user": params.user.getAuthIdentifier(),
             "scopes": params.scopes,
         }))
     })
@@ -290,7 +290,7 @@ Password 和 Implicit 默认关闭，创建对应客户端记录不会启用协�
 
 通过 `artisan passport:client --password --provider=users` 创建客户端（`--public` 创建公开客户端）。向 `POST /oauth/token` 发送 `grant_type=password`、`client_id`、`username`、`password` 和可选 `scope`；机密客户端还提供 `client_secret` 或 HTTP Basic。成功返回签名访问令牌，客户端支持时也签发刷新令牌，沿用普通访问／刷新期限。错误用户凭据返回 400 `invalid_grant`、`The user credentials were incorrect.`；缺字段、错误客户端和未知 scope 保留 OAuth 错误响应。
 
-`bridge::UserRepository::getUserEntityByUserCredentials` 选择客户端 provider，空值回退到 `auth.guards.api.provider`。默认编译 Eloquent provider 查询 `email` 并验证真实密码哈希。框架自定义 `UserProvider` 通过 `retrieve_by_credentials`、`validate_credentials` 提供模型 `findForPassport` 和 `validateForPassportPasswordGrant` 的原生等价职责，不启动 Session、不重新哈希密码。
+`bridge::UserRepository::getUserEntityByUserCredentials` 选择客户端 provider，空值回退到 `auth.guards.api.provider`。默认编译 Eloquent provider 查询 `email` 并验证真实密码哈希。框架自定义 `UserProvider` 通过 `retrieveByCredentials`、`validateCredentials` 提供模型 `findForPassport` 和 `validateForPassportPasswordGrant` 的原生等价职责，不启动 Session、不重新哈希密码。
 
 组合模型钩子 `findAndValidateForPassport` 使用 `passport.findAndValidateForPassportUsing("users", resolver)` 注册。原生 `bridge::PasswordGrantResolver` 是接收借用用户名、密码和 `ClientRecord` 的编译函数，返回 `AuthFuture<AuthResult<Option<AuthIdentifier>>>`；它优先处理该 provider，须执行应用真实查询及验证。显式注册替代 PHP 运行时方法发现。异常返回脱敏 500，不冒充密码错误。
 

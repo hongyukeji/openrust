@@ -20,6 +20,18 @@ pub(super) enum Kind {
     Bail,
     String,
     Integer,
+    StrictInteger,
+    StrictBoolean,
+    Numeric,
+    Date,
+    Accepted,
+    Url,
+    Uuid,
+    In(Vec<String>),
+    Regex(Arc<pcre2::bytes::Regex>),
+    RequiredIf(String, Vec<String>),
+    ExcludeIf(String, Vec<String>),
+    ArrayKeys(Vec<String>),
     Boolean,
     Base64,
     Email,
@@ -27,10 +39,10 @@ pub(super) enum Kind {
     CurrentPassword(Option<String>),
     Password(Password),
     Array,
-    Min(usize),
-    Max(usize),
-    Size(usize),
-    Between(usize, usize),
+    Min(bigdecimal::BigDecimal),
+    Max(bigdecimal::BigDecimal),
+    Size(bigdecimal::BigDecimal),
+    Between(bigdecimal::BigDecimal, bigdecimal::BigDecimal),
     File(File),
     Dimensions(Dimensions),
     Encoding(EncodingRule),
@@ -80,11 +92,11 @@ impl Rule {
     pub fn array() -> Self {
         Self(Kind::Array)
     }
-    pub fn min(bound: usize) -> Self {
-        Self(Kind::Min(bound))
+    pub fn min(bound: impl Into<bigdecimal::BigDecimal>) -> Self {
+        Self(Kind::Min(bound.into()))
     }
-    pub fn max(bound: usize) -> Self {
-        Self(Kind::Max(bound))
+    pub fn max(bound: impl Into<bigdecimal::BigDecimal>) -> Self {
+        Self(Kind::Max(bound.into()))
     }
     pub fn dimensions() -> Dimensions {
         Dimensions::default()
@@ -99,7 +111,7 @@ impl Rule {
         Self(Kind::Custom(Arc::new(rule)))
     }
 
-    pub(super) fn parse(rule: &str) -> ValidationResult<Self> {
+    pub fn parse(rule: &str) -> ValidationResult<Self> {
         let invalid = || ValidationError::InvalidRule;
         Ok(match rule {
             "required" => Self::required(),
@@ -110,6 +122,13 @@ impl Rule {
             "string" => Self::string(),
             "integer" => Self::integer(),
             "boolean" => Self::boolean(),
+            "integer:strict" => Self(Kind::StrictInteger),
+            "boolean:strict" => Self(Kind::StrictBoolean),
+            "numeric" => Self(Kind::Numeric),
+            "date" => Self(Kind::Date),
+            "accepted" => Self(Kind::Accepted),
+            "url" => Self(Kind::Url),
+            "uuid" => Self(Kind::Uuid),
             "base64" => Self::base64(),
             "email" | "email:rfc" => Self::email(),
             "confirmed" => Self::confirmed(),
@@ -118,14 +137,50 @@ impl Rule {
             "file" => File::default().into(),
             "image" => File::image(false).into(),
             _ => match rule.split_once(':') {
+                Some(("in", arguments)) => Self(Kind::In(
+                    super::rule_parameters::csv(arguments)
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect(),
+                )),
+                Some(("array", arguments)) => Self(Kind::ArrayKeys(
+                    super::rule_parameters::csv(arguments)
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect(),
+                )),
+                Some((kind @ ("required_if" | "exclude_if"), arguments)) => {
+                    let args = super::rule_parameters::csv(arguments);
+                    if args.len() < 2 {
+                        return Err(invalid());
+                    }
+                    let field = args[0].to_string();
+                    let values = args[1..].iter().map(ToString::to_string).collect();
+                    Self(if kind == "required_if" {
+                        Kind::RequiredIf(field, values)
+                    } else {
+                        Kind::ExcludeIf(field, values)
+                    })
+                }
+                Some(("regex", pattern)) => Self(Kind::Regex(Arc::new(
+                    super::standard_rules::regex(pattern)?,
+                ))),
                 Some(("current_password", arguments)) => {
                     Self::currentPassword(Some(super::rule_parameters::csv(arguments)[0].as_ref()))
                 }
                 Some(("confirmed", arguments)) => Self(Kind::Confirmed(Some(
                     super::rule_parameters::csv(arguments)[0].to_string(),
                 ))),
-                Some(("min", bound)) => Self::min(bound.parse().map_err(|_| invalid())?),
-                Some(("max", bound)) => Self::max(bound.parse().map_err(|_| invalid())?),
+                Some(("min", bound)) => Self::min(
+                    bound
+                        .parse::<bigdecimal::BigDecimal>()
+                        .map_err(|_| invalid())?,
+                ),
+                Some(("max", bound)) => Self::max(
+                    bound
+                        .parse::<bigdecimal::BigDecimal>()
+                        .map_err(|_| invalid())?,
+                ),
                 Some(("dimensions", arguments)) => Dimensions::parse(arguments)?.into(),
                 Some(("encoding", argument)) => {
                     Self(Kind::Encoding(EncodingRule::parse(argument)?))
@@ -174,29 +229,49 @@ pub(super) fn is_empty(value: &Value) -> bool {
 }
 
 pub(super) fn integer(value: &Value) -> Option<i128> {
-    value
-        .as_i64()
-        .map(i128::from)
-        .or_else(|| value.as_u64().map(i128::from))
-        .or_else(|| {
-            let raw = value.as_str()?.trim();
+    match value {
+        Value::Bool(true) => Some(1),
+        Value::Number(number) => {
+            if let Some(value) = number.as_i64() {
+                return Some(i128::from(value));
+            }
+            if number.is_u64() {
+                return None;
+            }
+            let number = number.as_f64()?;
+            (number.fract() == 0.0 && number >= i64::MIN as f64 && number < -(i64::MIN as f64))
+                .then_some(number as i128)
+        }
+        Value::String(value) => {
+            let raw = value.trim_matches([' ', '\t', '\n', '\r', '\x0b', '\x0c']);
             let digits = raw.strip_prefix(['+', '-']).unwrap_or(raw);
-            if digits.len() > 1 && digits.starts_with('0') {
+            if digits.is_empty()
+                || !digits.bytes().all(|byte| byte.is_ascii_digit())
+                || (digits.len() > 1 && digits.starts_with('0'))
+            {
                 return None;
             }
             raw.parse::<i64>().ok().map(i128::from)
-        })
+        }
+        _ => None,
+    }
 }
 
-pub(super) fn size(value: &Value, numeric: bool) -> Option<(i128, &'static str)> {
-    if numeric {
-        return integer(value).map(|number| (number, "numeric"));
+pub(super) fn size(value: &Value, numeric: bool) -> Option<(bigdecimal::BigDecimal, &'static str)> {
+    if numeric && let Some(number) = super::standard_rules::number(value) {
+        return Some((number, "numeric"));
     }
     match value {
-        Value::Array(values) => Some((values.len() as i128, "array")),
-        Value::Object(values) => Some((values.len() as i128, "array")),
-        Value::String(value) => Some((value.chars().count() as i128, "string")),
-        Value::Number(value) => Some((value.to_string().len() as i128, "string")),
+        Value::Array(values) => Some((bigdecimal::BigDecimal::from(values.len() as u64), "array")),
+        Value::Object(values) => Some((bigdecimal::BigDecimal::from(values.len() as u64), "array")),
+        Value::String(value) => Some((
+            bigdecimal::BigDecimal::from(value.chars().count() as u64),
+            "string",
+        )),
+        Value::Number(value) => Some((
+            bigdecimal::BigDecimal::from(value.to_string().len() as u64),
+            "string",
+        )),
         _ => None,
     }
 }

@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use openrust::{
     auth::{AuthError, AuthFuture, AuthIdentifier, AuthManager, AuthResult, Credentials},
     config::{ConfigError, Environment, Value},
@@ -51,23 +53,23 @@ impl Drop for Root {
 
 struct User(String);
 impl Authenticatable for User {
-    fn get_auth_identifier_name(&self) -> &str {
+    fn getAuthIdentifierName(&self) -> &str {
         "id"
     }
-    fn get_auth_identifier(&self) -> AuthIdentifier {
+    fn getAuthIdentifier(&self) -> AuthIdentifier {
         AuthIdentifier::String(self.0.clone())
     }
-    fn get_auth_password_name(&self) -> &str {
+    fn getAuthPasswordName(&self) -> &str {
         "password"
     }
-    fn get_auth_password(&self) -> Option<&str> {
+    fn getAuthPassword(&self) -> Option<&str> {
         None
     }
-    fn get_remember_token(&self) -> Option<&str> {
+    fn getRememberToken(&self) -> Option<&str> {
         None
     }
-    fn set_remember_token(&mut self, _: Option<String>) {}
-    fn get_remember_token_name(&self) -> &str {
+    fn setRememberToken(&mut self, _: Option<String>) {}
+    fn getRememberTokenName(&self) -> &str {
         "remember_token"
     }
     #[allow(
@@ -85,40 +87,40 @@ impl Authenticatable for User {
 
 struct EmptyProvider;
 impl UserProvider for EmptyProvider {
-    fn retrieve_by_id<'a>(
+    fn retrieveById<'a>(
         &'a self,
         _: &'a AuthIdentifier,
     ) -> AuthFuture<'a, AuthResult<Option<Box<dyn Authenticatable>>>> {
         Box::pin(async { Ok(None) })
     }
-    fn retrieve_by_token<'a>(
+    fn retrieveByToken<'a>(
         &'a self,
         _: &'a AuthIdentifier,
         _: &'a str,
     ) -> AuthFuture<'a, AuthResult<Option<Box<dyn Authenticatable>>>> {
         Box::pin(async { Ok(None) })
     }
-    fn update_remember_token<'a>(
+    fn updateRememberToken<'a>(
         &'a self,
         _: &'a mut dyn Authenticatable,
         _: &'a str,
     ) -> AuthFuture<'a, AuthResult<()>> {
         Box::pin(async { panic!("unexpected provider write") })
     }
-    fn retrieve_by_credentials<'a>(
+    fn retrieveByCredentials<'a>(
         &'a self,
         _: &'a Credentials,
     ) -> AuthFuture<'a, AuthResult<Option<Box<dyn Authenticatable>>>> {
         Box::pin(async { Ok(None) })
     }
-    fn validate_credentials<'a>(
+    fn validateCredentials<'a>(
         &'a self,
         _: &'a dyn Authenticatable,
         _: &'a Credentials,
     ) -> AuthFuture<'a, AuthResult<bool>> {
         Box::pin(async { Ok(false) })
     }
-    fn rehash_password_if_required<'a>(
+    fn rehashPasswordIfRequired<'a>(
         &'a self,
         _: &'a mut dyn Authenticatable,
         _: &'a Credentials,

@@ -79,3 +79,6 @@ Blade 模板在首次使用时编译。源文件变化后，OpenRust 会在 `vie
 ./artisan view:cache
 ./artisan view:clear
 ```
+## 条件与集合渲染
+
+`View::renderWhen` 条件为真才渲染，`renderUnless` 相反。`renderEach(view, data, iterator, empty)` 接收键值对，把键暴露为 `key`、值暴露为指定迭代变量，再拼接各项结果。空集合渲染空视图，或直接返回 `raw|` 后的文本。子视图继承共享数据，不自动继承父视图的局部变量。`getShared` 返回拥有所有权的快照。启动阶段的 `share` 值作为默认值；请求或队列作用域内的修改只影响该作用域，显式视图数据覆盖共享同名键。

@@ -600,3 +600,14 @@ pub async fn next_unlocked(
         .await
 }
 ```
+
+## 執行回呼與 SQL 展開
+
+`beforeQuery` 回傳修改後的 Builder，成功套用後清空，讀取與寫入都呼叫。失敗保留回呼，允許下次重試。`afterQuery` 接收並回傳 `Vec<Row>`，空集合代表空結果。`toRawSql` 重用驅動繫結展開，僅供除錯；執行仍使用參數繫結。`toSql` / `toRawSql` 會套用執行前回呼，因此需要 `&mut self`；嵌入子查詢也需要 `&mut Builder`，避免重複執行回呼。舊呼叫端需宣告 `let mut query` 並傳入 `&mut query`。
+
+```rust
+let mut query = connection.table("users")
+    .beforeQuery(|query| Ok(query.r#where("active", "=", true)));
+let sql = query.toRawSql()?;
+let rows = query.afterQuery(|rows| Ok(rows)).get().await?;
+```

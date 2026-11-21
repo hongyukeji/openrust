@@ -152,7 +152,7 @@ async fn full_text_binds_the_search_string_and_rejects_unsupported_dialects() {
         Err(DatabaseError::InvalidQuery(_))
     ));
     let mysql = connection(json!({"driver":"mysql","database":"example","prefix":"app_"}));
-    let query = mysql
+    let mut query = mysql
         .table("articles")
         .r#where("published", "=", true)
         .whereNested(|group| {
@@ -496,7 +496,7 @@ async fn postgres_uses_gin_and_ranks_before_pagination() {
         .statement("set local enable_seqscan = off", &[])
         .await
         .unwrap();
-    let query = transaction
+    let mut query = transaction
         .table("articles")
         .whereFullText(&["title", "body"], "runs");
     let sql = format!("explain {}", query.toSql().unwrap());
@@ -511,7 +511,7 @@ async fn postgres_uses_gin_and_ranks_before_pagination() {
     );
     transaction.rollBack(None).await.unwrap();
 
-    let query = db
+    let mut query = db
         .table("articles")
         .whereFullText(&["title", "body"], "runs");
     assert!(!query.toSql().unwrap().contains("order by"));

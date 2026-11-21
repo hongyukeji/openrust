@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use std::sync::Arc;
 
 use crate::{
@@ -79,7 +81,7 @@ impl DatabaseUserProvider {
 }
 
 impl UserProvider for DatabaseUserProvider {
-    fn retrieve_by_id<'a>(
+    fn retrieveById<'a>(
         &'a self,
         id: &'a AuthIdentifier,
     ) -> AuthFuture<'a, AuthResult<Option<Box<dyn Authenticatable>>>> {
@@ -87,18 +89,18 @@ impl UserProvider for DatabaseUserProvider {
             let user = self
                 .retrieve_by_field(&self.identifier, id.clone().into())
                 .await?;
-            Ok(user.filter(|user| providers::same_identity(id, &user.get_auth_identifier())))
+            Ok(user.filter(|user| providers::same_identity(id, &user.getAuthIdentifier())))
         })
     }
 
-    fn retrieve_by_token<'a>(
+    fn retrieveByToken<'a>(
         &'a self,
         id: &'a AuthIdentifier,
         token: &'a str,
     ) -> AuthFuture<'a, AuthResult<Option<Box<dyn Authenticatable>>>> {
         Box::pin(async move {
             Ok(self
-                .retrieve_by_id(id)
+                .retrieveById(id)
                 .await?
                 .filter(|user| providers::matches_token(user.as_ref(), token)))
         })
@@ -123,7 +125,7 @@ impl UserProvider for DatabaseUserProvider {
         })
     }
 
-    fn update_remember_token<'a>(
+    fn updateRememberToken<'a>(
         &'a self,
         user: &'a mut dyn Authenticatable,
         token: &'a str,
@@ -136,7 +138,7 @@ impl UserProvider for DatabaseUserProvider {
         ))
     }
 
-    fn retrieve_by_credentials<'a>(
+    fn retrieveByCredentials<'a>(
         &'a self,
         credentials: &'a Credentials,
     ) -> AuthFuture<'a, AuthResult<Option<Box<dyn Authenticatable>>>> {
@@ -156,7 +158,7 @@ impl UserProvider for DatabaseUserProvider {
         })
     }
 
-    fn validate_credentials<'a>(
+    fn validateCredentials<'a>(
         &'a self,
         user: &'a dyn Authenticatable,
         credentials: &'a Credentials,
@@ -164,7 +166,7 @@ impl UserProvider for DatabaseUserProvider {
         Box::pin(providers::validate(self.hasher.as_ref(), user, credentials))
     }
 
-    fn rehash_password_if_required<'a>(
+    fn rehashPasswordIfRequired<'a>(
         &'a self,
         user: &'a mut dyn Authenticatable,
         credentials: &'a Credentials,
@@ -205,27 +207,27 @@ fn text(value: Option<&Value>) -> Option<&str> {
 }
 
 impl Authenticatable for DatabaseUser {
-    fn get_auth_identifier_name(&self) -> &str {
+    fn getAuthIdentifierName(&self) -> &str {
         &self.identifier
     }
-    fn get_auth_identifier(&self) -> AuthIdentifier {
+    fn getAuthIdentifier(&self) -> AuthIdentifier {
         self.id.clone()
     }
-    fn get_auth_password_name(&self) -> &str {
+    fn getAuthPasswordName(&self) -> &str {
         &self.password
     }
-    fn get_auth_password(&self) -> Option<&str> {
+    fn getAuthPassword(&self) -> Option<&str> {
         text(self.get(&self.password))
     }
-    fn get_remember_token(&self) -> Option<&str> {
+    fn getRememberToken(&self) -> Option<&str> {
         self.updated_token
             .as_ref()
             .map_or_else(|| text(self.get(&self.remember)), Option::as_deref)
     }
-    fn set_remember_token(&mut self, token: Option<String>) {
+    fn setRememberToken(&mut self, token: Option<String>) {
         self.updated_token = Some(token);
     }
-    fn get_remember_token_name(&self) -> &str {
+    fn getRememberTokenName(&self) -> &str {
         &self.remember
     }
     fn getAuthAttribute(&self, name: &str) -> AuthResult<Option<Value>> {

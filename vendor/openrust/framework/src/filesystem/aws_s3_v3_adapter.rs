@@ -386,6 +386,28 @@ impl AwsS3V3Adapter {
         Ok(!result.contents().is_empty())
     }
 
+    pub(super) async fn copy(&self, from: &str, to: &str) -> FilesystemResult<()> {
+        let visibility = self.get_visibility(from).await?;
+        let source = format!("{}/{}", self.config.bucket, self.key(from));
+        let source =
+            percent_encoding::utf8_percent_encode(&source, percent_encoding::NON_ALPHANUMERIC)
+                .to_string();
+        self.client()
+            .await
+            .copy_object()
+            .bucket(&self.config.bucket)
+            .key(self.key(to))
+            .copy_source(source)
+            .acl(match visibility {
+                Visibility::Public => ObjectCannedAcl::PublicRead,
+                Visibility::Private => ObjectCannedAcl::Private,
+            })
+            .send()
+            .await
+            .map_err(|error| classify_error(&error))?;
+        Ok(())
+    }
+
     pub(super) async fn delete(&self, path: &str) -> FilesystemResult<()> {
         self.client()
             .await

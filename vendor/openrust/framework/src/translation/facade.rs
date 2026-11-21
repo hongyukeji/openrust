@@ -188,6 +188,22 @@ impl Lang {
             .locale())
     }
 
+    pub fn setLocale(locale: &str) -> TranslationResult<()> {
+        Self::getFacadeRoot()
+            .map_err(TranslationError::Unavailable)?
+            .setLocale(locale)
+    }
+    pub fn getFallback() -> TranslationResult<String> {
+        Ok(Self::getFacadeRoot()
+            .map_err(TranslationError::Unavailable)?
+            .getFallback())
+    }
+    pub fn setFallback(fallback: &str) -> TranslationResult<()> {
+        Self::getFacadeRoot()
+            .map_err(TranslationError::Unavailable)?
+            .setFallback(fallback)
+    }
+
     pub async fn withLocale<T>(
         locale: &str,
         operation: impl Future<Output = T>,

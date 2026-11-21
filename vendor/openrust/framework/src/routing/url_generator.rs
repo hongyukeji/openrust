@@ -26,6 +26,8 @@ pub(crate) struct UrlRoutes {
     pub(super) actions: HashMap<String, RouteUrlGenerator>,
 }
 
+type UrlFormatter = dyn Fn(&str, Option<&RouteUrlGenerator>) -> String + Send + Sync;
+
 /// Generates named routes and signed URLs for the application.
 #[derive(Clone)]
 pub struct UrlGenerator {
@@ -35,6 +37,10 @@ pub struct UrlGenerator {
     base_url: String,
     previous: Option<String>,
     defaults: HashMap<String, String>,
+    force_scheme: Option<String>,
+    force_root: Option<String>,
+    host_formatter: Option<Arc<UrlFormatter>>,
+    pub(super) path_formatter: Option<Arc<UrlFormatter>>,
 }
 
 /// Route parameters in application-supplied order.
@@ -221,7 +227,61 @@ impl UrlGenerator {
             base_url: String::new(),
             previous: None,
             defaults: HashMap::new(),
+            force_scheme: None,
+            force_root: None,
+            host_formatter: None,
+            path_formatter: None,
         }
+    }
+
+    #[allow(non_snake_case, reason = "遵循 Laravel URL 原名")]
+    pub fn forceScheme(&mut self, scheme: Option<&str>) {
+        self.force_scheme = scheme.map(str::to_owned);
+    }
+    #[allow(non_snake_case, reason = "遵循 Laravel URL 原名")]
+    pub fn forceHttps(&mut self, force: bool) {
+        self.forceScheme(force.then_some("https"));
+    }
+    #[allow(non_snake_case, reason = "遵循 Laravel URL 原名")]
+    pub fn forceRootUrl(&mut self, root: Option<&str>) {
+        self.force_root = root.map(|root| root.trim_end_matches('/').to_owned());
+    }
+    #[allow(non_snake_case, reason = "遵循 Laravel URL 原名")]
+    pub fn formatHostUsing(
+        &mut self,
+        formatter: impl Fn(&str, Option<&RouteUrlGenerator>) -> String + Send + Sync + 'static,
+    ) {
+        self.host_formatter = Some(Arc::new(formatter));
+    }
+    #[allow(non_snake_case, reason = "遵循 Laravel URL 原名")]
+    pub fn formatPathUsing(
+        &mut self,
+        formatter: impl Fn(&str, Option<&RouteUrlGenerator>) -> String + Send + Sync + 'static,
+    ) {
+        self.path_formatter = Some(Arc::new(formatter));
+    }
+    pub(super) fn format(
+        &self,
+        root: &str,
+        path: &str,
+        route: Option<&RouteUrlGenerator>,
+    ) -> String {
+        let path = format!("/{}", path.trim_matches('/'));
+        let root = self
+            .host_formatter
+            .as_ref()
+            .map_or_else(|| root.to_owned(), |format| format(root, route));
+        let path = self
+            .path_formatter
+            .as_ref()
+            .map_or(path.clone(), |format| format(&path, route));
+        format!(
+            "{}/{}",
+            root.trim_end_matches('/'),
+            path.trim_start_matches('/')
+        )
+        .trim_end_matches('/')
+        .to_owned()
     }
 
     pub(crate) fn with_uri(&self, uri: Option<Uri>) -> Self {
@@ -325,12 +385,18 @@ impl UrlGenerator {
     }
 
     fn root(&self, secure: Option<bool>) -> UrlResult<::url::Url> {
-        let mut root = if self.config.get("app.url_explicit") == Some(Value::Bool(true)) {
+        let mut root = if let Some(root) = &self.force_root {
+            valid_http_url(root)?
+        } else if self.config.get("app.url_explicit") == Some(Value::Bool(true)) {
             self.configured_root()?
         } else {
             self.request_root()
                 .unwrap_or_else(|| self.configured_root())?
         };
+        if let Some(scheme) = &self.force_scheme {
+            root.set_scheme(scheme)
+                .map_err(|()| UrlError::InvalidOrigin)?;
+        }
         if let Some(secure) = secure {
             root.set_scheme(if secure { "https" } else { "http" })
                 .map_err(|()| UrlError::InvalidOrigin)?;
@@ -510,6 +576,9 @@ impl Contract for UrlGenerator {
                 output.push_str(&encode(&value));
             }
         }
+        let root_text = root.as_str().trim_end_matches('/');
+        let path = output.strip_prefix(root_text).unwrap_or(&output);
+        output = self.format(root_text, path, None);
         if let Some(query) = query {
             output.push('?');
             output.push_str(query);
@@ -524,7 +593,13 @@ impl Contract for UrlGenerator {
         absolute: bool,
     ) -> UrlResult<String> {
         let route = self.routes.named.get(name).ok_or(UrlError::MissingRoute)?;
-        route.to(&self.root(None)?, parameters, absolute, &self.defaults)
+        route.to(
+            &self.root(None)?,
+            parameters,
+            absolute,
+            &self.defaults,
+            Some(self),
+        )
     }
 
     fn action(
@@ -538,7 +613,13 @@ impl Contract for UrlGenerator {
             .actions
             .get(action.trim_matches('\\'))
             .ok_or(UrlError::MissingAction)?;
-        route.to(&self.root(None)?, parameters, absolute, &self.defaults)
+        route.to(
+            &self.root(None)?,
+            parameters,
+            absolute,
+            &self.defaults,
+            Some(self),
+        )
     }
 
     fn query(

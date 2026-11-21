@@ -160,6 +160,7 @@ impl Builder<'_> {
     }
 
     async fn pagination_count(&mut self) -> DatabaseResult<u64> {
+        self.applyBeforeQueryCallbacks()?;
         let orders = mem::take(&mut self.orders);
         let union_orders = mem::take(&mut self.union_orders);
         let limits = (

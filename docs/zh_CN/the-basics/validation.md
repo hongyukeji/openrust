@@ -192,3 +192,14 @@ fn configure(exceptions: &mut Exceptions) {
     exceptions.dontFlash(["profile.secret"]);
 }
 ```
+## 标准规则与验证钩子
+
+规则解析支持 `numeric`、`date`、`in:a,b`、`regex:/pattern/u`、`required_if:field,value`、`exclude_if:field,value`、`accepted`、`url`、`uuid`、`array:key1,key2`。`array:key1,key2` 拒绝清单外的键；`in` 与 `array` 组合时逐项检查数组。被排除的字段及上传文件不会出现在已验证数据中，规则按声明顺序执行。
+
+默认 `integer` 遵循 PHP 整数验证，包含整数值浮点数和 `true`；`integer:strict` 只接受 JSON 整数，`boolean:strict` 只接受 JSON 布尔值。数值大小规则支持负数和小数阈值，使用十进制比较，避免浮点舍入。科学计数法指数超出 -1000 至 1000 时返回执行错误。
+
+正则包含 `|` 时，使用 `RuleSet::field` 的规则数组并通过 `Rule::parse` 解析，避免被当成规则分隔符。支持 PCRE2 修饰符 `i m s x u A U J n D`；`D` 使 `$` 仅匹配输入末尾，多行模式下遵循 PCRE2 原生语义。其他尚不支持的修饰符返回 `InvalidRule`，不表示已经支持 PHP 的全部 PCRE 选项。
+
+`Validator::after` 在规则检查后运行，可追加错误。`sometimes` 按条件追加规则，通配符回调收到所在父项。`stopOnFirstFailure(true)` 在不同字段间停止检查，`bail` 只停止当前字段。`safe()` 必须在验证成功后调用，只暴露已验证的数据。
+
+FormRequest 顺序为 `prepareForValidation`、`authorize`、`withValidator`、验证和 `after`、`passedValidation`。授权或验证失败不会执行业务方法。携带 `Precognition-Validate-Only` 的预验证成功后不调用 `passedValidation`；未带该头时可能先调用，再短路业务方法。验证器按请求隔离。

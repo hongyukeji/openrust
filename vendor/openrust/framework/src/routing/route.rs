@@ -15,6 +15,7 @@ use super::{
 /// Immutable metadata for the route selected by the router.
 #[derive(Clone, Debug)]
 pub struct RouteMetadata {
+    pub methods: Vec<String>,
     pub uri: String,
     pub domain: Option<String>,
     pub action: String,
@@ -23,6 +24,7 @@ pub struct RouteMetadata {
 
 /// A registered route and its metadata.
 pub struct Route {
+    pub(super) methods: Vec<String>,
     pub(super) uri: String,
     pub(super) name: String,
     pub(super) domain: Option<String>,
@@ -60,6 +62,7 @@ impl Route {
             .map(|host| RoutePattern::compile_host(host, &constraints))
             .transpose()?;
         Ok(Self {
+            methods: Vec::new(),
             uri,
             name: String::new(),
             domain,

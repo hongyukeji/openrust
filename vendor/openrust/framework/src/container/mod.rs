@@ -1899,3 +1899,5 @@ impl Container {
         }
     }
 }
+
+pub(crate) use scope::ScopeSnapshot;

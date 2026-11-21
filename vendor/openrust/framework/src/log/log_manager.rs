@@ -71,6 +71,7 @@ pub struct LogManager {
     paths: Option<Arc<crate::foundation::Paths>>,
     context_owner: Weak<crate::container::Container>,
     channels: Mutex<ChannelDirectory>,
+    context_fallback: Arc<super::channel_context::ChannelContext>,
     drivers: Registry<Factory>,
     factories: Registry<Factory>,
     formatters: Registry<ComponentFactory<Formatter>>,
@@ -88,6 +89,70 @@ struct ChannelDirectory {
 
 #[allow(non_snake_case, reason = "Matches Laravel's LogManager API")]
 impl LogManager {
+    fn channel_context(&self) -> Arc<super::channel_context::ChannelContext> {
+        use crate::contracts::container::Container as _;
+        self.context_owner
+            .upgrade()
+            .and_then(|owner| owner.make().ok())
+            .unwrap_or_else(|| self.context_fallback.clone())
+    }
+    pub fn withContext(&self, context: LogContext) -> LogResult<Arc<Logger>> {
+        let channel = self.channel(None)?;
+        channel.withContext(context);
+        Ok(channel)
+    }
+    pub fn withoutContext(&self, keys: Option<&[&str]>) -> &Self {
+        let channels: Vec<_> = self
+            .channels
+            .lock()
+            .expect("日志频道锁中毒")
+            .entries
+            .values()
+            .cloned()
+            .collect();
+        for channel in channels {
+            channel.withoutContext(keys);
+        }
+        self
+    }
+    pub fn shareContext(&self, context: LogContext) -> &Self {
+        let channels: Vec<_> = self
+            .channels
+            .lock()
+            .expect("日志频道锁中毒")
+            .entries
+            .values()
+            .cloned()
+            .collect();
+        for channel in channels {
+            channel.withContext(context.clone());
+        }
+        let state = self.channel_context();
+        let mut fields = state.0.lock().expect("日志上下文锁中毒");
+        for (_, channel) in fields.channels.values_mut() {
+            channel.extend(context.clone());
+        }
+        fields.shared.extend(context);
+        self
+    }
+    pub fn sharedContext(&self) -> LogContext {
+        self.channel_context()
+            .0
+            .lock()
+            .expect("日志上下文锁中毒")
+            .shared
+            .clone()
+    }
+    pub fn flushSharedContext(&self) -> &Self {
+        self.channel_context()
+            .0
+            .lock()
+            .expect("日志上下文锁中毒")
+            .shared
+            .clear();
+        self
+    }
+
     pub fn new(config: Arc<dyn Repository>, root: impl Into<PathBuf>) -> Self {
         Self {
             config,
@@ -95,6 +160,7 @@ impl LogManager {
             paths: None,
             context_owner: Weak::new(),
             channels: Mutex::default(),
+            context_fallback: Arc::default(),
             drivers: Mutex::default(),
             factories: Mutex::default(),
             formatters: Mutex::default(),
@@ -270,6 +336,8 @@ impl LogManager {
                 processors,
                 emergency: resolution.settings.emergency.clone(),
                 context_owner: resolution.settings.context_owner.clone(),
+                context_fallback: self.context_fallback.clone(),
+                context_identity: Arc::new(()),
                 listeners: self.listeners.clone(),
             }))
         })
@@ -382,6 +450,7 @@ impl LogManager {
         Settings {
             config,
             context_owner: &self.context_owner,
+            context_fallback: &self.context_fallback,
             root: &self.root,
             environment: self
                 .config
@@ -442,6 +511,7 @@ impl crate::contracts::log::Logger for LogManager {
 struct Settings<'a> {
     config: Value,
     context_owner: &'a Weak<crate::container::Container>,
+    context_fallback: &'a Arc<super::channel_context::ChannelContext>,
     root: &'a std::path::Path,
     environment: String,
     emergency: Arc<Emergency>,
@@ -457,6 +527,8 @@ impl Settings<'_> {
             processors: Vec::new(),
             emergency: self.emergency.clone(),
             context_owner: self.context_owner.clone(),
+            context_fallback: self.context_fallback.clone(),
+            context_identity: Arc::new(()),
             listeners: self.listeners.clone(),
         })
     }
@@ -549,6 +621,8 @@ impl Resolution<'_, '_> {
             processors,
             emergency: self.settings.emergency.clone(),
             context_owner: self.settings.context_owner.clone(),
+            context_fallback: self.manager.context_fallback.clone(),
+            context_identity: Arc::new(()),
             listeners: self.settings.listeners.clone(),
         };
         if let Some(key) = options.formatter.as_deref().filter(|key| *key != "default") {

@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use openrust::{
     config::{ConfigError, Environment, Value as Json},
     contracts::{console::Kernel as _, container::Container as _, foundation::Application as _},
@@ -130,16 +132,16 @@ async fn database(app: &Application) -> Connection {
         .unwrap()
 }
 async fn migrate(app: &Application) {
-    assert_eq!(
+    let rows = in_app(app, async {
         app.make::<Migrator>()
             .await
             .unwrap()
             .run(None, &[], RunOptions::default())
             .await
             .unwrap()
-            .len(),
-        4
-    );
+    })
+    .await;
+    assert_eq!(rows.len(), 4);
 }
 async fn cleanup(manager: &DatabaseManager) {
     let db = manager.connection(Some("oauth")).unwrap();
@@ -867,26 +869,26 @@ impl Model for ManagementUser {
     }
 }
 impl openrust::contracts::auth::Authenticatable for ManagementUser {
-    fn get_auth_identifier_name(&self) -> &str {
+    fn getAuthIdentifierName(&self) -> &str {
         "subject"
     }
-    fn get_auth_identifier(&self) -> openrust::auth::AuthIdentifier {
+    fn getAuthIdentifier(&self) -> openrust::auth::AuthIdentifier {
         self.getAttribute("subject").unwrap().try_into().unwrap()
     }
-    fn get_auth_password_name(&self) -> &str {
+    fn getAuthPasswordName(&self) -> &str {
         "password"
     }
-    fn get_auth_password(&self) -> Option<&str> {
+    fn getAuthPassword(&self) -> Option<&str> {
         match self.getAttribute("password") {
             Some(Value::Text(password)) => Some(password),
             _ => None,
         }
     }
-    fn get_remember_token(&self) -> Option<&str> {
+    fn getRememberToken(&self) -> Option<&str> {
         None
     }
-    fn set_remember_token(&mut self, _: Option<String>) {}
-    fn get_remember_token_name(&self) -> &str {
+    fn setRememberToken(&mut self, _: Option<String>) {}
+    fn getRememberTokenName(&self) -> &str {
         "remember_token"
     }
 }

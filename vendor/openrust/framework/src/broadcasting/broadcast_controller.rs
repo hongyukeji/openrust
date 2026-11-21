@@ -92,3 +92,23 @@ fn http_error(error: BroadcastException) -> HttpError {
         },
     }
 }
+
+/// 用户认证与频道授权分别注册，复用现有 web 中间件和请求身份。
+pub(super) struct UserBroadcastController {
+    pub connection: Option<String>,
+}
+impl Handler for UserBroadcastController {
+    fn handle<'a>(
+        &'a self,
+        request: &'a mut Request,
+    ) -> HttpFuture<'a, Result<Response, HttpError>> {
+        Box::pin(async move {
+            if let Ok(session) = request.session_mut() {
+                session.reflash();
+            }
+            Broadcast::authenticateUser(request, self.connection.as_deref())
+                .await
+                .map_err(http_error)
+        })
+    }
+}

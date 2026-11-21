@@ -29,7 +29,53 @@ impl Facade for Broadcast {
     }
 }
 
+#[allow(non_snake_case, reason = "遵循 Laravel 广播用户认证原名")]
 impl Broadcast {
+    pub fn userRoutes(
+        attributes: Option<crate::routing::RouteGroup>,
+        connection: Option<&str>,
+    ) -> Result<(), crate::routing::RoutingError> {
+        use crate::contracts::routing::Registrar as _;
+        let handler = Arc::new(super::broadcast_controller::UserBroadcastController {
+            connection: connection.map(str::to_owned),
+        });
+        crate::support::facades::Route::group(
+            attributes.unwrap_or_else(|| crate::routing::RouteGroup::new().middleware_name("web")),
+            |router| {
+                router
+                    .add_route(
+                        &[crate::http::Method::GET, crate::http::Method::POST],
+                        "/broadcasting/user-auth",
+                        handler,
+                    )?
+                    .withoutMiddleware("framework.prevent_request_forgery");
+                Ok(())
+            },
+        )
+    }
+    pub fn resolveAuthenticatedUserUsing(
+        callback: Arc<super::AuthenticatedUserResolver>,
+        connection: Option<&str>,
+    ) -> BroadcastResult<()> {
+        Self::connection(connection)?.resolveAuthenticatedUserUsing(callback)
+    }
+    pub async fn resolveAuthenticatedUser(
+        request: &mut crate::http::Request,
+        connection: Option<&str>,
+    ) -> BroadcastResult<Option<crate::http::Response>> {
+        Self::connection(connection)?
+            .resolveAuthenticatedUser(request)
+            .await
+    }
+    pub async fn authenticateUser(
+        request: &mut crate::http::Request,
+        connection: Option<&str>,
+    ) -> BroadcastResult<crate::http::Response> {
+        Self::resolveAuthenticatedUser(request, connection)
+            .await?
+            .ok_or(BroadcastException::AccessDenied)
+    }
+
     pub fn on(channels: impl Into<AnonymousChannels>) -> AnonymousEvent {
         AnonymousEvent::new(channels.into())
     }

@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use super::{AuthorizationViewParameters, PendingAuthorization};
 use crate::{AuthorizationServer, OAuthError, OAuthParameters, Passport};
 use axum::response::IntoResponse as _;
@@ -76,12 +78,12 @@ impl AuthorizationController {
                     .await
                     .map_err(internal)?
                     || server
-                        .hasGrantedScopes(&validated, &user.get_auth_identifier())
+                        .hasGrantedScopes(&validated, &user.getAuthIdentifier())
                         .await
                         .map_err(internal)?)
             {
                 return match server
-                    .completeAuthorizationRequest(validated, user.get_auth_identifier(), true)
+                    .completeAuthorizationRequest(validated, user.getAuthIdentifier(), true)
                     .await
                 {
                     Ok(value) => Ok(value.into_response().into()),
@@ -98,7 +100,7 @@ impl AuthorizationController {
             let auth_token = nonce()?;
             let pending = serde_json::to_value(PendingAuthorization {
                 request: validated.clone(),
-                user: user.get_auth_identifier(),
+                user: user.getAuthIdentifier(),
             })
             .map_err(internal)?;
             request.session_mut()?.put("authToken", json!(auth_token))?;
@@ -153,7 +155,7 @@ fn complete(request: &mut Request, approved: bool) -> HttpFuture<'_, Result<Resp
         let pending: PendingAuthorization =
             serde_json::from_value(pending.ok_or(HttpError::InvalidRequest)?)
                 .map_err(|_| HttpError::InvalidRequest)?;
-        if pending.user != user.get_auth_identifier() {
+        if pending.user != user.getAuthIdentifier() {
             return Err(HttpError::Unauthenticated);
         }
         let server = AuthorizationServer::getFacadeRoot().map_err(internal)?;

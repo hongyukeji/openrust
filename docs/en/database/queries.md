@@ -600,3 +600,14 @@ pub async fn next_unlocked(
         .await
 }
 ```
+
+## Execution callbacks and raw SQL
+
+`beforeQuery` returns the modified builder and clears callbacks after successful application, for reads and writes. Failures retain callbacks for retry. `afterQuery` receives and returns `Vec<Row>`; an empty vector means an empty result. `toRawSql` reuses driver binding interpolation for debugging only; execution remains parameterized. Because `toSql` and `toRawSql` apply callbacks, they require `&mut self`. Embedded subqueries also require `&mut Builder` to consume callbacks once. Update consumers to declare `let mut query` and pass `&mut query`.
+
+```rust
+let mut query = connection.table("users")
+    .beforeQuery(|query| Ok(query.r#where("active", "=", true)));
+let sql = query.toRawSql()?;
+let rows = query.afterQuery(|rows| Ok(rows)).get().await?;
+```

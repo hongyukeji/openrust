@@ -146,3 +146,5 @@ pub use facade::Storage;
 
 mod signed_routes;
 pub(crate) use signed_routes::register as register_signed_routes;
+
+mod contracts;

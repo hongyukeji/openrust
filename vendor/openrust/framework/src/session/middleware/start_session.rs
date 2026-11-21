@@ -73,19 +73,8 @@ async fn handle_session(
     let mut session = request.take_session().ok_or(SessionError::Configuration)?;
     if request.matched_route
         && request.method() == Method::GET
-        && request
-            .headers()
-            .get("x-requested-with")
-            .is_none_or(|value| value != "XMLHttpRequest")
-        && !["purpose", "sec-purpose", "x-purpose"]
-            .into_iter()
-            .any(|name| {
-                request
-                    .headers()
-                    .get(name)
-                    .and_then(|value| value.to_str().ok())
-                    .is_some_and(|value| value.contains("prefetch"))
-            })
+        && !request.ajax()
+        && !request.prefetch()
         && !request.isPrecognitive()
         && let Some(path) = request.uri().path_and_query()
         && path.as_str().starts_with('/')
@@ -103,5 +92,7 @@ async fn handle_session(
     if !request.isPrecognitive() {
         session.save().await?;
     }
+    // Laravel 请求在响应完成后仍可访问 Session，供终止回调及 HTTP 断言读取。
+    request.setLaravelSession(session);
     Ok(response)
 }

@@ -298,7 +298,7 @@ Route::get("/mail-preview/order", preview_order)?;
 
 ## 擴充郵件傳輸和投遞事件
 
-在應用程式服務提供者中用 `MailManager::extend` 註冊 Rust 傳輸工廠，透過郵件器的 `transport` 設定選擇它。派發器在呼叫傳輸前發出 `MessageSending`，在傳輸接受郵件後發出 `MessageSent`。監聽器回傳 `false` 可以取消投遞。取消時，`send` 回傳 `None`，`sendNow` 回傳 `MailError::Cancelled`。
+在應用程式服務提供者中用 `MailManager::extend` 註冊 Rust 傳輸工廠，透過郵件器的 `transport` 設定選擇它。派發器在呼叫傳輸前發出 `MessageSending`，在傳輸接受郵件後發出 `MessageSent`。監聽器回傳 `false` 可以取消投遞。取消時，`send` 與 `sendNow` 都回傳 `Ok(None)`。
 
 ## 測試郵件
 
@@ -336,3 +336,7 @@ mail.assertSentMatching(receipt.kind(), |entry| {
 });
 mail.assertNothingQueued();
 ```
+
+## 預設地址與取消
+
+`Mailer::alwaysTo`、`alwaysFrom`、`alwaysReplyTo`、`alwaysReturnPath` 設定目前郵件器。啟動時設定的地址作為應用程式預設值；請求與佇列作用域內的覆寫僅影響目前執行。`alwaysTo` 在郵件自訂完成後取代收件人並清空副本、密件副本。設定支援 `mail.to`、`mail.from`、`mail.reply_to`、`mail.return_path`。取消時 `send`、`sendNow` 與 `PendingMail` 都回傳 `Ok(None)`，不呼叫傳輸、不派發 `MessageSent`；舊呼叫端應明確處理 `Option<SentMessage>`。

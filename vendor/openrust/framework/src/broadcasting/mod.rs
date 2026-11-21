@@ -24,12 +24,18 @@ pub use facade::Broadcast;
 
 pub type BroadcastFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 pub type BroadcastResult<T> = Result<T, BroadcastException>;
+pub type AuthenticatedUserResolver = dyn for<'a> Fn(
+        &'a mut crate::http::Request,
+    ) -> BroadcastFuture<'a, BroadcastResult<Option<serde_json::Value>>>
+    + Send
+    + Sync;
 pub type BroadcastPayload = serde_json::Map<String, serde_json::Value>;
 
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum BroadcastException {
     NoRegistrationScope,
+    UnsupportedUserAuthentication,
     InvalidChannel,
     AccessDenied,
     Binding(crate::http::HttpError),
@@ -43,6 +49,7 @@ pub enum BroadcastException {
 impl fmt::Display for BroadcastException {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::UnsupportedUserAuthentication => formatter.write_str("此广播驱动不支持用户认证"),
             Self::NoRegistrationScope => {
                 formatter.write_str("No active broadcast channel registration.")
             }

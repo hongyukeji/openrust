@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use subtle::ConstantTimeEq as _;
 
 use crate::{
@@ -52,7 +54,7 @@ impl Middleware for AuthenticateSession {
                 };
                 let user = auth.userForGuard(request, Some(guard.as_str())).await?;
                 let valid = user.is_some_and(|user| {
-                    let password = user.get_auth_password();
+                    let password = user.getAuthPassword();
                     serde_json::from_value::<Vec<u8>>(stored)
                         .is_ok_and(|stored| bool::from(stored.ct_eq(&self.signer.sign(password))))
                 });
@@ -72,7 +74,7 @@ impl Middleware for AuthenticateSession {
             let response = next.run(request).await;
             for guard in session_guards {
                 if let Some(user) = AuthManager::resolved_user(request, guard) {
-                    let fingerprint = self.signer.sign(user.get_auth_password());
+                    let fingerprint = self.signer.sign(user.getAuthPassword());
                     request
                         .session_mut()
                         .map_err(AuthError::backend)?

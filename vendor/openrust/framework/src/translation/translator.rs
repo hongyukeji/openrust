@@ -47,14 +47,24 @@ impl ResolvedLine {
 }
 
 tokio::task_local! {
-    static ACTIVE_LOCALES: HashMap<usize, String>;
+    static ACTIVE_LOCALES: std::cell::RefCell<HashMap<usize, String>>;
 }
+
+#[derive(Clone)]
+struct Locales {
+    locale: String,
+    fallback: String,
+}
+
+/// 每个请求／队列任务保留自己的语言设置，应用启动配置作为初值。
+#[derive(Default)]
+pub(crate) struct LocaleState(Mutex<HashMap<usize, (Arc<()>, Locales)>>);
 
 /// Resolves translations using one application's catalog and locale defaults.
 pub struct Translator {
     loader: Arc<FileLoader>,
-    locale: String,
-    fallback: String,
+    defaults: Mutex<Locales>,
+    owner: std::sync::Weak<crate::container::Container>,
     loaded: Mutex<HashMap<CatalogKey, Catalog>>,
     identity: Arc<()>,
     hooks: LookupHooks,
@@ -73,8 +83,11 @@ impl Translator {
     ) -> TranslationResult<Self> {
         Ok(Self {
             loader,
-            locale: canonical_locale(&locale)?,
-            fallback: canonical_locale(&fallback)?,
+            defaults: Mutex::new(Locales {
+                locale: canonical_locale(&locale)?,
+                fallback: canonical_locale(&fallback)?,
+            }),
+            owner: std::sync::Weak::new(),
             loaded: Mutex::default(),
             identity: Arc::new(()),
             hooks: LookupHooks::default(),
@@ -229,10 +242,10 @@ impl Translator {
 
     pub fn locale(&self) -> String {
         ACTIVE_LOCALES
-            .try_with(|locales| locales.get(&self.identity()).cloned())
+            .try_with(|locales| locales.borrow().get(&self.identity()).cloned())
             .ok()
             .flatten()
-            .unwrap_or_else(|| self.locale.clone())
+            .unwrap_or_else(|| self.locales().locale)
     }
 
     pub async fn withLocale<T>(
@@ -241,9 +254,13 @@ impl Translator {
         operation: impl Future<Output = T>,
     ) -> TranslationResult<T> {
         let locale = canonical_locale(locale)?;
-        let mut locales = ACTIVE_LOCALES.try_with(Clone::clone).unwrap_or_default();
+        let mut locales = ACTIVE_LOCALES
+            .try_with(|locales| locales.borrow().clone())
+            .unwrap_or_default();
         locales.insert(self.identity(), locale);
-        Ok(ACTIVE_LOCALES.scope(locales, operation).await)
+        Ok(ACTIVE_LOCALES
+            .scope(std::cell::RefCell::new(locales), operation)
+            .await)
     }
 
     fn identity(&self) -> usize {
@@ -435,7 +452,7 @@ impl Translator {
             .filter(|found| found.exists(key))
         {
             Some(line) => Some(line),
-            None => self.lookup(key, &self.fallback, true)?,
+            None => self.lookup(key, &self.getFallback(), true)?,
         };
         let (line, selected) = match found {
             Some(ResolvedLine {
@@ -445,8 +462,8 @@ impl Translator {
             }) => (line, locale),
             Some(_) => return Err(TranslationError::UnexpectedType),
             None => (
-                self.missing(key, &Replacements::new(), &self.fallback),
-                self.fallback.clone(),
+                self.missing(key, &Replacements::new(), &self.getFallback()),
+                self.getFallback(),
             ),
         };
         Ok(MessageSelector.choose(&line, count, &selected)?.to_owned())
@@ -494,7 +511,7 @@ impl Translator {
                     literal: false,
                 }));
         }
-        for locale in self.hooks.locales(locale, &self.fallback)? {
+        for locale in self.hooks.locales(locale, &self.getFallback())? {
             if let Some(line) = self.group_line(&locale, group, namespace, item)? {
                 return Ok(Some(ResolvedLine {
                     line,
@@ -552,7 +569,74 @@ impl Translator {
     }
 }
 
+impl Translator {
+    pub(crate) fn with_owner(
+        mut self,
+        owner: std::sync::Weak<crate::container::Container>,
+    ) -> Self {
+        self.owner = owner;
+        self
+    }
+    fn state(&self) -> Option<Arc<LocaleState>> {
+        use crate::contracts::container::Container as _;
+        self.owner
+            .upgrade()
+            .filter(|owner| owner.has_active_scope())
+            .and_then(|owner| owner.make().ok())
+    }
+    fn locales(&self) -> Locales {
+        let defaults = self.defaults.lock().expect("语言默认值锁中毒").clone();
+        self.state().map_or(defaults.clone(), |state| {
+            state
+                .0
+                .lock()
+                .expect("语言作用域锁中毒")
+                .entry(self.identity())
+                .or_insert_with(|| (self.identity.clone(), defaults))
+                .1
+                .clone()
+        })
+    }
+    fn change_locales(&self, change: impl FnOnce(&mut Locales)) {
+        if let Some(state) = self.state() {
+            let defaults = self.defaults.lock().expect("语言默认值锁中毒").clone();
+            change(
+                &mut state
+                    .0
+                    .lock()
+                    .expect("语言作用域锁中毒")
+                    .entry(self.identity())
+                    .or_insert_with(|| (self.identity.clone(), defaults))
+                    .1,
+            );
+        } else {
+            change(&mut self.defaults.lock().expect("语言默认值锁中毒"));
+        }
+    }
+    pub fn getLocale(&self) -> String {
+        self.locale()
+    }
+    pub fn setLocale(&self, locale: &str) -> TranslationResult<()> {
+        <Self as Contract>::setLocale(self, locale)
+    }
+    pub fn getFallback(&self) -> String {
+        self.locales().fallback
+    }
+    pub fn setFallback(&self, fallback: &str) -> TranslationResult<()> {
+        <Self as Contract>::setFallback(self, fallback)
+    }
+}
+
 impl Contract for Translator {
+    fn getFallback(&self) -> String {
+        self.getFallback()
+    }
+    fn setFallback(&self, fallback: &str) -> TranslationResult<()> {
+        let fallback = canonical_locale(fallback)?;
+        self.change_locales(|locales| locales.fallback = fallback);
+        Ok(())
+    }
+
     fn get(&self, key: &str, replacements: &Replacements, locale: Option<&str>) -> String {
         self.string(key, replacements, locale)
             .unwrap_or_else(|_| replace(key, replacements))
@@ -580,14 +664,27 @@ impl Contract for Translator {
         self.array(key, replacements, locale)
     }
 
-    fn get_locale(&self) -> &str {
-        &self.locale
+    fn getLocale(&self) -> String {
+        self.locale()
     }
 
-    fn set_locale(&mut self, locale: &str) {
-        if let Ok(locale) = canonical_locale(locale) {
-            self.locale = locale;
+    fn setLocale(&self, locale: &str) -> TranslationResult<()> {
+        let locale = canonical_locale(locale)?;
+        let active = ACTIVE_LOCALES
+            .try_with(|locales| {
+                let mut locales = locales.borrow_mut();
+                if let Some(active) = locales.get_mut(&self.identity()) {
+                    active.clone_from(&locale);
+                    true
+                } else {
+                    false
+                }
+            })
+            .unwrap_or(false);
+        if !active {
+            self.change_locales(|locales| locales.locale = locale);
         }
+        Ok(())
     }
 }
 

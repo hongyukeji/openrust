@@ -37,3 +37,8 @@ Provider 可以解析 `BroadcastManager`，用 `extend` 註冊驅動名稱及建
 鎖定已被持有時，佇列派送 `UniqueJobSkipped`。重試期間維持鎖定，工作成功或永久失敗後釋放。同步廣播無需唯一鎖定。顯式 Rust 交易中的唯一佇列投遞在提交時取得鎖定，交易回復會捨棄待投遞工作。交易進行期間，唯一投遞若明確指定 `broadcastAfterCommit() == Some(false)`，會回傳設定錯誤。
 
 內建連線為 `null` 和 `log`。啟用 [Reverb 擴充套件](../packages/reverb.md) 後可使用相容 Pusher 的傳輸。
+## 使用者認證路由
+
+`Broadcast::userRoutes(group, connection)` 註冊 GET、POST `/broadcasting/user-auth`，使用 web 中介軟體群組並豁免 CSRF。預設路由群組或連線傳入 `None`。透過 `authenticateUserUsing` 登記可讀取目前請求的解析回呼，傳回使用者 JSON 資料，訪客傳回無使用者。使用者認證和頻道認證各自獨立。
+
+Reverb 驅動驗證 socket ID，並按 Pusher 協定簽署使用者認證回應，具名連線使用各自憑證。其他未實作驅動傳回 `UnsupportedUserAuthentication`。該介面不會為 Reverb 伺服器增加 `pusher:signin` 處理器；託管平台和完整用戶端登入仍需另行整合。

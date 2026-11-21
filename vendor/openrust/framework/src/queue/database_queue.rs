@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use std::{
     sync::Arc,
     time::{Duration, UNIX_EPOCH},
@@ -224,7 +226,7 @@ impl Contract for DatabaseQueue {
         Some(self)
     }
 
-    fn get_connection_name(&self) -> &str {
+    fn getConnectionName(&self) -> &str {
         &self.name
     }
 

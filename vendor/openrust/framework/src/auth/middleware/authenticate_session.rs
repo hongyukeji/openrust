@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use subtle::ConstantTimeEq as _;
 
 use crate::{
@@ -28,7 +30,7 @@ impl Middleware for AuthenticateSession {
                 return Ok(next.run(request).await);
             }
             let user = manager.userForGuard(request, Some(&guard)).await?;
-            let Some(password) = user.as_deref().and_then(|user| user.get_auth_password()) else {
+            let Some(password) = user.as_deref().and_then(|user| user.getAuthPassword()) else {
                 return Ok(next.run(request).await);
             };
 
@@ -57,7 +59,7 @@ impl Middleware for AuthenticateSession {
 
             let response = next.run(request).await;
             let user = AuthManager::resolved_user(request, &guard);
-            if let Some(password) = user.as_deref().and_then(|user| user.get_auth_password()) {
+            if let Some(password) = user.as_deref().and_then(|user| user.getAuthPassword()) {
                 let value = signer.sign(Some(password));
                 request
                     .session_mut()

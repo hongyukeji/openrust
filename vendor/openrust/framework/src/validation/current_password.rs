@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use std::sync::Arc;
 
 use super::{RuleFailure, ValidationError, ValidationResult, Value};
@@ -44,7 +46,7 @@ pub(super) async fn failures(
         })?(guard)?
     };
     let valid = if let Some(user) = user {
-        if let Some(hash) = user.get_auth_password().filter(|hash| !hash.is_empty()) {
+        if let Some(hash) = user.getAuthPassword().filter(|hash| !hash.is_empty()) {
             let value = match value {
                 Value::Null => String::new(),
                 Value::String(value) => value.clone(),

@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use clap::{Arg, ArgAction, Command as Syntax, value_parser};
@@ -56,7 +58,7 @@ impl Command for MonitorCommand {
                 queue_name(Some(name), queue.default_queue()).map_err(error)?;
                 let metrics = queue.metrics(Some(name)).await.map_err(error)?;
                 rows.push(QueueStatus {
-                    connection: queue.get_connection_name().into(),
+                    connection: queue.getConnectionName().into(),
                     queue: name.into(),
                     status: if metrics.size >= maximum {
                         "ALERT"

@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use std::{future::Future, sync::Arc};
 
 use jiff::Timestamp;
@@ -115,7 +117,7 @@ pub trait HasApiTokens: Model + Authenticatable {
                     .map(|auth| auth.getDefaultDriver())
             })?;
         let user = AuthManager::resolved_user(request, &guard)?;
-        (user.get_auth_identifier() == self.get_auth_identifier()
+        (user.getAuthIdentifier() == self.getAuthIdentifier()
             && user.as_ref().type_id() == std::any::TypeId::of::<Self>())
         .then_some(guard)
     }

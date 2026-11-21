@@ -69,3 +69,6 @@ fn article_url() -> Result<String, openrust::routing::UrlError> {
 ```
 
 Domain routes take precedence. Among active routes of the same kind, the first registration wins. The identifier is explicit because Rust registers compiled handlers.
+## Generation Policies
+
+Clone the request's `UrlGenerator` before applying `forceScheme`, `forceHttps`, `forceRootUrl`, `formatHostUsing`, or `formatPathUsing`. These methods take mutable access to that generator; they do not mutate another request's policies. Pass `None` to clear forced scheme/root settings. Formatters affect generated paths and named routes, including signed URLs. Verify signatures against the same absolute/relative mode used to generate them. Configure trusted proxies separately so request-derived origins use the intended forwarded host and scheme.

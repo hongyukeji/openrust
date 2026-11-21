@@ -150,9 +150,10 @@ impl OneOfMany {
                     &related.qualifyColumn(previous),
                 );
             }
-            let query = query.select_related_aggregate(aggregate.function(), &candidate_column)?;
+            let mut query =
+                query.select_related_aggregate(aggregate.function(), &candidate_column)?;
             let outer_column = related.qualifyColumn(column);
-            related = related.require_relation_subquery(&outer_column, &query)?;
+            related = related.require_relation_subquery(&outer_column, &mut query)?;
         }
         Ok(related)
     }

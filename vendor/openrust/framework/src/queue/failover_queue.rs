@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use std::{
     collections::HashSet,
     sync::{Arc, Mutex},
@@ -116,7 +118,7 @@ impl FailoverQueue {
 }
 
 impl Contract for FailoverQueue {
-    fn get_connection_name(&self) -> &str {
+    fn getConnectionName(&self) -> &str {
         &self.name
     }
 

@@ -17,7 +17,6 @@ pub use email::Email;
 pub(super) use encoding::EncodingRule;
 pub use enum_rule::Enum;
 pub use exists::Exists;
-pub(super) use file::size_failure;
 pub use file::{File, FileSize};
 pub use in_rule::In;
 pub use password::Password;

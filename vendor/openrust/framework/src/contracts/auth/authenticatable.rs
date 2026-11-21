@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use std::any::Any;
 
 use crate::{
@@ -7,13 +9,13 @@ use crate::{
 
 /// Identity and credential fields exposed by an authenticatable user.
 pub trait Authenticatable: Any + Send + Sync {
-    fn get_auth_identifier_name(&self) -> &str;
-    fn get_auth_identifier(&self) -> AuthIdentifier;
-    fn get_auth_password_name(&self) -> &str;
-    fn get_auth_password(&self) -> Option<&str>;
-    fn get_remember_token(&self) -> Option<&str>;
-    fn set_remember_token(&mut self, token: Option<String>);
-    fn get_remember_token_name(&self) -> &str;
+    fn getAuthIdentifierName(&self) -> &str;
+    fn getAuthIdentifier(&self) -> AuthIdentifier;
+    fn getAuthPasswordName(&self) -> &str;
+    fn getAuthPassword(&self) -> Option<&str>;
+    fn getRememberToken(&self) -> Option<&str>;
+    fn setRememberToken(&mut self, token: Option<String>);
+    fn getRememberTokenName(&self) -> &str;
 
     /// Reads a named attribute used by authentication-aware middleware.
     #[allow(non_snake_case, reason = "Matches Laravel's model attribute naming")]

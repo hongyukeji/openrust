@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use std::{
     io,
     sync::Arc,
@@ -144,7 +146,7 @@ impl BeanstalkdQueue {
 }
 
 impl Contract for BeanstalkdQueue {
-    fn get_connection_name(&self) -> &str {
+    fn getConnectionName(&self) -> &str {
         &self.name
     }
     fn default_queue(&self) -> &str {

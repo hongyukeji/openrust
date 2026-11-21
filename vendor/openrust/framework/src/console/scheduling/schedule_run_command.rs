@@ -699,7 +699,7 @@ impl ScheduleRunCommand {
             Events::dispatch(ScheduledTaskFailed {
                 task: event.clone(),
                 exception: error.clone(),
-                runtime,
+                runtime: Some(runtime),
             })
             .await
             .map_err(super::error)?;
@@ -968,7 +968,7 @@ impl ScheduleRunCommand {
                 Events::dispatch(ScheduledTaskFailed {
                     task: task.clone(),
                     exception: failure,
-                    runtime: start.elapsed(),
+                    runtime: Some(start.elapsed()),
                 })
                 .await
                 .map(|_| ())

@@ -35,6 +35,12 @@ use crate::{
     support::ServiceProvider,
 };
 
+pub(super) type LifecycleCallback =
+    Box<dyn FnOnce(&Application) -> crate::support::ProviderResult + Send + Sync>;
+pub(super) type ScheduleConfigurator = Box<
+    dyn Fn(&mut crate::console::scheduling::Schedule) -> Result<(), ConsoleError> + Send + Sync,
+>;
+
 pub(super) type RunnerRegistrar = Box<dyn FnOnce() -> Vec<Arc<dyn Runner>> + Send>;
 pub(super) type CommandRegistrar = fn(&mut Artisan) -> Result<(), ConsoleError>;
 pub(crate) type PackageRoutes = fn() -> Result<(), crate::routing::RoutingError>;
@@ -50,6 +56,9 @@ pub struct Application {
 #[allow(non_snake_case, reason = "Retains Laravel application state names")]
 pub(super) struct ApplicationState {
     basePath: PathBuf,
+    pub(super) lifecycle: Mutex<[Vec<LifecycleCallback>; 3]>,
+    pub(super) prefer_json: AtomicBool,
+    pub(super) schedule_configurators: Mutex<Vec<ScheduleConfigurator>>,
     publicPath: RwLock<Option<PathBuf>>,
     paths: Arc<super::Paths>,
     load_config: ConfigLoader,
@@ -87,6 +96,15 @@ const FAILED: u8 = 1;
 const BOOTED: u8 = 2;
 
 impl Application {
+    fn run_lifecycle(&self, phase: usize) -> Result<(), BootstrapError> {
+        let callbacks =
+            std::mem::take(&mut self.shared.lifecycle.lock().expect("应用生命周期锁中毒")[phase]);
+        for callback in callbacks {
+            callback(self).map_err(|source| BootstrapError::LifecycleFailed { source })?;
+        }
+        Ok(())
+    }
+
     /// Checks a compiled provider class name after successful registration.
     #[allow(non_snake_case, reason = "Matches Laravel's application API")]
     pub fn providerIsLoaded(&self, provider: &str) -> bool {
@@ -513,6 +531,9 @@ impl Application {
             .instance::<dyn ExceptionHandler>(exceptions.clone())
             .expect("the application exception handler is initially unbound");
         let shared = Arc::new(ApplicationState {
+            lifecycle: Mutex::new(Default::default()),
+            prefer_json: AtomicBool::new(false),
+            schedule_configurators: Mutex::new(Vec::new()),
             basePath,
             publicPath: RwLock::new(None),
             paths,
@@ -1005,6 +1026,8 @@ impl Application {
             self.markAsRegistered(provider.as_ref());
             boot_positions.push(deferred.registered_count());
         }
+        self.run_lifecycle(0)?;
+        self.run_lifecycle(1)?;
         self.shared.booting_started.store(true, Ordering::Release);
         deferred
             .boot_prepared()
@@ -1125,6 +1148,7 @@ impl Application {
             .await
             .map_err(|source| BootstrapError::ContainerFailed { source })?;
         self.shared.state.store(BOOTED, Ordering::Release);
+        self.run_lifecycle(2)?;
         Ok(())
     }
 }

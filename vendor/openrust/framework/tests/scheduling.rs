@@ -112,7 +112,11 @@ impl Listener for ScheduleEvents {
                     self.task.lock().unwrap().as_ref().unwrap(),
                     &failed.task
                 ));
-                assert!(failed.runtime < Duration::from_secs(10));
+                assert!(
+                    failed
+                        .runtime
+                        .is_some_and(|runtime| runtime < Duration::from_secs(10))
+                );
                 if failed.task.getSummaryForDisplay() == "listener-error" {
                     assert_eq!(
                         failed.exception.source().unwrap().to_string(),

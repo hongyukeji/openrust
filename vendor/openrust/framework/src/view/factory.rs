@@ -35,7 +35,16 @@ pub struct Factory {
     engines: Arc<EngineResolver>,
     events: Arc<RwLock<ViewEvents>>,
     embedded: HashMap<String, &'static str>,
+    owner: std::sync::Weak<crate::container::Container>,
     pub(super) public_path: Option<PathBuf>,
+}
+
+#[derive(Default)]
+pub(crate) struct SharedViewData(std::sync::Mutex<HashMap<usize, SharedViewEntry>>);
+
+struct SharedViewEntry {
+    _events: Arc<RwLock<ViewEvents>>,
+    data: Arc<std::sync::Mutex<ViewData>>,
 }
 
 enum ResolvedSource<'a> {
@@ -108,6 +117,7 @@ impl Factory {
             engines: Arc::new(EngineResolver::new(compiled)),
             events: Arc::default(),
             embedded: HashMap::new(),
+            owner: std::sync::Weak::new(),
             public_path: None,
         }
     }
@@ -163,16 +173,94 @@ impl Factory {
         Err(ViewError::NotFound)
     }
 
+    pub fn renderWhen(&self, condition: bool, view: &str, data: &ViewData) -> ViewResult<String> {
+        if condition {
+            self.render(view, data)
+        } else {
+            Ok(String::new())
+        }
+    }
+
+    pub fn renderUnless(&self, condition: bool, view: &str, data: &ViewData) -> ViewResult<String> {
+        self.renderWhen(!condition, view, data)
+    }
+
+    /// 键可为整数或字符串；每次迭代仅传入 key 和指定的变量。
+    pub fn renderEach(
+        &self,
+        view: &str,
+        data: impl IntoIterator<Item = (ViewValue, ViewValue)>,
+        iterator: &str,
+        empty: &str,
+    ) -> ViewResult<String> {
+        let mut output = String::new();
+        let mut any = false;
+        for (key, value) in data {
+            any = true;
+            output.push_str(&self.render(
+                view,
+                &[("key".into(), key), (iterator.into(), value)].into(),
+            )?);
+        }
+        if any {
+            Ok(output)
+        } else if let Some(raw) = empty.strip_prefix("raw|") {
+            Ok(raw.into())
+        } else {
+            self.render(empty, &ViewData::new())
+        }
+    }
+
+    pub(crate) fn with_owner(
+        mut self,
+        owner: std::sync::Weak<crate::container::Container>,
+    ) -> Self {
+        self.owner = owner;
+        self
+    }
+
+    fn shared_data(&self) -> Option<Arc<std::sync::Mutex<ViewData>>> {
+        let owner = self
+            .owner
+            .upgrade()
+            .filter(|owner| owner.has_active_scope())?;
+        let state = owner.make::<SharedViewData>().ok()?;
+        let mut entries = state.0.lock().unwrap();
+        Some(
+            entries
+                .entry(Arc::as_ptr(&self.events) as usize)
+                .or_insert_with(|| SharedViewEntry {
+                    _events: self.events.clone(),
+                    data: Arc::new(std::sync::Mutex::new(
+                        self.events.read().unwrap().shared.clone(),
+                    )),
+                })
+                .data
+                .clone(),
+        )
+    }
+
+    pub fn getShared(&self) -> ViewData {
+        self.shared_data().map_or_else(
+            || self.events.read().unwrap().shared.clone(),
+            |data| data.lock().unwrap().clone(),
+        )
+    }
+
     pub fn exists(&self, name: &str) -> bool {
         self.source(name).is_ok()
     }
 
     pub fn share(&self, key: impl Into<String>, value: impl Into<ViewValue>) {
-        self.events
-            .write()
-            .unwrap()
-            .shared
-            .insert(key.into(), value.into());
+        if let Some(data) = self.shared_data() {
+            data.lock().unwrap().insert(key.into(), value.into());
+        } else {
+            self.events
+                .write()
+                .unwrap()
+                .shared
+                .insert(key.into(), value.into());
+        }
     }
 
     pub fn creator(
@@ -466,7 +554,7 @@ impl Factory {
     fn prepare_view(&self, view: &mut View) -> ViewResult<ViewData> {
         self.callCreator(view)?;
         self.call_events(view, |events| &events.composers)?;
-        let mut data = self.events.read().unwrap().shared.clone();
+        let mut data = self.getShared();
         if let Some(errors) = super::middleware::shared_errors() {
             data.insert("errors".into(), errors);
         }

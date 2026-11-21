@@ -298,7 +298,7 @@ Route::get("/mail-preview/order", preview_order)?;
 
 ## Mail transport extensions and events
 
-Register a Rust transport factory with `MailManager::extend` in an application provider. Select it with the mailer’s `transport` config key. The dispatcher emits `MessageSending` before the transport runs and `MessageSent` after the transport accepts the message. A `MessageSending` listener can return `false` to cancel delivery. `send` returns `None` for a cancelled send, and `sendNow` returns `MailError::Cancelled`.
+Register a Rust transport factory with `MailManager::extend` in an application provider. Select it with the mailer’s `transport` config key. The dispatcher emits `MessageSending` before the transport runs and `MessageSent` after the transport accepts the message. A `MessageSending` listener can return `false` to cancel delivery. `send` and `sendNow` both return `Ok(None)` for a cancelled send.
 
 ## Testing mail
 
@@ -336,3 +336,7 @@ mail.assertSentMatching(receipt.kind(), |entry| {
 });
 mail.assertNothingQueued();
 ```
+
+## Default addresses and cancellation
+
+`Mailer::alwaysTo`, `alwaysFrom`, `alwaysReplyTo`, and `alwaysReturnPath` configure that mailer. Boot-time values become application defaults; overrides inside a request or queue scope affect that execution only. `alwaysTo` replaces recipients and clears CC/BCC after customization. Configuration supports `mail.to`, `mail.from`, `mail.reply_to`, and `mail.return_path`. Cancellation returns `Ok(None)` from `send`, `sendNow`, and `PendingMail`, without invoking transport or emitting `MessageSent`. Existing consumers must handle `Option<SentMessage>` explicitly.

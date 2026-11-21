@@ -97,6 +97,8 @@ pub struct ReverbBroadcaster {
     url: Url,
     signing_path: String,
     client: reqwest::Client,
+    authenticated_user:
+        std::sync::RwLock<Option<Arc<openrust::broadcasting::AuthenticatedUserResolver>>>,
 }
 
 impl ReverbBroadcaster {
@@ -154,6 +156,7 @@ impl ReverbBroadcaster {
             url,
             signing_path,
             client,
+            authenticated_user: std::sync::RwLock::default(),
         })
     }
 
@@ -217,7 +220,48 @@ impl ReverbBroadcaster {
     }
 }
 
+#[allow(non_snake_case, reason = "遵循 Laravel 广播契约原名")]
 impl Broadcaster for ReverbBroadcaster {
+    fn resolveAuthenticatedUserUsing(
+        &self,
+        callback: Arc<openrust::broadcasting::AuthenticatedUserResolver>,
+    ) -> BroadcastResult<()> {
+        *self.authenticated_user.write().expect("广播认证回调锁中毒") = Some(callback);
+        Ok(())
+    }
+    fn resolveAuthenticatedUser<'a>(
+        &'a self,
+        request: &'a mut Request,
+    ) -> BroadcastFuture<'a, BroadcastResult<Option<Response>>> {
+        Box::pin(async move {
+            let callback = self
+                .authenticated_user
+                .read()
+                .expect("广播认证回调锁中毒")
+                .clone();
+            let Some(callback) = callback else {
+                return Ok(None);
+            };
+            let Some(user) = callback(request).await? else {
+                return Ok(None);
+            };
+            let socket = input(request, "socket_id").await?;
+            if !socket.split_once('.').is_some_and(|(a, b)| {
+                [a, b].iter().all(|part| {
+                    !part.is_empty()
+                        && part.len() <= 20
+                        && part.bytes().all(|byte| byte.is_ascii_digit())
+                })
+            }) {
+                return Err(BroadcastException::AccessDenied);
+            }
+            let user_data = serde_json::to_string(&user).map_err(backend)?;
+            let signature = signatures::sign_user(self.secret.as_bytes(), &socket, &user_data);
+            let body = json!({"auth":format!("{}:{signature}",self.key),"user_data":user_data});
+            Ok(Some(Response::json(StatusCode::OK, body).map_err(backend)?))
+        })
+    }
+
     fn auth<'a>(
         &'a self,
         request: &'a mut Request,

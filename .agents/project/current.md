@@ -1,6 +1,17 @@
 # 当前交接
 
-## 当前范围
+## 当前任务：Laravel 对齐审计 L01–L22
+
+2026-11-21 用户明确要求修复 [Laravel 对照审计](audits/laravel-code-audit-2026-11-21.md) 的 L01–L22。固定 Laravel Framework v13.40.0、骨架 v13.11.0；本任务独立执行，不调度其他对话，不重复处理历史扩展 R1–R6。以下旧收尾记录为历史结果，不代替本批源码验收。
+
+- 当前实现已补齐列明的行为、契约和生命周期，包含 Validation／FormRequest、Filesystem 完整绑定链、Mail取消／地址默认、Auth／Queue原名迁移和实际消费者。三语开发者文档同步用法、所有权与迁移影响；逐项结论、失败记录和边界见审计最新修复节。
+- 已实际运行三库Query、三库database cache与Redis／file、三库数据库翻译，以及四扩展、Horizon Redis9、Passport Chromium3、官方Precognition2.0.0浏览器；PG和MySQL完整生成应用验收通过。2026-11-22最终核对3,246个源码／文档输入一致；Eloquent MySQL／SQLite消费者6项、三库Query与Redis补跑、workspace/all-targets/all-features严格Clippy、根及pcre2格式、三语构建与浏览器均通过。ignored／未配置的供应商分支不算通过。
+- 临时批次为 `target/tmp/laravel-alignment-fixes-20261121/`；复用独占 `target/tmp/final-acceptance-20261121/cargo-target/`，Rust1.94.0、TMPDIR `target/tmp/la/`。本批曾触及磁盘停线，持锁清理编译产物后恢复；不删除日志、下载、源码、开发数据或卷。当前受影响工作流因资源压力关闭增量，未改变日常策略。
+- 本批三个隔离容器已按登记身份回收，数据卷集合保留；源码、证据和热缓存保留。2026-11-22收尾可用约51.92 GB／48.35 GiB，高于停线，详见本批`resource-closure.json`与实时df。
+- Reverb用户认证HTTP签名已验，但完整pusher:signin客户端协议仍未实现；真实供应商、正式部署、Windows及其余API候选分别见待办。不能以本批通过推导全部Laravel API或真实目标通过。
+- 2026-11-22用户已明确授权将本任务完成的代码、测试、三语文档和审计记录暂存并本地提交；本次授权不包含推送、发布或部署。
+
+## 历史：上一轮发布前本地收尾
 
 2026-11-21 按用户要求独立完成发布前的本地收尾，不再联系其他对话或委派子代理。真实服务目前不具备条件，统一保留在 [todo.md](todo.md)，不算验收通过，也不阻塞本轮可执行的本地工作。
 

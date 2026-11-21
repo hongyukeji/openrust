@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use crate::{auth::AuthResult, http::Request};
 
 use super::Guard;
@@ -9,5 +11,5 @@ pub trait Factory: Send + Sync {
         request: &'a mut Request,
         name: Option<&str>,
     ) -> AuthResult<Box<dyn Guard + 'a>>;
-    fn should_use(&self, request: &mut Request, name: &str) -> AuthResult<()>;
+    fn shouldUse(&self, request: &mut Request, name: &str) -> AuthResult<()>;
 }

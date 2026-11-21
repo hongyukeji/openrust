@@ -15,3 +15,8 @@ The application’s `bootstrap/` directory contains the declarations used to con
 The bootstrap declares Web and console routes and the health path with `withRouting`. Rust uses the `Routing` builder for these options and registers compiled configuration, providers and commands through `withConfig`, `withProviders` and `withCommands`.
 
 For the order in which the framework uses these declarations, see the [request lifecycle](../architecture-concepts/lifecycle.md).
+## Application Builder Hooks
+
+`Application::configure` accepts `withBindings::<T, _>`, `withSingletons::<T, _>`, and `withScopedSingletons::<T, _>` factories. Chain one registration per Rust type; factories return `Result<Arc<T>, BindingResolutionError>`. Transient bindings resolve every time, singletons belong to the application, and scoped singletons belong to the current request or queue task.
+
+`registered`, `booting`, and `booted` run in that order around provider boot, and successful application boot is idempotent. A failed hook stops subsequent phases and makes boot fail. `withSchedule` registers a lazy schedule configurator; it does not execute tasks during application boot. `prefersJsonResponses(true)` enables JSON preference at the booted phase for broad Accept headers; an explicit exception JSON policy keeps priority.

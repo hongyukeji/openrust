@@ -3,6 +3,7 @@ use crate::database::{DatabaseError, DatabaseResult, Value};
 use super::{Builder, Executor, Order};
 use crate::database::query::{Expression, JoinClause, grammars::Grammar};
 
+#[derive(Clone)]
 pub(super) enum Source {
     Table(String),
     Query(Expression, String),
@@ -48,6 +49,7 @@ enum JoinType {
     },
 }
 
+#[derive(Clone)]
 pub(super) struct Join {
     pub(super) source: Source,
     kind: JoinType,
@@ -101,7 +103,10 @@ impl Builder<'_> {
         }
     }
 
-    pub(super) fn subquery_expression(&self, query: &Builder<'_>) -> DatabaseResult<Expression> {
+    pub(super) fn subquery_expression(
+        &self,
+        query: &mut Builder<'_>,
+    ) -> DatabaseResult<Expression> {
         let outer = self.executor.source();
         let inner = query.executor.source();
         let qualification = if outer.same_query_source(inner) {
@@ -117,11 +122,12 @@ impl Builder<'_> {
             };
             (outer_database != inner_database).then_some(inner_database)
         };
+        query.applyBeforeQueryCallbacks()?;
         let (sql, bindings) = query.compile_with_database(None, qualification.as_deref())?;
         Ok(Expression::new(sql).with_bindings(bindings))
     }
 
-    pub fn selectSub(self, query: &Builder<'_>, alias: &str) -> DatabaseResult<Self> {
+    pub fn selectSub(self, query: &mut Builder<'_>, alias: &str) -> DatabaseResult<Self> {
         let query = self.subquery_expression(query)?;
         let alias = self.grammar.column(alias)?;
         Ok(self.selectRaw(&format!("({}) as {alias}", query.sql), query.bindings))
@@ -129,7 +135,7 @@ impl Builder<'_> {
 
     pub(in crate::database) fn select_exists(
         self,
-        query: &Builder<'_>,
+        query: &mut Builder<'_>,
         alias: &str,
     ) -> DatabaseResult<Self> {
         let query = self.subquery_expression(query)?;
@@ -170,7 +176,7 @@ impl Builder<'_> {
         self
     }
 
-    pub fn fromSub(mut self, query: &Builder<'_>, alias: &str) -> DatabaseResult<Self> {
+    pub fn fromSub(mut self, query: &mut Builder<'_>, alias: &str) -> DatabaseResult<Self> {
         self.source = Source::Query(self.subquery_expression(query)?, alias.into());
         Ok(self)
     }
@@ -219,7 +225,7 @@ impl Builder<'_> {
         )
     }
 
-    pub fn crossJoinSub(self, query: &Builder<'_>, alias: &str) -> DatabaseResult<Self> {
+    pub fn crossJoinSub(self, query: &mut Builder<'_>, alias: &str) -> DatabaseResult<Self> {
         self.join_sub(query, alias, JoinType::Cross, |join| join)
     }
 
@@ -251,7 +257,7 @@ impl Builder<'_> {
 
     pub fn straightJoinSub(
         self,
-        query: &Builder<'_>,
+        query: &mut Builder<'_>,
         alias: &str,
         configure: impl FnOnce(JoinClause) -> JoinClause,
     ) -> DatabaseResult<Self> {
@@ -260,7 +266,7 @@ impl Builder<'_> {
 
     pub fn joinSub(
         self,
-        query: &Builder<'_>,
+        query: &mut Builder<'_>,
         alias: &str,
         configure: impl FnOnce(JoinClause) -> JoinClause,
     ) -> DatabaseResult<Self> {
@@ -269,7 +275,7 @@ impl Builder<'_> {
 
     pub fn leftJoinSub(
         self,
-        query: &Builder<'_>,
+        query: &mut Builder<'_>,
         alias: &str,
         configure: impl FnOnce(JoinClause) -> JoinClause,
     ) -> DatabaseResult<Self> {
@@ -278,22 +284,27 @@ impl Builder<'_> {
 
     pub fn rightJoinSub(
         self,
-        query: &Builder<'_>,
+        query: &mut Builder<'_>,
         alias: &str,
         configure: impl FnOnce(JoinClause) -> JoinClause,
     ) -> DatabaseResult<Self> {
         self.join_sub(query, alias, JoinType::Right, configure)
     }
 
-    pub fn joinLateral(self, query: &Builder<'_>, alias: &str) -> DatabaseResult<Self> {
+    pub fn joinLateral(self, query: &mut Builder<'_>, alias: &str) -> DatabaseResult<Self> {
         self.join_lateral(query, alias, false)
     }
 
-    pub fn leftJoinLateral(self, query: &Builder<'_>, alias: &str) -> DatabaseResult<Self> {
+    pub fn leftJoinLateral(self, query: &mut Builder<'_>, alias: &str) -> DatabaseResult<Self> {
         self.join_lateral(query, alias, true)
     }
 
-    fn join_lateral(self, query: &Builder<'_>, alias: &str, left: bool) -> DatabaseResult<Self> {
+    fn join_lateral(
+        self,
+        query: &mut Builder<'_>,
+        alias: &str,
+        left: bool,
+    ) -> DatabaseResult<Self> {
         let (operator, condition) = self.grammar.lateral_join(left)?;
         self.join_sub(
             query,
@@ -308,7 +319,7 @@ impl Builder<'_> {
 
     fn join_sub(
         self,
-        query: &Builder<'_>,
+        query: &mut Builder<'_>,
         alias: &str,
         kind: JoinType,
         configure: impl FnOnce(JoinClause) -> JoinClause,
@@ -332,7 +343,7 @@ impl Builder<'_> {
 
     pub(in crate::database) fn related_count_expression(
         &self,
-        query: &Builder<'_>,
+        query: &mut Builder<'_>,
         operator: &str,
         count: u64,
     ) -> DatabaseResult<Expression> {
@@ -364,12 +375,12 @@ impl Builder<'_> {
         for (alias, query) in queries {
             bindings.push(alias.into());
             let use_exists = count == 1 && matches!(operator, ">=" | "<");
-            let query = if use_exists {
+            let mut query = if use_exists {
                 query.reorder()
             } else {
                 query.select_related_aggregate("count", "*")?
             };
-            let query = self.subquery_expression(&query)?;
+            let query = self.subquery_expression(&mut query)?;
             bindings.extend(query.bindings);
             let comparison = if use_exists {
                 let prefix = if operator == "<" {
@@ -401,25 +412,25 @@ impl Builder<'_> {
         Ok(Expression::new(predicate).with_bindings(bindings))
     }
 
-    pub fn whereExists(self, query: &Builder<'_>) -> DatabaseResult<Self> {
+    pub fn whereExists(self, query: &mut Builder<'_>) -> DatabaseResult<Self> {
         self.where_exists(query, false, false)
     }
 
-    pub fn orWhereExists(self, query: &Builder<'_>) -> DatabaseResult<Self> {
+    pub fn orWhereExists(self, query: &mut Builder<'_>) -> DatabaseResult<Self> {
         self.where_exists(query, true, false)
     }
 
-    pub fn whereNotExists(self, query: &Builder<'_>) -> DatabaseResult<Self> {
+    pub fn whereNotExists(self, query: &mut Builder<'_>) -> DatabaseResult<Self> {
         self.where_exists(query, false, true)
     }
 
-    pub fn orWhereNotExists(self, query: &Builder<'_>) -> DatabaseResult<Self> {
+    pub fn orWhereNotExists(self, query: &mut Builder<'_>) -> DatabaseResult<Self> {
         self.where_exists(query, true, true)
     }
 
     fn where_exists(
         mut self,
-        query: &Builder<'_>,
+        query: &mut Builder<'_>,
         or: bool,
         negated: bool,
     ) -> DatabaseResult<Self> {
@@ -430,7 +441,7 @@ impl Builder<'_> {
 
     pub(in crate::database) fn exists_expression(
         &self,
-        query: &Builder<'_>,
+        query: &mut Builder<'_>,
         negated: bool,
     ) -> DatabaseResult<Expression> {
         let query = self.subquery_expression(query)?;
@@ -438,18 +449,18 @@ impl Builder<'_> {
         Ok(Expression::new(format!("{operator} ({})", query.sql)).with_bindings(query.bindings))
     }
 
-    pub fn whereInSub(self, column: &str, query: &Builder<'_>) -> DatabaseResult<Self> {
+    pub fn whereInSub(self, column: &str, query: &mut Builder<'_>) -> DatabaseResult<Self> {
         self.where_in_sub(column, query, false)
     }
 
-    pub fn whereNotInSub(self, column: &str, query: &Builder<'_>) -> DatabaseResult<Self> {
+    pub fn whereNotInSub(self, column: &str, query: &mut Builder<'_>) -> DatabaseResult<Self> {
         self.where_in_sub(column, query, true)
     }
 
     fn where_in_sub(
         mut self,
         column: &str,
-        query: &Builder<'_>,
+        query: &mut Builder<'_>,
         negated: bool,
     ) -> DatabaseResult<Self> {
         let query = self.subquery_expression(query)?;
@@ -467,7 +478,7 @@ impl Builder<'_> {
         mut self,
         column: &str,
         operator: &str,
-        query: &Builder<'_>,
+        query: &mut Builder<'_>,
     ) -> DatabaseResult<Self> {
         let query = self.subquery_expression(query)?;
         let column = self.grammar.column(column)?;
@@ -480,15 +491,15 @@ impl Builder<'_> {
         Ok(self)
     }
 
-    pub fn union(self, query: &Builder<'_>) -> DatabaseResult<Self> {
+    pub fn union(self, query: &mut Builder<'_>) -> DatabaseResult<Self> {
         self.add_union(query, false)
     }
 
-    pub fn unionAll(self, query: &Builder<'_>) -> DatabaseResult<Self> {
+    pub fn unionAll(self, query: &mut Builder<'_>) -> DatabaseResult<Self> {
         self.add_union(query, true)
     }
 
-    fn add_union(mut self, query: &Builder<'_>, all: bool) -> DatabaseResult<Self> {
+    fn add_union(mut self, query: &mut Builder<'_>, all: bool) -> DatabaseResult<Self> {
         let query = self.subquery_expression(query)?;
         self.unions.push((all, query));
         Ok(self)

@@ -172,3 +172,6 @@ Enable `trustHosts` to restrict the original and effective hosts. Patterns are c
 ```
 
 With `subdomains` enabled, the hostname in `app.url` and its subdomains are also trusted. Use `trustHostsWith` to resolve patterns asynchronously for each request. Host checks are skipped in the exact `local` and `testing` environments.
+## Request Metadata
+
+`ajax()` checks `X-Requested-With: XMLHttpRequest`; `pjax()` checks `X-PJAX`. `prefetch()` compares `X-Moz`, `Purpose`, and `Sec-Purpose` with `prefetch`, ignoring case but requiring an exact value. Prefetch requests do not replace the session's previous URL or route. `userAgent()` returns an optional header value. `fingerprint()` requires a matched route and hashes its methods, domain, URI and client IP. Use `user(guard).await` to resolve the current user through the selected guard.

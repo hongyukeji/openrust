@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use std::{
     io,
     sync::{Arc, Weak},
@@ -78,7 +80,7 @@ impl Handler {
         let mut origin = match owner.as_ref().and_then(|_| Origin::current()) {
             Some(Origin::Http(request)) => {
                 let user = request.user();
-                let id = user.as_ref().map(|user| json!(user.get_auth_identifier()));
+                let id = user.as_ref().map(|user| json!(user.getAuthIdentifier()));
                 let email = user.as_deref().and_then(email);
                 json!({"type":"http","method":request.method(),"path":request.path(),"auth_id":id,"auth_email":email})
             }

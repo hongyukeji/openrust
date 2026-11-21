@@ -497,6 +497,7 @@ impl Router {
             }
             let parameters = route.parameters(host, &path);
             request.parts_mut().extensions.insert(super::RouteMetadata {
+                methods: route.methods.clone(),
                 uri: route.uri.clone(),
                 domain: route.domain.clone(),
                 action: route
@@ -653,7 +654,15 @@ impl Router {
         Ok(route)
     }
 
-    pub(super) fn insert_route(&mut self, methods: &[Method], route: Route) -> &mut Route {
+    pub(super) fn insert_route(&mut self, methods: &[Method], mut route: Route) -> &mut Route {
+        let mut methods = methods.to_vec();
+        if methods.contains(&Method::GET) && !methods.contains(&Method::HEAD) {
+            methods.push(Method::HEAD);
+        }
+        route.methods = methods
+            .iter()
+            .map(|method| method.as_str().to_owned())
+            .collect();
         self.route_cache = None;
         self.has_domains |= route.domain.is_some();
         let index = self.routes.len();

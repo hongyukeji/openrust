@@ -234,3 +234,11 @@ APP_LOCALE=zh_Hant ./artisan help list
 可在 `console` 分组内使用 `options`、`commands.list.description` 和 `commands.list.arguments.namespace` 等键调整帮助。参见 [Artisan 输出格式](./artisan.md#command-help-and-output-formats)。
 
 生产环境确认提示和取消消息使用同一翻译分组。可在 `console.json` 中覆盖 `confirm.production` 或 `confirm.cancelled`。输入 `y` 或 `yes` 确认，直接回车取消。
+
+## 契约语言设置
+
+Translator 契约、具体实现和 Lang Facade 均提供 `getLocale`、`setLocale`、`getFallback`、`setFallback`。启动时设置应用默认值；请求／队列作用域内设置只影响当前执行。`withLocale` 支持嵌套并在离开后恢复，回退语言独立设置。旧自定义 Loader／Translator 消费者应将契约中的 snake_case 调用迁移为上述原名。
+
+## 语言设置的所有权
+
+语言及回退语言的读取方法返回拥有所有权的 `String` 快照。设置方法接收 `&self`，返回 `TranslationResult<()>`，非法语言标识返回错误。语言标识会规范化，例如 `zh-CN` 转为 `zh_CN`。启动值作为默认值，请求或队列任务期间的修改只保留在当前容器作用域。`withLocale` 只临时覆盖当前任务，完成后恢复外层语言。

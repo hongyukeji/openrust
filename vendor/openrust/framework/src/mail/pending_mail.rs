@@ -77,7 +77,7 @@ impl PendingMail {
             .await
     }
 
-    pub async fn sendNow(self, mailable: &dyn Mailable) -> MailResult<SentMessage> {
+    pub async fn sendNow(self, mailable: &dyn Mailable) -> MailResult<Option<SentMessage>> {
         self.manager
             .mailer(mailable.mailer())?
             .send_now_to(mailable, self.recipients)

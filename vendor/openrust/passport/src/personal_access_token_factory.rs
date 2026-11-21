@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use std::{
     any::{Any, TypeId},
     collections::HashMap,
@@ -93,7 +95,7 @@ pub trait HasApiTokens: Authenticatable {
     ) -> impl Future<Output = Result<PersonalAccessTokenResult, OAuthError>> + Send {
         async move {
             PersonalAccessTokenFactory::make(
-                self.get_auth_identifier(),
+                self.getAuthIdentifier(),
                 name,
                 scopes,
                 self.getProviderName(),

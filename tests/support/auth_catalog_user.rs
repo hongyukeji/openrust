@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use openrust::{
     auth::AuthIdentifier,
     contracts::auth::Authenticatable,
@@ -26,31 +28,31 @@ impl Model for User {
 }
 
 impl Authenticatable for User {
-    fn get_auth_identifier_name(&self) -> &str {
-        self.0.get_auth_identifier_name()
+    fn getAuthIdentifierName(&self) -> &str {
+        self.0.getAuthIdentifierName()
     }
 
-    fn get_auth_identifier(&self) -> AuthIdentifier {
-        self.0.get_auth_identifier()
+    fn getAuthIdentifier(&self) -> AuthIdentifier {
+        self.0.getAuthIdentifier()
     }
 
-    fn get_auth_password_name(&self) -> &str {
-        self.0.get_auth_password_name()
+    fn getAuthPasswordName(&self) -> &str {
+        self.0.getAuthPasswordName()
     }
 
-    fn get_auth_password(&self) -> Option<&str> {
-        self.0.get_auth_password()
+    fn getAuthPassword(&self) -> Option<&str> {
+        self.0.getAuthPassword()
     }
 
-    fn get_remember_token(&self) -> Option<&str> {
-        self.0.get_remember_token()
+    fn getRememberToken(&self) -> Option<&str> {
+        self.0.getRememberToken()
     }
 
-    fn set_remember_token(&mut self, token: Option<String>) {
-        self.0.set_remember_token(token);
+    fn setRememberToken(&mut self, token: Option<String>) {
+        self.0.setRememberToken(token);
     }
 
-    fn get_remember_token_name(&self) -> &str {
-        self.0.get_remember_token_name()
+    fn getRememberTokenName(&self) -> &str {
+        self.0.getRememberTokenName()
     }
 }

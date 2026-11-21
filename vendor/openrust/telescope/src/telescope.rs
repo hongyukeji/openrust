@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use crate::{
     EntryType, EntryUpdate, IncomingEntry, IncomingExceptionEntry, Result,
     contracts::EntriesRepository,
@@ -295,7 +297,7 @@ impl Telescope {
         if let Ok(auth) = openrust::auth::Auth::manager()
             && let Some(user) = auth.resolvedUser(None)
             && let (Ok(id), Ok(attributes)) = (
-                serde_json::to_value(user.get_auth_identifier()),
+                serde_json::to_value(user.getAuthIdentifier()),
                 auth.userAttributes(user.as_ref()),
             )
         {

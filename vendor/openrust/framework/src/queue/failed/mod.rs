@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 //! Failed job storage contracts and providers.
 
 mod database_uuid_failed_job_provider;
@@ -27,8 +29,8 @@ impl FailedJob {
     pub(super) fn new(job: &dyn crate::contracts::queue::Job, error: &QueueError) -> Self {
         Self {
             id: job.uuid().into(),
-            connection: job.get_connection_name().into(),
-            queue: job.get_queue().into(),
+            connection: job.getConnectionName().into(),
+            queue: job.getQueue().into(),
             payload: job.payload().clone(),
             exception: error.to_string(),
             failed_at: timestamp(jiff::Timestamp::now()),

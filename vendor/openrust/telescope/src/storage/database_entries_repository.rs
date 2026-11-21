@@ -54,7 +54,7 @@ impl DatabaseEntriesRepository {
             query = query.whereExactText("batch_id", &batch.to_string());
         }
         if let Some(tag) = options.tag.as_ref().filter(|value| !value.is_empty()) {
-            let tags = self
+            let mut tags = self
                 .connection
                 .table("telescope_entries_tags")
                 .select(["entry_uuid"])
@@ -62,7 +62,7 @@ impl DatabaseEntriesRepository {
                     "tag",
                     tag.split(',').map(|tag| Value::from(tag.trim())).collect(),
                 );
-            query = query.whereInSub("uuid", &tags)?;
+            query = query.whereInSub("uuid", &mut tags)?;
         }
         if let Some(hash) = options
             .familyHash

@@ -149,6 +149,71 @@ impl Request {
         Ok(self.query_cache.get_or_init(|| parsed))
     }
 
+    pub fn ajax(&self) -> bool {
+        self.headers()
+            .get("x-requested-with")
+            .is_some_and(|value| value == "XMLHttpRequest")
+    }
+
+    pub fn pjax(&self) -> bool {
+        self.headers()
+            .get("x-pjax")
+            .is_some_and(|value| !value.is_empty() && value != "0")
+    }
+
+    pub fn prefetch(&self) -> bool {
+        ["x-moz", "purpose", "sec-purpose"].into_iter().any(|name| {
+            self.headers()
+                .get(name)
+                .is_some_and(|value| value.as_bytes().eq_ignore_ascii_case(b"prefetch"))
+        })
+    }
+
+    #[allow(non_snake_case, reason = "遵循 Laravel Request 命名")]
+    pub fn userAgent(&self) -> Option<&str> {
+        self.headers()
+            .get("user-agent")
+            .and_then(|value| value.to_str().ok())
+    }
+
+    pub async fn user(
+        &mut self,
+        guard: Option<&str>,
+    ) -> crate::auth::AuthResult<Option<Arc<dyn crate::contracts::auth::Authenticatable>>> {
+        crate::support::facades::Auth::manager()?
+            .userForGuard(self, guard)
+            .await
+    }
+
+    pub fn fingerprint(&self) -> Result<String, super::HttpError> {
+        let route = self
+            .parts
+            .extensions
+            .get::<crate::routing::RouteMetadata>()
+            .ok_or_else(|| super::HttpError::Internal {
+                source: std::io::Error::other("无法生成请求指纹：尚未匹配路由").into(),
+            })?;
+        let mut parts = route.methods.clone();
+        parts.extend([
+            route.domain.clone().unwrap_or_default(),
+            if route.uri == "/" {
+                "/".to_owned()
+            } else {
+                route.uri.trim_matches('/').to_owned()
+            },
+            self.ip().map(|ip| ip.to_string()).unwrap_or_default(),
+        ]);
+        let hash = aws_lc_rs::digest::digest(
+            &aws_lc_rs::digest::SHA1_FOR_LEGACY_USE_ONLY,
+            parts.join("|").as_bytes(),
+        );
+        Ok(hash
+            .as_ref()
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect())
+    }
+
     pub fn headers(&self) -> &HeaderMap {
         &self.parts.headers
     }

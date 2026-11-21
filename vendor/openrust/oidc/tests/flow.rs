@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 #[path = "support/local_login.rs"]
 mod recipe;
 #[path = "support/user.rs"]
@@ -249,7 +251,7 @@ fn who(r: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         let u = openrust::auth::Auth::user(r).await.map_err(internal)?;
         Response::json(
             StatusCode::OK,
-            json!({"user":u.map(|u|u.get_auth_identifier().to_string())}),
+            json!({"user":u.map(|u|u.getAuthIdentifier().to_string())}),
         )
     })
 }

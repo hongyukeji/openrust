@@ -16,6 +16,23 @@ impl Facade for Redis {
 }
 
 impl Redis {
+    pub fn purge(name: Option<&str>) -> RedisResult<()> {
+        Self::getFacadeRoot()
+            .map_err(RedisError::Unavailable)?
+            .purge(name);
+        Ok(())
+    }
+
+    pub fn extend(
+        driver: impl Into<String>,
+        callback: impl Fn(&serde_json::Value, &str) -> RedisResult<Connection> + Send + Sync + 'static,
+    ) -> RedisResult<()> {
+        Self::getFacadeRoot()
+            .map_err(RedisError::Unavailable)?
+            .extend(driver, callback);
+        Ok(())
+    }
+
     pub fn connection(name: Option<&str>) -> RedisResult<Arc<Connection>> {
         Self::getFacadeRoot()
             .map_err(RedisError::Unavailable)?

@@ -1,4 +1,4 @@
-use std::fmt::Write as _;
+use std::{fmt::Write as _, sync::Arc};
 
 use futures_util::TryStreamExt as _;
 
@@ -83,6 +83,7 @@ impl Column {
     }
 }
 
+#[derive(Clone)]
 enum Order {
     Column(String, String),
     Raw(Expression),
@@ -90,10 +91,14 @@ enum Order {
     FullText(Vec<String>, String, super::FullTextOptions),
 }
 
+#[derive(Clone)]
 struct GroupLimit {
     partition: String,
     limit: Option<u64>,
 }
+
+type BeforeQuery = dyn for<'a> Fn(Builder<'a>) -> DatabaseResult<Builder<'a>> + Send + Sync;
+type AfterQuery = dyn Fn(Vec<Row>) -> DatabaseResult<Vec<Row>> + Send + Sync;
 
 /// Builds and executes a query using the grammar of the selected connection.
 pub struct Builder<'connection> {
@@ -117,6 +122,8 @@ pub struct Builder<'connection> {
     offset: Option<u64>,
     group_limit: Option<GroupLimit>,
     use_write: bool,
+    before_query: Vec<Arc<BeforeQuery>>,
+    after_query: Vec<Arc<AfterQuery>>,
 }
 
 #[allow(non_snake_case, reason = "Matches Laravel's Query Builder API")]
@@ -174,6 +181,8 @@ impl<'connection> Builder<'connection> {
             offset: None,
             group_limit: None,
             use_write: false,
+            before_query: Vec::new(),
+            after_query: Vec::new(),
         }
     }
 
@@ -396,7 +405,75 @@ impl<'connection> Builder<'connection> {
         self.lock(false)
     }
 
-    pub fn toSql(&self) -> DatabaseResult<String> {
+    /// 回调返回修改后的查询，沿用 Builder 的所有权链式接口。
+    pub fn beforeQuery(
+        mut self,
+        callback: impl for<'a> Fn(Builder<'a>) -> DatabaseResult<Builder<'a>> + Send + Sync + 'static,
+    ) -> Self {
+        self.before_query.push(Arc::new(callback));
+        self
+    }
+    pub fn afterQuery(
+        mut self,
+        callback: impl Fn(Vec<Row>) -> DatabaseResult<Vec<Row>> + Send + Sync + 'static,
+    ) -> Self {
+        self.after_query.push(Arc::new(callback));
+        self
+    }
+    /// 复制查询结构，保留连接的独占借用；回调失败时原查询及事务仍有效。
+    fn snapshot(&self) -> Builder<'static> {
+        Builder {
+            executor: Executor::Detached(self.executor.source().clone()),
+            grammar: self.grammar.clone(),
+            source: self.source.clone(),
+            joins: self.joins.clone(),
+            unions: self.unions.clone(),
+            union_orders: self.union_orders.clone(),
+            union_limit: self.union_limit,
+            union_offset: self.union_offset,
+            lock: self.lock.clone(),
+            index_hint: self.index_hint.clone(),
+            columns: self.columns.clone(),
+            distinct: self.distinct,
+            predicates: self.predicates.clone(),
+            groups: self.groups.clone(),
+            havings: self.havings.clone(),
+            orders: self.orders.clone(),
+            limit: self.limit,
+            offset: self.offset,
+            group_limit: self.group_limit.clone(),
+            use_write: self.use_write,
+            before_query: self.before_query.clone(),
+            after_query: self.after_query.clone(),
+        }
+    }
+    pub fn applyBeforeQueryCallbacks(&mut self) -> DatabaseResult<()> {
+        let callbacks = self.before_query.clone();
+        for callback in callbacks {
+            let mut changed = callback(self.snapshot())?;
+            std::mem::swap(&mut self.executor, &mut changed.executor);
+            *self = changed;
+        }
+        self.before_query.clear();
+        Ok(())
+    }
+    pub fn applyAfterQueryCallbacks(&self, mut rows: Vec<Row>) -> DatabaseResult<Vec<Row>> {
+        for callback in &self.after_query {
+            rows = callback(rows)?;
+        }
+        Ok(rows)
+    }
+    pub fn toRawSql(&mut self) -> DatabaseResult<String> {
+        self.applyBeforeQueryCallbacks()?;
+        let (sql, bindings) = self.compile(None)?;
+        crate::database::bindings::render_query(
+            &sql,
+            &crate::database::events::QueryBindings::Positional(bindings),
+            !self.executor.source().is_sqlite(),
+        )
+    }
+    pub fn toSql(&mut self) -> DatabaseResult<String> {
+        self.applyBeforeQueryCallbacks()?;
         self.compile(None).map(|(sql, _)| sql)
     }
 
@@ -437,6 +514,7 @@ impl<'connection> Builder<'connection> {
             } else {
                 (self.union_offset.unwrap_or(0), self.union_limit.unwrap_or(u64::MAX))
             };
+            self.applyBeforeQueryCallbacks()?;
             while remaining != 0 {
                 let size = count.min(remaining);
                 if self.unions.is_empty() {
@@ -449,6 +527,7 @@ impl<'connection> Builder<'connection> {
                 let (sql, bindings) = self.compile(None)?;
                 let mut rows = self.execute(&sql, &bindings).await?;
                 self.remove_group_rank(&mut rows);
+                let rows = self.applyAfterQueryCallbacks(rows)?;
                 let length = rows.len() as u64;
                 if length == 0 {
                     break;
@@ -466,17 +545,20 @@ impl<'connection> Builder<'connection> {
     }
 
     pub async fn get(mut self) -> DatabaseResult<Vec<Row>> {
+        self.applyBeforeQueryCallbacks()?;
         let (sql, bindings) = self.compile(None)?;
         let mut rows = self.execute(&sql, &bindings).await?;
         self.remove_group_rank(&mut rows);
-        Ok(rows)
+        self.applyAfterQueryCallbacks(rows)
     }
 
     /// Streams the query results without collecting them into a vector.
     pub fn cursor(mut self) -> DatabaseCursor<'connection> {
         Box::pin(async_stream::try_stream! {
+            self.applyBeforeQueryCallbacks()?;
             let grouped = self.group_limit.is_some();
             let (sql, bindings) = self.compile(None)?;
+            let callbacks = self.after_query.clone();
             let mut rows = match &mut self.executor {
                 Executor::Connection(connection) =>
                     connection.cursor_with_mode(&sql, &bindings, self.use_write),
@@ -487,7 +569,9 @@ impl<'connection> Builder<'connection> {
                 if grouped {
                     row.remove_last_column();
                 }
-                yield row;
+                let mut mapped = vec![row];
+                for callback in &callbacks { mapped = callback(mapped)?; }
+                if let Some(row) = mapped.into_iter().next() { yield row; }
             }
         })
     }
@@ -579,6 +663,7 @@ impl<'connection> Builder<'connection> {
     }
 
     async fn exists_query(&mut self) -> DatabaseResult<bool> {
+        self.applyBeforeQueryCallbacks()?;
         let (sql, bindings) = self.compile(None)?;
         let alias = self.grammar.column("exists")?;
         let sql = format!("select exists({sql}) as {alias}");
@@ -630,8 +715,10 @@ impl<'connection> Builder<'connection> {
     }
 
     async fn aggregate(mut self, function: &'static str, column: &str) -> DatabaseResult<Value> {
+        self.applyBeforeQueryCallbacks()?;
         let (sql, bindings) = self.compile(Some((function, column)))?;
-        first_value(self.execute(&sql, &bindings).await?)
+        let rows = self.execute(&sql, &bindings).await?;
+        first_value(self.applyAfterQueryCallbacks(rows)?)
     }
 
     async fn execute(&mut self, sql: &str, bindings: &[Value]) -> DatabaseResult<Vec<Row>> {

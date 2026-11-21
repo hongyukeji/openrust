@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use axum::{extract::State, handler::Handler as _};
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use openrust::{
@@ -74,26 +76,26 @@ impl Model for User {
     }
 }
 impl Authenticatable for User {
-    fn get_auth_identifier_name(&self) -> &str {
+    fn getAuthIdentifierName(&self) -> &str {
         "subject"
     }
-    fn get_auth_identifier(&self) -> AuthIdentifier {
+    fn getAuthIdentifier(&self) -> AuthIdentifier {
         self.getAttribute("subject").unwrap().try_into().unwrap()
     }
-    fn get_auth_password_name(&self) -> &str {
+    fn getAuthPasswordName(&self) -> &str {
         "password"
     }
-    fn get_auth_password(&self) -> Option<&str> {
+    fn getAuthPassword(&self) -> Option<&str> {
         match self.getAttribute("password") {
             Some(Value::Text(v)) => Some(v),
             _ => None,
         }
     }
-    fn get_remember_token(&self) -> Option<&str> {
+    fn getRememberToken(&self) -> Option<&str> {
         None
     }
-    fn set_remember_token(&mut self, _: Option<String>) {}
-    fn get_remember_token_name(&self) -> &str {
+    fn setRememberToken(&mut self, _: Option<String>) {}
+    fn getRememberTokenName(&self) -> &str {
         "remember_token"
     }
 }
@@ -194,7 +196,7 @@ fn view(
     Box::pin(async move {
         Response::json(
             StatusCode::OK,
-            json!({"auth_token":params.auth_token,"csrf":request.session()?.token(),"client":params.client.toArray().await.unwrap(),"user":params.user.get_auth_identifier(),"scopes":params.scopes}),
+            json!({"auth_token":params.auth_token,"csrf":request.session()?.token(),"client":params.client.toArray().await.unwrap(),"user":params.user.getAuthIdentifier(),"scopes":params.scopes}),
         )
     })
 }
@@ -301,12 +303,19 @@ impl Fixture {
             .unwrap()
             .connection(None)
             .unwrap();
-        app.make::<Migrator>()
-            .await
-            .unwrap()
-            .run(None, &[], RunOptions::default())
-            .await
-            .unwrap();
+        let migrator = app.make::<Migrator>().await.unwrap();
+        app.call(
+            openrust::container::Callback::new(&[], move |_| async move {
+                migrator
+                    .run(None, &[], RunOptions::default())
+                    .await
+                    .unwrap();
+                Ok(())
+            }),
+            Default::default(),
+        )
+        .await
+        .unwrap();
         db.getSchemaBuilder()
             .create("users", |t| {
                 t.id();
@@ -1174,7 +1183,7 @@ fn resource_for<'a>(
         let token = openrust_passport::guards::TokenGuard::token(request, guard).unwrap();
         Response::json(
             StatusCode::OK,
-            json!({"user":user.get_auth_identifier(),"token":token.oauth_access_token_id,"scopes":token.oauth_scopes,"read":token.can("read").unwrap(),"write":token.can("write").unwrap(),"transient":token.transient()}),
+            json!({"user":user.getAuthIdentifier(),"token":token.oauth_access_token_id,"scopes":token.oauth_scopes,"read":token.can("read").unwrap(),"write":token.can("write").unwrap(),"transient":token.transient()}),
         )
     })
 }

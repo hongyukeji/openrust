@@ -169,6 +169,7 @@ impl<'connection> Builder<'connection> {
                 Err(DatabaseError::InvalidQuery("chunkById requires a single query source; wrap the union in a subquery"))?;
             }
 
+            self.applyBeforeQueryCallbacks()?;
             let (direction, operator) = if key.descending { ("desc", "<") } else { ("asc", ">") };
             let unqualified = key.column.rsplit('.').next().expect("column has one component");
             self.orders.retain(|order| {
@@ -188,6 +189,7 @@ impl<'connection> Builder<'connection> {
                 self.limit = Some(size);
                 let (sql, bindings) = self.compile(None)?;
                 let rows = self.execute(&sql, &bindings).await?;
+                let rows = self.applyAfterQueryCallbacks(rows)?;
                 let length = rows.len() as u64;
                 let Some(last) = rows.last() else { break };
                 let last_id = last.get(&key.alias).filter(|value| !matches!(value, Value::Null)).cloned();

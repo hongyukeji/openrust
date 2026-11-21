@@ -1061,7 +1061,8 @@ async fn artisan_redis_lock_flush_uses_selected_database_and_preserves_tagged_va
         return;
     };
     let settings = format!(
-        "CACHE_STORE=redis\nREDIS_URL={url}\nCACHE_PREFIX=redis-clear-locks-\nREDIS_CACHE_DB=2\n"
+        "CACHE_STORE=redis\nREDIS_URL={url}\nCACHE_PREFIX=redis-clear-locks-{}-\nREDIS_CACHE_DB=2\n",
+        std::process::id()
     );
     let root = Sandbox::new("redis-flush-locks", &format!("{settings}REDIS_DB=3\n"));
     let same = Sandbox::new("redis-shared-locks", &format!("{settings}REDIS_DB=2\n"));
@@ -2633,7 +2634,14 @@ async fn verify_flexible(root: &Sandbox) {
             .unwrap(),
         "initial".into()
     );
-    tokio::time::sleep(Duration::from_millis(1100)).await;
+    // 数据库及 Redis 的整秒过期时间存在取整边界，等待实际过期后检查重新生成。
+    tokio::time::timeout(Duration::from_secs(3), async {
+        while cache.get("short").await.unwrap().is_some() {
+            tokio::time::sleep(Duration::from_millis(25)).await;
+        }
+    })
+    .await
+    .expect("短期缓存应在有限时间内过期");
     assert_eq!(
         cache
             .flexible("short", [0, 1], || async { Ok("regenerated".into()) })

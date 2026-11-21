@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "遵循 Laravel Mailer 契约")]
+
 use crate::mail::{MailFuture, MailResult, SentMessage};
 
 use super::Mailable;
@@ -9,7 +11,7 @@ pub trait Mailer: Send + Sync {
         mailable: &'a dyn Mailable,
     ) -> MailFuture<'a, MailResult<Option<SentMessage>>>;
 
-    fn send_now<'a>(
+    fn sendNow<'a>(
         &'a self,
         mailable: &'a dyn Mailable,
     ) -> MailFuture<'a, MailResult<Option<SentMessage>>>;

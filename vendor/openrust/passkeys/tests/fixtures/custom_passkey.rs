@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use openrust::{
     contracts::{
         auth::Authenticatable,
@@ -113,7 +115,7 @@ impl<U: Authenticatable> Listener for ObserveEvents<U> {
                 ($kind:ty,$counter:ident) => {
                     if let Some(event) = event.downcast_ref::<$kind>() {
                         let user = event.user::<U>(context).expect("actual typed user context");
-                        assert_eq!(user.get_auth_identifier(), event.user);
+                        assert_eq!(user.getAuthIdentifier(), event.user);
                         let model = event
                             .passkey::<CustomPasskey>(context)
                             .expect("actual custom Eloquent context");

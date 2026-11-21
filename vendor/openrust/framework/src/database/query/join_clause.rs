@@ -3,7 +3,7 @@ use crate::database::Value;
 use super::Conditions;
 
 /// The column comparisons and bound values of a join.
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct JoinClause(pub(super) Conditions);
 
 #[allow(non_snake_case, reason = "Matches Laravel's JoinClause API")]

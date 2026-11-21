@@ -56,6 +56,36 @@ impl Default for Schedule {
 
 #[allow(non_snake_case, reason = "Matches Laravel's scheduling API")]
 impl Schedule {
+    /// 阈值与回调耗时均用 Duration 表达，避免秒和毫秒混淆。
+    pub fn whenTaskRunsLongerThan(
+        &self,
+        threshold: std::time::Duration,
+        handler: impl Fn(&Arc<Event>, std::time::Duration) -> crate::events::EventResult<()>
+        + Send
+        + Sync
+        + 'static,
+    ) -> crate::events::EventResult<()> {
+        use crate::support::facades::Facade as _;
+        let events = crate::support::facades::Event::getFacadeRoot()
+            .map_err(crate::events::EventError::Unavailable)?;
+        let listener = Arc::new(super::long_task_listener::LongTaskListener {
+            threshold,
+            handler: Arc::new(handler),
+        });
+        events.register(|registry| {
+            registry.listen(
+                "console.scheduled_task_finished",
+                listener.clone(),
+                crate::events::Delivery::Sync,
+            )?;
+            registry.listen(
+                "console.scheduled_task_failed",
+                listener,
+                crate::events::Delivery::Sync,
+            )
+        })
+    }
+
     #[track_caller]
     pub fn call(
         &mut self,

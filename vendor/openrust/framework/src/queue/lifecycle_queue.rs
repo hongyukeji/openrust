@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use std::sync::Arc;
 
 use crate::{
@@ -25,7 +27,7 @@ pub(super) struct LifecycleQueue {
 }
 
 impl Contract for LifecycleQueue {
-    fn get_connection_name(&self) -> &str {
+    fn getConnectionName(&self) -> &str {
         &self.name
     }
 

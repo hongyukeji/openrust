@@ -116,3 +116,7 @@ impl ServiceProvider for AppSessionProvider {
 ```
 
 Register this provider with the application and set `SESSION_DRIVER=app_memory`. The example keeps records in the application process. A shared backend can persist records across processes.
+
+## Default cookie name
+
+The default is `Str::slug(APP_NAME) + "-session"`: `My App` becomes `my-app-session`, while `ExampleStore` becomes `examplestore-session`. Upgrading changes the old default cookie name and makes existing browser sessions unavailable. Set `SESSION_COOKIE` explicitly to retain the old name. Cache and Redis prefixes use the same slug; set `CACHE_PREFIX` and `REDIS_PREFIX` explicitly to retain existing namespaces.

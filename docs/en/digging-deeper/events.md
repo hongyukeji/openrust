@@ -181,3 +181,7 @@ fake.assertDispatchedOnce("orders.created")
 ```
 
 Use `dispatchedWhere` to read matching payloads in dispatch order. The `Where` methods take a predicate while the name-only methods retain their existing signatures.
+
+## Pushed events
+
+`Dispatcher::push(Arc<dyn Event>)` stores an event; `flush(name, context)` dispatches its `_pushed` listeners. Repeated flushes dispatch again until `forgetPushed` clears registrations. This differs from `defer` and after-commit dispatch. Stored events are isolated by request/queue scope; clearing a scope does not delete another request’s shared listeners.

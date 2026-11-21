@@ -305,3 +305,6 @@ With `pail` enabled, package discovery loads the provider and `./artisan dev:lis
 Registration tests the provider identity, independently of capture gates. In `testing` or Vapor environments the loaded provider still yields a default `logs` entry, even though its `pail` command is disabled unless `PAIL_TESTS` overrides the gate. Use `DevCommands::except(&["logs"])?` to exclude it in such an application. On Windows, the supervisor sends console shutdown signals to the default `logs` process and reclaims its process tree through Windows jobs. A normal Ctrl+C shutdown removes the owned Pail session.
 
 The loaded-provider check is repeated when resolving the registry, so an early query before Pail registers does not permanently hide `logs`.
+## Channel Context
+
+Use `withContext` and `withoutContext` for channel context. `shareContext` merges context into resolved and future channels; per-message fields override channel fields. `sharedContext` reads the defaults for future channels. `flushSharedContext` clears those defaults without deleting fields already merged into channels; use `withoutContext` to remove channel fields. Boot-time defaults are inherited by each request or queue scope. Dynamic context is isolated by scope, even when channel handles are reused.

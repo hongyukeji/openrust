@@ -23,6 +23,8 @@ impl ServiceProvider for ViewServiceProvider {
             let base = app.base_path().to_path_buf();
             let public = app.publicPath();
             let container = app.container();
+            container.scoped::<super::factory::SharedViewData, _>(|_| Ok(Arc::default()))?;
+            let owner = Arc::downgrade(&app.container_handle());
             container.singletonNamed("view", move |container| {
                 let config = container.get::<dyn Repository>("config")?;
                 configured_factory(
@@ -34,7 +36,7 @@ impl ServiceProvider for ViewServiceProvider {
                 )
                 .map(|mut factory| {
                     factory.public_path = Some(public.clone());
-                    Arc::new(factory)
+                    Arc::new(factory.with_owner(owner.clone()))
                 })
                 .map_err(|source| BindingResolutionError::FactoryFailed {
                     service: "view",

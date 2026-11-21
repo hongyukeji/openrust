@@ -152,7 +152,13 @@ impl SesTransport {
             .await;
         let response = client
             .send_email()
-            .set_from_email_address(message.0.envelope().from().map(ToString::to_string))
+            .set_from_email_address(
+                message
+                    .envelope()
+                    .from
+                    .as_ref()
+                    .map(|from| from.address.clone()),
+            )
             .destination(
                 Destination::builder()
                     .set_to_addresses(Some(message.recipients()))
@@ -162,7 +168,11 @@ impl SesTransport {
             .set_configuration_set_name(options.configuration_set_name.clone())
             .set_from_email_address_identity_arn(options.from_email_address_identity_arn.clone())
             .set_feedback_forwarding_email_address(
-                options.feedback_forwarding_email_address.clone(),
+                message
+                    .envelope()
+                    .return_path
+                    .clone()
+                    .or_else(|| options.feedback_forwarding_email_address.clone()),
             )
             .set_feedback_forwarding_email_address_identity_arn(
                 options

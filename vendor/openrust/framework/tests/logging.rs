@@ -33,11 +33,7 @@ struct Root(PathBuf);
 impl Root {
     fn new() -> Self {
         // The application canonicalizes the root before joining Unix socket paths.
-        let temporary = if cfg!(unix) {
-            PathBuf::from("/tmp")
-        } else {
-            std::env::temp_dir()
-        };
+        let temporary = std::env::temp_dir();
         let path = temporary.join(format!(
             "openrust-log-{}-{}",
             std::process::id(),

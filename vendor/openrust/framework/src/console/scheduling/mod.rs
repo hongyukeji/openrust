@@ -26,3 +26,5 @@ pub use scheduling_mutex::SchedulingMutex;
 fn error(error: impl std::fmt::Display) -> crate::console::ConsoleError {
     crate::console::ConsoleError::new(error.to_string())
 }
+
+mod long_task_listener;

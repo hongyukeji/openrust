@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use std::{
     ffi::OsString,
     path::Path,
@@ -128,23 +130,23 @@ impl Broadcaster for Recorder {
 
 struct Identity;
 impl Authenticatable for Identity {
-    fn get_auth_identifier_name(&self) -> &str {
+    fn getAuthIdentifierName(&self) -> &str {
         "id"
     }
-    fn get_auth_identifier(&self) -> AuthIdentifier {
+    fn getAuthIdentifier(&self) -> AuthIdentifier {
         AuthIdentifier::String("42".into())
     }
-    fn get_auth_password_name(&self) -> &str {
+    fn getAuthPasswordName(&self) -> &str {
         "password"
     }
-    fn get_auth_password(&self) -> Option<&str> {
+    fn getAuthPassword(&self) -> Option<&str> {
         None
     }
-    fn get_remember_token(&self) -> Option<&str> {
+    fn getRememberToken(&self) -> Option<&str> {
         None
     }
-    fn set_remember_token(&mut self, _: Option<String>) {}
-    fn get_remember_token_name(&self) -> &str {
+    fn setRememberToken(&mut self, _: Option<String>) {}
+    fn getRememberTokenName(&self) -> &str {
         "remember_token"
     }
 }
@@ -302,7 +304,7 @@ impl ChannelHandler for RoomChannel {
             let owner = room.getAttributeValue("owner").unwrap();
             let allowed = match owner {
                 Some(DbValue::Text(owner)) => {
-                    user.get_auth_identifier() == AuthIdentifier::String(owner)
+                    user.getAuthIdentifier() == AuthIdentifier::String(owner)
                 }
                 _ => false,
             };
@@ -407,7 +409,7 @@ fn channels() -> BroadcastResult<()> {
         "orders.{id}",
         |user: &dyn Authenticatable, parameters: &ChannelParameters| {
             Ok(
-                if user.get_auth_identifier() == AuthIdentifier::String(parameters["id"].clone()) {
+                if user.getAuthIdentifier() == AuthIdentifier::String(parameters["id"].clone()) {
                     ChannelAuthorization::Allowed
                 } else {
                     ChannelAuthorization::Denied

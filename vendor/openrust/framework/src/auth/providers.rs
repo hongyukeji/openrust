@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use crate::{
     contracts::{auth::Authenticatable, hashing::Hasher},
     database::{Connection, Value},
@@ -10,7 +12,7 @@ pub(super) fn matches_token(user: &dyn Authenticatable, token: &str) -> bool {
     use subtle::ConstantTimeEq as _;
     !token.is_empty()
         && user
-            .get_remember_token()
+            .getRememberToken()
             .is_some_and(|stored| bool::from(stored.as_bytes().ct_eq(token.as_bytes())))
 }
 
@@ -24,7 +26,7 @@ pub(super) async fn validate(
     user: &dyn Authenticatable,
     credentials: &Credentials,
 ) -> AuthResult<bool> {
-    let Some(hash) = user.get_auth_password() else {
+    let Some(hash) = user.getAuthPassword() else {
         return Ok(false);
     };
     hasher
@@ -43,16 +45,16 @@ pub(super) async fn update_token(
     user: &mut dyn Authenticatable,
     token: &str,
 ) -> AuthResult<()> {
-    let field = user.get_remember_token_name();
+    let field = user.getRememberTokenName();
     if field.is_empty() {
         return Err(AuthError::Configuration("remember token column"));
     }
     let affected = connection
         .table(table)
         .r#where(
-            user.get_auth_identifier_name(),
+            user.getAuthIdentifierName(),
             "=",
-            Value::from(user.get_auth_identifier()),
+            Value::from(user.getAuthIdentifier()),
         )
         .update(std::collections::BTreeMap::from([(
             field.to_owned(),
@@ -63,7 +65,7 @@ pub(super) async fn update_token(
     if affected == 0 {
         return Err(AuthError::InvalidIdentity);
     }
-    user.set_remember_token(Some(token.to_owned()));
+    user.setRememberToken(Some(token.to_owned()));
     Ok(())
 }
 
@@ -75,7 +77,7 @@ pub(super) async fn rehash(
     credentials: &Credentials,
     force: bool,
 ) -> AuthResult<()> {
-    let Some(old) = user.get_auth_password() else {
+    let Some(old) = user.getAuthPassword() else {
         return Ok(());
     };
     let options = HashOptions::default();
@@ -90,13 +92,13 @@ pub(super) async fn rehash(
         .make(credentials.password().as_bytes(), &options)
         .await
         .map_err(AuthError::backend)?;
-    let field = user.get_auth_password_name();
+    let field = user.getAuthPasswordName();
     let affected = connection
         .table(table)
         .r#where(
-            user.get_auth_identifier_name(),
+            user.getAuthIdentifierName(),
             "=",
-            Value::from(user.get_auth_identifier()),
+            Value::from(user.getAuthIdentifier()),
         )
         .r#where(field, "=", old)
         .update(std::collections::BTreeMap::from([(

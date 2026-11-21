@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 //! Explicit request-local testing substitutions; never a process-global resource server mock.
 use crate::{AccessToken, ClientRecord, Passport, guards::TokenGuard};
 use openrust::{
@@ -18,7 +20,7 @@ impl Passport {
         guard: &str,
         client: Option<&ClientRecord>,
     ) -> AuthResult<()> {
-        let user_id = user.get_auth_identifier().to_string();
+        let user_id = user.getAuthIdentifier().to_string();
         let client_id = match client {
             Some(client) => client_id(client).await?,
             None => String::new(),

@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use std::sync::Arc;
 
 use crate::{
@@ -59,8 +61,8 @@ impl SyncQueue {
                 if successor.chain_route.is_some() || successor.dispatch_options.is_some() {
                     let mut options = successor.chain_options(&self.name, &context.queue);
                     let connection = manager.connection(options.connection.as_deref())?;
-                    if connection.get_connection_name() != self.name {
-                        options.connection = Some(connection.get_connection_name().to_owned());
+                    if connection.getConnectionName() != self.name {
+                        options.connection = Some(connection.getConnectionName().to_owned());
                         let successor = next.take().expect("successor is present");
                         manager
                             .dispatch(successor, options, context.transaction())
@@ -195,7 +197,7 @@ async fn emit<E: Event>(
 }
 
 impl Contract for SyncQueue {
-    fn get_connection_name(&self) -> &str {
+    fn getConnectionName(&self) -> &str {
         &self.name
     }
 

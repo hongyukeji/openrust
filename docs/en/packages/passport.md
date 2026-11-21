@@ -163,7 +163,7 @@ pub fn consent(request: &mut Request, params: AuthorizationViewParameters)
         Response::json(StatusCode::OK, serde_json::json!({
             "auth_token": params.auth_token,
             "csrf": request.session()?.token(),
-            "user": params.user.get_auth_identifier(),
+            "user": params.user.getAuthIdentifier(),
             "scopes": params.scopes,
         }))
     })
@@ -290,7 +290,7 @@ Password and Implicit grants are disabled by default. Creating their client reco
 
 Create a client with `artisan passport:client --password --provider=users` (`--public` creates a public client). Send `grant_type=password`, `client_id`, `username`, `password` and optional `scope` to `POST /oauth/token`; confidential clients also provide `client_secret` or HTTP Basic credentials. Success returns a signed access token and, when the client supports it, a refresh token. Ordinary access/refresh lifetimes apply. Incorrect user credentials return 400 `invalid_grant`, `The user credentials were incorrect.`; missing fields, invalid clients and unknown scopes retain OAuth error responses.
 
-`bridge::UserRepository::getUserEntityByUserCredentials` selects the client's provider, falling back to `auth.guards.api.provider` for a null/empty provider. The default compiled Eloquent provider queries `email` and verifies the real password hash. A custom framework `UserProvider` supplies the native equivalents of model `findForPassport` and `validateForPassportPasswordGrant` through `retrieve_by_credentials` and `validate_credentials`. This path neither starts a Session nor rehashes passwords.
+`bridge::UserRepository::getUserEntityByUserCredentials` selects the client's provider, falling back to `auth.guards.api.provider` for a null/empty provider. The default compiled Eloquent provider queries `email` and verifies the real password hash. A custom framework `UserProvider` supplies the native equivalents of model `findForPassport` and `validateForPassportPasswordGrant` through `retrieveByCredentials` and `validateCredentials`. This path neither starts a Session nor rehashes passwords.
 
 For a combined model-level `findAndValidateForPassport` hook, register `passport.findAndValidateForPassportUsing("users", resolver)`. The native `bridge::PasswordGrantResolver` is a compiled function taking borrowed username, password and `ClientRecord`, returning `AuthFuture<AuthResult<Option<AuthIdentifier>>>`. It takes precedence for that provider; it must perform the application's actual lookup and validation. This explicit registration replaces PHP runtime method discovery. Exceptions fail with a redacted 500 response; they do not become invalid passwords.
 

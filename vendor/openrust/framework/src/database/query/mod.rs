@@ -25,7 +25,7 @@ pub type Record = std::collections::BTreeMap<String, crate::database::Value>;
 /// An ordinary value, a trusted expression, or a scalar query for an update assignment.
 pub enum UpdateValue<'query, 'connection> {
     Operand(ValueOperand),
-    Subquery(&'query Builder<'connection>),
+    Subquery(&'query mut Builder<'connection>),
 }
 
 impl<T: Into<ValueOperand>> From<T> for UpdateValue<'_, '_> {
@@ -35,6 +35,7 @@ impl<T: Into<ValueOperand>> From<T> for UpdateValue<'_, '_> {
 }
 
 /// A pessimistic lock mode or an application-defined SQL locking clause.
+#[derive(Clone)]
 pub enum QueryLock {
     Exclusive,
     Shared,

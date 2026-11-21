@@ -126,6 +126,15 @@ impl MailManager {
             .insert(name.into(), Arc::new(creator));
     }
 
+    #[allow(non_snake_case, reason = "遵循 Laravel 全局邮件地址配置")]
+    fn globalAddress(&self, key: &str) -> Option<Address> {
+        let value = self.config.get(&format!("mail.{key}"))?;
+        Some(Address {
+            address: value["address"].as_str()?.to_owned(),
+            name: value["name"].as_str().map(str::to_owned),
+        })
+    }
+
     pub fn mailer(&self, name: Option<&str>) -> MailResult<Arc<Mailer>> {
         let default = self.config.get("mail.default");
         let name = name
@@ -162,6 +171,15 @@ impl MailManager {
         let mailer = Arc::new(Mailer {
             name: name.into(),
             from,
+            defaults: Mutex::new(super::address_defaults::Defaults {
+                from: None,
+                to: self.globalAddress("to"),
+                reply_to: self.globalAddress("reply_to"),
+                return_path: self
+                    .globalAddress("return_path")
+                    .map(|address| address.address),
+            }),
+            owner: self.owner.clone(),
             views,
             markdown: Markdown::from_config(self.config.as_ref(), &self.base)?,
             events: container.make::<Dispatcher>().map_err(super::composition)?,

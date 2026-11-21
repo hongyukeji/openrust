@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 /// An unauthenticated subscription channel.
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Channel {
@@ -233,7 +235,7 @@ impl ChannelRegistry {
                 .map_err(|error| BroadcastException::Backend(Box::new(error)))?
             {
                 let authorization = self.authorize_matching(channel, user, Some(&parts)).await?;
-                return Ok((Some(user.get_auth_identifier()), authorization));
+                return Ok((Some(user.getAuthIdentifier()), authorization));
             }
         }
         Ok((None, ChannelAuthorization::Denied))

@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 
 use axum::{extract::State, handler::Handler as _};
@@ -53,25 +55,25 @@ impl Model for User {
 }
 
 impl Authenticatable for User {
-    fn get_auth_identifier_name(&self) -> &str {
+    fn getAuthIdentifierName(&self) -> &str {
         "identity"
     }
-    fn get_auth_identifier(&self) -> AuthIdentifier {
+    fn getAuthIdentifier(&self) -> AuthIdentifier {
         self.getKey().unwrap().try_into().unwrap()
     }
-    fn get_auth_password_name(&self) -> &str {
+    fn getAuthPasswordName(&self) -> &str {
         "password"
     }
-    fn get_auth_password(&self) -> Option<&str> {
+    fn getAuthPassword(&self) -> Option<&str> {
         field(self, "password")
     }
-    fn get_remember_token(&self) -> Option<&str> {
+    fn getRememberToken(&self) -> Option<&str> {
         field(self, "remember_token")
     }
-    fn set_remember_token(&mut self, token: Option<String>) {
+    fn setRememberToken(&mut self, token: Option<String>) {
         self.setAttribute("remember_token", token.map_or(Value::Null, Value::Text));
     }
-    fn get_remember_token_name(&self) -> &str {
+    fn getRememberTokenName(&self) -> &str {
         "remember_token"
     }
     fn getAuthAttribute(&self, name: &str) -> AuthResult<Option<Value>> {
@@ -336,7 +338,7 @@ async fn verify(database: Json, database_sessions: bool) {
                 .is_some_and(|value| value == "001")
             {
                 return provider
-                    .retrieve_by_id(&AuthIdentifier::String("001".into()))
+                    .retrieveById(&AuthIdentifier::String("001".into()))
                     .await;
             }
             Ok(None)

@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use std::{fmt::Write as _, io::Write as _};
 
 use clap::ArgMatches;
@@ -95,8 +97,8 @@ fn job_status(job: &dyn Job, outcome: Option<JobOutcome<'_>>, timestamp: String)
     };
     let mut entry = json!({
         "level": if matches!(status, "starting" | "success") {"info"} else {"warning"},
-        "id": job.get_job_id(), "uuid": job.uuid(), "connection": job.get_connection_name(),
-        "queue": job.get_queue(), "job": job.payload().display_name(), "status": status,
+        "id": job.getJobId(), "uuid": job.uuid(), "connection": job.getConnectionName(),
+        "queue": job.getQueue(), "job": job.payload().display_name(), "status": status,
         "attempts": job.attempts(), "timestamp": timestamp,
     });
     if let Some(outcome) = outcome {
@@ -105,11 +107,11 @@ fn job_status(job: &dyn Job, outcome: Option<JobOutcome<'_>>, timestamp: String)
             entry["exception"] = json!("QueueError");
             entry["message"] = json!(error.to_string());
         }
-        let result = if job.is_deleted() {
+        let result = if job.isDeleted() {
             Some("deleted")
-        } else if job.is_released() {
+        } else if job.isReleased() {
             Some("released")
-        } else if job.has_failed() {
+        } else if job.hasFailed() {
             Some("failed")
         } else {
             None

@@ -65,7 +65,7 @@ fn config(_: &Path, _: &Environment) -> Result<BTreeMap<String, Value>, ConfigEr
     ]))
 }
 fn application(registered: bool) -> TestApp {
-    TestApp::create(|builder| {
+    let app = TestApp::create(|builder| {
         let builder = builder
             .withConfig(config)
             .withProviders(vec![Box::new(PassportServiceProvider)]);
@@ -75,7 +75,15 @@ fn application(registered: bool) -> TestApp {
             builder
         }
     })
-    .unwrap()
+    .unwrap();
+    let directory = app.root().join("lang/en");
+    std::fs::create_dir_all(&directory).unwrap();
+    std::fs::write(
+        directory.join("schema.json"),
+        include_str!("../../../../lang/en/schema.json"),
+    )
+    .unwrap();
+    app
 }
 #[tokio::test]
 async fn mysql_published_schema_matches_fixed_php_and_migration_connections_are_isolated() {
@@ -160,7 +168,25 @@ async fn mysql_published_schema_matches_fixed_php_and_migration_connections_are_
             .getColumns(&format!("reference_{table}"))
             .await
             .unwrap();
-        let actual = oauth.getSchemaBuilder().getColumns(table).await.unwrap();
+        let mut actual = oauth.getSchemaBuilder().getColumns(table).await.unwrap();
+        // 项目明确增加了本地化元数据注释；单独验证后再对照上游的结构契约。
+        let labels: serde_json::Value =
+            serde_json::from_str(include_str!("../../../../lang/en/schema.json")).unwrap();
+        for column in &mut actual {
+            let expected_label = labels["columns"][&column.name].as_str().unwrap();
+            assert_eq!(
+                column.comment.as_deref(),
+                Some(expected_label),
+                "{table}.{} 的注释",
+                column.name
+            );
+            let reference = expected
+                .iter()
+                .find(|item| item.name == column.name)
+                .unwrap();
+            assert!(reference.comment.as_deref().is_none_or(str::is_empty));
+            column.comment.clone_from(&reference.comment);
+        }
         assert_eq!(actual, expected, "{table}");
         let mut expected = main
             .getSchemaBuilder()

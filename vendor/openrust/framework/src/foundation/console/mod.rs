@@ -240,6 +240,18 @@ impl Kernel {
                             if let Some(register) = self.application.shared.command_routes {
                                 facades::Artisan::register(&mut self.artisan, register)?;
                             }
+                            for configure in self
+                                .application
+                                .shared
+                                .schedule_configurators
+                                .lock()
+                                .expect("调度配置锁中毒")
+                                .iter()
+                            {
+                                scheduling::ScheduleFacade::configure(|schedule| {
+                                    configure(schedule)
+                                })?;
+                            }
                             Ok(())
                         })?;
                         if self.register_planned {

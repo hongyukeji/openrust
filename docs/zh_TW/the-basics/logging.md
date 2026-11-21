@@ -305,3 +305,6 @@ Provider 透過所屬應用程式的 ConsoleKernel 註冊命令，沿用擷取�
 註冊依 Provider 身分判斷，獨立於擷取門禁。在 testing 或 Vapor 環境中，已載入的 Provider 仍提供預設 `logs`，但 `pail` 命令被門禁停用，除非設定 PAIL_TESTS 例外。此類應用程式可用 `DevCommands::except(&["logs"])?` 排除它。Windows 監督器向預設 `logs` 程序傳送主控台關停訊號，並透過 Windows 作業回收程序樹。正常 Ctrl+C 關停會刪除本次 Pail 工作階段。
 
 每次解析程序清單都會檢查 Provider 的載入狀態，因此在 Pail 註冊之前查詢清單，不會導致後續永久遺漏 `logs`。
+## 頻道上下文
+
+使用 `withContext`、`withoutContext` 設定或移除頻道上下文。`shareContext` 合併到已解析及未來的頻道，每則日誌的同名欄位優先。`sharedContext` 讀取未來頻道的預設值。`flushSharedContext` 只清空這些預設值，不刪除已合併到頻道的欄位；移除頻道欄位使用 `withoutContext`。啟動階段預設值由請求或佇列工作繼承，動態上下文按作用域隔離，重用頻道控制代碼也不跨請求共用。

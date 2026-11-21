@@ -236,7 +236,7 @@ impl<M: Model> NamedRelations<M> {
                                 constraint,
                             )?;
                             related = related.and_expression(predicate);
-                            return parent.exists_expression(&related, terminal);
+                            return parent.exists_expression(&mut related, terminal);
                         }
                         if let Some(constraint) = constraint {
                             let qualifier = related.relation_qualifier().to_owned();
@@ -244,11 +244,11 @@ impl<M: Model> NamedRelations<M> {
                                 .whereNested(|conditions| constraint(conditions, &qualifier));
                         }
                         match (operator, count) {
-                            (">=", 1) => parent.exists_expression(&related, false),
-                            ("<", 1) => parent.exists_expression(&related, true),
+                            (">=", 1) => parent.exists_expression(&mut related, false),
+                            ("<", 1) => parent.exists_expression(&mut related, true),
                             _ => {
-                                let related = related.select_related_aggregate("count", "*")?;
-                                parent.related_count_expression(&related, operator, count)
+                                let mut related = related.select_related_aggregate("count", "*")?;
+                                parent.related_count_expression(&mut related, operator, count)
                             }
                         }
                     },

@@ -29,13 +29,16 @@ impl ServiceProvider for TranslationServiceProvider {
             container.singleton::<dyn Loader, _>(|container| {
                 Ok(container.get::<FileLoader>("translation.loader")?)
             })?;
-            container.singletonNamed("translator", |container| {
+            container.scoped::<super::translator::LocaleState, _>(|_| Ok(Arc::default()))?;
+            let owner = Arc::downgrade(&app.container_handle());
+            container.singletonNamed("translator", move |container| {
                 let config = container.get::<dyn Repository>("config")?;
                 let loader = container.get::<FileLoader>("translation.loader")?;
                 let make = || {
                     let selected = locale(config.as_ref(), "app.locale")?;
                     let fallback = locale(config.as_ref(), "app.fallback_locale")?;
                     Translator::with_loader(loader, selected, fallback)
+                        .map(|translator| translator.with_owner(owner.clone()))
                 };
                 make()
                     .map(Arc::new)

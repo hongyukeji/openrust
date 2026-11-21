@@ -176,3 +176,10 @@ Http::globalMiddleware(|request, next| Box::pin(async move {
 ```
 
 `Response::handlerStats()` reports `total_time` in seconds for the final network hop, including buffered response-body reads. It excludes retry delays and is not a sum of redirects or attempts. `response.transferStats.as_ref().map(|stats| stats.getTransferTime())` exposes the same duration. Fake responses have zero transfer time and no network handler stats; a middleware-generated response has no transport stats unless a transport ran. The reqwest transport does not expose cURL phase breakdowns, so DNS, connection, and TLS timings are not fabricated. Redacted response events retain timing without exposing bodies or credentials.
+
+## Request options
+
+`replaceHeaders` replaces only the supplied header names, preserving other headers and multiple values. `withHeader`, `contentType`, `asMultipart`, and `maxRedirects` use the existing request builder. `sink(path)` writes the successfully read response body to a file and reports write failures as `Error::Sink`. It currently buffers the body and respects `body_limit`; it is not an unbounded streaming download.
+## Multipart Field Values
+
+`asMultipart().post(data)` accepts an object of scalar fields. Booleans use PHP-style `1`/empty-string encoding and null becomes an empty string. Nested objects and arrays return `InvalidRequest`; use `attach` for files. This entry does not accept every Guzzle multipart option.

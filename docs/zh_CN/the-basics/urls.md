@@ -69,3 +69,6 @@ fn article_url() -> Result<String, openrust::routing::UrlError> {
 ```
 
 域名路由优先，同类生效路由中取首条注册。Rust 注册编译好的处理器，因此显式声明动作标识。
+## 生成策略
+
+克隆请求的 `UrlGenerator` 后，可调用 `forceScheme`、`forceHttps`、`forceRootUrl`、`formatHostUsing`、`formatPathUsing`。这些方法需要该生成器的可变借用，不修改其他请求的策略。传入 `None` 清除强制协议或根地址。格式化器作用于生成路径和命名路由，包括签名地址；验证签名时使用生成时相同的绝对或相对模式。可信代理需单独配置，使请求来源使用预期的转发域名和协议。

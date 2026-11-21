@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use std::{sync::Arc, time::Duration};
 
 use tokio::time::{Instant, sleep_until};
@@ -52,7 +54,7 @@ impl PasswordBroker {
                 .map(|(field, value)| (field.as_str(), value.clone())),
             "",
         );
-        let user = self.users.retrieve_by_credentials(&lookup).await?;
+        let user = self.users.retrieveByCredentials(&lookup).await?;
         if user
             .as_ref()
             .is_some_and(|user| user.as_password_reset().is_none())
@@ -116,7 +118,7 @@ impl PasswordBroker {
         self.events
             .dispatch(
                 Arc::new(crate::auth::events::PasswordResetLinkSent {
-                    user: user.get_auth_identifier(),
+                    user: user.getAuthIdentifier(),
                 }),
                 &mut EventContext::new(),
             )

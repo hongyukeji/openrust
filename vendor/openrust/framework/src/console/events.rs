@@ -97,7 +97,7 @@ impl Event for ScheduledTaskFinished {
 pub struct ScheduledTaskFailed {
     pub task: Arc<scheduling::Event>,
     pub exception: Arc<dyn Error + Send + Sync>,
-    pub runtime: Duration,
+    pub runtime: Option<Duration>,
 }
 
 impl Event for ScheduledTaskFailed {

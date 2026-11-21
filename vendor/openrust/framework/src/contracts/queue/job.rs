@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use std::time::Duration;
 
 use crate::queue::{Delay, JobContext, JobOptions, Payload, QueueError, QueueFuture, QueueResult};
@@ -5,16 +7,16 @@ use crate::queue::{Delay, JobContext, JobOptions, Payload, QueueError, QueueFutu
 /// A single reservation of a queued job.
 pub trait Job: Send {
     fn uuid(&self) -> &str;
-    fn get_job_id(&self) -> &str;
-    fn get_connection_name(&self) -> &str;
-    fn get_queue(&self) -> &str;
+    fn getJobId(&self) -> &str;
+    fn getConnectionName(&self) -> &str;
+    fn getQueue(&self) -> &str;
     fn payload(&self) -> &Payload;
     fn options(&self) -> &JobOptions;
     fn attempts(&self) -> u32;
-    fn is_deleted(&self) -> bool;
-    fn is_released(&self) -> bool;
-    fn has_failed(&self) -> bool;
-    fn mark_as_failed(&mut self);
+    fn isDeleted(&self) -> bool;
+    fn isReleased(&self) -> bool;
+    fn hasFailed(&self) -> bool;
+    fn markAsFailed(&mut self);
     /// Whether the payload can be executed by the application registry in another process.
     fn supports_isolated_execution(&self) -> bool {
         false

@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use crate::{
     Fortify, LoginRateLimiter,
     actions::{credentials, emit},
@@ -37,7 +39,7 @@ impl RedirectIfTwoFactorAuthenticatable {
             Timebox::default()
                 .call(
                     async |_| {
-                        let Some(mut user) = provider.retrieve_by_credentials(&credentials).await?
+                        let Some(mut user) = provider.retrieveByCredentials(&credentials).await?
                         else {
                             return self.failed(request, &credentials, None).await;
                         };
@@ -46,7 +48,7 @@ impl RedirectIfTwoFactorAuthenticatable {
                             credentials.password(),
                         );
                         if !provider
-                            .validate_credentials(user.as_ref(), &password)
+                            .validateCredentials(user.as_ref(), &password)
                             .await?
                         {
                             return self.failed(request, &credentials, Some(user)).await;
@@ -55,7 +57,7 @@ impl RedirectIfTwoFactorAuthenticatable {
                             || self.fortify.truthy("hashing.rehash_on_login")
                         {
                             provider
-                                .rehash_password_if_required(user.as_mut(), &password, false)
+                                .rehashPasswordIfRequired(user.as_mut(), &password, false)
                                 .await?;
                         }
                         Ok(user)

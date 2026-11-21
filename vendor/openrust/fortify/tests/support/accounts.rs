@@ -69,26 +69,27 @@ fn field<'a>(user: &'a AccountUser, name: &str) -> Option<&'a str> {
         _ => None,
     }
 }
+#[allow(non_snake_case, reason = "认证契约沿用 Laravel 原名")]
 impl Authenticatable for AccountUser {
-    fn get_auth_identifier_name(&self) -> &str {
+    fn getAuthIdentifierName(&self) -> &str {
         "identity"
     }
-    fn get_auth_identifier(&self) -> AuthIdentifier {
+    fn getAuthIdentifier(&self) -> AuthIdentifier {
         field(self, "identity").unwrap().into()
     }
-    fn get_auth_password_name(&self) -> &str {
+    fn getAuthPasswordName(&self) -> &str {
         "password"
     }
-    fn get_auth_password(&self) -> Option<&str> {
+    fn getAuthPassword(&self) -> Option<&str> {
         field(self, "password")
     }
-    fn get_remember_token(&self) -> Option<&str> {
+    fn getRememberToken(&self) -> Option<&str> {
         field(self, "remember_token")
     }
-    fn set_remember_token(&mut self, token: Option<String>) {
+    fn setRememberToken(&mut self, token: Option<String>) {
         self.setAttribute("remember_token", token.map_or(Value::Null, Value::Text));
     }
-    fn get_remember_token_name(&self) -> &str {
+    fn getRememberTokenName(&self) -> &str {
         "remember_token"
     }
     fn getAuthAttribute(&self, name: &str) -> AuthResult<Option<Value>> {
@@ -316,7 +317,7 @@ impl contracts::UpdatesUserPasswords for Actions {
                 .hasher
                 .check(
                     password.as_bytes(),
-                    user.get_auth_password().unwrap(),
+                    user.getAuthPassword().unwrap(),
                     &HashOptions::new(),
                 )
                 .await
@@ -367,7 +368,7 @@ fn current(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
         };
         Response::json(
             StatusCode::OK,
-            json!({"user":user.map(|u|u.get_auth_identifier()),"email":email,"id":session.getId(),"csrf":session.token(),"status":session.get("status"),"errors":session.get("errors")}),
+            json!({"user":user.map(|u|u.getAuthIdentifier()),"email":email,"id":session.getId(),"csrf":session.token(),"status":session.get("status"),"errors":session.get("errors")}),
         )
     })
 }

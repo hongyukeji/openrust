@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use crate::{PasskeyRecord, PasskeyResult};
 use openrust::{
     contracts::auth::Authenticatable,
@@ -26,13 +28,13 @@ pub trait PasskeyUser: Authenticatable + Model {
                 return scalar(value).ok_or(crate::PasskeyError::Format);
             }
         }
-        Ok(self.get_auth_identifier().to_string())
+        Ok(self.getAuthIdentifier().to_string())
     }
     fn getPasskeyUsername(&self) -> PasskeyResult<String> {
         if let Some(value) = self.getAttribute("email").filter(|v| **v != Value::Null) {
             return scalar(value).ok_or(crate::PasskeyError::Format);
         }
-        Ok(self.get_auth_identifier().to_string())
+        Ok(self.getAuthIdentifier().to_string())
     }
 }
 pub(crate) fn scalar(value: &Value) -> Option<String> {

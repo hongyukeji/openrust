@@ -233,3 +233,9 @@ async fn daily_reports(disk: &FilesystemAdapter) -> FilesystemResult<Vec<String>
 ```
 
 用 `makeDirectory` 按磁盘配置的目录可见性创建缺失的父目录，用 `deleteDirectory` 删除目录及其内容。列表跳过符号链接和临时写入项。创建和删除时须传入具名相对路径。也可通过 `Storage` 在默认磁盘调用这些方法。
+
+## 契约与常用操作
+
+容器可解析 `dyn contracts::filesystem::Factory`、默认 `Filesystem` 及配置的 `Cloud`，复用现有 Manager 和 Adapter。契约中的流接口为 `read_stream` / `write_stream`；Adapter 和 Storage Facade 使用 `readStream` / `writeStream`。`copy`、`move`（Rust 为 `r#move`）、`append`、`prepend`、`json` 复用当前磁盘；缺失文件和非法 JSON 返回空结果，路径越界仍拒绝。`Cloud` 解析依赖 `filesystems.cloud`，不表示本地磁盘拥有 S3 的签名上传能力。
+
+Rust 中 `append(path, text, separator)` 和 `prepend(path, text, separator)` 需要显式传入分隔符。换行可传 `"\n"`，需要 Windows 行尾时传 `"\r\n"`。`move` 是 Rust 关键字，因此使用原始标识符 `r#move`。

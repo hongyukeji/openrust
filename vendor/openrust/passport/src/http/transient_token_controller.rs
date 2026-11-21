@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use super::controllers::{internal, select_guard};
 use crate::ApiTokenCookieFactory;
 use openrust::{
@@ -18,7 +20,7 @@ impl TransientTokenController {
                 .token()
                 .ok_or(HttpError::InvalidRequest)?;
             let cookie =
-                ApiTokenCookieFactory::make(user.get_auth_identifier(), csrf).map_err(internal)?;
+                ApiTokenCookieFactory::make(user.getAuthIdentifier(), csrf).map_err(internal)?;
             Response::new(StatusCode::OK, Body::from("Refreshed.")).withCookie(&cookie, request)
         })
     }

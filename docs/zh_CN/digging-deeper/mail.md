@@ -298,7 +298,7 @@ Route::get("/mail-preview/order", preview_order)?;
 
 ## 扩展邮件传输和投递事件
 
-在应用服务提供者中用 `MailManager::extend` 注册 Rust 传输工厂，通过邮件器的 `transport` 配置选择它。派发器在调用传输前发出 `MessageSending`，在传输接受邮件后发出 `MessageSent`。监听器返回 `false` 可以取消投递。取消时，`send` 返回 `None`，`sendNow` 返回 `MailError::Cancelled`。
+在应用服务提供者中用 `MailManager::extend` 注册 Rust 传输工厂，通过邮件器的 `transport` 配置选择它。派发器在调用传输前发出 `MessageSending`，在传输接受邮件后发出 `MessageSent`。监听器返回 `false` 可以取消投递。取消时，`send` 和 `sendNow` 都返回 `Ok(None)`。
 
 ## 测试邮件
 
@@ -336,3 +336,7 @@ mail.assertSentMatching(receipt.kind(), |entry| {
 });
 mail.assertNothingQueued();
 ```
+
+## 默认地址与取消
+
+`Mailer::alwaysTo`、`alwaysFrom`、`alwaysReplyTo`、`alwaysReturnPath` 配置当前邮件器。启动时设置的地址作为应用默认值；请求和队列作用域内的覆盖只影响当前执行。`alwaysTo` 在邮件定制完成后替换收件人并清空抄送、密送。配置支持 `mail.to`、`mail.from`、`mail.reply_to`、`mail.return_path`。取消时 `send`、`sendNow` 和 `PendingMail` 都返回 `Ok(None)`，不调用传输、不派发 `MessageSent`；需要消息的旧调用端应显式处理 `Option<SentMessage>`。

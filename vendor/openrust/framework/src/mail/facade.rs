@@ -91,11 +91,24 @@ impl Mail {
         Ok(Self::getFacadeRoot().map_err(super::transport)?.to(address))
     }
 
+    pub fn alwaysFrom(address: impl Into<Address>) -> MailResult<()> {
+        Self::mailer(None)?.alwaysFrom(address)
+    }
+    pub fn alwaysTo(address: impl Into<Address>) -> MailResult<()> {
+        Self::mailer(None)?.alwaysTo(address)
+    }
+    pub fn alwaysReplyTo(address: impl Into<Address>) -> MailResult<()> {
+        Self::mailer(None)?.alwaysReplyTo(address)
+    }
+    pub fn alwaysReturnPath(address: impl Into<String>) -> MailResult<()> {
+        Self::mailer(None)?.alwaysReturnPath(address)
+    }
+
     pub async fn send(mailable: &dyn Mailable) -> MailResult<Option<SentMessage>> {
         Self::mailer(mailable.mailer())?.send(mailable).await
     }
 
-    pub async fn sendNow(mailable: &dyn Mailable) -> MailResult<SentMessage> {
+    pub async fn sendNow(mailable: &dyn Mailable) -> MailResult<Option<SentMessage>> {
         Self::mailer(mailable.mailer())?.sendNow(mailable).await
     }
 }

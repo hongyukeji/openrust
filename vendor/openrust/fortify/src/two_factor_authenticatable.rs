@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use crate::{
     Fortify, FortifyError, FortifyResult, RecoveryCode, actions::emit,
     events::RecoveryCodeReplaced, resolver::internal,
@@ -59,7 +61,7 @@ pub trait TwoFactorAuthenticatable: Authenticatable + Model {
                 .map_err(internal)?;
             emit(
                 RecoveryCodeReplaced {
-                    user: self.get_auth_identifier(),
+                    user: self.getAuthIdentifier(),
                     code: Zeroizing::new(code.into()),
                 },
                 &[self],

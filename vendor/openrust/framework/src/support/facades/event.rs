@@ -26,6 +26,18 @@ impl Facade for Event {
 
 #[allow(non_snake_case, reason = "Matches Laravel's Event facade")]
 impl Event {
+    pub fn push(event: impl Payload) -> EventResult<()> {
+        Self::dispatcher()?.push(Arc::new(event))
+    }
+    pub async fn flush(name: &str) -> EventResult<()> {
+        Self::dispatcher()?
+            .flush(name, &mut EventContext::new())
+            .await
+    }
+    pub fn forgetPushed() -> EventResult<()> {
+        Self::dispatcher()?.forgetPushed()
+    }
+
     pub fn dispatcher() -> EventResult<Arc<Dispatcher>> {
         Self::getFacadeRoot().map_err(EventError::Unavailable)
     }

@@ -20,6 +20,8 @@ impl ServiceProvider for MailServiceProvider {
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
             let container = app.container_handle();
+            container
+                .scoped::<super::address_defaults::AddressOverrides, _>(|_| Ok(Arc::default()))?;
             let owner = Arc::downgrade(&container);
             let base = app.base_path().to_owned();
             container.singletonNamed("mail.manager", move |container| {

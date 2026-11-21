@@ -356,7 +356,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
             return Ok(());
         };
         let connection = self.keys.connection(parent)?;
-        let linked = self
+        let mut linked = self
             .pivot_constraints
             .apply(
                 self.pivot
@@ -384,7 +384,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         let query = relation
             .scoped()?
             .0
-            .whereInSub(self.keys.related, &linked)?
+            .whereInSub(self.keys.related, &mut linked)?
             .useWritePdo();
         let rows = match transaction.as_deref_mut() {
             Some(tx) => query.in_transaction(tx)?.get().await?,
@@ -2263,7 +2263,7 @@ struct RelatedTouch {
 
 impl RelatedTouch {
     fn query<R: Model>(&self, connection: &Connection) -> DatabaseResult<query::Builder<'static>> {
-        let linked = self
+        let mut linked = self
             .constraints
             .apply(
                 self.pivot
@@ -2273,7 +2273,7 @@ impl RelatedTouch {
         R::queryOn(connection)
             .scoped()?
             .0
-            .whereInSub(self.related_key, &linked)
+            .whereInSub(self.related_key, &mut linked)
     }
 
     fn attributes<R: Model>(&self, connection: &Connection) -> DatabaseResult<Attributes> {
@@ -2446,8 +2446,8 @@ impl PivotTouchIdentity<'_> {
         {
             return Ok(false);
         }
-        let left = self.constraints.apply(connection.table(self.pivot.table));
-        let right = other.constraints.apply(connection.table(other.pivot.table));
+        let mut left = self.constraints.apply(connection.table(self.pivot.table));
+        let mut right = other.constraints.apply(connection.table(other.pivot.table));
         Ok(left.toSql()? == right.toSql()? && left.getBindings()? == right.getBindings()?)
     }
 }

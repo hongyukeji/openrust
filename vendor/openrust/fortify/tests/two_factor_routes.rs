@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use axum::{extract::State, handler::Handler as _};
 use openrust::{
     auth::{Auth, AuthError, AuthIdentifier, AuthManager, AuthResult},
@@ -56,25 +58,25 @@ impl Model for FactorUser {
 }
 
 impl Authenticatable for FactorUser {
-    fn get_auth_identifier_name(&self) -> &str {
+    fn getAuthIdentifierName(&self) -> &str {
         "account_id"
     }
-    fn get_auth_identifier(&self) -> AuthIdentifier {
+    fn getAuthIdentifier(&self) -> AuthIdentifier {
         field(self, "account_id").unwrap().into()
     }
-    fn get_auth_password_name(&self) -> &str {
+    fn getAuthPasswordName(&self) -> &str {
         "password"
     }
-    fn get_auth_password(&self) -> Option<&str> {
+    fn getAuthPassword(&self) -> Option<&str> {
         field(self, "password")
     }
-    fn get_remember_token(&self) -> Option<&str> {
+    fn getRememberToken(&self) -> Option<&str> {
         field(self, "remember_token")
     }
-    fn set_remember_token(&mut self, token: Option<String>) {
+    fn setRememberToken(&mut self, token: Option<String>) {
         self.setAttribute("remember_token", token.map_or(Value::Null, Value::Text));
     }
-    fn get_remember_token_name(&self) -> &str {
+    fn getRememberTokenName(&self) -> &str {
         "remember_token"
     }
     fn getAuthAttribute(&self, name: &str) -> AuthResult<Option<Value>> {
@@ -177,7 +179,7 @@ impl Listener for Observe {
     > {
         Box::pin(async move {
             use openrust_fortify::events::*;
-            macro_rules! check {($($kind:ty),+)=>{$(if let Some(event)=event.downcast_ref::<$kind>() {let user=event.user::<FactorUser>(context).expect("borrowed concrete Eloquent account");assert_eq!(user.getKey(),Some(&Value::Text("001".into())));assert_eq!(user.get_auth_identifier(),AuthIdentifier::from("login-001"));})+}}
+            macro_rules! check {($($kind:ty),+)=>{$(if let Some(event)=event.downcast_ref::<$kind>() {let user=event.user::<FactorUser>(context).expect("borrowed concrete Eloquent account");assert_eq!(user.getKey(),Some(&Value::Text("001".into())));assert_eq!(user.getAuthIdentifier(),AuthIdentifier::from("login-001"));})+}}
             check!(
                 TwoFactorAuthenticationChallenged,
                 TwoFactorAuthenticationFailed,

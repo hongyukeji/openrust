@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use crate::{ApiTokenCookieFactory, Passport};
 use openrust::{
     contracts::{container::Container as _, http::Middleware, session::Session as _},
@@ -38,7 +40,7 @@ impl Middleware for CreateFreshApiToken {
             let user = Auth::guard(request, self.guard.as_deref())?
                 .user()
                 .await?
-                .map(|u| u.get_auth_identifier());
+                .map(|u| u.getAuthIdentifier());
             if initially_authenticated && user.is_none() {
                 return response.withCookie(&Cookie::forget(&name, None, None)?, request);
             }

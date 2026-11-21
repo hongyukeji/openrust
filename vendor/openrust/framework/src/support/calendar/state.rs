@@ -87,6 +87,21 @@ impl ParseState {
             relative: Relative::default(),
         }
     }
+    pub(super) fn valid_calendar_date(&self) -> bool {
+        if self.date_mask != DATE_FIELDS
+            || !(1..=32767).contains(&self.civil.year)
+            || !(1..=12).contains(&self.civil.month)
+            || self.civil.day < 1
+        {
+            return false;
+        }
+        self.civil.normalize().is_ok_and(|date| {
+            date.year == self.civil.year
+                && date.month == self.civil.month
+                && date.day == self.civil.day
+        })
+    }
+
     pub fn reference(&mut self, instant: CalendarInstant, frozen: bool) {
         self.reference = Some(instant);
         self.frozen = frozen;

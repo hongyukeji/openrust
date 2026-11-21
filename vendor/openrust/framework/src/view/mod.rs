@@ -262,12 +262,13 @@ impl View {
                         .into(),
                 })?;
             let context = crate::support::facades::context_snapshot();
+            let scope = crate::container::ScopeSnapshot::capture();
             let errors = middleware::shared_errors();
             let (check_sender, mut checks) = tokio::sync::mpsc::channel(1);
             let request_data = request_data::ViewRequestData::capture(request, check_sender);
             let mut rendering = tokio::task::spawn_blocking(move || {
                 middleware::render_scope(errors, || {
-                    context.run(|| factory.render_in_request(self, request_data))
+                    scope.run(|| context.run(|| factory.render_in_request(self, request_data)))
                 })
             });
             let rendered = loop {

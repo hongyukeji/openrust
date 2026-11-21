@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use subtle::ConstantTimeEq;
 
 use crate::{
@@ -22,8 +24,8 @@ impl EmailVerificationRequest {
         let Some(authenticated) = Auth::user(request).await? else {
             return Err(HttpError::Unauthenticated);
         };
-        let id = user.get_auth_identifier();
-        let valid = authenticated.get_auth_identifier() == id
+        let id = user.getAuthIdentifier();
+        let valid = authenticated.getAuthIdentifier() == id
             && request.route("id").is_some_and(|parameter| {
                 bool::from(parameter.as_bytes().ct_eq(route_id(&id).as_bytes()))
             })
@@ -51,7 +53,7 @@ impl EmailVerificationRequest {
         Self::authorize(request, user).await?;
         if !user.hasVerifiedEmail() && user.markEmailAsVerified().await? {
             Event::dispatch(Verified {
-                user: user.get_auth_identifier(),
+                user: user.getAuthIdentifier(),
             })
             .await
             .map_err(AuthError::backend)?;

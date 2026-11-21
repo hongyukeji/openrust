@@ -17,11 +17,14 @@ use crate::contracts::{config::Repository, redis::Factory};
 
 use super::{RedisError, RedisResult, connections::Connection};
 
+type Connector = dyn Fn(&serde_json::Value, &str) -> RedisResult<Connection> + Send + Sync;
+
 /// Resolves named Redis connections and manages their lifecycle.
 pub struct RedisManager {
     config: Arc<dyn Repository>,
     connections: Mutex<HashMap<String, Arc<Connection>>>,
     pub(crate) events: Arc<CommandEvents>,
+    custom_creators: RwLock<HashMap<String, Arc<Connector>>>,
 }
 
 #[derive(Default)]
@@ -66,6 +69,7 @@ impl RedisManager {
             config,
             connections: Mutex::default(),
             events: Arc::default(),
+            custom_creators: RwLock::default(),
         }
     }
 
@@ -86,6 +90,26 @@ impl RedisManager {
     #[allow(non_snake_case, reason = "Matches Laravel's Redis manager API")]
     pub fn disableEvents(&self) {
         self.events.enabled.store(false, Ordering::Release);
+    }
+
+    /// 清除后续解析的缓存；已交给消费者的连接仍有效。
+    pub fn purge(&self, name: Option<&str>) {
+        self.connections
+            .lock()
+            .unwrap()
+            .remove(name.filter(|name| !name.is_empty()).unwrap_or("default"));
+    }
+
+    pub fn extend(
+        &self,
+        driver: impl Into<String>,
+        callback: impl Fn(&serde_json::Value, &str) -> RedisResult<Connection> + Send + Sync + 'static,
+    ) -> &Self {
+        self.custom_creators
+            .write()
+            .unwrap()
+            .insert(driver.into(), Arc::new(callback));
+        self
     }
 
     pub fn connection(&self, name: Option<&str>) -> RedisResult<Arc<Connection>> {
@@ -109,7 +133,19 @@ impl RedisManager {
         let direct = config
             .get(name)
             .filter(|value| !value.is_null() && !matches!(name, "options" | "clusters" | "client"));
-        let connection = if let Some(value) = direct {
+        let driver = config
+            .get("client")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("redis");
+        let creator = self.custom_creators.read().unwrap().get(driver).cloned();
+        let connection = if let Some(creator) = creator {
+            creator(
+                direct.ok_or_else(|| RedisError::UnknownConnection { name: name.into() })?,
+                &prefix,
+            )?
+        } else if driver != "redis" {
+            return Err(RedisError::InvalidConfiguration);
+        } else if let Some(value) = direct {
             let settings: Settings = serde_json::from_value(value.clone())
                 .map_err(|_| RedisError::InvalidConfiguration)?;
             settings.connect(prefix)?

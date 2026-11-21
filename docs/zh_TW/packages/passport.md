@@ -163,7 +163,7 @@ pub fn consent(request: &mut Request, params: AuthorizationViewParameters)
         Response::json(StatusCode::OK, serde_json::json!({
             "auth_token": params.auth_token,
             "csrf": request.session()?.token(),
-            "user": params.user.get_auth_identifier(),
+            "user": params.user.getAuthIdentifier(),
             "scopes": params.scopes,
         }))
     })
@@ -290,7 +290,7 @@ Password 與 Implicit 預設關閉，建立對應用戶端記錄不會啟用協�
 
 透過 `artisan passport:client --password --provider=users` 建立用戶端（`--public` 建立公開用戶端）。向 `POST /oauth/token` 傳送 `grant_type=password`、`client_id`、`username`、`password` 與可選 `scope`；機密用戶端還提供 `client_secret` 或 HTTP Basic。成功回傳簽名存取權杖，用戶端支援時也簽發重新整理權杖，沿用普通存取／重新整理期限。錯誤使用者憑證回傳 400 `invalid_grant`、`The user credentials were incorrect.`；缺少欄位、錯誤用戶端和未知 scope 保留 OAuth 錯誤回應。
 
-`bridge::UserRepository::getUserEntityByUserCredentials` 選擇用戶端 provider，空值回退到 `auth.guards.api.provider`。預設編譯 Eloquent provider 查詢 `email` 並驗證真實密碼雜湊。框架自訂 `UserProvider` 透過 `retrieve_by_credentials`、`validate_credentials` 提供模型 `findForPassport` 和 `validateForPassportPasswordGrant` 的原生等價職責，不啟動 Session、不重新雜湊密碼。
+`bridge::UserRepository::getUserEntityByUserCredentials` 選擇用戶端 provider，空值回退到 `auth.guards.api.provider`。預設編譯 Eloquent provider 查詢 `email` 並驗證真實密碼雜湊。框架自訂 `UserProvider` 透過 `retrieveByCredentials`、`validateCredentials` 提供模型 `findForPassport` 和 `validateForPassportPasswordGrant` 的原生等價職責，不啟動 Session、不重新雜湊密碼。
 
 組合模型鉤子 `findAndValidateForPassport` 使用 `passport.findAndValidateForPassportUsing("users", resolver)` 註冊。原生 `bridge::PasswordGrantResolver` 是接收借用使用者名稱、密碼及 `ClientRecord` 的編譯函數，回傳 `AuthFuture<AuthResult<Option<AuthIdentifier>>>`；它優先處理該 provider，須執行應用程式真實查詢及驗證。明確註冊取代 PHP 執行階段方法探索。例外回傳隱藏敏感資料的 500，不冒充密碼錯誤。
 

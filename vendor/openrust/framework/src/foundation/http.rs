@@ -254,6 +254,15 @@ impl Kernel {
                     maintenance_index + 3,
                     Arc::new(std::mem::take(&mut self.middleware.empty_strings_to_null)),
                 );
+                if self
+                    .application
+                    .shared
+                    .prefer_json
+                    .load(std::sync::atomic::Ordering::Acquire)
+                {
+                    self.middleware
+                        .prepend(Arc::new(crate::http::middleware::PrefersJsonResponses));
+                }
                 self.ready = true;
             }
             Ok(())

@@ -116,3 +116,7 @@ impl ServiceProvider for AppSessionProvider {
 ```
 
 將這個服務提供者註冊到應用程式並設定 `SESSION_DRIVER=app_memory`。範例將記錄保存在應用程式程序內，跨程序持久化可使用共用後端。
+
+## 預設 Cookie 名稱
+
+預設名稱為 `Str::slug(APP_NAME) + "-session"`，例如 `My App` 對應 `my-app-session`，`ExampleStore` 對應 `examplestore-session`。升級會改變舊版預設 Cookie 名稱，使瀏覽器原登入工作階段不可見；需要沿用時明確設定 `SESSION_COOKIE`。快取與 Redis 預設前綴也使用同一 slug；保留既有資料命名空間時明確設定 `CACHE_PREFIX`、`REDIS_PREFIX`。

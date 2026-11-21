@@ -35,6 +35,11 @@ pub trait FormRequest: Send + Sync {
                 rules
             };
             let mut validator = crate::support::facades::Validator::make(data, rules)?;
+            validator.stopOnFirstFailure(self.stopOnFirstFailure());
+            self.withValidator(&mut validator)?;
+            for callback in self.after() {
+                validator.after(callback);
+            }
             let validated = validator
                 .validateRequest(request)
                 .await
@@ -53,6 +58,21 @@ pub trait FormRequest: Send + Sync {
             self.passedValidation(request, &validated)?;
             Ok(validated)
         })
+    }
+
+    fn stopOnFirstFailure(&self) -> bool {
+        false
+    }
+
+    fn withValidator(
+        &mut self,
+        _validator: &mut crate::validation::Validator,
+    ) -> ValidationResult<()> {
+        Ok(())
+    }
+
+    fn after(&self) -> Vec<crate::validation::AfterValidation> {
+        Vec::new()
     }
 
     fn prepareForValidation(&mut self, _input: &mut Data) -> ValidationResult<()> {

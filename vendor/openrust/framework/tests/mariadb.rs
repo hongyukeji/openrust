@@ -103,7 +103,7 @@ async fn schema_and_query_over_mariadb() {
     );
     assert!(matches!(
         db.table(&table)
-            .joinLateral(&db.table(&table), "inner_table"),
+            .joinLateral(&mut db.table(&table), "inner_table"),
         Err(DatabaseError::InvalidQuery(_))
     ));
     schema.dropIfExists(&table).await.unwrap();

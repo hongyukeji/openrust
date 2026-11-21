@@ -1,3 +1,5 @@
+#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+
 use std::{error::Error, io, path::Path, sync::Arc, time::Duration};
 
 use serde::{Deserialize, Serialize};
@@ -167,8 +169,8 @@ pub(super) async fn execute(
             _ => None,
         },
         payload: job.payload().clone(),
-        connection: job.get_connection_name().into(),
-        queue: job.get_queue().into(),
+        connection: job.getConnectionName().into(),
+        queue: job.getQueue().into(),
         attempts: job.attempts(),
         environment,
     };
