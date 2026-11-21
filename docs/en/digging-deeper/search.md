@@ -1,5 +1,7 @@
 # Search
 
+For model observers, queue synchronization and pluggable collection search, see the optional [Scout package](../packages/scout.md).
+
 ## Full-text search {#full-text-search}
 
 Use a MySQL-compatible connection and create a full-text index with the same column list as the query. The query builder binds the search text as a parameter. `whereFullText` uses natural language mode. Choose `Boolean` or `QueryExpansion` with `whereFullTextWith`.

@@ -21,6 +21,7 @@ pub(crate) fn inherit_queue_process_group() {
 
 pub(crate) struct ChildGroup {
     pub(super) child: Child,
+    kill_on_drop: bool,
     #[cfg(windows)]
     job: Option<super::windows_job::WindowsJob>,
     #[cfg(unix)]
@@ -31,7 +32,7 @@ pub(crate) struct ChildGroup {
 
 impl ChildGroup {
     pub(crate) fn spawn(command: &mut Command) -> io::Result<Self> {
-        command.kill_on_drop(true);
+        command.kill_on_drop(false);
         #[cfg(unix)]
         {
             Self::spawn_unix(command, INHERIT_PROCESS_GROUP.load(Ordering::Relaxed))
@@ -40,6 +41,7 @@ impl ChildGroup {
         {
             Ok(Self {
                 child: command.spawn()?,
+                kill_on_drop: true,
                 #[cfg(windows)]
                 job: None,
             })
@@ -52,6 +54,7 @@ impl ChildGroup {
             let (child, job) = super::windows_job::WindowsJob::spawn_gated(command).await?;
             Ok(Self {
                 child,
+                kill_on_drop: true,
                 job: Some(job),
             })
         }
@@ -61,7 +64,7 @@ impl ChildGroup {
 
     #[cfg(unix)]
     pub(super) fn spawn_attached(command: &mut Command) -> io::Result<Self> {
-        command.kill_on_drop(true);
+        command.kill_on_drop(false);
         // The terminal's foreground group must keep ownership of terminal reads.
         Self::spawn_unix(command, true)
     }
@@ -80,9 +83,26 @@ impl ChildGroup {
             .and_then(Pid::from_raw);
         Ok(Self {
             child,
+            kill_on_drop: true,
             group,
             exited,
         })
+    }
+
+    pub(crate) fn detach(&mut self) -> io::Result<()> {
+        #[cfg(windows)]
+        if self.job.is_some() {
+            return Err(io::Error::new(
+                io::ErrorKind::Unsupported,
+                "detaching a Windows job is unsupported",
+            ));
+        }
+        self.kill_on_drop = false;
+        #[cfg(unix)]
+        {
+            self.group = None;
+        }
+        Ok(())
     }
 
     pub(crate) fn output_pipes(
@@ -217,10 +237,9 @@ impl ChildGroup {
     }
 }
 
-#[cfg(unix)]
 impl Drop for ChildGroup {
     fn drop(&mut self) {
-        if self.group.is_some() {
+        if self.kill_on_drop {
             let _ = self.signal(Signal::Kill);
         }
     }

@@ -27,6 +27,7 @@ type ProviderFactory =
 type ConfiguredResolver =
     dyn for<'a> Fn(&'a mut Request, &'a str, &'a Value) -> AuthFutureConfigured<'a> + Send + Sync;
 type AuthFutureConfigured<'a> = super::AuthFuture<'a, AuthResult<Option<Box<dyn Authenticatable>>>>;
+type ModelMorphClass = fn(&dyn Authenticatable) -> AuthResult<&'static str>;
 type ModelSerializer = fn(&dyn Authenticatable) -> AuthResult<serde_json::Map<String, Value>>;
 
 #[derive(Default)]
@@ -34,6 +35,8 @@ struct Extensions {
     providers: HashMap<String, Arc<ProviderFactory>>,
     models: HashMap<String, (&'static str, Arc<ProviderFactory>)>,
     model_serializers: HashMap<std::any::TypeId, ModelSerializer>,
+    model_morph_classes: HashMap<std::any::TypeId, ModelMorphClass>,
+    model_classes: HashMap<std::any::TypeId, &'static str>,
     requests: HashMap<String, Arc<Resolver>>,
     configured_requests: HashMap<String, Arc<ConfiguredResolver>>,
     #[cfg(feature = "sanctum")]
@@ -83,6 +86,18 @@ impl AuthManager {
                     .toArray()
                     .map_err(AuthError::backend)
             });
+        extensions
+            .model_morph_classes
+            .insert(std::any::TypeId::of::<M>(), |user| {
+                (user as &dyn std::any::Any)
+                    .downcast_ref::<M>()
+                    .expect("morph resolver registered for this model")
+                    .getMorphClass()
+                    .map_err(AuthError::backend)
+            });
+        extensions
+            .model_classes
+            .insert(std::any::TypeId::of::<M>(), std::any::type_name::<M>());
         extensions.models.insert(
             name.into(),
             (
@@ -102,6 +117,31 @@ impl AuthManager {
                 }),
             ),
         );
+    }
+
+    /// Resolves the actual Eloquent discriminator through its registered model.
+    ///
+    /// Non-model identities return `None`; model morph-map errors are preserved.
+    pub fn userMorphClass(&self, user: &dyn Authenticatable) -> AuthResult<Option<&'static str>> {
+        let resolver = self
+            .extensions
+            .read()
+            .expect("auth extensions lock")
+            .model_morph_classes
+            .get(&user.type_id())
+            .copied();
+        resolver.map(|resolve| resolve(user)).transpose()
+    }
+
+    /// Returns the registered concrete Eloquent class behind an erased identity.
+    #[allow(non_snake_case, reason = "Matches authentication model accessors")]
+    pub fn userClass(&self, user: &dyn Authenticatable) -> Option<&'static str> {
+        self.extensions
+            .read()
+            .expect("auth extensions lock")
+            .model_classes
+            .get(&user.type_id())
+            .copied()
     }
 
     /// Serializes the authenticated identity through its registered model.
@@ -265,6 +305,22 @@ impl AuthManager {
         request: &mut Request,
     ) -> AuthResult<Option<Arc<dyn Authenticatable>>> {
         self.userForGuard(request, None).await
+    }
+
+    /// Reads an already resolved identity from the current HTTP request scope.
+    ///
+    /// This never invokes a guard or performs I/O. `None` selects the request's
+    /// shouldUse override or the configured default; an explicit name is exact.
+    /// Outside this application's request scope, or before resolution, returns None.
+    pub fn resolvedUser(&self, name: Option<&str>) -> Option<Arc<dyn Authenticatable>> {
+        let container = self.container.upgrade()?;
+        let context = crate::http::request_context::attribute(
+            &container,
+            std::any::type_name::<AuthContext>(),
+        )?
+        .downcast::<AuthContext>()
+        .ok()?;
+        context.resolved_user(name, &self.getDefaultDriver())
     }
 
     pub(crate) async fn userForGuard(

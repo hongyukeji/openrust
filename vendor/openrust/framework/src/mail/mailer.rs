@@ -85,6 +85,17 @@ impl Mailer {
         mailable: &dyn Mailable,
         recipients: Recipients,
     ) -> MailResult<Option<SentMessage>> {
+        self.send_with_context(mailable, recipients, mailable.kind(), false)
+            .await
+    }
+
+    pub(super) async fn send_with_context(
+        &self,
+        mailable: &dyn Mailable,
+        recipients: Recipients,
+        kind: &str,
+        queued: bool,
+    ) -> MailResult<Option<SentMessage>> {
         let locale = recipients.locale.as_deref().or_else(|| mailable.locale());
         let message = match locale {
             Some(locale) => Lang::withLocale(locale, self.compose(mailable, &recipients))
@@ -127,6 +138,8 @@ impl Mailer {
                 Arc::new(super::events::MessageSent {
                     mailer: self.name.clone(),
                     sent: sent.clone(),
+                    mailable: kind.into(),
+                    queued,
                 }),
                 &mut EventContext::new(),
             )

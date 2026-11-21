@@ -144,3 +144,4 @@
 - [Payments (Extension)](packages/pay.md)
 - [Telescope](packages/telescope.md)
 - [Valet](packages/valet.md)
+- [Activity Log (Extension)](packages/activitylog.md)

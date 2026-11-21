@@ -20,6 +20,10 @@ pub struct Connection {
     client: Backend,
     transport: OnceCell<Transport>,
     prefix: String,
+    events: Option<(
+        String,
+        std::sync::Arc<crate::redis::redis_manager::CommandEvents>,
+    )>,
 }
 
 enum Backend {
@@ -42,6 +46,7 @@ impl Connection {
             client: Backend::Standalone { client, config },
             transport: OnceCell::new(),
             prefix,
+            events: None,
         }
     }
 
@@ -55,11 +60,21 @@ impl Connection {
             client: Backend::Cluster(Cluster::new(client, seed, redirects)),
             transport: OnceCell::new(),
             prefix,
+            events: None,
         }
     }
 
     pub(crate) fn is_cluster(&self) -> bool {
         matches!(self.client, Backend::Cluster(_))
+    }
+
+    pub(crate) fn with_events(
+        mut self,
+        name: &str,
+        events: std::sync::Arc<crate::redis::redis_manager::CommandEvents>,
+    ) -> Self {
+        self.events = Some((name.into(), events));
+        self
     }
 
     pub(crate) async fn query<T: FromRedisValue>(&self, command: &::redis::Cmd) -> RedisResult<T> {
@@ -102,7 +117,8 @@ impl Connection {
         command: &::redis::Cmd,
         known_single_target: bool,
     ) -> RedisResult<T> {
-        match self.transport().await? {
+        let started = std::time::Instant::now();
+        let result = match self.transport().await? {
             Transport::Standalone(mut transport) => command.query_async(&mut transport).await,
             Transport::Cluster(transport) => {
                 let Backend::Cluster(cluster) = &self.client else {
@@ -111,10 +127,42 @@ impl Connection {
                 cluster.query(transport, command, known_single_target).await
             }
         }
-        .map_err(backend)
+        .map_err(backend)?;
+        if let Some((name, events)) = &self.events
+            && events.enabled.load(std::sync::atomic::Ordering::Acquire)
+        {
+            let dispatcher = events
+                .dispatcher
+                .read()
+                .unwrap_or_else(|error| error.into_inner())
+                .clone();
+            if let Some(dispatcher) = dispatcher {
+                use crate::contracts::events::Dispatcher as _;
+                let mut arguments = command.args_iter().map(|argument| match argument {
+                    ::redis::Arg::Simple(bytes) => bytes.to_vec(),
+                    _ => Vec::new(),
+                });
+                let command =
+                    String::from_utf8_lossy(&arguments.next().unwrap_or_default()).into_owned();
+                dispatcher
+                    .dispatch(
+                        std::sync::Arc::new(crate::redis::events::CommandExecuted {
+                            command,
+                            parameters: arguments.collect(),
+                            time: started.elapsed(),
+                            connectionName: name.clone(),
+                        }),
+                        &mut crate::events::EventContext::new(),
+                    )
+                    .await
+                    .map_err(backend)?;
+            }
+        }
+        Ok(result)
     }
 
-    pub(crate) async fn pipeline(&self, pipeline: &::redis::Pipeline) -> RedisResult<()> {
+    /// Executes a native command pipeline. Keys must already include their configured prefix.
+    pub async fn pipeline(&self, pipeline: &::redis::Pipeline) -> RedisResult<()> {
         match self.transport().await? {
             Transport::Standalone(mut transport) => pipeline.query_async(&mut transport).await,
             Transport::Cluster(mut transport) => pipeline.query_async(&mut transport).await,

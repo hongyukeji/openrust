@@ -4,6 +4,30 @@ use serde_json::Value;
 
 use super::{Sleep, SleepFake};
 
+/// Defers an owned future until the current HTTP, Artisan or queue-attempt boundary.
+///
+/// A name replaces a previously registered callback of the same name in this
+/// lifecycle. Set `always` to include unsuccessful responses, commands and jobs.
+/// Capture scoped services when registering: their original scope may have
+/// closed by the time this future runs. Cancellation before the boundary or a
+/// killed process does not guarantee execution. Outside a lifecycle, this
+/// returns `concurrency::Error::OutsideRequest`.
+pub fn defer<F, E>(
+    callback: F,
+    name: Option<&str>,
+    always: bool,
+) -> crate::concurrency::Result<crate::concurrency::DeferredCallback>
+where
+    F: Future<Output = Result<(), E>> + Send + 'static,
+    E: std::error::Error + Send + Sync + 'static,
+{
+    let callback = match name {
+        Some(name) => crate::concurrency::enqueue_named(name.to_owned(), Box::pin(callback)),
+        None => crate::concurrency::enqueue_deferred(Box::pin(callback)),
+    }?;
+    Ok(if always { callback.always() } else { callback })
+}
+
 /// Resolves the current application's storage directory without creating it.
 pub fn storage_path(
     path: &str,
@@ -107,3 +131,7 @@ impl Retry {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "../../tests/unit/deferred_lifecycle.rs"]
+mod deferred_lifecycle;

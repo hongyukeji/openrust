@@ -153,3 +153,7 @@ fn register_password_routes() -> Result<(), RoutingError> {
 ## 自訂 Guard 和提供器
 
 預設應用程式註冊編譯後的 Eloquent `User`。用 `AuthManager::registerModel` 註冊其他模型，或為 `database` 提供器設定資料表與欄位。用 `provider` 註冊提供器，用 `viaRequest` 註冊無狀態請求解析器。內建 `token` Guard 讀取 Bearer 標頭，支援將權杖雜湊後再查詢資料庫。
+
+對於透過 `AuthManager::registerModel` 註冊的身分，`manager.userMorphClass(user)?` 回傳真實 Eloquent 多型識別，遵循模型連線及自訂 `getMorphClass`。此 Rust 適配入口保留多型對應錯誤，未註冊身分回傳 `None`；非模型操作者應明確設定，不猜測資料表或型別名稱。
+
+同步回呼可用 `manager.resolvedUser(None)` 或 `Auth::resolvedUser(None)?` 讀取目前 HTTP 請求中已解析的身分，無需啟用日誌監聽。`None` 遵循 `shouldUse` 和預設 Guard，`Some("web")` 明確選擇指定 Guard。這些 Rust 適配入口不會觸發非同步驗證或查詢使用者提供器；尚未解析、訪客或處於所屬請求作用域之外時回傳 `None`。需要惰性驗證的回呼應先在非同步中介軟體中解析 Guard。

@@ -74,3 +74,28 @@ SQLite 和独立 MySQL 8.4.13 验证原主键、全局作用域、软删除、�
 SQLite 与独立 MySQL 8.4.13 专项覆盖连接不匹配、已关闭事务、事务内关系及 Retrieved 监听器读取未提交行。第二个 MySQL 会话用 `FOR UPDATE NOWAIT` 得到 3572，持有者提交和回滚后分别重试成功。首轮关系测试在 Debug 模式触发栈溢出，缩小事务查询 future 的栈占用后双库专项通过。
 
 最终 Rust 1.94 全工作区 620 项通过、8 项夹具忽略。双库模型、事件和关系专项 7 项通过。格式、严格 Clippy、实际 `artisan inspire`、三语示例编译、站点构建及 18 项浏览器检查通过。
+
+## 扩展协作核心接口（2026-11-21）
+
+扩展对话 `01a1fa24-f314-7da3-ae27-ab2d66c74cff` 多次请求 Activitylog／Pulse 依赖的核心入口。主对话遗漏优先处理和闭环回传，继续其他模拟验收；此次先补核心契约，扩展集成继续由原对话负责。协作请求处理规则并入[持续开发交接](../../conventions.md#持续开发交接)。
+
+### 依据与适配
+
+核对固定 Laravel Framework `1449bf241017087fbd38c118ecaabef3f6797fdc` 的 [GuardsAttributes](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Concerns/GuardsAttributes.php)、[SoftDeletes](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/SoftDeletes.php) 和 [ConfirmableTrait](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Console/ConfirmableTrait.php)，原始 HTTPS 文件已读取。复用当前框架的模型元数据、任务作用域保护、命令确认、认证模型注册和请求上下文，不增加依赖、扩展专用分支或默认应用装配。
+
+- `Model::getFillable/getGuarded/isUnguarded/unguarded` 公开真实元数据和已有保护作用域；Rust 将 PHP 全局保护状态适配为轮询期间生效的任务作用域，嵌套、错误和取消后恢复，其他任务不继承。
+- `Model::getDeletedAtColumn` 返回实际自定义列；统一 Model 未启用软删除时返回 `None`，避免扩展硬编码 `deleted_at`。
+- 公开 `console::confirmToProceed(production, matches)`，核心旧调用复用同一函数。调用方传入生产条件，保留本地化提示、force 和非交互拒绝；命令没定义可选 flag 时不 panic，不另造 trait。
+- `AuthManager::userMorphClass` 通过既有 `registerModel` 注册类型回调，调用实际身份模型的 `getMorphClass`，遵循模型连接／覆写，传播强制映射错误；未注册身份返回 `None`，不猜测 `user` 或表名。
+- `AuthManager::resolvedUser(Option<&str>)` 及 `Auth::resolvedUser` 是 Rust 同步读取入口：复用既有 AuthContext／RequestContext，身份快照发布不再依赖日志监听。`None` 使用 shouldUse／默认 Guard，`Some` 精确读取指定 Guard；任务与应用容器隔离。只读已解析身份，未解析、访客、未知 Guard、请求作用域外返回 `None`，不触发数据库或异步惰性认证。
+- `RequestHandled.requestStartedAt: i64` 为内核开始处理请求时的 Unix 毫秒；`duration` 保持 Instant 单调计时。正常及早期路径错误响应都携带时间戳，不在事件派发时补造开始时间。
+
+### 验证与边界
+
+隔离源码 `/private/tmp/openrust-core-extension-contracts-20261121/source` 来自 `98469b32f78c7bb29990c98b2483760afdff1b05` 的 Git 归档，叠加本阶段核心与三语正文；不包含并行 Activitylog／Horizon／根依赖改动。复用 `/private/tmp/openrust-core-ecosystem-20261121/target`，Rust 1.94.0，dev/test debug=0，保留 Cargo 原生增量和并发。
+
+`cargo +1.94.0 test --locked -p openrust-framework --test extension_core_contracts --test eloquent_force_fill --test http_observation --test auth_configured_extensions --test log_listeners -- --skip mysql_http_force_fill_persists_hashes_renders_errors_and_recovers`：20 项通过；明确过滤现有 MySQL 条件函数，不将缺 URL 提前返回计作数据库验收。模型映射使用 SQLite lazy connection、不执行 SQL；本阶段不变更持久化 SQL，不操作开发数据库。
+
+覆盖自定义软删除列、两应用真实 morph map／映射错误、保护状态嵌套／错误／取消／跨任务、生产确认可选 flag、无日志监听的双 Guard／shouldUse／并发请求／异应用／子任务／取消隔离，及请求完成事件真实 TCP HTTP／错误／HEAD／流／时间戳。同步身份入口不解决尚未解析身份的惰性认证，扩展须在异步中间件解析或明确说明该边界；不据此宣称完整 Activitylog／Pulse 集成通过。
+
+最终 `cargo +1.94.0 fmt --all --check`、`cargo +1.94.0 clippy --workspace --all-targets --all-features --locked -- -D warnings` 通过。三语 `npm --prefix docs run build` 和通用浏览器 `/`、`/docs/` 的桌面／手机共 12 组通过；第三方依赖仍输出既有弃用／cfg 警告，不称日志零警告。日志位于本轮临时目录的 `tests-final.log`、`clippy-final.log`、`fmt-final.log`、`docs-build-final.log` 和 `docs-browser-final.log`。接口、结果和未解析身份边界已回传原扩展对话；核心不代报扩展完整集成验收。阶段末磁盘可用 31,278,056 KiB（32.029 GB／29.829 GiB），已告知并行对话逼近32 GB停线；保留仍复用的 target、源码、并行工作和全部数据卷，不再开启新大型构建。

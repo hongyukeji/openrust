@@ -1,0 +1,22 @@
+[package]
+name = "openrust-scout"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.94"
+license = "MIT"
+publish = false
+
+[package.metadata.openrust.discovery]
+version = 1
+providers = true
+
+[dependencies]
+openrust = { package = "openrust-framework", path = "../framework" }
+serde_json = "1.0"
+clap = "4.6.1"
+futures-util = "0.3"
+tokio = { version = "1.54.1", features = ["sync"] }
+
+[dev-dependencies]
+tokio = { version = "1.54.1", features = ["macros", "rt-multi-thread"] }
+tempfile = "3.27"

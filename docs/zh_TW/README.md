@@ -144,3 +144,4 @@
 - [支付（擴充）](packages/pay.md)
 - [Telescope 應用程式除錯](packages/telescope.md)
 - [Valet macOS 本機開發環境](packages/valet.md)
+- [操作稽核（擴充）](packages/activitylog.md)

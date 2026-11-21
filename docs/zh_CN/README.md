@@ -144,3 +144,4 @@
 - [支付（扩展）](packages/pay.md)
 - [Telescope 应用调试](packages/telescope.md)
 - [Valet macOS 本地开发环境](packages/valet.md)
+- [操作审计（扩展）](packages/activitylog.md)

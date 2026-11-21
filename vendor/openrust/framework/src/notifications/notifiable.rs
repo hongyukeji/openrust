@@ -6,6 +6,14 @@ use super::{
 /// Resolves delivery routes and the preferred locale for a recipient.
 #[allow(non_snake_case, reason = "Matches Laravel's Notifiable API")]
 pub trait Notifiable: Send + Sync {
+    /// Stable diagnostic identity for this recipient without resolving delivery routes.
+    fn notificationTag(&self) -> String {
+        let kind = std::any::type_name::<Self>();
+        match self.notification_key() {
+            Some(key) => format!("{kind}:{key}"),
+            None => kind.into(),
+        }
+    }
     fn route_notification_for(
         &self,
         channel: &str,

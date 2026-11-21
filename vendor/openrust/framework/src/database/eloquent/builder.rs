@@ -544,6 +544,19 @@ impl<M: Model> Builder<'_, M> {
         self
     }
 
+    /// Orders models by a supplied sequence of values using the native query grammar.
+    #[must_use]
+    pub fn inOrderOf(mut self, column: &str, values: Vec<Value>) -> Self {
+        self.query = self.query.inOrderOf(column, values);
+        self
+    }
+
+    #[must_use]
+    pub fn reorder(mut self) -> Self {
+        self.query = self.query.reorder();
+        self
+    }
+
     pub fn orderByVectorDistance(
         mut self,
         column: impl Into<query::Column>,

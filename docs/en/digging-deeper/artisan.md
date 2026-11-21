@@ -186,6 +186,8 @@ Use `--env=acceptance` to initialize `.env.acceptance`; the same environment is 
 
 ## Generating Commands {#generating-commands}
 
+A destructive command can call `openrust::console::confirmToProceed(production, input.matches())?` and proceed only when it returns `true`. Set `production` from the application environment or the command’s confirmation condition. The shared localized prompt defaults to refusal; non-interactive input refuses, and a declared `--force` flag bypasses confirmation.
+
 Create a command from a source checkout. The generated type implements the Artisan command contract.
 
 ```sh

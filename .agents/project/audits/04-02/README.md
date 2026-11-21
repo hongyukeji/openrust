@@ -275,3 +275,5 @@
 三语生命周期／HTTP Client正文同步。完整内容／命令门禁与构建通过；通用12组、全部导航6组（23个支持边界页）及两个新章节在三语／桌面手机／根与子目录共24组实际浏览器检查通过，无整页水平溢出或脚本错误。`fmt-accepted.log`退出0，18份本批代码／测试／开发者文档与验收source逐字节一致，摘要仅留临时目录，不另存Git可重建备份。
 
 日志与官方参考保留于`/private/tmp/openrust-http-hooks-20261121/`：`regression-accepted.log`、`clippy.log`、`fmt-accepted.log`、`docs-*.log`及`validated-inputs.json`。未接真实供应商、未改变数据库和卷，未导出声称覆盖新钩子的最终API。可复用target与文档产物保留，未以本轮完成为由清空缓存。收尾可用45.94GB（42.79GiB），高于32GB停线。并行Horizon／Activitylog及根feature／Cargo.lock保留，只提交本次核心钩子、三语用法及交接记录，不推送。扩展接入与严格对齐修正后仍须新统一快照，不能用此处固定子集替代最终组合。
+
+2026-11-21 补充 `RequestHandled.requestStartedAt`（Unix 毫秒）并保留单调 duration；核心接口及 HTTP 时间戳验收见[扩展协作核心接口](../05-01/README.md#扩展协作核心接口2026-11-21)。

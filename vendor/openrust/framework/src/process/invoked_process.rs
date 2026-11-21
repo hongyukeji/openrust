@@ -64,7 +64,10 @@ struct Completion {
 type ProcessTask = JoinHandle<Result<Completion>>;
 
 pub(super) type OutputCallback = Box<dyn FnMut(OutputStream, &[u8]) + Send>;
-type SignalRequest = (Signal, oneshot::Sender<io::Result<()>>);
+enum SignalRequest {
+    Signal(Signal, oneshot::Sender<io::Result<()>>),
+    Detach(oneshot::Sender<io::Result<()>>),
+}
 
 pub(super) struct Options {
     pub(super) input: Vec<u8>,
@@ -203,10 +206,32 @@ impl InvokedProcess {
         }
         if self.running() {
             let (acknowledge, result) = oneshot::channel();
-            if self.signals.send((signal, acknowledge)).is_ok() {
+            if self
+                .signals
+                .send(SignalRequest::Signal(signal, acknowledge))
+                .is_ok()
+            {
                 result.await.unwrap_or(Ok(()))?;
             }
         }
+        Ok(())
+    }
+
+    /// Release process ownership so a background child may finish after this runtime exits.
+    /// Output should be disabled before spawning a child intended to outlive its parent.
+    pub async fn detach(mut self) -> Result<()> {
+        if self.playback().is_some() || !self.running() {
+            return Ok(());
+        }
+        let (acknowledge, result) = oneshot::channel();
+        self.signals
+            .send(SignalRequest::Detach(acknowledge))
+            .map_err(|_| io::Error::other("process control closed"))?;
+        result
+            .await
+            .map_err(|_| io::Error::other("process detach acknowledgement closed"))??;
+        // Dropping a JoinHandle detaches the task; Drop must no longer abort it.
+        self.task.take();
         Ok(())
     }
 
@@ -418,9 +443,14 @@ async fn drive(
                     idle_deadline = deadline(options.idle_timeout)?;
                 }
             }
-            Some((signal, acknowledge)) = signals.recv() => {
-                let result = if status.is_none() { group.signal(signal) } else { Ok(()) };
-                let _ = acknowledge.send(result);
+            Some(request) = signals.recv() => {
+                match request {
+                    SignalRequest::Signal(signal, acknowledge) => {
+                        let result = if status.is_none() { group.signal(signal) } else { Ok(()) };
+                        let _ = acknowledge.send(result);
+                    }
+                    SignalRequest::Detach(acknowledge) => { let _ = acknowledge.send(group.detach()); }
+                }
             }
             () = wait_deadline(total_deadline) => {
                 break Some(false);

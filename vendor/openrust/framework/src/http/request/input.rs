@@ -72,6 +72,20 @@ impl Payload {
 }
 
 impl Request {
+    /// Returns already-decoded input for diagnostics without polling the request body.
+    #[allow(non_snake_case, reason = "Matches the request input naming")]
+    pub fn inputSnapshot(&self) -> Option<Value> {
+        let query = self.query(None).ok().flatten().unwrap_or_else(empty);
+        let fields = match self.input_source().ok()? {
+            InputSource::Query => return Some(query),
+            InputSource::Json => self.json_input.as_ref()?.as_ref().ok()?,
+            InputSource::Form => match self.form_input.as_ref() {
+                Some(fields) => fields,
+                None => &self.payload_input.as_ref()?.as_ref().ok()?.fields,
+            },
+        };
+        Some(union(fields.clone(), query))
+    }
     pub(crate) async fn apply_method_override(&mut self) -> Result<(), HttpError> {
         if self.method() != Method::POST {
             return Ok(());

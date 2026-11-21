@@ -6,6 +6,41 @@ use crate::contracts::events::Event;
 
 use super::scheduling;
 
+/// A parsed Artisan command is about to execute in its native execution scope.
+#[allow(non_snake_case, reason = "Matches Laravel command event fields")]
+pub struct CommandStarting {
+    pub command: String,
+    pub input: clap::ArgMatches,
+    pub definition: Arc<clap::Command>,
+}
+impl CommandStarting {
+    pub const NAME: &'static str = "OpenRust\\Console\\Events\\CommandStarting";
+}
+impl Event for CommandStarting {
+    fn name(&self) -> &str {
+        Self::NAME
+    }
+}
+
+/// A command returned an exit code. Duration excludes event listeners.
+#[allow(non_snake_case, reason = "Matches Laravel command event fields")]
+pub struct CommandFinished {
+    pub command: String,
+    pub input: clap::ArgMatches,
+    pub definition: Arc<clap::Command>,
+    pub exitCode: i32,
+    pub duration: Duration,
+    pub output: String,
+}
+impl CommandFinished {
+    pub const NAME: &'static str = "OpenRust\\Console\\Events\\CommandFinished";
+}
+impl Event for CommandFinished {
+    fn name(&self) -> &str {
+        Self::NAME
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct SchedulePaused;
 
@@ -81,5 +116,21 @@ pub struct ScheduledBackgroundTaskFinished {
 impl Event for ScheduledBackgroundTaskFinished {
     fn name(&self) -> &str {
         "console.scheduled_background_task_finished"
+    }
+}
+
+/// A scheduled execution has run its after hooks, including unsuccessful callbacks.
+#[allow(non_snake_case, reason = "Matches scheduling metadata names")]
+pub struct ScheduledTaskCompleted {
+    pub command: String,
+    pub description: Option<String>,
+    pub expression: String,
+    pub timezone: Option<String>,
+    pub output: Option<std::path::PathBuf>,
+    pub shouldAppendOutput: bool,
+}
+impl Event for ScheduledTaskCompleted {
+    fn name(&self) -> &str {
+        "console.scheduled_task_completed"
     }
 }

@@ -122,6 +122,9 @@ fn postgres_value(row: &PgRow, index: usize, kind: &str) -> DatabaseResult<Value
             .try_get::<i32, _>(index)
             .map(|value| Value::Integer(i64::from(value))),
         "INT8" => row.try_get::<i64, _>(index).map(Value::Integer),
+        "NUMERIC" => row
+            .try_get::<bigdecimal::BigDecimal, _>(index)
+            .map(|value| Value::Text(value.to_string())),
         "FLOAT4" => row
             .try_get::<f32, _>(index)
             .map(|value| Value::Real(f64::from(value))),

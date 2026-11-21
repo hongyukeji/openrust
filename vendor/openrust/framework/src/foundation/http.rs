@@ -53,17 +53,40 @@ impl Kernel {
         }
     }
 
+    async fn request_received(
+        &self,
+        event: events::RequestReceived,
+    ) -> Result<(), crate::http::HttpError> {
+        use crate::contracts::events::Dispatcher as _;
+        let dispatcher = self
+            .application
+            .container()
+            .make::<crate::events::Dispatcher>()
+            .map_err(|source| crate::http::HttpError::Internal {
+                source: Box::new(source),
+            })?;
+        dispatcher
+            .dispatch(Arc::new(event), &mut crate::events::EventContext::new())
+            .await
+            .map_err(|source| crate::http::HttpError::Internal {
+                source: Box::new(source),
+            })?;
+        Ok(())
+    }
+
     async fn request_handled(
         &self,
         request: &mut Request,
         mut response: Response,
         started_at: std::time::Instant,
+        request_started_at: i64,
         head: bool,
     ) -> Response {
         self.prepare_response(request, &mut response, head);
         let event = Arc::new(events::RequestHandled::new(
             request,
             &response,
+            request_started_at,
             started_at.elapsed(),
         ));
         let dispatched = match self
@@ -255,8 +278,13 @@ impl http::Kernel for Kernel {
                     return Response::empty(StatusCode::SERVICE_UNAVAILABLE);
                 }
                 let started_at = std::time::Instant::now();
+                let request_started_at = jiff::Timestamp::now().as_millisecond();
                 request.matched_route = false;
                 request.route_name = None;
+                request
+                    .parts_mut()
+                    .extensions
+                    .remove::<crate::routing::RouteMetadata>();
                 let previous_api_prefix = request.api_prefix.replace(
                     self.application
                         .shared
@@ -278,7 +306,7 @@ impl http::Kernel for Kernel {
                         .await;
                     let head = request.method() == Method::HEAD;
                     let response = self
-                        .request_handled(request, response, started_at, head)
+                        .request_handled(request, response, started_at, request_started_at, head)
                         .await;
                     request.api_prefix = previous_api_prefix;
                     return response;
@@ -320,14 +348,34 @@ impl http::Kernel for Kernel {
                     attributes,
                     crate::view::middleware::request_scope(
                         crate::cookie::middleware::request_scope(async {
-                            let response = Next::new(
-                                &self.middleware.global,
-                                self.routes.as_ref().expect("ready kernel has routes"),
-                            )
-                            .run(request)
-                            .await;
-                            self.request_handled(request, response, started_at, head)
+                            let response = match self
+                                .request_received(events::RequestReceived::new(request))
                                 .await
+                            {
+                                Ok(()) => {
+                                    Next::new(
+                                        &self.middleware.global,
+                                        self.routes.as_ref().expect("ready kernel has routes"),
+                                    )
+                                    .run(request)
+                                    .await
+                                }
+                                Err(error) => {
+                                    self.application
+                                        .shared
+                                        .exceptions
+                                        .render_http(request, &error)
+                                        .await
+                                }
+                            };
+                            self.request_handled(
+                                request,
+                                response,
+                                started_at,
+                                request_started_at,
+                                head,
+                            )
+                            .await
                         }),
                     ),
                 ));

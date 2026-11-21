@@ -2,7 +2,7 @@
 
 ## 安裝 {#installation}
 
-啟用根應用的 `horizon` feature，即可使用可選 Redis 佇列監督擴充 `openrust-horizon` 與唯讀面板。`HorizonServiceProvider` 透過包發現自動註冊；獨立使用包的應用明確註冊此 Provider。載入 Provider 不啟動 Worker，也不連線 Redis。
+啟用根應用的 `horizon` feature，即可使用可選 Redis 佇列監督擴充 `openrust-horizon` 與授權維運面板。`HorizonServiceProvider` 透過包發現自動註冊；獨立使用包的應用明確註冊此 Provider。載入 Provider 不啟動 Worker，也不連線 Redis。
 
 在應用程式 `Cargo.toml` 的 `[features].default` 清單中加入 `horizon`，保留已有功能，然後使用原始碼入口：
 
@@ -19,11 +19,13 @@
 
 `horizon.defaults` 按監督器名稱設定；`horizon.environments` 選擇第一條符合 `app.env` 的模式，支援 `*`。未符合時不啟動監督器，`maxProcesses: 0` 停用對應監督器。環境選項與預設值遞迴合併，陣列按索引覆寫。預設範本在 `production` 使用 10 個程序預算，在 `local` 使用 3 個。
 
-監督器支援 `connection`、`queue`（字串或字串陣列）、`balance`、`autoScalingStrategy`、`minProcesses`、`maxProcesses`、`balanceMaxShift`、`balanceCooldown`、`tries`、`timeout`、`sleep`、`memory`、`maxJobs`、`maxTime`、`workersName`、`backoff`、`force`、`rest`、`nice` 和 `directory`。`backoff` 接受整數、逗號分隔字串或整數陣列。`tries: 0` 表示不限嘗試次數，`sleep: 0` 不等待，`timeout: 0` 關閉工作超時。`nice` 非零時需要 Unix 的 `nice` 命令；其他平台明確失敗。設定支援 snake_case 與 `processes` 別名；Rust 的選項結構使用 `maxTries`，設定仍可使用 `tries`。
+監督器支援 `connection`、`queue`（字串或字串陣列）、`balance`、`autoScalingStrategy`、`minProcesses`、`maxProcesses`、`balanceMaxShift`、`balanceCooldown`、`tries`、`timeout`、`sleep`、`memory`、`maxJobs`、`maxTime`、`workersName`、`backoff`、`force`、`rest`、`nice` 和 `directory`。`backoff` 接受整數、逗號分隔字串或整數陣列。`tries: 0` 表示不限嘗試次數，`sleep: 0` 不等待，`timeout: 0` 關閉工作超時。`nice` 非零時使用 Unix 行程優先級介面，工作行程繼承監督器優先級；其他平台明確拒絕此選項。設定支援 snake_case 與 `processes` 別名；Rust 的選項結構使用 `maxTries`，設定仍可使用 `tries`。
 
 `balance: "auto"` 按預計清空耗時（`time`）、待處理數量（`size`）或 `log1p` 數量比例（`log`）計算整個 `maxProcesses` 預算中的浮點目標。按目標從小到大調整程序池，目標向上取整，並套用 `minProcesses`、剩餘預算與 `balanceMaxShift`。未知耗時按零處理，非空但總耗時為零的佇列以最大預算為目標。`simple` 均分預算；`false` 或 `"off"` 使用一個優先佇列池，按待處理數量在最小與最大值間縮放。`balanceCooldown` 控制間隔；計算時包含結束中的程序，各 Master 獨立管理預算。
 
 Worker 的 `timeout` 必須短於佇列的 `retry_after`，預設分別為 60 和 90 秒。Worker 使用應用自身可執行檔案、基礎目錄、環境、處理器和設定。`maxJobs` 與 `maxTime` 觸發程序輪替，異常結束後自動補位。使用作業系統程序管理器託管 Master。SIGTERM／SIGINT 及終止請求等待目前工作完成，寬限期為設定的超時加五秒，之後強制結束。
+
+程序監督器面向 Unix 部署。基於訊號的監督器控制和孤兒程序檢查需要 Unix 程序工具。在其他平台上使用受支援的中繼資料命令，並在執行 Worker 前驗證部署行為。
 
 ## 面板授權 {#authorization}
 
@@ -45,7 +47,9 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
 }
 ```
 
-`Horizon::routes()` 註冊 `GET /horizon` 和 `GET /horizon/api/stats`；使用 `routesAt("/operations/horizon")` 指定其他靜態路徑。現有路由群組繼續應用自身前綴與中間件。面板每五秒刷新，設定嚴格的內容安全策略並禁用回應快取，顯示佇列積壓、監督器、近期工作和彙總指標。控制操作使用 Artisan。
+`Horizon::routes()` 註冊 `/horizon` 面板及其 `/api` 介面；使用 `routesAt("/operations/horizon")` 指定其他靜態路徑。現有路由群組繼續應用自身前綴與中間件。面板每五秒刷新，設定嚴格的內容安全策略並停用回應快取，支援佇列負載、Master 與監督器、待處理／完成／靜默／失敗工作、工作承載資料與異常、監控標籤、指標快照和批次。失敗工作及批次失敗工作透過已設定的原生失敗工作提供器重試。
+
+暫停、繼續、終止、監控變更和重試均須逐次通過授權回調。瀏覽器對寫入操作傳送 `X-Horizon-Request: 1`，直接呼叫介面也須攜帶該標頭；拒絕跨站瀏覽器寫入操作。為整個路由群組套用既有的認證與中間件。面板授權包含檢視工作資料和執行維運控制的權限。
 
 ## 命令 {#commands}
 
@@ -56,20 +60,40 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
 ./artisan horizon:continue
 ./artisan horizon:terminate
 ./artisan horizon:failed
-./artisan horizon:retry JOB_UUID
-./artisan horizon:forget JOB_UUID
+./artisan horizon:retry JOB_ID
+./artisan horizon:forget JOB_ID
+./artisan horizon:forget --all
+./artisan horizon:list
+./artisan horizon:supervisors
+./artisan horizon:supervisor-status supervisor-1
+./artisan horizon:pause-supervisor supervisor-1
+./artisan horizon:continue-supervisor supervisor-1
+./artisan horizon:snapshot
+./artisan horizon:clear-metrics
+./artisan horizon:clear redis --queue=default
+./artisan horizon:purge
 ```
 
-沒有存活 Master 時，`horizon:status` 結束碼為 1。暫停阻止 Horizon Worker 領取新工作，已執行工作可完成；繼續恢復領取。終止請求使該請求前啟動的 Master 優雅結束，新啟動的 Master 使用新代次。控制命令作用於共用元資料前綴。
+`horizon:status` 在執行時傳回 0、暫停時傳回 1、無存活 Master 時傳回 2。暫停阻止領取新工作，已執行工作可完成；繼續恢復領取；終止使目前 Master 優雅結束，新啟動的 Master 使用新代次。監督器命令操作具名監督器，控制命令作用於共用元資料前綴。
 
-重試和刪除先檢查失敗工作屬於已設定的 Horizon 連線與佇列，再呼叫原生失敗工作提供器。按[佇列](../digging-deeper/queues.md)設定持久失敗儲存。近期失敗清單僅保留去識別化元資料，原生失敗記錄刪除後，該清單仍可能保留到期；不顯示承載資料或異常文字。
+Horizon 工作 ID 識別獨立的 Redis 投遞，由佇列推送和面板回傳。`horizon:retry` 與 `horizon:forget` 使用此 ID。重試取得新 ID，原失敗監控記錄保留並記錄重試結果。原生 `queue:retry` 和失敗工作儲存使用承載資料 UUID，由 Horizon 內部轉換；批次重試也會將這些 UUID 解析為目前失敗投遞。
+
+按[佇列](../digging-deeper/queues.md)設定持久失敗儲存，重試重用原生領取與重新派發機制。`horizon:forget` 刪除監控失敗記錄與原生失敗記錄，`--all` 分頁處理全部 Horizon 失敗記錄。`horizon:clear` 清空指定佇列和待處理監控記錄，`horizon:purge` 處理孤立程序。透過[工作排程](../digging-deeper/scheduling.md)定期執行 `horizon:snapshot` 保存指標歷史；`horizon:clear-metrics` 清理指標並保留工作記錄。
+
+`horizon:listen` 是開發命令，每 500 毫秒輪詢一次 `horizon.watch` 檔案，即使省略 `--poll` 也是如此。檔案變化後重新啟動 Horizon；原始碼應用包含 `Cargo.toml` 時透過 Cargo 啟動，以重新編譯 Rust 原始碼和設定變更。監控時略過符號連結。
+
+## 工作標籤 {#tags}
+
+在應用 Provider 中、Horizon 註冊後呼叫 `Horizon::tag(fn(&Payload) -> Vec<String>)`。回呼對每個被觀察的承載資料產生標籤，忽略空字串，重複標籤保留首次出現順序。Rust 工作透過這些回呼明確提供標籤，不透過反射自動探索承載資料中的模型欄位。
+
+`Tags::forModel(&model)` 將 Rust 模型型別與整數、無符號整數或字串主鍵組合為標籤；缺少主鍵或主鍵型別不支援時回傳錯誤。工作攜帶模型身分時，可將回傳的字串加入回呼產生的標籤。各應用註冊的標籤回呼彼此隔離。面板的監控操作決定哪些標籤保留監控工作。
 
 ## 指標與限制 {#metrics}
 
 `Repository::recent(1..=100)`、`metrics(connection, queue)`、`masters()`、`pause()`、`r#continue()` 和 `terminate()` 提供相同的儲存操作。`SupervisorOptions::fromConfig` 驗證設定，`AutoScaler::numberOfWorkersPerQueue` 計算浮點目標，`scalePool` 計算逐池調整，`MasterSupervisor` 管理子程序生命週期。
 
-已設定 Redis 佇列的工作事件記錄 ID、正規化工作名、連線、佇列、嘗試次數、狀態、毫秒耗時與 Redis 伺服器端時間，不記錄承載資料、異常訊息及憑證。指標彙總最近 60 個分鐘桶，同時受 `retention` 限制（60–86400 秒，預設 3600）。近期索引最多保存 1000 個工作身份，每次最多讀取 100 個；同一工作顯示最近一次嘗試。重複結束事件在下一次處理事件前忽略；手動重試即使重置嘗試次數，也開始新的觀測。這些資料用於監控，不是持久執行帳本。
+Redis 佇列事件記錄 ID、工作名、連線、佇列、嘗試次數、狀態、耗時與 Redis 伺服器端時間。授權後的工作詳情還提供序列化承載資料、標籤和異常文字。`Repository::recent(1..=100)` 保持純元資料投影，近期索引最多 1000 個工作身份；`retention`（60–86400 秒，預設 3600）控制近期元資料和滾動 60 分鐘嘗試指標。
 
-心跳在 15 秒後到期。元資料服務錯誤會暫停 Horizon 領取新工作並結束 Master，由程序管理器恢復。HTTP 授權由應用負責。本包不提供 Laravel Horizon 的標籤、通知傳送、長等待告警、快照命令或可寫 Web 控制。
+`horizon.trim` 按分鐘控制工作清單保留時間：`recent`、`pending`、`completed` 預設為 60，`recent_failed`、`failed`、`monitored` 預設為 10080。工作清單每頁傳回 50 筆。`horizon.metrics.trim_snapshots.job` 與 `.queue` 預設各保留 24 個快照。平均耗時和吞吐量只計算成功完成的工作，失敗、釋放和等待重試不參與計算。重複結束事件在下一次處理事件前忽略；手動重試重設嘗試次數時開始新的觀測。
 
-平均耗時只計算成功完成的工作，失敗、釋放與等待重試的嘗試不參與計算。
+`Repository::jobs()`、`tags()`、`metricsRepository()`、`masterSupervisors()`、`supervisorRepository()`、`processes()` 與 `workload()` 提供獨立儲存庫操作。監控標籤按元資料前綴保存。每個指標的快照寫入與目前計數重設原子執行。Master 心跳 15 秒後到期，監督器心跳 30 秒後到期。元資料服務錯誤會暫停領取新工作並結束 Master，由作業系統程序管理器恢復。監控記錄會到期，不作為持久執行帳本。

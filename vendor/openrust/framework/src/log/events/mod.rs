@@ -83,6 +83,7 @@ impl Listeners {
             level,
             message: message.into(),
             context,
+            exception: exception.cloned(),
         };
         for listener in listeners {
             match listener.request {
@@ -116,6 +117,7 @@ impl Listeners {
             level,
             message: message.into(),
             context,
+            exception: exception.cloned(),
         };
         for listener in listeners {
             (listener.synchronous)(&event)?;

@@ -534,4 +534,31 @@ mod unix {
         assert_eq!(result.exitCode(), 6);
         assert_eq!(result.output(), b"readycaught");
     }
+    #[test]
+    fn detached_process_survives_its_runtime_and_finishes() {
+        let directory = TestDirectory::new();
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        runtime.block_on(async {
+            let process = Factory::new()
+                .command("sleep 0.2; printf completed > marker")
+                .path(&directory.0)
+                .forever()
+                .quietly()
+                .start()
+                .unwrap();
+            process.detach().await.unwrap();
+        });
+        drop(runtime);
+        let deadline = std::time::Instant::now() + Duration::from_secs(3);
+        while !directory.0.join("marker").exists() && std::time::Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        assert_eq!(
+            std::fs::read(directory.0.join("marker")).unwrap(),
+            b"completed"
+        );
+    }
 }

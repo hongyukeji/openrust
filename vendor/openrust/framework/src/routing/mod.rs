@@ -27,7 +27,7 @@ pub use middleware::MiddlewareEntry;
 pub use model_response::ModelResponse;
 pub(crate) use resource::ResourceKind;
 pub use resource::{ResourceAction, ResourceController};
-pub use route::Route;
+pub use route::{Route, RouteMetadata};
 pub use route_group::RouteGroup;
 pub use router::{IntoRouteHandler, RouteInfo, Router};
 

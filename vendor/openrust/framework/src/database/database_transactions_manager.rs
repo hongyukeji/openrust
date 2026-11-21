@@ -71,6 +71,24 @@ impl DatabaseTransactionsManager {
         Ok(())
     }
 
+    pub(super) fn add_at_level(&mut self, level: u32, callback: TransactionCallback) {
+        let records = self.records();
+        let index = records.partition_point(|record| record.level < level);
+        if records
+            .get(index)
+            .is_none_or(|record| record.level != level)
+        {
+            records.insert(
+                index,
+                TransactionRecord {
+                    level,
+                    ..Default::default()
+                },
+            );
+        }
+        records[index].callbacks.push(callback);
+    }
+
     pub(super) fn add_rollback(
         &mut self,
         level: u32,

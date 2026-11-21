@@ -402,6 +402,7 @@ async fn force_fill_scope_is_restored_between_polls_and_after_cancellation() {
             other.fill(attrs("label", "outside poll")),
             Err(DatabaseError::MassAssignment(_))
         ));
+        assert!(!Guarded::isUnguarded());
         // Dropping the suspended future cancels the bypass rather than leaving a global flag.
     }
     let mut after = Guarded::newInstance(Attributes::new()).unwrap();
@@ -409,4 +410,31 @@ async fn force_fill_scope_is_restored_between_polls_and_after_cancellation() {
         after.fillAsync(attrs("label", "after cancellation")).await,
         Err(DatabaseError::MassAssignment(_))
     ));
+}
+
+#[tokio::test]
+async fn public_guard_scope_reports_nested_state_and_restores_after_error() {
+    assert!(!Guarded::isUnguarded());
+    let guarded = Guarded::newInstance(Attributes::new()).unwrap();
+    assert!(guarded.getFillable().is_empty());
+    assert_eq!(guarded.getGuarded(), &["*"]);
+    assert_eq!(guarded.getDeletedAtColumn(), None);
+    let result: Result<(), &'static str> = Guarded::unguarded(async {
+        assert!(Guarded::isUnguarded());
+        let mut model = Guarded::newInstance(Attributes::new()).unwrap();
+        model.fill(attrs("label", "unguarded")).unwrap();
+        Guarded::unguarded(async { assert!(Guarded::isUnguarded()) }).await;
+        assert!(Guarded::isUnguarded());
+        assert!(
+            !tokio::spawn(async { Guarded::isUnguarded() })
+                .await
+                .unwrap()
+        );
+        Err("stop")
+    })
+    .await;
+    assert_eq!(result, Err("stop"));
+    assert!(!Guarded::isUnguarded());
+    let mut after = Guarded::newInstance(Attributes::new()).unwrap();
+    assert!(after.fill(attrs("label", "blocked")).is_err());
 }

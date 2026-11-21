@@ -179,6 +179,17 @@ impl RedisQueue {
             .query::<u32>(&command)
             .await
             .map_err(backend)?;
+        let manager = self.registry.manager()?;
+        if manager.observes_worker_event(super::events::JobQueued::NAME)? {
+            manager
+                .emit_control_event(super::events::JobQueued {
+                    connection_name: self.name.clone(),
+                    queue: queue.into(),
+                    id: job.id.clone(),
+                    job: payload.clone(),
+                })
+                .await?;
+        }
         Ok(Some(job.id))
     }
 

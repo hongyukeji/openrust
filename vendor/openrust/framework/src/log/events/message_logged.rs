@@ -6,6 +6,8 @@ pub struct MessageLogged {
     pub level: Level,
     pub message: String,
     pub context: LogContext,
+    /// The native error snapshot, distinct from user-supplied JSON context.
+    pub exception: Option<serde_json::Value>,
 }
 
 impl MessageLogged {

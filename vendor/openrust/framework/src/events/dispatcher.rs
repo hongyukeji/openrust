@@ -177,6 +177,26 @@ impl Dispatcher {
         self.read().listeners.listing()
     }
 
+    /// Returns matching listeners in delivery order with their actual queue contracts.
+    pub fn getListeners(&self, event: &str) -> Vec<(&'static str, bool)> {
+        self.read()
+            .listeners
+            .selected(event, &[])
+            .iter()
+            .map(|registration| {
+                (
+                    registration.label,
+                    matches!(registration.source, ListenerSource::Queued(_)),
+                )
+            })
+            .collect()
+    }
+
+    /// Whether the compiled event has a registered broadcast contract.
+    pub fn isBroadcasting(&self, event: &dyn Event) -> bool {
+        self.read().broadcasts.contains_key(&event.type_id())
+    }
+
     /// Delivers selected events in order after the callback succeeds.
     pub async fn defer<T>(
         &self,

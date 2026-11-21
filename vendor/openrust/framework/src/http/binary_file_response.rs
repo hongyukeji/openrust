@@ -50,6 +50,7 @@ impl Response {
         let Some(BinaryFile { mut file, length }) = self.binary_file.take() else {
             return;
         };
+        self.content = None;
         if !self.status().is_success() {
             return;
         }

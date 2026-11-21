@@ -62,11 +62,6 @@ impl AuthContext {
     }
 
     pub(super) fn publish(request: &Request) {
-        if !crate::support::facades::current_container()
-            .is_some_and(|owner| crate::log::context::Origin::enabled(&owner))
-        {
-            return;
-        }
         if let Some(context) = Self::get(request) {
             request.attributes().insert(
                 std::any::type_name::<Self>(),
@@ -83,9 +78,16 @@ impl AuthContext {
             .get(std::any::type_name::<Self>())?
             .downcast::<Self>()
             .ok()?;
-        context
-            .guards
-            .get(context.selected.as_deref().unwrap_or(default))?
+        context.resolved_user(None, default)
+    }
+
+    pub(super) fn resolved_user(
+        &self,
+        name: Option<&str>,
+        default: &str,
+    ) -> Option<Arc<dyn Authenticatable>> {
+        self.guards
+            .get(name.or(self.selected.as_deref()).unwrap_or(default))?
             .user
             .clone()
     }

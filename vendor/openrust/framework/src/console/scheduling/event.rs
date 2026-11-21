@@ -221,6 +221,30 @@ impl Event {
                 }
             }
         }
+        use crate::{contracts::foundation::Application as _, support::facades::Event as Events};
+        Events::dispatch(crate::console::events::ScheduledTaskCompleted {
+            command: match self.action {
+                Action::Callback(..) => "Closure".into(),
+                _ => self.command_name(),
+            },
+            description: self.description.clone(),
+            expression: self.cron_text.clone(),
+            timezone: self.zone.as_ref().map(|zone| {
+                zone.iana_name()
+                    .map(str::to_owned)
+                    .unwrap_or_else(|| zone.to_offset(Timestamp::now()).to_string())
+            }),
+            output: self
+                .destination
+                .as_ref()
+                .map(|destination| app.base_path().join(&destination.path)),
+            shouldAppendOutput: self
+                .destination
+                .as_ref()
+                .is_some_and(|destination| destination.append),
+        })
+        .await
+        .map_err(super::error)?;
         Ok(())
     }
 

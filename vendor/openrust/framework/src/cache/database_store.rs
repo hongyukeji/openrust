@@ -4,7 +4,7 @@ use crate::database::{Connection, Row, Value as SqlValue, query::Record as SqlRe
 
 use super::{
     CacheError, CacheResult, Value, backend,
-    engine::{Change, Engine, Record, key_digest, now},
+    engine::{Change, Engine, FOREVER, Record, key_digest, now},
     store::StoreCore,
 };
 
@@ -81,7 +81,7 @@ impl DatabaseBackend {
             self.connection
                 .table(&self.table)
                 .r#where("key", "=", key)
-                .r#where("expiration", "<=", time)
+                .r#where("expiration", "<=", time / 1000)
                 .delete()
                 .await
                 .map_err(backend)?;
@@ -130,9 +130,10 @@ impl DatabaseBackend {
                                 Change::Keep if !present => SqlChange::Remove,
                                 Change::Keep => SqlChange::Keep,
                                 Change::Remove => SqlChange::Remove,
-                                Change::Write(entry) => {
-                                    SqlChange::Write(encode(&entry, column)?, entry.expires)
-                                }
+                                Change::Write(entry) => SqlChange::Write(
+                                    encode(&entry, column)?,
+                                    databaseExpiration(entry.expires)?,
+                                ),
                             };
                             Ok((change, value))
                         })();
@@ -198,9 +199,31 @@ fn row(key: &str, column: &str, value: String, expiration: i64) -> SqlRecord {
 
 fn expiration(row: &Row) -> Option<i64> {
     match row.get("expiration") {
-        Some(SqlValue::Integer(value)) => Some(*value),
-        Some(SqlValue::Unsigned(value)) => (*value).try_into().ok(),
+        Some(SqlValue::Integer(value)) => value.checked_mul(1000),
+        Some(SqlValue::Unsigned(value)) => i64::try_from(*value).ok()?.checked_mul(1000),
         _ => None,
+    }
+}
+
+/*
+ * 标准缓存迁移的 expiration 为整数秒；共享引擎使用毫秒，仅在数据库边界转换。
+ * 永久缓存按 Laravel DatabaseStore 保存十年，避免将无限哨兵写入整数列。
+ * 亚秒租约向上取整，防止存入后立即过期。
+ */
+#[allow(
+    non_snake_case,
+    reason = "Names the database expiration adapter explicitly"
+)]
+fn databaseExpiration(expires: i64) -> CacheResult<i64> {
+    if expires == FOREVER {
+        (now()? / 1000)
+            .checked_add(315_360_000)
+            .ok_or(CacheError::InvalidValue)
+    } else {
+        expires
+            .checked_add(999)
+            .map(|value| value / 1000)
+            .ok_or(CacheError::InvalidValue)
     }
 }
 

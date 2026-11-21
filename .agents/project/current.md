@@ -1,5 +1,9 @@
 # 当前交接
 
+- 2026-11-21 用户要求本地提交：六扩展及必要核心接口／测试／三语文档按已验快照核定提交；其他共享工作区改动保留，未推送，正式API导出未执行。范围与核对见[扩展最终记录](audits/extension-final.md#本地提交核对2026-11-21)。
+
+- 2026-11-21 [扩展当前源码组合验收](audits/extension-final.md)：O01–O06约定范围已实现，Scout首个引擎完成三库／Worker失败重试／固定PHP语义／根配置与关闭feature；Telescope补18类独立Watcher、应用级框架事件开关、已缓冲响应脱敏及实际路由字段，新增三库回归通过。六新扩展103项＋独立Redis10项、根全部feature17项、核心观察／契约与23个真实HTTP、Horizon真实进程及三面板桌面手机、全workspace严格Clippy／fmt、三语和19库WIP API已验。完整PHP反射／UI／Scout所有外部引擎未宣称等价，边界见记录。API未伪装成干净提交的正式导出；未暂存／提交／推送，保留共享WIP，不联系其他对话。以下旧保存点按历史时点阅读。
+
 - 2026-11-21 [HTTP核心观察钩子](audits/04-02/README.md#请求完成事件与出站-http-观察钩子2026-11-21)：补齐foundation::http::events::RequestHandled与Factory／Http全局中间件、PendingRequest局部中间件、Response.handlerStats／transferStats。事件在当前应用／请求作用域观察响应元数据、属性和耗时，不读取正文；出站按顺序包裹每跳与重试，超时／连接失败可观察，fake不伪造网络时间。Rust1.94隔离快照40定向通过（另2既有数据库函数忽略不计）、全feature严格Clippy／fmt与三语构建／12通用＋6导航＋24新章节浏览器通过。复用core-ecosystem target并保留缓存，未修改扩展／root依赖，最终API及扩展修正组合待新快照；仅核范围本地提交，不推送。
 
 - 2026-11-21 [扩展已实现子集组合复验](audits/08-04/README.md#2026-11-21-扩展已实现子集与核心组合复验)：核心9eea6eee5与固定时点Activitylog／Horizon WIP统一快照，全feature严格Clippy／fmt、包与原生配置／骨架、Activitylog三库、Redis与原生监督进程、桌面／手机面板、三语构建与12＋6＋12＋12浏览器通过。完整Chrome1243未授权403导航差异保留，headless shell1243通过。用户随后要求严格对齐上游，Horizon分配算法及标签／通知／快照等缺口由扩展对话修正；本轮只证明旧子集组合运行，不能计作Laravel功能完整或最终组合。待新源码后重新固定快照／API；target与文档产物保留复用，数据库和卷保留，仅核范围本地提交记录。

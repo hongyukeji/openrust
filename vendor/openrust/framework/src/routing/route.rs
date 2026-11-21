@@ -12,6 +12,15 @@ use super::{
     route_pattern::{RoutePattern, constraint},
 };
 
+/// Immutable metadata for the route selected by the router.
+#[derive(Clone, Debug)]
+pub struct RouteMetadata {
+    pub uri: String,
+    pub domain: Option<String>,
+    pub action: String,
+    pub middleware: Vec<String>,
+}
+
 /// A registered route and its metadata.
 pub struct Route {
     pub(super) uri: String,

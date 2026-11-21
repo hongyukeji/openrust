@@ -121,6 +121,40 @@ impl<'a> SourceInstallation<'a> {
         super::source_edit::replace(&path, &source, &updated)
     }
 
+    /// Register an explicitly installed application provider, preserving existing entries.
+    #[allow(non_snake_case, reason = "Matches the package installation API")]
+    pub fn registerProvider(&self, qualified: &str) -> Result<(), ConsoleError> {
+        if qualified.split("::").any(|part| {
+            part.is_empty()
+                || !part.bytes().enumerate().all(|(index, byte)| {
+                    byte == b'_'
+                        || byte.is_ascii_alphabetic()
+                        || (index > 0 && byte.is_ascii_digit())
+                })
+        }) {
+            return Err(ConsoleError::new(
+                "Provider path must contain Rust identifiers.",
+            ));
+        }
+        let path = self.root().join("bootstrap/providers.rs");
+        let previous = super::source_edit::read(&path)?;
+        let compact: String = previous
+            .chars()
+            .filter(|character| !character.is_whitespace())
+            .collect();
+        if compact.contains(&format!("Box::new({qualified})"))
+            || compact.contains(&format!("Box::new({qualified},)"))
+        {
+            return Ok(());
+        }
+        let updated = super::provider_make_command::append_registration(
+            &previous,
+            &path,
+            &format!("Box::new({qualified}),"),
+        )?;
+        super::source_edit::replace(&path, &previous, &updated)
+    }
+
     pub async fn publish(
         &self,
         tag: &str,

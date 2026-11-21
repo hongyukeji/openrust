@@ -2,7 +2,7 @@
 
 ## 配置
 
-在 `config/cache.rs` 通过 `CACHE_STORE` 选择默认存储。 `array` 使用应用内存，`file` 使用本机进程可共享的目录，`database` 使用共享的 SQLite 或 MySQL 数据库。
+在 `config/cache.rs` 通过 `CACHE_STORE` 选择默认存储。 `array` 使用应用内存，`file` 使用本机进程可共享的目录，`database` 使用共享的 PostgreSQL、MySQL 或 SQLite 数据库。
 
 会话数据可以使用[会话缓存](../the-basics/session.md#session-cache)。`session` 仓库需要活跃的 HTTP 会话，不支持标签和缓存锁。
 
@@ -15,6 +15,8 @@
 cargo build
 ./artisan migrate
 ```
+
+数据库 `expiration` 列保存 Unix 秒数。永久记录采用十年有效期，与 Laravel DatabaseStore 一致。亚秒有效期和锁租约向上取整到下一秒；需要更细过期精度时使用 Redis。
 
 ## Memcached {#memcached}
 

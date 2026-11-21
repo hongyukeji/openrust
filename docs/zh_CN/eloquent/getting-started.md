@@ -31,6 +31,8 @@ impl Model for Flight {
 }
 ```
 
+`getFillable()` 和 `getGuarded()` 返回模型声明的批量赋值名单。`Model::isUnguarded()` 查询当前绕过保护的作用域；`Model::unguarded(future)` 在完成、失败或取消时恢复保护，不影响其他任务。`getDeletedAtColumn()` 返回配置的软删除列 `Option<&str>`，未启用软删除时为 `None`。
+
 ## 模型约定
 
 默认主键为自增的 `id`，并维护 `created_at` 和 `updated_at`。在 `ModelMetadata` 中通过 `primaryKey`、`incrementing`、`timestamps` 或 `connection` 配置模型。使用 `fillable` 声明可批量赋值的字段。

@@ -22,7 +22,8 @@ pub trait GeneratorCommand: Command {
     -> Result<Cow<'static, str>, ConsoleError>;
 }
 
-pub(crate) fn write_generated(path: &Path, bytes: &[u8], force: bool) -> io::Result<()> {
+/// Atomically creates a generated source file, optionally replacing it.
+pub fn write_generated(path: &Path, bytes: &[u8], force: bool) -> io::Result<()> {
     let directory = path.parent().expect("generator path has a parent");
     fs::create_dir_all(directory)?;
     if !force {
@@ -47,7 +48,8 @@ fn write_new(path: &Path, bytes: &[u8]) -> io::Result<()> {
     Ok(())
 }
 
-pub(crate) fn snake_case(name: &str) -> String {
+/// Converts a validated PascalCase source name to a Rust module name.
+pub fn snake_case(name: &str) -> String {
     let bytes = name.as_bytes();
     let mut snake = String::new();
     for (index, byte) in bytes.iter().copied().enumerate() {
@@ -64,7 +66,8 @@ pub(crate) fn snake_case(name: &str) -> String {
     snake
 }
 
-pub(crate) fn source_name_parts<'a>(
+/// Validates nested PascalCase source names before building a destination path.
+pub fn source_name_parts<'a>(
     name: &'a str,
     invalid_message: &'static str,
 ) -> Result<impl Iterator<Item = &'a str>, ConsoleError> {

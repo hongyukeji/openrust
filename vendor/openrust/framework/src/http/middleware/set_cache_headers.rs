@@ -9,7 +9,7 @@ use http_body::Body as _;
 
 use crate::{
     contracts::http::Middleware,
-    http::{Body, HttpError, HttpFuture, Next, Request, Response, StatusCode},
+    http::{HttpError, HttpFuture, Next, Request, Response, StatusCode},
     support::{calendar, facades::Config},
 };
 
@@ -112,7 +112,7 @@ impl SetCacheHeaders {
                 tag = HeaderValue::from_str(&format!("\"{hash:032x}\"")).ok();
             }
             let falsey = bytes.as_ref() == b"0";
-            response.body = Body::from(bytes);
+            response.setContent(bytes);
             if falsey && method != Method::HEAD {
                 return Ok(response);
             }
@@ -128,7 +128,7 @@ impl SetCacheHeaders {
         apply_cache_control(headers, &self.directives, self.public);
         if is_not_modified(request_headers, headers) {
             response.parts_mut().status = StatusCode::NOT_MODIFIED;
-            response.body = Body::empty();
+            response.setContent(axum::body::Bytes::new());
             response = response.withoutHeaders([
                 ALLOW,
                 CONTENT_ENCODING,

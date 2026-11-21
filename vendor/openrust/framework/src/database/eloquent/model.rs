@@ -503,6 +503,31 @@ pub trait Model: Sized + Send + Sync + 'static {
         self
     }
 
+    /// Returns the model's declared mass-assignable attribute names.
+    fn getFillable(&self) -> &'static [&'static str] {
+        Self::metadata().fillable
+    }
+
+    /// Returns the model's declared guarded attribute names.
+    fn getGuarded(&self) -> &'static [&'static str] {
+        Self::metadata().guarded
+    }
+
+    /// Whether the current task or synchronous force-fill scope bypasses guards.
+    fn isUnguarded() -> bool {
+        concerns::guards_attributes::is_unguarded()
+    }
+
+    /// Bypasses mass-assignment guards while polling this future, restoring on exit.
+    fn unguarded<F: Future>(work: F) -> impl Future<Output = F::Output> {
+        concerns::guards_attributes::unguarded(work)
+    }
+
+    /// Returns the configured soft-delete column, or `None` when soft deletes are disabled.
+    fn getDeletedAtColumn(&self) -> Option<&'static str> {
+        Self::metadata().deleted_at
+    }
+
     fn fill(&mut self, attributes: Attributes) -> DatabaseResult<&mut Self> {
         let incoming = concerns::guards_attributes::fill(attributes, Self::metadata())?;
         if incoming.is_empty() {
@@ -1098,6 +1123,23 @@ pub trait Model: Sized + Send + Sync + 'static {
         async move {
             let loads = super::NamedRelations::<Self>::prepare(paths)?;
             concerns::has_relationships::load_eager(loads, std::slice::from_mut(self)).await
+        }
+    }
+
+    /// Loads registered relationship paths using the caller's explicit transaction.
+    fn loadPathsInTransaction<'a>(
+        &'a mut self,
+        paths: &'a [&'a str],
+        transaction: &'a mut crate::database::Transaction,
+    ) -> impl Future<Output = DatabaseResult<()>> + Send + 'a {
+        async move {
+            let loads = super::NamedRelations::<Self>::prepare(paths)?;
+            concerns::has_relationships::load_eager_with_transaction(
+                loads,
+                std::slice::from_mut(self),
+                Some(transaction),
+            )
+            .await
         }
     }
 

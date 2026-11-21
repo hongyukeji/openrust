@@ -71,6 +71,11 @@ impl MigrationContext {
         }
     }
 
+    /// Returns the driver used by this migration, including pretend mode.
+    pub fn getDriverName(&self) -> &'static str {
+        self.connection.getDriverName()
+    }
+
     pub fn getName(&self) -> &str {
         self.connection.getName()
     }

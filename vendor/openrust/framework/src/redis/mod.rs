@@ -2,6 +2,7 @@
 
 pub mod connections;
 pub mod connectors;
+pub mod events;
 mod facade;
 pub mod limiters;
 mod redis_manager;
@@ -75,3 +76,6 @@ pub(crate) fn backend(source: impl Error + Send + Sync + 'static) -> RedisError 
         source: Box::new(source),
     }
 }
+
+/// Native Redis command batching, shared by queues and optional extensions.
+pub use ::redis::Pipeline;

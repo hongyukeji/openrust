@@ -1,5 +1,7 @@
 # 搜尋
 
+模型觀察器、佇列同步和可擴充集合搜尋請見可選的 [Scout 擴充](../packages/scout.md)。
+
 ## 全文搜尋 {#full-text-search}
 
 使用 MySQL 相容連線，建立欄位清單與查詢一致的全文索引。查詢建構器將搜尋字串繫結為參數。`whereFullText` 使用自然語言模式。用 `whereFullTextWith` 可選擇 `Boolean` 或 `QueryExpansion`。

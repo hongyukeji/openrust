@@ -1,0 +1,69 @@
+# 扩展与固定上游的逐项对齐
+
+2026-11-21 用户要求严格按 Laravel 生态开发、联网调研成熟方案，并持续完成扩展。本表区分已交付范围、上游等价性与组合验收。O01–O06约定范围已通过当前源码的本地组合验收；未支持能力及正式发布／外部服务边界继续明确保留，见[最终组合](extension-final.md)。
+
+## 来源和取舍
+
+联网取得以下提交的完整 GitHub 源码归档（含包内文档、测试与许可证，以归档实际内容为准），保存于 `tmp/openrust-ecosystem-20261121/upstream`。搜索工具未返回可用内容，因此依据直接取得的 GitHub 主来源核对，不宣称已核实实时热门榜或 Star 排名。
+
+| 对照项目 | 固定提交 | 采用理由 |
+|---|---|---|
+| [spatie/laravel-activitylog](https://github.com/spatie/laravel-activitylog/tree/fdcc5ee063cbf91114679336c4fbf92837196419) | fdcc5ee063cbf91114679336c4fbf92837196419 | 对应日志模型、流式记录、模型事件、属性选择、操作者和清理；核对该提交实际结构，不套用旧版接口 |
+| [laravel/horizon](https://github.com/laravel/horizon/tree/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa) | b86d5aa87ca474db352ea2668bdd1df3a90bf8aa | 官方 Redis 队列监督、扩缩容、管理命令、标签、指标与面板 |
+| [laravel/telescope](https://github.com/laravel/telescope/tree/39a8ea8ad79915df6c3ac9b4e72659ade808eba3) | 39a8ea8ad79915df6c3ac9b4e72659ade808eba3 | 官方诊断条目、Watcher、过滤、关联、SQL 存储及清理 |
+| [laravel/pennant](https://github.com/laravel/pennant/tree/9046466feb0146b6223db8b8e9c589aeba23f7f0) | 9046466feb0146b6223db8b8e9c589aeba23f7f0 | 官方特性作用域、解析、缓存、驱动、批量查询及中间件 |
+| [laravel/pulse](https://github.com/laravel/pulse/tree/33cc6fc68cd3052aa06227e88e8d933dd3d70a51) | 33cc6fc68cd3052aa06227e88e8d933dd3d70a51 | 官方 Recorder、采样、聚合、存储和授权面板 |
+| [laravel/scout](https://github.com/laravel/scout/tree/6f6560dbcda3ec99d9ba90bd6eebed5e0f16e363) | 6f6560dbcda3ec99d9ba90bd6eebed5e0f16e363 | 官方 Builder、Searchable、模型观察器、引擎及索引命令 |
+
+这些包直接对应用户要求的生态能力，优先复用其结构与契约。Rust 内部复用已有数据库、事件、队列、Redis、进程、授权和包发现，不另造通用观测内核或任务执行内核。所有默认值、错误行为、Artisan 参数及公开拼写以固定源码核对；语言差异逐项说明，不能用“Rust 适配”掩盖可直接保持的行为差异。
+
+旧版参考 `v0.x` 为 `6d1a81924451e15f595f68c8dfb520ad6d6c44cf`；该提交没有上述六个独立扩展包。已有 audit／queue 内部实现的复用边界见各包审计；未找到的旧包不写成已复用。
+
+## O01 Activitylog：固定上游对齐验收通过
+
+2026-11-21 依据[包审计](activitylog/README.md)及 `activitylog-final-*` 日志核对，关闭先前重新打开的实现缺口；当前核心与扩展组合另见最终组合记录，不从本包结果推断整个生态完成。
+
+| 契约 | 当前状态与边界 |
+|---|---|
+| 独立发现、Provider、配置、发布、迁移与缓存 | 原生应用 SQLite／PostgreSQL18／MySQL8.4 验收通过；默认骨架两项通过 |
+| 显式记录、主体／操作者、查询、事务及清理 | 三库各10项数据行为通过；默认迁移为数值nullable morph、nullable JSON、原生timestamps／自增ID，字符串身份须定制迁移 |
+| `activity()`、`ActivityLogger`、`PendingActivityLog`及流式入口 | 新鲜记录器、成功后重置、tap／Action／占位符及匿名优先级已验 |
+| `ActivityLogStatus`、`CauserResolver`及认证 | 嵌套恢复、按guard已认证快照、真实morph、原始ID异步Provider查询与跨请求隔离已验；同步回调不主动发起认证I/O |
+| `LogOptions`、ChangeDetector及模型事件 | dirty／排除／raw／JSON路径、逐实例开关、事务内懒加载关系、自定义软删除列、定制模型／Action及原生模型Creating事件已验 |
+| `ActivityBuffer`及生命周期 | HTTP／Artisan／Worker使用原生defer；事务提交后入队、回滚／保存点回滚丢弃及嵌套记录顺序已验；standalone须显式flush，取消／SIGKILL／硬超时不保证刷新 |
+| 固定上游对照 | 8组LogOptions、4组status、900组ChangeDetector固定PHP结果回归通过；本轮没有重新执行PHP参考生成 |
+| 严格检查、三语文档与浏览器 | 包23项、严格Clippy／Rustdoc、快照fmt、三语构建及专项／通用各12组通过；31所属文件与已验源码一致 |
+
+Rust动态关系须显式登记、LoggingState显式提供、异步原始ID解析等语言边界及证据路径见包审计。管理HTTP接口、租户授权、防篡改存储与外部副作用恰好一次不由本包自动提供。上述状态替代先前“by原始ID待齐／自动缓冲未完成”等旧描述。
+
+## O02 Horizon：本地验收通过
+
+Horizon包与其已验快照逐文件一致；当前核心的Worker／事件／Artisan已有后续改动，因此另以当前快照重新构建真实程序并执行Redis／进程／浏览器组合，不直接沿用旧核心结果。详见[包审计](horizon/README.md)及[最终组合](extension-final.md)。
+
+| 契约 | 当前状态与边界 |
+|---|---|
+| AutoScaler／ProvisioningPlan／SupervisorOptions | 固定PHP224组分配／环境／选项对照；浮点比例、升序限幅、退出计数、time／size／log、未知runtime、递归合并及零预算停用已齐 |
+| Master→SupervisorProcess→Supervisor→ProcessPool→horizon:work | 实际父子进程树、独立心跳与控制、崩溃重建、孤儿排空、TERM／fast termination、内存退出与listen重启已验 |
+| Artisan管理与安装 | work／supervisor／控制／状态／list／supervisors／purge／timeout／snapshot／clear-metrics／clear／forget／install／publish／listen已有真实入口；retry／failed明确为额外入口 |
+| 分仓储、任务、标签、指标与通知 | 七类仓储职责、任务终态与详情／重试引用、监控／静默标签、trim、指标快照／锁、长等待与去重已实现；原生database批次三库已验 |
+| 原生队列身份 | transport ID与payload UUID显式桥接，重复／过时事件保护、历史forget竞态、未部署队列观测均已实际验证，属明确原生队列适配 |
+| 授权面板 | 实际任务分页／详情／重试、指标／快照、标签写入、失败和批次操作；当前源码Chrome桌面手机、同源写保护、XSS／CSP及布局通过 |
+| Redis与平台 | Redis8.10.3独立夹具通过；拒绝上游同样不支持的Redis Cluster。Unix/macOS信号实测，不扩大为Linux／Windows或真实收件人通知已验 |
+
+上述关闭原来“Master直管Worker／命令与分仓储未实现／只读面板”等过时缺口。不宣称执行完整PHP PHPUnit，也不隐藏Rust显式标签、轮询listen与内存衡量方式等已记录适配。
+
+## O03 Telescope：原生支持范围验收通过
+
+[原生链路及补齐记录](telescope/README.md)涵盖18类Entry／公开Watcher、独立注册／选项、框架事件开关、作用域与defer、仓储、队列更新、缓存、SQL、日志、邮件／通知、事件／模型／视图／Gate／调度／Dump／Redis／出站HTTP。新增已缓冲响应脱敏、字符限制及实际路由字段通过真实HTTP三库；文件与流不读取。原26项＋新增2项默认通过，Redis单独实跑。
+
+三库／缓存／Worker、实际服务器Chrome桌面手机、安装、发布保留定制、根配置缓存／骨架及全部扩展组合见包审计与[最终组合](extension-final.md)。先前公开Watcher、ignoreFrameworkEvents、缓冲响应／路由字段缺口已关闭。
+
+与PHP仍有明确差异：原生安全UI替代Vue／avatar；无任意结构或异步调用栈反射，Query／Gate未提供来源调用者过滤；未知Body／流及HTTP客户端multipart元数据不自动读取；CLI普通表格／时间戳替代PHP装饰与相对时间。这些限制留在三语正文和包审计，不能称作Laravel所有API或前端像素级完整移植。正式服务／其他OS也不由本地结果覆盖。
+
+## O03–O06 与完成条件
+
+O01 Activitylog、O02 Horizon、O03 Telescope原生范围、O04 Pennant、O05 Pulse及O06 Scout首个引擎范围已有实现与定向验收；当前统一组合见[最终记录](extension-final.md)。Scout不内置所有外部引擎，Telescope的PHP反射／UI等边界如上，不能从路线完成推断上游所有插件功能全部等价。必要核心改动由本对话完成；不联系其他对话，保留共享WIP，未执行暂存、提交或推送。
+
+每项关闭前要求：上游源码／适用测试到 Rust 的对照、真实入口和失败路径、相关三库／缓存驱动、默认骨架／配置缓存边界、三语开发者文档及浏览器验收。与最终核心源码的全功能组合统一复验。许可证、命名、默认值及任何必要差异同时核对；仅“自己的测试全绿”不构成完整对齐证据。
+
+早期Horizon纠偏的224组固定PHP参考只证明对应算法／配置／Worker选项；后续进程树、命令、仓储、标签及面板已另行实现验收，当前状态以O02段和最终组合记录为准。完整PHP PHPUnit套件未执行。

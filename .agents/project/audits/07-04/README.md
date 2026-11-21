@@ -50,3 +50,15 @@ HTTP `defer` 在响应体交给传输层后进入现有终止队列。状态码�
 - 硬超时 Worker 的隔离执行器在交回已登记的回调时提取最终 Context，在应用作用域内执行脱水钩子。回调及其快照经过现有 JSON 结果交给父 Worker，父 Worker 按 `JobAttempted` 的结果筛选并启动。强制终止时来不及取快照或交回登记。
 - macOS ARM64 从 `3970ff0a1` 干净归档及核定改动锁定离线构建。真实 HTTP 204、独立 Artisan 退出码 0／7 和真实 Redis 8.10.3 Worker 均覆盖登记后覆盖公开及隐藏字段、删掉旧字段、脱水钩子投影、作用域配置读取和父进程 EOF。Sync 请求回归及独立 Artisan 夹具验证注册时不运行脱水钩子、回调采用最新字段。独立 Background 队列和 `artisan inspire` 回归通过。
 - 实际 `queue:work redis --once --timeout=1 --tries=1` 验证普通任务、隔离成功、隔离失败的 `always()` 和强制超时。普通任务由原 Worker 提取快照，隔离任务由执行器提取，父 Worker 在 `JobAttempted` 后启动子进程。杀死隔离执行器后无快照、无子进程。独立 `concurrency_defer` 和 5 项并发回归、Rust 1.94.0 格式和锁定离线全目标严格 Clippy、三语构建和 18 项 Chrome 检查通过。本批实际入口在 macOS。已回收独立 Redis、文档和本批专属编译产物。磁盘可用 52.46 GB（48.86 GiB），提交前周额度剩余 19%，按用户授权继续。夹具和日志位于 `/Users/Home/openrust-defer-context.OX03dC5Z`。
+
+## 通用进程内延迟回调（2026-11-21）
+
+为扩展缓冲刷新开放 `openrust::support::defer(future, name, always)`，复用现有 `DeferredCallbacks`，不另建应用结束执行器。核对固定 Laravel `1449bf241017087fbd38c118ecaabef3f6797fdc` 的 [Support/functions.php](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/functions.php)、[DeferredCallbackCollection](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/Defer/DeferredCallbackCollection.php)、[InvokeDeferredCallbacks](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Http/Middleware/InvokeDeferredCallbacks.php) 与 Application 的 terminating/terminate。HTTPS原始源码留在本轮临时证据目录。旧版 `openrust-v0.x` 的 `foundation/termination.rs` 及 application/http termination 测试提供结束顺序参考；其全局回调注册表与当前多请求／多Worker任务作用域不一致，不直接引入。
+
+Rust 接受 `Future<Output = Result<(), E>> + Send + 'static`，保持 `name`／`always` 参数顺序；同生命周期内同名回调替换前者，未具名回调独立保留。返回已有 `DeferredCallback`，允许 `.always()`；框架外部不能通过该入口手动排空其他请求的回调。捕获原 scoped 服务的 `Arc`，不在已关闭请求作用域后重新解析缓冲区。不实现异步 Drop 或进程崩溃时的虚假可靠刷新。
+
+HTTP在传输释放正文后执行；错误响应默认跳过，always包含失败。嵌套Artisan调用与sync任务保留外层生命周期。普通Worker在JobAttempted后排空本attempt；子进程硬超时任务的本地Future在子进程正常交付结果前执行，仍受任务超时预算，不能跨进程序列化任意Future。完成前取消、硬超时或SIGKILL不保证刷新；需要故障后持久化的业务使用既有持久队列。
+
+隔离源码与日志：`/private/tmp/openrust-core-extension-contracts-20261121/`，复用核心ecosystem target，Rust1.94、命令局部dev/test debug=0，保留原生增量／并发。新增6项公开入口测试通过，覆盖并发HTTP原scope／最后值、一次执行、渲染422、同名替换、流式正文Drop、请求取消后隔离、外层HTTP中的嵌套Artisan/sync、命令0／非0／错误、回调错误报告及继续排空新回调。与既有核心接口／认证／模型／观察回归共26项通过，明确过滤原MySQL条件函数，不将缺URL提前返回计作数据库覆盖。日志 `core-lifecycle-tests.log`。
+
+同一Worker函数在SQLite临时文件、PostgreSQL18和MySQL8.4独立容器分别通过：真正入队／出队、成功／失败／主动release／可取消超时四类attempt、JobAttempted先于回调、每attempt全新scoped对象、回调读到原对象最后状态与always筛选。PG／MySQL使用现行 `tests/postgres_acceptance.py`／`mysql_acceptance.py` 并显式映射 `OPENRUST_DEFER_DATABASE_DRIVER`／`OPENRUST_DEFER_DATABASE_URL`；未操作开发库或数据卷。日志 `defer-worker-{sqlite,postgres,mysql}.log`。三语helpers正文、站点构建和根／子目录桌面／手机12组浏览器通过。`cargo +1.94.0 clippy --workspace --all-targets --all-features --locked -- -D warnings` 与 `fmt --all --check` 通过；第三方依赖有既有弃用／cfg警告，未新增ignore。扩展集成由扩展负责人自行实现与验收，遵循最新分工规则。

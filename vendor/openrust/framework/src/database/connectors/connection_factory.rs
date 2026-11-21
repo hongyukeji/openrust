@@ -44,6 +44,7 @@ impl ConnectionFactory {
         let root = root.to_owned();
         Ok(Connection {
             name: name.into(),
+            config: options.config,
             prefix_indexes: options.prefix_indexes,
             sqlite_json_types: options.sqlite_json_types,
             table_options: options.table_options,
@@ -80,6 +81,7 @@ impl ConnectionFactory {
 }
 
 struct ConnectionOptions {
+    config: Arc<Value>,
     database: Arc<str>,
     grammar: Grammar,
     prefix_indexes: bool,
@@ -255,6 +257,7 @@ fn resolve(
         Arc::default()
     };
     Ok(ConnectionOptions {
+        config: Arc::new(Value::Object(write_options.0.clone())),
         database: database.into(),
         grammar,
         prefix_indexes: write_options.boolean("prefix_indexes", false)?,

@@ -153,3 +153,7 @@ fn register_password_routes() -> Result<(), RoutingError> {
 ## Custom Guards and Providers
 
 The default application registers its compiled Eloquent `User`. Register other models with `AuthManager::registerModel`, or configure a `database` provider with a table and column names. Register a provider implementation with `provider` and a stateless request resolver with `viaRequest`. The built-in `token` guard reads the Bearer header and supports hashing tokens before database lookup.
+
+For an identity registered with `AuthManager::registerModel`, `manager.userMorphClass(user)?` returns its actual Eloquent morph discriminator, including the model’s connection and custom `getMorphClass` behavior. This Rust adapter preserves morph-map errors and returns `None` for unregistered identities. Configure non-model causers explicitly instead of guessing a table or type name.
+
+Synchronous callbacks can use `manager.resolvedUser(None)` or `Auth::resolvedUser(None)?` to read an identity already resolved in the current HTTP request, without enabling log listeners. `None` follows `shouldUse` and the default guard; `Some("web")` selects that guard explicitly. These Rust adapters do not run asynchronous authentication or query a user provider. An unresolved guard, guest, or call outside the owning request scope returns `None`; callbacks needing lazy authentication must resolve the guard first in asynchronous middleware.

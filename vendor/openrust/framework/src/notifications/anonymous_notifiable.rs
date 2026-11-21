@@ -30,6 +30,28 @@ impl AnonymousNotifiable {
 }
 
 impl Notifiable for AnonymousNotifiable {
+    #[allow(non_snake_case, reason = "Matches the notifiable diagnostic API")]
+    fn notificationTag(&self) -> String {
+        let routes = self
+            .routes
+            .values()
+            .flat_map(|route| match route {
+                NotificationRoute::Mail(addresses) => addresses
+                    .iter()
+                    .map(|address| address.address.clone())
+                    .collect(),
+                NotificationRoute::Sms(number) => vec![number.clone()],
+                NotificationRoute::Custom(value) => vec![
+                    value
+                        .as_str()
+                        .map(str::to_owned)
+                        .unwrap_or_else(|| value.to_string()),
+                ],
+                _ => Vec::new(),
+            })
+            .collect::<Vec<_>>();
+        format!("Anonymous:{}", routes.join(","))
+    }
     fn route_notification_for(
         &self,
         channel: &str,

@@ -1,5 +1,7 @@
 # 搜索
 
+模型观察器、队列同步和可扩展集合搜索见可选的 [Scout 扩展](../packages/scout.md)。
+
 ## 全文搜索 {#full-text-search}
 
 使用 MySQL 兼容连接，创建列清单与查询一致的全文索引。查询构建器将搜索词绑定为参数。`whereFullText` 使用自然语言模式。用 `whereFullTextWith` 可选择 `Boolean` 或 `QueryExpansion`。

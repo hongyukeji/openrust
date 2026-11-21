@@ -161,7 +161,7 @@ fn generate(root: &Path, name: &str, force: bool) -> Result<PathBuf, ConsoleErro
     Ok(relative)
 }
 
-fn append_registration(
+pub(super) fn append_registration(
     source: &str,
     path: &Path,
     registration: &str,

@@ -31,6 +31,8 @@ impl Model for Flight {
 }
 ```
 
+`getFillable()` 和 `getGuarded()` 回傳模型宣告的大量賦值名單。`Model::isUnguarded()` 查詢目前略過保護的作用域；`Model::unguarded(future)` 在完成、失敗或取消時恢復保護，不影響其他任務。`getDeletedAtColumn()` 回傳設定的軟刪除欄位 `Option<&str>`，未啟用軟刪除時為 `None`。
+
 ## 模型慣例
 
 預設主鍵為遞增的 `id`，並維護 `created_at` 和 `updated_at`。在 `ModelMetadata` 中透過 `primaryKey`、`incrementing`、`timestamps` 或 `connection` 設定模型。使用 `fillable` 宣告可批次賦值的欄位。

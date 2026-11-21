@@ -175,3 +175,20 @@ let attempts = Retry::backoff([Duration::from_millis(2), Duration::from_millis(3
     .await?;
 assert_eq!(attempts, 3);
 ```
+
+## 延遲回呼 {#deferred-callbacks}
+
+在 HTTP 處理器、Artisan 命令或佇列任務內用 `defer(callback, name, always)` 註冊擁有所有權的 Future，目前程序會在對應生命週期結束時執行。同一生命週期內同名回呼以後註冊的為準；相互獨立的回呼使用 `None`。
+
+```rust
+use openrust::support::defer;
+
+let _ = defer(async move {
+    std::fs::write("/tmp/report-ready", b"ready")?;
+    Ok::<_, std::io::Error>(())
+}, Some("report.ready"), false)?;
+```
+
+預設僅在 HTTP 狀態小於400、命令結束碼為0或任務嘗試成功時執行。將 `always` 設為 `true`，或對回傳控制代碼呼叫 `.always()`，可包含失敗情況。回呼錯誤交給應用程式例外處理器回報，其餘回呼繼續執行；回呼中新註冊的回呼也會執行。
+
+註冊時擷取作用域服務的 `Arc`；結束後重新解析可能取得新實例。HTTP 傳輸釋放回應本文時執行回呼，串流回應斷線也會進入此邊界。巢狀 Artisan 呼叫和同步任務共用外層生命週期。硬逾時任務的程序內回呼在子程序回傳結果前執行，仍受該任務逾時限制。完成前取消、程序終止或硬逾時無法保證執行；必須跨故障保留的工作應使用持久佇列。在活躍生命週期外註冊會回傳 `concurrency::Error::OutsideRequest`。

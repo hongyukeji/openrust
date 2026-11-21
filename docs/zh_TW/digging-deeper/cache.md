@@ -2,7 +2,7 @@
 
 ## 設定
 
-在 `config/cache.rs` 透過 `CACHE_STORE` 選擇預設儲存。`array` 使用應用程式記憶體，`file` 使用本機處理程序可共用的目錄，`database` 使用共用的 SQLite 或 MySQL 資料庫。
+在 `config/cache.rs` 透過 `CACHE_STORE` 選擇預設儲存。`array` 使用應用程式記憶體，`file` 使用本機處理程序可共用的目錄，`database` 使用共用的 PostgreSQL、MySQL 或 SQLite 資料庫。
 
 工作階段資料可使用[工作階段快取](../the-basics/session.md#session-cache)。`session` 儲存庫需要有效的 HTTP 工作階段，不支援標籤和快取鎖。
 
@@ -15,6 +15,8 @@
 cargo build
 ./artisan migrate
 ```
+
+資料庫 `expiration` 欄位儲存 Unix 秒數。永久紀錄採用十年有效期，與 Laravel DatabaseStore 一致。亞秒有效期與鎖租約向上取整至下一秒；需要更細到期精度時使用 Redis。
 
 ## Memcached {#memcached}
 

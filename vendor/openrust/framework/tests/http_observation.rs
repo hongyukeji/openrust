@@ -24,6 +24,10 @@ fn ok(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         request
             .attributes()
             .insert("trace", ParameterValue::new("correlation-1".to_owned()));
+        request.attributes().insert(
+            "handler_started",
+            ParameterValue::new(jiff::Timestamp::now().as_millisecond()),
+        );
         tokio::time::sleep(Duration::from_millis(5)).await;
         Ok(Response::from("hello"))
     })
@@ -89,12 +93,22 @@ async fn handled_observes_rendered_errors_context_and_headers_without_consuming_
     let (kernel, dispatcher) = kernel().await;
     let fake = dispatcher.fake(&[HANDLED]);
     let mut incoming = request("GET", "/ok");
+    let before = jiff::Timestamp::now().as_millisecond();
     let response = kernel.handle(&mut incoming).await;
     assert_eq!(response.status(), StatusCode::OK);
     let captured = fake.dispatched(HANDLED);
     assert_eq!(captured.len(), 1);
     let event = captured[0].downcast_ref::<RequestHandled>().unwrap();
     assert_eq!(event.routeName.as_deref(), Some("observed"));
+    assert_eq!(event.responseContent.as_deref(), Some(b"hello".as_slice()));
+    let metadata = event
+        .request
+        .extensions
+        .get::<openrust::routing::RouteMetadata>()
+        .unwrap();
+    assert_eq!(metadata.uri, "/ok");
+    assert!(metadata.domain.is_none());
+    assert!(metadata.action.ends_with("::ok"));
     assert_eq!(
         event.attributes["trace"]
             .downcast::<String>()
@@ -103,6 +117,12 @@ async fn handled_observes_rendered_errors_context_and_headers_without_consuming_
         "correlation-1"
     );
     assert!(event.duration >= Duration::from_millis(5));
+    let handler_started = *event.attributes["handler_started"]
+        .downcast::<i64>()
+        .unwrap();
+    assert!(before <= event.requestStartedAt);
+    assert!(event.requestStartedAt <= handler_started);
+    assert!(handler_started < jiff::Timestamp::now().as_millisecond());
     incoming.attributes().remove("trace");
     assert!(event.attributes.contains_key("trace"));
     let (_, body) = response.into_parts();
@@ -114,6 +134,7 @@ async fn handled_observes_rendered_errors_context_and_headers_without_consuming_
         ("GET", "/stream", 200),
         ("GET", "/%FF", 400),
     ] {
+        let before = jiff::Timestamp::now().as_millisecond();
         let mut incoming = request(method, path);
         let response = tokio::time::timeout(Duration::from_secs(1), kernel.handle(&mut incoming))
             .await
@@ -125,8 +146,21 @@ async fn handled_observes_rendered_errors_context_and_headers_without_consuming_
             .unwrap()
             .downcast_ref::<RequestHandled>()
             .unwrap();
+        assert!(before <= event.requestStartedAt);
+        assert!(event.requestStartedAt <= jiff::Timestamp::now().as_millisecond());
         assert_eq!(event.response.status.as_u16(), status);
         assert_eq!(event.request.method.as_str(), method);
+        if path == "/stream" {
+            assert!(event.responseContent.is_none());
+        }
+        assert_eq!(
+            event
+                .request
+                .extensions
+                .get::<openrust::routing::RouteMetadata>()
+                .is_some(),
+            status != 404 && status != 400
+        );
         if path != "/ok" {
             assert!(event.routeName.is_none());
         }

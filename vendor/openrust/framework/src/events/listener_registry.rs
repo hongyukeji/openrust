@@ -18,7 +18,7 @@ use super::{
 #[derive(Clone)]
 pub(super) struct Registration {
     pub source: ListenerSource,
-    label: &'static str,
+    pub(super) label: &'static str,
     pub after_commit: bool,
 }
 

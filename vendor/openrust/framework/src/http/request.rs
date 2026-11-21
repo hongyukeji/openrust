@@ -22,7 +22,7 @@ mod input;
 mod input_value;
 mod native;
 mod precognition;
-mod query;
+pub(crate) mod query;
 pub(crate) use query::{parse as parse_query, parse_uri as parse_uri_query};
 mod url;
 mod variables;

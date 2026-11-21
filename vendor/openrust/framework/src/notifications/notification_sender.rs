@@ -25,6 +25,8 @@ pub struct NotificationEvent {
     pub id: String,
     pub kind: String,
     pub channel: String,
+    pub notifiable: String,
+    pub queued: bool,
     pub response: Option<ChannelResponse>,
     pub error: Option<String>,
 }
@@ -40,6 +42,10 @@ pub(super) struct Delivery {
     pub(super) id: String,
     pub(super) kind: String,
     pub(super) channel: String,
+    #[serde(default)]
+    pub(super) notifiable: String,
+    #[serde(default)]
+    pub(super) queued: bool,
     pub(super) locale: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) guard: Option<NotificationQueueGuard>,
@@ -57,6 +63,8 @@ impl Delivery {
             id: self.id.clone(),
             kind: self.kind.clone(),
             channel: self.channel.clone(),
+            notifiable: self.notifiable.clone(),
+            queued: self.queued,
             response,
             error,
         }
@@ -295,6 +303,8 @@ impl<'a> NotificationSender<'a> {
             id: notification.id.clone(),
             kind: notification.kind().into(),
             channel: channel.into(),
+            notifiable: recipient.notificationTag(),
+            queued: options.is_some(),
             locale,
             guard: if options.is_some() {
                 notification.inner.queue_guard(recipient, channel)?

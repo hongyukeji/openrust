@@ -8,6 +8,10 @@ tokio::task_local! {
     static UNGUARDED: ();
 }
 
+pub(in crate::database::eloquent) fn is_unguarded() -> bool {
+    UNGUARDED.try_with(|()| ()).is_ok()
+}
+
 pub(in crate::database) async fn unguarded<F: Future>(work: F) -> F::Output {
     UNGUARDED.scope((), work).await
 }
@@ -20,7 +24,7 @@ pub(in crate::database::eloquent) fn fill(
     incoming: Attributes,
     metadata: &ModelMetadata,
 ) -> DatabaseResult<Attributes> {
-    if UNGUARDED.try_with(|()| ()).is_ok() {
+    if is_unguarded() {
         return Ok(incoming);
     }
     if metadata.fillable.is_empty() && metadata.guarded == ["*"] {

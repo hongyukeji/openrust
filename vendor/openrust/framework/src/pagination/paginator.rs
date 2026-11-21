@@ -103,6 +103,12 @@ impl<T> Paginator<T> {
     pub fn currentPage(&self) -> u64 {
         self.page
     }
+    /// Overrides the look-ahead result when a search engine provides a total.
+    pub fn hasMorePagesWhen(&mut self, more: bool) -> &mut Self {
+        self.more = more;
+        self
+    }
+
     pub fn hasMorePages(&self) -> bool {
         self.more
     }

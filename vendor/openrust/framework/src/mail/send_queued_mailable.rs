@@ -21,6 +21,8 @@ pub struct SendQueuedMailable;
 #[derive(Deserialize, Serialize)]
 pub(crate) struct PreparedMail {
     mailer: String,
+    #[serde(default)]
+    kind: String,
     pub(super) envelope: Envelope,
     content: Content,
     attachments: Vec<Attachment>,
@@ -44,6 +46,7 @@ impl PreparedMail {
             recipients.fill(&mut envelope);
             Ok(Self {
                 mailer: mailer.into(),
+                kind: mailable.kind().into(),
                 envelope,
                 content: mailable.content()?,
                 attachments: mailable.attachments()?,
@@ -61,9 +64,14 @@ impl PreparedMail {
         }
     }
 
-    pub(crate) async fn send(&self) -> MailResult<Option<SentMessage>> {
+    pub(crate) fn with_kind(mut self, kind: &str) -> Self {
+        self.kind = kind.into();
+        self
+    }
+
+    pub(crate) async fn send(&self, queued: bool) -> MailResult<Option<SentMessage>> {
         Mail::mailer(Some(&self.mailer))?
-            .send_immediately(self, Recipients::default())
+            .send_with_context(self, Recipients::default(), &self.kind, queued)
             .await
     }
 }
@@ -126,7 +134,7 @@ impl JobHandler for SendQueuedMailable {
             let message: PreparedMail = serde_json::from_value(payload.data().clone())
                 .map_err(|_| QueueError::InvalidPayload)?;
             message
-                .send()
+                .send(true)
                 .await
                 .map_err(|source| QueueError::Execution {
                     source: Box::new(source),

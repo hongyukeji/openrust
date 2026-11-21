@@ -161,6 +161,16 @@ impl JobSnapshot {
 }
 
 queue_event!(
+    /// A payload is ready for dispatch, before the selected transport executes or stores it.
+    JobQueueing { connection_name: String, queue: String, job: Payload }
+);
+
+queue_event!(
+    /// A queue accepted a new or delayed job after the transport stored it.
+    JobQueued { connection_name: String, queue: String, id: String, job: Payload }
+);
+
+queue_event!(
     /// A worker reserved a job before executing it.
     JobPopped {
         connection_name: String,

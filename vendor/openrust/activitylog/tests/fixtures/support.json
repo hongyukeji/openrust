@@ -1,0 +1,140 @@
+{
+    "options": {
+        "defaults": {
+            "logName": null,
+            "logEmptyChanges": true,
+            "logFillable": false,
+            "logOnlyDirty": false,
+            "logUnguarded": false,
+            "logAttributes": [],
+            "logExceptAttributes": [],
+            "dontLogIfAttributesChangedOnly": [],
+            "attributeRawValues": [],
+            "descriptionForEvent": null
+        },
+        "all": {
+            "logName": null,
+            "logEmptyChanges": true,
+            "logFillable": false,
+            "logOnlyDirty": false,
+            "logUnguarded": false,
+            "logAttributes": [
+                "*"
+            ],
+            "logExceptAttributes": [],
+            "dontLogIfAttributesChangedOnly": [],
+            "attributeRawValues": [],
+            "descriptionForEvent": null
+        },
+        "replace": {
+            "logName": null,
+            "logEmptyChanges": true,
+            "logFillable": false,
+            "logOnlyDirty": false,
+            "logUnguarded": false,
+            "logAttributes": [
+                "email"
+            ],
+            "logExceptAttributes": [],
+            "dontLogIfAttributesChangedOnly": [],
+            "attributeRawValues": [],
+            "descriptionForEvent": null
+        },
+        "fillable": {
+            "logName": null,
+            "logEmptyChanges": true,
+            "logFillable": false,
+            "logOnlyDirty": false,
+            "logUnguarded": false,
+            "logAttributes": [],
+            "logExceptAttributes": [],
+            "dontLogIfAttributesChangedOnly": [],
+            "attributeRawValues": [],
+            "descriptionForEvent": null
+        },
+        "dirty": {
+            "logName": null,
+            "logEmptyChanges": true,
+            "logFillable": false,
+            "logOnlyDirty": true,
+            "logUnguarded": false,
+            "logAttributes": [],
+            "logExceptAttributes": [],
+            "dontLogIfAttributesChangedOnly": [
+                "updated_at"
+            ],
+            "attributeRawValues": [],
+            "descriptionForEvent": null
+        },
+        "empty": {
+            "logName": null,
+            "logEmptyChanges": true,
+            "logFillable": false,
+            "logOnlyDirty": false,
+            "logUnguarded": false,
+            "logAttributes": [],
+            "logExceptAttributes": [],
+            "dontLogIfAttributesChangedOnly": [],
+            "attributeRawValues": [],
+            "descriptionForEvent": null
+        },
+        "null_log": {
+            "logName": null,
+            "logEmptyChanges": true,
+            "logFillable": false,
+            "logOnlyDirty": false,
+            "logUnguarded": false,
+            "logAttributes": [],
+            "logExceptAttributes": [],
+            "dontLogIfAttributesChangedOnly": [],
+            "attributeRawValues": [],
+            "descriptionForEvent": null
+        },
+        "combined": {
+            "logName": "accounts",
+            "logEmptyChanges": true,
+            "logFillable": true,
+            "logOnlyDirty": false,
+            "logUnguarded": true,
+            "logAttributes": [],
+            "logExceptAttributes": [
+                "password"
+            ],
+            "dontLogIfAttributesChangedOnly": [],
+            "attributeRawValues": [
+                "name"
+            ],
+            "descriptionForEvent": null
+        }
+    },
+    "status": [
+        {
+            "disabled": false,
+            "disable": false,
+            "afterDisable": true,
+            "enable": true,
+            "afterEnable": false
+        },
+        {
+            "disabled": false,
+            "disable": false,
+            "afterDisable": true,
+            "enable": true,
+            "afterEnable": false
+        },
+        {
+            "disabled": false,
+            "disable": false,
+            "afterDisable": true,
+            "enable": true,
+            "afterEnable": false
+        },
+        {
+            "disabled": true,
+            "disable": false,
+            "afterDisable": true,
+            "enable": true,
+            "afterEnable": false
+        }
+    ]
+}

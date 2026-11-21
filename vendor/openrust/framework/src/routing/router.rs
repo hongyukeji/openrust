@@ -453,6 +453,10 @@ impl Router {
     pub async fn dispatch(&self, request: &mut Request) -> Result<Response, HttpError> {
         request.set_route_parameters(Vec::new());
         request.route_terminators.clear();
+        request
+            .parts_mut()
+            .extensions
+            .remove::<super::RouteMetadata>();
         request.matched_route = false;
         request.route_name = None;
         request
@@ -492,6 +496,15 @@ impl Router {
                 return Ok(response);
             }
             let parameters = route.parameters(host, &path);
+            request.parts_mut().extensions.insert(super::RouteMetadata {
+                uri: route.uri.clone(),
+                domain: route.domain.clone(),
+                action: route
+                    .controller_action
+                    .clone()
+                    .unwrap_or_else(|| route.action.into()),
+                middleware: Vec::new(),
+            });
             request.matched_route = true;
             request.route_name = (!route.name.is_empty()).then(|| route.name.clone());
             if let Some(domain) = &route.domain {
@@ -519,6 +532,16 @@ impl Router {
                     })?;
                 &resolved
             };
+            if let Some(metadata) = request
+                .parts_mut()
+                .extensions
+                .get_mut::<super::RouteMetadata>()
+            {
+                metadata.middleware = middleware
+                    .iter()
+                    .map(|item| item.middleware_type_name().to_owned())
+                    .collect();
+            }
             request.route_terminators.extend(
                 middleware
                     .iter()

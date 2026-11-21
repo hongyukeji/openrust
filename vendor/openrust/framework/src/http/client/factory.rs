@@ -51,6 +51,48 @@ pub struct RecordedRequest {
     pub attributes: serde_json::Map<String, serde_json::Value>,
 }
 
+impl RecordedRequest {
+    /// Decodes buffered JSON or form fields and query parameters without reading a stream.
+    pub fn data(&self) -> Option<serde_json::Value> {
+        use serde_json::Value;
+        let query =
+            crate::http::request::query::parse(self.url.query().unwrap_or_default()).ok()?;
+        let media = self
+            .headers
+            .get(http::header::CONTENT_TYPE)
+            .and_then(|value| value.to_str().ok())
+            .and_then(|value| value.split(';').next())
+            .unwrap_or_default()
+            .trim();
+        let body = self
+            .body
+            .as_deref()
+            .filter(|body| !body.is_empty())
+            .and_then(|body| {
+                if media.eq_ignore_ascii_case("application/x-www-form-urlencoded") {
+                    std::str::from_utf8(body)
+                        .ok()
+                        .and_then(|body| crate::http::request::query::parse_form(body).ok())
+                } else if media.eq_ignore_ascii_case("application/json") || media.ends_with("+json")
+                {
+                    serde_json::from_slice(body).ok()
+                } else {
+                    None
+                }
+            });
+        match (body, query) {
+            (Some(Value::Object(mut body)), Value::Object(query)) => {
+                for (key, value) in query {
+                    body.entry(key).or_insert(value);
+                }
+                Some(body.into())
+            }
+            (Some(body), _) => Some(body),
+            (_, query) => Some(query),
+        }
+    }
+}
+
 /// An ordered queue of fake responses, shared by callers of the matching URL.
 #[derive(Clone, Default)]
 pub struct ResponseSequence(Arc<Mutex<Sequence>>);

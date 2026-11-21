@@ -2,7 +2,7 @@
 
 ## Installation {#installation}
 
-Enable the root application's `horizon` feature. `openrust-horizon` is an optional Redis queue supervisor with a read-only dashboard. Its `HorizonServiceProvider` is discovered automatically; applications using the package independently register that provider explicitly. Loading the provider starts no workers and opens no Redis connection.
+Enable the root application's `horizon` feature. `openrust-horizon` is an optional Redis queue supervisor with an authorized operations dashboard. Its `HorizonServiceProvider` is discovered automatically; applications using the package independently register that provider explicitly. Loading the provider starts no workers and opens no Redis connection.
 
 Add `horizon` to the application’s `[features].default` list in `Cargo.toml`, preserving existing features. Use the source launcher:
 
@@ -19,11 +19,13 @@ Use existing standalone Redis connections from `database.redis` and Redis queue 
 
 `horizon.defaults` maps supervisor names to options. `horizon.environments` selects the first pattern matching `app.env`, including `*`. An unmatched environment starts no supervisors; `maxProcesses: 0` disables a supervisor. Environment options merge recursively with defaults, replacing array entries by index. The default template uses a budget of 10 processes in `production` and 3 in `local`.
 
-Supervisor options include `connection`, `queue` (a string or string array), `balance`, `autoScalingStrategy`, `minProcesses`, `maxProcesses`, `balanceMaxShift`, `balanceCooldown`, `tries`, `timeout`, `sleep`, `memory`, `maxJobs`, `maxTime`, `workersName`, `backoff`, `force`, `rest`, `nice` and `directory`. `backoff` accepts an integer, comma-separated string or integer array. `tries: 0` allows unlimited attempts, `sleep: 0` skips waiting, and `timeout: 0` disables the job timeout. A nonzero `nice` requires the Unix `nice` command and explicitly fails on other platforms. Configuration accepts snake_case keys and the `processes` alias. The Rust options struct uses `maxTries`; configuration also accepts `tries`.
+Supervisor options include `connection`, `queue` (a string or string array), `balance`, `autoScalingStrategy`, `minProcesses`, `maxProcesses`, `balanceMaxShift`, `balanceCooldown`, `tries`, `timeout`, `sleep`, `memory`, `maxJobs`, `maxTime`, `workersName`, `backoff`, `force`, `rest`, `nice` and `directory`. `backoff` accepts an integer, comma-separated string or integer array. `tries: 0` allows unlimited attempts, `sleep: 0` skips waiting, and `timeout: 0` disables the job timeout. A nonzero `nice` uses Unix process priority interfaces; workers inherit the supervisor priority. Other platforms explicitly reject this option. Configuration accepts snake_case keys and the `processes` alias. The Rust options struct uses `maxTries`; configuration also accepts `tries`.
 
 `balance: "auto"` computes floating targets from the full `maxProcesses` budget using estimated time to clear (`time`), pending count (`size`), or proportional `log1p` counts (`log`). Pools are adjusted in ascending target order, rounding up and applying `minProcesses`, available capacity and `balanceMaxShift`. Unknown runtimes are zero; when total runtime is zero, nonempty queues target the maximum budget. `simple` divides the budget evenly; `false` or `"off"` uses one priority pool, scaling by pending count between the minimum and maximum. `balanceCooldown` controls the interval. Calculations include terminating processes; each master manages its own budget.
 
 The worker `timeout` must be shorter than the queue's `retry_after`. Defaults are 60 and 90 seconds respectively. Workers inherit the application's executable, base path, environment, handlers and configuration. `maxJobs` and `maxTime` recycle workers; unexpected exits are replaced. Run the master under an operating-system process manager. SIGTERM/SIGINT and termination requests drain running work, allowing the configured timeout plus five seconds before forceful termination.
+
+The process supervisor targets Unix deployments. Signal-based supervisor control and orphan-process inspection require Unix process tools. On other platforms, use the supported metadata commands and test deployment behavior before running workers.
 
 ## Dashboard authorization {#authorization}
 
@@ -45,7 +47,9 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
 }
 ```
 
-`Horizon::routes()` registers `GET /horizon` and `GET /horizon/api/stats`; `routesAt("/operations/horizon")` chooses another static path. Existing route groups add their own prefix and middleware. The dashboard refreshes every five seconds, uses a restrictive content security policy and disables response caching. It displays queue backlog, supervisors, recent jobs and aggregate metrics. Control actions use Artisan.
+`Horizon::routes()` registers the dashboard at `/horizon` and its `/api` endpoints; `routesAt("/operations/horizon")` chooses another static path. Existing route groups apply their own prefix and middleware. The dashboard refreshes every five seconds, uses a restrictive content security policy and disables response caching. It provides queue workload, masters and supervisors, pending/completed/silenced/failed jobs, job payloads and exceptions, monitored tags, metric snapshots and batches. Failed jobs and batch failures can be retried through the configured native failed-job provider.
+
+Pause, continue, terminate, monitoring changes and retries require the authorization callback on every request. The browser sends `X-Horizon-Request: 1` for mutations; direct API clients must supply the same header. Cross-site browser mutations are rejected. Apply your application's authentication and middleware to the entire route group. Access to this dashboard permits inspection of job data and operational controls.
 
 ## Commands {#commands}
 
@@ -56,20 +60,40 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
 ./artisan horizon:continue
 ./artisan horizon:terminate
 ./artisan horizon:failed
-./artisan horizon:retry JOB_UUID
-./artisan horizon:forget JOB_UUID
+./artisan horizon:retry JOB_ID
+./artisan horizon:forget JOB_ID
+./artisan horizon:forget --all
+./artisan horizon:list
+./artisan horizon:supervisors
+./artisan horizon:supervisor-status supervisor-1
+./artisan horizon:pause-supervisor supervisor-1
+./artisan horizon:continue-supervisor supervisor-1
+./artisan horizon:snapshot
+./artisan horizon:clear-metrics
+./artisan horizon:clear redis --queue=default
+./artisan horizon:purge
 ```
 
-`horizon:status` exits with code 1 when no live master is registered. Pause stops new reservations by Horizon workers; a running job can finish. Continue resumes reservations. Terminate requests graceful exit of masters active before that request; subsequently started masters use the new generation. Control commands apply to the shared metadata prefix.
+`horizon:status` exits with code 0 when running, 1 when paused and 2 when inactive. Pause stops new reservations; running jobs can finish. Continue resumes reservations. Terminate drains current masters; subsequently started masters use the new generation. Supervisor commands target the named supervisor. Control commands apply to the shared metadata prefix.
 
-Retry and forget delegate to the native failed-job provider after checking that the job belongs to a configured Horizon connection and queue. Configure durable failed-job storage as described in [queues](../digging-deeper/queues.md). The recent failure list contains sanitized metadata and may outlive a forgotten native failure until retention expires. No payload or exception text is displayed.
+Horizon job IDs identify individual Redis deliveries and are returned by queue pushes and the dashboard. Use these IDs for `horizon:retry` and `horizon:forget`. A retry gets a new ID and preserves the original failed monitoring record with its retry result. Native `queue:retry` and failed-job storage use the payload UUID, which Horizon resolves internally; batch retries also resolve those UUIDs to the current failed delivery.
+
+Configure durable failed-job storage as described in [queues](../digging-deeper/queues.md). Retry uses its native claim and redispatch behavior. `horizon:forget` removes the monitoring failure and native failure; `--all` processes all Horizon failure pages. `horizon:clear` clears the selected queue and pending monitoring entries. `horizon:purge` handles orphaned processes. Run `horizon:snapshot` periodically through the [scheduler](../digging-deeper/scheduling.md) to retain metric history; `horizon:clear-metrics` clears metrics while preserving job records.
+
+`horizon:listen` is a development command that polls `horizon.watch` files every 500 ms, including when `--poll` is omitted. It restarts Horizon after a change. In a source application with `Cargo.toml`, it runs through Cargo so Rust source and configuration changes are recompiled. Watched symbolic links are skipped.
+
+## Job tags {#tags}
+
+Register `Horizon::tag(fn(&Payload) -> Vec<String>)` in the application provider after Horizon is registered. Callbacks run for each observed payload; empty tags are omitted and duplicate tags retain their first occurrence. Rust jobs explicitly supply their tags through these callbacks. Payloads are not reflected to discover model fields automatically.
+
+`Tags::forModel(&model)` builds a tag from the Rust model type and its integer, unsigned integer or string primary key; a missing or unsupported key returns an error. Add this returned string to the callback's tags when the job carries that model identity. Tags registered by one application do not affect other applications. The dashboard's monitoring controls select which tags retain monitored jobs.
 
 ## Metrics and limits {#metrics}
 
 `Repository::recent(1..=100)`, `metrics(connection, queue)`, `masters()`, `pause()`, `r#continue()` and `terminate()` expose the same storage operations. `SupervisorOptions::fromConfig` validates the configuration; `AutoScaler::numberOfWorkersPerQueue` computes floating targets and `scalePool` computes each pool adjustment. `MasterSupervisor` owns the child process lifecycle.
 
-Job events from configured Redis queues record IDs, normalized job names, connection, queue, attempt count, status, milliseconds and Redis server time. Payloads, exception messages and credentials are excluded. Metrics aggregate the latest 60 minute buckets, subject to `retention` (60–86400 seconds; default 3600). Recent indexing retains at most 1000 job identities; reads return at most 100. A job's record shows its latest attempt. Repeated finalization is ignored until a new processing event; manual retries with reset attempt counts start a new observation. This is monitoring, not a durable execution ledger.
+Redis queue events record IDs, job names, connection, queue, attempt count, status, runtime and Redis server time. Authorized job detail endpoints also expose serialized payloads, tags and exception text. `Repository::recent(1..=100)` remains a metadata projection. Its recent index retains at most 1000 identities and uses `retention` (60–86400 seconds, default 3600) for the rolling 60 minute attempt metrics.
 
-Heartbeats expire after 15 seconds. Metadata errors suspend new Horizon reservations and stop the master; recovery relies on the process manager. HTTP authorization belongs to the application. This package does not include Laravel Horizon's tags, notification delivery, long-wait alerts, snapshot commands or writable web controls.
+`horizon.trim` controls job-list retention in minutes: `recent`, `pending` and `completed` default to 60; `recent_failed`, `failed` and `monitored` default to 10080. Job lists return 50 entries per page. `horizon.metrics.trim_snapshots.job` and `.queue` default to 24 snapshots per metric. Completed jobs alone contribute to average duration and throughput; failed, released and retrying attempts do not. Duplicate finalization is ignored until another processing event; a manual retry with reset attempts begins a new observation.
 
-Average duration uses completed jobs only; failed, released and retrying attempts do not affect it.
+`Repository::jobs()`, `tags()`, `metricsRepository()`, `masterSupervisors()`, `supervisorRepository()`, `processes()` and `workload()` expose the dedicated repositories. Monitored tags are persisted per metadata prefix. Snapshot reads reset the current metric counters atomically with each stored snapshot. Master heartbeats expire after 15 seconds and supervisor heartbeats after 30 seconds. Metadata errors suspend new reservations and stop the master; an operating-system process manager handles recovery. Monitoring records expire and are not a durable execution ledger.

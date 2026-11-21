@@ -175,3 +175,20 @@ let attempts = Retry::backoff([Duration::from_millis(2), Duration::from_millis(3
     .await?;
 assert_eq!(attempts, 3);
 ```
+
+## 延迟回调 {#deferred-callbacks}
+
+在 HTTP 处理器、Artisan 命令或队列任务内用 `defer(callback, name, always)` 注册拥有所有权的 Future，当前进程会在对应生命周期结束时执行。同一生命周期内同名回调以后注册的为准；相互独立的回调使用 `None`。
+
+```rust
+use openrust::support::defer;
+
+let _ = defer(async move {
+    std::fs::write("/tmp/report-ready", b"ready")?;
+    Ok::<_, std::io::Error>(())
+}, Some("report.ready"), false)?;
+```
+
+默认仅在 HTTP 状态小于400、命令退出码为0或任务尝试成功时执行。将 `always` 设为 `true`，或对返回句柄调用 `.always()`，可包含失败情况。回调错误交给应用异常处理器报告，其余回调继续执行；回调中新注册的回调也会执行。
+
+注册时捕获作用域服务的 `Arc`；结束后重新解析可能得到新实例。HTTP 传输释放响应正文时执行回调，流式响应断连也会进入该边界。嵌套 Artisan 调用和同步任务共用外层生命周期。硬超时任务的进程内回调在子进程返回结果前执行，仍受该任务超时限制。完成前取消、进程终止或硬超时无法保证执行；必须跨故障保留的工作应使用持久队列。在活跃生命周期外注册会返回 `concurrency::Error::OutsideRequest`。

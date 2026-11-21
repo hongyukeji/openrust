@@ -45,6 +45,12 @@ oidc = ["dep:openrust-oidc"]
 settings = ["dep:openrust-settings"]
 pay = ["dep:openrust-pay"]
 cashier = ["dep:openrust-cashier"]
+activitylog = ["dep:openrust-activitylog"]
+horizon = ["dep:openrust-horizon"]
+pennant = ["dep:openrust-pennant"]
+pulse = ["dep:openrust-pulse"]
+scout = ["dep:openrust-scout"]
+telescope = ["dep:openrust-telescope", "openrust-pulse?/telescope"]
 
 [dependencies]
 jiff = { version = "=0.2.46", features = ["serde"] }
@@ -59,6 +65,12 @@ openrust-oidc = { path = "vendor/openrust/oidc", optional = true }
 openrust-settings = { path = "vendor/openrust/settings", optional = true }
 openrust-pay = { path = "vendor/openrust/pay", optional = true }
 openrust-cashier = { path = "vendor/openrust/cashier", optional = true }
+openrust-activitylog = { path = "vendor/openrust/activitylog", optional = true }
+openrust-horizon = { path = "vendor/openrust/horizon", optional = true }
+openrust-pennant = { path = "vendor/openrust/pennant", optional = true }
+openrust-pulse = { path = "vendor/openrust/pulse", optional = true }
+openrust-scout = { path = "vendor/openrust/scout", optional = true }
+openrust-telescope = { path = "vendor/openrust/telescope", optional = true }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tokio = { version = "1.54.1", features = ["macros", "rt"] }

@@ -65,6 +65,7 @@ pub(super) enum Pool {
 #[derive(Clone)]
 pub struct Connection {
     pub(super) name: Arc<str>,
+    pub(super) config: Arc<serde_json::Value>,
     pub(super) prefix_indexes: bool,
     pub(super) sqlite_json_types: super::schema::SqliteJsonTypes,
     pub(super) table_options: Arc<super::schema::TableOptions>,
@@ -305,6 +306,28 @@ fn bind_postgres<'a, 'b: 'a>(
     let mut query = statement.query();
     for (position, value) in values.enumerate() {
         let kind = types.get(position).map(sqlx::TypeInfo::name);
+        if kind == Some("NUMERIC") {
+            let decimal = match value {
+                Value::Null => None,
+                Value::Integer(value) => Some(bigdecimal::BigDecimal::from(*value)),
+                Value::Unsigned(value) => Some(bigdecimal::BigDecimal::from(*value)),
+                Value::Real(value) if value.is_finite() => Some(
+                    value
+                        .to_string()
+                        .parse::<bigdecimal::BigDecimal>()
+                        .map_err(|_| DatabaseError::InvalidQuery("PostgreSQL numeric parameter"))?,
+                ),
+                Value::Text(value) => Some(
+                    value
+                        .trim()
+                        .parse::<bigdecimal::BigDecimal>()
+                        .map_err(|_| DatabaseError::InvalidQuery("PostgreSQL numeric parameter"))?,
+                ),
+                _ => return Err(DatabaseError::InvalidQuery("PostgreSQL numeric parameter")),
+            };
+            query = query.bind(decimal);
+            continue;
+        }
         let integer = match value {
             Value::Integer(value) => Some(*value),
             Value::Text(value) if matches!(kind, Some("INT2" | "INT4" | "INT8")) => Some(
@@ -1343,6 +1366,30 @@ impl Connection {
 
     pub fn getName(&self) -> &str {
         &self.name
+    }
+
+    /// Returns a value from the configuration used to construct this connection.
+    pub fn getConfig(&self, key: &str) -> Option<serde_json::Value> {
+        let mut value = self.config.as_ref();
+        for segment in key.split('.') {
+            value = value.get(segment)?;
+        }
+        Some(value.clone())
+    }
+
+    /// Returns the configured database driver's Laravel name.
+    pub fn getDriverName(&self) -> &'static str {
+        if self.grammar.is_mariadb() {
+            "mariadb"
+        } else if self.grammar.is_mysql() {
+            "mysql"
+        } else if self.grammar.is_postgres() {
+            "pgsql"
+        } else if self.grammar.is_sql_server() {
+            "sqlsrv"
+        } else {
+            "sqlite"
+        }
     }
 
     pub fn getDatabaseName(&self) -> &str {

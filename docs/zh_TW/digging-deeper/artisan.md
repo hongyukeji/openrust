@@ -186,6 +186,8 @@ Fortify 安裝驗證動作、應用程式 Provider、設定和遷移；初始化
 
 ## 產生命令 {#generating-commands}
 
+破壞性命令可呼叫 `openrust::console::confirmToProceed(production, input.matches())?`，僅在回傳 `true` 時繼續。`production` 由應用程式環境或命令確認條件決定。共用的多語提示預設拒絕，非互動輸入拒絕；命令宣告的 `--force` 可略過確認。
+
 在原始碼目錄產生命令。產生的型別實作 Artisan 命令契約。
 
 ```sh

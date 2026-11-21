@@ -1,15 +1,54 @@
 # Telescope
 
-## Support status {#support-status}
+## Installation and configuration {#configuration}
 
-**Not included in this source line.** No Telescope dashboard, watchers or Telescope storage schema is shipped. Native logging and Pail diagnostics have their own documented scope.
+Telescope records application diagnostics in its own database tables and exposes an authorized diagnostic dashboard. Add `telescope` to the application's `Cargo.toml` `[features].default`, retaining existing features, then run:
 
-This chapter retains the Laravel navigation path for comparison. Its presence does not install a package or promise compatibility with the corresponding PHP API.
+```sh
+./artisan telescope:install
+# Rebuild the application to load the published configuration and provider.
+./artisan migrate
+```
 
-## Available entry points {#available-entry-points}
+The installer publishes `config/telescope.rs` and `app/providers/telescope_service_provider.rs`, registers both modules and the provider, and preserves existing files on repeated installation. Package discovery registers the package services and migrations. Booting the provider does not query Telescope tables.
 
-See [Logging](../the-basics/logging.md) for the native interfaces and usage. When integrating a separate library or service, implement the application adapter and validate its lifecycle, errors and credentials against that service's contract.
+`TELESCOPE_ENABLED` defaults to true; `TELESCOPE_PATH` defaults to `telescope`; `TELESCOPE_DOMAIN` optionally restricts the route domain. `TELESCOPE_DRIVER` defaults to `database`. Storage uses `storage.database.connection` and `storage.database.chunk` (default 1000). The package migration is registered on the default connection; when selecting another storage connection, register `TelescopeServiceProvider::migrations()` on that connection before migrating. Configuration caching uses the saved snapshot. Restart persistent processes after configuration changes.
 
-## Scope {#scope}
+Each `watchers.<Name>Watcher.enabled` switch has a `TELESCOPE_<NAME>_WATCHER` environment variable; compound names use underscores, such as `TELESCOPE_CLIENT_REQUEST_WATCHER`. Watcher-specific options are published in the configuration file. `only_paths`, `ignore_paths` and `ignore_commands` limit recording. Paths are matched without the initial slash. Pause state and monitored tags use the configured application cache.
 
-OpenRust does not provide an installation command for this integration. Do not copy a Laravel Composer or Artisan command into OpenRust on the assumption that this navigation entry implements it.
+## Authorization and filtering {#authorization}
+
+Visit `/telescope`, or the configured path. The installed application provider permits local access by default and rejects other environments until its authorization callback is customized. Use the application's authenticated identity and permissions in that callback. Keep the `web` and Telescope `Authorize` middleware on every dashboard and API route; mutations use the normal request forgery protection, accepting same-origin fetch metadata or a valid session CSRF token.
+
+The installed provider records all local diagnostics. In other environments its default filter retains reportable exceptions, failed requests and jobs, scheduled tasks, and entries with monitored tags. Customize `Telescope::filter`, `filterBatch` and `tag` in the application provider. Callback configuration is shared across execution scopes; pending entries remain isolated per HTTP request, Artisan command and queue attempt. `withoutRecording(future).await` suppresses nested recording and restores the previous state after cancellation as well as normal completion.
+
+Request passwords and authorization headers are masked by default. The installed provider adds CSRF and cookie masking outside local mode. `hideRequestParameters`, `hideRequestHeaders` and `hideResponseParameters` accept additional names; nested parameter paths use dot notation. Review recorded event payloads, mail and logs before enabling collection of sensitive application data.
+
+## Watchers and recording {#watchers}
+
+Watchers cover requests, queries, exceptions, logs, jobs, batches, cache, HTTP client requests, commands, scheduled tasks, mail, notifications, models, events, gates, views, Redis commands and dumps. Native lifecycle events supply the actual diagnostic data. Pending entries flush through the framework's deferred lifecycle callbacks. A hard process kill cannot guarantee a flush.
+
+Each of the 18 public types under `openrust_telescope::watchers` implements `Watcher`. Construct a watcher with `new(options)` and call `register(app).await?` from an application Provider; disable its default configuration entry first to avoid registering it twice. The package Provider uses these same registration paths. `QueryWatcher` options include `slow`; `EventWatcher` supports `ignore` patterns. Framework events are ignored by default; set `telescope.ignoreFrameworkEvents.store(false, std::sync::atomic::Ordering::Release)` on the resolved service to include them. This setting is shared only within that application.
+
+For application events, implement `Event::properties()` to expose a JSON diagnostic snapshot; Rust does not reflect arbitrary struct fields. Event listener names come from actual dispatcher registrations. Model hydration counts use the native Eloquent lifecycle. Mail records preserve the original mailable and queued flag. Mail previews use a browser sandbox, and downloads contain the captured MIME message.
+
+Use `openrust::support::dump(&value).await?` for an observed Debug dump. Collection requires an active dashboard dump watcher or `TELESCOPE_DUMP_WATCHER_ALWAYS=true`. This helper does not intercept `dbg!`, `println!` or synchronous collection dump methods. Request input recording uses already-decoded data and never consumes an unread body stream. Redis observation covers successful commands executed through `Connection::query_command`; pipelines and dedicated blocking transports are outside this observation path.
+
+Source locations and stack frames are absent when the runtime provides no reliable location. Query/Gate `ignore_packages` and `ignore_paths` do not currently provide source-based caller filtering. View composer names are not available from opaque Rust callbacks. Buffered JSON/text responses are captured with response parameter masking and the configured character limit. Opaque bodies and streams are not read; they are marked `Not Captured`. Route handler/controller names and the resolved route middleware types come from the router. HTTP client multipart metadata is not captured. The dashboard provides lists, filters, details, monitored tags and recording controls; it does not reproduce the upstream Vue interface or avatars.
+
+## Queries and commands {#commands}
+
+```sh
+./artisan telescope:list request --limit=20
+./artisan telescope:list exception --tag=production --json
+./artisan telescope:show latest:exception --full
+./artisan telescope:show latest --type=query,log --json
+./artisan telescope:pause
+./artisan telescope:resume
+./artisan telescope:prune --hours=48 --keep-exceptions
+./artisan telescope:clear
+```
+
+`list` accepts `--tag`, `--batch`, `--family` and the `--before` sequence cursor. `show` accepts a UUID, an unambiguous UUID prefix, `latest`, or `latest:<type>`. Its optional `--type` filters related batch entries. Human output truncates long values; `--full` preserves them. JSON output always preserves captured content. Console presentation uses plain tables and timestamps rather than the PHP console's styling and relative time descriptions.
+
+`prune` requires a non-negative integer number of hours. `clear` deletes all Telescope entries, tags and monitoring rows. Use the application scheduler for retention. `telescope:publish` publishes configuration; `--force` overwrites that file. Standalone code can construct a `Telescope` with an `EntriesRepository` implementation and explicitly call `store().await`; application providers may replace that contract before Telescope is resolved.

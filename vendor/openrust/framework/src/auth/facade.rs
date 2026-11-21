@@ -48,6 +48,11 @@ impl Auth {
         Self::manager()?.user(request).await
     }
 
+    /// Reads a cached request identity without invoking asynchronous authentication.
+    pub fn resolvedUser(name: Option<&str>) -> AuthResult<Option<Arc<dyn Authenticatable>>> {
+        Ok(Self::manager()?.resolvedUser(name))
+    }
+
     pub async fn onceBasic(
         request: &mut Request,
         field: &str,

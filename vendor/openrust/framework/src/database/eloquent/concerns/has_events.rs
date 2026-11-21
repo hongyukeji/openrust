@@ -34,6 +34,42 @@ pub enum ModelEvent {
     ForceDeleted,
 }
 
+impl ModelEvent {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Retrieved => "retrieved",
+            Self::Creating => "creating",
+            Self::Created => "created",
+            Self::Updating => "updating",
+            Self::Updated => "updated",
+            Self::Saving => "saving",
+            Self::Saved => "saved",
+            Self::Restoring => "restoring",
+            Self::Restored => "restored",
+            Self::Replicating => "replicating",
+            Self::Trashed => "trashed",
+            Self::Deleting => "deleting",
+            Self::Deleted => "deleted",
+            Self::ForceDeleting => "forceDeleting",
+            Self::ForceDeleted => "forceDeleted",
+        }
+    }
+}
+
+/// A detached model lifecycle snapshot for wildcard event listeners.
+pub struct ModelLifecycle {
+    name: String,
+    pub action: ModelEvent,
+    pub model: &'static str,
+    pub key: Option<serde_json::Value>,
+    pub changes: serde_json::Map<String, serde_json::Value>,
+}
+impl crate::contracts::events::Event for ModelLifecycle {
+    fn name(&self) -> &str {
+        &self.name
+    }
+}
+
 /// A listener's response to a model event.
 pub enum ModelEventResponse {
     Continue,
@@ -198,6 +234,49 @@ pub(in crate::database::eloquent) async fn fire_with_transaction<M: Model>(
             ModelEventResponse::Cancel if halt => return Ok(false),
             _ => {}
         }
+    }
+    let dispatcher = container
+        .make::<Dispatcher>()
+        .map_err(DatabaseError::Unavailable)?;
+    let name = format!(
+        "eloquent.{}: {}",
+        event.as_str(),
+        std::any::type_name::<M>()
+    );
+    if dispatcher.observes(&name) {
+        let key = model
+            .getKey()
+            .cloned()
+            .map(super::super::serialization::json_value)
+            .transpose()?;
+        let changes = model
+            .state()
+            .getChanges()
+            .iter()
+            .map(|(name, value)| {
+                Ok((
+                    name.clone(),
+                    super::super::serialization::json_value(value.clone())?,
+                ))
+            })
+            .collect::<DatabaseResult<_>>()?;
+        let snapshot = Arc::new(ModelLifecycle {
+            name,
+            action: event,
+            model: std::any::type_name::<M>(),
+            key,
+            changes,
+        });
+        let mut context = match transaction {
+            Some(transaction) => EventContext::in_transaction(transaction),
+            None => EventContext::new(),
+        };
+        application_scope(
+            container.clone(),
+            dispatcher.dispatch(snapshot, &mut context),
+        )
+        .await
+        .map_err(|source| DatabaseError::ModelEvent(Box::new(source)))?;
     }
     Ok(true)
 }

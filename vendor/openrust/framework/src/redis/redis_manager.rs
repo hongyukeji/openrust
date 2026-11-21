@@ -1,6 +1,9 @@
 use std::{
     collections::HashMap,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex, RwLock,
+        atomic::{AtomicBool, Ordering},
+    },
     time::Duration,
 };
 
@@ -18,6 +21,13 @@ use super::{RedisError, RedisResult, connections::Connection};
 pub struct RedisManager {
     config: Arc<dyn Repository>,
     connections: Mutex<HashMap<String, Arc<Connection>>>,
+    pub(crate) events: Arc<CommandEvents>,
+}
+
+#[derive(Default)]
+pub(crate) struct CommandEvents {
+    pub(crate) dispatcher: RwLock<Option<Arc<crate::events::Dispatcher>>>,
+    pub(crate) enabled: AtomicBool,
 }
 
 #[derive(Deserialize)]
@@ -55,7 +65,27 @@ impl RedisManager {
         Self {
             config,
             connections: Mutex::default(),
+            events: Arc::default(),
         }
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's Redis manager API")]
+    pub fn setEventDispatcher(&self, dispatcher: Arc<crate::events::Dispatcher>) {
+        *self
+            .events
+            .dispatcher
+            .write()
+            .unwrap_or_else(|error| error.into_inner()) = Some(dispatcher);
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's Redis manager API")]
+    pub fn enableEvents(&self) {
+        self.events.enabled.store(true, Ordering::Release);
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's Redis manager API")]
+    pub fn disableEvents(&self) {
+        self.events.enabled.store(false, Ordering::Release);
     }
 
     pub fn connection(&self, name: Option<&str>) -> RedisResult<Arc<Connection>> {
@@ -92,7 +122,7 @@ impl RedisManager {
         } else {
             return Err(RedisError::UnknownConnection { name: name.into() });
         };
-        let connection = Arc::new(connection);
+        let connection = Arc::new(connection.with_events(name, self.events.clone()));
         connections.insert(name.into(), connection.clone());
         Ok(connection)
     }

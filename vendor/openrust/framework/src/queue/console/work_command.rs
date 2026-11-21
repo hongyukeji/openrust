@@ -22,7 +22,7 @@ use super::worker_output::WorkerOutput;
 pub struct WorkCommand(CommandDefinition);
 
 impl WorkCommand {
-    pub(super) fn new() -> Self {
+    pub fn new() -> Self {
         Self(CommandDefinition::new(
             Syntax::new("queue:work")
                 .about("Run a queue worker")
@@ -31,6 +31,8 @@ impl WorkCommand {
                 .arg(flag("once"))
                 .arg(flag("listen-once").hide(true).requires("once"))
                 .arg(flag("force"))
+                .arg(flag("daemon").help("Deprecated: workers already run in daemon mode"))
+                .arg(seconds("delay").default_value("0").help("Deprecated: use --backoff"))
                 .arg(Arg::new("name").long("name").default_value("default"))
                 .arg(flag("json").help("Output the job information as JSON"))
                 .arg(flag("stop-when-empty"))
@@ -49,6 +51,12 @@ impl WorkCommand {
                 .arg(Arg::new("memory").long("memory").default_value("128").allow_hyphen_values(true)
                     .help("Resident memory limit in MiB or as a percentage of the configured worker memory budget")),
         ))
+    }
+}
+
+impl Default for WorkCommand {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -107,13 +115,7 @@ impl Command for WorkCommand {
                 tries: number("tries"),
                 timeout: duration(number("timeout")),
                 sleep: duration(number("sleep")),
-                backoff: args
-                    .get_many::<u32>("backoff")
-                    .into_iter()
-                    .flatten()
-                    .copied()
-                    .map(duration)
-                    .collect(),
+                backoff: backoff(args),
                 max_jobs: if once {
                     Some(1)
                 } else {
@@ -239,6 +241,40 @@ impl Command for WorkCommand {
     }
 }
 
+// Laravel selects max(backoff, delay) before Worker splits the backoff schedule.
+// PHP compares a comma-separated nonnumeric string to the decimal delay lexically.
+fn backoff(args: &clap::ArgMatches) -> Vec<Duration> {
+    let values: Vec<u32> = args
+        .get_many::<u32>("backoff")
+        .into_iter()
+        .flatten()
+        .copied()
+        .collect();
+    let delay = args
+        .try_get_one::<u32>("delay")
+        .ok()
+        .flatten()
+        .copied()
+        .unwrap_or(0);
+    let use_delay = if values.len() <= 1 {
+        delay > values.first().copied().unwrap_or(0)
+    } else {
+        let raw = args
+            .get_raw("backoff")
+            .into_iter()
+            .flatten()
+            .map(|value| value.to_string_lossy())
+            .collect::<Vec<_>>()
+            .join(",");
+        delay.to_string() > raw
+    };
+    if use_delay {
+        vec![duration(delay)]
+    } else {
+        values.into_iter().map(duration).collect()
+    }
+}
+
 pub(super) fn memory_limit(value: &str, budget: Option<u64>) -> Result<u64, ConsoleError> {
     let invalid =
         || ConsoleError::new("--memory requires a whole number of MiB or a finite percentage");
@@ -281,6 +317,10 @@ pub(super) fn seconds(name: &'static str) -> Arg {
 fn duration(seconds: u32) -> Duration {
     Duration::from_secs(u64::from(seconds))
 }
+
+#[cfg(test)]
+#[path = "../../../tests/unit/queue_work_backoff.rs"]
+mod queue_work_backoff;
 
 pub(super) fn error(error: impl std::fmt::Display) -> ConsoleError {
     ConsoleError::new(error.to_string())

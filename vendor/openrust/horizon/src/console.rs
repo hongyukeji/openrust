@@ -1,0 +1,284 @@
+use crate::{Error, MasterSupervisor, Repository, SupervisorOptions};
+use clap::{Arg, ArgAction, Command as Syntax};
+use openrust::{
+    console::{Command, CommandDefinition, ConsoleError, ConsoleFuture, Input, Output},
+    contracts::{container::Container as _, foundation::Application as _},
+    foundation::Application,
+    support::facades::Artisan,
+};
+use tokio_util::sync::CancellationToken;
+mod install;
+mod listen;
+mod management;
+mod purge;
+mod supervisor_command;
+mod work_command;
+pub use work_command::WorkCommand;
+pub(crate) use work_command::{isWorker, supervisorName};
+struct HorizonCommand(CommandDefinition, &'static str);
+pub(crate) fn register() -> std::result::Result<(), ConsoleError> {
+    Artisan::add(Box::new(WorkCommand::new()))?;
+    Artisan::add(Box::new(supervisor_command::SupervisorCommand::new()))?;
+    management::register()?;
+    for name in [
+        "horizon",
+        "horizon:status",
+        "horizon:pause",
+        "horizon:continue",
+        "horizon:terminate",
+        "horizon:failed",
+        "horizon:retry",
+        "horizon:forget",
+    ] {
+        let mut syntax = Syntax::new(name).about(match name {
+            "horizon" => "Start the Horizon master supervisor",
+            "horizon:status" => "Show active Horizon supervisors",
+            "horizon:pause" => "Pause reservations by Horizon workers",
+            "horizon:continue" => "Continue Horizon workers",
+            "horizon:terminate" => "Gracefully terminate current Horizon supervisors",
+            "horizon:failed" => "List recent sanitized Horizon failures",
+            "horizon:retry" => "Retry one stored failure from a configured Horizon queue",
+            _ => "Forget one stored failure from a configured Horizon queue",
+        });
+        if name == "horizon:retry" {
+            syntax = syntax.arg(Arg::new("id").required(true));
+        }
+        if name == "horizon:forget" {
+            syntax = syntax
+                .arg(Arg::new("id"))
+                .arg(Arg::new("all").long("all").action(ArgAction::SetTrue));
+        }
+        if name == "horizon" {
+            syntax = syntax.arg(Arg::new("environment").long("environment"));
+        }
+        if name == "horizon:terminate" {
+            syntax = syntax.arg(Arg::new("wait").long("wait").action(ArgAction::SetTrue));
+        }
+        if name == "horizon:status" {
+            syntax = syntax.arg(Arg::new("json").long("json").action(ArgAction::SetTrue));
+        }
+        Artisan::add(Box::new(HorizonCommand(
+            CommandDefinition::new(syntax),
+            name,
+        )))?;
+    }
+    Ok(())
+}
+fn error(_: impl std::fmt::Debug) -> ConsoleError {
+    ConsoleError::new("Horizon operation failed; check configuration and service availability.")
+}
+impl Command for HorizonCommand {
+    fn definition(&self) -> &CommandDefinition {
+        &self.0
+    }
+    fn handle<'a>(
+        &'a self,
+        app: &'a Application,
+        input: &'a Input,
+        output: &'a mut Output,
+    ) -> ConsoleFuture<'a, std::result::Result<i32, ConsoleError>> {
+        Box::pin(async move {
+            let repository = app.make::<Repository>().await.map_err(error)?;
+            match self.1 {
+                "horizon" => {
+                    let config = app.config().map_err(error)?;
+                    let environment = input
+                        .matches()
+                        .get_one::<String>("environment")
+                        .cloned()
+                        .or_else(|| {
+                            config
+                                .get("horizon.env")
+                                .and_then(|v| v.as_str().map(str::to_owned))
+                        })
+                        .or_else(|| {
+                            config
+                                .get("app.env")
+                                .and_then(|v| v.as_str().map(str::to_owned))
+                        })
+                        .ok_or_else(|| error(Error::InvalidConfiguration))?;
+                    let options =
+                        SupervisorOptions::fromConfigForEnvironment(config.as_ref(), &environment)
+                            .map_err(error)?;
+                    let queues = app
+                        .make::<openrust::queue::QueueManager>()
+                        .await
+                        .map_err(error)?;
+                    let supervisor = MasterSupervisor::new(
+                        repository,
+                        queues,
+                        options,
+                        std::env::current_exe().map_err(error)?,
+                        app.base_path().to_owned(),
+                        environment,
+                    )
+                    .map_err(error)?
+                    .fastTermination(
+                        config
+                            .get("horizon.fast_termination")
+                            .and_then(|value| value.as_bool())
+                            .unwrap_or(false),
+                    );
+                    output.info("Horizon started successfully.");
+                    let shutdown = input
+                        .shutdown()
+                        .cloned()
+                        .unwrap_or_else(CancellationToken::new);
+                    let signals = signals().map_err(error)?;
+                    let run = supervisor.run(&shutdown);
+                    tokio::pin!(run);
+                    let result = tokio::select! {
+                        result = &mut run => result,
+                        () = signals => { shutdown.cancel(); run.await }
+                    };
+                    if matches!(result, Err(Error::MemoryLimitExceeded)) {
+                        output.error(
+                            "Memory limit exceeded. Consider increasing horizon.memory_limit.",
+                        );
+                        return Ok(12);
+                    }
+                    result.map_err(error)?;
+                }
+                "horizon:pause" => {
+                    repository.pause().await.map_err(error)?;
+                    output.info("Horizon paused.");
+                }
+                "horizon:continue" => {
+                    repository.r#continue().await.map_err(error)?;
+                    output.info("Horizon continued.");
+                }
+                "horizon:terminate" => {
+                    repository
+                        .terminateWithWait(input.matches().get_flag("wait"))
+                        .await
+                        .map_err(error)?;
+                    output.info("Horizon termination requested.");
+                }
+                "horizon:status" => {
+                    let masters = repository.masters().await.map_err(error)?;
+                    if input.matches().get_flag("json") {
+                        output
+                            .stdout
+                            .push_str(&serde_json::to_string(&masters).map_err(error)?);
+                        output.stdout.push('\n');
+                    } else {
+                        output.info(if masters.is_empty() {
+                            "Horizon is inactive."
+                        } else if repository.paused().await.map_err(error)? {
+                            "Horizon is paused."
+                        } else {
+                            "Horizon is running."
+                        });
+                    }
+                    return Ok(if masters.is_empty() {
+                        2
+                    } else if masters.iter().any(|master| master["status"] == "paused") {
+                        1
+                    } else {
+                        0
+                    });
+                }
+                "horizon:failed" => {
+                    let records: Vec<_> = repository
+                        .recent(100)
+                        .await
+                        .map_err(error)?
+                        .into_iter()
+                        .filter(|r| r.status == "failed")
+                        .collect();
+                    output
+                        .stdout
+                        .push_str(&serde_json::to_string(&records).map_err(error)?);
+                    output.stdout.push('\n');
+                }
+                action => {
+                    if action == "horizon:forget" {
+                        return management::forget(app, input, output, &repository).await;
+                    }
+                    let id = input
+                        .matches()
+                        .get_one::<String>("id")
+                        .expect("Clap required id");
+                    let id = uuid::Uuid::parse_str(id).map_err(error)?.to_string();
+                    let provider = app
+                        .container()
+                        .get::<dyn openrust::queue::failed::FailedJobProviderInterface>(
+                            "queue.failer",
+                        )
+                        .map_err(error)?;
+                    let monitored = repository
+                        .jobs()
+                        .findFailed(&id)
+                        .await
+                        .map_err(error)?
+                        .ok_or_else(|| error(Error::InvalidRecord))?;
+                    let failureId = monitored.payloadUuid().map_err(error)?;
+                    if repository
+                        .jobs()
+                        .findFailedByUuid(failureId)
+                        .await
+                        .map_err(error)?
+                        .is_none_or(|current| current.record.id != id)
+                    {
+                        return Err(error(Error::InvalidRecord));
+                    }
+                    let record = provider
+                        .find(failureId)
+                        .await
+                        .map_err(error)?
+                        .ok_or_else(|| error(Error::InvalidRecord))?;
+                    if record.connection != monitored.record.connection
+                        || record.queue != monitored.record.queue
+                        || serde_json::to_value(&record.payload).map_err(error)?
+                            != monitored.payload
+                    {
+                        return Err(error(Error::InvalidRecord));
+                    }
+                    let config = app.config().map_err(error)?;
+                    if config
+                        .get(&format!("queue.connections.{}.driver", record.connection))
+                        .and_then(|value| value.as_str().map(str::to_owned))
+                        .as_deref()
+                        != Some("redis")
+                    {
+                        return Err(error(Error::InvalidRecord));
+                    }
+                    let manager = app
+                        .make::<openrust::queue::QueueManager>()
+                        .await
+                        .map_err(error)?;
+                    if let Some(retryId) = manager
+                        .retry_failed_with_id(provider.as_ref(), failureId, &record)
+                        .await
+                        .map_err(error)?
+                    {
+                        repository
+                            .jobs()
+                            .storeRetryReference(&id, &retryId)
+                            .await
+                            .map_err(error)?;
+                        output.info("The failed job has been pushed back onto the queue!");
+                    }
+                    return Ok(0);
+                }
+            }
+            Ok(0)
+        })
+    }
+}
+
+fn signals() -> std::io::Result<impl std::future::Future<Output = ()>> {
+    #[cfg(unix)]
+    let mut terminate = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
+    #[cfg(windows)]
+    let mut terminate = tokio::signal::windows::ctrl_break()?;
+    Ok(async move {
+        #[cfg(any(unix, windows))]
+        tokio::select! {
+            _ = tokio::signal::ctrl_c() => {},
+            _ = terminate.recv() => {},
+        }
+        #[cfg(not(any(unix, windows)))]
+        let _ = tokio::signal::ctrl_c().await;
+    })
+}

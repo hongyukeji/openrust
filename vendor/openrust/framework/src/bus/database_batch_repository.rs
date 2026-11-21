@@ -6,7 +6,7 @@ use crate::{
         Connection, DatabaseError, DatabaseResult, Row, Transaction, Value,
         query::{Builder, Record},
     },
-    queue::{ChainUpdate, QueueError, QueueResult, backend, new_id},
+    queue::{ChainUpdate, QueueError, QueueResult, backend},
 };
 
 use super::{Batch, BatchContinuation, BatchPhase, BatchTransition};
@@ -212,6 +212,27 @@ impl DatabaseBatchRepository {
                 10,
             )
             .await
+            .map_err(backend)
+    }
+
+    /// Returns batches newest first, optionally before the supplied ID.
+    pub async fn get(&self, limit: u64, before: Option<&str>) -> QueueResult<Vec<Batch>> {
+        let mut query = self
+            .connection
+            .table(&self.table)
+            .useWritePdo()
+            .orderBy("id", "desc")
+            .limit(limit.min(100));
+        if let Some(before) = before {
+            query = query.r#where("id", "<", before);
+        }
+        query
+            .get()
+            .await
+            .map_err(backend)?
+            .into_iter()
+            .map(decode)
+            .collect::<DatabaseResult<Vec<_>>>()
             .map_err(backend)
     }
 
@@ -422,7 +443,7 @@ pub(crate) fn new_batch(
     count: u32,
 ) -> QueueResult<Batch> {
     Ok(Batch {
-        id: new_id()?,
+        id: uuid::Uuid::now_v7().to_string(),
         name,
         total_jobs: count,
         pending_jobs: count,

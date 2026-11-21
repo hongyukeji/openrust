@@ -638,7 +638,7 @@ impl Application {
                     .then(|| matches.get_one::<i32>("isolated").copied())
                     .flatten()
                 else {
-                    return command.handle(application, &input, output).await;
+                    return run_command_with_events(command, application, &input, output).await;
                 };
 
                 let name = definition.name();
@@ -651,13 +651,57 @@ impl Application {
                     output.comment(&format!("The [{name}] command is already running."));
                     return Ok(code);
                 }
-                let result = command.handle(application, &input, output).await;
+                let result = run_command_with_events(command, application, &input, output).await;
                 let released = lock.release().await.map_err(lock_error);
                 result.and_then(|status| released.map(|_| status))
             }),
         )
         .await
     }
+}
+
+async fn run_command_with_events(
+    command: &dyn Command,
+    application: &FoundationApplication,
+    input: &Input,
+    output: &mut Output,
+) -> Result<i32, ConsoleError> {
+    use crate::contracts::events::Dispatcher as _;
+    let events = application
+        .make::<crate::events::Dispatcher>()
+        .await
+        .map_err(|error| ConsoleError::new(error.to_string()))?;
+    let name = command.definition().name().to_owned();
+    events
+        .dispatch(
+            Arc::new(super::events::CommandStarting {
+                command: name.clone(),
+                input: input.matches().clone(),
+                definition: command.definition().syntax.clone(),
+            }),
+            &mut crate::events::EventContext::new(),
+        )
+        .await
+        .map_err(|error| ConsoleError::new(error.to_string()))?;
+    let offset = output.stdout.len();
+    let started = std::time::Instant::now();
+    let status = command.handle(application, input, output).await?;
+    let duration = started.elapsed();
+    events
+        .dispatch(
+            Arc::new(super::events::CommandFinished {
+                command: name,
+                input: input.matches().clone(),
+                definition: command.definition().syntax.clone(),
+                exitCode: status,
+                duration,
+                output: output.stdout[offset..].to_owned(),
+            }),
+            &mut crate::events::EventContext::new(),
+        )
+        .await
+        .map_err(|error| ConsoleError::new(error.to_string()))?;
+    Ok(status)
 }
 
 // Restores command-local metadata even when a long-running command is cancelled.

@@ -18,6 +18,8 @@ impl Event for MessageSending {
 pub struct MessageSent {
     pub mailer: String,
     pub sent: SentMessage,
+    pub mailable: String,
+    pub queued: bool,
 }
 
 impl Event for MessageSent {

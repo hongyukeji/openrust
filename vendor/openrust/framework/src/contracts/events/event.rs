@@ -4,6 +4,16 @@ use std::any::Any;
 pub trait Event: Any + Send + Sync {
     fn name(&self) -> &str;
 
+    /// The concrete Rust type, even when the event is observed through a trait object.
+    fn type_name(&self) -> &'static str {
+        std::any::type_name::<Self>()
+    }
+
+    /// Explicit serializable properties for diagnostics; opaque Rust values remain unavailable.
+    fn properties(&self) -> Option<serde_json::Value> {
+        None
+    }
+
     /// Additional event contracts whose exact listeners receive this payload.
     ///
     /// Contract names must be distinct and differ from the event name. The

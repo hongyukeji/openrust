@@ -2,7 +2,7 @@
 
 ## Configuration
 
-The default store is selected by `CACHE_STORE` in `config/cache.rs`. Use `array` for application-local memory, `file` for a directory shared by local processes, or `database` for a shared SQLite or MySQL store.
+The default store is selected by `CACHE_STORE` in `config/cache.rs`. Use `array` for application-local memory, `file` for a directory shared by local processes, or `database` for a shared PostgreSQL, MySQL or SQLite store.
 
 Session data can use the [session cache](../the-basics/session.md#session-cache). The `session` store requires an active HTTP session and provides neither tags nor cache locks.
 
@@ -15,6 +15,8 @@ Run `./artisan migrate` against the configured database to apply the bundled mig
 cargo build
 ./artisan migrate
 ```
+
+Database `expiration` columns store Unix seconds. Permanent entries use a ten-year lifetime, matching Laravel DatabaseStore. Subsecond expiry and lock leases round up to the next second; use Redis when finer expiry precision is required.
 
 ## Memcached {#memcached}
 

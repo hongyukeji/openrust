@@ -175,3 +175,20 @@ let attempts = Retry::backoff([Duration::from_millis(2), Duration::from_millis(3
     .await?;
 assert_eq!(attempts, 3);
 ```
+
+## Deferred callbacks {#deferred-callbacks}
+
+Register an owned future with `defer(callback, name, always)` inside an HTTP handler, Artisan command or queue job. It runs in the current process at the end of that lifecycle. A named callback replaces the previous callback with that name in the same lifecycle; use `None` for independent callbacks.
+
+```rust
+use openrust::support::defer;
+
+let _ = defer(async move {
+    std::fs::write("/tmp/report-ready", b"ready")?;
+    Ok::<_, std::io::Error>(())
+}, Some("report.ready"), false)?;
+```
+
+By default, callbacks run for HTTP statuses below 400, commands exiting with zero and successful job attempts. Set `always` to `true`, or call `.always()` on the returned handle, to include failures. Errors are reported through the application exception handler and later callbacks continue. Callbacks registered while callbacks run are also drained.
+
+Capture an `Arc` of a scoped service when registering; resolving it again after completion may produce a new instance. HTTP callbacks run when the transport releases the response body, including a disconnected stream. Nested Artisan calls and synchronous jobs share the enclosing lifecycle. Local callbacks in a hard-timeout job run in that job process before its outcome returns, within its timeout budget. Cancellation before completion, process termination or a hard timeout cannot guarantee execution. Use a durable queue for work that must survive these failures. Registering outside an active lifecycle returns `concurrency::Error::OutsideRequest`.

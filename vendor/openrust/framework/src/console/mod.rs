@@ -4,7 +4,7 @@ mod application;
 mod command;
 mod descriptor;
 pub mod events;
-pub(crate) mod generator_command;
+pub mod generator_command;
 mod help_command;
 mod list_command;
 mod localization;
@@ -43,6 +43,16 @@ pub struct Input {
 impl Input {
     pub fn matches(&self) -> &ArgMatches {
         &self.matches
+    }
+
+    /// Preserve parsed arguments while supplying a child command's shutdown scope.
+    #[allow(non_snake_case, reason = "Matches the command Input builder naming")]
+    pub fn withShutdown(&self, shutdown: tokio_util::sync::CancellationToken) -> Self {
+        Self {
+            syntax: self.syntax.clone(),
+            matches: self.matches.clone(),
+            shutdown: Some(shutdown),
+        }
     }
 
     /// Cooperative shutdown requested by the application runner.
@@ -215,15 +225,36 @@ impl fmt::Display for ConsoleError {
 
 impl Error for ConsoleError {}
 
-pub(crate) fn confirm_production(
+pub(crate) use confirmToProceed as confirm_production;
+
+/// Confirms a command before proceeding in production using the shared localized prompt.
+///
+/// The caller supplies its production condition (Laravel's confirmation callback).
+/// An absent `--force` option never bypasses confirmation. Non-interactive input refuses.
+#[allow(non_snake_case, reason = "Matches Laravel's ConfirmableTrait method")]
+pub fn confirmToProceed(
     production: bool,
     matches: &clap::ArgMatches,
 ) -> Result<bool, ConsoleError> {
     use std::io::Write as _;
-    if !production || matches.get_flag("force") {
+    if !production
+        || matches
+            .try_get_one::<bool>("force")
+            .ok()
+            .flatten()
+            .copied()
+            .unwrap_or(false)
+    {
         return Ok(true);
     }
-    if matches.get_flag("no-interaction") || !io::stdin().is_terminal() {
+    if matches
+        .try_get_one::<bool>("no-interaction")
+        .ok()
+        .flatten()
+        .copied()
+        .unwrap_or(false)
+        || !io::stdin().is_terminal()
+    {
         return Ok(false);
     }
     let prompt = localization::text(

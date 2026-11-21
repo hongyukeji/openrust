@@ -25,6 +25,7 @@ struct ResponseException(Arc<dyn Error + Send + Sync>);
 pub struct Response {
     parts: ResponseParts,
     pub(super) body: Body,
+    pub(super) content: Option<Box<Bytes>>,
     pub(super) binary_file: Option<super::binary_file_response::BinaryFile>,
 }
 
@@ -39,8 +40,8 @@ impl<T: Into<Response>> ResponseOutput for T {
     }
 }
 
-fn html(body: Body) -> Response {
-    Response::new(StatusCode::OK, body).header(
+fn html(body: Bytes) -> Response {
+    Response::buffered(StatusCode::OK, body).header(
         CONTENT_TYPE,
         HeaderValue::from_static("text/html; charset=utf-8"),
     )
@@ -48,13 +49,13 @@ fn html(body: Body) -> Response {
 
 impl From<&'static str> for Response {
     fn from(text: &'static str) -> Self {
-        html(Body::from(text))
+        html(Bytes::from(text))
     }
 }
 
 impl From<String> for Response {
     fn from(text: String) -> Self {
-        html(Body::from(text))
+        html(Bytes::from(text))
     }
 }
 
@@ -160,8 +161,34 @@ impl Response {
         Self::from_parts(parts, body)
     }
 
+    fn buffered(status: StatusCode, content: Bytes) -> Self {
+        let mut response = Self::new(status, Body::from(content.clone()));
+        response.content = Some(Box::new(content));
+        response
+    }
+
+    /// Replaces the body with known bytes, preserving a shared diagnostic snapshot.
+    #[allow(non_snake_case, reason = "Matches Laravel's Response API")]
+    pub fn setContent(&mut self, content: impl Into<Bytes>) -> &mut Self {
+        let content = content.into();
+        self.body = Body::from(content.clone());
+        self.content = Some(Box::new(content));
+        self.binary_file = None;
+        self
+    }
+
+    /// Returns an already-buffered body without polling a stream.
+    #[allow(non_snake_case, reason = "Matches Laravel's Response API")]
+    pub fn getContent(&self) -> Option<&Bytes> {
+        if self.binary_file.is_some() {
+            None
+        } else {
+            self.content.as_deref()
+        }
+    }
+
     pub fn empty(status: StatusCode) -> Self {
-        Self::new(status, Body::empty())
+        Self::buffered(status, Bytes::new())
     }
 
     /// Creates an empty 204 response. Use `empty` to select another status.
@@ -175,7 +202,7 @@ impl Response {
         if !Self::allows_body(status) {
             return Self::empty(status);
         }
-        Self::new(status, Body::from(content.into())).header(
+        Self::buffered(status, Bytes::from(content.into())).header(
             CONTENT_TYPE,
             HeaderValue::from_static("text/markdown; charset=utf-8"),
         )
@@ -193,6 +220,7 @@ impl Response {
             response.parts.status = status;
             if !Self::allows_body(status) {
                 response.body = Body::empty();
+                response.content = Some(Box::new(Bytes::new()));
                 response = response.withoutHeaders([CONTENT_TYPE, CONTENT_LENGTH]);
             }
             Ok(response)
@@ -215,7 +243,7 @@ impl Response {
             return Ok(Self::empty(status));
         }
         let bytes = encode()?;
-        Ok(Self::new(status, Body::from(bytes))
+        Ok(Self::buffered(status, Bytes::from(bytes))
             .header(CONTENT_TYPE, HeaderValue::from_static("application/json")))
     }
 
@@ -370,6 +398,7 @@ impl Response {
         Self {
             parts,
             body,
+            content: None,
             binary_file: None,
         }
     }
@@ -380,6 +409,7 @@ impl Response {
         &mut self.parts
     }
     pub fn take_body(&mut self) -> Body {
+        self.content = Some(Box::new(Bytes::new()));
         std::mem::replace(&mut self.body, Body::empty())
     }
     pub fn into_parts(mut self) -> (ResponseParts, Body) {

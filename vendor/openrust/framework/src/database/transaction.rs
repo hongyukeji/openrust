@@ -268,6 +268,12 @@ impl Transaction {
         super::query::Builder::transaction(self, grammar, table)
     }
 
+    /// Returns the connection whose transaction this handle borrows.
+    #[allow(non_snake_case, reason = "Matches Laravel's connection accessor")]
+    pub fn getConnection(&self) -> &Connection {
+        &self.connection
+    }
+
     pub(super) fn query_connection(&self) -> &Connection {
         &self.connection
     }
@@ -402,6 +408,23 @@ impl Transaction {
         callback: impl FnOnce() -> DatabaseFuture<'static, DatabaseResult<()>> + Send + 'static,
     ) -> DatabaseResult<()> {
         self.transactions.add(self.level, Box::new(callback))
+    }
+
+    /// Registers a callback on an active ancestor transaction level.
+    ///
+    /// A callback registered on level 1 retains registration order with other
+    /// level-1 callbacks. Pair it with a current-level commit marker when work
+    /// must be discarded on savepoint rollback but saved in its original order.
+    pub fn afterCommitAtLevel(
+        &mut self,
+        level: u32,
+        callback: impl FnOnce() -> DatabaseFuture<'static, DatabaseResult<()>> + Send + 'static,
+    ) -> DatabaseResult<()> {
+        if level == 0 || level > self.level {
+            return Err(DatabaseError::TransactionClosed);
+        }
+        self.transactions.add_at_level(level, Box::new(callback));
+        Ok(())
     }
 
     /// Runs an owned callback if the current transaction level is rolled back.

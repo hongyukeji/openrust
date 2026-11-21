@@ -31,6 +31,8 @@ impl Model for Flight {
 }
 ```
 
+`getFillable()` and `getGuarded()` expose the declared mass-assignment lists. `Model::isUnguarded()` reports the current bypass scope; `Model::unguarded(future)` restores guards when the future completes, fails, or is cancelled, and does not affect other tasks. `getDeletedAtColumn()` returns the configured soft-delete column as `Option<&str>`, or `None` when soft deletes are disabled.
+
 ## Eloquent Model Conventions
 
 The defaults are the `id` primary key, an incrementing identifier, and `created_at` and `updated_at` timestamps. Use `primaryKey`, `incrementing`, `timestamps`, or `connection` on `ModelMetadata` to configure the model. Declare the columns that may be mass assigned with `fillable`.

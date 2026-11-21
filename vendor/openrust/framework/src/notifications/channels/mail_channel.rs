@@ -45,7 +45,7 @@ impl MailChannel {
         let mailer = Mail::mailer(mailable.mailer()).map_err(NotificationError::Mail)?;
         PreparedMail::prepare(&mailer.name, mailable.as_ref(), recipients)
             .await
-            .map(Some)
+            .map(|message| Some(message.with_kind(notification.kind())))
             .map_err(NotificationError::Mail)
     }
 }
@@ -60,7 +60,7 @@ impl Channel for MailChannel {
             let Some(message) = Self::prepare(recipient, notification).await? else {
                 return Ok(None);
             };
-            let sent = message.send().await.map_err(NotificationError::Mail)?;
+            let sent = message.send(false).await.map_err(NotificationError::Mail)?;
             Ok(sent.map(ChannelResponse::Mail))
         })
     }
@@ -85,7 +85,7 @@ impl Channel for MailChannel {
     ) -> NotificationFuture<'_, NotificationResult<Option<ChannelResponse>>> {
         Box::pin(async move {
             let message: PreparedMail = serde_json::from_value(payload).map_err(delivery)?;
-            let sent = message.send().await.map_err(NotificationError::Mail)?;
+            let sent = message.send(true).await.map_err(NotificationError::Mail)?;
             Ok(sent.map(ChannelResponse::Mail))
         })
     }

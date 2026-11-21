@@ -7,6 +7,7 @@ const require=createRequire(import.meta.url);
 const {chromium}=require(process.env.DOCS_PLAYWRIGHT_MODULE);
 const root=fileURLToPath(new URL('../',import.meta.url));
 const paths=[...readFileSync(new URL('../en/README.md',import.meta.url),'utf8').matchAll(/\]\(([^)]+\.md)\)/g)].map(m=>m[1]);
+const expectedSupportPages=new Set(paths.filter(file=>readFileSync(new URL('../en/'+file,import.meta.url),'utf8').includes('{#support-status}'))).size;
 const browser=await chromium.launch({executablePath:process.env.DOCS_BROWSER_PATH});
 try{
  for(const base of ['/','/docs/']){
@@ -23,7 +24,7 @@ try{
       assert(await article.locator('a[href*=".html"]').count()>0,`${url}: no native reference`);count++;
      }
     }
-    assert.equal(count,23,`${language}: unexpected support status coverage`);assert.deepEqual(errors,[]);
+    assert.equal(count,expectedSupportPages,`${language}: unexpected support status coverage`);assert.deepEqual(errors,[]);
     console.log(`${base} ${language}: every navigation route rendered; ${count} explicit support pages PASS`);await page.close();
    }
   }finally{await new Promise((resolve,reject)=>server.close(e=>e?reject(e):resolve()));}

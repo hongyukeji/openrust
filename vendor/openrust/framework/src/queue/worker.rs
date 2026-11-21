@@ -596,13 +596,9 @@ impl Worker {
         let deferred = crate::concurrency::DeferredCallbacks::default();
         // Pin the attempt before task-local scopes wrap its polling state.
         let result = deferred
-            .scope(Box::pin(self.attempt(
-                job,
-                options,
-                &manager,
-                batch.as_ref(),
-                attempt,
-                signals,
+            .scope(Box::pin(isolated_scope(
+                self.app.clone(),
+                self.attempt(job, options, &manager, batch.as_ref(), attempt, signals),
             )))
             .await;
         self.finish_attempt_marker(&mut attempt.marker).await;
@@ -742,7 +738,7 @@ impl Worker {
                     }
                 } else {
                     // Keep the scoped execution future out of the worker's attempt frame.
-                    isolated_scope(self.app.clone(), Box::pin(async {
+                    application_scope(self.app.clone(), Box::pin(async {
                     use crate::log::context::Context;
                     let context_repository = Context::repository().map_err(super::backend)?;
                     Context::hooks()

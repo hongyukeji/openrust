@@ -453,7 +453,7 @@ impl QueueManager {
         self.clear_prohibited.store(prohibited, Ordering::Relaxed);
     }
 
-    pub(super) fn clear_prohibited(&self) -> bool {
+    pub fn clear_prohibited(&self) -> bool {
         self.clear_prohibited.load(Ordering::Relaxed)
     }
 
@@ -499,10 +499,10 @@ impl QueueManager {
         } else {
             None
         };
-        let owner = unique
-            .as_ref()
-            .map(|_| self.owner.upgrade().ok_or(QueueError::InvalidConfiguration))
-            .transpose()?;
+        let owner = self
+            .owner
+            .upgrade()
+            .ok_or(QueueError::InvalidConfiguration)?;
         let selected = options.queue.as_deref();
         let transaction = transaction.filter(|transaction| transaction.transactionLevel() != 0);
         if let Some(transaction) = transaction {
@@ -513,7 +513,7 @@ impl QueueManager {
                 transaction
                     .afterCommit(move || {
                         Box::pin(async move {
-                            dispatch_unique(&*queue, payload, &options, owner.zip(unique))
+                            dispatch_unique(&*queue, payload, &options, owner, unique)
                                 .await
                                 .map(|_| ())
                                 .map_err(|source| DatabaseError::AfterCommit {
@@ -524,20 +524,43 @@ impl QueueManager {
                     .map_err(backend)?;
                 return Ok(DispatchResult::Deferred);
             }
+            emit_queueing(&owner, &*queue, &payload, &options).await?;
             return queue
                 .push_in_transaction(&payload, selected, options.delay, transaction)
                 .await
                 .map(dispatch_result);
         }
-        dispatch_unique(&*queue, payload, &options, owner.zip(unique)).await
+        dispatch_unique(&*queue, payload, &options, owner, unique).await
     }
 
-    pub(crate) async fn retry_failed(
+    /// Retries a failure through the configured transport and reports whether it was claimed.
+    pub async fn retry_failed(
         &self,
         failures: &dyn FailedJobProviderInterface,
         key: &str,
         job: &FailedJob,
     ) -> QueueResult<bool> {
+        self.retry_failed_result(failures, key, job)
+            .await
+            .map(|(claimed, _)| claimed)
+    }
+    /// Returns the newly assigned job ID after a successful retry claim.
+    pub async fn retry_failed_with_id(
+        &self,
+        failures: &dyn FailedJobProviderInterface,
+        key: &str,
+        job: &FailedJob,
+    ) -> QueueResult<Option<String>> {
+        self.retry_failed_result(failures, key, job)
+            .await
+            .map(|(_, id)| id)
+    }
+    async fn retry_failed_result(
+        &self,
+        failures: &dyn FailedJobProviderInterface,
+        key: &str,
+        job: &FailedJob,
+    ) -> QueueResult<(bool, Option<String>)> {
         if self.observes_worker_event(JobRetryRequested::NAME)? {
             self.emit_control_event(JobRetryRequested { job: job.clone() })
                 .await?;
@@ -562,21 +585,23 @@ impl QueueManager {
                 .await?
             {
                 Some(claimed) => {
-                    if claimed {
+                    let id = if claimed {
                         configured
                             .queue
                             .push_in_transaction(&payload, queue, None, &mut transaction)
-                            .await?;
-                    }
+                            .await?
+                    } else {
+                        None
+                    };
                     transaction.commit().await.map_err(backend)?;
-                    return Ok(claimed);
+                    return Ok((claimed, id));
                 }
                 None => transaction.rollBack(None).await.map_err(backend)?,
             }
         }
-        configured.queue.push(&payload, queue).await?;
+        let id = configured.queue.push(&payload, queue).await?;
         failures.forget_retry(&claim).await?;
-        Ok(true)
+        Ok((true, id))
     }
 
     fn capture_context(&self, payload: &mut Payload) -> QueueResult<()> {
@@ -604,7 +629,7 @@ impl QueueManager {
         })
     }
 
-    pub(crate) fn batch_repository(&self) -> QueueResult<DatabaseBatchRepository> {
+    pub fn batch_repository(&self) -> QueueResult<DatabaseBatchRepository> {
         let owner = self
             .owner
             .upgrade()
@@ -930,10 +955,22 @@ impl QueueManager {
             .options
             .get("queue")
             .and_then(serde_json::Value::as_str);
+        let owner = self
+            .owner
+            .upgrade()
+            .ok_or(QueueError::InvalidConfiguration)?;
+        let options = DispatchOptions {
+            queue: queue.map(str::to_owned),
+            ..Default::default()
+        };
         if let BatchBackend::Sqs(sqs) = &configured.batch_backend {
+            for job in &heads {
+                emit_queueing(&owner, configured.queue.as_ref(), job, &options).await?;
+            }
             return sqs.send_batch(configured.queue_name(queue)?, &heads).await;
         }
         for job in &heads {
+            emit_queueing(&owner, configured.queue.as_ref(), job, &options).await?;
             if let BatchBackend::Database(connection) = &configured.batch_backend
                 && repository.uses_connection(connection)
             {
@@ -1242,11 +1279,38 @@ fn prepare_batch_jobs(jobs: &mut [BatchJob], renew: bool) -> QueueResult<u32> {
     Ok(count)
 }
 
+async fn emit_queueing(
+    owner: &Arc<Container>,
+    queue: &dyn Contract,
+    payload: &Payload,
+    options: &DispatchOptions,
+) -> QueueResult<()> {
+    let dispatcher = owner
+        .make::<Dispatcher>()
+        .map_err(QueueError::Unavailable)?;
+    if dispatcher.observes(super::events::JobQueueing::NAME) {
+        let event = super::events::JobQueueing {
+            connection_name: queue.get_connection_name().into(),
+            queue: super::queue_name(options.queue.as_deref(), queue.default_queue())?.into(),
+            job: payload.clone(),
+        };
+        application_scope(
+            owner.clone(),
+            dispatcher.dispatch(Arc::new(event), &mut EventContext::new()),
+        )
+        .await
+        .map_err(backend)?;
+    }
+    Ok(())
+}
+
 async fn dispatch(
     queue: &dyn Contract,
     payload: &Payload,
     options: &DispatchOptions,
+    owner: &Arc<Container>,
 ) -> QueueResult<DispatchResult> {
+    emit_queueing(owner, queue, payload, options).await?;
     let selected = options.queue.as_deref();
     match options.delay {
         Some(delay) => queue.later(delay, payload, selected).await,
@@ -1259,10 +1323,11 @@ async fn dispatch_unique(
     queue: &dyn Contract,
     mut payload: Payload,
     options: &DispatchOptions,
-    unique: Option<(Arc<Container>, super::UniqueJob)>,
+    owner: Arc<Container>,
+    unique: Option<super::UniqueJob>,
 ) -> QueueResult<DispatchResult> {
-    let Some((owner, policy)) = unique else {
-        return dispatch(queue, &payload, options).await;
+    let Some(policy) = unique else {
+        return dispatch(queue, &payload, options, &owner).await;
     };
     if !super::unique_job::acquire(&owner, &mut payload, policy).await? {
         let dispatcher = owner
@@ -1282,7 +1347,7 @@ async fn dispatch_unique(
         }
         return Ok(DispatchResult::Duplicate);
     }
-    let result = dispatch(queue, &payload, options).await;
+    let result = dispatch(queue, &payload, options, &owner).await;
     if !matches!(result, Ok(DispatchResult::Queued(_))) {
         let released = super::unique_job::release(&owner, &payload).await;
         return result.and(released.map(|()| DispatchResult::Completed));

@@ -1,0 +1,98 @@
+{
+    "commit": "9046466feb0146b6223db8b8e9c589aeba23f7f0",
+    "cases": [
+        {
+            "scope": null,
+            "serialized": "__laravel_null"
+        },
+        {
+            "scope": "",
+            "serialized": ""
+        },
+        {
+            "scope": "001",
+            "serialized": "001"
+        },
+        {
+            "scope": "1e3",
+            "serialized": "1e3"
+        },
+        {
+            "scope": 0,
+            "serialized": "0"
+        },
+        {
+            "scope": 1,
+            "serialized": "1"
+        },
+        {
+            "scope": -42,
+            "serialized": "-42"
+        },
+        {
+            "scope": 9223372036854775807,
+            "serialized": "9223372036854775807"
+        },
+        {
+            "scope": -9223372036854775808,
+            "serialized": "-9223372036854775808"
+        },
+        {
+            "scope": 0.0,
+            "serialized": "0"
+        },
+        {
+            "scope": -0.0,
+            "serialized": "-0"
+        },
+        {
+            "scope": 1.0,
+            "serialized": "1"
+        },
+        {
+            "scope": 1.0e-6,
+            "serialized": "1.0E-6"
+        },
+        {
+            "scope": 1.0e-7,
+            "serialized": "1.0E-7"
+        },
+        {
+            "scope": 100000000000000.0,
+            "serialized": "1.0E+14"
+        },
+        {
+            "scope": 1000000000000000.0,
+            "serialized": "1.0E+15"
+        },
+        {
+            "scope": 1.0e+20,
+            "serialized": "1.0E+20"
+        },
+        {
+            "scope": 1.0e-20,
+            "serialized": "1.0E-20"
+        },
+        {
+            "scope": 1.2345678901234567,
+            "serialized": "1.2345678901235"
+        },
+        {
+            "scope": -1.2345678901234567,
+            "serialized": "-1.2345678901235"
+        },
+        {
+            "scope": 0.3333333333333333,
+            "serialized": "0.33333333333333"
+        },
+        {
+            "scope": 2.2250738585072014e-308,
+            "serialized": "2.2250738585072E-308"
+        },
+        {
+            "scope": 1.7976931348623157e+308,
+            "serialized": "1.7976931348623E+308"
+        }
+    ],
+    "global": "__laravel_global"
+}

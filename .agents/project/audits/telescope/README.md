@@ -1,0 +1,86 @@
+# Telescope 诊断扩展
+
+2026-11-21：O03 原生诊断链路已实现并完成下列定向验收。该结果不代表完整 Vue 面板、所有上游公开 Watcher 类或最终全扩展组合已经等价；尚存差异列于末节。保留共享工作区其他扩展及核心改动，本轮未暂存、提交或推送。
+
+## 固定来源与复用
+
+- 官方 Laravel Telescope 固定提交 `39a8ea8ad79915df6c3ac9b4e72659ade808eba3`，源码位于项目 `tmp/openrust-ecosystem-20261121/upstream/laravel-telescope`。核对 Entry、Repository、18类Watcher、配置、迁移、路由、安装器、命令与输出格式，保留MIT许可证。
+- 本轮再次请求官方GitHub网页与raw入口，web工具没有返回可读正文；使用已取得的固定官方源码归档核对，不宣称核实实时热门榜或Star排名。缓存问题另通过官方raw入口取得 Laravel Framework 固定提交 `1449bf241017087fbd38c118ecaabef3f6797fdc` 的 `Illuminate/Cache/DatabaseStore.php`，确认 `forever` 使用315360000秒。
+- `v0.x` 固定参考 `6d1a81924451e15f595f68c8dfb520ad6d6c44cf` 无独立Telescope包。内部复用当前数据库Query Builder／迁移、应用作用域、原生defer、日志观察、事件分发、队列／Worker、缓存、Redis、HTTP路由／会话／防伪与SourceInstallation；未另造观测总线、任务执行器、RESP解析器或通用安装框架。
+
+## 已实现与语言适配
+
+- 18种EntryType、UUIDv7、主机名、标签、已解析认证身份快照、异常family与occurrences、对象／数组content、公开存储契约及自定义仓储覆盖。三张原生迁移表；UUID前缀查找、序号游标、tag／batch／family过滤、监控、合并更新、异常合并、prune与clear。
+- 原生HTTP／Artisan／Worker执行作用域隔离；共享回调配置，defer刷新；filters／batch filters／tags／暂停恢复／监控标签／脱敏。抑制守卫支持取消恢复；不使用进程全局当前用户。硬终止不保证刷新。
+- RequestReceived在中间件前加载记录状态；RequestHandled记录真实元数据、耗时和已解码输入，绝不读取未消费正文。请求／响应参数支持点路径脱敏。
+- LogManager只观察实际格式化后的消息；异常使用原生错误快照，未知Rust源码位置保持null并使用独立family，不伪造堆栈。
+- JobQueueing在实际入队前、唯一锁准入后触发；批次bulk同样触发。整个Worker attempt隔离于queue:work命令，处理前与终态事件共享作用域。已有Horizon投递后事件保留。缺失EntryUpdate通过原生队列处理，最多重试三次。
+- 原生邮件记录真实收件地址、原始mailable、排队标识、HTML／文本与MIME；同步／排队通知保留实际通知类型、notifiable及响应。通知复用PreparedMail时显式传入queued状态。
+- Eloquent在原生typed监听后发出真实模型生命周期快照，保留事务上下文、取消及事件抑制；hydration按模型累计。应用事件通过显式 `Event::properties()` 提供可序列化诊断；不反射任意Rust字段。
+- 调度使用after-hooks结束位置的ScheduledTaskCompleted，避免后台启动误计完成；保留命令、表达式、实际时区和非append输出。回调失败但after-hooks执行时仍记录，schedule:run原生退出码保持0。
+- 视图复用Factory composer，记录名称、文件路径与数据键；不持有Factory强引用形成循环。Gate记录实际结果与可表示参数。Redis通过原生redis::Cmd迭代参数，在成功命令后记录耗时和连接，无启动联网副作用。
+- `support::dump`仅格式化一次并在原生事件被捕获时抑制标准输出；页面启用4秒缓存开关或always配置。IncomingDumpEntry关联首个Request／Job／Command入口。同步dbg／println／LazyCollection dump不被拦截。
+- 授权Web API、Nonce CSP诊断面板、自定义path／domain、会话防伪、监控标签及暂停／恢复；页面用textContent呈现不可信存储内容。邮件预览使用上游sandbox策略，下载固定MIME类型并以解析后UUID构造文件名。`Sec-Fetch-Site: same-origin`按框架默认防伪机制允许；缺可信metadata及token的写请求拒绝419。
+- 八条Artisan命令。list按类型列出关键字段；show支持latest、前缀、batch类型筛选、JSON与Unicode安全截断；`--full`实际取消内容截断。安装器复用单源码锁登记编译型配置／Provider，重复执行保留定制。
+
+## 验收环境与证据
+
+所有Cargo使用Rust1.94.0，原生增量与并发。独占快照 `tmp/openrust-extensions-20261121/source`、target `tmp/openrust-extensions-20261121/target`、TMPDIR `tmp/openrust-extensions-20261121/runtime`。不在活跃工作树编译，不在构建中同步快照。
+
+| 实际验证 | 结果／证据（相对项目tmp/openrust-extensions-20261121） |
+|---|---|
+| 包默认测试 | `telescope-current-tests.log`：custom_storage1、entries3、installation1、provider15、storage6，共26项通过；Redis1明确ignored，单独实机运行 |
+| PostgreSQL18.7 | `telescope-postgres.log`：storage6通过；`telescope-worker-pgsql.log`：原生HTTP派送→database Worker→批次完成／失败／日志与作用域通过 |
+| MySQL8.4.13 | `telescope-mysql.log`：storage6通过；`telescope-worker-mysql.log`：同一原生Worker行为通过 |
+| Redis8.10.3 | `telescope-redis.log`：隔离Redis8原生命令参数／连接／耗时1项、Redis缓存生命周期1项通过；复用Horizon Redis夹具，不复制造轮子 |
+| database缓存三库 | `telescope-cache-pgsql.log`、`telescope-cache-mysql.log`、`telescope-cache-sqlite.log`：永久值、读写、暂停恢复、过期、删除及两owner互斥锁均通过；file同一函数在默认包测试通过 |
+| 核心回归 | `telescope-core-regression.log`：console_observation1、eloquent_events2、events8、http_observation4、mail_notifications31、queue_worker6、scheduling17；子进程夹具单独运行1。数据库／外部服务条件缺失导致的提前返回不计为该服务验收；外部数据库采用上面的REQUIRE隔离夹具结果 |
+| 真实源码安装 | `telescope-install.log`：原生root binary安装、模块与Provider只登记一次、重复安装／发布保留定制通过 |
+| 原生HTTP／Chrome | `telescope-browser.log`：桌面1440×900、手机375×812授权、CSRF、XSS、详情、监控／暂停恢复、布局通过；自定义路径／域名、disabled不写入通过，子进程已收尾 |
+| 根应用配置与骨架 | `telescope-root-tests.log`：默认骨架2项＋配置发布／覆盖保留／无效环境不穿透缓存1项通过 |
+| 已认证身份与出站HTTP | 包provider实际验证已解析身份无二次认证、无密码与跨请求泄漏；真实本地TCP HTTP验证JSON／form与query合并、双向脱敏、网络耗时及原生SELECT诊断；三库分别见`telescope-client-pgsql.log`、`telescope-client-mysql.log`与默认包日志 |
+| 严格lint／Rustdoc | `telescope-clippy.log`：framework＋telescope全部targets通过；`telescope-workspace-clippy.log`：全workspace全部targets、`-D warnings`通过，修正Pulse测试未检查读取量的一行lint；`telescope-rustdoc.log`：Telescope `RUSTDOCFLAGS=-D warnings --no-deps`通过；第三方patch依赖既有警告不冒充本包警告 |
+| 三语文档 | `telescope-docs-content.log`及`--prefix docs run build`通过；`telescope-docs-browser.log`12组通用，`telescope-docs-scope.log`6组全导航通过，支持状态页数量由英文正文声明计算，三语一致（当前20篇，含并行Pulse正文） |
+
+常用复现入口：
+
+```sh
+cargo +1.94.0 test --locked --offline --manifest-path tmp/openrust-extensions-20261121/source/Cargo.toml -p openrust-telescope --tests
+TELESCOPE_TEST_DRIVER=pgsql python3 -B tests/postgres_acceptance.py -- <storage-test-binary> --nocapture
+TELESCOPE_TEST_DRIVER=mysql python3 -B tests/mysql_acceptance.py -- <storage-test-binary> --nocapture
+python3 -B vendor/openrust/telescope/tests/install_acceptance.py <root-binary>
+python3 -B vendor/openrust/telescope/tests/http_acceptance.py <telescope-acceptance-binary>
+```
+
+运行前设置上述项目内TMPDIR、独占CARGO_TARGET_DIR；HTTP夹具设置已安装的DOCS_PLAYWRIGHT_MODULE和DOCS_BROWSER_PATH。Provider的三库函数每次用新夹具数据库精确筛选，不让多TestApp争用固定表。Redis明确要求TELESCOPE_TEST_REDIS_URL，调用ignored函数时必须通过隔离Redis8夹具。
+
+## 本轮发现的核心缓存缺陷
+
+database缓存此前把引擎毫秒时间戳及i64::MAX永久哨兵直接写入Laravel标准integer expiration列。SQLite容纳了这些值，但PG18报integer parameter错误、MySQL8拒绝写入。修复在DatabaseBackend边界以Unix秒持久化、读取恢复引擎毫秒；永久记录按固定Laravel使用十年，亚秒租约向上取整，防止立即过期。公开API仍按原TTL单位使用，三语缓存正文已明确数据库精度与十年边界。新验收使用标准integer列，不能通过改成bigInteger掩盖错误。现有毫秒格式缓存不是新存储格式的兼容目标，应用升级时应按自身维护窗口清除旧缓存。
+
+## 完整上游对齐仍需单列的边界
+
+- 面板为原生安全诊断UI，未使用上游Vue前端或avatar；列表、过滤、详情、监控标签、暂停恢复均已实际验收。18类公开Watcher已在下节补齐独立注册，内部共用格式化帮助器，不再用私有总监听器替代公开结构。
+- Rust异步调用栈没有可靠PHP式反射：Query／Gate源码file／line保持null，ignore_packages／ignore_paths未提供来源调用者筛选。EventWatcher默认忽略框架事件，应用内共享的ignoreFrameworkEvents开关已在下节补齐。
+- 服务端已捕获已知缓冲正文及实际处理器／控制器、已解析路由中间件类型；不透明Body／流仍不读取。HTTP客户端multipart元数据未捕获。View的闭包composer名称为null。通知Mail响应为实际收件人快照；不冒充PHP SentMessage对象反射。
+- 命令以普通文本表格及通用字段详情输出，尚未逐项复现上游颜色、相对时间、分类详情布局／batch统计。`--full`、JSON与查询语义已经验证。prune仅接受非负整数小时。
+- 正式托管服务、其他操作系统和最终全扩展组合／完整API导出未由本批通过结果覆盖。
+
+缓存保留供后续验收复用；未到32GB停线时不清热target。夹具只回收本批标签容器和子进程，不删除任何数据卷。后续开发应按本节真实差异接续，不能把包测试通过等同完整上游移植。
+
+
+## 公开 Watcher 与缓冲响应补齐（2026-11-21）
+
+复查固定上游 Watcher／EventWatcher／RequestWatcher／ClientRequestWatcher 源码，重新通过官方 raw 取得 Watcher.php，证据为项目 tmp/openrust-telescope-followup-20261121/upstream-watcher.php。新增公开 Watcher trait 和全部18类同名结构，持有公开 options，new(options)／register(app).await? 可由应用 Provider 独立使用；包自身也使用这些入口登记监听器，非仅添加空壳导出。只订阅各自原生事件，日志和视图复用既有 LogManager／Factory 接口。生命周期准入独立登记一次。options.enabled=false 不登记；手动登记前须关闭对应默认配置避免重复采集。过滤模式接受上游的字符串或数组。
+
+Telescope.ignoreFrameworkEvents 使用应用共享 Arc<AtomicBool>，默认 true，提供与PHP静态字段职责对应的公开设置；跨请求共享但跨应用隔离，不引入进程全局状态。EventWatcher 的手动 ignore 即使开启框架事件仍生效。明确序列化事件字段继续使用原生 Event::properties，无任意Rust字段反射。
+
+核心 Response::getContent／setContent 保存已知缓冲字节，JSON／文本构造共享 Bytes，不复制内容；未知Body／文件／流保持None。为了不扩大现有Response内联枚举体积，快照持有一个可选Box；不会改写LimiterResponse等既有公共枚举。take_body、HEAD、空响应、缓存验证器及文件准备维护快照一致性。RequestHandled.responseContent 分享字节；观察事件不轮询、消费或缓冲流。RouteMetadata补充实际解析中间件类型，Telescope读取已有action，避免额外反射或虚构字段。RequestWatcher按固定intdiv字符长度限制处理JSON／text/plain并应用响应脱敏；ClientRequestWatcher保留其不同的除法比较边界。
+
+新增 tests/watchers.rs 的两个真实HTTP用例：独立注册／禁用／自带选项、框架事件开关／手动ignore／应用隔离，以及JSON嵌套脱敏／999与1000个中文字符边界／不透明正文／真实路由元数据。在SQLite、PG18.7、MySQL8.4.13分别实际运行通过；远端每个函数使用单独包装器数据库，避免夹具互相污染。原包26项保持通过，新增2项，Redis1明确ignored后用独立Redis8.10.3实际通过。
+
+证据：tmp/openrust-telescope-followup-20261121/tests.log、watchers-postgres.log、watchers-mysql.log、redis-final.log；core-tests.log覆盖HTTP观察4／核心扩展契约3与原生分页，http-response-regression.log另有23个真实HTTP输入／响应／缓存验证／文件／流／下载回归。分页日志中的MySQL条件函数未提供连接时提前返回，不计为MySQL验收；Scout同组真实三库另有专用结果。
+
+同目录http-browser-final.log覆盖真实服务器桌面／手机授权、防伪、XSS、详情、监控、暂停恢复、自定义路径／域名及disabled；docs-build.log、docs-telescope.log专项12、docs-check_browser.log通用12、docs-check_scope.log导航6均通过。三语正文与生命周期说明同步了Watcher和已缓冲响应的使用及支持限制。全workspace/all-features/all-targets严格Clippy、fmt、API与全部扩展组合见[最终组合记录](../extension-final.md)。
+
+本节关闭公开Watcher、框架事件开关及已知缓冲响应／路由字段的实现缺口。原生UI布局与PHP反射、调用源码过滤、multipart元数据及CLI装饰仍按上节明确支持边界描述，不冒充完整Laravel逐API或像素级等价。没有联系其他对话，没有替代性通用事件／观测内核。

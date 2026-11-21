@@ -1,0 +1,10 @@
+use openrust_pennant::{FeatureDefinition, FeatureFuture, Scope};
+use serde_json::Value;
+
+pub struct {{class}};
+
+impl FeatureDefinition for {{class}} {
+    fn resolve<'a>(&'a self, _scope: &'a Scope) -> FeatureFuture<'a, Value> {
+        Box::pin(async { Ok(Value::Bool(false)) })
+    }
+}

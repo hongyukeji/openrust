@@ -21,7 +21,7 @@ pub(crate) fn parse_uri(raw: &str) -> Result<Value, HttpError> {
     parse_pairs(raw, QueryMode::Uri)
 }
 
-pub(super) fn parse_form(raw: &str) -> Result<Value, HttpError> {
+pub(crate) fn parse_form(raw: &str) -> Result<Value, HttpError> {
     parse_pairs(raw, QueryMode::Form)
 }
 
