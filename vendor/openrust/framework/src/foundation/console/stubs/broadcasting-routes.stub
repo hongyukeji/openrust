@@ -1,4 +1,6 @@
-//! Application broadcast channel authorization rules.
+/*!
+ * 应用广播频道的授权规则。
+ */
 
 use openrust::broadcasting::BroadcastResult;
 

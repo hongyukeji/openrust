@@ -677,7 +677,7 @@ fn artisan_runs_real_cargo_tests_with_forwarded_arguments_and_exit_status() {
     fs::create_dir(root.0.join("src")).unwrap();
     fs::write(
         root.0.join("Cargo.toml"),
-        "[package]\nname = \"artisan-test-probe\"\nversion = \"0.0.0\"\nedition = \"2024\"\n",
+        "[package]\nname = \"artisan-test-probe\"\nversion = \"0.0.0\"\nedition = \"2024\"\n\n[workspace]\n",
     )
     .unwrap();
     fs::write(root.0.join(".env"), "APP_NAME=ordinary\n").unwrap();
@@ -979,6 +979,11 @@ fn artisan_generates_and_registers_providers_with_concurrent_retries() {
     );
     let original = fs::read_to_string(&source).unwrap();
     assert!(original.contains("fn register") && original.contains("fn boot"));
+    assert_eq!(
+        original,
+        include_str!("../vendor/openrust/framework/src/foundation/console/stubs/provider.rs.stub")
+            .replace("{{class}}", "ReportServiceProvider")
+    );
     let registry_text = fs::read_to_string(&registry).unwrap();
     let entry =
         "Box::new(crate::app::providers::reports::report_service_provider::ReportServiceProvider),";

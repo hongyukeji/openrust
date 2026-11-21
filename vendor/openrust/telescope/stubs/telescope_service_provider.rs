@@ -10,8 +10,17 @@ use openrust::{
 };
 use openrust_telescope::Telescope;
 
+/**
+ * Telescope 应用服务的启动入口。
+ *
+ * 所有非延迟 Provider 完成 register() 后，按顺序执行 boot()。
+ */
 pub(crate) struct TelescopeServiceProvider;
+
 impl ServiceProvider for TelescopeServiceProvider {
+    /**
+     * 配置敏感字段隐藏、记录筛选与面板访问授权。
+     */
     fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
             let telescope = app.make::<Telescope>().await?;
@@ -38,9 +47,11 @@ impl ServiceProvider for TelescopeServiceProvider {
         })
     }
 }
+/**
+ * 默认仅允许本地环境访问，其他环境需在此配置应用的 viewTelescope 授权规则。
+ */
 fn authorize(_: &mut Request) -> HttpFuture<'_, Result<bool, HttpError>> {
     Box::pin(async {
-        // Add your application's viewTelescope authorization for non-local users here.
         Ok(
             openrust::support::facades::Config::get("app.env").map_err(|source| {
                 HttpError::Internal {

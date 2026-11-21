@@ -14,8 +14,17 @@ use openrust::{
 use openrust_fortify::{Fortify, LoginRateLimiter};
 use std::sync::Arc;
 
+/**
+ * Fortify 应用服务的启动入口。
+ *
+ * 所有非延迟 Provider 完成 register() 后，按顺序执行 boot()。
+ */
 pub(crate) struct FortifyServiceProvider;
+
 impl ServiceProvider for FortifyServiceProvider {
+    /**
+     * 配置用户操作、认证模型能力与登录限流规则。
+     */
     fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
             let fortify = app.make::<Fortify>().await?;
@@ -73,6 +82,9 @@ impl ServiceProvider for FortifyServiceProvider {
         })
     }
 }
+/**
+ * 将限流键中的标量值转换为字符串，保持与 PHP 标量转换一致。
+ */
 fn scalar(value: &serde_json::Value) -> String {
     match value {
         serde_json::Value::Null | serde_json::Value::Bool(false) => String::new(),

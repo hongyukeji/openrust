@@ -1,4 +1,6 @@
-//! Application gRPC service registrations.
+/*!
+ * 应用 gRPC 服务的注册入口。
+ */
 
 use openrust::{foundation::Application, grpc::RoutesBuilder, support::ProviderResult};
 
