@@ -34,6 +34,7 @@
 
 - 默认 `app/providers/` 只登记应用自身必要的服务，不提前注册可选扩展、示例业务类型或包迁移；`#[cfg(feature = "…")]` 只控制编译，不能作为把示例写入默认骨架的理由。`bootstrap/providers.rs` 只列应用 Provider。
 - 扩展通过已有 `[package.metadata.openrust.discovery]` 与 `openrust_providers()` 参与包发现，自身 Provider 负责服务绑定、配置合并及适用的迁移登记。需要发布或安装的应用配置／路由／模型由显式安装器按已确认契约生成；不为新扩展继续增加根 AppServiceProvider 分支。
+- 应用包清单入口固定为 `bootstrap/packages.rs` 的 `pub(super) const fn manifest() -> PackageManifest`，`bootstrap/app.rs` 通过 `.withPackages(super::packages::manifest())` 装配。生成文件仅在 packages 模块的私有 compiled 子模块中引入，Rust 别名通过 `crate::bootstrap::packages::package_aliases` 按需访问，不在应用入口暴露生成常量，不手工维护扩展清单；`bootstrap/providers.rs` 继续只登记应用 Provider。保留现有 Cargo 编译期发现和框架 `withPackages(PackageManifest)` 契约，不为入口写法新增注册库、回调层或运行时扫描。
 - 包默认配置和可发布模板放在所属包目录，由包 Provider 合并；默认根 `config/` 不预装可选包配置，不为可选包增加 feature 分支。根应用保留核心驱动连接配置，不因此装配可选服务端。显式安装通过现有发布与源码锁机制接入编译型配置，重复安装保留应用定制；OIDC 身份提供方等业务示例只在显式选用后生成。配置缓存命中时跳过包默认配置的环境读取与合并，以缓存快照为准。
 - 业务示例、集成测试专用类型和装配放在文档或所属包的 tests／fixtures 中。用户应用实际采用某个业务组时，才在该应用的 Provider 中显式注册；框架仓库默认应用不承载所有扩展的演示接线。
 - 验收同时检查启用／关闭扩展、包发现、注册与启动不访问未迁移数据库、迁移登记及自定义配置边界。运行 `cargo +1.94.0 test --test application_skeleton`，检查根应用 Provider／业务目录的扩展引用及根配置的可选包预装；配置验收同时覆盖包独立使用、应用覆盖、缓存快照及显式安装保留定制，阻止 Provider 再出现扩展引用或 feature 分支；该测试约束仓库默认骨架，不限制用户应用的正常定制。

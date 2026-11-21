@@ -19,6 +19,8 @@ aliases = { ExampleFacade = "facades::Example" }
 
 OpenRust applications run `openrust_package_discovery::generate()` from `build.rs` and install the generated catalog through `withPackages`. The application compiles the factories and aliases. An executable can start from the linked catalog in a deployment without Cargo.
 
+`bootstrap/packages.rs` exposes the compiled catalog through `manifest()`. The application entry point calls `.withPackages(super::packages::manifest())`; register application providers separately in `bootstrap/providers.rs`. Do not edit generated files or manually list discovered packages. Compiled Rust aliases are available through `crate::bootstrap::packages::package_aliases`; their availability follows the selected features and discovery exclusions.
+
 Add `dont-discover = ["example-package"]` under the application’s `[package.metadata.openrust.discovery]` with `version = 1`. Use `["*"]` to opt out of all discovery. A package can also declare package names to exclude. A manually registered provider still runs when its package is excluded.
 
 HTTP and Artisan startup use the linked catalog directly. To inspect the packages linked into a build, run `./artisan package:discover` to list their names and export the catalog to `bootstrap/cache/packages.json`. Set `APP_PACKAGES_CACHE` to choose a different export path. Run `./artisan clear-compiled` to remove the exported file. Rebuild the executable after changing dependencies, features, or exclusions.

@@ -19,6 +19,8 @@ aliases = { ExampleFacade = "facades::Example" }
 
 OpenRust 應用程式在 `build.rs` 呼叫 `openrust_package_discovery::generate()`，透過 `withPackages` 裝配產生的清單。Provider 工廠和別名都會編譯。部署後的執行檔可直接使用已連結的清單啟動。
 
+`bootstrap/packages.rs` 透過 `manifest()` 提供編譯後的套件清單，應用入口呼叫 `.withPackages(super::packages::manifest())`。應用程式自身的 Provider 仍在 `bootstrap/providers.rs` 登記；無需編輯產生的檔案或手動列出自動發現的套件。 編譯後的 Rust 別名透過 `crate::bootstrap::packages::package_aliases` 存取，可用項目隨啟用的 feature 與套件發現排除規則變化。
+
 在應用程式的 `[package.metadata.openrust.discovery]` 下設定 `version = 1` 和 `dont-discover = ["example-package"]`。`["*"]` 停用所有自動探索。套件也可宣告要排除的套件名稱。排除清單中的套件仍可明確註冊 Provider。
 
 HTTP 和 Artisan 啟動時直接使用已連結的清單。要檢查目前建置包含哪些套件，執行 `./artisan package:discover` 列出套件名稱，並將清單匯出至 `bootstrap/cache/packages.json`。用 `APP_PACKAGES_CACHE` 指定其他匯出路徑。執行 `./artisan clear-compiled` 可清除匯出檔案。相依套件、特性或排除規則變更後需重新編譯應用程式。

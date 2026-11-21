@@ -45,3 +45,18 @@
 - 隔离副本的包清单定向 Rust 测试、`cargo fmt --all --check` 和工作区全目标严格 Clippy 通过。独立夹具复用根工作区的本地 SQLx 补丁。
 
 包清单导出与清理共用 `Application::getCachedPackagesPath()`。路径在应用解析环境后可用。 [独立部署验收](../08-04/README.md#独立部署的缓存路径与包清单清理)
+
+## 包清单启动入口定稿（2026-11-21）
+
+用户要求按最终方案稳定应用启动骨架。固定 Laravel Framework `1449bf241017087fbd38c118ecaabef3f6797fdc` 的 [PackageManifest](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/PackageManifest.php) 分别提供 providers／aliases，支持 dont-discover；应用 Provider 与包清单职责独立。结合 [Cargo 官方代码生成方式](https://doc.rust-lang.org/cargo/reference/build-script-examples.html)，沿用当前 build.rs→OUT_DIR→include! 编译期发现，不为入口排版引入 inventory／linkme 或运行时扫描。`manifest()` 是 Rust 应用适配入口，不声称 Laravel 存在同名 Builder 方法。已重新读取官方原文，保存在本批项目内临时目录。旧版 `6d1a81924:bootstrap/app.rs` 已有 packages 子模块封装生成文件，复用该职责边界；其旧 Provider 清单协议不适用于当前 PackageManifest，不回搬旧 API。
+
+入口固定为 bootstrap/packages.rs 的 pub(super) const fn manifest() -> PackageManifest；bootstrap/app.rs 调用 .withPackages(super::packages::manifest())。私有 compiled 子模块包住生成文件，包发现算法和 withPackages(PackageManifest) 均不改变；bootstrap/providers.rs 仍只列应用 Provider。PackageManifest 已为 Copy，入口只返回静态清单，不访问环境、文件或网络。保留生成的 Rust package_aliases，通过 crate::bootstrap::packages::package_aliases 访问，其内容仍随 Cargo features 与排除规则变化；业务代码优先使用扩展 crate 的公开类型。独立包夹具同步入口，新增实际类型检查，防止封装后遗漏别名导出。三语包开发文档和项目规范同步。
+
+最终验收在项目内隔离源码完成。共享缓存后续被另一工作流占用，本批退出等待并改用 tmp/bootstrap-packages-20261121/target 独占缓存，不复制 target 或修改其他工作流。验收期间工作区将生成文件／常量同步命名为 packages.rs／PACKAGES；保留该改动并同步隔离源码，以下最终结果均重跑于新命名：
+
+- Rust 1.94.0 的 cargo fmt --all --check、全workspace全部targets严格Clippy、独立包夹具全部targets严格Clippy通过；第三方原有deprecated／cfg警告保留，不计为本批新增问题。
+- 包夹具类型／清单别名一致性和双应用隔离共2项通过；根application_skeleton两项通过。启用、no-default-features关闭、按包名dont-discover排除三种独立二进制通过真实HTTP／Artisan验收：视图／翻译覆盖、Blade组件、包命令、SQLite专属库迁移回滚、默认及自定义清单路径、损坏文件重建、幂等清除、旧缓存不能恢复已排除包。运行时PATH为空，不依赖Cargo。
+- 根应用standalone实际构建通过，复制至独立部署目录后在空PATH执行package:discover及list成功，导出清单为空；实际HTTP /up=200，SIGTERM退出0。没有访问开发数据库或执行开发库迁移；本次没有重跑MySQL／PostgreSQL矩阵，包发现及数据库实现未变。
+- 三语站点构建、根路径与/docs/下三语桌面／手机12项通用浏览器检查和12项包开发正文检查通过，正文包含manifest入口和可访问的别名路径，无横向溢出。构建仅既有分块体积提示；git diff --check通过。
+
+验收结束后按最新项目约定，核对无人占用并将本批目录同盘迁入 target/tmp/bootstrap-packages-20261121/，不复制缓存；上文 tmp 路径为验收当时位置。证据与隔离源码现位于该新目录，不提交临时源码及日志。最终源文件已与工作区逐项比对；正常磁盘空间下保留本批缓存复用，全部数据卷保留。核心入口和生成命名已由并行提交4650f403b保存；本轮补充的三语文档、夹具说明及规范／验收记录按用户授权本地提交，未推送。

@@ -1,5 +1,7 @@
 # 当前交接
 
+- 2026-11-21 包清单启动入口定稿：bootstrap/packages.rs 的 manifest() 封装编译清单，bootstrap/app.rs 使用函数调用，应用 Provider 独立登记，保留 crate::bootstrap::packages::package_aliases。已按最终 packages.rs／PACKAGES 命名重跑启用／关闭／排除包的真实HTTP及Artisan、别名／隔离2项、根骨架2项、根standalone空PATH部署与/up、全workspace全部targets严格Clippy／fmt及三语构建／12＋12浏览器；详见[包开发记录](audits/07-07/README.md#包清单启动入口定稿2026-11-21)。核心代码已在4650f403b；本批验收结束后核对无人占用，已同盘迁入target/tmp/bootstrap-packages-20261121，覆盖下方尚待迁移记录。本轮文档、说明及规范／验收补充按用户授权本地提交，其他WIP保留，未推送。
+
 - 2026-11-21 用户确认开发与部署统一仅根.env；Docker专用参考模板放docker/.env.example，按需合并至根.env，覆盖此前docker/.env可选覆盖规则。Compose只加载../.env，容器连接使用DOCKER_DB_HOST／DOCKER_DB_PORT／DOCKER_REDIS_HOST可选覆盖及普通字段回退；旧docker/.env有效配置已迁入根文件，原文件已移除，宿主回环地址、密钥及数据保留。当前配置与三语文档同步，验收结果见Docker审计末尾。
 
 - 2026-11-21 Docker成熟方案复核：以Laravel Sail、Laradock、serversideup/docker-php及Docker官方Rust示例／文档为主，OpenSpring仅作辅助。保留原生Compose和现有运行模型；补齐APP_BUILD_JOBS传参、Nginx 8 MiB请求上限（最终保留默认60秒代理空闲超时）及三语更新回滚说明。隔离真实代理已验证1.5 MiB转发、超限413、101升级、首个SSE即时送达及初轮300秒配置下65秒后第二事件，三语构建和12＋12浏览器检查通过；详情见[调研记录](audits/08-04/docker.md#成熟方案调研与代理边界完善2026-11-21)。当前未提交。
