@@ -100,3 +100,5 @@ cargo +1.94.0 test --test redis --locked --offline redis_cluster_flushes_only_a_
 cargo +1.94.0 test --test redis --locked --offline redis_cluster_tags_flush_and_prune -- --exact
 cargo +1.94.0 test -p openrust-framework --test throttling --locked --offline redis_cluster_admits_all_named_quotas_atomically -- --exact
 cargo +1.94.0 test --test redis --locked --offline redis_cluster_migrates_and_recovers_without_replaying_a_write -- --exact
+
+cargo +1.94.0 test -p openrust-framework --test queue_worker --locked --offline artisan_worker_rate_limits_use_real_redis_cluster -- --exact

@@ -1,16 +1,54 @@
 // Browser acceptance invoked by the Reverb transport test with pinned client packages.
 import assert from "node:assert/strict";
-import { createHash, createHmac } from "node:crypto";
+import { createHash, createHmac, X509Certificate } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { connect } from "node:net";
+import { createServer } from "node:tls";
 import { createRequire } from "node:module";
 import { join } from "node:path";
 
-const [http, ws, prefix, driver = "reverb"] = process.argv.slice(2);
+let [http, ws, prefix, driver = "reverb"] = process.argv.slice(2);
 const modules = process.env.OPENRUST_REVERB_ECHO_MODULES;
 const require = createRequire(import.meta.url);
 const { chromium } = require(process.env.DOCS_PLAYWRIGHT_MODULE || "playwright");
 
-const browser = await chromium.launch({ executablePath: process.env.DOCS_BROWSER_PATH });
+const proxies = [];
+const sockets = new Set();
+const certPath = process.env.OPENRUST_REVERB_TLS_CERT;
+const keyPath = process.env.OPENRUST_REVERB_TLS_KEY;
+assert.equal(Boolean(certPath), Boolean(keyPath), "TLS certificate and key must be supplied together");
+const launchArgs = [];
+let browser;
 try {
+    if (certPath) {
+        const cert = readFileSync(certPath);
+        const key = readFileSync(keyPath);
+        const spki = new X509Certificate(cert).publicKey.export({ type: "spki", format: "der" });
+        // Pin only this fixture certificate; Node HTTPS continues to verify NODE_EXTRA_CA_CERTS.
+        launchArgs.push(`--ignore-certificate-errors-spki-list=${createHash("sha256").update(spki).digest("base64")}`);
+        const proxy = async endpoint => {
+            const upstream = new URL(endpoint);
+            const server = createServer({ cert, key, minVersion: "TLSv1.2" }, secure => {
+                const plain = connect(Number(upstream.port), upstream.hostname);
+                for (const socket of [secure, plain]) {
+                    sockets.add(socket);
+                    socket.on("close", () => sockets.delete(socket));
+                }
+                secure.on("error", () => plain.destroy());
+                plain.on("error", () => secure.destroy());
+                secure.pipe(plain).pipe(secure);
+            });
+            proxies.push(server);
+            await new Promise((resolve, reject) => {
+                server.once("error", reject);
+                server.listen(0, "127.0.0.1", resolve);
+            });
+            return `https://localhost:${server.address().port}`;
+        };
+        http = await proxy(http);
+        ws = await proxy(ws);
+    }
+    browser = await chromium.launch({ executablePath: process.env.DOCS_BROWSER_PATH, args: launchArgs });
     const page = await browser.newPage();
     page.setDefaultTimeout(12_000);
     const authStatuses = [];
@@ -30,8 +68,9 @@ try {
             key: "test-key",
             wsHost: endpoint.hostname,
             wsPort: Number(endpoint.port),
+            wssPort: Number(endpoint.port),
             wsPath: prefix,
-            forceTLS: false,
+            forceTLS: endpoint.protocol === "https:",
             enabledTransports: ["ws"],
             disableStats: true,
             channelAuthorization: {
@@ -108,8 +147,14 @@ try {
         [0, 1], [1, 1], [2, 1], [0, 2], [1, 2], [2, 2],
     ]);
     assert.deepEqual(authStatuses, [200, 200, 200, 200]);
+    if (certPath) {
+        const protocol = await page.evaluate(() => echo.connector.pusher.connection.connection.transport.socket.url);
+        assert.ok(protocol.startsWith("wss://"), protocol);
+    }
     await page.evaluate(() => echo.disconnect());
-    console.log(`Chromium Echo (${driver}) public, private and presence subscriptions, signed delivery and automatic reconnect passed`);
+    console.log(`Chromium Echo (${driver}, ${certPath ? "HTTPS/WSS certificate pinned" : "HTTP/WS"}) public, private and presence subscriptions, signed delivery and automatic reconnect passed`);
 } finally {
-    await browser.close();
+    await browser?.close();
+    for (const socket of sockets) socket.destroy();
+    await Promise.all(proxies.map(server => new Promise(resolve => server.close(resolve))));
 }

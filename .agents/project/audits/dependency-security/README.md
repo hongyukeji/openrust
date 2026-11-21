@@ -107,3 +107,8 @@ Rust 1.94.0、jobs=2、dev debug=0、关闭增量，最终验收结果：
 唯一 Git 依赖 oxideav-jpegxl 0.0.14 固定 `1c2f5a86a052752b0e8181f842a9d4e3460ec0e5`，无浮动引用；第三方补丁保留其原版本、来源与许可证，IANA 数据另保留官方来源、SHA、许可及可重复生成命令。`cargo tree --locked --offline --workspace --all-features --target all -i chrono` 无启用路径。锁文件保留 serde_with 的未启用 optional chrono 条目，不能把公告检查成功写成 lock 中完全无 chrono。同期新增支付扩展不属于此盘点。
 
 证据：`/private/tmp/openrust-final-integration-20261121/{metadata-final.json,licenses-final.json,licenses-final.log,advisories-final.jsonl,chrono-tree-final.log}`。后续依赖变化与实际发行目标仍需各自审计，当前未作发布批准。
+
+
+## 2026-11-21 模拟验收组合依赖复核
+
+244842943隔离快照叠加SMTP已有rustls-native-certs feature及9ee4881ca测试，以Rust1.94运行锁定全workspace/all-features的cargo deny公告检查及许可证来源list，均退出0。公告摘要0 errors/0 warnings，启用来源/许可证清单642包；工具未找到配置而使用默认策略，无新增ignore。本轮不升级依赖版本，仅lettre锁项新增已有依赖边。证据`/private/tmp/openrust-production-simulation-20261121/{advisories-final.jsonl,licenses-final.json,licenses-final.log}`；不包含并行Activitylog/Horizon，也不代替最终分发许可/敏感信息/版本/发布批准。

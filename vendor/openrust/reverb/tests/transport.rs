@@ -522,6 +522,7 @@ async fn verify_framework_broadcast(driver: &'static str) {
 
     let mut configuration = application("test", "test-key");
     configuration.allowed_origins.push("127.0.0.1".into());
+    configuration.allowed_origins.push("localhost".into());
     let reverb = Running::start(vec![configuration]).await;
     let root = std::env::temp_dir();
     let reverb_port = reverb.address.port();

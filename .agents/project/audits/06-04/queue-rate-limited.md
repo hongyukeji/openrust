@@ -7,7 +7,7 @@
 ## 实现与 Rust 适配
 
 - `RateLimiter::forJob` 注册接收 `Payload` 的限流策略。HTTP 请求的类型化策略继续通过既有 `r#for` 注册。两个注册表都由应用容器拥有，可用相同策略名称。
-- `RateLimited` 使用现有缓存计数器和锁一次检查并扣减限额。Redis 版本复用 `DurationLimiter` 的原子命令，并以策略为单位给多键配置相同的 Redis Cluster 哈希标签。队列计数键与 HTTP 及手动计数分开。Cluster 实机未纳入本批验收。
+- `RateLimited` 使用现有缓存计数器和锁一次检查并扣减限额。Redis 版本复用 `DurationLimiter` 的原子命令，并以策略为单位给多键配置相同的 Redis Cluster 哈希标签。队列计数键与 HTTP 及手动计数分开。Cluster 实机未纳入当时验收；2026-11-21已通过[真实Cluster与双Artisan补验](../08-04/README.md#2026-11-21-真实验收缺口盘点与模拟环境复验)，不能把此历史限制继续当成当前缺口。
 - 找不到策略、无限制或空限额时继续执行。达到限额时默认按剩余窗口加三秒释放，支持相对或绝对的 `releaseAfter` 和 `dontRelease`。后者确认任务且跳过处理器。任务载荷仍按现有编译型注册方式处理，PHP 对象序列化钩子不适用。
 
 ## 验收

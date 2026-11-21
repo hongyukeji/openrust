@@ -220,3 +220,54 @@ Windows Docker Desktop、生产 TLS 和托管 AWS SQS 标准／FIFO 的实机验
 最终认证补验：在同一 `b168b31aa063a289a5a025ed5080a99f19bb6c7e` Git 归档，以 Rust1.94／jobs2／incremental0／debug0 顺序执行 `python3 -B tests/postgres_acceptance.py -- python3 -B tests/init_auth_acceptance.py` 和 `python3 -B tests/mysql_acceptance.py -- python3 -B tests/init_auth_acceptance.py`，两者均退出0，实际服务分别 PostgreSQL18.6、MySQL8.4.13。每库验证默认all集中重建／初始HTTP、重复／force／密钥及迁移保留、单项安装、冲突及不完整配置失败、Sanctum／Passport正负Bearer与Guard隔离，以及Fortify安装／重试／定制／迁移、真实HTTP／CSRF／Session／SMTP／资料／密码／2FA／恢复码／重置／限流／关停；生成应用严格Clippy及feature-off构建通过，两次根feature-off构建也退出0。源码无补改。证据 `/private/tmp/openrust-init-auth-combined-20261121/` 的 `source-revision.txt`、`{postgres,mysql}-result.json`、`feature-off-{postgres,mysql}.log`、`init-auth-{postgres,mysql}.log` 和两库辅助HTTP／步骤日志；生成应用与源码保留。该SMTP为受控夹具，不等同真实收件人投递；本批未执行SQLite完整init-auth，也未将先前三库时间／设置专项代作该项。
 
 最终收尾：认证专用闲置 target 已删除，可用空间36,635,472→46,403,828 KiB，实际净增9,768,356 KiB（约10.00 GB）；明细 `openrust-init-auth-combined-20261121/cleanup-final.json`。与主证据 `volumes-before.txt` 及认证清理记录核对，Docker卷前后均为空列表、删除0；当前开发mysql／postgres／redis容器仍在，专属验收容器均已回收。主对话提交前 `df -kP .` 为46,508,636 KiB可用（47.625 GB／44.354 GiB）。清理读数只记实测净增，不外推为所有并行任务产物总量。
+
+
+## 2026-11-21 真实验收缺口盘点与模拟环境复验
+
+用户要求找全需要真实目标的项目并先完成模拟验收。本次以核心关闭账本 V06–V18 为入口，复查认证、邮件/通知、缓存/队列、存储、广播、数据库/嵌入服务、平台、文档和发布记录；旧记录中的“未验”按后续证据判断，不重复打开已通过的 SeaweedFS ACL/ObjectOwnership 等范围。新增发现的托管 DynamoDB IAM/角色与商业嵌入端点纳入 V15；支付扩展的商户、客户端与资金边界显式列入本表。
+
+隔离源码 `/private/tmp/openrust-production-simulation-20261121/source` 来自 `244842943baeb03214467bef70a5c9aa1b59aec4`，叠加本次 SMTP/队列/广播测试修正；最终静态检查加入扩展 `9ee4881ca` 的测试变更。扩展实际应用验收使用自己的同基线快照，见[扩展记录](../extensions-simulation/README.md)。Rust 1.94.0、jobs=2、增量关闭、dev/test debug=0；未把并行 Activitylog/Horizon WIP 混入本批结果。所有临时服务使用独立回环端口、容器与测试数据库，不操作开发 mysql/postgres/redis。
+
+### 当前模拟覆盖与实机边界
+
+| 项目 | 本次实际执行／保留证据 | 仍需真实目标的内容 |
+| --- | --- | --- |
+| V06–08 安装与认证平台 | 本机/Windows历史安装证据保留；最近 PG18.6、MySQL8.4.13完整 init-auth、feature-off、HTTP、Artisan 及生成应用严格检查见上节。本次扩展生成应用在两库继续跑完整 Fortify/Passkeys | Windows 单项 Passport 安装入口、最终同一发行快照的全平台整合；历史 Windows 默认 all 不能替代单项路径 |
+| V09 社交身份/OIDC/Passkeys | Socialite 全驱动本地 TCP、MySQL 本地绑定；受控 OP、真实 HTTP PKCE、共享 Session 双副本认领及 Chrome 双 RP SSO/退出；ES256/RS256 虚拟认证器和两库生成应用 | 各家真实应用/账号/审核/权限/设备 code、企业 IdP/租户、物理认证器与平台凭据同步；未交付完整 OP 或 front/back-channel logout，不作为现有功能验收要求 |
+| V10 Windows Desktop | 本轮启动既有 Windows11 VM；来宾 exec 随后无法建立 Parallels Tools 会话，未可靠取得当前 Desktop 后端状态。保留历史 ARM64 原生/x64仿真与 Docker 路径证据 | 实际 Windows Docker Desktop Linux 后端、挂载权限、容器生命周期与全应用；本轮不能声称虚拟化/后端实测通过或确认缺失 |
+| V11 TLS/部署 | 本地 CA 反代实际 production 模式根应用，TLS1.2/1.3，首页和/up 200，错误 CA/hostname 拒绝；实际 migrate --force/status、inspire、SIGTERM=0 | 最终授权域名/公开可信证书/真实反代拓扑、转发及签名配置、线上实例版本和只读命令核验 |
+| V12 SQS | ElasticMQ1.6.15，Standard/FIFO；独立 Artisan+MySQL，overflow off/always/retain 三轮全部通过，含可见性/延迟/重投/顺序/去重/TTL/失败账本/跨后端链和恢复 | AWS托管服务 IAM/STS会话、实际角色/KMS、服务端限制和指标。保留既有独立 SigV4/token 验证，不把模拟器当 IAM 授权验证 |
+| V13 广播 | Reverb/Pusher 五项 transport；Chromium+Laravel Echo2.2.6/pusher-js8.6.0 的公共/私有/presence、Guard身份、签名投递、断线重连和新socket重新认证；另以HTTPS反代+WSS重复五项通过 | 托管Pusher app/cluster和部署。浏览器仅固定本批证书SPKI，Node HTTPS按私有CA验证；Reverb签名发布穿过HTTPS。Pusher分支Rust Artisan发布到Reverb的后端一段仍是HTTP，不能声称Rust Pusher出站TLS已验证 |
+| V14 邮件/通知 | Mailpit1.27.10真实收件箱、STARTTLS/SMTPS、TLS1.2/1.3握手、535/550、错误CA/hostname和禁止凭据明文降级共12场景；SMTP安全4函数、供应商3函数、7个SMTP/MySQL/Redis/Slack/附件/通知HTTP→Artisan场景 | SMTP最终邮箱和供应商证书/权限；SES、SESv2、Postmark、Resend、Mailgun、Cloudflare逐家发件域名/账号/最终收信及回执；Slack Bot/Webhook真实工作区/权限/收信 |
+| V14 短信 | Aliyun/Tencent/Twilio/Vonage/HTTP协议2函数；现有sms_worker在SQLite3.54.1、PG18.6、MySQL8.4.13三库分别覆盖database+Redis队列、签名/命名配置、密钥保护、未知结果不重发、429及SIGKILL前后无重复供应商调用 | 各家真实号码/模板/发送资格、地区网络、最终投递状态和适用退订/合规流程 |
+| V15 S3 | RustFS1.0.5三个精确专项：9MiB multipart、Unicode/空对象、并发替换、源错误/取消清理、代理重试、presign上传/下载/临时origin/version | AWS公网、真实凭据链/角色/STS及其他承诺厂商/大对象上限；独立SeaweedFS ACL/ObjectOwnership历史已过，不再列缺口 |
+| V15 缓存/队列/DynamoDB | 三库HTTP database queue与Redis reservation/blocking；Redis Cluster TLS错误CA拒绝/hostless redirect；现有完整Cluster脚本6个精确函数，包括新增SQLite账本/HTTP→两个真实Artisan并发消费的队列多键限流；DynamoDB Local3.3.2三函数实际表/TTL/锁/条件并发/自定义属性/Artisan、批量未处理项重试及耗尽 | 托管DynamoDB IAM/角色/TTL后台回收、AWS网络/限额；本地TTL读取过滤不证明托管异步删除时机 |
+| V15 数据库/嵌入服务 | 现有SQL Server2017/2022协议/容器历史范围保留；嵌入服务两个函数重新跑实际HTTP，Bearer/model/dimensions/encoding、503恢复、缓存隔离与非法维度/驱动拒绝 | SQLServer最终原生Linux x86_64服务；商业embedding真实端点/账号/模型。当前Linux SSH用户无Docker socket权限，不等于主机没Docker；MySQL8.0客户端→8.4 dump旧失败组合仍保留，匹配8.4已过 |
+| 支付/订阅扩展 | 微信/支付宝/Stripe/Paddle实际入站TCP→业务500回滚→重试提交→重复原生ACK；三库并发/取消/乱序和官方固定SDK签名独立重生；Cashier迟到事件查当前供应商状态 | 真实商户/产品/资金、公开回调、App/JSAPI/小程序调起、Checkout/门户、Stripe.js/Paddle.js/SCA及实际支付网络 |
+| V16 文档/API | 本次三语SMTP说明、内容检查、构建、普通12+导航6+邮件页12浏览器检查；现有0582cc8bd十三库/2039指纹API快照保留 | 正式发布URL与最终代码指纹一致的API重建；历史导出不包括本次Cargo feature/lock变更或并行新包 |
+| V17–18 最终发行 | 本次范围的全workspace/all-target/all-features严格Clippy/fmt、依赖公告和许可证来源盘点；既有worker/调度/打包/原生平台证据按各自revision保留 | 锁定最终干净提交的OS/数据库/生成应用/安装/Worker/调度/打包矩阵，以及最终版本/CHANGELOG/分发许可证/敏感信息审计和用户明确发布批准。人工批准不能模拟 |
+
+### 验收发现与修正
+
+- SMTP使用lettre0.11.24原有WebPKI根，无法信任进程显式提供的私有CA；加启现有`rustls-native-certs` feature，保留内置公共根及链/hostname验证。依赖版本未升级，仅锁项增加lettre的既有依赖边；三语正文说明系统信任与SSL_CERT_FILE/SSL_CERT_DIR。先失败后修正通过，未关闭证书检查。`tests/smtp_acceptance.py`把12场景固定为可重复入口，验证实际收件箱/MIME与失败零投递。
+- SQS旧链恢复夹具在三表账本重构后仍预期worker退出1，并额外执行一次耗尽tries。按既有Worker/Laravel CallQueuedHandler语义改为失败后`released_after_exception`/`released`、源队列保留、恢复后发送尾任务；不为旧测试改生产Worker。FIFO每轮使用新队列，避开服务真实五分钟去重窗口。
+- Redis Cluster队列限流此前只有单实例验收，新增正式Cluster入口专项；多键与两个并发Artisan只允许一个处理器执行，剩余释放/重试与缺失/无限制策略复用现有断言。
+- 最终只读复核后将两个TLS代理的初始化移入既有try/finally，确保第二个初始化失败时第一个也被清理；该收尾调整通过Node语法检查，HTTP/WS和HTTPS/WSS功能结果对应调整前的通过记录，未重新构建。隔离source与输入摘要同步。
+- 扩展测试修正自定义Passkeys主键声明匹配，详见独立提交`9ee4881ca`；没有修改扩展产品逻辑。
+- 首轮DynamoDB故障代理错误转发空批次及返回空未处理列表，按服务协议修正代理后重跑三项通过；未改变生产重试规则。WSS首轮误将Pusher策略名配置成wss（策略名应为ws，由forceTLS选择wss），修正并加入localhost允许origin后通过。尝试将Rust Pusher发布也指向本地私有CA时返回500；依赖源码显示macOS reqwest0.13默认使用平台验证器，本次SSL_CERT_FILE未使该客户端完成请求；未输出原始TLS错误，根因没有独立确认。没有导入系统信任或关闭校验，最终保留前表所述后端HTTP边界，失败证据继续保留。
+
+### 复现与证据
+
+主目录 `/private/tmp/openrust-production-simulation-20261121/`：`revision.txt`、`run.py`/`run-isolated.log`、三个`sqs-*.log`、`s3-*.log`、`mail-*.log`、`sms-{sqlite,postgres,mysql}.log`与wrapper日志、`smtp-accepted-final/results.json`、`redis-tls.log`、`redis-cluster-final.log`、`dynamodb-success.log`/`dynamodb-verified/`、`embeddings-final.log`、`reverb-tls-accepted.log`／`reverb-plain-accepted.log`、`tls-results.json`、`docs-*.log`。各精确函数只在服务变量实际提供后计通过；provider ignored函数单独调用，不把跳过视为成功。扩展完整命令/双库和官方参考见[扩展记录](../extensions-simulation/README.md)。
+
+复验命令在隔离source，统一传`RUSTUP_TOOLCHAIN=1.94.0`、独占`CARGO_TARGET_DIR`、`CARGO_BUILD_JOBS=2`、`CARGO_INCREMENTAL=0`和两种debug=0。服务测试由保留的`run.py`和`dynamodb.py`建立本批隔离实例；新增入口为`python3 -B tests/smtp_acceptance.py <mail_notifications测试二进制> <不存在的证据目录>`和`sh tests/redis_cluster.sh`。TLS广播以`OPENRUST_REVERB_ECHO_MODULES`/`NODE_PATH`指向固定客户端目录，`DOCS_BROWSER_PATH`指定实际Chromium，`OPENRUST_REVERB_TLS_CERT`/`KEY`指向生成证书，`NODE_EXTRA_CA_CERTS`指向CA，再运行`cargo +1.94.0 test --locked --offline -p openrust-reverb --test transport -- --nocapture`；不设置TLS变量时保留HTTP/WS原路径。证书为短期夹具，过期时重新生成。
+
+本轮重新复查Windows后VM为suspended以保存状态；不能称恢复了最初stopped状态。首个ElasticMQ启动缺少/data映射，Docker新增匿名卷`aa42b7128c5272474510232a6b584a97a7d64bc20ed7ee7ac81ddfb27a8b61c2`已保留，随后使用/data tmpfs，最终服务清理前后卷一致；未删除任何卷。中途一次邮件重编译误从活跃工作树启动，立即中断并在隔离source重启；该中断结果不计验收成功。
+
+
+最终检查：`clippy-combined.log` 全workspace/all-targets/all-features、`fmt-accepted.log`均退出0，包含9ee4881ca新增回调测试；`advisories-final.jsonl`摘要0 errors/0 warnings、`licenses-final.json`启用642包来源/许可证清单成功（工具提示未找到配置，使用默认策略，未添加ignore）。普通指南`docs-build.log`、`docs-browser.log`12组合、`docs-scope-final.log`6导航组合、`docs-mail-browser-final.log`12个邮件页面均通过。`smtp-accepted-final.log`最终12场景通过；首轮Python3.14严格X509因夹具CA缺keyUsage拒绝，已显式生成CA basicConstraints/keyCertSign/cRLSign和叶证书serverAuth/用途后重跑，未放宽Python验证策略。`reverb-tls-accepted.log`与`reverb-plain-accepted.log`最终各5函数通过。依赖补丁的既有弃用/cfg编译警告仍存在，不能将严格workspace检查通过描述为第三方编译输出没有warning。
+
+上游依据：固定Laravel `CallQueuedHandler`的异常释放行为，以及[lettre v0.11.24 TLS实现](https://github.com/lettre/lettre/blob/v0.11.24/src/transport/smtp/client/tls.rs)、[Mailpit v1.27.10](https://github.com/axllent/mailpit/tree/v1.27.10)、[ElasticMQ v1.6.15](https://github.com/softwaremill/elasticmq/tree/1.6.15)和[AWS DynamoDB Local官方部署说明](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/DynamoDBLocal.DownloadingAndRunning.html)。联网搜索没有返回正文，直接HTTPS取得官方原文存本批目录；不依靠Star或搜索摘要。Mailpit/RustFS/DynamoDB固定镜像digest，ElasticMQ1.6.15也记录实际digest；模拟服务不引入生产依赖或新的框架抽象。
+
+
+资源收尾：全部本批服务/测试退出且专属target无占用后，删除check-target、普通指南dist与本批echo客户端node_modules；保留source/官方原文/日志/MIME/所有SQLite与数据卷。`cleanup-accepted.json`记录可用空间77,809,025,024→82,819,829,760字节，实测净增5,010,804,736字节（约5.01 GB）；并行活动会影响净值，不当作本批所有产物逻辑总量。开发mysql/postgres/redis仍运行，最终仅保留上述匿名卷，删除0卷。15份本批/扩展代码及三语文档与隔离source逐字节一致，临时`validated-inputs.json`留证；本批不包含并行构建入口/Activitylog/Horizon和默认导航的改动。后续新批按当时新落地的统一build_session规则执行，不追溯声称本批早先已使用该入口。

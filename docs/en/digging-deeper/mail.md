@@ -157,6 +157,8 @@ Queued mail stores the customizer name and JSON data. The worker application reg
 
 For SMTP, set `MAIL_MAILER=smtp` and configure `MAIL_HOST` and `MAIL_PORT`, or set `MAIL_URL`. The URL overrides the connection fields it supplies. `smtps` uses implicit TLS. `smtp` upgrades with STARTTLS when offered, and credentials require a successful TLS upgrade.
 
+SMTP verifies the certificate chain and server hostname using the system trust store by default. For a private CA, provide trusted certificates through the process environment variables `SSL_CERT_FILE` or `SSL_CERT_DIR`. Use the same trust configuration for the sending process and workers.
+
 SMTP preserves quoted local parts in envelope addresses. A display name containing CR or LF returns a composition error. Invalid or oversized server replies and extra plaintext after a STARTTLS reply fail delivery; protocol errors do not expose the server reply or credentials. Raw SMTP data escapes leading dots after CR, LF, and CRLF to prevent premature message termination.
 
 Select `sendmail` to run the program configured by `MAIL_SENDMAIL_PATH`. It supports SMTP over standard I/O with `-bs` and delivery through standard input with `-t`.

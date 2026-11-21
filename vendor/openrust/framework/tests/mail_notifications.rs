@@ -3007,6 +3007,8 @@ async fn mailable_preview_renders_body_over_http_without_resolving_delivery() {
 async fn smtp_delivery_fixture() {
     let url = std::env::var("OPENRUST_SMTP_FIXTURE_URL").expect("SMTP fixture URL");
     let rejection = std::env::var_os("OPENRUST_SMTP_FIXTURE_REJECT").is_some();
+    let expected_error = std::env::var("OPENRUST_SMTP_FIXTURE_ERROR")
+        .unwrap_or_else(|_| "SMTP connection or protocol failed".into());
     let root = fixture(None, None, None);
     let path = root.0.join("config.json");
     let mut config: Json = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
@@ -3027,10 +3029,7 @@ async fn smtp_delivery_fixture() {
                         .err()
                         .expect("SMTP delivery must be rejected")
                         .to_string();
-                    assert!(
-                        error.contains("SMTP connection or protocol failed"),
-                        "{error}"
-                    );
+                    assert!(error.contains(&expected_error), "{error}");
                     assert!(!error.contains("fixture-secret"));
                 } else {
                     result.unwrap();

@@ -157,6 +157,8 @@ fn envelope(&self) -> MailResult<Envelope> {
 
 使用 SMTP 時設定 `MAIL_MAILER=smtp`，再設定 `MAIL_HOST`、`MAIL_PORT` 或 `MAIL_URL`。URL 覆寫其提供的連線欄位。`smtps` 使用隱含 TLS。`smtp` 在伺服器支援時使用 STARTTLS，設定憑證時必須成功升級 TLS。
 
+SMTP 預設使用系統信任庫驗證憑證鏈和伺服器主機名稱。私有 CA 可透過行程環境變數 `SSL_CERT_FILE` 或 `SSL_CERT_DIR` 提供受信任憑證；寄信行程和 Worker 應使用相同的信任設定。
+
 SMTP 信封位址保留帶引號的本機部分。顯示名稱包含 CR 或 LF 時回傳郵件組裝錯誤。無效或過長的伺服器回覆，以及 STARTTLS 回覆後夾帶的明文會使投遞失敗；通訊協定錯誤不回顯伺服器回覆或憑證資訊。原始 SMTP 資料會跳脫 CR、LF 與 CRLF 後的行首點，防止提早結束郵件本文。
 
 選擇 `sendmail` 可執行 `MAIL_SENDMAIL_PATH` 設定的程式，支援透過標準輸入輸出進行 SMTP 的 `-bs` 模式，以及從標準輸入投遞郵件的 `-t` 模式。

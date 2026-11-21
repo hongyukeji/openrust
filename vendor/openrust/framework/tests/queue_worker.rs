@@ -1862,10 +1862,18 @@ async fn verify_model_restoration(
 }
 
 async fn exercise(redis: Option<u16>, database_url: Option<&str>) {
+    exercise_with_cluster(redis, database_url, false).await;
+}
+
+async fn exercise_with_cluster(redis: Option<u16>, database_url: Option<&str>, cluster: bool) {
     let id = format!("{:016x}", fastrand::u64(..));
     let root = TempRoot(std::env::temp_dir().join(format!("openrust-worker-{id}")));
     std::fs::create_dir_all(&root.0).unwrap();
-    let default_queue = if redis.is_some() { "redis" } else { "database" };
+    let default_queue = if redis.is_some() && !cluster {
+        "redis"
+    } else {
+        "database"
+    };
     let db_config = database_url.map_or_else(
         || {
             std::fs::File::create(root.0.join("fixture.sqlite")).unwrap();
@@ -1881,7 +1889,7 @@ async fn exercise(redis: Option<u16>, database_url: Option<&str>) {
         },
         |url| json!({"url":url}),
     );
-    let config = json!({
+    let mut config = json!({
         "database": {
             "default": "worker", "connections": {"worker":db_config, "models":model_config},
             "redis": {"options":{"prefix":format!("openrust-worker:{id}:")}, "default":{"port":redis.unwrap_or(6379)}}
@@ -1893,6 +1901,16 @@ async fn exercise(redis: Option<u16>, database_url: Option<&str>) {
             "failed":{"driver":"database-uuids","database":"worker","table":"failed_jobs"}
         }
     });
+    if cluster {
+        config["database"]["redis"]["clusters"] = json!({
+            "default": [{"port": redis.unwrap(), "password": "cluster-fixture"}]
+        });
+        config["database"]["redis"]
+            .as_object_mut()
+            .unwrap()
+            .remove("default");
+        config["cache"]["default"] = json!("file");
+    }
     std::fs::write(root.0.join("queue-fixture.json"), config.to_string()).unwrap();
     let mut app = application(&root.0);
     app.boot().await.unwrap();
@@ -1939,7 +1957,7 @@ async fn exercise(redis: Option<u16>, database_url: Option<&str>) {
         })
         .await
         .unwrap();
-    if std::env::var_os("OPENRUST_TEST_WORKER_CTRL_C_ONLY").is_none() {
+    if !cluster && std::env::var_os("OPENRUST_TEST_WORKER_CTRL_C_ONLY").is_none() {
         verify_model_restoration(
             &root.0,
             &app,
@@ -1960,6 +1978,11 @@ async fn exercise(redis: Option<u16>, database_url: Option<&str>) {
         .await
         .unwrap();
     });
+    if cluster {
+        verify_job_rate_limits(&root.0, &db, &*queue, address, true).await;
+        server.abort();
+        return;
+    }
     if std::env::var_os("OPENRUST_TEST_WORKER_CTRL_C_ONLY").is_none() {
         request(address, "missing-sync").await;
         request(address, "missing-chain").await;
@@ -3894,6 +3917,15 @@ async fn verify_redis_disconnect(root: &Path, port: u16, address: SocketAddr) {
             assert_eq!(stop["jobs_processed"], 0);
         }
     }
+}
+
+#[tokio::test]
+async fn artisan_worker_rate_limits_use_real_redis_cluster() {
+    let Ok(port) = std::env::var("OPENRUST_TEST_REDIS_CLUSTER_PORT") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_REDIS_CLUSTER").is_none());
+        return;
+    };
+    exercise_with_cluster(Some(port.parse().unwrap()), None, true).await;
 }
 
 #[tokio::test]

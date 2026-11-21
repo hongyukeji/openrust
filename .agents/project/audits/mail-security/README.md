@@ -17,3 +17,8 @@
 升级后重跑 `cargo deny --format json --locked --workspace --all-features check advisories`：lettre 六条已消失；命令仍因 libsqlite3-sys、rsa 漏洞及 chrono／chrono-tz／paste／pin-utils 维护公告退出1，未添加 ignore。继续独立修复可升级依赖，维护公告另行列出真实范围，不能宣称整个依赖审计通过。
 
 证据保留于 `/private/tmp/openrust-mail-security-20261120/`：`regressions.log`、`negative-control.log`、`restored.log`、`clippy.log`、`fmt.log`、`docs.log`、`browser.log`、`advisories-after.jsonl`。`source-sha256.json` 对应实际验收输入。闲置专属 target 已直接回收，源码／日志／共享缓存与全部数据卷保留，实际空间见 `cleanup.json`。仅本地提交，不推送。
+
+
+## 2026-11-21 系统与私有CA信任
+
+本次在lettre0.11.24不变的前提下，启用已有rustls-native-certs feature，让SMTP使用系统/进程配置的可信根并继续验证证书链与hostname。隔离Mailpit1.27.10实际验证STARTTLS/SMTPS、535/550、错误CA/hostname、禁止明文降级及独立TLS1.2/1.3握手共12场景；断言成功MIME进入SQLite收件箱、失败零投递。4项历史SMTP安全函数也复验通过。三语说明、严格检查及最新公告结果见[完整模拟记录](../08-04/README.md#2026-11-21-真实验收缺口盘点与模拟环境复验)。真实SMTP最终收件人和云邮件供应商仍待目标验收，不能据本地Mailpit称已生产投递。

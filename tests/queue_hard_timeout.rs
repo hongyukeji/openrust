@@ -2801,9 +2801,14 @@ mod acceptance {
         std::fs::remove_file(&tail).unwrap();
         request_probe(root, "/external-chain/sqs-recovery").await;
         let source = ["database", "--queue=external-chain", "--once"];
-        assert_eq!(artisan(root, &source, false).await.0, Some(0));
         let (status, lines) = artisan(root, &source, false).await;
-        assert_eq!(status, Some(1), "{lines:?}");
+        assert_eq!(status, Some(0), "{lines:?}");
+        assert!(
+            lines.iter().any(|line| {
+                line["status"] == "released_after_exception" && line["result"] == "released"
+            }),
+            "failed chain publication must release its source for retry: {lines:?}"
+        );
         let queue = manager.connection(Some("database")).unwrap();
         assert_eq!(queue.size(Some("external-chain")).await.unwrap(), 1);
 
