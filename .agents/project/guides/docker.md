@@ -34,3 +34,5 @@ docker compose --env-file .env --env-file docker/.env -f docker/docker-compose.y
 ## Nginx 对外入口
 
 默认随完整环境启动，转发至 `app:8000`，等待应用健康后启动。默认对外绑定 `0.0.0.0:8080`；根 `.env` 或可选 `docker/.env` 可设置 `NGINX_HOST` 和 `NGINX_PORT`，Nginx 内部端口始终为 `80`。`APP_URL` 设为实际对外地址。配置文件为 `docker/nginx/default.conf`，支持 WebSocket、流式响应及应用重建后的 DNS 地址刷新。仅运行外部依赖应用时，可在应用就绪后用 `docker compose --env-file .env --env-file docker/.env -f docker/docker-compose.yml up -d --no-deps nginx` 启动代理。
+
+Nginx请求体上限8 MiB，与框架输入限制一致；代理读写超时沿用Nginx默认60秒，流式／WebSocket应及时传送数据或心跳；有明确需求时再调整超时。

@@ -205,3 +205,5 @@ docker compose --env-file .env -f docker/docker-compose.yml up -d --wait
 預設啟動的 Nginx 將 HTTP 請求轉送至 `app:8000`，對外監聽 `0.0.0.0:8080`。在根 `.env` 或可選 `docker/.env` 設定 `NGINX_PORT` 可修改主機連接埠，設定 `NGINX_HOST` 可限制繫結位址；Nginx 容器內部固定監聽 `80`。例如 `NGINX_HOST=127.0.0.1`、`NGINX_PORT=18080` 表示只供本機存取。應用程式的 `APP_URL` 應填寫實際對外位址，例如 `http://localhost:8080`。
 
 代理設定位於 `docker/nginx/default.conf`，保留請求路徑和 Host，傳遞用戶端及協定資訊，支援 WebSocket 升級並關閉回應緩衝以適配串流回應。Nginx 等待應用程式健康後啟動；應用程式重建後會透過 Docker DNS 重新解析位址。外部存取使用 Nginx 連接埠，`APP_HOST`／`APP_PORT` 繼續控制應用程式的直接存取入口。TLS 由實際部署的 HTTPS 入口設定。
+
+Nginx 請求本文上限為 8 MiB，與框架輸入限制一致。代理讀取與傳送逾時使用 Nginx 預設的 60 秒；串流回應與 WebSocket 應及時傳送資料或心跳。確需更長閒置等待時，在 `docker/nginx/default.conf` 中按需設定相應逾時。
