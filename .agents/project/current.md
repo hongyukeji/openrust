@@ -1,5 +1,7 @@
 # 当前交接
 
+- 2026-11-21 [编译产物增长排查与约束](audits/build-artifacts.md)：根target最初约41.8 GB，其中增量缓存约31.9 GB；现场确认RustRover独立cargo check不继承验收shell的关闭增量设置，历史清理遗漏根IDE缓存。新增.cargo原生关闭增量／jobs3及本机构建入口：同项目串行、32 GB启动／运行中停线、根缓存8 GiB准入、成功／失败／可捕获取消自动清理独占target；SIGKILL残留下一批前核对。6项进程生命周期及Rust1.94两次修改源码的原生配置实测通过，未重建全workspace。持Cargo锁核对闲置后清根debug，保留锁inode，净回收41.310 GB；清理后根target为4 KiB，随后IDE重检约350 MiB、增量目录0 KiB，其他协作者／下载缓存／数据库／全部卷保留。既有在用批次不追溯接管，后续本机验收按新入口执行。
+
 - 2026-11-21 [真实验收盘点与模拟复验](audits/08-04/README.md#2026-11-21-真实验收缺口盘点与模拟环境复验)：逐项核对V06–V18并补入DynamoDB IAM／商业embedding与支付客户端/资金边界。Rust1.94隔离244842943基线叠加本次变更，S3／SQS三overflow模式、SMTP12场景、邮件/Slack原生Worker、短信三库database+Redis、队列、DynamoDB3与embedding2、Redis Cluster六专项与TLS、生产根HTTP/TLS/Artisan/关停均通过；扩展9ee4881ca补齐Socialite/OIDC/Passkeys双库浏览器与四家支付回调。修复SMTP私有CA信任，更新SQS旧恢复夹具并增加Cluster队列限流及HTTPS/WSS浏览器入口。Pusher分支Rust发布后端仍HTTP，不能声称全链路TLS；Windows本轮来宾会话失败、VM保留suspended，真实供应商/设备/平台/最终发布矩阵与人工批准继续单列。最终包含新增回调测试的全feature严格Clippy/fmt、公告0错误0警告与642包来源清单、三语构建/12普通+6导航+12邮件页浏览器通过。同步三语邮件用法与项目验收规范，不把内部证据放docs。并行Activitylog/Horizon改动保留并排除，本批最终闲置target/dist/客户端缓存清理净增约5.01GB，源码/日志/数据库/全部卷保留；只核范围本地提交，不推送。
 
 - 2026-11-21 [Cashier组合API快照](audits/docs-scope/api-reference.md#2026-11-21-扩展配置与-cashier-合并后的-api-快照)：固定0582cc8bd，Rust1.94全feature导出13库，2,039份编译输入与Git归档一致；五包config过期拒绝、14类指纹负例／7项CLI、三语联合构建、API导航／源码／方法／搜索及计费24＋普通12＋全部导航6组浏览器通过。最终API与联合站点保留于/private/tmp/openrust-api-cashier-20261121，闲置target已清；真实商户／资金／跨平台／生产托管未验，仅核范围本地提交。
