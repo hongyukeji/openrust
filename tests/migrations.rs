@@ -68,6 +68,21 @@ impl Root {
                 .env("DB_DATABASE", self.0.join("database/database.sqlite"));
         }
         command.arg("artisan").args(args);
+        // 本夹具验证应用迁移；包迁移另行验收，不能改变这里的回滚顺序。
+        if matches!(
+            args.first().copied(),
+            Some(
+                "migrate"
+                    | "migrate:status"
+                    | "migrate:rollback"
+                    | "migrate:reset"
+                    | "migrate:refresh"
+                    | "migrate:fresh"
+            )
+        ) && !args.iter().any(|arg| arg.starts_with("--path"))
+        {
+            command.arg("--path=database/migrations");
+        }
         command
     }
 
@@ -104,6 +119,24 @@ fn success(output: Output) -> String {
 
 #[path = "../database/migrations/mod.rs"]
 mod application_migrations;
+
+async fn assert_application_migration_ledger(db: &Connection) {
+    let recorded = db.table("migrations").pluck("migration").await.unwrap();
+    assert_eq!(recorded.len(), application_migrations::entries().len());
+    // 根应用迁移须各执行一次，不能以总数相等掩盖遗漏或重复。
+    for entry in application_migrations::entries() {
+        let name = std::path::Path::new(entry.path)
+            .file_stem()
+            .unwrap()
+            .to_str()
+            .unwrap();
+        let expected: openrust::database::Value = name.into();
+        assert_eq!(
+            recorded.iter().filter(|value| **value == expected).count(),
+            1
+        );
+    }
+}
 
 fn sanctum_migration() -> Option<&'static str> {
     application_migrations::entries()
@@ -486,10 +519,7 @@ async fn verify(mysql: Option<&str>) {
     ]));
     assert!(graceful.contains("WARN") && graceful.contains("MissingMigrationFixtureSeeder"));
     assert!(success(run(&["migrate:status", "--pending=17"])).contains("No pending migrations"));
-    assert_eq!(
-        db.table("migrations").count("*").await.unwrap(),
-        4 + u64::from(sanctum_migration().is_some())
-    );
+    assert_application_migration_ledger(&db).await;
     assert!(
         success(run(&["migrate:rollback", "--pretend", "--batch", "1"])).contains("drop table")
     );
@@ -714,10 +744,7 @@ async fn mysql_fresh_wipes_the_selected_schema() {
     assert!(schema.hasTable("jobs").await.unwrap());
     assert!(schema.hasTable("failed_jobs").await.unwrap());
     assert!(schema.hasTable("job_batches").await.unwrap());
-    assert_eq!(
-        db.table("migrations").count("*").await.unwrap(),
-        4 + u64::from(sanctum_migration().is_some())
-    );
+    assert_application_migration_ledger(&db).await;
     success(run(&["db:wipe", "--drop-views"]));
     assert!(
         schema

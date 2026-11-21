@@ -365,3 +365,8 @@ Linux闲置target在持有Cargo锁后删除编译内容并保留锁inode、源�
 `api-build.log`、`docs-api-build.log`、`api-export.log`、`api-snapshot.log`、`docs-browser-final.log`、`docs-scope-final.log`、`api-cli.log` 全部退出0。覆盖匹配导出正例、14个非法／过期输入负例、7个CLI拒绝测试；API三语根／子目录桌面手机12组合，两个挂载位置逐库源码链接与搜索；普通站点12组合，完整导航6组合、每组19个明确支持边界页面。构建保留VitePress包体大小提示，未以压制提示代替功能验收。
 
 最终本批临时Linux容器已删除，Windows11恢复suspended，本轮O:映射已删除；原开发五服务保留。最后磁盘可用57,898,212 KiB（约59.29 GB／55.22 GiB），高于停线；源码、证据、API交付及可复用mac缓存保留。没有推送、tag、Release、生产部署、改发布版本或删除数据卷。真实目标、Windows阻塞和最终发行批准统一留待办。
+
+
+## 2026-11-22 清理后全面测试与运行
+
+已清理项目编译产物后按 67 组运行 workspace 测试，修复 Faker 格式与 Validation 两类生产差异及夹具隔离问题，逐项完成失败复验。三库／三缓存、邮件 TLS／认证、完整生成应用、浏览器和 standalone 搬迁运行通过，最终严格 Clippy／fmt／doctests／三语检查通过。原失败日志保留，完整结果与未验边界见 [本批报告](clean-full-acceptance-2026-11-22.md)。5 个本批容器回收、开发服务状态及数据保留；源码与证据保留。用户后续要求清理构建产物，已持锁清理，净释放约 18.02 GB。本记录随本轮修复按用户授权本地提交，未推送。

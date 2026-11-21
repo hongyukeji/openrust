@@ -196,7 +196,9 @@ fn configure(exceptions: &mut Exceptions) {
 
 規則解析支援 `numeric`、`date`、`in:a,b`、`regex:/pattern/u`、`required_if:field,value`、`exclude_if:field,value`、`accepted`、`url`、`uuid`、`array:key1,key2`。`array:key1,key2` 拒絕清單外的鍵；`in` 與 `array` 組合時逐項檢查陣列。被排除的欄位及上傳檔案不會出現在已驗證資料中，規則按宣告順序執行。
 
-預設 `integer` 遵循 PHP 整數驗證，包含整數值浮點數和 `true`；`integer:strict` 只接受 JSON 整數，`boolean:strict` 只接受 JSON 布林值。數值大小規則支援負數和小數閾值，使用十進位比較。科學記號指數超出 -1000 至 1000 時傳回執行錯誤。
+預設 `integer` 遵循 PHP 整數驗證，包含部分整數值浮點數和 `true`；`integer:strict` 只接受 JSON 整數，`boolean:strict` 只接受 JSON 布林值。數值大小規則支援負數和小數閾值，使用十進位比較。科學記號指數超出 -1000 至 1000 時傳回執行錯誤。
+
+浮點數先依 PHP 預設的 14 位有效數字轉為文字，例如浮點值 `1e13` 通過、`1e14` 不通過，而整數值 `100000000000000` 通過。`regex` 只接受字串或數值；布林值與未宣告 `nullable` 的 `null` 不通過。
 
 正則包含 `|` 時，使用 `RuleSet::field` 的規則陣列並透過 `Rule::parse` 解析，避免被當成規則分隔符號。支援 PCRE2 修飾符 `i m s x u A U J n D`；`D` 使 `$` 僅比對輸入末尾，多行模式下遵循 PCRE2 原生語義。其他尚不支援的修飾符傳回 `InvalidRule`，不表示已支援 PHP 的全部 PCRE 選項。
 

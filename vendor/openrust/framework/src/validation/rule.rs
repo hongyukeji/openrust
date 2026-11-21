@@ -238,9 +238,9 @@ pub(super) fn integer(value: &Value) -> Option<i128> {
             if number.is_u64() {
                 return None;
             }
-            let number = number.as_f64()?;
-            (number.fract() == 0.0 && number >= i64::MIN as f64 && number < -(i64::MIN as f64))
-                .then_some(number as i128)
+            integer(&Value::String(crate::support::php_float_string(
+                number.as_f64()?,
+            )))
         }
         Value::String(value) => {
             let raw = value.trim_matches([' ', '\t', '\n', '\r', '\x0b', '\x0c']);

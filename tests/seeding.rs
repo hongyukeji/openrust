@@ -999,7 +999,7 @@ impl Seeder for PolymorphicFactories {
             let epoch = jiff::Timestamp::UNIX_EPOCH;
             let taipei = openrust::support::Date::timezone("Asia/Taipei").unwrap();
             let new_york = openrust::support::Date::timezone("America/New_York").unwrap();
-            let utc = openrust::support::Date::timezone("UTC").unwrap();
+            let utc = jiff::tz::TimeZone::UTC;
             let faker = fake(None)?;
             let other = fake(Some("fr-fr"))?;
             assert_eq!(faker.getDefaultTimezone(), None);
@@ -1170,8 +1170,8 @@ impl Seeder for PolymorphicFactories {
             ));
 
             assert!(matches!(
-                faker.date(Some("%Q"), Some(epoch)),
-                Err(DatabaseError::InvalidQuery("invalid Faker date format"))
+                faker.date(Some("%"), Some(epoch)),
+                Err(DatabaseError::InvalidQuery("Faker 日期格式无效"))
             ));
             let unique = faker.unique(false);
             assert_eq!(unique.unixTime(Some(epoch))?, 0);
@@ -4855,7 +4855,7 @@ fn faker_credit_cards_follow_provider_masks_and_expiration_contract() -> Databas
     assert!(jiff::civil::Date::strptime("%d/%m/%y", format!("01/{default_date}")).is_ok());
     assert!(
         faker
-            .creditCardExpirationDateString(true, Some("%Q"))
+            .creditCardExpirationDateString(true, Some("%"))
             .is_err()
     );
     let unique = faker.unique(true);
@@ -7198,5 +7198,32 @@ fn verify_faker_file(root: &std::path::Path) -> std::io::Result<()> {
     assert!(!extension.is_empty() && !extension.starts_with('.'));
     let id = unique.uuid().unwrap();
     assert_ne!(unique.uuid().unwrap(), id);
+    Ok(())
+}
+
+#[test]
+fn faker_date_formats_report_errors_through_public_consumers() -> DatabaseResult<()> {
+    let faker = openrust::database::eloquent::factories::Faker::new("en")?;
+    let epoch = jiff::Timestamp::UNIX_EPOCH;
+    assert_eq!(faker.date(Some("%Y-%m-%d"), Some(epoch))?, "1970-01-01");
+    assert_eq!(faker.time(Some("%H:%M:%S"), Some(epoch))?, "00:00:00");
+    for format in ["%", "%J"] {
+        assert!(faker.date(Some(format), Some(epoch)).is_err());
+        assert!(faker.time(Some(format), Some(epoch)).is_err());
+        assert!(faker.unique(true).date(Some(format), Some(epoch)).is_err());
+        assert!(
+            faker
+                .creditCardExpirationDateString(true, Some(format))
+                .is_err()
+        );
+    }
+    assert_eq!(faker.unique(true).date(Some("%Y"), Some(epoch))?, "1970");
+    assert!(
+        jiff::civil::Date::strptime(
+            "%Y-%m-%d",
+            faker.creditCardExpirationDateString(true, Some("%Y-%m-%d"))?
+        )
+        .is_ok()
+    );
     Ok(())
 }

@@ -291,3 +291,35 @@ async fn standard_rules_preserve_missing_null_wildcards_and_translated_condition
         assert_eq!(validator.validate().await.is_ok(), expected, "规则 {rules}");
     }
 }
+
+#[tokio::test]
+async fn integer_uses_php_float_precision_before_filtering() {
+    for value in [
+        json!(1.0),
+        json!(1e13),
+        json!(-1e13),
+        json!(100000000000000i64),
+        json!(-100000000000000i64),
+    ] {
+        assert!(passes(value.clone(), "integer").await, "应接受 {value}");
+    }
+    for value in [json!(1e14), json!(-1e14), json!(1.5), json!(1e20)] {
+        assert!(!passes(value.clone(), "integer").await, "应拒绝 {value}");
+    }
+}
+
+#[tokio::test]
+async fn regex_rejects_boolean_and_null_but_nullable_skips_null() {
+    for (value, rule) in [
+        (json!(true), "regex:/^1$/"),
+        (json!(false), "regex:/^$/"),
+        (Value::Null, "regex:/^$/"),
+    ] {
+        assert!(!passes(value.clone(), rule).await, "应拒绝 {value}");
+    }
+    for value in [json!(1), json!(1.0), json!("1")] {
+        assert!(passes(value.clone(), "regex:/^1$/").await, "应接受 {value}");
+    }
+    assert!(passes(Value::Null, "nullable|regex:/^$/").await);
+    assert!(passes(json!(""), "regex:/^$/").await);
+}

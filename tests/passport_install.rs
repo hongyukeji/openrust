@@ -7,28 +7,29 @@ use std::{
     time::{Duration, Instant},
 };
 
-fn copy_source(from: &Path, to: &Path) {
+fn copy_source(from: &Path, to: &Path, application_root: bool) {
     fs::create_dir_all(to).unwrap();
     for entry in fs::read_dir(from).unwrap() {
         let entry = entry.unwrap();
         let name = entry.file_name();
-        if [
-            ".git",
-            ".agents",
-            "docs",
-            "node_modules",
-            "target",
-            "tmp",
-            "storage",
-        ]
-        .iter()
-        .any(|skip| name == *skip)
+        if application_root
+            && [
+                ".git",
+                ".agents",
+                "docs",
+                "node_modules",
+                "target",
+                "tmp",
+                "storage",
+            ]
+            .iter()
+            .any(|skip| name == *skip)
         {
             continue;
         }
         let dest = to.join(name);
         if entry.file_type().unwrap().is_dir() {
-            copy_source(&entry.path(), &dest)
+            copy_source(&entry.path(), &dest, false)
         } else if entry.file_type().unwrap().is_file() {
             fs::copy(entry.path(), dest).unwrap();
         }
@@ -61,9 +62,6 @@ impl Generated {
             .env("DB_MASK_BINDINGS", "true")
             .env("BCRYPT_ROUNDS", "4")
             .env("CARGO_TARGET_DIR", &self.target)
-            .env("CARGO_INCREMENTAL", "0")
-            .env("CARGO_PROFILE_DEV_DEBUG", "0")
-            .env("CARGO_BUILD_JOBS", "6")
             .env("RUSTUP_TOOLCHAIN", "1.94.0");
         for name in [
             "APP_CONFIG_CACHE",
@@ -192,7 +190,7 @@ async fn mysql_passport_default_cli_installs_rebuilds_retries_and_authenticates_
         !root.exists(),
         "Use a new owned generated fixture directory"
     );
-    copy_source(&source, &root);
+    copy_source(&source, &root, true);
     fs::create_dir_all(root.join("storage")).unwrap();
     let fixture = Generated {
         root,
@@ -462,7 +460,7 @@ finally:
                 .as_deref()
                 .unwrap_or(std::ffi::OsStr::new("cargo")),
         ))
-        .args(["build", "--locked", "-j", "6", "--target-dir"])
+        .args(["build", "--locked", "--target-dir"])
         .arg(binary.parent().unwrap().parent().unwrap())
         .output()
         .unwrap();

@@ -1467,11 +1467,11 @@ async fn verify_chain_database_handoff(
     postgres: bool,
 ) {
     request(address, "chain/database/handoff", 200).await;
-    // Fail only insertion of the successor. The head is already reserved when this fires.
+    // 只拒绝顶层后继任务；头任务的 chained 字段也包含相同数据，不能按整段 JSON 匹配。
     let reject = if mysql {
         r#"alter table jobs add constraint reject_handoff check (payload not like '%"data":"database.handoff"%' or payload like '%"data":"database.first"%')"#
     } else {
-        r#"create trigger reject_handoff before insert on jobs when new.payload like '%"data":"database.handoff"%' begin select raise(abort, 'chain handoff rejected'); end"#
+        r#"create trigger reject_handoff before insert on jobs when json_extract(new.payload, '$.data') = 'database.handoff' begin select raise(abort, 'chain handoff rejected'); end"#
     };
     db.unprepared(reject).await.unwrap();
     let work = [

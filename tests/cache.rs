@@ -1123,7 +1123,10 @@ async fn redis_lock_flush_distinguishes_servers_from_aliases() {
         assert!(std::env::var_os("OPENRUST_REQUIRE_REDIS_LOCK_SERVERS").is_none());
         return;
     };
-    let env = format!("CACHE_STORE=redis\nREDIS_URL={url}\nREDIS_DB=4\n");
+    let env = format!(
+        "CACHE_STORE=redis\nREDIS_URL={url}\nREDIS_DB=4\nCACHE_PREFIX=lock-alias-{}:\n",
+        openrust::support::Str::random(16)
+    );
     let separate = Sandbox::new("redis-two-lock-servers", &env);
     let shared = Sandbox::new("redis-lock-alias", &env);
     fs::write(separate.0.join("redis-lock-url"), lock_url).unwrap();
@@ -1177,6 +1180,9 @@ async fn redis_lock_flush_distinguishes_servers_from_aliases() {
     assert!(!probe.get().await.unwrap());
     assert_eq!(backend.get("locks-db-marker").await.unwrap(), None);
     assert_eq!(cache.get("shared").await.unwrap(), Some("data".into()));
+    assert!(!original.release().await.unwrap());
+    assert!(replacement.release().await.unwrap());
+    assert!(alias.release().await.unwrap());
 }
 
 #[tokio::test]

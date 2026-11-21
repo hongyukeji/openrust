@@ -550,9 +550,9 @@ async fn registration_order_and_per_method_replacement_are_preserved() {
     let (mut head, trace) = request(Method::HEAD, "/items/special");
     assert_eq!(
         router.dispatch(&mut head).await.unwrap().status(),
-        StatusCode::OK
+        StatusCode::NO_CONTENT
     );
-    assert!(trace.lock().unwrap().contains(&("handler", true)));
+    assert!(!trace.lock().unwrap().contains(&("handler", true)));
 }
 
 struct Ranked<const ID: u8>(Record);

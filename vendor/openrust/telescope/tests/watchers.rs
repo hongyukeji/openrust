@@ -209,7 +209,9 @@ async fn request_observes_buffered_content_redaction_character_limits_and_route_
 }
 
 fn database_config(base: &std::path::Path) -> serde_json::Value {
-    match std::env::var("TELESCOPE_TEST_DRIVER")
+    // 每个 TestApp 使用独立表前缀，避免共享验收库中的其他用例污染采集结果。
+    let prefix = format!("w_{}_", &uuid::Uuid::now_v7().simple().to_string()[24..]);
+    let mut connection = match std::env::var("TELESCOPE_TEST_DRIVER")
         .as_deref()
         .unwrap_or("sqlite")
     {
@@ -226,5 +228,8 @@ fn database_config(base: &std::path::Path) -> serde_json::Value {
             json!({"driver":"mysql","url":std::env::var("OPENRUST_TEST_MYSQL_URL").unwrap()})
         }
         value => panic!("unsupported isolated driver {value}"),
-    }
+    };
+    connection["prefix"] = prefix.into();
+    connection["prefix_indexes"] = true.into();
+    connection
 }

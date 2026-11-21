@@ -4127,14 +4127,8 @@ impl Faker {
         expirationDateFormat: Option<&str>,
     ) -> DatabaseResult<String> {
         let date = self.creditCardExpirationDate(valid)?;
-        let mut output = String::new();
-        write!(
-            output,
-            "{}",
-            date.strftime(expirationDateFormat.unwrap_or("%m/%y"))
-        )
-        .map_err(|_| DatabaseError::InvalidQuery("invalid Faker date format"))?;
-        Ok(output)
+        jiff::fmt::strtime::format(expirationDateFormat.unwrap_or("%m/%y"), &date)
+            .map_err(|_| DatabaseError::InvalidQuery("Faker 日期格式无效"))
     }
 
     pub fn creditCardDetails(&self, valid: bool) -> DatabaseResult<CreditCardDetails> {
@@ -5348,15 +5342,8 @@ impl Faker {
     }
 
     fn format_date(&self, format: &str, max: Option<Timestamp>) -> DatabaseResult<String> {
-        use std::fmt::Write as _;
-        let mut output = String::new();
-        write!(
-            output,
-            "{}",
-            self.dateTimeInTimezone(max, None).strftime(format)
-        )
-        .map_err(|_| DatabaseError::InvalidQuery("invalid Faker date format"))?;
-        Ok(output)
+        jiff::fmt::strtime::format(format, &self.dateTimeInTimezone(max, None))
+            .map_err(|_| DatabaseError::InvalidQuery("Faker 日期格式无效"))
     }
 
     /// Samples between the supplied bounds, then rounds to the requested decimal place.

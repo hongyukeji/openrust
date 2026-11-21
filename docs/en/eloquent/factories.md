@@ -1027,7 +1027,7 @@ fn vat_samples() -> DatabaseResult<(String, String)> {
 
 ### Credit Card Samples {#credit-card-samples}
 
-The credit card formatters generate vendor names, numbers with Luhn check digits, expiration dates and card details. Formatted numbers default to hyphen-separated groups. The `pt-BR` locale uses Brazilian vendor masks. Pass `true` for an expiration between now and 36 months ahead, or `false` for a date between 36 months ago and 36 months ahead. `creditCardExpirationDateString` accepts Jiff directives and defaults to `%m/%y`. All five formatters support `unique`.
+The credit card formatters generate vendor names, numbers with Luhn check digits, expiration dates and card details. Formatted numbers default to hyphen-separated groups. The `pt-BR` locale uses Brazilian vendor masks. Pass `true` for an expiration between now and 36 months ahead, or `false` for a date between 36 months ago and 36 months ahead. `creditCardExpirationDateString` accepts Jiff directives and defaults to `%m/%y`; invalid formats return an error. All five formatters support `unique`.
 
 `creditCardType()` · `creditCardNumber(type, formatted, separator)` · `creditCardExpirationDate(valid)` · `creditCardExpirationDateString(valid, format)` · `creditCardDetails(valid)`
 

@@ -1027,7 +1027,7 @@ fn vat_samples() -> DatabaseResult<(String, String)> {
 
 ### 信用卡範例 {#credit-card-samples}
 
-信用卡產生器提供品牌、帶 Luhn 檢查碼的卡號、到期日及完整範例。卡號格式化時預設以連字號分組。`pt-BR` 使用巴西品牌格式。到期日傳入 `true` 時從目前到未來 36 個月取樣，傳入 `false` 時從過去 36 個月到未來 36 個月取樣。`creditCardExpirationDateString` 接受 Jiff 格式指令，預設 `%m/%y`。五個方法都支援 `unique`。
+信用卡產生器提供品牌、帶 Luhn 檢查碼的卡號、到期日及完整範例。卡號格式化時預設以連字號分組。`pt-BR` 使用巴西品牌格式。到期日傳入 `true` 時從目前到未來 36 個月取樣，傳入 `false` 時從過去 36 個月到未來 36 個月取樣。`creditCardExpirationDateString` 接受 Jiff 格式指令，預設 `%m/%y`，無效格式會回傳錯誤。五個方法都支援 `unique`。
 
 `creditCardType()` · `creditCardNumber(type, formatted, separator)` · `creditCardExpirationDate(valid)` · `creditCardExpirationDateString(valid, format)` · `creditCardDetails(valid)`
 

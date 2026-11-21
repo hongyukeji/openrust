@@ -323,7 +323,24 @@ async fn artisan_publishes_registered_package_assets_and_migrations()
         .await
         .assertSuccessful();
     assert_eq!(fs::read(&stylesheet)?, b"stylesheet");
-    let migration = fs::read_dir(&migrations)?.next().unwrap()?.path();
+    let published = fs::read_dir(&migrations)?
+        .map(|entry| entry.map(|entry| entry.path()))
+        .collect::<Result<Vec<_>, _>>()?;
+    // --all 同时发布已启用的 Sanctum 迁移，文件系统不保证目录枚举顺序。
+    assert_eq!(
+        published.len(),
+        if cfg!(feature = "sanctum") { 2 } else { 1 }
+    );
+    let migration = published
+        .iter()
+        .find(|path| path.to_string_lossy().ends_with("_add_fixture.rs"))
+        .cloned()
+        .expect("应发布夹具迁移");
+    #[cfg(feature = "sanctum")]
+    assert!(published.iter().any(|path| {
+        path.to_string_lossy()
+            .ends_with("_create_personal_access_tokens_table.rs")
+    }));
     let name = migration.file_name().unwrap().to_str().unwrap();
     assert!(name.ends_with("_add_fixture.rs"));
     assert_ne!(&name[..17], "2000_01_01_000000");
@@ -342,7 +359,7 @@ async fn artisan_publishes_registered_package_assets_and_migrations()
     test.artisan(["vendor:publish", "--tag=fixture-migrations", "--force"])
         .await
         .assertSuccessful();
-    assert_eq!(fs::read_dir(&migrations)?.count(), 1);
+    assert_eq!(fs::read_dir(&migrations)?.count(), published.len());
 
     let mut other = TestApp::create(|builder| builder)?;
     let result = other.artisan(["vendor:publish", "--tag=fixture"]).await;

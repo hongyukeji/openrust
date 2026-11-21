@@ -22,7 +22,9 @@ fn web() -> Result<(), RoutingError> {
     Route::get("/errors", || {
         Context::add("blade.notice", json!("<context>")).unwrap();
         Context::addHidden("blade.hidden", json!("hidden probe")).unwrap();
-        view("errors-probe").with("value", "outer")
+        view("errors-probe")
+            .with("value", "outer")
+            .with("message", "outer-message")
     })?;
     Route::get("/flash", flash)?;
     Route::r#match(&[Method::POST, Method::OPTIONS], "/update/{id}", update)?;
@@ -260,16 +262,16 @@ async fn origin_only_and_session_errors_are_application_and_request_scoped() {
         root.join("resources/views/errors-probe.blade.html"),
         concat!(
             r#"<form method="post" action="/update/42">@csrf"#,
-            "@production<span>production</span>@endproduction",
-            "@env(['staging-*', 'local'])<span>staging</span>@endenv",
-            "@session('blade.notice')<b>{{ $value }}</b>",
+            "\n@production<span>production</span>@endproduction",
+            "\n@env(['staging-*', 'local'])<span>staging</span>@endenv",
+            "\n@session('blade.notice')<b>{{ $value }}</b>",
             "@context('blade.notice')<i>{{ $value }}</i>@endcontext",
             "<u>{{ $value }}</u>@endsession",
-            "@context('blade.hidden'){{ $value }}@endcontext",
+            "\n@context('blade.hidden'){{ $value }}@endcontext",
             "<s>{{ $value }}</s>@method('PUT')@error('name')",
             "<span>{{ $message }}</span>@enderror",
-            "@error('name', 'profile')<em>{{ $message }}</em>@enderror",
-            "@error('name', 'missing')wrong@enderror{{ $message }}</form>",
+            "\n@error('name', 'profile')<em>{{ $message }}</em>@enderror",
+            "\n@error('name', 'missing')wrong\n@enderror{{ $message }}</form>",
         ),
     )
     .unwrap();
@@ -290,7 +292,7 @@ async fn origin_only_and_session_errors_are_application_and_request_scoped() {
     status(&isolated, 200);
     assert!(errors.contains("Required"), "{errors}");
     assert!(errors.ends_with(
-        r#"<input type="hidden" name="_method" value="PUT"><span>Required</span><em>&lt;different&gt;</em></form>"#
+        r#"<input type="hidden" name="_method" value="PUT"><span>Required</span><em>&lt;different&gt;</em>outer-message</form>"#
     ));
     assert!(!isolated.contains("Required"), "{isolated}");
     assert!(errors.contains("<span>production</span><b>&lt;session&gt;</b><i>&lt;context&gt;</i><u>&lt;session&gt;</u><s>outer</s>"));

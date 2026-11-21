@@ -1,5 +1,13 @@
 # 当前交接
 
+## 当前任务：清理后全面测试与运行（2026-11-22）
+
+用户要求清除编译产物后重新全面测试，基线 `fb5240e1ae08855857d9b9988ac5453d8623e608`。本轮可执行的本地验收已完成：首轮 67 组覆盖 20 个 workspace 包、19 个库与 303 个集成目标；原失败退出码保留，对应目标均按根因修复并实际补验。详见 [本批报告](audits/08-04/clean-full-acceptance-2026-11-22.md) 的结果表和失败映射。
+
+生产修复为 Faker 严格日期格式、integer 浮点边界及 regex 类型约束；测试夹具同步隔离、迁移归属和 Laravel 契约，六份三语文档更新。三库、Redis／database／file、Cluster/TLS、邮件 12 场景、PG/MySQL 完整生成应用、Passport／Precognition／OIDC 浏览器、Telescope／Horizon／Pulse 真实本地进程和桌面手机界面、standalone 搬迁运行均通过；最终全 workspace 严格 Clippy、fmt、doctests 和三语文档检查通过。缺环境或 ignored 自身不计服务通过；真实供应商、正式部署、Windows 及未实现能力继续见 todo.md。
+
+本批目录 `target/tmp/clean-full-acceptance-20261122/`，短 TMPDIR `target/tmp/cf/`；Rust 1.94.0、独占 target，保留增量和正常并发。磁盘四次停线均安全停构建持锁清理，保留锁 inode、源码、日志、下载、数据库和卷；收尾可用约 51.82 GB／48.26 GiB。5 个本批测试容器已回收，原开发服务状态与卷集合保持不变。3,246 项输入仅 artisan.bat 的 LF/CRLF 有字节差别，归一化后全部内容一致。2026-11-22 用户授权将本轮修复、测试、三语文档及验收记录本地提交；不包含推送。其他协作者独立复核原文和欢迎页国际化在途改动保留。用户随后要求清理构建产物，已持锁清理并净释放约 18.02 GB；验收源码、日志、下载、独立交付和数据保留，详见本批 user-cleanup-result.json。
+
 ## 当前任务：Laravel 对齐审计 L01–L22
 
 2026-11-21 用户明确要求修复 [Laravel 对照审计](audits/laravel-code-audit-2026-11-21.md) 的 L01–L22。固定 Laravel Framework v13.40.0、骨架 v13.11.0；本任务独立执行，不调度其他对话，不重复处理历史扩展 R1–R6。以下旧收尾记录为历史结果，不代替本批源码验收。

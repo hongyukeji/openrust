@@ -447,8 +447,10 @@ impl Validator {
                 Some("in")
             }
             (Kind::Regex(regex), Some(value))
-                if !super::standard_rules::text(value)
-                    .is_some_and(|value| regex.is_match(value.as_bytes()).unwrap_or(false)) =>
+                if !(matches!(value, Value::String(_) | Value::Number(_))
+                    && super::standard_rules::text(value).is_some_and(|value| {
+                        regex.is_match(value.as_bytes()).unwrap_or(false)
+                    })) =>
             {
                 Some("regex")
             }

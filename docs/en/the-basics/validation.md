@@ -196,7 +196,9 @@ fn configure(exceptions: &mut Exceptions) {
 
 The rule parser accepts `numeric`, `date`, `in:a,b`, `regex:/pattern/u`, `required_if:field,value`, `exclude_if:field,value`, `accepted`, `url`, `uuid`, and `array:key1,key2`, alongside the rules described above. `array:key1,key2` rejects unlisted keys; `in` checks each array element when combined with `array`. Excluded fields, including uploaded files, are removed from validated data. Rules run in declaration order.
 
-Default `integer` follows PHP integer validation, including integral floats and `true`; `integer:strict` requires a JSON integer and `boolean:strict` requires a JSON boolean. Numeric size rules accept negative and decimal bounds and compare decimal values without converting them to binary floats. Scientific-notation exponents outside -1000 to 1000 return an execution error.
+Default `integer` follows PHP integer validation, including some integral floats and `true`; `integer:strict` requires a JSON integer and `boolean:strict` requires a JSON boolean. Numeric size rules accept negative and decimal bounds and compare decimal values without converting them to binary floats. Scientific-notation exponents outside -1000 to 1000 return an execution error.
+
+Floats first use PHP’s default 14 significant digits when converted to text: the float `1e13` passes, `1e14` fails, and the integer `100000000000000` passes. `regex` accepts only strings or numbers; booleans and `null` without `nullable` fail.
 
 Use `Rule::parse` inside a `RuleSet::field` array for regular expressions containing `|`, so the separator is not interpreted as another rule. PCRE2 modifiers `i m s x u A U J n D` are supported. `D` makes `$` match only the end of the subject unless multiline mode is enabled. Other unsupported modifiers return `InvalidRule`; the parser does not claim every PHP PCRE option.
 

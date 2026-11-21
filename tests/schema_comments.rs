@@ -309,7 +309,9 @@ async fn builtin_migrations_run_on_mysql_and_sqlite() {
                 let mut schema = db.getSchemaBuilder();
                 let migrator = Migrator::new(manager.clone(), builtin_registry(), "migrations".into(), root);
                 assert_eq!(migrator.run(None, &[], RunOptions::default()).await.unwrap().len(), 12);
-                let tables = schema.getTables(None).await.unwrap();
+                // MySQL 默认列举所有可见 schema；本夹具只检查本库的内置迁移。
+                let namespace = (driver == "mysql").then(|| db.getDatabaseName());
+                let tables = schema.getTables(namespace).await.unwrap();
                 assert_eq!(tables.len(), 17, "{driver}: {locale}");
                 if driver == "mysql" {
                     for table in &tables {
