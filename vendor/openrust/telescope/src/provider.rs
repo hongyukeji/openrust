@@ -91,8 +91,10 @@ impl ServiceProvider for TelescopeServiceProvider {
                 let pending = telescope.clone();
                 match openrust::support::defer(
                     async move {
-                        pending.initialize().await;
-                        let failed = pending.store().await?;
+                        let result = pending.store().await;
+                        // 诊断存储自身的错误不再进入本次采集，避免报告时递归写入。
+                        pending.stopRecording();
+                        let failed = result?;
                         if !failed.is_empty() {
                             crate::jobs::ProcessPendingUpdates::new(failed, 0)
                                 .dispatch()

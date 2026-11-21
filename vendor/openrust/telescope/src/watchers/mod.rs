@@ -36,6 +36,7 @@ impl Listener for EventListener {
             if !telescope
                 .automaticRecording
                 .load(std::sync::atomic::Ordering::Acquire)
+                || !telescope.hasStarted()
             {
                 return Ok(None);
             }
@@ -95,6 +96,7 @@ fn registerLogging(
         if telescope
             .automaticRecording
             .load(std::sync::atomic::Ordering::Acquire)
+            && telescope.hasStarted()
             && telescope.isRecording()
         {
             watcher
@@ -327,6 +329,9 @@ impl NativeWatcher {
         {
             if matches(
                 &json!([
+                    // 初始化命令须先准备数据库与包资源，不能在执行前启动诊断存储。
+                    "init",
+                    "init:resources",
                     "migrate",
                     "migrate:rollback",
                     "migrate:fresh",
@@ -661,7 +666,7 @@ impl Listener for NativeWatcher {
         context: &'a mut EventContext<'_>,
     ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
         Box::pin(async move {
-            // A boot-time event has no execution scope and therefore has nothing to flush.
+            // 启动期事件没有可用于写入诊断数据的执行作用域。
             let Ok(telescope) = facades::Telescope::getFacadeRoot() else {
                 return Ok(None);
             };

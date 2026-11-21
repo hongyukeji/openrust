@@ -16,6 +16,8 @@ Telescope 将应用诊断信息写入独立数据库表，并提供需要授权�
 
 每个 `watchers.<Name>Watcher.enabled` 开关对应 `TELESCOPE_<NAME>_WATCHER` 环境变量；复合名称用下划线，如 `TELESCOPE_CLIENT_REQUEST_WATCHER`。发布的配置包含各 Watcher 选项。`only_paths`、`ignore_paths`、`ignore_commands` 限制采集范围，路径匹配不含开头斜杠。暂停状态与监控标签使用应用配置的缓存。
 
+`init` 及其内部命令 `init:resources` 默认不采集，避免在数据库和包资源准备完成前访问诊断存储。
+
 ## 授权与过滤 {#authorization}
 
 访问 `/telescope` 或自定义路径。安装的应用 Provider 默认允许本地环境，其他环境在自定义授权回调前拒绝访问。回调应使用应用已认证身份和权限。面板及所有 API 路由保留 `web` 和 Telescope `Authorize` 中间件；写操作使用框架请求伪造防护，接受同源 Fetch 元数据或有效会话 CSRF 令牌。

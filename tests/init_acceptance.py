@@ -54,13 +54,16 @@ def main():
     stage = Path(os.environ['OPENRUST_INIT_STAGE'])
     source = stage / 'source'
     source.mkdir(parents=True, exist_ok=False)
-    tracked = subprocess.run(['git', 'ls-files', '-z', '--cached', '--others', '--exclude-standard'], cwd=root, capture_output=True)
-    if tracked.returncode == 0:
+    checkout = subprocess.run(['git', 'rev-parse', '--show-toplevel'], cwd=root, capture_output=True, text=True)
+    in_checkout = checkout.returncode == 0 and Path(checkout.stdout.strip()).resolve() == root
+    tracked = subprocess.run(['git', 'ls-files', '-z', '--cached', '--others', '--exclude-standard'], cwd=root, capture_output=True) if in_checkout else None
+    if tracked is not None and tracked.returncode == 0:
         files = tracked.stdout.decode().split('\0')
     else:
         files=[]
         for base, directories, names in os.walk(root):
-            directories[:] = [name for name in directories if name not in ('target','node_modules','.git','tmp','storage')]
+            if Path(base) == root:
+                directories[:] = [name for name in directories if name not in ('target','node_modules','.git','tmp','storage')]
             files.extend(str((Path(base)/name).relative_to(root)) for name in names)
 
     for name in files:

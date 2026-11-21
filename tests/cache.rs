@@ -155,7 +155,14 @@ async fn exercise(first: &Repository, second: &Repository, db: bool) {
             .await
             .unwrap()
     );
-    tokio::time::sleep(Duration::from_millis(150)).await;
+    // 数据库存储按整秒保存租约，等待真实过期，不能假定亚秒精度。
+    tokio::time::timeout(Duration::from_secs(2), async {
+        while restored.isLocked().await.unwrap() {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+    })
+    .await
+    .expect("刷新后的缓存锁未按租约过期");
     assert!(!restored.isLocked().await.unwrap());
     assert!(waiting.get().await.unwrap());
     assert!(!restored.release().await.unwrap());
@@ -168,7 +175,10 @@ async fn exercise(first: &Repository, second: &Repository, db: bool) {
         .lock("retry", Some(Duration::from_secs(1)), None)
         .unwrap();
     assert!(timed.get().await.unwrap());
-    retry.block(Duration::from_secs(1)).await.unwrap();
+    retry
+        .block(Duration::from_secs(if db { 2 } else { 1 }))
+        .await
+        .unwrap();
     assert!(!timed.release().await.unwrap());
     retry.force_release().await.unwrap();
 
@@ -178,7 +188,13 @@ async fn exercise(first: &Repository, second: &Repository, db: bool) {
             .await
             .unwrap()
     );
-    tokio::time::sleep(Duration::from_millis(1050)).await;
+    tokio::time::timeout(Duration::from_secs(3), async {
+        while second.get("expire").await.unwrap().is_some() {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+    })
+    .await
+    .expect("缓存条目未按配置的有效期过期");
     assert!(second.get("expire").await.unwrap().is_none());
     assert!(second.get("counter").await.unwrap().is_none());
 }

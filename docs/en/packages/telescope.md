@@ -16,6 +16,8 @@ The installer publishes `config/telescope.rs` and `app/providers/telescope_servi
 
 Each `watchers.<Name>Watcher.enabled` switch has a `TELESCOPE_<NAME>_WATCHER` environment variable; compound names use underscores, such as `TELESCOPE_CLIENT_REQUEST_WATCHER`. Watcher-specific options are published in the configuration file. `only_paths`, `ignore_paths` and `ignore_commands` limit recording. Paths are matched without the initial slash. Pause state and monitored tags use the configured application cache.
 
+`init` and its internal `init:resources` command are excluded from recording so initialization can prepare the database and package resources without accessing diagnostic storage first.
+
 ## Authorization and filtering {#authorization}
 
 Visit `/telescope`, or the configured path. The installed application provider permits local access by default and rejects other environments until its authorization callback is customized. Use the application's authenticated identity and permissions in that callback. Keep the `web` and Telescope `Authorize` middleware on every dashboard and API route; mutations use the normal request forgery protection, accepting same-origin fetch metadata or a valid session CSRF token.

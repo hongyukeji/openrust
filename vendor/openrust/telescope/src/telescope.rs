@@ -194,6 +194,9 @@ impl Telescope {
     pub fn isRecording(&self) -> bool {
         self.enabled.load(Ordering::Acquire) && self.suppressed.load(Ordering::Acquire) == 0
     }
+    pub(crate) fn hasStarted(&self) -> bool {
+        self.started.load(Ordering::Acquire)
+    }
     pub fn stopRecording(&self) {
         self.enabled.store(false, Ordering::Release);
     }

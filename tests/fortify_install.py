@@ -132,7 +132,13 @@ def run():
     binary = target / "debug/main"
     generated = source.parent / "generated"
     assert not generated.exists(), "Keep prior generated evidence; select a fresh batch"
-    shutil.copytree(source, generated, ignore=shutil.ignore_patterns(".git", ".agents", "docs", "node_modules", "target", "tmp", "storage"))
+    # 只排除应用根目录的运行产物，保留扩展包内同名的源码模块。
+    def ignore_root(directory, names):
+        if Path(directory) == source:
+            return set(names) & {".git", ".agents", "docs", "node_modules", "target", "tmp", "storage"}
+        return set()
+
+    shutil.copytree(source, generated, ignore=ignore_root)
     smtp = MailServer(("127.0.0.1", 0), Smtp)
     smtp.messages = []
     threading.Thread(target=smtp.serve_forever, daemon=True).start()

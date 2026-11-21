@@ -14,6 +14,8 @@ use std::sync::{
 struct Store {
     writes: AtomicUsize,
     terminations: AtomicUsize,
+    initializations: AtomicUsize,
+    fail: bool,
 }
 impl ClearableRepository for Store {
     fn clear(&self) -> TelescopeFuture<'_, Result<()>> {
@@ -39,6 +41,9 @@ impl EntriesRepository for Store {
     fn store<'a>(&'a self, entries: &'a [IncomingEntry]) -> TelescopeFuture<'a, Result<()>> {
         Box::pin(async move {
             self.writes.fetch_add(entries.len(), Ordering::Relaxed);
+            if self.fail {
+                return Err(openrust_telescope::Error::InvalidConfiguration);
+            }
             Ok(())
         })
     }
@@ -52,7 +57,9 @@ impl EntriesRepository for Store {
         Box::pin(async { Ok(vec![]) })
     }
     fn loadMonitoredTags(&self) -> TelescopeFuture<'_, ()> {
-        Box::pin(async {})
+        Box::pin(async {
+            self.initializations.fetch_add(1, Ordering::Relaxed);
+        })
     }
     fn hasMonitoredTag(&self, _: &[String]) -> bool {
         false
@@ -93,4 +100,58 @@ async fn application_can_replace_storage_contract_without_resolving_the_database
     assert!(telescope.store().await.unwrap().is_empty());
     assert_eq!(store.writes.load(Ordering::Relaxed), 1);
     assert_eq!(store.terminations.load(Ordering::Relaxed), 1);
+}
+
+#[tokio::test]
+async fn initialization_commands_do_not_initialize_or_write_diagnostic_storage() {
+    for (arguments, ignored, fail) in [
+        (vec!["init", "--dry-run"], true, false),
+        (vec!["init:resources", "--extensions", "api"], true, false),
+        (vec!["install:full", "--dry-run"], true, false),
+        (vec!["diagnostic:probe"], false, false),
+        (vec!["diagnostic:probe"], false, true),
+    ] {
+        let root = tempfile::tempdir().unwrap();
+        let mut app = openrust::foundation::Application::configure(root.path().into())
+            .withProviders(vec![Box::new(TelescopeServiceProvider)])
+            .withCommands(|artisan| {
+                artisan.command("diagnostic:probe", |_| {})?;
+                Ok(())
+            })
+            .withConfig(|base, _| {
+                Ok(std::collections::BTreeMap::from([
+                    ("telescope".into(), serde_json::json!({"driver":"custom"})),
+                    ("logging".into(), serde_json::json!({"default":"single","channels":{"single":{"driver":"single","path":base.join("app.log"),"level":"debug"}}})),
+                    ("cache".into(), serde_json::json!({"default":"array","stores":{"array":{"driver":"array"}}})),
+                ]))
+            })
+            .create()
+            .unwrap();
+        app.boot().await.unwrap();
+        let store = Arc::new(Store {
+            fail,
+            ..Store::default()
+        });
+        let storage = store.clone();
+        app.container()
+            .bind::<dyn EntriesRepository, _>(move |_| Ok(storage.clone()))
+            .unwrap();
+
+        // 不完整的应用会由命令自身报错，诊断采集不得抢先访问存储。
+        let _result = tokio::time::timeout(
+            std::time::Duration::from_secs(2),
+            app.handleCommand(&arguments.into_iter().map(Into::into).collect::<Vec<_>>()),
+        )
+        .await
+        .expect("初始化命令不应等待诊断存储");
+        if ignored {
+            assert_eq!(store.initializations.load(Ordering::Relaxed), 0);
+            assert_eq!(store.writes.load(Ordering::Relaxed), 0);
+        } else {
+            assert!(store.initializations.load(Ordering::Relaxed) > 0);
+            assert!(store.writes.load(Ordering::Relaxed) > 0);
+            assert_eq!(store.terminations.load(Ordering::Relaxed), 1);
+            assert_eq!(_result.unwrap(), 0);
+        }
+    }
 }
