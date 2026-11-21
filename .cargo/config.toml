@@ -1,4 +1,0 @@
-# IDE 自动检查同样读取此配置，避免仅在验收命令中关闭增量编译。
-[build]
-incremental = false
-jobs = 3
