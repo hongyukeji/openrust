@@ -123,3 +123,12 @@ Docker runtime 增加 COPY lang/，三语部署命令增加复制 lang；避免�
 - 曾触及磁盘停线，安全等待构建结束并持全部已登记 Cargo 锁清理项目编译产物，保留锁 inode、源码、日志、下载、独立部署及全部数据；净释放 38,006,120,448 字节，清理后可用 68,855,119,872 字节。详见 tutorial-disk-cleanup.json；恢复后对最终源码重新执行上述检查。
 - 本次没有数据库／缓存驱动行为变更，未使用开发数据；未重建应用 Docker 镜像、未验 Windows／优化 release。语言组使用 JSON 而非 PHP 文件；异步事件使用 await／Result；App Facade 当前只暴露语言方法，模板未支持任意 PHP 函数／Facade 方法调用、命名参数或无参获取译器。三语正文明确这些真实边界。
 - 最终验收时尚未暂存、提交或推送，输入一致性、空间和后台资源状态见 tutorial-closure.json。2026-11-22 用户随后授权将本次国际化实现、测试、三语文档及验收记录本地提交；本记录随该提交保存，不包含推送。
+
+
+## 手机端名称与版本间距修复（2026-11-22）
+
+手机端原先使用固定宽高比容器和绝对定位版本图形，应用名称换行时会与版本重叠；真实 HTTP Kernel 接入 Chromium，在 320px 视口复现两者边界间距为 -45.89px。`resources/views/welcome.blade.html` 沿用桌面端的纵向 Flex 排版，将名称与版本纳入正常文档流，统一保留 16px 间距；移除手机端固定宽高比，容器随内容撑开，保留版本叠层效果。
+
+- 失败与修复证据：`target/tmp/welcome-mobile-spacing-20261122/{red-results.json,green-results.json,browser-results.json}`；320／360／390／430／768／1024／1440px × 三语 × 明暗模式，共42组合通过，边界间距均为16px，无版本裁切、横向溢出或页面脚本错误。人工检查390px简体浅色及1440px英文深色截图。
+- Rust 1.94.0 隔离源码及独占构建目录复用既有 `target/tmp/welcome-locale-20261122/`；欢迎页8项HTTP测试全部通过，0失败／0 ignored，见 `target/tmp/welcome-locale-review-20261122/mobile-welcome.log`。交付模板与验收模板逐字节一致，临时浏览器夹具已移除，`git diff --check`通过。
+- 本次仅调整页面样式，无开发者API或用法变化；未修改三语正文，未操作数据库。用户随后授权本地提交手机端间距修复及本节记录；不包含推送，其他在途改动保留。

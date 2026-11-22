@@ -215,9 +215,12 @@ THE SOFTWARE.
 
             .artwork {
                 position: relative;
+                display: flex;
+                flex-direction: column;
+                gap: 16px;
+                padding-bottom: 24px;
                 isolation: isolate;
                 overflow: hidden;
-                aspect-ratio: 335 / 364;
                 border-radius: 8px 8px 0 0;
                 background: var(--art);
                 box-shadow: inset 0 0 0 1px var(--art-outline);
@@ -235,8 +238,7 @@ THE SOFTWARE.
             }
 
             .illustration {
-                position: absolute;
-                inset: 24% 0 auto;
+                display: block;
                 width: 100%;
                 font-size: 216px;
                 font-weight: 900;
@@ -300,12 +302,8 @@ THE SOFTWARE.
                 }
 
                 .artwork {
-                    display: flex;
-                    flex-direction: column;
                     justify-content: center;
-                    gap: 16px;
                     padding: 24px;
-                    aspect-ratio: auto;
                     border-radius: 0 8px 8px 0;
                 }
 
@@ -314,9 +312,6 @@ THE SOFTWARE.
                     font-size: clamp(60px, 5.8vw, 96px);
                 }
 
-                .illustration {
-                    position: static;
-                }
             }
         </style>
     </head>
