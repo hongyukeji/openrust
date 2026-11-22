@@ -33,7 +33,7 @@ THE SOFTWARE.
         <meta http-equiv="Expires" content="0">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="color-scheme" content="light dark">
-        <title>{{ $name }}</title>
+        <title>{{ config('app.name', 'App') }}</title>
         <script>
             // 在首次绘制前恢复手动主题；没有偏好时交给 CSS 跟随系统。
             try {
@@ -373,7 +373,7 @@ THE SOFTWARE.
         <header class="page-header">
             <div class="brand">
                 <svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true"><rect x="2" y="2" width="24" height="24" rx="7" stroke="currentColor" stroke-width="2"/><path d="m11 9-5 5 5 5m6-10 5 5-5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                <span class="brand-name" title="{{ $name }}">{{ $name }}</span>
+                <span class="brand-name" title="{{ config('app.name', 'App') }}">{{ config('app.name', 'App') }}</span>
             </div>
             <div class="preferences">
                 @if((($locale_selection['can_store'] ?? false) || ($locale_selection['query_parameter'] ?? null)) && ($locale_selection['supported'] ?? []))
@@ -384,12 +384,12 @@ THE SOFTWARE.
                     <nav class="language-switcher" aria-label="{{ __('welcome.language') }}" data-locale="{{ $language }}" data-mode="@if($locale_selection['preference'] ?? null){{ 'fixed' }}@else{{ 'auto' }}@endif">
                         @if($locale_selection['can_store'] ?? false)
                         @if($locale_selection['query_parameter'])
-                        <form method="post" action="{{ $base_path }}/locale?{{ Arr::query(Arr::except($query, [$locale_selection['query_parameter']])) }}">
+                        <form method="post" action="{{ request()->getBaseUrl() }}/locale?{{ Arr::query(Arr::except(request()->query(), [$locale_selection['query_parameter']])) }}">
                         @else
-                        <form method="post" action="{{ $base_path }}/locale?{{ Arr::query($query) }}">
+                        <form method="post" action="{{ request()->getBaseUrl() }}/locale?{{ Arr::query(request()->query()) }}">
                         @endif
                             @csrf
-                            <input type="hidden" name="redirect" value="{{ $path }}">
+                            <input type="hidden" name="redirect" value="{{ request()->getPathInfo() }}">
                             @foreach($locale_selection['supported'] as $choice)
                             <button type="submit" name="{{ $locale_form_field }}" value="{{ $choice }}" @if(($locale_selection['preference'] ?? null) === $choice)aria-current="true"@endif @if($language === $choice)data-current-language="true"@endif lang="{{ $choice }}" dir="auto">@if(Lang::hasForLocale('languages.name', $choice)){{ __('languages.name', [], $choice) }}@else{{ $choice }}@endif</button>
                             @endforeach
@@ -397,9 +397,9 @@ THE SOFTWARE.
                         </form>
                         @else
                         @foreach($locale_selection['supported'] as $choice)
-                        <a href="{{ $base_path }}/?{{ Arr::query([$locale_selection['query_parameter'] => $choice] + $query) }}" @if($locale_selection['from_query'] && $language === $choice)aria-current="true"@endif @if($language === $choice)data-current-language="true"@endif lang="{{ $choice }}" dir="auto">@if(Lang::hasForLocale('languages.name', $choice)){{ __('languages.name', [], $choice) }}@else{{ $choice }}@endif</a>
+                        <a href="{{ request()->getBaseUrl() }}/?{{ Arr::query([$locale_selection['query_parameter'] => $choice] + request()->query()) }}" @if($locale_selection['from_query'] && $language === $choice)aria-current="true"@endif @if($language === $choice)data-current-language="true"@endif lang="{{ $choice }}" dir="auto">@if(Lang::hasForLocale('languages.name', $choice)){{ __('languages.name', [], $choice) }}@else{{ $choice }}@endif</a>
                         @endforeach
-                        <a href="{{ $base_path }}/@if(Arr::query(Arr::except($query, [$locale_selection['query_parameter']])))?{{ Arr::query(Arr::except($query, [$locale_selection['query_parameter']])) }}@endif" @if(!$locale_selection['from_query'])aria-current="true"@endif lang="{{ $language }}">{{ __('welcome.follow_browser') }}</a>
+                        <a href="{{ request()->getBaseUrl() }}/@if(Arr::query(Arr::except(request()->query(), [$locale_selection['query_parameter']])))?{{ Arr::query(Arr::except(request()->query(), [$locale_selection['query_parameter']])) }}@endif" @if(!$locale_selection['from_query'])aria-current="true"@endif lang="{{ $language }}">{{ __('welcome.follow_browser') }}</a>
                         @endif
                     </nav>
                 </details>
@@ -435,15 +435,15 @@ THE SOFTWARE.
                 <a class="button" href="{{ $repository }}/blob/master/docs/{{ $language }}/getting-started/deployment.md">{{ __('welcome.deployment') }}</a>
 
                 <p class="release">
-                    {{ $name }} v{{ $version }}
+                    {{ config('app.name', 'App') }} v{{ Config::get('app.version', '1.0.0') }}
                     <a class="text-link" href="{{ $repository }}/blob/master/CHANGELOG.md">{{ __('welcome.changelog') }} <span class="arrow" aria-hidden="true">↗</span></a>
                 </p>
             </section>
             <div class="artwork" aria-hidden="true">
-                <div class="wordmark">{{ $name }}</div>
+                <div class="wordmark">{{ config('app.name', 'App') }}</div>
                 <svg class="illustration" focusable="false" viewBox="0 0 440 270" xmlns="http://www.w3.org/2000/svg">
                     <defs>
-                        <text id="welcome-version" x="14" y="206" textLength="360" lengthAdjust="spacingAndGlyphs">{{ $version }}</text>
+                        <text id="welcome-version" x="14" y="206" textLength="360" lengthAdjust="spacingAndGlyphs">{{ Config::get('app.version', '1.0.0') }}</text>
                     </defs>
                     <use class="depth-front" href="#welcome-version"/>
                     <use class="depth-rose" href="#welcome-version" x="13"/>

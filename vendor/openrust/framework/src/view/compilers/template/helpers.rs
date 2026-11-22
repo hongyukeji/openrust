@@ -11,9 +11,26 @@ enum Operation {
     Except,
     InArray,
     HasTranslationForLocale,
+    Config,
+    HasConfig,
+    Request(RequestOperation),
 }
 
-/// 仅开放已实现的数组与翻译函数，不执行任意 PHP／Rust 调用。
+#[derive(Serialize, Deserialize)]
+enum RequestOperation {
+    Query,
+    Input,
+    Header,
+    Path,
+    PathInfo,
+    BaseUrl,
+    Url,
+    FullUrl,
+    Method,
+    Secure,
+}
+
+/// 仅开放已实现的只读助手，不执行任意 PHP／Rust 调用。
 #[derive(Serialize, Deserialize)]
 pub(super) struct Helper {
     operation: Operation,
@@ -22,17 +39,57 @@ pub(super) struct Helper {
 
 impl Helper {
     pub(super) fn parse(source: &str, depth: usize) -> ViewResult<Option<Self>> {
-        for (name, operation, minimum, maximum) in [
+        let mut calls = vec![
             ("Arr::query", Operation::Query, 1, 1),
             ("Arr::except", Operation::Except, 2, 2),
             ("in_array", Operation::InArray, 2, 3),
+            ("config", Operation::Config, 1, 2),
+            ("Config::get", Operation::Config, 1, 2),
+            ("Config::has", Operation::HasConfig, 1, 1),
             (
                 "Lang::hasForLocale",
                 Operation::HasTranslationForLocale,
                 1,
                 2,
             ),
-        ] {
+        ];
+        let request = source
+            .strip_prefix("request()")
+            .and_then(|rest| rest.trim_start().strip_prefix("->"))
+            .or_else(|| source.strip_prefix("Request::"));
+        let source = if let Some(source) = request {
+            calls = vec![
+                ("query", Operation::Request(RequestOperation::Query), 0, 2),
+                ("input", Operation::Request(RequestOperation::Input), 0, 2),
+                ("header", Operation::Request(RequestOperation::Header), 1, 2),
+                ("path", Operation::Request(RequestOperation::Path), 0, 0),
+                (
+                    "getPathInfo",
+                    Operation::Request(RequestOperation::PathInfo),
+                    0,
+                    0,
+                ),
+                (
+                    "getBaseUrl",
+                    Operation::Request(RequestOperation::BaseUrl),
+                    0,
+                    0,
+                ),
+                ("url", Operation::Request(RequestOperation::Url), 0, 0),
+                (
+                    "fullUrl",
+                    Operation::Request(RequestOperation::FullUrl),
+                    0,
+                    0,
+                ),
+                ("method", Operation::Request(RequestOperation::Method), 0, 0),
+                ("secure", Operation::Request(RequestOperation::Secure), 0, 0),
+            ];
+            source.trim_start()
+        } else {
+            source
+        };
+        for (name, operation, minimum, maximum) in calls {
             let Some(source) = source
                 .strip_prefix(name)
                 .and_then(|rest| rest.trim_start().strip_prefix('('))
@@ -80,6 +137,51 @@ impl Helper {
                 .map_err(|source| super::ViewError::RenderFailed(Box::new(source)))
         };
         match self.operation {
+            Operation::Config | Operation::HasConfig => {
+                let key = arguments[0]
+                    .as_ref()
+                    .as_str()
+                    .ok_or_else(|| render_error("配置键必须是字符串。"))?;
+                let value = crate::support::facades::Config::get(key)
+                    .map_err(|source| super::ViewError::RenderFailed(Box::new(source)))?;
+                Ok(if matches!(self.operation, Operation::HasConfig) {
+                    value.is_some().into()
+                } else {
+                    value.map(Into::into).unwrap_or_else(|| {
+                        arguments
+                            .get(1)
+                            .map(|value| value.as_ref().clone())
+                            .unwrap_or_default()
+                    })
+                })
+            }
+            Operation::Request(ref operation) => {
+                use crate::view::request_data::{self, RequestRead};
+                let key = match arguments.first().map(|value| value.as_ref()) {
+                    None | Some(ViewValue::Null) => None,
+                    Some(ViewValue::String(key)) => Some(key.clone()),
+                    _ => return Err(render_error("请求读取键必须是字符串或 null。")),
+                };
+                let default = arguments
+                    .get(1)
+                    .map(|value| value.as_ref().clone())
+                    .unwrap_or_default();
+                request_data::read(match operation {
+                    RequestOperation::Query => RequestRead::Query(key, default),
+                    RequestOperation::Input => RequestRead::Input(key, default),
+                    RequestOperation::Header => RequestRead::Header(
+                        key.ok_or_else(|| render_error("请求头名称必须是字符串。"))?,
+                        default,
+                    ),
+                    RequestOperation::Path => RequestRead::Path,
+                    RequestOperation::PathInfo => RequestRead::PathInfo,
+                    RequestOperation::BaseUrl => RequestRead::BaseUrl,
+                    RequestOperation::Url => RequestRead::Url,
+                    RequestOperation::FullUrl => RequestRead::FullUrl,
+                    RequestOperation::Method => RequestRead::Method,
+                    RequestOperation::Secure => RequestRead::Secure,
+                })
+            }
             Operation::HasTranslationForLocale => {
                 let key = arguments[0]
                     .as_ref()

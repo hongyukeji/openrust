@@ -31,47 +31,113 @@ pub(super) enum GateArgument {
 enum RequestCheck {
     Authenticated(Option<String>),
     Authorized(AuthorizationMode, Vec<String>, Vec<GateArgument>),
+    Read(RequestRead),
+}
+
+/// 只读模板调用仍由持有真实请求的异步管线执行，不复制请求体或暴露可变请求。
+pub(super) enum RequestRead {
+    Query(Option<String>, ViewValue),
+    Input(Option<String>, ViewValue),
+    Header(String, ViewValue),
+    Path,
+    PathInfo,
+    BaseUrl,
+    Url,
+    FullUrl,
+    Method,
+    Secure,
+}
+
+tokio::task_local! {
+    // 仅在当前同步渲染树内绑定，退出（包括 panic）自动恢复外层绑定。
+    static RENDER_REQUEST: Arc<ViewRequestData>;
+}
+
+pub(super) fn render_scope<T>(request: Arc<ViewRequestData>, render: impl FnOnce() -> T) -> T {
+    RENDER_REQUEST.sync_scope(request, render)
+}
+
+pub(super) fn read(read: RequestRead) -> ViewResult<ViewValue> {
+    RENDER_REQUEST
+        .try_with(|request| request.query(RequestCheck::Read(read)))
+        .map_err(|_| render_error("Blade 请求读取需要通过 HTTP 响应渲染。"))?
 }
 
 pub(super) struct ViewRequestQuery {
     check: RequestCheck,
-    answer: oneshot::Sender<ViewResult<(bool, RequestSnapshot)>>,
+    answer: oneshot::Sender<ViewResult<(ViewValue, RequestSnapshot)>>,
 }
 
 impl ViewRequestQuery {
     pub async fn resolve(self, request: &mut Request) {
-        let result = async {
-            match self.check {
-                RequestCheck::Authenticated(guard) => Ok(Auth::manager()?
-                    .userForGuard(request, guard.as_deref())
-                    .await?
-                    .is_some()),
-                RequestCheck::Authorized(mode, abilities, arguments) => {
-                    let gate = Gate::forRequest(request).await?;
-                    let abilities: Vec<_> = abilities.iter().map(String::as_str).collect();
-                    let arguments: Vec<&Argument> = arguments
-                        .iter()
-                        .map(|argument| match argument {
-                            GateArgument::Value(value) => value as &Argument,
-                            GateArgument::Typed(value) => value.as_ref(),
-                        })
-                        .collect();
-                    match mode {
-                        AuthorizationMode::All => gate.check(&abilities, &arguments).await,
-                        AuthorizationMode::Denied => gate
-                            .check(&abilities, &arguments)
-                            .await
-                            .map(|allowed| !allowed),
-                        AuthorizationMode::Any => gate.any(&abilities, &arguments).await,
+        let result = match self.check {
+            RequestCheck::Read(read) => read.resolve(request).await,
+            check => async {
+                match check {
+                    RequestCheck::Authenticated(guard) => Ok(Auth::manager()?
+                        .userForGuard(request, guard.as_deref())
+                        .await?
+                        .is_some()),
+                    RequestCheck::Authorized(mode, abilities, arguments) => {
+                        let gate = Gate::forRequest(request).await?;
+                        let abilities: Vec<_> = abilities.iter().map(String::as_str).collect();
+                        let arguments: Vec<&Argument> = arguments
+                            .iter()
+                            .map(|argument| match argument {
+                                GateArgument::Value(value) => value as &Argument,
+                                GateArgument::Typed(value) => value.as_ref(),
+                            })
+                            .collect();
+                        match mode {
+                            AuthorizationMode::All => gate.check(&abilities, &arguments).await,
+                            AuthorizationMode::Denied => gate
+                                .check(&abilities, &arguments)
+                                .await
+                                .map(|allowed| !allowed),
+                            AuthorizationMode::Any => gate.any(&abilities, &arguments).await,
+                        }
                     }
+                    RequestCheck::Read(_) => unreachable!(),
                 }
             }
-        }
-        .await
-        .map_err(|error: crate::auth::AuthError| ViewError::RenderFailed(Box::new(error)));
+            .await
+            .map(ViewValue::Bool)
+            .map_err(|error: crate::auth::AuthError| ViewError::RenderFailed(Box::new(error))),
+        };
         let _ = self
             .answer
-            .send(result.map(|allowed| (allowed, RequestSnapshot::capture(request))));
+            .send(result.map(|value| (value, RequestSnapshot::capture(request))));
+    }
+}
+
+impl RequestRead {
+    async fn resolve(self, request: &mut Request) -> ViewResult<ViewValue> {
+        let result: Result<ViewValue, crate::http::HttpError> = async {
+            Ok(match self {
+                Self::Query(key, default) => request
+                    .query(key.as_deref())?
+                    .map(Into::into)
+                    .unwrap_or(default),
+                Self::Input(key, default) => request
+                    .input(key.as_deref())
+                    .await?
+                    .map(Into::into)
+                    .unwrap_or(default),
+                Self::Header(name, default) => request
+                    .header(&name)?
+                    .map(|value| value.to_owned().into())
+                    .unwrap_or(default),
+                Self::Path => request.path().into(),
+                Self::PathInfo => request.getPathInfo().into(),
+                Self::BaseUrl => request.getBaseUrl().into(),
+                Self::Url => request.url()?.into(),
+                Self::FullUrl => request.fullUrl()?.into(),
+                Self::Method => request.method().as_str().into(),
+                Self::Secure => request.secure().into(),
+            })
+        }
+        .await;
+        result.map_err(|error| ViewError::RenderFailed(Box::new(error)))
     }
 }
 
@@ -144,6 +210,12 @@ impl ViewRequestData {
     }
 
     fn check(&self, check: RequestCheck) -> ViewResult<bool> {
+        self.query(check)?
+            .as_bool()
+            .ok_or_else(|| render_error("Blade 授权结果必须是布尔值。"))
+    }
+
+    fn query(&self, check: RequestCheck) -> ViewResult<ViewValue> {
         let sender = self
             .checks
             .as_ref()
@@ -152,10 +224,10 @@ impl ViewRequestData {
         sender
             .blocking_send(ViewRequestQuery { check, answer })
             .map_err(|_| render_error("The Blade request is no longer available."))?;
-        let (authenticated, snapshot) = result
+        let (value, snapshot) = result
             .blocking_recv()
             .map_err(|_| render_error("The Blade request ended without a result."))??;
         *self.snapshot.lock().unwrap() = snapshot;
-        Ok(authenticated)
+        Ok(value)
     }
 }

@@ -51,6 +51,24 @@ Blade 模板使用 `.blade.html` 后缀。普通 `.html` 视图以 UTF-8 HTML �
 
 将 `$query`、`$parameter` 和 `$candidates` 作为视图数据传入。使用 `Arr::except($query, [$parameter])` 只删除语言参数。保留默认转义输出：查询编码和 HTML 转义各有作用。上述助手也可用于子视图及组件属性；模板不执行任意 PHP 函数或静态方法。
 
+### 请求与配置读取 {#request-config-helpers}
+
+HTTP 视图可以直接读取当前请求和已加载的配置，不必由控制器重复传入：
+
+```blade
+<title>{{ config('app.name', 'App') }}</title>
+<span>{{ Config::get('app.version', '1.0.0') }}</span>
+<a href="{{ request()->getBaseUrl() }}/?{{ Arr::query(request()->query()) }}">{{ request()->path() }}</a>
+{{ request()->input('profile.name', '访客') }}
+{{ request()->header('X-Language', 'en') }}
+```
+
+`config($key, $default)`／`Config::get($key, $default)` 读取点分隔配置键，缺键才使用默认值，已有 null、false、0 不会被替换。`Config::has($key)` 检查键是否存在。它们复用当前应用配置仓储和缓存，不重新读取 `.env`。
+
+`request()->` 与 `Request::` 支持 `query`、`input`、`header`、`path`、`getPathInfo`、`getBaseUrl`、`url`、`fullUrl`、`method`、`secure`。`query()` 返回完整查询参数，单键查询读取顶层键；`input()` 合并请求体与查询参数，支持点路径，同名时请求体优先；两者均可传入键和缺失默认值。`header` 需要头名，可传缺失默认值。`path()` 不含两端斜杠（根路径为 `/`）；`getPathInfo()` 保留开头斜杠及编码；部署前缀单独由 `getBaseUrl()` 返回。其他方法无参数。默认转义同样适用。
+
+请求读取通过 HTTP 响应渲染获取真实请求，子视图、组件和缓存模板共用本次请求，独立请求及应用保持隔离。离线渲染不能读取 Request；配置读取也需要有效应用作用域。模板仅开放上述读取调用，不支持把 `request()`／`config()` 返回为任意可变对象，也不执行配置写入、请求修改或任意 PHP 方法。业务当前语言仍使用 `App::currentLocale()`，请求头不代表最终应用语言。
+
 ### HTML 实体编码 {#html-entity-encoding}
 
 Blade 默认会对转义输出中的已有 HTML 实体再次编码。要保留有效的 HTML 4.01 实体，可在应用服务提供者启动时配置 Blade 编译器。调用 `withDoubleEncoding()` 可恢复默认行为。

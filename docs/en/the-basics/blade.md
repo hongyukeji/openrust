@@ -51,6 +51,24 @@ Use `Arr::query($array)` to encode query parameters and `Arr::except($array, $ke
 
 Pass `$query`, `$parameter` and `$candidates` as view data. Use `Arr::except($query, [$parameter])` to remove only the language parameter. Keep the default escaped output: query encoding and HTML escaping serve different purposes. These helpers also work in includes and component attributes. The template does not execute arbitrary PHP functions or static methods.
 
+### Reading requests and configuration {#request-config-helpers}
+
+HTTP views can read the current request and loaded configuration directly, without repeating controller data:
+
+```blade
+<title>{{ config('app.name', 'App') }}</title>
+<span>{{ Config::get('app.version', '1.0.0') }}</span>
+<a href="{{ request()->getBaseUrl() }}/?{{ Arr::query(request()->query()) }}">{{ request()->path() }}</a>
+{{ request()->input('profile.name', 'Guest') }}
+{{ request()->header('X-Language', 'en') }}
+```
+
+`config($key, $default)` and `Config::get($key, $default)` read dotted configuration keys. Only missing keys use the default; existing null, false and zero values are preserved. `Config::has($key)` checks existence. They use the current application repository and configuration cache without rereading `.env`.
+
+`request()->` and `Request::` support `query`, `input`, `header`, `path`, `getPathInfo`, `getBaseUrl`, `url`, `fullUrl`, `method` and `secure`. `query()` returns all query parameters; a single key reads the top-level query bag. `input()` combines body and query input, supports dotted paths and gives body keys precedence. Both accept a key and missing-value default. `header` requires a name and accepts a missing-value default. `path()` trims surrounding slashes (the root remains `/`); `getPathInfo()` preserves the leading slash and encoding. `getBaseUrl()` returns the deployment prefix separately. Other methods take no arguments. Default HTML escaping still applies.
+
+Request reads use the live request during HTTP response rendering. Includes, components and cached templates share that request, while separate requests and applications remain isolated. Offline rendering cannot read Request; configuration reads also require an application scope. Templates expose only these read calls: they do not return arbitrary mutable `request()` or `config()` objects, write configuration, mutate requests or execute arbitrary PHP methods. Use `App::currentLocale()` for the actual application locale; request headers do not represent the final selection.
+
 ### HTML Entity Encoding {#html-entity-encoding}
 
 Escaped Blade echoes double-encode existing HTML entities by default. To preserve valid HTML 4.01 entities in an application, configure its Blade compiler during provider startup. Use `withDoubleEncoding()` to restore the default.

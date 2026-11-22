@@ -1,5 +1,11 @@
 # 当前交接
 
+## Blade 请求与配置读取（2026-11-23）
+
+按用户确认实现config／Config::get／Config::has，以及request()->…／Request::…指定只读请求方法；复用真实Request及既有异步渲染桥接，用渲染树sync_scope隔离，不另建管理器、不序列化或全局共享可变Request。补齐Request::getPathInfo，缓存格式41。欢迎页去掉name、version、query、base_path、path五项重复传参；保留必要业务数据与已校验表单字段。三语Blade正文、计划及规范同步。
+
+隔离基线532681181加本轮11处源码／测试／正文：Rust1.94.0定向90项测试、7处fmt、框架库／相关测试与应用消费者严格Clippy、25组真实HTTP Chromium、三语内容／构建／12组双前缀文档浏览器／6组全导航通过。逐字节核对及日志在target/tmp/blade-request-config-20261123；其他协作WIP未混入通过结论。完整workspace、其他引擎／实机、Windows／Docker／性能未验；普通模板仅支持文档列出的只读调用，不代表任意Request／Config对象和方法已对齐。详情见[主题记录](audits/03-07/welcome-language-2026-11-22.md#blade-请求与配置读取2026-11-23)。前一轮表单字段配置已提交532681181；用户本轮已要求提交并继续落实建议，按范围本地提交，不推送、不操作开发数据。
+
 ## 语言偏好表单字段配置（2026-11-23）
 
 新增app.locale_form_field／APP_LOCALE_FORM_FIELD，缺省locale；欢迎页表单与保存入口共用校验后的配置，缺键回退，非法类型／null／非法名称和安全字段冲突明确报错且不写偏好。根环境模板、三语正文、计划及规范同步；配置缓存优先，改环境后重建。SetLocale通用请求体保存接口保留显式字段参数，Cookie／URL名称和语言来源规则不变。

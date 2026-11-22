@@ -22,20 +22,10 @@ impl WelcomeController {
             })?;
             let selection = request.extensions().get::<LocaleSelection>();
             let page = view("welcome")
-                .with("name", Config::stringOr("app.name", "App"))
-                .with("version", Config::stringOr("app.version", "1.0.0"))
                 .with("repository", Application::REPOSITORY)
                 .with("language", locale.clone())
                 .with("locale_selection", serde_json::json!(selection))
-                .with("locale_form_field", Self::locale_form_field()?)
-                .with(
-                    "query",
-                    request
-                        .query(None)?
-                        .unwrap_or_else(|| serde_json::json!({})),
-                )
-                .with("base_path", request.getBaseUrl())
-                .with("path", request.uri().path());
+                .with("locale_form_field", Self::locale_form_field()?);
             let mut headers = HeaderMap::new();
             headers.insert(
                 "content-language",

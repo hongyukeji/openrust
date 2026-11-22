@@ -363,6 +363,12 @@ impl Request {
         &self.proxy.prefix
     }
 
+    /// 返回应用路径，保留开头斜杠及已有编码，不包含可信代理的部署前缀。
+    #[allow(non_snake_case, reason = "Matches Symfony Request's inherited API")]
+    pub fn getPathInfo(&self) -> &str {
+        self.uri().path()
+    }
+
     /// Returns the raw URL path without surrounding slashes, or `/` for the root.
     pub fn path(&self) -> &str {
         let path = self.uri().path().trim_matches('/');

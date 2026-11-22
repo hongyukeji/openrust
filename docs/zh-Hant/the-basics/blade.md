@@ -51,6 +51,24 @@ Blade 範本使用 `.blade.html` 副檔名。一般 `.html` 視圖以 UTF-8 HTML
 
 將 `$query`、`$parameter` 和 `$candidates` 作為視圖資料傳入。使用 `Arr::except($query, [$parameter])` 只刪除語言參數。保留預設跳脫輸出：查詢編碼與 HTML 跳脫各有作用。上述助手也可用於子視圖及元件屬性；模板不執行任意 PHP 函式或靜態方法。
 
+### 請求與設定讀取 {#request-config-helpers}
+
+HTTP 視圖可直接讀取目前請求與已載入的設定，不必由控制器重複傳入：
+
+```blade
+<title>{{ config('app.name', 'App') }}</title>
+<span>{{ Config::get('app.version', '1.0.0') }}</span>
+<a href="{{ request()->getBaseUrl() }}/?{{ Arr::query(request()->query()) }}">{{ request()->path() }}</a>
+{{ request()->input('profile.name', '訪客') }}
+{{ request()->header('X-Language', 'en') }}
+```
+
+`config($key, $default)`／`Config::get($key, $default)` 讀取點分隔設定鍵，僅缺鍵時使用預設值，已有 null、false、0 不會被替換。`Config::has($key)` 檢查鍵是否存在。它們重用目前應用設定儲存庫與快取，不重新讀取 `.env`。
+
+`request()->` 與 `Request::` 支援 `query`、`input`、`header`、`path`、`getPathInfo`、`getBaseUrl`、`url`、`fullUrl`、`method`、`secure`。`query()` 傳回完整查詢參數，單鍵查詢讀取頂層鍵；`input()` 合併請求本文與查詢參數，支援點路徑，同名時本文優先；兩者均可傳入鍵與缺失預設值。`header` 需要標頭名稱，可傳缺失預設值。`path()` 不含兩端斜杠（根路徑為 `/`）；`getPathInfo()` 保留開頭斜杠及編碼；部署前綴由 `getBaseUrl()` 單獨傳回。其他方法不接受參數。預設跳脫同樣適用。
+
+請求讀取透過 HTTP 回應渲染取得真實請求，子視圖、元件與快取模板共用本次請求，獨立請求及應用保持隔離。離線渲染不能讀取 Request；設定讀取也需要有效應用作用域。模板僅開放上述讀取呼叫，不支援將 `request()`／`config()` 傳回為任意可變物件，也不執行設定寫入、請求修改或任意 PHP 方法。業務目前語言仍使用 `App::currentLocale()`，請求標頭不代表最終應用語言。
+
 ### HTML 實體編碼 {#html-entity-encoding}
 
 Blade 預設會對跳脫輸出中的現有 HTML 實體再次編碼。若要保留有效的 HTML 4.01 實體，可在應用程式服務提供者啟動時設定 Blade 編譯器。呼叫 `withDoubleEncoding()` 可恢復預設行為。

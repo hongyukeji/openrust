@@ -885,3 +885,40 @@ Rust1.94.0，隔离源码 `target/tmp/locale-save-20261123/source/`；所有命�
 用户随后询问视图能否直接读取Request和Config。当前普通Blade表达式helpers仅提供既有数组／翻译入口；尚无通用request()／request()->…／config()／Config::get()。已有ViewRequestData承担CSRF、Session、授权及URL上下文，可作为后续复用基础。记录为模板公开读取能力缺口，未将它计入本轮表单字段配置已实现范围，也未声称任意Request方法可在视图使用。
 
 用户随后明确授权本轮本地提交，不含推送；仅纳入本次表单字段配置及相应记录，保留其他在途改动。
+
+
+## Blade 请求与配置读取（2026-11-23）
+
+### 问题与上游依据
+
+用户确认视图应能直接读取请求和应用配置。此前普通Blade表达式未实现这些入口，控制器只好传name、version、query、base_path、path；这是模板能力缺口，不是控制器必须承担这些数据，也不能据此宣称模板模块完整对齐。
+
+联网核对固定Framework v13.40.0（1449bf241017087fbd38c118ecaabef3f6797fdc）的Foundation/helpers.php（config／request）、Config/Repository.php、Http/Concerns/InteractsWithInput.php及Http/Request.php、对应RequestTest；Symfony HttpFoundation v7.4.0 Request.php提供继承的getPathInfo／getBaseUrl职责。固定来源材料在target/tmp/blade-request-config-20261123/research/*.txt，未新增PHP文件。v0.x的vendor/openrust/framework/src/view.rs使用旧MiniJinja渲染器，不能直接迁入当前Blade编译器；复用当前Config Facade和Request读取、输入解析、URL、渲染上下文与请求检查桥接，不另造管理器或请求解析器。
+
+### 实际实现及边界
+
+- 表达式支持config(key, default)／Config::get(key, default)及Config::has(key)。沿用当前仓储，缺键才兜底，null／false／0保留，不按请求读.env。
+- request()->和Request::提供query、input、header、path、getPathInfo、getBaseUrl、url、fullUrl、method、secure。query读取顶层bag，input沿用真实Request异步解析及body优先／点路径，header沿用大小写与合法性规则。Request::getPathInfo补齐继承的原始应用路径入口，保留斜杠及编码，部署前缀仍独立。
+- 扩展已有ViewRequestQuery桥接，通过同一异步请求持有者读取，不把Request克隆／转成视图数据，也不为输入另建解析器；授权检查继续使用同一桥接。渲染树用tokio现有sync_scope绑定Arc<ViewRequestData>，嵌套返回或panic自动恢复；请求外返回渲染错误，缓存只保存调用节点，不保存请求值。没有跨请求的可变全局Request或语言状态。
+- 缓存版本40→41。欢迎页模板直接读取配置及请求，移除控制器五项重复传参，保留仓库、当前应用语言、LocaleSelection及已校验表单字段；不让原始配置绕过字段冲突校验，不改变保存／Cookie／CSRF／303或语言协商行为。
+- 支持列表是明确的只读表达式范围，不是任意PHP调用或完整动态Request对象。尚未开放bare request()／config()对象、request(key)魔术属性、任意方法链、请求修改及config数组写入；本轮没有实现这些形式，也不将它们归因为Rust绝对不可表达。header当前需要字符串头名，不提供零参数整个header bag形式。后续使用场景按固定契约补齐，不能用同名存在冒充完整对象能力。
+
+### 验收证据
+
+基线532681181的隔离源码增量验收；复用本任务独占target/tmp/locale-save-20261123/cargo-target，源码位于同工作流source。所有命令经tests/build_guard.py、Rust1.94.0、项目内TMPDIR，保留正常并发及增量。其他协作者的图片、HTTP响应及规范整理WIP未混入通过结论。
+
+| 实际命令／消费者 | 结果 |
+| --- | --- |
+| cargo +1.94.0 test --locked -p openrust-framework --test blade_request_config --test blade_translations --test view_finder --test request_input --test urls | 5＋7＋5＋30＋6＝53项通过，0失败／忽略，framework.log |
+| cargo +1.94.0 test --locked -p openrust --test welcome --test configuration | 34＋3＝37项通过，0失败／忽略，welcome.log |
+| rustfmt +1.94.0 --edition 2024 --check，本轮7处Rust | 通过，fmt.log |
+| cargo +1.94.0 clippy --locked -p openrust-framework --lib --test blade_request_config --test blade_translations --test view_finder --test request_input --test urls -- -D warnings；应用welcome／configuration严格Clippy | 通过，clippy-framework.log／clippy-welcome.log，第三方依赖既有警告单列保留 |
+| 真实Kernel TCP服务＋Chromium，桌面／手机、明暗、三语、自动／固定／更新／重置、URL与Cookie改名／关闭、仓库链接、无JS | 25组通过，browser.log／browser/results.json；服务安全退出 |
+| node docs/tests/check_content.mjs、npm --prefix docs run build | 通过，docs-final-content.log／docs-final-build.log |
+| node docs/tests/check_browser.mjs、node docs/tests/check_scope.mjs | 根与/docs/双前缀三语桌面／手机12组与6组全导航通过，docs-final-browser.log／docs-final-scope.log |
+
+新增消费者覆盖null与缺键区别、false／0、HTML转义、真实JSON body与query区别、点路径、输入默认、头大小写、路径／URL／方法／secure、子视图／layout／组件参数／缓存、12个并发请求及两个应用、请求作用域配置与恢复、非法调用不修改配置、失败后恢复，以及请求外不复用上一次请求。已有view_finder保留并复验auth／can等渲染桥接消费者。
+
+初次命令误用不存在的blade_auth测试目标，改为实际承载授权消费者的view_finder重跑。测试初版误将app.name当作请求隔离键，以及只检查ViewError外层通用文本，失败后改用既有app.locale作用域，并检查错误source；没有扩大为全部Config隔离重构、删除必要断言或跳过测试。ConfigLoader只接受fn，fixture改从隔离文件读取应用名称。最终上述结果均重新执行，失败尝试不计通过。
+
+日志与source-match.json位于target/tmp/blade-request-config-20261123，11处交付实现／测试／三语正文与验收快照逐字节一致。未跑完整workspace／其他引擎或实机／Windows／Docker／性能测试；未改共享数据库或缓存行为，不启动无关服务、不操作开发数据。前一轮表单字段已按用户授权提交532681181；用户本轮明确要求提交，后续继续要求落实视图读取建议，因此按本轮范围本地提交，不推送，保留无关在途代码。

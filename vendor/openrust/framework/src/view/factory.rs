@@ -487,7 +487,9 @@ impl Factory {
     ) -> ViewResult<(String, super::RenderedView)> {
         let mut context = RenderContext::new(Some(self));
         context.request = Arc::new(request);
-        let html = self.render_view_ref(&mut view, &mut context)?;
+        let html = super::request_data::render_scope(context.request.clone(), || {
+            self.render_view_ref(&mut view, &mut context)
+        })?;
         let mut data = self.getShared();
         if let Some(errors) = super::middleware::shared_errors() {
             data.insert("errors".into(), errors);
