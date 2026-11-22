@@ -106,18 +106,42 @@ The default query and Cookie names are now `locale` (`?locale=zh-Hans`, `locale=
 
 ### Automatic and Fixed Language {#locale-preference}
 
-With no manual preference, Web pages negotiate the language on every request. The welcome-page language menu lists the same active candidates as the middleware and offers Follow browser. A POST form protected by the existing Web CSRF middleware saves the selected candidate; Follow browser deletes it. Automatic detection and GET requests never save a preference. The underlined item is the current request language; the check mark identifies the saved choice or automatic mode, including during a temporary URL override. Native names come from each locale's `languages.json`; a missing exact-locale name displays the locale code, without falling back to another language's name. Other query parameters survive the POST/303 redirect to the local home page; the temporary language parameter is removed. Disabling URL selection does not disable these forms.
+With no manual preference, Web pages negotiate the language on every request. The welcome-page language menu lists the same active candidates as the middleware and offers Follow browser. A POST form protected by the existing Web CSRF middleware saves the selected candidate; Follow browser deletes it. Automatic detection and GET requests never save a preference. The underlined item is the current request language; the check mark identifies the saved choice or automatic mode, including during a temporary URL override. Native names come from each locale's `languages.json`; a missing exact-locale name displays the locale code, without falling back to another language's name. Other query parameters survive the POST/303 redirect to the local page specified by the form; the temporary language parameter is removed. Disabling URL selection does not disable these forms.
 
 The OpenRust extension `app.locale_cookie` defaults to `"locale"`, including when absent; the application preserves `APP_LOCALE_COOKIE` to override the name. JSON `null` disables preference reads and writes (the environment string `null` is a name). Choose a nonempty top-level Cookie name that does not conflict with Session or `XSRF-TOKEN`. Invalid configuration is an error. The Cookie must pass through `EncryptCookies` and must not be excluded from encryption. The default instance runs after Web Cookie decryption and queue setup, before the ordinary Web Session middleware. Stateless API routes do not read raw preference Cookies or automatically start Session. Without a protected Cookie queue, the welcome page retains temporary GET links when URL selection is enabled.
 
 The preference uses `Cookie::forever` (400 days), encryption, HttpOnly, and the existing CookieJar defaults from `session.path`, `domain`, `secure` and `same_site` (normally `/`, current host, HTTPS-dependent Secure, and Lax). Deletion uses the same path and domain. Set `session.secure=true` on HTTPS-only deployments. Expiration, clearing Cookies, or changing browsers loses the local preference; it is not permanent or synchronized across devices. Invalid, damaged or no-longer-supported saved values are ignored and automatic selection resumes. Explicit invalid submissions return HTTP 400. Browser expiry is enforced by the client; a replayed Cookie header carries no expiry metadata.
 
-For another protected Web endpoint, call the same reusable method after the application's CSRF protection:
+For a protected Web write endpoint, the OpenRust extension reads only the specified top-level body field and leaves the response to the controller:
 
 ```rust
-SetLocale::storePreference(request, Some("zh-Hans"))?;
-SetLocale::storePreference(request, None)?; // restore automatic mode
+let redirect = match request.post(Some("redirect")).await? {
+    None => "/".to_owned(),
+    Some(serde_json::Value::String(path)) => path,
+    _ => return Err(HttpError::InvalidRequest),
+};
+let target = SetLocale::urlWithoutLocale(request, &redirect)?;
+SetLocale::storePreferenceFromRequest(request, "locale").await?;
+Ok(Redirect::to(&target, RedirectOptions {
+    status: StatusCode::SEE_OTHER,
+    ..Default::default()
+})?.into())
 ```
+
+The welcome form submits the current page path in the body field `redirect`. Another page can send `/account?tab=profile` to return there after saving. Missing, null or empty `redirect` falls back to `/`; other types and non-local targets return 400 before a preference is written. Query parameters do not supply this field. This is an application form convention, not a new middleware configuration.
+
+A missing preference field, or a number, boolean, array or object as its value, returns HTTP 400. JSON `null` or an empty string clears the preference; a nonempty string uses the existing BCP 47 and candidate validation. Query parameters never supply the body field. It reads values after the existing input middleware; default trimming and empty-string conversion can turn whitespace into a clear operation. The method neither changes the current request language nor bypasses method, Cookie-pipeline or CSRF checks. The lower-level `storePreference(request, Some("zh-Hans"))` and `storePreference(request, None)` remain available for already validated values.
+
+`urlWithoutLocale(request, "/")` generates the application-specified return target, not the save endpoint. It removes the active language query key from the target and request, preserves other values and encoding, and uses the existing URL generator for trusted proxy subpaths. Request values override other target query values. Only local paths beginning with a single `/` are accepted; external or protocol-relative URLs and backslashes are rejected. It only returns a URL and does not store a preference or create a response. Import `SetLocale`, `Redirect`, `RedirectOptions` and `StatusCode` for the page example.
+
+A controller using the same protected Cookie pipeline can instead accept a field named `language` and return 204 (or its own JSON response):
+
+```rust
+SetLocale::storePreferenceFromRequest(request, "language").await?;
+Ok(Response::empty(StatusCode::NO_CONTENT))
+```
+
+This does not enable persistence on an ordinary stateless API. Add the existing stateful Cookie pipeline and write protection explicitly; retain CSRF for browser requests. No route, Session or account storage is registered by these helpers. Both preference helpers are OpenRust extensions.
 
 Use one of these actions per write request, then redirect to an application-controlled local destination. The method rejects read requests and unavailable or unprotected preference storage; it queues a Cookie without changing the current locale or emitting a second event. It does not replace CSRF middleware. `LocaleSelection` exposes `preference`, `can_store`, supported candidates and URL selection data; read `App::currentLocale()` for the actual language. A callback selecting a language hides controls that cannot override it. Empty candidates disable the entire middleware.
 

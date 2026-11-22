@@ -1517,6 +1517,34 @@ async fn a_new_language_uses_existing_csrf_preference_and_explicit_candidate_con
 }
 
 #[tokio::test]
+async fn preference_redirect_removes_custom_locale_override_and_preserves_nested_query() {
+    let root = Root::new("en");
+    let kernel = root
+        .kernel_options(true, Some("language".into()), None)
+        .await;
+    let (_, headers, html) = preference_request(&kernel, "GET", "/", "en", "", "").await;
+    let body = format!("_token={}&locale=zh-Hant", csrf_token(&html));
+    let (status, saved, _) = preference_request(
+        &kernel,
+        "POST",
+        "/locale?language=en&filter%5Bterm%5D=a%26b&locale=keep&plus=%2B",
+        "en",
+        &response_cookies(&headers),
+        &body,
+    )
+    .await;
+    assert_eq!(status, StatusCode::SEE_OTHER);
+    assert_eq!(
+        saved["location"],
+        "http://localhost?filter%5Bterm%5D=a%26b&locale=keep&plus=%2B"
+    );
+    let (_, headers, html) =
+        preference_request(&kernel, "GET", "/", "en", &response_cookies(&saved), "").await;
+    assert_page(&headers, &html, "zh-Hant");
+    assert_mode(&html, "fixed", "zh-Hant");
+}
+
+#[tokio::test]
 async fn environment_candidates_control_menu_and_preference_without_bootstrap_code() {
     let root = Root::new("en");
     fs::create_dir_all(root.0.join("lang/ja")).unwrap();
@@ -1570,4 +1598,70 @@ async fn environment_candidates_control_menu_and_preference_without_bootstrap_co
     let automatic = root.kernel().await;
     let (_, html) = send(&automatic, "/", &["ja"]).await;
     assert_eq!(html.matches("name=\"locale\" value=").count(), 5);
+}
+
+#[tokio::test]
+async fn preference_redirect_uses_a_body_local_target_before_saving() {
+    let root = Root::new("en");
+    let kernel = root.kernel().await;
+    let (_, headers, html) = preference_request(&kernel, "GET", "/", "en", "", "").await;
+    assert!(html.contains("name=\"redirect\" value=\"/\""));
+    let cookie = response_cookies(&headers);
+    let token = csrf_token(&html);
+    for (field, expected) in [
+        (
+            "redirect=%2Faccount%3Flocale%3Den%26tab%3Da%2526b%23preferences",
+            "http://localhost/account?tab=a%26b&search=%2B#preferences",
+        ),
+        ("redirect=", "http://localhost?search=%2B"),
+        ("", "http://localhost?search=%2B"),
+    ] {
+        let body = format!("_token={token}&locale=zh-Hans&{field}");
+        let (status, saved, _) = preference_request(
+            &kernel,
+            "POST",
+            "/locale?locale=en&search=%2B",
+            "en",
+            &cookie,
+            &body,
+        )
+        .await;
+        assert_eq!(status, StatusCode::SEE_OTHER, "{field}");
+        assert_eq!(saved["location"], expected);
+        let (_, next, html) =
+            preference_request(&kernel, "GET", "/", "en", &response_cookies(&saved), "").await;
+        assert_page(&next, &html, "zh-Hans");
+    }
+    for field in [
+        "redirect=https%3A%2F%2Fevil.example",
+        "redirect=%2F%2Fevil.example",
+        "redirect=%2F%5Cevil.example",
+        "redirect=relative",
+        "redirect%5B%5D=%2Faccount",
+    ] {
+        let body = format!("_token={token}&locale=zh-Hant&{field}");
+        let (status, headers, _) =
+            preference_request(&kernel, "POST", "/locale", "en", &cookie, &body).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{field}");
+        assert!(!headers.contains_key("location"));
+        assert!(
+            !headers
+                .get_all("set-cookie")
+                .iter()
+                .any(|v| v.to_str().unwrap().starts_with("locale="))
+        );
+    }
+    // 查询参数不能充当返回目标；保存成功后使用应用默认目标。
+    let body = format!("_token={token}&locale=zh-Hant");
+    let (status, headers, _) = preference_request(
+        &kernel,
+        "POST",
+        "/locale?redirect=%2Faccount",
+        "en",
+        &cookie,
+        &body,
+    )
+    .await;
+    assert_eq!(status, StatusCode::SEE_OTHER);
+    assert_eq!(headers["location"], "http://localhost?redirect=%2Faccount");
 }

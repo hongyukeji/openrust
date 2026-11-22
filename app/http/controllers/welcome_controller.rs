@@ -5,10 +5,7 @@ use openrust::{
         HeaderMap, HttpError, HttpFuture, Request, Response, StatusCode,
         middleware::{LocaleSelection, SetLocale},
     },
-    support::{
-        Arr,
-        facades::{App, Config, Redirect},
-    },
+    support::facades::{App, Config, Redirect},
     view::view,
 };
 
@@ -35,7 +32,8 @@ impl WelcomeController {
                         .query(None)?
                         .unwrap_or_else(|| serde_json::json!({})),
                 )
-                .with("base_path", request.getBaseUrl());
+                .with("base_path", request.getBaseUrl())
+                .with("path", request.uri().path());
             let mut headers = HeaderMap::new();
             headers.insert(
                 "content-language",
@@ -50,34 +48,13 @@ impl WelcomeController {
         request: &mut Request,
     ) -> HttpFuture<'_, Result<Response, HttpError>> {
         Box::pin(async move {
-            // 仅请求体表达写入意图；缺字段或错误类型不能意外清除偏好。
-            let body = request.post(None).await?.ok_or(HttpError::InvalidRequest)?;
-            let value = body.get("locale").ok_or(HttpError::InvalidRequest)?;
-            let locale = match &value {
-                serde_json::Value::Null => None,
-                serde_json::Value::String(locale) if locale.is_empty() => None,
-                serde_json::Value::String(locale) => Some(locale.as_str()),
+            let redirect = match request.post(Some("redirect")).await? {
+                None => "/".to_owned(),
+                Some(serde_json::Value::String(path)) => path,
                 _ => return Err(HttpError::InvalidRequest),
             };
-            SetLocale::storePreference(request, locale)?;
-            let mut query = request
-                .query(None)?
-                .unwrap_or_else(|| serde_json::json!({}));
-            if let Some(parameter) = request
-                .extensions()
-                .get::<LocaleSelection>()
-                .and_then(|selection| selection.query_parameter.as_ref())
-                && let Some(query) = query.as_object_mut()
-            {
-                query.remove(parameter);
-            }
-            let query = Arr::query(&query)?;
-            let target = format!(
-                "{}/{}{}",
-                request.getBaseUrl(),
-                if query.is_empty() { "" } else { "?" },
-                query
-            );
+            let target = SetLocale::urlWithoutLocale(request, &redirect)?;
+            SetLocale::storePreferenceFromRequest(request, "locale").await?;
             Ok(Redirect::to(
                 &target,
                 openrust::routing::RedirectOptions {

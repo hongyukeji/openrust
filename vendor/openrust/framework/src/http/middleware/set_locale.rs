@@ -162,6 +162,70 @@ impl SetLocale {
         Ok(())
     }
 
+    /// 从请求体的指定顶层字段保存偏好；不读取查询参数。
+    /// null 或空字符串恢复自动，缺字段及其他类型报错；沿用 storePreference 的安全约束。
+    #[allow(non_snake_case, reason = "沿用中间件公开方法命名")]
+    pub async fn storePreferenceFromRequest(
+        request: &mut Request,
+        field: &str,
+    ) -> Result<(), HttpError> {
+        let body = request.post(None).await?.ok_or(HttpError::InvalidRequest)?;
+        let value = body.get(field).ok_or(HttpError::InvalidRequest)?;
+        let locale = match value {
+            serde_json::Value::Null => None,
+            serde_json::Value::String(locale) if locale.is_empty() => None,
+            serde_json::Value::String(locale) => Some(locale.as_str()),
+            _ => return Err(HttpError::InvalidRequest),
+        };
+        Self::storePreference(request, locale)
+    }
+
+    /// 生成应用指定的本地返回 URL，移除实际语言查询参数并保留其他查询值。
+    /// 目标必须是以单个 / 开头的应用内路径；不接受外部返回地址，也不创建响应或保存偏好。
+    #[allow(non_snake_case, reason = "沿用中间件公开方法命名")]
+    pub fn urlWithoutLocale(request: &Request, path: &str) -> Result<String, HttpError> {
+        use crate::{contracts::routing::UrlGenerator as _, support::facades::URL};
+
+        if !path.starts_with('/')
+            || path.starts_with("//")
+            || path.contains('\\')
+            || path.bytes().any(|byte| byte.is_ascii_control())
+        {
+            return Err(HttpError::InvalidRequest);
+        }
+        let parameter = request
+            .extensions()
+            .get::<LocaleSelection>()
+            .and_then(|selection| selection.query_parameter.as_deref());
+        let filtered = |mut query: serde_json::Value| -> Result<_, HttpError> {
+            if let Some(parameter) = parameter {
+                crate::support::Arr::forget(&mut query, parameter)
+                    .map_err(|_| HttpError::InvalidRequest)?;
+            }
+            Ok(crate::routing::json_parameters(query))
+        };
+        let (path, fragment) = path.split_once('#').unwrap_or((path, ""));
+        let (path, query) = path.split_once('?').unwrap_or((path, ""));
+        let urls = URL::forRequest(request)?;
+        let target = urls.query(
+            path,
+            &filtered(crate::http::parse_query(query)?)?,
+            &[],
+            None,
+        )?;
+        let mut target = urls.query(
+            &target,
+            &filtered(request.query(None)?.unwrap_or_default())?,
+            &[],
+            None,
+        )?;
+        if !fragment.is_empty() {
+            target.push('#');
+            target.push_str(fragment);
+        }
+        Ok(target)
+    }
+
     fn selected_locale(
         &self,
         request: &Request,

@@ -912,7 +912,7 @@ pub(super) fn query_string(parameters: &[RouteParameter], route: bool) -> UrlRes
     Ok(parts.join("&"))
 }
 
-fn json_parameters(value: Value) -> RouteParameters<'static> {
+pub(crate) fn json_parameters(value: Value) -> RouteParameters<'static> {
     match value {
         Value::Object(values) => values
             .into_iter()

@@ -106,18 +106,42 @@ APP_SUPPORTED_LOCALES=en,zh-Hans,zh-Hant,ja
 
 ### 自动跟随与固定语言 {#locale-preference}
 
-从未手动设置时，Web 页面每次请求重新协商语言。欢迎页菜单遍历中间件的同一份有效候选，并提供“跟随浏览器”。受现有 Web CSRF 中间件保护的 POST 表单保存选择，“跟随浏览器”删除偏好；自动识别和 GET 不保存偏好。下划线表示本次实际语言，勾选表示固定选择或自动模式，URL 临时覆盖时也分别显示。母语名称来自各语言的 `languages.json`；该语言缺少名称时显示语言代码，不回退为其他语言的名称。POST 后以 303 跳转至站内首页，保留其他查询参数并移除临时语言参数；关闭 URL 识别不影响保存表单。
+从未手动设置时，Web 页面每次请求重新协商语言。欢迎页菜单遍历中间件的同一份有效候选，并提供“跟随浏览器”。受现有 Web CSRF 中间件保护的 POST 表单保存选择，“跟随浏览器”删除偏好；自动识别和 GET 不保存偏好。下划线表示本次实际语言，勾选表示固定选择或自动模式，URL 临时覆盖时也分别显示。母语名称来自各语言的 `languages.json`；该语言缺少名称时显示语言代码，不回退为其他语言的名称。POST 后以 303 返回表单指定的站内页面，保留其他查询参数并移除临时语言参数；关闭 URL 识别不影响保存表单。
 
 OpenRust 扩展 `app.locale_cookie` 默认 `"locale"`，缺键相同，应用保留 `APP_LOCALE_COOKIE` 覆盖名称。JSON `null` 关闭偏好读取与写入（环境字符串 `null` 是名称）。名称须为非空顶层 Cookie 名称，不能与 Session 或 `XSRF-TOKEN` 冲突，非法配置报错。必须经过 `EncryptCookies`，不能豁免加密。默认实例自动装配在 Web Cookie 解密和队列之后、普通 Web Session 之前。无状态 API 不读取原始偏好 Cookie，也不自动启动 Session。没有安全 Cookie 队列时，欢迎页在 URL 识别启用时保留单次 GET 链接。
 
 偏好复用 `Cookie::forever`（400 天）、加密、HttpOnly，以及现有 CookieJar 的 `session.path`、`domain`、`secure`、`same_site` 默认值（通常为 `/`、当前主机、HTTPS 时 Secure、Lax）。删除使用相同路径与域名。仅提供 HTTPS 的部署应设 `session.secure=true`。过期、清除 Cookie 或更换浏览器都会丢失本地选择，不承诺永久或跨设备同步。损坏、非法或已不属于候选的已保存值被忽略并恢复自动；显式非法提交返回 HTTP 400。过期由客户端执行，重放的 Cookie 请求头本身不携带过期信息。
 
-其他安全 Web 入口可在应用的 CSRF 保护之后复用同一方法：
+受保护的 Web 写入入口可使用以下 OpenRust 扩展，只读取指定顶层请求体字段，由控制器决定响应：
 
 ```rust
-SetLocale::storePreference(request, Some("zh-Hans"))?;
-SetLocale::storePreference(request, None)?; // 恢复自动
+let redirect = match request.post(Some("redirect")).await? {
+    None => "/".to_owned(),
+    Some(serde_json::Value::String(path)) => path,
+    _ => return Err(HttpError::InvalidRequest),
+};
+let target = SetLocale::urlWithoutLocale(request, &redirect)?;
+SetLocale::storePreferenceFromRequest(request, "locale").await?;
+Ok(Redirect::to(&target, RedirectOptions {
+    status: StatusCode::SEE_OTHER,
+    ..Default::default()
+})?.into())
 ```
+
+欢迎页表单通过请求体字段 `redirect` 提交当前页面路径。其他页面可传 `/account?tab=profile`，保存后返回该页面；缺失、null 或空值兜底为 `/`，错误类型和非站内目标在写入偏好前返回400。查询参数不能补充此字段。这是应用表单约定，不是新增中间件配置。
+
+偏好字段缺失，或其值为数字、布尔、数组、对象时返回 HTTP 400；JSON `null` 或空字符串清除偏好，非空字符串复用现有 BCP 47 和候选校验。查询参数不会补齐请求体字段。字段取自既有输入中间件处理后的请求体；默认裁剪和空字符串转换可能将纯空白转为清除操作。此方法不改变本次请求语言，也不绕过请求方法、Cookie 管线或 CSRF 约束。已有 `storePreference(request, Some("zh-Hans"))` 和 `storePreference(request, None)` 仍可处理经过校验的值。
+
+`urlWithoutLocale(request, "/")` 返回应用指定的目标，不会再次跳到保存入口。它从目标和当前请求中移除实际语言查询键，保留其他值及编码，使用现有 URL 生成器处理可信代理子路径；请求中的其他值覆盖目标中的同名值。只接受以单个 `/` 开头的本地路径，拒绝外部地址、协议相对地址和反斜杠。它只生成 URL，不保存偏好或创建响应。页面示例需导入 `SetLocale`、`Redirect`、`RedirectOptions` 和 `StatusCode`。
+
+使用同一受保护 Cookie 管线的 API 控制器也可以读取自定义 `language` 字段，直接返回 204 或自行生成 JSON：
+
+```rust
+SetLocale::storePreferenceFromRequest(request, "language").await?;
+Ok(Response::empty(StatusCode::NO_CONTENT))
+```
+
+这不会自动为普通无状态 API 启用持久化；须明确接入既有有状态 Cookie 管线和写入保护，浏览器请求仍需 CSRF。辅助方法不会注册路由、启动 Session 或增加账号存储。两个语言偏好辅助入口均属于 OpenRust 扩展。
 
 每次写请求选择其中一种操作，再跳转至应用控制的站内地址。方法拒绝读取请求及不可用或未加密的偏好存储，只排队 Cookie，不改变本次语言或再次发事件，不能代替 CSRF 中间件。`LocaleSelection` 提供 `preference`、`can_store`、候选和 URL 信息；实际语言使用 `App::currentLocale()`。回调已决定语言时，不显示无法覆盖它的控件；空候选关闭整个中间件。
 

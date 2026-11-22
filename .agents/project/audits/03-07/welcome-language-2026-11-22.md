@@ -806,3 +806,55 @@ Sanctum feature 的 locale_preference 10项通过，stateful.log；合计179次�
 用户随后授权本轮本地提交，不包含推送。提交前按任务差异分离共享文件，仅暂存候选配置、相关测试、三语正文和本主题记录，不包含请求体保存／返回URL及其他协作者改动。仅含本次暂存代码的commit-source隔离快照重新通过框架52项（9＋31＋12）、配置3项和欢迎页29项，共84项，0失败／忽略，见precommit-framework-retry.log及precommit-application-retry.log；fmt和三语内容检查通过，9个技术暂存文件与提交快照逐字节一致，见precommit-closure.json。此次未重新执行欢迎页浏览器或完整workspace严格Clippy，先前组合快照结果及范围保留原记录。
 
 提交前复验曾触及32 GB停线，两个守卫安全停止构建，退出75不计通过；按项目规则取得锁并清理编译产物，保留源码、改动、依赖和日志，释放约101.8 GB，清理后约133.5 GB可用，实际事件见target/tmp/build-guard-events.jsonl。上表提交前测试已在恢复空间后重新执行通过。
+
+## 请求体语言偏好与返回 URL（2026-11-23）
+
+### 范围与依据
+
+本轮在现有 SetLocale 上补充两个独立便捷入口，保留已提交的 locale_selection 视图数据、语言资源发现及其他协作者的候选配置改动。未新增管理器、依赖、配置、路由或账号存储；页面和 API 响应继续由应用决定。开始及收尾 HEAD 发生协作推进，以最终隔离源码和工作区对应文件为验收依据，不把整个工作区或其他在途改动归入本轮完成。
+
+设计先核对固定 Framework v13.40.0（1449bf241017087fbd38c118ecaabef3f6797fdc）：
+
+- `src/Illuminate/Http/Concerns/InteractsWithInput.php` 的 post/query/input，及 `tests/Http/HttpRequestTest.php::testPostMethod`／testQueryMethod：请求体与查询分别读取，不能用合并输入替代只读请求体。复用现有 Request::post，严格区分缺字段与显式 null。
+- `src/Illuminate/Validation/Concerns/ValidatesAttributes.php::validateString`：字符串类型不隐式接受数字或布尔。本轮不为一个字段建立平行验证器；直接匹配 JSON 类型，复用已有语言标签、候选及 Cookie 校验，错误沿用 HttpError::InvalidRequest（400）。
+- `src/Illuminate/Routing/UrlGenerator.php::query`、`tests/Routing/RoutingUrlGeneratorTest.php::testQueryGeneration`：复用既有 URL::forRequest／query 的参数合并和编码，不手写查询序列化。仅将内部 json_parameters 的可见范围调整为 pub(crate)，未增加公开 URL 别名。
+- `src/Illuminate/Cookie/CookieJar.php`、`tests/Cookie/CookieTest.php` 及 `src/Illuminate/Routing/Redirector.php`、`tests/Routing/RoutingRedirectorTest.php::testComplexRedirectTo`：Cookie 队列／属性与响应、303重定向分开负责，继续调用既有 Cookie::forever／forget／queue 和 Redirect::to。
+
+固定源码链接统一为 https://github.com/laravel/framework/tree/1449bf241017087fbd38c118ecaabef3f6797fdc 。官方用法核对请求输入、URL、Cookies及重定向对应章节；CodeZero laravel-localizer 与 mcamara laravel-localization 的来源／存储分工仅作职责参考，不引入其探测器或路由体系。当前 v0.x URL 实现没有可直接替代的请求体语言保存入口，复用当前 Request、URL 与 Cookie 机制。上游和生态没有本轮同名 SetLocale 方法，两个接口均明确为 OpenRust 扩展。联网参考文本留在 target/tmp/locale-save-20261123/research/，未新增或提交 PHP 文件。
+
+### 实际契约与消费者
+
+- `SetLocale::storePreferenceFromRequest(&mut Request, field).await -> Result<(), HttpError>`：读取处理后的顶层请求体字段。缺字段、数字、布尔、数组、对象报400，query不能补值；null／空字符串调用已有清除入口，非空字符串复用规范化、精确候选、安全Cookie管线及写请求约束。读取整个body再get字段，避免既有单键post过滤null而混淆缺失。沿用TrimStrings／ConvertEmptyStringsToNull，默认纯空白也会先变为空值；需要保留原始空白校验时由应用按现有规则排除字段。不改变当前请求语言／preference或额外派发事件，保存结果在后续请求生效。
+- `SetLocale::urlWithoutLocale(&Request, path) -> Result<String, HttpError>`：应用指定单个`/`开头的本地目标，拒绝外部／协议相对地址、反斜线和控制字符。从实际LocaleSelection读取query_parameter，分别清理目标与当前query，保留其他参数和现有编码，当前query覆盖目标同名值，支持片段和可信代理子路径。关闭语言query时不删除参数。不保存偏好、不创建响应、不硬编码首页。
+- WelcomeController::store_locale 只表达请求体保存、选择`/`返回目标及303响应；框架locale_preference夹具同时使用204和JSON响应，普通无状态API仍不能借此写Cookie，可信前端的有状态管线沿用既有CSRF和加密机制。
+- 三语localization正文同步页面／API示例、清除语义、Cookie安全前提、输入处理及本地返回URL；不写入内部验收流水。
+
+### 验收
+
+Rust1.94.0，隔离源码 `target/tmp/locale-save-20261123/source/`；所有命令经 tests/build_guard.py，项目内TMPDIR及正常并发／增量开启。复用locale-discovery工作流Cargo缓存，协作任务占用时由Cargo锁等待，未抢占或删除其他任务产物。首个等待过程取消自身等待Cargo，不计通过；最终重新执行。最终复制保留mtime可能复用旧测试可执行文件，因此主动touch隔离快照中受影响输入，重编译后确认新增候选配置消费者实际出现在输出，不能仅用文件比较证明新源码已运行。
+
+| 实际命令／范围 | 结果与日志 |
+| --- | --- |
+| cargo +1.94.0 test --locked -p openrust-framework --test locale_preference --test request_input --test urls | 15＋30＋6＝51项通过，0失败／忽略，final-framework.log |
+| cargo +1.94.0 test --locked --test welcome | 30项通过，0失败／忽略，final-welcome.log；包含本轮真实POST／CSRF／303／后续请求和并行候选配置消费者 |
+| rustfmt +1.94.0 --edition 2024 --check，六处变动Rust文件 | 通过，final-fmt.log |
+| cargo +1.94.0 clippy --locked -p openrust-framework --test locale_preference --test request_input --test urls -- -D warnings | 通过，final-clippy-framework.log |
+| cargo +1.94.0 clippy --locked -p openrust --test welcome -- -D warnings | 通过，final-clippy-welcome.log |
+| node docs/tests/check_content.mjs、npm --prefix docs run build | 通过，docs-final-content.log／docs-final-build.log |
+| node docs/tests/check_browser.mjs、node docs/tests/check_scope.mjs | 根与/docs/双前缀、三语、桌面手机12组合及6组全导航通过，docs-final-browser.log／docs-final-scope.log |
+
+日志均在target/tmp/locale-save-20261123/。初次负例因默认TrimStrings已将纯空白转为空值而失败；测试fixture排除locale裁剪后覆盖原始非法标签，保留生产预处理语义并补文档，没有删除断言或跳过测试。文档全导航入口首次误写为不存在的check_scope_browser.mjs而失败，修正为check_scope.mjs实际重跑通过，不把失败尝试计为通过。全仓cargo fmt --all --check曾被其他在途http_client_sink.rs的格式阻塞（fmt.log），未修改该协作文件；本轮六处Rust格式及严格定向Clippy均通过。依赖现有警告仍可见，不据此宣称所有依赖零诊断。
+
+未重新执行完整workspace测试、Windows／Docker／性能或欢迎页浏览器视觉验收；页面结构和样式未改，本轮通过真实HTTP Kernel／TCP消费者验收功能，文档浏览器通过不替代欢迎页浏览器新验收。未改变共享数据库／缓存驱动，不启动无关三库／缓存服务、不操作开发数据。未经授权，未暂存、提交、推送或发布。
+
+
+
+补验：`cargo +1.94.0 test --locked -p openrust-framework --features sanctum --test locale_preference` 16项通过，0失败／忽略（final-stateful.log），包含可信来源的有状态API请求体保存204及后续偏好，不可信／无来源保持无状态。基础81项加feature组合16次执行，共97次执行，不将其中重复用例计为97个独立测试。收尾10处相关源码／测试／配置／三语正文与最终验收快照逐字节一致；新增候选配置只作为当前消费者组合回归，不归为本轮新增能力。磁盘最后约32,192,252 KiB可用，高于31,250,000 KiB停线，未主动清空可复用缓存。完整workspace与新欢迎页浏览器视觉验收仍未执行，其他协作源码未纳入本轮通过结论。
+
+### 前端指定返回页面与本地提交（2026-11-23）
+
+用户随后授权本轮本地提交，并要求前端返回参数优先、首页仅作兜底。WelcomeController读取请求体redirect字段，缺失／null／空值用`/`，错误类型返回400；先用urlWithoutLocale校验目标，再调用偏好保存，避免目标错误时先写Cookie。欢迎页通过Blade转义的隐藏字段传当前请求path；应用指定返回页面，框架不读取固定的业务返回字段、不改语言来源优先级。现有语言query清理、编码、其他query保留及可信代理子路径继续复用。新增消费者覆盖自选页面及片段、空／缺省、外部／协议相对／反斜线／相对地址和数组错误不写偏好、query不代替body返回字段。三语示例同步。
+
+追加验收期间磁盘触线，build_guard安全停止本轮等待构建（exit75，不计通过），协作清理释放约100GB后保留日志／源码／Cargo锁inode。本轮改用target/tmp/locale-save-20261123/cargo-target独占目录重新编译，未继续与其他任务共用缓存。实际最终结果在本节收尾补记。
+
+返回页面增量最终验收：独占target冷编译后的`cargo +1.94.0 test --locked --test welcome`31项通过、0失败／忽略（redirect-welcome.log）；两处变动Rust的rustfmt与`cargo +1.94.0 clippy --locked -p openrust --test welcome -- -D warnings`通过（redirect-fmt.log／redirect-clippy.log）。三语最终正文的内容、构建、12组双前缀浏览器及6组全导航全部重跑通过（docs-final-*.log）。上一阶段框架请求体／URL回归51项、有状态feature16项保持其当时验收边界，本次没有新增底层修改。真实欢迎页API流程以HTTP消费者为依据，未将文档浏览器当作欢迎页浏览器视觉验收。提交前核对源码与最终快照及Git范围，仅纳入本轮偏好保存／返回页面相关改动，保留其他协作者已暂存和未暂存的工作，不推送。

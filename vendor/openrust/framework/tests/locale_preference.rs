@@ -90,6 +90,10 @@ impl Root {
                         Route::get("/unsafe-store", unsafe_store)?;
                         Route::post("/preference/{locale}", store)?;
                         Route::post("/seed/{locale}", seed)?;
+                        Route::post("/body/{field}", store_body)?;
+                        Route::get("/body/{field}", store_body)?;
+                        Route::post("/json/{field}", store_body_json)?;
+                        Route::get("/return-url", return_url)?;
                         Route::group(
                             openrust::routing::RouteGroup::new()
                                 .middleware_name("cache.headers:public;max_age=60;etag"),
@@ -103,6 +107,7 @@ impl Root {
                     .api(|| {
                         Route::get("/probe", inspect)?;
                         Route::post("/preference/{locale}", store)?;
+                        Route::post("/body/{field}", store_body)?;
                         Ok(())
                     }),
             )
@@ -154,6 +159,33 @@ fn unsafe_store(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
         Ok(Response::from("unsafe"))
     })
 }
+fn store_body(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let field = request.route("field").unwrap().to_owned();
+        SetLocale::storePreferenceFromRequest(request, &field).await?;
+        Ok(Response::empty(StatusCode::NO_CONTENT))
+    })
+}
+fn store_body_json(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let field = request.route("field").unwrap().to_owned();
+        SetLocale::storePreferenceFromRequest(request, &field).await?;
+        inspect(request).await
+    })
+}
+fn return_url(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let target = request
+            .headers()
+            .get("x-return-path")
+            .and_then(|value| value.to_str().ok())
+            .unwrap_or("/");
+        Response::json(
+            StatusCode::OK,
+            json!({"url":SetLocale::urlWithoutLocale(request, target)?}),
+        )
+    })
+}
 fn seed(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
         Cookie::queue(Cookie::forever(
@@ -171,6 +203,16 @@ async fn send(
     cookie: &str,
     headers: &[(&str, &str)],
 ) -> (StatusCode, HeaderMap, Value) {
+    send_body(kernel, method, path, cookie, headers, "").await
+}
+async fn send_body(
+    kernel: &Kernel,
+    method: &str,
+    path: &str,
+    cookie: &str,
+    headers: &[(&str, &str)],
+    body: &str,
+) -> (StatusCode, HeaderMap, Value) {
     let mut raw = http::Request::builder()
         .method(method)
         .uri(path)
@@ -181,7 +223,7 @@ async fn send(
     for (name, value) in headers {
         raw = raw.header(*name, *value);
     }
-    let mut request = Request::from(raw.body(Body::empty()).unwrap());
+    let mut request = Request::from(raw.body(Body::from(body.to_owned())).unwrap());
     // 在 Kernel 之前缓存标准头，协商自定义头也不得污染它。
     let standard = request.getLanguages().to_vec();
     let (parts, body) = kernel.handle(&mut request).await.into_parts();
@@ -540,18 +582,20 @@ async fn stateful_browser_api_uses_protected_preference_only_for_trusted_origins
             ("sanctum".into(),json!({"stateful":["localhost"],"middleware":{"authenticate_session":false}})),
         ])))
         .withMiddleware(|m|{m.statefulApi();})
-        .withRouting(Routing::default().api(|| {Route::get("/probe",inspect)?;Route::post("/preference/{locale}",store)?;Ok(())})).create().unwrap();
+        .withRouting(Routing::default().api(|| {Route::get("/probe",inspect)?;Route::post("/preference/{locale}",store)?;Route::post("/body/{field}",store_body)?;Ok(())})).create().unwrap();
     let mut kernel = Kernel::new(app);
     kernel.bootstrap().await.unwrap();
-    let (status, headers, _) = send(
+    let (status, headers, _) = send_body(
         &kernel,
         "POST",
-        "/api/preference/zh-Hant",
+        "/api/body/locale",
         "",
         &[
             ("origin", "http://localhost"),
             ("sec-fetch-site", "same-origin"),
+            ("content-type", "application/json"),
         ],
+        r#"{"locale":"zh-Hant"}"#,
     )
     .await;
     assert_eq!(status, StatusCode::NO_CONTENT);
@@ -726,4 +770,332 @@ async fn cached_locale_names_override_live_configuration_without_affecting_other
         send(&default, "GET", "/?lang=zh-Hans", cookie, &[]).await.2["locale"],
         "en"
     );
+}
+
+#[tokio::test]
+async fn body_preference_supports_204_json_and_does_not_change_the_current_request_locale() {
+    let root = Root::new();
+    let kernel = root.kernel(json!({}), 31, false, |_| {}).await;
+    let json_headers = [
+        ("content-type", "application/json"),
+        ("accept-language", "en"),
+    ];
+    let (status, headers, _) = send_body(
+        &kernel,
+        "POST",
+        "/body/locale?locale=zh-Hant",
+        "",
+        &json_headers,
+        r#"{"locale":"zh-hans"}"#,
+    )
+    .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    assert!(!headers.contains_key("location"));
+    assert_eq!(headers["content-language"], "zh-Hant");
+    let first_cookie = saved(&headers);
+    let (_, _, value) = send(
+        &kernel,
+        "GET",
+        "/",
+        &first_cookie,
+        &[("accept-language", "en")],
+    )
+    .await;
+    assert_eq!(value["locale"], "zh-Hans");
+    assert_eq!(value["translation"], "你好");
+    let (status, headers, value) = send_body(
+        &kernel,
+        "POST",
+        "/json/choice",
+        &first_cookie,
+        &json_headers,
+        r#"{"choice":"zh-Hant","locale":"en"}"#,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(!headers.contains_key("location"));
+    assert_eq!(value["locale"], "zh-Hans");
+    assert_eq!(value["preference"], "zh-Hans");
+    let (_, _, value) = send(&kernel, "GET", "/", &saved(&headers), &[]).await;
+    assert_eq!(value["locale"], "zh-Hant");
+    for body in [r#"{"choice":null}"#, r#"{"choice":""}"#] {
+        let (status, headers, _) = send_body(
+            &kernel,
+            "POST",
+            "/body/choice",
+            &first_cookie,
+            &json_headers,
+            body,
+        )
+        .await;
+        assert_eq!(status, StatusCode::NO_CONTENT);
+        assert!(
+            headers
+                .get_all("set-cookie")
+                .iter()
+                .any(|v| v.to_str().unwrap().contains("Max-Age=0"))
+        );
+        let (_, _, value) = send(&kernel, "GET", "/", "", &[("accept-language", "en")]).await;
+        assert_eq!(value["locale"], "en");
+        assert_eq!(value["preference"], Value::Null);
+    }
+}
+
+#[tokio::test]
+async fn request_body_is_required_and_invalid_values_never_clear_or_write_a_preference() {
+    let root = Root::new();
+    // 保留原始空白以验收非空非法标签；默认 TrimStrings 会先把空白转换为空值。
+    let kernel = root
+        .kernel(json!({}), 32, false, |m| {
+            m.trimStrings(["locale"]);
+        })
+        .await;
+    let (_, headers, _) = send(&kernel, "POST", "/preference/zh-Hans", "", &[]).await;
+    let cookie = saved(&headers);
+    for body in [
+        r#"{}"#,
+        r#"{"locale":1}"#,
+        r#"{"locale":true}"#,
+        r#"{"locale":false}"#,
+        r#"{"locale":[]}"#,
+        r#"{"locale":{}}"#,
+        r#"{"locale":"fr"}"#,
+        r#"{"locale":"bad_tag"}"#,
+        r#"{"locale":"auto"}"#,
+        r#"{"locale":" "}"#,
+        r#"null"#,
+        r#"["en"]"#,
+    ] {
+        let (status, headers, _) = send_body(
+            &kernel,
+            "POST",
+            "/body/locale?locale=en",
+            &cookie,
+            &[("content-type", "application/json")],
+            body,
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+        assert!(!has_locale_cookie(&headers), "{body}");
+    }
+    for body in ["", "locale.other=en", "locale[]=en"] {
+        let (status, headers, _) = send_body(
+            &kernel,
+            "POST",
+            "/body/locale?locale=en",
+            &cookie,
+            &[("content-type", "application/x-www-form-urlencoded")],
+            body,
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+        assert!(!has_locale_cookie(&headers));
+    }
+    let (_, _, value) = send(&kernel, "GET", "/", &cookie, &[]).await;
+    assert_eq!(value["preference"], "zh-Hans");
+}
+
+#[tokio::test]
+async fn request_body_entry_preserves_safe_method_and_cookie_pipeline_restrictions() {
+    let root = Root::new();
+    for (app, exempt, disabled) in [
+        (json!({}), false, false),
+        (json!({}), true, false),
+        (json!({"locale_cookie":null}), false, false),
+        (json!({}), false, true),
+    ] {
+        let kernel = root
+            .kernel(app, 33, exempt, move |m| {
+                if disabled {
+                    m.setLocale(&[]).unwrap();
+                }
+            })
+            .await;
+        for (method, path) in [("GET", "/body/locale"), ("POST", "/api/body/locale")] {
+            let (status, headers, _) = send_body(
+                &kernel,
+                method,
+                path,
+                "",
+                &[("content-type", "application/json")],
+                r#"{"locale":"en"}"#,
+            )
+            .await;
+            assert_eq!(status, StatusCode::BAD_REQUEST);
+            assert!(!has_locale_cookie(&headers));
+        }
+        if exempt || disabled {
+            let (status, headers, _) = send_body(
+                &kernel,
+                "POST",
+                "/body/locale",
+                "",
+                &[("content-type", "application/json")],
+                r#"{"locale":null}"#,
+            )
+            .await;
+            assert_eq!(status, StatusCode::BAD_REQUEST);
+            assert!(!has_locale_cookie(&headers));
+        }
+    }
+}
+
+#[tokio::test]
+async fn local_return_url_removes_the_actual_parameter_and_preserves_encoding_and_target() {
+    let root = Root::new();
+    let kernel = root
+        .kernel(
+            json!({"locale_query_parameter":"language"}),
+            34,
+            false,
+            |_| {},
+        )
+        .await;
+    for (path, target, expected) in [
+        ("/return-url", "/", "http://localhost"),
+        ("/return-url?language=en", "/", "http://localhost"),
+        (
+            "/return-url?language=en&locale=keep&search=a%26b&list%5B0%5D=%E4%B8%AD%E6%96%87&list%5B1%5D=%2B",
+            "/",
+            "http://localhost?locale=keep&search=a%26b&list%5B0%5D=%E4%B8%AD%E6%96%87&list%5B1%5D=%2B",
+        ),
+        (
+            "/return-url?language=en&search=after",
+            "/home?language=zh-Hans&from=menu&search=before#top",
+            "http://localhost/home?from=menu&search=after#top",
+        ),
+    ] {
+        let (status, _, value) = send(&kernel, "GET", path, "", &[("x-return-path", target)]).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(value["url"], expected);
+        assert!(!value["url"].as_str().unwrap().contains("/return-url"));
+    }
+    for target in [
+        "https://evil.example/",
+        "//evil.example/",
+        "relative",
+        "/\\evil.example/",
+    ] {
+        let (status, _, _) = send(
+            &kernel,
+            "GET",
+            "/return-url",
+            "",
+            &[("x-return-path", target)],
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{target}");
+    }
+    let kernel = root
+        .kernel(json!({"locale_query_parameter":null}), 35, false, |_| {})
+        .await;
+    let (_, _, value) = send(&kernel, "GET", "/return-url?locale=keep&x=%2B", "", &[]).await;
+    assert_eq!(value["url"], "http://localhost?locale=keep&x=%2B");
+    let kernel = root
+        .kernel(json!({"locale_query_parameter":"1"}), 36, false, |_| {})
+        .await;
+    let (_, _, value) = send(
+        &kernel,
+        "GET",
+        "/return-url?1=en&text=keep",
+        "",
+        &[("x-return-path", "/home?1=zh-Hant&from=target")],
+    )
+    .await;
+    assert_eq!(value["url"], "http://localhost/home?from=target&text=keep");
+}
+
+#[tokio::test]
+async fn return_url_reuses_trusted_proxy_subpath_without_duplicate_slashes() {
+    let root = Root::new();
+    let kernel = root
+        .kernel(json!({}), 37, false, |m| {
+            m.trustProxies(&["127.0.0.1"], openrust::http::TrustedProxyHeaders::DEFAULT)
+                .unwrap();
+        })
+        .await;
+    let mut request = Request::from(
+        http::Request::builder()
+            .uri("/return-url?locale=en&search=a%2Bb")
+            .header("host", "internal")
+            .header("x-forwarded-host", "example.test")
+            .header("x-forwarded-proto", "https")
+            .header("x-forwarded-prefix", "/portal")
+            .body(Body::empty())
+            .unwrap(),
+    );
+    request
+        .parts_mut()
+        .extensions
+        .insert(axum::extract::ConnectInfo(
+            "127.0.0.1:12345".parse::<std::net::SocketAddr>().unwrap(),
+        ));
+    let (parts, body) = kernel.handle(&mut request).await.into_parts();
+    assert_eq!(parts.status, StatusCode::OK);
+    let value: Value =
+        serde_json::from_slice(&axum::body::to_bytes(body, 65536).await.unwrap()).unwrap();
+    assert_eq!(value["url"], "https://example.test/portal?search=a%2Bb");
+}
+
+#[tokio::test]
+async fn body_writes_keep_concurrent_clients_and_applications_isolated() {
+    let root = Root::new();
+    let kernel = root.kernel(json!({}), 38, false, |_| {}).await;
+    let header = [("content-type", "application/json")];
+    let (hans, hant) = tokio::join!(
+        send_body(
+            &kernel,
+            "POST",
+            "/body/locale",
+            "",
+            &header,
+            r#"{"locale":"zh-Hans"}"#
+        ),
+        send_body(
+            &kernel,
+            "POST",
+            "/body/locale",
+            "",
+            &header,
+            r#"{"locale":"zh-Hant"}"#
+        )
+    );
+    assert_eq!(hans.0, StatusCode::NO_CONTENT);
+    assert_eq!(hant.0, StatusCode::NO_CONTENT);
+    let hans = saved(&hans.1);
+    let hant = saved(&hant.1);
+    let (a, b, c) = tokio::join!(
+        send(&kernel, "GET", "/", &hans, &[]),
+        send(&kernel, "GET", "/", &hant, &[]),
+        send(&kernel, "GET", "/", "", &[])
+    );
+    assert_eq!(a.2["locale"], "zh-Hans");
+    assert_eq!(b.2["locale"], "zh-Hant");
+    assert_eq!(c.2["locale"], "en");
+    let other = Root::new();
+    let other = other.kernel(json!({}), 39, false, |_| {}).await;
+    let (_, _, value) = send(&other, "GET", "/", &hans, &[]).await;
+    assert_eq!(value["locale"], "en");
+    assert_eq!(value["preference"], Value::Null);
+
+    // 只有解密而没有队列仍不允许写入。
+    let no_queue = root
+        .kernel(json!({}), 40, false, |m| {
+            let encrypt = EncryptCookies::new(Arc::new(
+                Encrypter::new([40; 32], Cipher::Aes256Cbc).unwrap(),
+            ));
+            m.group("web", [MiddlewareEntry::Instance(Arc::new(encrypt))]);
+        })
+        .await;
+    let (status, headers, _) = send_body(
+        &no_queue,
+        "POST",
+        "/body/locale",
+        "",
+        &header,
+        r#"{"locale":"en"}"#,
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert!(!has_locale_cookie(&headers));
 }
