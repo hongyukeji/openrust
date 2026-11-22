@@ -36,7 +36,7 @@ impl TestClock {
             .unwrap_or_default()
     }
 
-    fn now(&self) -> Option<Timestamp> {
+    pub(crate) fn now(&self) -> Option<Timestamp> {
         let scope = self.scoped();
         *scope
             .as_deref()

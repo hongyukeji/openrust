@@ -143,6 +143,8 @@ assert_eq!(formatted, "2024-02-29T09:00:00+00:00");
 
 資料庫操作使用 `Pipeline<T, DatabaseError, R, Transaction>` 和 `withinTransaction`。階段透過 `next.context()` 在同一交易中執行查詢，傳回錯誤時回復。可傳入型別化回呼，或明確解析服務。
 
+`.withinTransaction(None)` 使用預設連線，`.withinTransaction(Some("audit"))` 選擇具名連線。此呼叫僅設定管線；`.then(...)` 或 `.thenReturn()` 才開啟交易並執行。終點回呼接收 `(value, &mut Transaction)`。`finally` 在提交或回復後執行一次，執行中恐慌或被取消時也會執行。
+
 ```rust
 use openrust::support::facades::Pipeline;
 use std::convert::Infallible;
@@ -213,3 +215,10 @@ assert!(JsonSchema::fromArray(json!({"type": "unknown"})).is_err());
 ```
 
 序列化傳回 `Result`，非有限數值明確失敗。`fromArray` 支援本地 `$ref`、必填屬性、可空聯合與 anyOf 組合；遠端或循環引用、布林模式、元組 items、無法推斷的型別、多型別聯合上的專有約束及 null 預設值會失敗。支援子集以外的未知中繼資料不保留；此介面用於建構模式，不負責驗證業務資料。展開最多20,000個片段，巢狀或引用鏈最多128層。
+
+
+## 機率回呼
+
+`Lottery::odds(1, 100)?` 表示 100 個整數機會中有 1 個中獎機會。浮點機率使用 `Lottery::odds(0.02, None::<u64>)?`。透過 `winner(|| ...)` 和 `loser(|| ...)` 傳回同一種 Rust 型別，兩者預設傳回布林值。`choose()` 傳回一次結果，`chooseTimes(n)` 傳回結果陣列。機會數超過分母時始終中獎，負數始終不中獎；非有限機率報錯。
+
+測試中透過 `alwaysWin`、`alwaysLose`、`fix(sequence)` 或 `forceResultWithSequence(sequence, missing_callback)` 控制結果。序列耗盡後恢復正常抽樣，也可提供自訂後備回呼。`setResultFactory` 設定抽樣器，`determineResultNormally()` 或複數別名清除控制。非同步控制必須放在 `Lottery::scope(async { ... }).await` 中，否則在非同步執行環境觸發 panic，防止執行緒狀態串入其他請求。同步測試使用 `scopeSync(|| ...)`。作用域在 panic 或取消後也恢復父級控制。回呼透過閉包擷取參數，不提供動態可變參數呼叫。

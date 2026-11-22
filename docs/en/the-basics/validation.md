@@ -205,3 +205,88 @@ Use `Rule::parse` inside a `RuleSet::field` array for regular expressions contai
 `Validator::after` runs after rule checks and can add errors. `sometimes` conditionally adds rules; wildcard callbacks receive the parent item. `stopOnFirstFailure(true)` stops checks across fields, while `bail` stops one field. `safe()` requires successful validation and exposes only validated data.
 
 Form requests execute `prepareForValidation`, `authorize`, `withValidator`, validation and `after`, then `passedValidation`. Authorization and validation failure stop the action. Precognition with `Precognition-Validate-Only` does not call `passedValidation`; successful Precognition without that header may call it before short-circuiting the action. Each request has its own validator.
+
+## Message Bags {#message-bags}
+
+Use `MessageBag` to collect ordered field errors and `ViewErrorBag` for named bags. `add` suppresses duplicate messages; `merge(&other)` preserves duplicates. `first(key, format)` returns an empty string for a missing message. `get(key, format)` returns `MessageLookup::Exact` or a wildcard mapping that retains matching field names. Use `intoMessages()` only when flattening is intended.
+
+```rust
+use openrust::support::{MessageBag, ViewErrorBag};
+
+let mut messages = MessageBag::new([("email", ["Invalid email"])]);
+messages.addIf(true, "name", "Required");
+assert_eq!(messages.first(Some("email"), None), "Invalid email");
+assert!(messages.hasAny(["email", "phone"]));
+messages.setFormat(":key: :message");
+assert_eq!(messages.first(Some("name"), None), "name: Required");
+let mut errors = ViewErrorBag::new();
+errors.put("profile", messages);
+assert_eq!(errors.getBag("profile").count(), 2);
+assert_eq!(errors.count(), 0);
+```
+
+Named bag counts and forwarded read methods use only the `default` bag. Reading a missing bag does not register it; mutate an existing bag with `getBagMut`, or add one with `put`. JSON stores raw messages, independent of display format; decoding restores the default format. Message lists use contiguous Rust indices and JSON options follow Serde; PHP array indices, JSON flag bitmasks and runtime method dispatch are not exposed.
+
+
+## Scalar and digit rules
+
+Use `ascii`, `alpha`, `alpha_dash`, and `alpha_num` for character constraints. The alpha rules accept an `ascii` parameter; their default includes Unicode letters and combining marks, and the latter two also accept numbers. `list` requires contiguous integer keys starting at zero. Use `ip`, `ipv4`, `ipv6`, and `mac_address` for address formats, and `hex_color` for hexadecimal colors prefixed by `#` (3, 4, 6, or 8 digits).
+
+`json` validates scalar JSON text; its parser accepts nesting below 128 containers. `digits:n`, `digits_between:min,max`, `min_digits:n`, and `max_digits:n` count ASCII digits after scalar conversion; signs and decimal points fail these digit rules. `decimal:n` or `decimal:min,max` checks the fractional digit count without accepting scientific notation. Missing required parameters or nonnumeric bounds return `InvalidRule`. These rules follow normal missing-field, blank-string, and `nullable` behavior; add `required` when a value must be provided.
+
+Use `lowercase` and `uppercase` to check Unicode letter case without changing the input. `starts_with:a,b`, `ends_with:a,b`, `doesnt_start_with:a,b`, and `doesnt_end_with:a,b` accept strings and numbers and match any nonempty parameter. `not_regex:/pattern/flags` rejects a match and accepts the same pattern syntax as `regex`. Invalid patterns return `InvalidRule`; use an individual `Rule::parse` in a `RuleSet` when a pattern contains a pipe.
+
+## Presence and Conditional Rules
+
+`missing` requires a field to be absent; a supplied `null` still counts as present. `filled` allows absence but rejects an empty supplied value. `declined` requires `no`, `off`, `0`, integer zero, `false`, or boolean false. `prohibited` allows absence and empty values and rejects a populated value. `same:other` uses strict equality; `different:other,third` checks each supplied peer with strict equality.
+
+Use `accepted_if`, `declined_if`, `missing_if`, `missing_unless`, `missing_with`, `missing_with_all`, `present_if`, `present_unless`, `present_with`, and `present_with_all` for conditional presence. Required values support `required_unless`, `required_with`, `required_with_all`, `required_without`, `required_without_all`, `required_if_accepted`, and `required_if_declined`. Presence checks count null as present; required checks also consider empty strings and arrays. Conditional parameters resolve wildcard indices from the current attribute.
+
+`prohibited_if`, `prohibited_unless`, `prohibited_if_accepted`, `prohibited_if_declined`, and `prohibits` reject populated fields under the named condition. `exclude`, `exclude_unless`, `exclude_with`, and `exclude_without` remove matching fields from validated data, along with their child errors and uploaded files. Exclusion participates in the declared rule order; a preceding required failure can stop evaluation before exclusion. `nullable` does not bypass implicit presence rules.
+
+## Array Membership and Formats
+
+`array_keys:a,b` limits allowed keys; `required_array_keys:a,b` requires every key, and `in_array_keys:a,b` requires at least one. `contains:a,b` uses loose value comparison for every requested value; `doesnt_contain:a,b` uses strict comparison to reject each listed string. `not_in:a,b` reverses `in`; with an `array` rule, it reverses the result for the whole array.
+
+`in_array:pool.*` checks strict equality against flattened candidate fields. `distinct` rejects duplicates under the declared wildcard field; `strict` preserves scalar types, while `ignore_case` uses Unicode regular-expression case matching for strings. `date_format:Y-m-d,Y/m/d` accepts any supplied format and checks the formatted result against the original input; its error names the first format. `ulid` checks a 26-character ULID, including the first-character bound.
+
+`multiple_of:0.1` checks an exact decimal remainder. A zero divisor always fails. Scientific exponents outside -1000 to 1000 return an execution error, including in the divisor. Customize array-key errors with `:unexpected`; `:Unexpected` capitalizes the whole list only at its start, while `:UNEXPECTED` capitalizes every letter.
+
+## Dates, Sizes, and DNS
+
+`before:other`, `before_or_equal:other`, `after:other`, `after_or_equal:other`, and `date_equals:other` compare dates against a literal or another field. They use the application timezone and test clock. Without `date_format`, comparisons use whole seconds; with a format, microseconds participate. Use `date` or `date_format` alongside a comparison when the input itself must be a valid date.
+
+`gt:other`, `lt:other`, `gte:other`, and `lte:other` compare numeric values, string lengths, array counts, or file kilobytes. Numeric inputs support a literal threshold. Peer values must have the same type unless both are numeric. Each comparison determines its own numeric classification; it does not change later size rules.
+
+`timezone` accepts exact identifiers from the bundled IANA 2025b data. Use `timezone:all_with_bc` to include aliases, a region such as `timezone:asia`, or `timezone:per_country,CN` for a country. Names are case sensitive; the group and country parameters are case insensitive. Invalid groups or country parameter lengths return `InvalidRule`.
+
+`active_url` requires a host with DNS A or AAAA records. It uses asynchronous DNS queries and does not accept a numeric IP merely because the operating system can resolve it. `validator.setDnsResolver(resolver)` accepts a Hickory 0.25 resolver with explicit nameservers, timeout and retry settings. DNS lookup failures fail validation. `validator.fakeDnsLookups(true)` enables hostname-only test behavior for that validator; pass `false` to restore real DNS. The test switch is instance scoped so concurrent validators remain independent.
+
+## Updating a Validator
+
+Use `getData`, `getValue`, and `getRules` to inspect input and expanded rules. `getRules` returns ordered `(attribute, rules)` pairs using native escaped paths. `setValue` updates one concrete path; wildcards are rejected. `setData` replaces the input and restores the rules supplied to `setRules` or the factory. `addRules` merges temporary rules; `appendRules` also makes the merged declarations the next reset baseline.
+
+`setCustomMessages` merges messages. `setAttributeNames` and `setValueNames` replace their maps, while `addCustomAttributes` and `addCustomValues` merge at the field level. `getTranslator` and `setTranslator` expose the translator used for errors. Mutations discard cached success and errors; call `validate().await` again before reading `validated()` or `safe()`.
+
+`getException` and `setException` use a typed function `fn(MessageBag, Option<&Translator>) -> ValidationException`. It can customize the actual rejection status, error bag, and redirect. The return type replaces runtime exception class names and inheritance; each validator keeps its own factory.
+
+## Registering validation extensions
+
+In a service provider, use `Validator::extend` for ordinary rules, `extendImplicit` for rules that must also inspect missing or empty values, and `extendDependent` for rules whose parameters reference other fields. Register `ProjectCode` or `project_code` and use `project_code` in declarations. Each validator receives a snapshot of the factory registrations when created.
+
+```rust
+use openrust::support::facades::Validator;
+
+Validator::extend("upper_code", |_, value, _, _| {
+    Ok(value.and_then(serde_json::Value::as_str)
+        .is_some_and(|value| value.chars().all(|ch| ch.is_ascii_uppercase())))
+}, Some("The :attribute must contain uppercase letters."))?;
+```
+
+Callbacks receive the attribute, `Option<&Value>`, parameters and a shared validator reference, and return `ValidationResult<bool>`. Ordinary rules skip missing values and empty strings; `nullable` skips null, and `sometimes` still skips missing fields. Implicit rules can inspect missing, empty and null values. Dependent rules expand parameters such as `items.*.other` for the current item. An `Err` propagates as an execution error. Use `Rule::custom` and `ValidationRule` for async rules.
+
+Register a message callback using `Validator::replacer`. It receives the selected message, attribute, rule name, parameter list and shared validator reference, and returns the final message. Custom or translated messages and attribute names are resolved first. A registered replacer takes responsibility for rule placeholders such as `:min`. `Factory::resolver` accepts and returns an owned validator for construction customization. Rust uses closures and explicitly resolved services; runtime `Class@method` strings and dynamic validator subclasses are unsupported.
+
+On one validator, use `addExtension`, `addImplicitExtension`, `addDependentExtension` and `addReplacer`. Their plural forms accept `(String, Arc<callback>)` entries. These changes invalidate cached validation results and require revalidation.
+
+The default factory policy is `excludeUnvalidatedArrayKeys()`: when a parent has an unparameterized `array` or `list` rule and nested rules, validated output contains only the validated child keys. `includeUnvalidatedArrayKeys()` includes all parent keys for subsequently created validators; `excludeUnvalidatedArrayKeys()` restores the default. `array:name,email` already restricts allowed keys and does not use this pruning policy. The public `excludeUnvalidatedArrayKeys` boolean can be changed on one validator; subsequent `validated()` and `safe()` calls use that policy immediately.

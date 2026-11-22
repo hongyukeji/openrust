@@ -32,6 +32,15 @@ def generate(source,output):
   end=blob.index(10,pos+1);footer=blob[pos+1:end].decode('ascii')
   if not footer:raise SystemExit('无POSIX footer')
   rows.append((name,transitions[-1] if times else -9223372036854775808,transitions[0] if times else None,first_offset,first_abbr,first_dst,footer))
+ # 与 Calendar 共用固定数据的 canonical 标志和国家代码，避免依赖宿主机时区库。
+ identifiers=['//! 固定 PHP 8.5.0 / IANA 2025b 标识元数据；由 generate_tzdata.py 生成。',
+              '//! 来源、SHA256 和许可见 SOURCES.md / LICENSE.timelib。', '',
+              'pub(crate) const IDENTIFIERS: &[(&str, bool, &str)] = &[']
+ for name,offset in index:
+  pos=int(offset,16)
+  identifiers.append(f'    ("{name}", {str(bool(blob[pos+4])).lower()}, "{blob[pos+5:pos+7].decode("ascii")}"),')
+ identifiers.extend(['];',''])
+ output.with_name('identifiers.rs').write_text('\n'.join(identifiers))
  rules=sorted(set(row[-1] for row in rows))
  out=['//! 由 `generate_tzdata.py` 从固定 PHP 8.5.0 / IANA 2025b 数据生成。',
       '//! 完整来源、SHA256 和许可见 SOURCES.md / LICENSE.timelib。','',

@@ -98,7 +98,7 @@ impl Unique {
 
 impl From<Unique> for Rule {
     fn from(rule: Unique) -> Self {
-        Rule(Kind::Unique(rule))
+        Rule::new(Kind::Unique(rule))
     }
 }
 

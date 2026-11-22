@@ -25,3 +25,8 @@ python3 generate_tzdata.py /path/to/php-8.5.0/ext/date/lib/timezonedb.h tail_rul
   /path/to/php-8.5.0/ext/date/lib/timezonemap.h abbreviations.rs
 rustfmt --edition 2024 tail_rules.rs abbreviations.rs
 ```
+
+The same generator also writes `identifiers.rs` with each identifier's canonical
+flag and two-letter country code from the verified PHP timezonedb header.
+Validation's timezone rule uses this metadata, including aliases and country
+filtering, without consulting the host database or changing Calendar's version.

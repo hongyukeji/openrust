@@ -223,3 +223,53 @@ pub fn php_integer_less_than_value(left: i64, right: &Value) -> bool {
 pub fn php_integer_cast(value: &Value) -> i64 {
     super::input_scalars::integer(value)
 }
+
+/// 校验规则复用同一标量比较桥；JSON 数组及映射都表示 PHP 数组。
+pub(crate) fn php_loose_value_equal(left: &Value, right: &Value) -> bool {
+    if left.is_boolean() || right.is_boolean() {
+        return super::arr::truthy(left) == super::arr::truthy(right);
+    }
+    if left.is_null() || right.is_null() {
+        let other = if left.is_null() { right } else { left };
+        return other
+            .as_str()
+            .map_or_else(|| !super::arr::truthy(other), str::is_empty);
+    }
+    match (left, right) {
+        (Value::String(left), right) => php_loose_string_value_equal(left, right),
+        (left, Value::String(right)) => php_loose_string_value_equal(right, left),
+        (Value::Number(_), Value::Number(_)) => match (
+            InputNumber::from_value(left),
+            InputNumber::from_value(right),
+        ) {
+            (Some(InputNumber::Integer(left)), Some(InputNumber::Integer(right))) => left == right,
+            (Some(left), Some(right)) => left.as_float() == right.as_float(),
+            _ => false,
+        },
+        (Value::Array(_) | Value::Object(_), Value::Array(_) | Value::Object(_)) => {
+            fn entries(value: &Value) -> Vec<(String, &Value)> {
+                match value {
+                    Value::Array(items) => items
+                        .iter()
+                        .enumerate()
+                        .map(|(key, value)| (key.to_string(), value))
+                        .collect(),
+                    Value::Object(items) => items
+                        .iter()
+                        .map(|(key, value)| (key.clone(), value))
+                        .collect(),
+                    _ => Vec::new(),
+                }
+            }
+            let left = entries(left);
+            let right = entries(right);
+            left.len() == right.len()
+                && left.iter().all(|(key, value)| {
+                    right
+                        .iter()
+                        .any(|(other, item)| key == other && php_loose_value_equal(value, item))
+                })
+        }
+        _ => false,
+    }
+}

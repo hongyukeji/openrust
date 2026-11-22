@@ -34,6 +34,20 @@ impl JsonFormatter {
 }
 
 impl Formatter for JsonFormatter {
+    fn write_f64<W: ?Sized + io::Write>(&mut self, writer: &mut W, value: f64) -> io::Result<()> {
+        let text = serde_json::to_string(&value).map_err(io::Error::other)?;
+        let encoded = crate::support::php_numeric_json_string(&text, false)
+            .ok_or_else(|| io::Error::other("JSON 浮点值必须有限"))?;
+        writer.write_all(encoded.as_bytes())
+    }
+
+    fn write_f32<W: ?Sized + io::Write>(&mut self, writer: &mut W, value: f32) -> io::Result<()> {
+        let text = serde_json::to_string(&value).map_err(io::Error::other)?;
+        let encoded = crate::support::php_numeric_json_string(&text, false)
+            .ok_or_else(|| io::Error::other("JSON 浮点值必须有限"))?;
+        writer.write_all(encoded.as_bytes())
+    }
+
     fn write_string_fragment<W: ?Sized + io::Write>(
         &mut self,
         writer: &mut W,

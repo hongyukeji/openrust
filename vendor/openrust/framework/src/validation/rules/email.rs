@@ -21,6 +21,6 @@ impl Email {
 
 impl From<Email> for Rule {
     fn from(_: Email) -> Self {
-        Self(Kind::Email)
+        Self::new(Kind::Email)
     }
 }

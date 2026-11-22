@@ -47,6 +47,29 @@ impl RuleSet {
             })
     }
 
+    pub(super) fn merged(&self, other: Self) -> ValidationResult<Self> {
+        let mut merged = self.clone();
+        // 过滤器作用于接收它的声明集合，不能静默丢弃传入过滤条件。
+        if !other.precognitive.is_empty() {
+            return Err(ValidationError::InvalidRule);
+        }
+        for (attribute, rules) in other.fields {
+            if let Some((_, existing)) = merged
+                .fields
+                .iter_mut()
+                .find(|(field, _)| field == &attribute)
+            {
+                if existing.len() + rules.len() > 64 {
+                    return Err(ValidationError::LimitsExceeded);
+                }
+                existing.extend(rules);
+            } else {
+                merged = merged.field(attribute, rules)?;
+            }
+        }
+        Ok(merged)
+    }
+
     pub(crate) fn precognitive(mut self, header: &[u8]) -> ValidationResult<Self> {
         use std::fmt::Write;
         let patterns = header.split(|byte| *byte == b',').map(|pattern| {

@@ -143,6 +143,8 @@ assert_eq!(formatted, "2024-02-29T09:00:00+00:00");
 
 数据库操作使用 `Pipeline<T, DatabaseError, R, Transaction>` 和 `withinTransaction`。阶段通过 `next.context()` 在同一事务中执行查询，返回错误时回滚。可传入类型化回调，或显式解析服务。
 
+`.withinTransaction(None)` 使用默认连接，`.withinTransaction(Some("audit"))` 选择具名连接。该调用仅配置管道；`.then(...)` 或 `.thenReturn()` 才开启事务并执行。终点回调接收 `(value, &mut Transaction)`。`finally` 在提交或回滚后执行一次，执行中恐慌或被取消时也会执行。
+
 ```rust
 use openrust::support::facades::Pipeline;
 use std::convert::Infallible;
@@ -213,3 +215,10 @@ assert!(JsonSchema::fromArray(json!({"type": "unknown"})).is_err());
 ```
 
 序列化返回 `Result`，非有限数值明确失败。`fromArray` 支持本地 `$ref`、必填属性、可空联合及 anyOf 组合；远程或循环引用、布尔模式、元组 items、无法推断的类型、多类型联合上的专有约束及 null 默认值会失败。支持子集以外的未知元数据不保留；该接口用于构造模式，不负责校验业务数据。展开最多20,000个片段，嵌套或引用链最多128层。
+
+
+## 概率回调
+
+`Lottery::odds(1, 100)?` 表示 100 个整数机会中有 1 个中奖机会。浮点概率使用 `Lottery::odds(0.02, None::<u64>)?`。通过 `winner(|| ...)` 和 `loser(|| ...)` 返回同一种 Rust 类型，两者默认返回布尔值。`choose()` 返回一次结果，`chooseTimes(n)` 返回结果数组。机会数超过分母时始终中奖，负数始终不中奖；非有限概率报错。
+
+测试中通过 `alwaysWin`、`alwaysLose`、`fix(sequence)` 或 `forceResultWithSequence(sequence, missing_callback)` 控制结果。序列耗尽后恢复正常抽样，也可提供自定义后备回调。`setResultFactory` 设置抽样器，`determineResultNormally()` 或复数别名清除控制。异步控制必须放在 `Lottery::scope(async { ... }).await` 中，否则在异步运行时触发 panic，防止线程状态串入其他请求。同步测试使用 `scopeSync(|| ...)`。作用域在 panic 或取消后也恢复父级控制。回调通过闭包捕获参数，不提供动态可变参数调用。

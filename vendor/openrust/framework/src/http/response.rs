@@ -21,6 +21,13 @@ use super::{
 #[derive(Clone)]
 struct ResponseException(Arc<dyn Error + Send + Sync>);
 
+/// 保留统一响应类型中原始正文的类别，供生命周期消费者检查。
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ResponseKind {
+    Stream,
+    File,
+}
+
 /// An outgoing HTTP response with owned metadata and body.
 pub struct Response {
     parts: ResponseParts,
@@ -174,6 +181,10 @@ impl Response {
         self.body = Body::from(content.clone());
         self.content = Some(Box::new(content));
         self.binary_file = None;
+        self.parts.extensions.remove::<ResponseKind>();
+        self.parts
+            .extensions
+            .remove::<Arc<crate::view::RenderedView>>();
         self
     }
 
@@ -229,9 +240,13 @@ impl Response {
 
     pub fn json(status: StatusCode, data: impl Serialize) -> Result<Self, HttpError> {
         Self::json_with(status, || {
-            serde_json::to_vec(&data).map_err(|source| HttpError::Internal {
-                source: Box::new(source),
-            })
+            let mut bytes = Vec::new();
+            super::json_formatter::JsonFormatter::DEFAULT
+                .write(&mut bytes, &data)
+                .map_err(|source| HttpError::Internal {
+                    source: Box::new(source),
+                })?;
+            Ok(bytes)
         })
     }
 
@@ -260,10 +275,17 @@ impl Response {
         T: Into<Bytes> + 'static,
         E: Into<Box<dyn std::error::Error + Send + Sync>> + 'static,
     {
-        Self::new(status, Body::from_stream(stream)).header(
-            HeaderName::from_static("x-accel-buffering"),
-            HeaderValue::from_static("no"),
-        )
+        Self::new(status, Body::from_stream(stream))
+            .with_kind(ResponseKind::Stream)
+            .header(
+                HeaderName::from_static("x-accel-buffering"),
+                HeaderValue::from_static("no"),
+            )
+    }
+
+    pub(super) fn with_kind(mut self, kind: ResponseKind) -> Self {
+        self.parts.extensions.insert(kind);
+        self
     }
 
     pub fn header(mut self, name: HeaderName, value: HeaderValue) -> Self {

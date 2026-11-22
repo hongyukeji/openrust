@@ -139,6 +139,6 @@ fn parse_ratio(raw: &str) -> ValidationResult<f64> {
 
 impl From<Dimensions> for Rule {
     fn from(rule: Dimensions) -> Self {
-        Rule(Kind::Dimensions(rule))
+        Rule::new(Kind::Dimensions(rule))
     }
 }

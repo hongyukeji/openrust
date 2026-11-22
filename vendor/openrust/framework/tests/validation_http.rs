@@ -201,6 +201,18 @@ impl FormRequest for Upload {
 
     fn rules(&self) -> ValidationResult<RuleSet> {
         match self.0.as_str() {
+            "exclude" => RuleSet::parse([("attachments.*", "exclude")]),
+            "exclude-unless" => {
+                RuleSet::parse([("attachments.*", "prohibited|exclude_unless:title,enabled")])
+            }
+            "exclude-with" => RuleSet::parse([("attachments.*", "exclude_with:title")]),
+            "exclude-without" => RuleSet::parse([("attachments.*", "exclude_without:missing")]),
+            "exclude-parent" => {
+                RuleSet::parse([("attachments.*", "prohibited"), ("attachments", "exclude")])
+            }
+            "filled" => RuleSet::parse([("attachments.*", "filled")]),
+            "missing" => RuleSet::parse([("attachments.*", "missing")]),
+            "prohibited" => RuleSet::parse([("attachments.*", "nullable|prohibited")]),
             "dimensions" => RuleSet::parse([(
                 "attachments.*",
                 "required|dimensions:min_width=100,max_height=100,min_ratio=0.99,max_ratio=101/100,ratio=1.009",
@@ -603,7 +615,35 @@ fn inject_routes() -> Result<(), RoutingError> {
     )
 }
 
+struct CustomRejection;
+
+impl FormRequest for CustomRejection {
+    fn rules(&self) -> ValidationResult<RuleSet> {
+        RuleSet::parse([("name", "required")])
+    }
+
+    fn withValidator(
+        &mut self,
+        validator: &mut openrust::validation::Validator,
+    ) -> ValidationResult<()> {
+        validator.setException(|errors, _| {
+            let mut error = openrust::validation::ValidationException::new(errors);
+            error.status(StatusCode::BAD_REQUEST);
+            error
+        });
+        Ok(())
+    }
+}
+
+fn custom_rejection(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let input = CustomRejection.validateResolved(request).await?;
+        Response::json(StatusCode::OK, input.into_value())
+    })
+}
+
 fn register() -> Result<(), RoutingError> {
+    Route::r#match(&[Method::POST], "/custom-rejection", custom_rejection)?;
     Route::r#match(&[Method::POST], "/submit/{locale}", form)?;
     Route::r#match(&[Method::POST], "/manual", manual)?;
     Route::r#match(&[Method::POST], "/presence/{mode}", presence)?;
@@ -799,15 +839,27 @@ async fn custom_rules_respect_presence_nullable_bail_and_custom_messages() {
         .unwrap();
     assert!(validator.fails().await.unwrap());
     assert_eq!(
-        validator.errors().get("blocked"),
+        validator.errors().get("blocked", None).intoMessages(),
         ["Supply a text description."]
     );
     assert_eq!(
-        validator.errors().get("checked"),
+        validator.errors().get("checked", None).intoMessages(),
         ["The name is already used."]
     );
-    assert!(validator.errors().get("absent").is_empty());
-    assert!(validator.errors().get("null").is_empty());
+    assert!(
+        validator
+            .errors()
+            .get("absent", None)
+            .intoMessages()
+            .is_empty()
+    );
+    assert!(
+        validator
+            .errors()
+            .get("null", None)
+            .intoMessages()
+            .is_empty()
+    );
 }
 
 fn presence_config(url: &str, prefix: &str) -> BTreeMap<String, Value> {
@@ -2266,4 +2318,154 @@ async fn shifted_utf7_encodings_follow_their_byte_and_termination_rules_over_htt
         }
     }
     server.abort();
+}
+
+#[tokio::test]
+async fn presence_and_exclusion_rules_handle_real_uploaded_files_and_discard_child_errors() {
+    let (address, server) = start(std::env::temp_dir()).await;
+    for mode in [
+        "exclude",
+        "exclude-unless",
+        "exclude-with",
+        "exclude-without",
+        "exclude-parent",
+    ] {
+        let response =
+            upload_file(address, mode, "sample.txt", "text/plain", b"content", 200).await;
+        assert_eq!(
+            response,
+            json!({"input":{},"filename":null,"size":null,"unvalidated":false}),
+            "{mode}"
+        );
+    }
+    let filled = upload_file(
+        address,
+        "filled",
+        "sample.txt",
+        "text/plain",
+        b"content",
+        200,
+    )
+    .await;
+    assert_eq!(filled["filename"], "sample.txt");
+    assert_eq!(filled["input"], json!({"attachments":[null]}));
+    for mode in ["missing", "prohibited"] {
+        let rejected =
+            upload_file(address, mode, "sample.txt", "text/plain", b"content", 422).await;
+        assert!(rejected["errors"]["attachments.0"].is_array(), "{mode}");
+    }
+    server.abort();
+}
+
+#[tokio::test]
+async fn custom_validation_exception_factory_controls_real_http_status() {
+    let root = std::env::temp_dir().join(format!("validation-custom-{:016x}", fastrand::u64(..)));
+    std::fs::create_dir_all(&root).unwrap();
+    let (address, server) = start(root.clone()).await;
+    let rejected = send(address, "/api/custom-rejection", json!({}), false, 400).await;
+    assert_eq!(
+        rejected["errors"]["name"],
+        json!(["The name field is required."])
+    );
+    assert_eq!(
+        send(
+            address,
+            "/api/custom-rejection",
+            json!({"name":"Ada"}),
+            false,
+            200
+        )
+        .await,
+        json!({"name":"Ada"})
+    );
+    let ordinary = send(address, "/api/submit/en", json!({}), false, 422).await;
+    assert!(ordinary["errors"]["name"].is_array());
+    server.abort();
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+struct ExtensionProvider(&'static str);
+impl ServiceProvider for ExtensionProvider {
+    fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
+        Box::pin(async move {
+            let factory = app
+                .container()
+                .get::<openrust::validation::Factory>("validator")?;
+            let allowed = self.0;
+            factory.extendImplicit(
+                "ProjectCode",
+                move |_, value, _, _| Ok(value.and_then(Value::as_str) == Some(allowed)),
+                Some("Invalid :attribute."),
+            );
+            factory.replacer("ProjectCode", |message, _, _, _, _| {
+                format!("{message} Registered.")
+            });
+            Ok(())
+        })
+    }
+}
+
+fn registered_extension(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let data = Data::fromRequest(request).await?;
+        let mut validator = Validator::make(data, RuleSet::parse([("code", "project_code")])?)?;
+        let value = validator.validate().await?;
+        Response::json(StatusCode::OK, value.into_value())
+    })
+}
+
+fn extension_routes() -> Result<(), RoutingError> {
+    Route::r#match(&[Method::POST], "/extension", registered_extension)?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn registered_validation_extensions_reach_real_http_and_remain_app_isolated() {
+    let root = std::env::temp_dir().join(format!("validation-ext-{:016x}", fastrand::u64(..)));
+    std::fs::create_dir_all(&root).unwrap();
+    let mut servers = Vec::new();
+    for allowed in ["A", "B"] {
+        let app = Application::configure(root.clone())
+            .withProviders(vec![Box::new(ExtensionProvider(allowed))])
+            .withRouting(Routing::default().api(extension_routes))
+            .create()
+            .unwrap();
+        servers.push(serve(app).await);
+    }
+    let (a, b, rejected_a, rejected_b) = tokio::join!(
+        send(
+            servers[0].0,
+            "/api/extension",
+            json!({"code":"A"}),
+            false,
+            200
+        ),
+        send(
+            servers[1].0,
+            "/api/extension",
+            json!({"code":"B"}),
+            false,
+            200
+        ),
+        send(
+            servers[0].0,
+            "/api/extension",
+            json!({"code":"B"}),
+            false,
+            422
+        ),
+        send(servers[1].0, "/api/extension", json!({}), false, 422),
+    );
+    assert_eq!(a, json!({"code":"A"}));
+    assert_eq!(b, json!({"code":"B"}));
+    for rejected in [rejected_a, rejected_b] {
+        assert_eq!(
+            rejected["errors"]["code"],
+            json!(["Invalid code. Registered."])
+        );
+    }
+    for (_, server) in servers {
+        server.abort();
+    }
+    std::fs::remove_dir_all(root).unwrap();
 }

@@ -38,7 +38,7 @@ fn casing_counts_url_and_fluent_forms() {
         Str::of("a<!-- comment --><b title=\"x>y\">b</b><?php echo 1; ?><i>c</i>")
             .stripTags(&["b"])
             .toString(),
-        "a<b title=\"x>y\">b</b>c"
+        "a<b title=\"xy\">b</b>c"
     );
     assert_eq!(Str::initials("open 中文", true), "O中");
     assert_eq!(Str::ucfirst("ßeta"), "Sseta");

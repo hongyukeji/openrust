@@ -143,6 +143,8 @@ assert_eq!(formatted, "2024-02-29T09:00:00+00:00");
 
 For database work, use `Pipeline<T, DatabaseError, R, Transaction>` and `withinTransaction`. Stages use `next.context()` to query the same transaction. Return an error to roll it back. Pass typed callables or resolve services explicitly.
 
+Use `.withinTransaction(None)` for the default connection or `.withinTransaction(Some("audit"))` for a named connection. This only configures the pipeline; `.then(...)` or `.thenReturn()` opens the transaction and executes it. The destination receives `(value, &mut Transaction)`. `finally` runs once after commit or rollback, and also when execution panics or is cancelled.
+
 ```rust
 use openrust::support::facades::Pipeline;
 use std::convert::Infallible;
@@ -213,3 +215,10 @@ assert!(JsonSchema::fromArray(json!({"type": "unknown"})).is_err());
 ```
 
 Serialization returns a `Result`: non-finite numbers fail. `fromArray` supports local `$ref` pointers, required properties, nullable unions and anyOf compositions. Remote and circular references, boolean schemas, tuple items, ambiguous types, type-specific constraints on multi-type unions and null defaults fail. Unknown metadata outside the supported subset is omitted; this API constructs schemas and does not validate application data. Expansion is limited to 20,000 fragments and 128 nesting or reference levels.
+
+
+## Probability callbacks
+
+`Lottery::odds(1, 100)?` selects one winning integer opportunity out of 100. For a fractional probability use `Lottery::odds(0.02, None::<u64>)?`. Chain `winner(|| ...)` and `loser(|| ...)` to return a common Rust type from the selected callback; both default to booleans. `choose()` returns one result and `chooseTimes(n)` returns a vector. Values above the denominator always win; negative values always lose. Nonfinite probabilities are rejected.
+
+For deterministic tests use `alwaysWin`, `alwaysLose`, `fix(sequence)`, or `forceResultWithSequence(sequence, missing_callback)`. Exhausted sequences sample normally unless a fallback is supplied. `setResultFactory` accepts a custom sampler. Reset with `determineResultNormally()` or its plural alias. Run asynchronous controls inside `Lottery::scope(async { ... }).await`; controls outside a scope in an async runtime panic to prevent thread state leaking into another request. `scopeSync(|| ...)` provides a synchronous isolated scope. Scopes restore parent controls even after panic or cancellation. Callbacks capture inputs through closures; dynamic variadic invocation is not provided.

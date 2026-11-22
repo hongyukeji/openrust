@@ -293,7 +293,10 @@ async fn current_password_missing_context_and_presence_are_explicit() {
     });
     assert!(validator.fails().await.unwrap());
     assert_eq!(
-        validator.errors().get("current_password"),
+        validator
+            .errors()
+            .get("current_password", None)
+            .intoMessages(),
         ["The password is incorrect."]
     );
 }

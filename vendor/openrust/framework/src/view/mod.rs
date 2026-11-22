@@ -76,6 +76,13 @@ impl std::error::Error for ViewError {
     }
 }
 
+/// 已渲染根视图的名称与最终绑定数据，保留创建器、组合器及共享数据的结果。
+#[derive(Clone)]
+pub(crate) struct RenderedView {
+    pub(crate) name: String,
+    pub(crate) data: ViewData,
+}
+
 /// A named view to be rendered when the HTTP response is prepared.
 pub struct View {
     name: Cow<'static, str>,
@@ -280,7 +287,7 @@ impl View {
                     Some(query) = checks.recv() => query.resolve(request).await,
                 }
             };
-            let html = rendered
+            let (html, original) = rendered
                 .map_err(|source| HttpError::Internal {
                     source: source.into(),
                 })?
@@ -289,6 +296,7 @@ impl View {
                 })?;
 
             let mut response = Response::new(StatusCode::OK, Body::from(html));
+            response.parts_mut().extensions.insert(Arc::new(original));
             response.parts_mut().headers.insert(
                 CONTENT_TYPE,
                 HeaderValue::from_static("text/html; charset=utf-8"),

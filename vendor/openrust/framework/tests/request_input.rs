@@ -2128,9 +2128,18 @@ async fn real_http_reads_strict_and_permissive_scalar_input() {
         let bytes = serde_json::to_vec(&payload).unwrap();
         let (_, body) = send(address, "POST", "/scalars", "application/json", &bytes, 200).await;
         let response: Value = serde_json::from_str(&body).unwrap();
-        let expected = [permissive, strict]
-            .map(|(integer, float, boolean)| json!({"integer": integer, "float": float, "boolean": boolean}));
-        assert_eq!(response, json!(expected), "{payload}");
+        // JSON 编码不会保留整数浮点数的小数点；分别验证标量值，编码字节由独立参考用例验证。
+        for (actual, (integer, float, boolean)) in response
+            .as_array()
+            .unwrap()
+            .iter()
+            .zip([permissive, strict])
+        {
+            assert_eq!(actual["integer"].as_i64(), Some(integer), "{payload}");
+            assert_eq!(actual["float"].as_f64(), Some(float), "{payload}");
+            assert_eq!(actual["boolean"].as_bool(), Some(boolean), "{payload}");
+        }
+        assert_eq!(response.as_array().unwrap().len(), 2);
     }
     let (_, body) = send(address, "GET", "/scalars?value=19", "", b"", 200).await;
     assert_eq!(

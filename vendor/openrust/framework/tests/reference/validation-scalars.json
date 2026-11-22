@@ -1,0 +1,1010 @@
+{
+    "source": "laravel/framework@1449bf241017087fbd38c118ecaabef3f6797fdc",
+    "cases": [
+        {
+            "rule": "lowercase",
+            "value": "abc",
+            "passes": true
+        },
+        {
+            "rule": "lowercase",
+            "value": "ABC",
+            "passes": false
+        },
+        {
+            "rule": "lowercase",
+            "value": "中文",
+            "passes": true
+        },
+        {
+            "rule": "lowercase",
+            "value": "123",
+            "passes": true
+        },
+        {
+            "rule": "lowercase",
+            "value": "é",
+            "passes": true
+        },
+        {
+            "rule": "lowercase",
+            "value": "É",
+            "passes": false
+        },
+        {
+            "rule": "lowercase",
+            "value": "ß",
+            "passes": true
+        },
+        {
+            "rule": "lowercase",
+            "value": "İ",
+            "passes": false
+        },
+        {
+            "rule": "lowercase",
+            "value": "i̇",
+            "passes": true
+        },
+        {
+            "rule": "lowercase",
+            "value": "ΟΣ",
+            "passes": false
+        },
+        {
+            "rule": "lowercase",
+            "value": "ος",
+            "passes": true
+        },
+        {
+            "rule": "lowercase",
+            "value": "οσ",
+            "passes": true
+        },
+        {
+            "rule": "lowercase",
+            "value": 123,
+            "passes": false
+        },
+        {
+            "rule": "lowercase",
+            "value": true,
+            "passes": false
+        },
+        {
+            "rule": "lowercase",
+            "value": null,
+            "passes": false
+        },
+        {
+            "rule": "lowercase",
+            "value": [],
+            "passes": false
+        },
+        {
+            "rule": "uppercase",
+            "value": "ABC",
+            "passes": true
+        },
+        {
+            "rule": "uppercase",
+            "value": "abc",
+            "passes": false
+        },
+        {
+            "rule": "uppercase",
+            "value": "中文",
+            "passes": true
+        },
+        {
+            "rule": "uppercase",
+            "value": "123",
+            "passes": true
+        },
+        {
+            "rule": "uppercase",
+            "value": "é",
+            "passes": false
+        },
+        {
+            "rule": "uppercase",
+            "value": "É",
+            "passes": true
+        },
+        {
+            "rule": "uppercase",
+            "value": "ß",
+            "passes": false
+        },
+        {
+            "rule": "uppercase",
+            "value": "SS",
+            "passes": true
+        },
+        {
+            "rule": "uppercase",
+            "value": "İ",
+            "passes": true
+        },
+        {
+            "rule": "uppercase",
+            "value": "i̇",
+            "passes": false
+        },
+        {
+            "rule": "uppercase",
+            "value": "ΟΣ",
+            "passes": true
+        },
+        {
+            "rule": "uppercase",
+            "value": "ος",
+            "passes": false
+        },
+        {
+            "rule": "uppercase",
+            "value": "οσ",
+            "passes": false
+        },
+        {
+            "rule": "uppercase",
+            "value": 123,
+            "passes": false
+        },
+        {
+            "rule": "uppercase",
+            "value": true,
+            "passes": false
+        },
+        {
+            "rule": "uppercase",
+            "value": null,
+            "passes": false
+        },
+        {
+            "rule": "uppercase",
+            "value": [],
+            "passes": false
+        },
+        {
+            "rule": "not_regex:/^foo/i",
+            "value": "foo",
+            "passes": false
+        },
+        {
+            "rule": "not_regex:/^foo/i",
+            "value": "FOObar",
+            "passes": false
+        },
+        {
+            "rule": "not_regex:/^foo/i",
+            "value": "bar",
+            "passes": true
+        },
+        {
+            "rule": "not_regex:/^foo/i",
+            "value": 123,
+            "passes": true
+        },
+        {
+            "rule": "not_regex:/^foo/i",
+            "value": true,
+            "passes": false
+        },
+        {
+            "rule": "not_regex:/^foo/i",
+            "value": [],
+            "passes": false
+        },
+        {
+            "rule": "not_regex:/^foo/i",
+            "value": null,
+            "passes": false
+        },
+        {
+            "rule": "starts_with:foo,bar",
+            "value": "foo1",
+            "passes": true
+        },
+        {
+            "rule": "starts_with:foo,bar",
+            "value": "bar2",
+            "passes": true
+        },
+        {
+            "rule": "starts_with:foo,bar",
+            "value": "afoo",
+            "passes": false
+        },
+        {
+            "rule": "starts_with:foo,bar",
+            "value": 123,
+            "passes": false
+        },
+        {
+            "rule": "starts_with:foo,bar",
+            "value": true,
+            "passes": false
+        },
+        {
+            "rule": "starts_with:foo,bar",
+            "value": [],
+            "passes": false
+        },
+        {
+            "rule": "starts_with:foo,bar",
+            "value": null,
+            "passes": false
+        },
+        {
+            "rule": "doesnt_start_with:foo,bar",
+            "value": "foo1",
+            "passes": false
+        },
+        {
+            "rule": "doesnt_start_with:foo,bar",
+            "value": "bar2",
+            "passes": false
+        },
+        {
+            "rule": "doesnt_start_with:foo,bar",
+            "value": "afoo",
+            "passes": true
+        },
+        {
+            "rule": "doesnt_start_with:foo,bar",
+            "value": 123,
+            "passes": true
+        },
+        {
+            "rule": "doesnt_start_with:foo,bar",
+            "value": true,
+            "passes": false
+        },
+        {
+            "rule": "doesnt_start_with:foo,bar",
+            "value": [],
+            "passes": false
+        },
+        {
+            "rule": "doesnt_start_with:foo,bar",
+            "value": null,
+            "passes": false
+        },
+        {
+            "rule": "ends_with:foo,bar",
+            "value": "1foo",
+            "passes": true
+        },
+        {
+            "rule": "ends_with:foo,bar",
+            "value": "2bar",
+            "passes": true
+        },
+        {
+            "rule": "ends_with:foo,bar",
+            "value": "fooa",
+            "passes": false
+        },
+        {
+            "rule": "ends_with:foo,bar",
+            "value": 123,
+            "passes": false
+        },
+        {
+            "rule": "ends_with:foo,bar",
+            "value": true,
+            "passes": false
+        },
+        {
+            "rule": "ends_with:foo,bar",
+            "value": [],
+            "passes": false
+        },
+        {
+            "rule": "ends_with:foo,bar",
+            "value": null,
+            "passes": false
+        },
+        {
+            "rule": "doesnt_end_with:foo,bar",
+            "value": "1foo",
+            "passes": false
+        },
+        {
+            "rule": "doesnt_end_with:foo,bar",
+            "value": "2bar",
+            "passes": false
+        },
+        {
+            "rule": "doesnt_end_with:foo,bar",
+            "value": "fooa",
+            "passes": true
+        },
+        {
+            "rule": "doesnt_end_with:foo,bar",
+            "value": 123,
+            "passes": true
+        },
+        {
+            "rule": "doesnt_end_with:foo,bar",
+            "value": true,
+            "passes": false
+        },
+        {
+            "rule": "doesnt_end_with:foo,bar",
+            "value": [],
+            "passes": false
+        },
+        {
+            "rule": "doesnt_end_with:foo,bar",
+            "value": null,
+            "passes": false
+        },
+        {
+            "rule": "starts_with:12",
+            "value": 123,
+            "passes": true
+        },
+        {
+            "rule": "starts_with:12",
+            "value": 12.5,
+            "passes": true
+        },
+        {
+            "rule": "starts_with:12",
+            "value": "0123",
+            "passes": false
+        },
+        {
+            "rule": "ends_with:23",
+            "value": 123,
+            "passes": true
+        },
+        {
+            "rule": "ends_with:23",
+            "value": 1.23,
+            "passes": true
+        },
+        {
+            "rule": "ends_with:23",
+            "value": "1230",
+            "passes": false
+        },
+        {
+            "rule": "starts_with:",
+            "value": "foo",
+            "passes": false
+        },
+        {
+            "rule": "starts_with:",
+            "value": 123,
+            "passes": false
+        },
+        {
+            "rule": "doesnt_start_with",
+            "value": "foo",
+            "passes": true
+        },
+        {
+            "rule": "doesnt_start_with",
+            "value": 123,
+            "passes": true
+        },
+        {
+            "rule": "doesnt_start_with",
+            "value": true,
+            "passes": false
+        },
+        {
+            "rule": "ends_with:",
+            "value": "foo",
+            "passes": false
+        },
+        {
+            "rule": "ends_with:",
+            "value": 123,
+            "passes": false
+        },
+        {
+            "rule": "doesnt_end_with",
+            "value": "foo",
+            "passes": true
+        },
+        {
+            "rule": "doesnt_end_with",
+            "value": 123,
+            "passes": true
+        },
+        {
+            "rule": "doesnt_end_with",
+            "value": true,
+            "passes": false
+        },
+        {
+            "rule": "digits:3",
+            "value": "123",
+            "passes": true
+        },
+        {
+            "rule": "digits:3",
+            "value": "012",
+            "passes": true
+        },
+        {
+            "rule": "digits:3",
+            "value": 123,
+            "passes": true
+        },
+        {
+            "rule": "digits:3",
+            "value": 123.0,
+            "passes": true
+        },
+        {
+            "rule": "digits:3",
+            "value": "12",
+            "passes": false
+        },
+        {
+            "rule": "digits:3",
+            "value": "-12",
+            "passes": false
+        },
+        {
+            "rule": "digits:3",
+            "value": "1.2",
+            "passes": false
+        },
+        {
+            "rule": "digits:3",
+            "value": true,
+            "passes": false
+        },
+        {
+            "rule": "digits:3",
+            "value": "１２３",
+            "passes": false
+        },
+        {
+            "rule": "digits_between:2,4",
+            "value": "12",
+            "passes": true
+        },
+        {
+            "rule": "digits_between:2,4",
+            "value": "1234",
+            "passes": true
+        },
+        {
+            "rule": "digits_between:2,4",
+            "value": "1",
+            "passes": false
+        },
+        {
+            "rule": "digits_between:2,4",
+            "value": "12345",
+            "passes": false
+        },
+        {
+            "rule": "digits_between:2,4",
+            "value": 123,
+            "passes": true
+        },
+        {
+            "rule": "digits_between:2,4",
+            "value": true,
+            "passes": false
+        },
+        {
+            "rule": "max_digits:3",
+            "value": "123",
+            "passes": true
+        },
+        {
+            "rule": "max_digits:3",
+            "value": "12",
+            "passes": true
+        },
+        {
+            "rule": "max_digits:3",
+            "value": "1234",
+            "passes": false
+        },
+        {
+            "rule": "max_digits:3",
+            "value": 123.0,
+            "passes": true
+        },
+        {
+            "rule": "max_digits:3",
+            "value": true,
+            "passes": false
+        },
+        {
+            "rule": "max_digits:3",
+            "value": "-1",
+            "passes": false
+        },
+        {
+            "rule": "min_digits:3",
+            "value": "123",
+            "passes": true
+        },
+        {
+            "rule": "min_digits:3",
+            "value": "001",
+            "passes": true
+        },
+        {
+            "rule": "min_digits:3",
+            "value": "12",
+            "passes": false
+        },
+        {
+            "rule": "min_digits:3",
+            "value": 123.0,
+            "passes": true
+        },
+        {
+            "rule": "min_digits:3",
+            "value": true,
+            "passes": false
+        },
+        {
+            "rule": "min_digits:3",
+            "value": "1.2",
+            "passes": false
+        },
+        {
+            "rule": "decimal:2",
+            "value": "1",
+            "passes": false
+        },
+        {
+            "rule": "decimal:2",
+            "value": "1.00",
+            "passes": true
+        },
+        {
+            "rule": "decimal:2",
+            "value": "1.2",
+            "passes": false
+        },
+        {
+            "rule": "decimal:2",
+            "value": 1.0,
+            "passes": false
+        },
+        {
+            "rule": "decimal:2",
+            "value": true,
+            "passes": false
+        },
+        {
+            "rule": "decimal:2",
+            "value": "1e1",
+            "passes": false
+        },
+        {
+            "rule": "decimal:2",
+            "value": "1.20\n",
+            "passes": true
+        },
+        {
+            "rule": "decimal:2",
+            "value": " 1.20",
+            "passes": false
+        },
+        {
+            "rule": "decimal:2",
+            "value": ".5",
+            "passes": false
+        },
+        {
+            "rule": "decimal:2",
+            "value": "-0.20",
+            "passes": true
+        },
+        {
+            "rule": "decimal:1,3",
+            "value": "1.0",
+            "passes": true
+        },
+        {
+            "rule": "decimal:1,3",
+            "value": "1.23",
+            "passes": true
+        },
+        {
+            "rule": "decimal:1,3",
+            "value": "1.234",
+            "passes": true
+        },
+        {
+            "rule": "decimal:1,3",
+            "value": "1.2345",
+            "passes": false
+        },
+        {
+            "rule": "decimal:1,3",
+            "value": "1",
+            "passes": false
+        },
+        {
+            "rule": "decimal:1,3",
+            "value": "-0.2",
+            "passes": true
+        },
+        {
+            "rule": "alpha",
+            "value": "abc",
+            "passes": true
+        },
+        {
+            "rule": "alpha",
+            "value": "中文",
+            "passes": true
+        },
+        {
+            "rule": "alpha",
+            "value": "é",
+            "passes": true
+        },
+        {
+            "rule": "alpha",
+            "value": "abc1",
+            "passes": false
+        },
+        {
+            "rule": "alpha",
+            "value": 123,
+            "passes": false
+        },
+        {
+            "rule": "alpha",
+            "value": true,
+            "passes": false
+        },
+        {
+            "rule": "alpha",
+            "value": "",
+            "passes": false
+        },
+        {
+            "rule": "alpha",
+            "value": null,
+            "passes": false
+        },
+        {
+            "rule": "alpha:ascii",
+            "value": "abc",
+            "passes": true
+        },
+        {
+            "rule": "alpha:ascii",
+            "value": "中文",
+            "passes": false
+        },
+        {
+            "rule": "alpha:ascii",
+            "value": "é",
+            "passes": false
+        },
+        {
+            "rule": "alpha:ascii",
+            "value": 123,
+            "passes": false
+        },
+        {
+            "rule": "alpha_dash",
+            "value": "abc-1_",
+            "passes": true
+        },
+        {
+            "rule": "alpha_dash",
+            "value": "中文-１２",
+            "passes": true
+        },
+        {
+            "rule": "alpha_dash",
+            "value": 123,
+            "passes": true
+        },
+        {
+            "rule": "alpha_dash",
+            "value": 1.0,
+            "passes": true
+        },
+        {
+            "rule": "alpha_dash",
+            "value": 1.2,
+            "passes": false
+        },
+        {
+            "rule": "alpha_dash",
+            "value": true,
+            "passes": false
+        },
+        {
+            "rule": "alpha_dash",
+            "value": "a b",
+            "passes": false
+        },
+        {
+            "rule": "alpha_num",
+            "value": "abc1",
+            "passes": true
+        },
+        {
+            "rule": "alpha_num",
+            "value": "中文１２",
+            "passes": true
+        },
+        {
+            "rule": "alpha_num",
+            "value": 123,
+            "passes": true
+        },
+        {
+            "rule": "alpha_num",
+            "value": 1.0,
+            "passes": true
+        },
+        {
+            "rule": "alpha_num",
+            "value": true,
+            "passes": false
+        },
+        {
+            "rule": "alpha_num",
+            "value": "a-b",
+            "passes": false
+        },
+        {
+            "rule": "list",
+            "value": [],
+            "passes": true
+        },
+        {
+            "rule": "list",
+            "value": [
+                1,
+                2
+            ],
+            "passes": true
+        },
+        {
+            "rule": "list",
+            "value": {
+                "a": 1
+            },
+            "passes": false
+        },
+        {
+            "rule": "list",
+            "value": [
+                1,
+                2
+            ],
+            "passes": true
+        },
+        {
+            "rule": "list",
+            "value": {
+                "1": 1
+            },
+            "passes": false
+        },
+        {
+            "rule": "ip",
+            "value": "127.0.0.1",
+            "passes": true
+        },
+        {
+            "rule": "ip",
+            "value": "::1",
+            "passes": true
+        },
+        {
+            "rule": "ip",
+            "value": "::ffff:192.0.2.1",
+            "passes": true
+        },
+        {
+            "rule": "ip",
+            "value": "01.2.3.4",
+            "passes": false
+        },
+        {
+            "rule": "ip",
+            "value": "256.0.0.1",
+            "passes": false
+        },
+        {
+            "rule": "ip",
+            "value": "fe80::1%lo0",
+            "passes": false
+        },
+        {
+            "rule": "ip",
+            "value": 1,
+            "passes": false
+        },
+        {
+            "rule": "ip",
+            "value": true,
+            "passes": false
+        },
+        {
+            "rule": "ipv4",
+            "value": "127.0.0.1",
+            "passes": true
+        },
+        {
+            "rule": "ipv4",
+            "value": "::1",
+            "passes": false
+        },
+        {
+            "rule": "ipv4",
+            "value": "01.2.3.4",
+            "passes": false
+        },
+        {
+            "rule": "ipv6",
+            "value": "::1",
+            "passes": true
+        },
+        {
+            "rule": "ipv6",
+            "value": "127.0.0.1",
+            "passes": false
+        },
+        {
+            "rule": "ipv6",
+            "value": "::ffff:192.0.2.1",
+            "passes": true
+        },
+        {
+            "rule": "mac_address",
+            "value": "01:23:45:67:89:ab",
+            "passes": true
+        },
+        {
+            "rule": "mac_address",
+            "value": "01-23-45-67-89-ab",
+            "passes": true
+        },
+        {
+            "rule": "mac_address",
+            "value": "0123.4567.89ab",
+            "passes": true
+        },
+        {
+            "rule": "mac_address",
+            "value": "0123456789ab",
+            "passes": false
+        },
+        {
+            "rule": "mac_address",
+            "value": "01:23-45:67:89:ab",
+            "passes": false
+        },
+        {
+            "rule": "mac_address",
+            "value": "1:2:3:4:5:6",
+            "passes": false
+        },
+        {
+            "rule": "mac_address",
+            "value": true,
+            "passes": false
+        },
+        {
+            "rule": "json",
+            "value": "{}",
+            "passes": true
+        },
+        {
+            "rule": "json",
+            "value": "[]",
+            "passes": true
+        },
+        {
+            "rule": "json",
+            "value": "null",
+            "passes": true
+        },
+        {
+            "rule": "json",
+            "value": "true",
+            "passes": true
+        },
+        {
+            "rule": "json",
+            "value": "1",
+            "passes": true
+        },
+        {
+            "rule": "json",
+            "value": "{broken}",
+            "passes": false
+        },
+        {
+            "rule": "json",
+            "value": true,
+            "passes": true
+        },
+        {
+            "rule": "json",
+            "value": false,
+            "passes": false
+        },
+        {
+            "rule": "json",
+            "value": 123,
+            "passes": true
+        },
+        {
+            "rule": "json",
+            "value": 1.2,
+            "passes": true
+        },
+        {
+            "rule": "json",
+            "value": null,
+            "passes": false
+        },
+        {
+            "rule": "json",
+            "value": [],
+            "passes": false
+        },
+        {
+            "rule": "hex_color",
+            "value": "#fff",
+            "passes": true
+        },
+        {
+            "rule": "hex_color",
+            "value": "#ffff",
+            "passes": true
+        },
+        {
+            "rule": "hex_color",
+            "value": "#123456",
+            "passes": true
+        },
+        {
+            "rule": "hex_color",
+            "value": "#12345678",
+            "passes": true
+        },
+        {
+            "rule": "hex_color",
+            "value": "#abc\n",
+            "passes": true
+        },
+        {
+            "rule": "hex_color",
+            "value": "fff",
+            "passes": false
+        },
+        {
+            "rule": "hex_color",
+            "value": "#12345",
+            "passes": false
+        },
+        {
+            "rule": "hex_color",
+            "value": "#GGG",
+            "passes": false
+        },
+        {
+            "rule": "hex_color",
+            "value": 123,
+            "passes": false
+        }
+    ]
+}

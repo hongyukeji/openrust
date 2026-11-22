@@ -93,9 +93,15 @@ async fn after_runs_on_failure_and_stop_is_global_while_safe_excludes_unvalidate
         Ok(())
     });
     assert!(validator.validate().await.is_err());
-    assert!(!validator.errors().get("a").is_empty());
-    assert!(validator.errors().get("b").is_empty());
-    assert!(!validator.errors().get("after").is_empty());
+    assert!(!validator.errors().get("a", None).intoMessages().is_empty());
+    assert!(validator.errors().get("b", None).intoMessages().is_empty());
+    assert!(
+        !validator
+            .errors()
+            .get("after", None)
+            .intoMessages()
+            .is_empty()
+    );
     assert!(validator.safe().is_err());
 }
 
@@ -145,8 +151,20 @@ async fn exclusions_follow_rule_order_and_preserve_other_attributes() {
         })
         .unwrap();
     assert!(validator.validate().await.is_err());
-    assert!(!validator.errors().get("rows.0.address").is_empty());
-    assert!(validator.errors().get("rows.1.address").is_empty());
+    assert!(
+        !validator
+            .errors()
+            .get("rows.0.address", None)
+            .intoMessages()
+            .is_empty()
+    );
+    assert!(
+        validator
+            .errors()
+            .get("rows.1.address", None)
+            .intoMessages()
+            .is_empty()
+    );
     assert!(passes(json!(["a", "b"]), "array|in:a,b").await);
     assert!(!passes(json!(["a", ["b"]]), "array|in:a,b").await);
     assert!(!passes(json!(["a", "c"]), "array|in:a,b").await);
@@ -251,15 +269,27 @@ async fn standard_rules_preserve_missing_null_wildcards_and_translated_condition
         .unwrap();
     assert!(validator.validate().await.is_err());
     assert_eq!(
-        validator.errors().get("amount"),
+        validator.errors().get("amount", None).intoMessages(),
         ["模式 为 银行卡 时必须填写 数量"]
     );
     assert_eq!(
-        validator.errors().get("rows.0.score"),
+        validator.errors().get("rows.0.score", None).intoMessages(),
         ["rows.0.score 必须为数值"]
     );
-    assert!(validator.errors().get("rows.1.score").is_empty());
-    assert!(validator.errors().get("missing").is_empty());
+    assert!(
+        validator
+            .errors()
+            .get("rows.1.score", None)
+            .intoMessages()
+            .is_empty()
+    );
+    assert!(
+        validator
+            .errors()
+            .get("missing", None)
+            .intoMessages()
+            .is_empty()
+    );
     let mut validator = factory
         .make(
             Data::new(json!({"mode":"other", "amount":null})).unwrap(),

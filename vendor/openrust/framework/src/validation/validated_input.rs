@@ -46,6 +46,7 @@ impl ValidatedInput {
     pub(super) fn project(
         data: &Data,
         fields: &[(String, Option<&Value>)],
+        array_fields: &std::collections::BTreeSet<String>,
     ) -> ValidationResult<Self> {
         let mut selected = Map::new();
         let declarations = fields
@@ -54,7 +55,7 @@ impl ValidatedInput {
             .collect::<std::collections::BTreeSet<_>>();
         for (field, value) in fields {
             let Some(value) = value else { continue };
-            if value.is_object() || value.is_array() {
+            if array_fields.contains(field) && (value.is_object() || value.is_array()) {
                 let prefix = format!("{field}.");
                 if declarations
                     .range(prefix.as_str()..)

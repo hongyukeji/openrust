@@ -22,10 +22,12 @@ impl Middleware for ShareErrorsFromSession {
                 .session()
                 .ok()
                 .and_then(|session| session.get("errors"))
-                .filter(|errors| errors.is_object())
                 .cloned()
-                .map(Into::into)
-                .unwrap_or_else(|| ViewValue::Object(Default::default()));
+                .and_then(|value| {
+                    serde_json::from_value::<crate::support::ViewErrorBag>(value).ok()
+                })
+                .unwrap_or_default();
+            let errors = ViewValue::from(errors);
             Ok(ERRORS.scope(Some(errors), next.run(request)).await)
         })
     }

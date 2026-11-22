@@ -143,6 +143,10 @@ impl BinaryFile {
         }
         set_public_cache_control(&mut headers);
         let mut response = Response::empty(StatusCode::OK).withHeaders(headers);
+        response
+            .parts_mut()
+            .extensions
+            .insert(super::ResponseKind::File);
         response.binary_file = Some(Self {
             file,
             length: metadata.len(),

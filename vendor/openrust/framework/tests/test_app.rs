@@ -799,3 +799,58 @@ async fn package_manifest_rebuilds_clears_and_uses_linked_providers()
     );
     Ok(())
 }
+
+#[tokio::test]
+async fn relative_test_requests_use_configured_origin_and_preserve_absolute_addresses() {
+    use openrust::{
+        foundation::configuration::Routing,
+        http::{Body, HttpError, HttpFuture, Request, Response, StatusCode},
+        support::facades::Route,
+    };
+    fn probe(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+        Box::pin(
+            async move { Response::json(StatusCode::OK, json!({"uri":request.uri().to_string()})) },
+        )
+    }
+    for (url, relative, expected) in [
+        (None, "/probe?x=1", "http://localhost/probe?x=1"),
+        (
+            Some("https://example.test"),
+            "/probe?x=1",
+            "https://example.test/probe?x=1",
+        ),
+        (
+            Some("https://example.test/sub"),
+            "/probe?x=1",
+            "https://example.test/sub/probe?x=1",
+        ),
+    ] {
+        let mut app = TestApp::create(|builder| {
+            builder
+                .withConfig(|root, _| {
+                    let url = fs::read_to_string(root.join("test-url")).ok();
+                    Ok([("app".into(), json!({"env":"testing","url":url}))].into())
+                })
+                .withRouting(Routing::default().apiPrefix("").api(|| {
+                    Route::get("/probe", probe)?;
+                    Route::get("/sub/probe", probe)
+                }))
+        })
+        .unwrap();
+        if let Some(url) = url {
+            fs::write(app.root().join("test-url"), url).unwrap();
+        }
+        app.get(relative)
+            .await
+            .unwrap()
+            .assertJsonPath("uri", &json!(expected));
+        app.call(
+            http::Request::get("https://absolute.test/probe?x=2")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap()
+        .assertJsonPath("uri", &json!("https://absolute.test/probe?x=2"));
+    }
+}

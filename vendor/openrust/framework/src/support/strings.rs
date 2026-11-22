@@ -11,6 +11,7 @@ mod pattern;
 mod random;
 mod slug;
 mod strict_transliteration;
+mod tags;
 mod text_layout;
 
 pub use comb::OrderedUuidError;

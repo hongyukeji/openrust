@@ -341,7 +341,7 @@ async fn sampling_changes_log_count_and_preserves_actual_http_error_responses() 
     use openrust::support::Lottery;
 
     assert!(Lottery::odds(1, 0).is_err());
-    assert!(Lottery::odds(2, 1).is_err());
+    assert!(Lottery::odds(2, 1).unwrap().choose());
     let losing = Lottery::odds(0, 1).unwrap();
     let winning = Lottery::odds(1, 1).unwrap();
 

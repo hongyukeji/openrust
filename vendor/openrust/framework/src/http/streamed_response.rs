@@ -206,6 +206,7 @@ impl Response {
             return Self::empty(status);
         }
         Self::new(status, Body::from_stream(data.0))
+            .with_kind(super::ResponseKind::Stream)
             .header(CONTENT_TYPE, HeaderValue::from_static("application/json"))
     }
 
@@ -275,6 +276,8 @@ impl Response {
         if let Some(name) = name {
             headers.insert(CONTENT_DISPOSITION, filename_header(disposition, name)?);
         }
-        Ok(Self::new(StatusCode::OK, Body::from_stream(source)).withHeaders(headers))
+        Ok(Self::new(StatusCode::OK, Body::from_stream(source))
+            .with_kind(super::ResponseKind::Stream)
+            .withHeaders(headers))
     }
 }

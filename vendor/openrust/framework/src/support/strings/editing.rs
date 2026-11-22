@@ -140,25 +140,7 @@ pub(super) fn word_count(value: &str, additional: &str) -> usize {
 }
 
 pub(in crate::support) fn strip_tags(value: &str, allowed: &[&str]) -> String {
-    static TAGS: OnceLock<Regex> = OnceLock::new();
-    let tags = TAGS.get_or_init(|| {
-        Regex::new(r#"(?s:<!--.*?-->|<\?.*?\?>)|</?([A-Za-z][A-Za-z0-9:_-]*)(?:"[^"]*"|'[^']*'|[^'"<>])*>"#)
-            .expect("tag matching expression")
-    });
-    tags.replace_all(value, |captures: &regex::Captures<'_>| {
-        let keep = captures.get(1).is_some_and(|name| {
-            allowed.iter().any(|allowed| {
-                name.as_str()
-                    .eq_ignore_ascii_case(allowed.trim_matches(['<', '>']))
-            })
-        });
-        if keep {
-            captures[0].to_owned()
-        } else {
-            String::new()
-        }
-    })
-    .into_owned()
+    super::tags::strip(value, allowed)
 }
 
 pub(super) fn title(value: &str) -> String {

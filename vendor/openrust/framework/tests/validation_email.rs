@@ -41,8 +41,20 @@ async fn email_rules_preserve_nullable_wildcards_and_error_messages() {
             )
             .unwrap();
         assert!(validator.validate().await.is_err());
-        assert!(!validator.errors().get("users.1.email").is_empty());
-        assert!(validator.errors().get("users.0.email").is_empty());
+        assert!(
+            !validator
+                .errors()
+                .get("users.1.email", None)
+                .intoMessages()
+                .is_empty()
+        );
+        assert!(
+            validator
+                .errors()
+                .get("users.0.email", None)
+                .intoMessages()
+                .is_empty()
+        );
     }
     for value in [Value::Null, json!(""), json!("a@test")] {
         let mut validator = factory

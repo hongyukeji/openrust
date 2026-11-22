@@ -60,7 +60,9 @@ async fn password_and_confirmed_match_fixed_laravel_validator() {
             } else {
                 serde_json::from_value(case["messages"].clone()).unwrap()
             };
-        if validator.errors().messages() != expected_messages {
+        if serde_json::to_value(validator.errors().messages()).unwrap()
+            != serde_json::to_value(expected_messages).unwrap()
+        {
             mismatches.push(format!(
                 "{index}: messages; {case}; errors: {:?}",
                 validator.errors()
@@ -127,7 +129,7 @@ async fn fortify_policy_validates_confirmation_and_localized_password_failures()
         .unwrap();
     assert!(validator.validate().await.is_err());
     assert_eq!(
-        validator.errors().get("password"),
+        validator.errors().get("password", None).intoMessages(),
         [
             "The password field must contain at least one uppercase and one lowercase letter.",
             "The password field must contain at least one symbol.",

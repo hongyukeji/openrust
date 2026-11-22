@@ -54,13 +54,13 @@ pub use enumerable::Enumerable;
 pub use fluent::{Fluent, FluentError};
 pub use helpers::{Retry, blank, defer, filled, storage_path};
 pub use html_string::HtmlString;
-pub(crate) use html_string::escape_html;
+pub(crate) use html_string::{decode_html_entities, escape_html};
 pub use lazy_collection::{
     HigherOrderCollectionProxy, LazyCachingIterator, LazyCollection, LazyIterator, LazySource,
 };
-pub use lottery::{InvalidLottery, Lottery};
+pub use lottery::{InvalidLottery, Lottery, LotteryChance};
 pub use markdown::{MarkdownHtml, MarkdownOptions};
-pub use message_bag::MessageBag;
+pub use message_bag::{MessageBag, MessageKeys, MessageLookup};
 pub use number::{Number, NumberError, NumberValue};
 pub use service_provider::{ProviderFactory, ProviderResult, ServiceProvider};
 pub use sleep::{Sleep, SleepFake};
@@ -71,6 +71,7 @@ pub use strings::{
 };
 pub use timebox::Timebox;
 pub use uri::{InvalidUri, Uri, UriQueryString};
+pub(crate) use value_comparison::php_loose_value_equal;
 #[doc(hidden)]
 pub use value_comparison::{
     php_float_string, php_integer_cast, php_integer_less_than_value, php_loose_string_equal,

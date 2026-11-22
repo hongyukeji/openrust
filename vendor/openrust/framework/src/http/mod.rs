@@ -40,6 +40,7 @@ pub(crate) use request::context as request_context;
 pub use request::{Request, RequestAttributes, RequestField, RequestValue};
 pub(crate) use request::{parse_query, parse_uri_query};
 pub use response::Response;
+pub(crate) use response::ResponseKind;
 pub use response::ResponseOutput;
 pub(crate) use response_factory::ResponseServiceProvider;
 pub use response_factory::{ResponseFactory, ResponseMacro};

@@ -113,11 +113,11 @@ impl Store {
     ) -> SessionResult<()> {
         let mut errors = self
             .get("errors")
-            .and_then(Value::as_object)
             .cloned()
+            .and_then(|value| serde_json::from_value::<crate::support::ViewErrorBag>(value).ok())
             .unwrap_or_default();
-        errors.insert(bag.to_owned(), serde_json::json!(messages.messages()));
-        self.flash("errors", Value::Object(errors))
+        errors.put(bag, messages.clone());
+        self.flash("errors", serde_json::json!(errors))
     }
 
     #[allow(non_snake_case, reason = "Matches Laravel's Session API")]

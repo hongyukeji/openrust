@@ -273,7 +273,7 @@ impl File {
 
 impl From<File> for Rule {
     fn from(rule: File) -> Self {
-        Rule(Kind::File(rule))
+        Rule::new(Kind::File(rule))
     }
 }
 

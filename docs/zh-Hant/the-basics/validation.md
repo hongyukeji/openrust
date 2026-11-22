@@ -205,3 +205,88 @@ fn configure(exceptions: &mut Exceptions) {
 `Validator::after` 在規則檢查後執行，可追加錯誤。`sometimes` 按條件追加規則，萬用字元回呼收到所在父項。`stopOnFirstFailure(true)` 在不同欄位間停止檢查，`bail` 只停止目前欄位。`safe()` 必須在驗證成功後呼叫，只公開已驗證資料。
 
 FormRequest 順序為 `prepareForValidation`、`authorize`、`withValidator`、驗證和 `after`、`passedValidation`。授權或驗證失敗不執行業務方法。攜帶 `Precognition-Validate-Only` 的預驗證成功後不呼叫 `passedValidation`；未帶該標頭時可能先呼叫，再短路業務方法。驗證器按請求隔離。
+
+## 訊息包 {#message-bags}
+
+使用 `MessageBag` 收集有序欄位錯誤，`ViewErrorBag` 管理具名包。`add` 去重，`merge(&other)` 保留重複。`first(key, format)` 在沒有訊息時傳回空字串。`get(key, format)` 傳回 `MessageLookup::Exact` 或保留欄位名的萬用字元映射；僅在確實需要扁平訊息時呼叫 `intoMessages()`。
+
+```rust
+use openrust::support::{MessageBag, ViewErrorBag};
+
+let mut messages = MessageBag::new([("email", ["Invalid email"])]);
+messages.addIf(true, "name", "Required");
+assert_eq!(messages.first(Some("email"), None), "Invalid email");
+assert!(messages.hasAny(["email", "phone"]));
+messages.setFormat(":key: :message");
+assert_eq!(messages.first(Some("name"), None), "name: Required");
+let mut errors = ViewErrorBag::new();
+errors.put("profile", messages);
+assert_eq!(errors.getBag("profile").count(), 2);
+assert_eq!(errors.count(), 0);
+```
+
+具名包計數及轉發的唯讀方法只針對 `default` 包。讀取缺失包不會登記它；用 `getBagMut` 修改已有包，或用 `put` 新增包。JSON 儲存原始訊息，不受顯示格式影響；反序列化恢復預設格式。訊息列表使用連續的 Rust 索引，JSON 選項遵循 Serde，不提供 PHP 陣列索引、JSON 位元旗標或執行期動態方法分派。
+
+
+## 純量與數字位數規則
+
+使用 `ascii`、`alpha`、`alpha_dash` 和 `alpha_num` 限制字元。三個 alpha 規則接受 `ascii` 參數，預設支援 Unicode 字母和組合標記，後兩者還接受數字。`list` 要求從零開始的連續整數鍵。位址格式使用 `ip`、`ipv4`、`ipv6` 和 `mac_address`；`hex_color` 接受以 `#` 開頭的 3、4、6 或 8 位十六進位顏色。
+
+`json` 驗證純量中的 JSON 文字，剖析器接受少於 128 層的容器巢狀結構。`digits:n`、`digits_between:min,max`、`min_digits:n` 和 `max_digits:n` 按純量轉換後的 ASCII 數字計數，正負號及小數點不能通過數字位數規則。`decimal:n` 或 `decimal:min,max` 檢查小數位數，不接受科學記號。缺少必要參數或邊界不是數字時傳回 `InvalidRule`。這些規則沿用缺失欄位、空白字串和 `nullable` 行為；必須提供值時同時使用 `required`。
+
+使用 `lowercase`、`uppercase` 檢查 Unicode 大小寫，不修改輸入。`starts_with:a,b`、`ends_with:a,b`、`doesnt_start_with:a,b`、`doesnt_end_with:a,b` 接受字串和數字，以任一非空參數比對。`not_regex:/pattern/flags` 拒絕符合的值，模式語法與 `regex` 相同；非法模式傳回 `InvalidRule`。模式含管道字元時，透過 `RuleSet` 傳入單獨的 `Rule::parse` 結果。
+
+## 欄位存在與條件規則
+
+`missing` 要求欄位缺失，明確傳入 `null` 也算存在。`filled` 允許缺失，但已提供的欄位不能是空值。`declined` 接受 `no`、`off`、`0`、整數零、`false` 字串或布林假值。`prohibited` 允許缺失和空值，拒絕已填寫的值。`same:other` 使用嚴格相等，`different:other,third` 對每個已提供的關聯欄位檢查嚴格不等。
+
+條件存在規則包括 `accepted_if`、`declined_if`、`missing_if`、`missing_unless`、`missing_with`、`missing_with_all`、`present_if`、`present_unless`、`present_with`、`present_with_all`。條件必填使用 `required_unless`、`required_with`、`required_with_all`、`required_without`、`required_without_all`、`required_if_accepted`、`required_if_declined`。存在檢查把 null 視為存在；必填檢查還考慮空字串和空陣列。條件參數中的萬用索引按目前欄位展開。
+
+`prohibited_if`、`prohibited_unless`、`prohibited_if_accepted`、`prohibited_if_declined` 和 `prohibits` 按條件拒絕已填寫的欄位。`exclude`、`exclude_unless`、`exclude_with`、`exclude_without` 從驗證結果移除符合的欄位，並移除子欄位錯誤和上傳檔案。排除按宣告順序執行，前面的必填失敗可能提早停止欄位驗證。`nullable` 不跳過隱式的存在規則。
+
+## 陣列成員與格式規則
+
+`array_keys:a,b` 限制允許的鍵；`required_array_keys:a,b` 要求全部鍵存在，`in_array_keys:a,b` 要求至少一個鍵存在。`contains:a,b` 對每個指定值使用寬鬆比較；`doesnt_contain:a,b` 以嚴格比較拒絕列出的字串。`not_in:a,b` 反轉 `in`；同時使用 `array` 時，反轉的是整個陣列的檢查結果。
+
+`in_array:pool.*` 對展開的候選欄位使用嚴格相等檢查。`distinct` 在宣告的萬用欄位中拒絕重複值；`strict` 保留純量型別區別，`ignore_case` 對字串使用 Unicode 正則大小寫比對。`date_format:Y-m-d,Y/m/d` 接受任一給定格式，並檢查格式化結果與原輸入是否相等，錯誤訊息顯示第一個格式。`ulid` 檢查 26 個字元及首字元範圍。
+
+`multiple_of:0.1` 檢查精確十進位餘數，除數為零時始終失敗。輸入或除數的科學記號指數超出 -1000 至 1000 時傳回執行錯誤。可透過 `:unexpected` 自訂額外陣列鍵的錯誤說明；`:Unexpected` 只將整段列表的首字元大寫，`:UNEXPECTED` 將全部字母大寫。
+
+## 日期、大小與 DNS
+
+`before:other`、`before_or_equal:other`、`after:other`、`after_or_equal:other` 和 `date_equals:other` 將日期與字面量或另一欄位比較，使用應用程式時區及測試時鐘。未宣告 `date_format` 時按整秒比較，宣告格式時納入微秒。要求輸入本身是有效日期時，同時使用 `date` 或 `date_format`。
+
+`gt:other`、`lt:other`、`gte:other` 和 `lte:other` 比較數值、字串字元數、陣列項數或檔案 KB 數。數值輸入也可與字面量門檻比較；欄位值應同型別，雙方均為數值時可跨數值型別。每條比較規則獨立決定數值分類，不改變後續大小規則。
+
+`timezone` 接受內建 IANA 2025b 資料中的精確識別碼。`timezone:all_with_bc` 包含相容別名，`timezone:asia` 等參數限制地區，`timezone:per_country,CN` 按國家篩選。識別碼區分大小寫，群組與國家參數不區分大小寫。無效群組或國家參數長度傳回 `InvalidRule`。
+
+`active_url` 要求主機存在 DNS A 或 AAAA 紀錄，使用非同步 DNS 查詢，不因作業系統能解析數字 IP 就判為成功。`validator.setDnsResolver(resolver)` 接受 Hickory 0.25 解析器，可指定名稱伺服器、逾時與重試策略；DNS 查詢失敗即驗證失敗。測試時用 `validator.fakeDnsLookups(true)` 對目前驗證器啟用僅檢查主機名稱的行為，傳入 `false` 恢復實際 DNS 查詢。開關按實例隔離，並行驗證器互不影響。
+
+## 修改驗證器
+
+用 `getData`、`getValue` 和 `getRules` 讀取輸入及展開後的規則。`getRules` 按宣告順序傳回 `(欄位路徑, 規則)`，路徑使用原生跳脫。`setValue` 更新一個具體路徑，拒絕萬用字元。`setData` 替換輸入，並恢復最近一次 `setRules` 或工廠建立時的規則。`addRules` 合併暫時規則；`appendRules` 同時將合併後的宣告作為下次重設的基準。
+
+`setCustomMessages` 合併訊息。`setAttributeNames`、`setValueNames` 替換對應映射；`addCustomAttributes`、`addCustomValues` 按欄位合併。`getTranslator`、`setTranslator` 讀取或替換錯誤訊息使用的譯器。修改後會捨棄快取的成功結果和錯誤，需要重新執行 `validate().await`，再讀取 `validated()` 或 `safe()`。
+
+`getException`、`setException` 使用型別化函式 `fn(MessageBag, Option<&Translator>) -> ValidationException`，可自訂實際拒絕回應的狀態、錯誤包及重新導向。固定回傳型別替代執行期例外類別名稱及繼承，每個驗證器獨立保存工廠。
+
+## 註冊驗證擴充
+
+在服務提供者中用 `Validator::extend` 註冊一般規則，`extendImplicit` 註冊缺失或空值也必須執行的規則，`extendDependent` 註冊參數引用其他欄位的規則。名稱可用 `ProjectCode` 或 `project_code`，宣告統一使用 `project_code`。工廠建立驗證器時複製目前註冊項，後續註冊不會改變已建立的執行個體。
+
+```rust
+use openrust::support::facades::Validator;
+
+Validator::extend("upper_code", |_, value, _, _| {
+    Ok(value.and_then(serde_json::Value::as_str)
+        .is_some_and(|value| value.chars().all(|ch| ch.is_ascii_uppercase())))
+}, Some(":attribute 必須由大寫字母組成。"))?;
+```
+
+回呼接收欄位名稱、`Option<&Value>`、參數及唯讀驗證器，傳回 `ValidationResult<bool>`。一般規則略過缺失和空字串；`nullable` 略過 null，`sometimes` 仍限制缺失欄位。隱式規則可檢查缺失、空字串及 null。依賴規則將 `items.*.other` 替換為目前項目的具體路徑。執行錯誤透過 `Err` 傳播，不視為一般驗證失敗。非同步規則繼續使用 `Rule::custom` 和 `ValidationRule`。
+
+用 `Validator::replacer` 註冊訊息替換回呼，參數為訊息、欄位、規則名稱、參數列表及唯讀驗證器，傳回最終訊息。先選擇自訂或翻譯訊息並替換欄位名稱，再呼叫替換器；註冊替換器後，由它處理 `:min` 等規則參數。`Factory::resolver` 接收並傳回擁有的驗證器，用於建立時的定制。Rust 使用閉包及明確解析的服務，不支援執行期 `Class@method` 字串或動態驗證器子類別。
+
+單一驗證器可使用 `addExtension`、`addImplicitExtension`、`addDependentExtension` 和 `addReplacer`；對應複數方法接受 `(String, Arc<回呼>)`。這些修改會清除既有驗證結果，需要再次驗證。
+
+工廠預設 `excludeUnvalidatedArrayKeys()`：父欄位宣告無參數 `array` 或 `list` 且有子欄位規則時，只傳回經過驗證的子鍵。用 `includeUnvalidatedArrayKeys()` 將之後建立的驗證器切換為包含父欄位全部鍵；呼叫 `excludeUnvalidatedArrayKeys()` 恢復預設。`array:name,email` 已明確限制允許鍵，不採用此裁剪策略。單一驗證器的 `excludeUnvalidatedArrayKeys` 布林欄位可獨立調整，`validated()` 和 `safe()` 隨即採用新策略。

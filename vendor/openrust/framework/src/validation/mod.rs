@@ -1,8 +1,11 @@
 //! Validation rules, results, and error reporting.
 
+mod active_url;
 mod current_password;
 mod data;
 mod database_presence_verifier;
+mod date_rules;
+mod extensions;
 pub(crate) mod facade;
 mod factory;
 mod path;
@@ -10,6 +13,7 @@ mod rule;
 mod rule_parameters;
 mod rule_set;
 pub mod rules;
+mod scalar_rules;
 mod validated_input;
 mod validation_exception;
 mod validation_service_provider;
@@ -19,13 +23,14 @@ use std::{error::Error, future::Future, pin::Pin};
 
 pub use data::Data;
 pub use database_presence_verifier::DatabasePresenceVerifier;
+pub use extensions::{ValidationExtension, ValidationReplacer, ValidatorResolver};
 pub use factory::Factory;
 pub use rule::Rule;
 pub use rule_set::RuleSet;
 pub use validated_input::ValidatedInput;
 pub use validation_exception::ValidationException;
 pub use validation_service_provider::ValidationServiceProvider;
-pub use validator::Validator;
+pub use validator::{ValidationExceptionFactory, Validator};
 
 /// A validation operation that may perform asynchronous I/O.
 pub type ValidationFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;

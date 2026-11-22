@@ -25,9 +25,10 @@ impl ValidationException {
         let translated = |key, replacements: &std::collections::BTreeMap<String, String>| {
             translator.and_then(|translator| translator.string(key, replacements, None).ok())
         };
-        let mut message = errors.first().map(str::to_owned).unwrap_or_else(|| {
-            translated(DEFAULT, &Default::default()).unwrap_or_else(|| DEFAULT.into())
-        });
+        let mut message = errors.first(None, None);
+        if message.is_empty() {
+            message = translated(DEFAULT, &Default::default()).unwrap_or_else(|| DEFAULT.into());
+        }
         let more = errors.len().saturating_sub(1);
         if more > 0 {
             let key = if more == 1 {

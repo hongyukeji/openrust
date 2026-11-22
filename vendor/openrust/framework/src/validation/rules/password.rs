@@ -138,7 +138,7 @@ impl Password {
 
 impl From<Password> for Rule {
     fn from(rule: Password) -> Self {
-        Self(Kind::Password(rule))
+        Self::new(Kind::Password(rule))
     }
 }
 

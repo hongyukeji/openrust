@@ -400,7 +400,7 @@ async fn precognitive_rule_selection_preserves_expanded_paths_and_literal_dots()
         (" users.*.email", vec![]),
         (
             "users.0.email,profile.name",
-            vec!["profile.name", "users.0.email"],
+            vec!["users.0.email", "profile.name"],
         ),
         ("", vec![]),
         ("*", vec![]),

@@ -45,6 +45,7 @@ flate2 = "=1.1.11"
 async-stream = "0.3.6"
 futures-util = { version = "0.3", default-features = false }
 gif = "=0.14.2"
+hickory-resolver = { version = "=0.25.2", default-features = false, features = ["tokio", "system-config"] }
 http = "1.0"
 http-body = "1.0"
 httpdate = "1.0.3"

@@ -37,6 +37,6 @@ impl Exists {
 
 impl From<Exists> for Rule {
     fn from(rule: Exists) -> Self {
-        Rule(Kind::Exists(rule))
+        Rule::new(Kind::Exists(rule))
     }
 }

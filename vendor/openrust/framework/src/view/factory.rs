@@ -482,12 +482,24 @@ impl Factory {
 
     pub(super) fn render_in_request(
         &self,
-        view: View,
+        mut view: View,
         request: ViewRequestData,
-    ) -> ViewResult<String> {
+    ) -> ViewResult<(String, super::RenderedView)> {
         let mut context = RenderContext::new(Some(self));
         context.request = Arc::new(request);
-        self.render_view(view, &mut context)
+        let html = self.render_view_ref(&mut view, &mut context)?;
+        let mut data = self.getShared();
+        if let Some(errors) = super::middleware::shared_errors() {
+            data.insert("errors".into(), errors);
+        }
+        data.extend(view.data);
+        Ok((
+            html,
+            super::RenderedView {
+                name: view.name.into_owned(),
+                data,
+            },
+        ))
     }
 
     pub(super) fn render_nested(
