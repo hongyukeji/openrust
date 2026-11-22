@@ -13,6 +13,8 @@
 
 ## Laravel 对齐后续边界
 
+- [ ] **全仓对齐实施计划（2026-11-22）**：直接接续[开发计划](plans/framework-parity-remediation-2026-11-22.md)和[统一数据](plans/framework-parity-data-2026-11-22.json)。已失效的Agent提示词按用户要求删除；任务及验收全部完成后统一归档本批材料。
+
 L01–L22本批实现和实际验收见[审计修复节](audits/laravel-code-audit-2026-11-21.md#2026-11-21-修复与重新验收)。以下不混入已完成结论，不重开历史扩展R1–R6。
 
 - [ ] **完整API候选核对**：初审`api-candidates.json`尚未逐方法判定的候选，继续按固定Framework v13.40.0核对已有原名、宏、trait和Rust适配；Validation的PHP规则／全部PCRE选项与日期语法、完整TestResponse、其余Query／ORM接口单独界定范围，不能以关键词扫描认定缺陷或全部支持。
