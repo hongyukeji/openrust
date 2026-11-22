@@ -83,8 +83,8 @@ pub(super) fn load(env: &Environment) -> Result<Loaded<'_>, ConfigError> {
         "locale": locale(env, "APP_LOCALE", "en")?,
         "fallback_locale": locale(env, "APP_FALLBACK_LOCALE", "en")?,
         "faker_locale": locale(env, "APP_FAKER_LOCALE", "en-US")?,
-        // URL 语言参数名；null 表示关闭 URL 语言切换。
-        "locale_query_parameter": "lang",
+        // URL 语言查询参数名；null 表示关闭 URL 语言切换。
+        "locale_query_parameter": get(env, "APP_LOCALE_QUERY_PARAMETER", "lang")?,
 
         /*
         |--------------------------------------------------------------------------
