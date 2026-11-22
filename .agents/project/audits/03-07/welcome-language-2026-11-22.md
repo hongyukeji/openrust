@@ -201,3 +201,67 @@ Docker runtime 增加 COPY lang/，三语部署命令增加复制 lang；避免�
 - 失败与修复证据：`target/tmp/welcome-mobile-spacing-20261122/{red-results.json,green-results.json,browser-results.json}`；320／360／390／430／768／1024／1440px × 三语 × 明暗模式，共42组合通过，边界间距均为16px，无版本裁切、横向溢出或页面脚本错误。人工检查390px简体浅色及1440px英文深色截图。
 - Rust 1.94.0 隔离源码及独占构建目录复用既有 `target/tmp/welcome-locale-20261122/`；欢迎页8项HTTP测试全部通过，0失败／0 ignored，见 `target/tmp/welcome-locale-review-20261122/mobile-welcome.log`。交付模板与验收模板逐字节一致，临时浏览器夹具已移除，`git diff --check`通过。
 - 本次仅调整页面样式，无开发者API或用法变化；未修改三语正文，未操作数据库。用户随后授权本地提交手机端间距修复及本节记录；不包含推送，其他在途改动保留。
+
+## 全链路设计与复用审计（2026-11-22）
+
+审计基线为 `8277bdb4a4d8a5156780ea8fc959a140d7bc56c6`，包含已提交的逐键回退与 Controller trait。用户本次要求审计，不包含实施修复、暂存、提交或推送。本节不覆盖历史验收事实；下列新发现仍未修复。
+
+结论：欢迎页当前分层基本符合固定 Laravel 契约与项目既有决定。继续沿用路由→应用语言中间件→控制器准备数据→Blade→同一译器／Loader 的调用链。未发现为该页新增平行语言管理器、全局页面 composer 或重复翻译字典的必要。发现两处功能边界及两组规范／简化建议，不能以现有测试通过认定全部边界已经闭合。
+
+### 在线调研与取舍
+
+本次通过 HTTPS 实际下载固定源码及生态项目正文，参考材料位于 `target/tmp/welcome-full-audit-20261122/research/`；来源、响应及内容摘要见该目录的 `sources.json`、`ecosystem-sources.json` 和补充来源记录。固定版本和本次读取的动态分支分开记录，不把 GitHub 热度或文档描述作为兼容性验收。
+
+| 来源 | 本次核对内容 | 采用判断 |
+| --- | --- | --- |
+| 固定[应用骨架](https://github.com/laravel/laravel/tree/06d016a364a37430eec9cbc52209adce3d7667ce)：routes/web.php、bootstrap/app.php、Controller.php、welcome.blade.php | 默认路由返回视图；中间件扩展点；空基础控制器；当前应用语言及配置名称进入模板 | 保持既有装配。独立 WelcomeController 和名称／版本数据由用户要求；trait、Result、请求参数及 .blade.html 是 Rust 适配，不回退成 PHP 执行器 |
+| 固定[框架](https://github.com/laravel/framework/tree/1449bf241017087fbd38c118ecaabef3f6797fdc)：Application、Translator、helpers、CompilesTranslations、TranslationTranslatorTest | 配置→译器→LocaleUpdated；配置回退；缺键；__／trans／trans_choice；@lang／@choice 的输出方式 | 文案与本地化链接继续逐键翻译，不恢复控制器标题探测或额外英文兜底 |
+| 固定[本地化教程](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/localization.md) | locale／fallback_locale、App 语言接口、目录及翻译助手 | 浏览器识别是本应用显式策略。BCP 47 及 en／zh-Hans／zh-Hant 是用户确认的标准调整，不以教程的旧目录示例否定迁移 |
+| [Symfony HttpFoundation Request](https://github.com/symfony/http-foundation/blob/7.4/Request.php) | getLanguages／getPreferredLanguage、语言组合匹配 | 仅作为协商机制对照。当前框架 Request 未提供这两个接口；应用中文别名、权重和回退策略不声称与 Symfony 完整等价，不直接替换现有三语行为 |
+| [mcamara/laravel-localization](https://github.com/mcamara/laravel-localization)、[niels-numbers/laravel-localizer](https://github.com/niels-numbers/laravel-localizer)、[codezero-be/laravel-localized-routes](https://github.com/codezero-be/laravel-localized-routes) | 浏览器检测、语言路由、重定向、Cookie／Session、路由缓存职责 | 当前欢迎页只需同一路径的三语响应，不引入这些完整路由机制。mcamara 本次读取的 README 已说明其动态路由及缓存边界，并推荐 successor；不能按知名度直接搬入 |
+| [spatie/laravel-translatable](https://github.com/spatie/laravel-translatable) | 模型 JSON 属性翻译职责 | 不用于替代界面词条译器，欢迎页不需要模型／数据库翻译依赖 |
+| 固定[Goravel Translator](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/translation/translator.go) | 文件加载、上下文语言与回退 | 仅参考编译型框架职责划分，不引入另一套语言状态或覆盖固定 Laravel 行为 |
+
+### 覆盖范围及核对结论
+
+| 范围 | 核对结果 |
+| --- | --- |
+| routes/web.rs、bootstrap/app.rs、默认 Provider | 路由引用 WelcomeController；SetLocale 显式 append；未把欢迎页翻译或可选扩展装进默认 Provider。Laravel 默认骨架没有该浏览器策略，现有三语说明已区分 |
+| 控制器、config/app.rs、.env.example | 名称和版本从现有 Config 读取；控制器只传页面数据和语言元信息。基础 trait 为用户已确认的 Rust 适配，不增加路由约束或平行控制器机制 |
+| SetLocale 与 HTTP 元信息 | 保留请求级语言设置、中文文字优先规则、权重、同权顺序、下游主动切换、Content-Language 与多值 Vary 合并。发现数字变体误判，见 W02 |
+| App／LocaleUpdated／作用域 Config | 顺序、监听器失败传播、重复设置事件、深层覆盖和跨请求／应用隔离由实际回归覆盖；未发现需要欢迎页专用配置仓储的理由 |
+| Translator／FileLoader／缓存／复数 | 复用同一规范化入口、精确资源查找、配置回退与缓存；地区和文字不混同。请求／任务状态及阻塞渲染快照服务于 Rust 并发隔离，不应为模仿 PHP 改成进程全局语言 |
+| Blade 编译／渲染 | __／trans／trans_choice 与翻译指令调用同一译器；普通 echo 转义，指令／raw echo 的可信 HTML 边界已写正文；缓存模板、子模板、组件、复数、分组及区块由定向测试覆盖 |
+| 模板／语言资源／页面布局 | 本地化链接在语言资源内逐键回退，HTML lang 使用应用当前语言。默认三语布局与间距正常；长自定义名称裁切见 W01；普通文案与缓存 meta 建议见 W03／W04 |
+| 三语正文／文档目录／部署资源 | 当前文档和资源使用 en／zh-Hans／zh-Hant；本地链接目标存在。Dockerfile 复制 resources／lang，沿用已交付部署机制；本轮不重新执行镜像或独立部署大矩阵 |
+
+### 新发现与最小处理方案
+
+| 编号 | 优先级与状态 | 证据、影响及建议 |
+| --- | --- | --- |
+| W01 | P2，已复现，未修复 | `resources/views/welcome.blade.html` 的 .wordmark 没有长词换行，父 .artwork 使用 overflow:hidden。隔离真实 Kernel 将 app.name 设为 InternationalizationDemonstrationApplication，390px Chromium 手机视口测得 clientWidth=335、scrollWidth=1210，名称右侧被裁切；页面本身没有横向滚动不能证明文字完整。使用现有 CSS 允许长名称换行，维持名称／版本 16px 间距，并补长英文／中文名称、窄屏及桌面回归；不需要文字测量脚本或布局库。见 long-name-result.json、long-name-mobile.png |
+| W02 | P3，已复现，未修复 | `app/http/middleware/set_locale.rs` 第112行仅凭长度4查找 script，将框架当前接受的 zh-1901／zh-CN-1901 的四位数字变体当成未知文字体系，最终选为 en。这里确认的是当前 ICU 入口接受的良构标签，不声称该变体组合经过 IANA Prefix 有效性验证。对照 zh-pinyin／zh-CN 正常选择 zh-Hans；新的期望回归实际失败，见 numeric-variant-red.log 和 policy-observations.json。最小修正是在已有规范化结果上按 script 的字母语法识别，或复用可用的语义组件，不重新实现完整标签解析，不改中文别名策略 |
+| W03 | P3，规范改进，未修改 | 三语 lang/*/welcome.json 的 description 仍主动用 Laravel 介绍默认产品，与当前“以 OpenRust 为主体”的规范不一致；translation/mod.rs 的 InvalidKey／InvalidCount／Unavailable 等未国际化人类错误提示也仍为英文。普通介绍和人类提示可按既有规范同步三语／简体中文；原 MIT 许可、上游来源及协议／机器契约必须保留，不做全局品牌替换 |
+| W04 | P3，简化建议，未修改 | welcome.blade.html 第31–33行用三个 http-equiv meta 声明禁缓存，真实响应未包含 Cache-Control；这些页面内容不能代替 HTTP 缓存头，也不是固定欢迎页必需内容。建议删除遗留 meta；只有明确需要 HTTP 缓存策略时，才通过现有 Response 设置响应头。保留按语言变化响应已有的 Vary，不新增缓存中间件。见 policy-observations.json |
+
+另外观察到 `en;q=0, *;q=1` 仍可经 wildcard 选择默认 en。当前项目已明确把浏览器匹配作为应用策略，因此本轮将其列为**待裁决的通配符／排除语义**，不混同完整 RFC 4647 协商缺陷，也不在未确认需求时改动默认规则。若后续要求明确排除优先于通配符，应先补双方期望并修改应用策略。通用 Request 的 getLanguages／getPreferredLanguage 属于 API 候选，未在本轮实现或宣称对齐。
+
+### 本轮实际验证与未验证范围
+
+证据目录为 `target/tmp/welcome-full-audit-20261122/`，源码在其 source/；Rust 1.94.0，复用独占 `target/tmp/welcome-locale-20261122/cargo-target/`，子进程 TMPDIR 在本批目录。全部新探针仅在隔离源码生成，不写入交付源码。
+
+- root-tests.log：welcome11、startup28、localization13、configuration2、configuration_cache2，共56项通过，0失败／0 ignored。
+- framework-tests.log：application_locale7、blade_translations6、locale_bcp476、config_scoped_overrides4、translation_choice1，共24项通过，0失败／0 ignored。合计80项不是完整框架全部 API 的完成结论。
+- render-failure-recovery.log：新增真实 Kernel 回归验证无效模板返回500时仍保留语言及 Vary，恢复模板后下一英文请求正常，通过。
+- numeric-variant-red.log：新增 W02 回归失败，保留为未修复证据，不计通过。policy-observations 首次因探针输出变量名不一致失败，修正隔离调用环境后 retry 通过；这是验收脚本问题，不记为产品缺陷。
+- browser-results.json：实际回环 HTTP／Kernel＋Chromium 的原9场景×桌面手机×明暗=36组合通过；另一个长名手机场景实测并截图确认 W01，不能计作布局验收通过。临时服务正常退出。
+- fmt.log／clippy.log：全项目 fmt、main与welcome／startup／localization定向严格Clippy命令退出0；依赖仍输出既有警告，不称全依赖零诊断或全workspace Clippy通过。
+- 三语内容检查通过；8个实际源码／更新日志／三语文档及部署链接HTTP请求返回200，记录在 external-links.json。未将此扩展为正式托管、远端提交一致或全部外链内容验收。本轮未重新构建文档站，前节构建与导航记录仍仅代表前节源码。
+- 未变更共享数据库／缓存／队列驱动，未启动三库／三缓存矩阵，未操作开发数据／数据卷；Docker、Windows及发布目标未重验。
+- 复核期间出现协作者的 API throttle 中间件及三语说明改动，已审阅并同步这4个文件至隔离快照，重新完成上述80项、fmt及定向Clippy；首次结果保留为 initial-*，最终输入见 final-inputs.json／final-source-comparison.json。浏览器36组合及新探针来自同步前快照，欢迎页／语言／模板输入未变，不能据此宣称 API 限流专项通过；新增 api_throttling 专项仍由其工作流验收。本轮未修改或提交协作者代码。
+
+`trans()`／`trans(null)` 返回译器服务对象、模板中的任意 PHP 函数／Facade 调用和命名参数仍未实现，三语正文已说明。当前模板值模型不暴露服务对象是实现边界，不能概括成 Rust 天生无法表达；它不影响默认欢迎页的实际调用，也不表示所有教程中的 PHP 模板代码都能直接运行。JSON 分组资源、异步事件及请求／任务隔离则属于已说明并验收的 Rust 适配。
+
+收尾曾观察到磁盘低于32 GB；同期 API throttle 工作流已执行项目停线清理，记录在 `target/tmp/api-throttle-20261122/disk-cleanup.json`，实际净释放约61.40 GB。本轮核对登记的源码／日志仍保留、编译目录被清空及锁 inode 保留；恢复后有工作流重新持锁构建，保持其占用，不重复删除。资源复查见 disk-cleanup-confirmation.json；本轮额外删除0，未因审计清理开发数据或独立交付物。
+
+2026-11-22 用户随后授权将本轮审计记录暂存并本地提交；不包含上述问题修复、协作者在途实现或推送。
