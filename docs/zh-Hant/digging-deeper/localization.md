@@ -25,7 +25,7 @@ pub fn register() -> Result<(), RoutingError> {
 fn greeting(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     let locale = request.route("locale").unwrap_or("en").to_owned();
     Box::pin(async move {
-        if !["en", "zh_CN", "zh_TW"].contains(&locale.as_str()) {
+        if !["en", "zh-Hans", "zh-Hant"].contains(&locale.as_str()) {
             return Err(abort(StatusCode::BAD_REQUEST, "", Default::default()));
         }
         App::setLocale(&locale).await.map_err(|source| HttpError::Internal {
@@ -41,7 +41,9 @@ fn greeting(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
 
 `App::getLocale` 是 `currentLocale` 的同義入口；`getFallbackLocale`、`setFallbackLocale` 讀寫備援語言。`setLocale` 同步更新 `app.locale` 與譯器，再發送 `foundation::events::LocaleUpdated`；事件包含 `locale` 和 `previousLocale`。Rust 事件監聽器可以非同步執行，因此此方法需要 `.await`，失敗透過 `Result` 傳回。請求和佇列工作內的修改互相隔離；啟動階段設定則作為該應用程式的預設值。
 
-語言標識沿用統一的底線格式；`setLocale` 與 `isLocale` 都會正規化輸入，因此 `zh-CN` 與 `zh_CN` 代表同一語言，無效標識會傳回錯誤。
+服務錯誤在實際呼叫步驟傳播：先寫設定，再更新譯器，最後派送事件。常駐譯器首次解析時分別讀取應用程式預設值和目前作用域設定，避免把請求語言保存為應用程式預設值。監聽器失敗不會回復本次已更新的設定與譯器，錯誤保留原始來源；目前生命週期結束後仍依作用域還原。重複設定相同語言亦會派送事件，修改備援語言不派送該事件。
+
+設定、API、資源、文件 URL、HTML 與 HTTP 統一使用 BCP 47。`setLocale("zh-CN")` 後仍為 `zh-CN`；`isLocale("ZH-cn")` 為真，`isLocale("zh-Hans")` 為假。正規化保留文字體系、地區、變體及支援的擴充，資源選擇另行處理。舊底線輸入會明確報錯。
 
 `App` Facade 目前提供上述語言方法；其他 Laravel App 方法尚未透過此 Facade 提供。範本繼續使用下文的翻譯助手。`Lang::withLocale` 僅用於暫時的譯器語言作用域，不修改應用程式語言設定。
 
@@ -51,11 +53,11 @@ fn greeting(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
 
 應用程式在 `bootstrap/app.rs` 註冊 `app/http/middleware/set_locale.rs`，根據 `Accept-Language` 為整個請求選擇語言。控制器、驗證和 Blade 模板共用目前語言，按權重選擇，略過 `q=0`，同權重保持瀏覽器順序。沒有符合項目時，使用支援的 `APP_LOCALE`，否則使用英文。
 
-三語候選 `["en", "zh_CN", "zh_TW"]` 直接定義在應用程式中介軟體中，不增加 Laravel 應用程式設定鍵。`zh-Hans`、`zh-CN`、`zh-SG` 和僅 `zh` 對應簡體；`zh-Hant`、`zh-TW`、`zh-HK`、`zh-MO` 對應繁體，明確的文字體系優先於地區。其他語言符合完整識別碼或基礎語言。
+三語候選 `["en", "zh-Hans", "zh-Hant"]` 直接定義在應用程式中介軟體中，不增加 Laravel 應用程式設定鍵。`zh-Hans`、`zh-CN`、`zh-SG` 和僅 `zh` 對應簡體；`zh-Hant`、`zh-TW`、`zh-HK`、`zh-MO` 對應繁體，明確的文字體系優先於地區，未知文字體系不按中文地區猜測。其他語言符合完整識別碼或基礎語言。
 
 中介軟體先呼叫 `App::setLocale` 設定目前請求語言，再執行後續處理，包括視圖渲染和例外回應。在缺少時加入 `Content-Language`，將 `Accept-Language` 合併至 `Vary` 並保留既有值。不寫入 Cookie，不改變其他請求、佇列工作或應用程式預設語言。移除該中介軟體註冊即可僅使用設定的預設語言，也可以在此應用程式中介軟體中調整自己的語言選擇策略。
 
-歡迎頁使用目前請求語言。修改 `lang/en/welcome.json`、`lang/zh_CN/welcome.json` 和 `lang/zh_TW/welcome.json` 可自訂文案，文件連結隨頁面語言切換。
+歡迎頁依應用程式目前語言和設定的備援語言查找文案；HTML `lang` 與 `Content-Language` 使用提供 `welcome.heading` 的語言，個別缺少的詞條仍可備援。文件及部署連結只使用既有的 `en`、`zh-Hans`、`zh-Hant`，依序選擇標題語言、設定的備援語言、英文。移除 `SetLocale` 後亦遵循此規則：例如 `APP_LOCALE=fr` 配合內建語言檔案顯示英文、連結英文文件，應用程式目前語言仍是 `fr`。修改三份 `lang/*/welcome.json` 可自訂文案。
 
 ### 在 Blade 中翻譯 {#blade-translations}
 
@@ -67,11 +69,11 @@ fn greeting(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
 <p>{{ trans_choice('messages.items', $count) }}</p>
 ```
 
-`__` 和 `trans` 接受字串鍵、可選替換陣列和可選語言；`trans_choice` 在鍵後增加數字或陣列計數。省略語言或傳入 `null` 時使用目前請求語言，明確指定語言只影響該次呼叫。替換值支援字串、數字、布林值和 `null`。缺鍵和備援語言遵循 `Lang` 的規則。
+`__` 和 `trans` 接受字串鍵、可選替換陣列和可選語言；`trans_choice` 在鍵後增加數字或陣列計數。省略語言或傳入 `null`／空字串時使用目前請求語言，明確指定語言只影響該次呼叫。替換值支援字串、數字、布林值和 `null`。缺鍵和備援語言遵循 `Lang` 的規則。
 
-<code v-pre>{{ ... }}</code> 跳脫 HTML。`@lang('messages.title')`、`@choice('messages.items', $count)` 和 `{!! __('messages.title') !!}` 輸出原始文字，僅用於可信 HTML 和替換值。子模板和元件繼承渲染語言，編譯快取中的模板在每次渲染時讀取翻譯。翻譯輔助函式需要有效的應用程式翻譯服務。模板翻譯呼叫回傳文字；群組或清單使用 Rust 的 `Lang::array`。
+<code v-pre>{{ ... }}</code> 跳脫 HTML。`@lang('messages.title')`、`@choice('messages.items', $count)` 和 `{!! __('messages.title') !!}` 輸出原始文字，僅用於可信 HTML 和替換值。子模板和元件繼承渲染語言，編譯快取中的模板在每次渲染時讀取翻譯。翻譯輔助函式需要有效的應用程式翻譯服務。翻譯輔助函式可以回傳文字、群組或清單。群組及清單可用於 `@foreach`，或使用陣列下標讀取詞條；直接輸出整個陣列會報錯。Rust 呼叫端可使用 `Lang::array`。
 
-`@lang ... @endlang` 支援翻譯區塊：先渲染並去除首尾空白，再將內容作為翻譯鍵。`@lang(['name' => $name]) ... @endlang` 可傳入替換陣列，輸出原始文字。巢狀區塊沿用 Laravel 的共用替換參數行為，內層開始時會取代外層的替換陣列。翻譯助手與區塊僅支援文字；不支援無參數取得譯器、任意 PHP 函式、Facade 方法呼叫及具名參數。
+`@lang ... @endlang` 支援翻譯區塊：先渲染並去除首尾空白，再將內容作為翻譯鍵。`@lang(['name' => $name]) ... @endlang` 可傳入替換陣列，輸出原始文字。巢狀區塊共用替換參數，內層開始時會取代外層的替換陣列。`__()` 和 `__(null)` 傳回 `null`，直接輸出時為空。`@lang('messages.title', [], null, false)` 可關閉該次群組查找的備援；複數替換中的 `count => null` 使用實際計數，明確零值或空字串仍保留。`trans()`／`trans(null)` 應傳回譯器物件，目前範本值模型未暴露服務物件，請在 Rust 中使用 `Lang`；任意 PHP 函式、Facade 方法呼叫和具名參數尚未實作。參數數量與型別明確檢查，不依賴 PHP 的隱式型別轉換。
 
 ## 發佈語言檔案 {#publishing-the-language-files}
 
@@ -157,7 +159,7 @@ pub async fn create_translations(connection: &Connection) -> DatabaseResult<()> 
 }
 ```
 
-資料表結構沿用 Spatie Laravel Translation Loader：每個群組與鍵儲存一列，`text` 是語言到字串的 JSON 物件，例如 `{"en":"Hello :name","fr":"Bonjour :name"}`。語言鍵使用標準識別碼（`en_US`、`zh_CN`）。缺少或為 null 的語言保留檔案值；翻譯值必須為字串，空字串也是有效覆寫。群組 `*` 儲存字面鍵並保留句點，其他群組展開 `nested.title`、`items.0` 等點分鍵。套件命名空間與 Spatie 一樣僅使用檔案來源。重複鍵、父子鍵衝突、無效 JSON、鍵中空段及超過 128 層的鍵會使載入失敗。
+資料表結構沿用 Spatie Laravel Translation Loader：每個群組與鍵儲存一列，`text` 是語言到字串的 JSON 物件，例如 `{"en":"Hello :name","fr":"Bonjour :name"}`。語言鍵使用標準識別碼（`en-US`、`zh-Hans`）。缺少或為 null 的語言保留檔案值；翻譯值必須為字串，空字串也是有效覆寫。群組 `*` 儲存字面鍵並保留句點，其他群組展開 `nested.title`、`items.0` 等點分鍵。套件命名空間與 Spatie 一樣僅使用檔案來源。重複鍵、父子鍵衝突、無效 JSON、鍵中空段及超過 128 層的鍵會使載入失敗。
 
 在非同步應用程式作用域中呼叫以下函式，例如遷移就緒後由 Provider 的 `boot` 載入：
 
@@ -210,7 +212,7 @@ use openrust::{support::facades::Lang, translation::TranslationResult};
 pub fn register_lookup_hooks() -> TranslationResult<()> {
     Lang::determineLocalesUsing(|locales| {
         let mut locales = locales.to_vec();
-        if locales.first().is_some_and(|locale| locale == "fr_CA") {
+        if locales.first().is_some_and(|locale| locale == "fr-CA") {
             locales.insert(1, "fr".into());
         }
         locales
@@ -284,7 +286,7 @@ pub async fn summary(locale: &str) -> TranslationResult<(String, String)> {
 }
 ```
 
-應用設定、語言檔案與文件路徑統一使用底線標識。語言小寫，地區大寫，文字代碼首字母大寫。例如 `en`、`en_GB`、`fr_CA`、`es_419`、`sr_Latn_RS`、`zh_CN`、`zh_TW`。輸入接受連字號、底線與不同大小寫。`zh-Hans` 解析為 `zh_CN`，`zh-Hant` 解析為 `zh_TW`。明確指定的 `zh_HK`、`zh_Hant_HK` 等繼續讀取各自的語言檔案。HTML 使用 `zh-CN`、`zh-TW` 等語言標籤。既有語言檔案需改為正規化後的名稱。
+語言標籤使用連字號，例如 `en`、`en-GB`、`fr-CA`、`es-419`、`sr-Latn-RS`、`zh-Hans`、`zh-Hant`、`zh-Hant-HK`、`en-US-u-nu-latn` 與 `en-x-demo`。重用 ICU4X 2.4 解析器與 CLDR 別名資料處理大小寫及棄用別名（如 `iw-IL` → `he-IL`），不自動補入文字或地區。這驗證程式庫支援的 Unicode Locale 語法，並非逐項檢查 IANA 登記。grandfathered `i-klingon`、獨立 private-use `x-demo` 與 extlang 等不支援形式會明確報錯，支援的擴充不會靜默遺失。翻譯按完整正規標籤精確尋找資源，分組缺鍵再使用設定回退，句子鍵 JSON 保留既有查找規則；不隱式將地區合併至文字目錄。Number 消費 Unicode 擴充，Faker 僅於私有 provider 邊界轉換資料鍵，不改變公開語言。
 
 ## 覆寫套件語言檔案 {#overriding-package-language-files}
 
@@ -296,8 +298,8 @@ Artisan 使用 `APP_LOCALE` 顯示命令清單標題、說明和引數錯誤。�
 
 ```sh
 APP_LOCALE=en ./artisan help list
-APP_LOCALE=zh_CN ./artisan list make
-APP_LOCALE=zh_Hant ./artisan help list
+APP_LOCALE=zh-Hans ./artisan list make
+APP_LOCALE=zh-Hant ./artisan help list
 ```
 
 可在 `console` 群組中使用 `options`、`commands.list.description` 和 `commands.list.arguments.namespace` 等鍵調整說明。請參閱 [Artisan 輸出格式](./artisan.md#command-help-and-output-formats)。
@@ -310,4 +312,22 @@ Translator 契約、具體實作與 Lang Facade 都提供 `getLocale`、`setLoca
 
 ## 語言設定的所有權
 
-語言及回退語言的讀取方法傳回擁有所有權的 `String` 快照。設定方法接收 `&self`，傳回 `TranslationResult<()>`，非法語言標識傳回錯誤。語言標識會正規化，例如 `zh-CN` 轉為 `zh_CN`。啟動值作為預設值，請求或佇列工作期間的修改只保留在目前容器作用域。`withLocale` 只暫時覆蓋目前工作，完成後恢復外層語言。
+語言與回退語言的讀取方法傳回擁有所有權的 `String` 快照。設定方法接收 `&self`，傳回 `TranslationResult<()>`，無效標籤傳回錯誤；`zh-CN` 與 `zh-Hans` 保持不同。啟動值作為預設值，請求或佇列工作期間的修改只保留在目前容器作用域。`withLocale` 僅暫時覆蓋目前工作，完成後恢復外層語言。
+
+## 升級語言標識 {#bcp47-upgrade}
+
+先暫停接收新工作並排空舊郵件／通知佇列，再停止舊 Web 與佇列程序；無法排空時保留工作供專用工具遷移。變更資源或持久化語言值前，備份設定、語言資源與受影響資料，避免新舊版本混跑。明確更新 `APP_LOCALE`、`APP_FALLBACK_LOCALE`、`APP_FAKER_LOCALE`，應用程式不會自動修改實際 `.env`。
+
+| 舊專案值／路徑 | 新值／路徑 |
+| --- | --- |
+| `zh_CN`、`lang/zh_CN`、`docs/zh_CN` | `zh-Hans`、`lang/zh-Hans`、`docs/zh-Hans` |
+| `zh_TW`、`lang/zh_TW`、`docs/zh_TW` | `zh-Hant`、`lang/zh-Hant`、`docs/zh-Hant` |
+| 地區 `en_US`、`en_GB`、`zh_HK`、`zh_Hant_HK` | `en-US`、`en-GB`、`zh-HK`、`zh-Hant-HK` |
+
+前兩項僅用於本專案預設資源與已確認歸屬的資料；有效的 `zh-CN`、`zh-TW` 仍為獨立地區標籤。遷移目錄時同步句子鍵 JSON 檔案與套件覆寫資源；先檢查目的檔案及 JSON 鍵衝突，衝突時保留兩份內容供人工處理。預設不安裝舊 URL 重新導向或底線輸入別名，需要過渡時由託管層明確設定。
+
+替換舊執行檔前，使用舊版本執行 `./main artisan config:clear`、`./main artisan view:clear`，原始碼方式可用既有 `./artisan` 入口。新程式、資源及設定同時部署，再執行 `config:cache`、`view:cache` 重建快取並重啟所有常駐程序；程序內翻譯目錄快取隨重啟清除。舊郵件／通知佇列應先排空；無法排空時，由應用程式專用工具檢查序列化 `locale` 欄位，加密工作亦需要舊應用程式金鑰。不要在佇列、共用快取或設定 JSON 中做通用文字替換。
+
+資料庫翻譯先唯讀盤點 `language_lines.text` 的 JSON 語言鍵，以及應用程式自有設定或語言欄位。`vendor/openrust/translation-database/database/upgrade-bcp47/`提供獨立唯讀盤點與 PostgreSQL、MySQL、SQLite 交易，映射預設兩種中文與 `en_US`／`en_GB`；審閱後按實際情況調整資料表名稱及其他舊語言映射。未列入映射的底線鍵、任意新舊鍵碰撞（包括相同值或 null）均使交易失敗，不覆寫內容。預設結尾為 **ROLLBACK**，核對結果與備份後，才明確改為 **COMMIT**。發生錯誤需回滾並關閉該專屬資料庫連線。成功後重複執行為空操作；已提交後的回退需要還原備份，不能僅憑新鍵名判斷哪些內容來自遷移。
+
+Faker 原生 provider 鍵僅保留於私有邊界，`locale()`、`randomLocale()` 輸出 BCP 47；僅有文字體系的 `zh-Hans`／`zh-Hant` 使用既有對應中文 provider，公開標籤仍保留原地區及擴充。微信原生 `lang=zh_CN` 等第三方協定欄位保持不變。

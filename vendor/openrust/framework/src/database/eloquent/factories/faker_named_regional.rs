@@ -282,9 +282,9 @@ pub(super) fn formatter(name: &str) -> Option<Builtin> {
         },
         "vat" => |faker, args| {
             let [kind] = arguments(args)?;
-            if faker.locale() == "zh_TW" {
+            if faker.provider_locale() == "zh_TW" {
                 faker.VAT().map(Value::from)
-            } else if faker.locale() == "en_GB" {
+            } else if faker.provider_locale() == "en_GB" {
                 faker.vatWithType(text(kind)?).map(Value::from)
             } else {
                 faker
@@ -322,7 +322,7 @@ fn taiwan_coordinate(
     faker: &Faker,
     generate: fn(&Faker) -> DatabaseResult<f64>,
 ) -> DatabaseResult<Value> {
-    if faker.locale() != "zh_TW" {
+    if faker.provider_locale() != "zh_TW" {
         return Err(DatabaseError::InvalidQuery(
             "unsupported Faker Taiwanese coordinates locale",
         ));

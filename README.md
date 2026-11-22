@@ -10,8 +10,8 @@
 
 <p align="center">
   <a href="docs/en/README.md">English</a> ·
-  <a href="docs/zh_CN/README.md">简体中文</a> ·
-  <a href="docs/zh_TW/README.md">繁體中文</a> ·
+  <a href="docs/zh-Hans/README.md">简体中文</a> ·
+  <a href="docs/zh-Hant/README.md">繁體中文</a> ·
   <a href="CHANGELOG.md">更新日志</a>
 </p>
 
@@ -39,7 +39,7 @@ cargo run
 | Windows CMD / PowerShell | `.\artisan.bat list` | `.\artisan.bat help list` |
 | Cargo | `cargo run -- artisan list` | `cargo run -- artisan help list` |
 
-命令列表按命名空间分组，标有 `Planned` 的命令已预留入口，执行时会提示尚未实现。 [Artisan 指南](docs/zh_CN/digging-deeper/artisan.md)
+命令列表按命名空间分组，标有 `Planned` 的命令已预留入口，执行时会提示尚未实现。 [Artisan 指南](docs/zh-Hans/digging-deeper/artisan.md)
 
 ### 构建二进制
 
@@ -47,13 +47,13 @@ cargo run
 cargo build --release --locked --features standalone
 ```
 
-将构建产物放在发布应用的根目录，并按原路径随包提供 `resources/views/welcome.blade.html`。直接执行二进制即可启动服务，追加 `artisan list` 可查看命令。 [产物路径与应用根目录规则](docs/zh_CN/architecture-concepts/lifecycle.md)
+将构建产物放在发布应用的根目录，并按原路径随包提供 `resources/views/welcome.blade.html` 和完整 `lang/` 语言资源。直接执行二进制即可启动服务，追加 `artisan list` 可查看命令。 [产物路径与应用根目录规则](docs/zh-Hans/architecture-concepts/lifecycle.md)
 
 ## 文档
 
-从[简体中文文档](docs/zh_CN/README.md)查阅应用生命周期、路由、中间件和 Artisan 的用法。站点的预览、构建与部署方式见[文档站指南](docs/README.md)。
+从[简体中文文档](docs/zh-Hans/README.md)查阅应用生命周期、路由、中间件和 Artisan 的用法。站点的预览、构建与部署方式见[文档站指南](docs/README.md)。
 
-用 Docker Compose 启动应用、Nginx 及 PostgreSQL／MySQL／Redis，或显式选择所需服务，见[部署文档](docs/zh_CN/getting-started/deployment.md)。
+用 Docker Compose 启动应用、Nginx 及 PostgreSQL／MySQL／Redis，或显式选择所需服务，见[部署文档](docs/zh-Hans/getting-started/deployment.md)。
 
 ## 贡献
 

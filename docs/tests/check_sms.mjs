@@ -15,7 +15,7 @@ try {
             const page = await browser.newPage();
             const errors = [];
             page.on("pageerror", error => errors.push(error.message));
-            for (const language of ["en", "zh_CN", "zh_TW"]) {
+            for (const language of ["en", "zh-Hans", "zh-Hant"]) {
                 const response = await page.goto(`${base}${language}/digging-deeper/sms.html#sms-driver-lifecycle`);
                 assert.equal(response.status(), 200);
                 await page.locator("#sms-driver-lifecycle").waitFor();

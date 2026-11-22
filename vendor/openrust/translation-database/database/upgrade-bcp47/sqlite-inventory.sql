@@ -1,0 +1,4 @@
+-- 只读盘点：所有映射冲突及未列入映射的旧下划线语言键。
+SELECT * FROM language_lines WHERE ((json_type("text", '$."zh_CN"') IS NOT NULL AND json_type("text", '$."zh-Hans"') IS NOT NULL) OR (json_type("text", '$."zh_TW"') IS NOT NULL AND json_type("text", '$."zh-Hant"') IS NOT NULL) OR (json_type("text", '$."en_US"') IS NOT NULL AND json_type("text", '$."en-US"') IS NOT NULL) OR (json_type("text", '$."en_GB"') IS NOT NULL AND json_type("text", '$."en-GB"') IS NOT NULL)) OR (EXISTS (SELECT 1 FROM json_each("text") AS tags WHERE instr(tags.key, '_') > 0 AND tags.key NOT IN ('zh_CN', 'zh_TW', 'en_US', 'en_GB')));
+-- 待迁移行；仅查看，不修改。
+SELECT * FROM language_lines WHERE json_type("text", '$."zh_CN"') IS NOT NULL OR json_type("text", '$."zh_TW"') IS NOT NULL OR json_type("text", '$."en_US"') IS NOT NULL OR json_type("text", '$."en_GB"') IS NOT NULL;

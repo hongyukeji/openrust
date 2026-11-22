@@ -40,7 +40,13 @@ impl PreparedMail {
         mailable: &dyn Mailable,
         recipients: Recipients,
     ) -> MailResult<Self> {
-        let locale = recipients.locale.as_deref().or_else(|| mailable.locale());
+        let locale = recipients
+            .locale
+            .as_deref()
+            .or_else(|| mailable.locale())
+            .map(crate::translation::canonical_locale)
+            .transpose()
+            .map_err(super::composition)?;
         let prepare = || {
             let mut envelope = mailable.envelope()?;
             recipients.fill(&mut envelope);
@@ -53,10 +59,10 @@ impl PreparedMail {
                 attachment_sources: mailable.attachment_sources()?,
                 inline_attachments: mailable.inline_attachments()?,
                 headers: mailable.headers()?,
-                locale: locale.map(str::to_owned).or_else(|| Lang::getLocale().ok()),
+                locale: locale.clone().or_else(|| Lang::getLocale().ok()),
             })
         };
-        match locale {
+        match locale.as_deref() {
             Some(locale) => Lang::withLocale(locale, async { prepare() })
                 .await
                 .map_err(super::composition)?,

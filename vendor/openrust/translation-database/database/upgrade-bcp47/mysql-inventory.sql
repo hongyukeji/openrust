@@ -1,0 +1,4 @@
+-- 只读盘点：所有映射冲突及未列入映射的旧下划线语言键。
+SELECT * FROM language_lines WHERE ((JSON_CONTAINS_PATH(`text`, 'one', '$."zh_CN"') AND JSON_CONTAINS_PATH(`text`, 'one', '$."zh-Hans"')) OR (JSON_CONTAINS_PATH(`text`, 'one', '$."zh_TW"') AND JSON_CONTAINS_PATH(`text`, 'one', '$."zh-Hant"')) OR (JSON_CONTAINS_PATH(`text`, 'one', '$."en_US"') AND JSON_CONTAINS_PATH(`text`, 'one', '$."en-US"')) OR (JSON_CONTAINS_PATH(`text`, 'one', '$."en_GB"') AND JSON_CONTAINS_PATH(`text`, 'one', '$."en-GB"'))) OR (EXISTS (SELECT 1 FROM JSON_TABLE(JSON_KEYS(`text`), '$[*]' COLUMNS(tag VARCHAR(255) PATH '$')) AS tags WHERE LOCATE('_', tag) > 0 AND tag NOT IN ('zh_CN', 'zh_TW', 'en_US', 'en_GB')));
+-- 待迁移行；仅查看，不修改。
+SELECT * FROM language_lines WHERE JSON_CONTAINS_PATH(`text`, 'one', '$."zh_CN"') OR JSON_CONTAINS_PATH(`text`, 'one', '$."zh_TW"') OR JSON_CONTAINS_PATH(`text`, 'one', '$."en_US"') OR JSON_CONTAINS_PATH(`text`, 'one', '$."en_GB"');

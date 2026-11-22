@@ -151,10 +151,10 @@ async fn database_locale_maps_nested_and_literal_keys_are_isolated() {
         "messages",
         "",
         "nested.title",
-        r#"{"en_US":"Database","fr":"Bonjour","de":null}"#,
+        r#"{"en-US":"Database","fr":"Bonjour","de":null}"#,
     )
     .await;
-    f.put("en_US", "*", "", "nested.title", json!("Literal"))
+    f.put("en-US", "*", "", "nested.title", json!("Literal"))
         .await;
     let loader = f.loader();
     assert_eq!(
@@ -180,13 +180,13 @@ async fn database_locale_maps_nested_and_literal_keys_are_isolated() {
     );
     assert!(
         loader
-            .load("en_US", "messages", Some("package"))
+            .load("en-US", "messages", Some("package"))
             .await
             .unwrap()
             .is_empty()
     );
     assert_eq!(
-        loader.load("en_US", "*", None).await.unwrap()["nested.title"],
+        loader.load("en-US", "*", None).await.unwrap()["nested.title"],
         Line::Text("Literal".into())
     );
     f.close().await;
@@ -401,7 +401,10 @@ async fn database_connections_tables_and_published_applications_do_not_share_cat
         .loadFrom(&failed, &[resource("en", "messages", None)])
         .await
         .unwrap_err();
-    assert_eq!(error.to_string(), "Could not load translation catalog.");
+    assert!(
+        matches!(&error, TranslationError::Source(source) if source.downcast_ref::<openrust::database::DatabaseError>().is_some())
+    );
+    assert!(error.to_string().starts_with("翻译或语言设置失败："));
     assert_eq!(get(&a, "messages.title", None), "first");
     second.close().await;
 }
@@ -634,4 +637,144 @@ async fn database_spatie_schema_native_json_and_default_table_work() {
         .await
         .unwrap();
     f.close().await;
+}
+
+#[tokio::test]
+async fn bcp47_upgrade_sql_is_atomic_idempotent_and_conflict_safe() {
+    let driver =
+        std::env::var("OPENRUST_TEST_TRANSLATION_DRIVER").unwrap_or_else(|_| "pgsql".into());
+    let script = match driver.as_str() {
+        "pgsql" => include_str!("../database/upgrade-bcp47/pgsql.sql"),
+        "mysql" => include_str!("../database/upgrade-bcp47/mysql.sql"),
+        "sqlite" => include_str!("../database/upgrade-bcp47/sqlite.sql"),
+        _ => panic!("未知验收驱动"),
+    };
+    for native_json in [false, true] {
+        let f = Fixture::new()
+            .await
+            .expect("迁移验收必须提供隔离实例，不得跳过");
+        if native_json {
+            let mut schema = f.connection.getSchemaBuilder();
+            schema.dropIfExists(&f.table).await.unwrap();
+            schema
+                .create(&f.table, |table| {
+                    table.string("group", None);
+                    table.string("key", None);
+                    table.json("text");
+                })
+                .await
+                .unwrap();
+        }
+        let old = json!({"zh_CN":"简体", "zh_TW":null, "en_US":"American", "en":"English", "zh-CN":"独立地区"});
+        put_locale_map(&f, "greeting", &old, native_json).await;
+        let expected = json!({"zh-Hans":"简体", "zh-Hant":null, "en-US":"American", "en":"English", "zh-CN":"独立地区"});
+        // 正式 SQL 默认回滚；由框架事务承载同一 SQL 正文，保证所有语句使用同一连接。
+        let body = script
+            .lines()
+            .filter(|line| {
+                !matches!(
+                    *line,
+                    "BEGIN;" | "START TRANSACTION;" | "BEGIN IMMEDIATE;" | "ROLLBACK;"
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+            .replace("language_lines", &f.table);
+        let mut transaction = f.connection.beginTransaction().await.unwrap();
+        transaction.unprepared(&body).await.unwrap();
+        transaction.rollBack(None).await.unwrap();
+        assert_eq!(locale_map(&f).await, old);
+        for _ in 0..2 {
+            let mut transaction = f.connection.beginTransaction().await.unwrap();
+            transaction.unprepared(&body).await.unwrap();
+            transaction.commit().await.unwrap();
+            assert_eq!(locale_map(&f).await, expected);
+        }
+        assert_eq!(
+            f.loader().load("ZH-hans", "messages", None).await.unwrap()["greeting"],
+            Line::Text("简体".into())
+        );
+        assert_eq!(
+            f.loader().load("zh-CN", "messages", None).await.unwrap()["greeting"],
+            Line::Text("独立地区".into())
+        );
+        assert!(f.loader().load("zh_CN", "messages", None).await.is_err());
+        for conflict in [
+            json!({"zh_CN":"旧", "zh-Hans":"新"}),
+            json!({"custom_locale":"未审阅映射"}),
+        ] {
+            put_locale_map(&f, "conflict", &conflict, native_json).await;
+            put_locale_map(&f, "pending", &json!({"zh_CN":"待迁移"}), native_json).await;
+            let mut transaction = f.connection.beginTransaction().await.unwrap();
+            assert!(transaction.unprepared(&body).await.is_err());
+            // MySQL 临时表 DDL 不随回滚恢复，在同一专属连接清理失败守卫。
+            if driver == "mysql" {
+                transaction
+                    .unprepared("DROP TEMPORARY TABLE IF EXISTS openrust_locale_guard")
+                    .await
+                    .unwrap();
+            }
+            transaction.rollBack(None).await.unwrap();
+            assert_eq!(locale_map(&f).await, expected);
+            let value = f
+                .connection
+                .table(&f.table)
+                .r#where("key", "=", "conflict")
+                .value("text")
+                .await
+                .unwrap();
+            assert_eq!(json_map(value), conflict);
+            let pending = f
+                .connection
+                .table(&f.table)
+                .r#where("key", "=", "pending")
+                .value("text")
+                .await
+                .unwrap();
+            assert_eq!(json_map(pending), json!({"zh_CN":"待迁移"}));
+            for key in ["conflict", "pending"] {
+                f.connection
+                    .table(&f.table)
+                    .r#where("key", "=", key)
+                    .delete()
+                    .await
+                    .unwrap();
+            }
+        }
+        f.close().await;
+    }
+}
+
+fn json_map(value: Value) -> Json {
+    match value {
+        Value::Text(text) => serde_json::from_str(&text).unwrap(),
+        Value::Json(value) => value,
+        other => panic!("语言映射必须为 JSON：{other:?}"),
+    }
+}
+
+async fn locale_map(f: &Fixture) -> Json {
+    json_map(
+        f.connection
+            .table(&f.table)
+            .r#where("key", "=", "greeting")
+            .value("text")
+            .await
+            .unwrap(),
+    )
+}
+
+async fn put_locale_map(f: &Fixture, key: &str, map: &Json, native: bool) {
+    let text = if native {
+        Value::Json(map.clone())
+    } else {
+        Value::Text(map.to_string())
+    };
+    let row: Record = [
+        ("group".into(), Value::from("messages")),
+        ("key".into(), Value::from(key)),
+        ("text".into(), text),
+    ]
+    .into();
+    f.connection.table(&f.table).insert(&[row]).await.unwrap();
 }

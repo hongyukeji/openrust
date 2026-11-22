@@ -36,7 +36,7 @@ fn native_artisan_discovers_pennant_and_preserves_published_and_cached_configura
         }
         _ => panic!("unsupported isolated driver"),
     };
-    for language in ["en", "zh_CN", "zh_TW"] {
+    for language in ["en", "zh-Hans", "zh-Hant"] {
         let path = root.join(format!("lang/{language}"));
         std::fs::create_dir_all(&path).unwrap();
         std::fs::copy(

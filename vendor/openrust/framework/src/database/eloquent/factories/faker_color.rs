@@ -39,11 +39,11 @@ impl Faker {
     }
 
     pub fn safeColorName(&self) -> &'static str {
-        self.sample_color_name(self.locale(), true)
+        self.sample_color_name(self.provider_locale(), true)
     }
 
     pub fn colorName(&self) -> &'static str {
-        self.sample_color_name(self.locale(), false)
+        self.sample_color_name(self.provider_locale(), false)
     }
 
     pub(in crate::database::eloquent::factories) fn sample_color_name(

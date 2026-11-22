@@ -258,7 +258,9 @@ fn plural_rule(locale: &str) -> Option<PluralRule> {
         "az" | "az-AZ" | "bo" | "bo-CN" | "bo-IN" | "dz" | "dz-BT" | "id" | "id-ID" | "ja"
         | "ja-JP" | "jv" | "ka" | "ka-GE" | "km" | "km-KH" | "kn" | "kn-IN" | "ko" | "ko-KR"
         | "ms" | "ms-MY" | "th" | "th-TH" | "tr" | "tr-CY" | "tr-TR" | "vi" | "vi-VN" | "zh"
-        | "zh-CN" | "zh-HK" | "zh-SG" | "zh-TW" => Some(PluralRule::Invariant),
+        | "zh-Hans" | "zh-Hant" | "zh-CN" | "zh-HK" | "zh-SG" | "zh-TW" => {
+            Some(PluralRule::Invariant)
+        }
         "af" | "af-ZA" | "bn" | "bn-BD" | "bn-IN" | "bg" | "bg-BG" | "ca" | "ca-AD" | "ca-ES"
         | "ca-FR" | "ca-IT" | "da" | "da-DK" | "de" | "de-AT" | "de-BE" | "de-CH" | "de-DE"
         | "de-LI" | "de-LU" | "el" | "el-CY" | "el-GR" | "en" | "en-AG" | "en-AU" | "en-BW"

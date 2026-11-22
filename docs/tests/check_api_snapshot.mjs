@@ -23,7 +23,7 @@ try {
             page.on("response", response => { if (response.url().startsWith(base) && response.status() >= 400) failures.push(response.url()); });
             for (const mobile of [false, true]) {
                 await page.setViewportSize(mobile ? { width: 375, height: 812 } : { width: 1440, height: 900 });
-                for (const language of ["en", "zh_CN", "zh_TW"]) {
+                for (const language of ["en", "zh-Hans", "zh-Hant"]) {
                     assert.equal((await page.goto(`${base}${language}/reference/api.html`)).status(), 200);
                     assert.match(await page.locator("main").innerText(), /build_api.py/);
                     if (mobile) await page.locator(".VPLocalNav button.menu").click();

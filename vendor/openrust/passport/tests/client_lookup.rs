@@ -885,8 +885,8 @@ async fn mysql_documented_client_helper_runs_inside_its_application_lifecycle() 
     let snippet = include_str!("support/client_example.rs").trim();
     for page in [
         include_str!("../../../../docs/en/packages/passport.md"),
-        include_str!("../../../../docs/zh_CN/packages/passport.md"),
-        include_str!("../../../../docs/zh_TW/packages/passport.md"),
+        include_str!("../../../../docs/zh-Hans/packages/passport.md"),
+        include_str!("../../../../docs/zh-Hant/packages/passport.md"),
     ] {
         assert!(page.contains(&format!("```rust\n{snippet}\n```")));
     }

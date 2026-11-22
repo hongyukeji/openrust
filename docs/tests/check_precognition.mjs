@@ -11,7 +11,7 @@ try {
     for(const base of ['/', '/docs/']) {
         const {server} = await serve({root,base,port:0});
         try {
-            for(const locale of ['en','zh_CN','zh_TW']) {
+            for(const locale of ['en','zh-Hans','zh-Hant']) {
                 const page = await browser.newPage();
                 try {
                     const response = await page.goto(`http://127.0.0.1:${server.address().port}${base}${locale}/packages/precognition.html`);

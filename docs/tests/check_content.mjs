@@ -4,7 +4,7 @@ import {fileURLToPath} from 'node:url';
 import path from 'node:path';
 import {assertCommandEntrypoints} from './command_entrypoints.mjs';
 const root=fileURLToPath(new URL('../',import.meta.url));
-const languages=['en','zh_CN','zh_TW'];
+const languages=['en','zh-Hans','zh-Hant'];
 // Developer guides must stand on their own, without internal project records.
 const internalContent=[
  /\.agents\/project\//i,

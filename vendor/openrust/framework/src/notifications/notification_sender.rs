@@ -242,13 +242,17 @@ impl<'a> NotificationSender<'a> {
         &self,
         recipient: &dyn Notifiable,
         notification: &dyn Notification,
-    ) -> Option<String> {
+    ) -> NotificationResult<Option<String>> {
         notification
             .locale()
             .or(self.locale.as_deref())
             .or_else(|| recipient.preferred_locale())
             .map(str::to_owned)
             .or_else(|| Lang::getLocale().ok())
+            .as_deref()
+            .map(crate::translation::canonical_locale)
+            .transpose()
+            .map_err(delivery)
     }
 
     fn prepare_fake(
@@ -280,7 +284,7 @@ impl<'a> NotificationSender<'a> {
             id: notification.id.clone(),
             kind: notification.kind().into(),
             channels,
-            locale: self.preferred_locale(recipient, notification),
+            locale: self.preferred_locale(recipient, notification)?,
             target,
             data: notification.inner.fake_data(),
         }))
@@ -298,7 +302,7 @@ impl<'a> NotificationSender<'a> {
             return Ok(());
         }
         let driver = self.manager.channel(Some(channel))?;
-        let locale = self.preferred_locale(recipient, notification);
+        let locale = self.preferred_locale(recipient, notification)?;
         let delivery = Delivery {
             id: notification.id.clone(),
             kind: notification.kind().into(),

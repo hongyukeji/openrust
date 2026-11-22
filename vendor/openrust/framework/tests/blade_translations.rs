@@ -16,7 +16,7 @@ impl Root {
             std::process::id(),
             openrust::support::Str::random(12)
         ));
-        for directory in ["resources/views/components", "lang/en", "lang/zh_CN"] {
+        for directory in ["resources/views/components", "lang/en", "lang/zh-Hans"] {
             fs::create_dir_all(path.join(directory)).unwrap();
         }
         fs::write(
@@ -28,7 +28,7 @@ impl Root {
         )
         .unwrap();
         fs::write(
-            path.join("lang/zh_CN/messages.json"),
+            path.join("lang/zh-Hans/messages.json"),
             r#"{
             "hello":"你好 :name", "plural":"{0} 无|[1,*] :count 项"
         }"#,
@@ -62,7 +62,10 @@ impl Root {
         locale: &str,
         status: StatusCode,
     ) -> String {
-        fs::write(self.0.join("resources/views/test.blade.html"), source).unwrap();
+        let path = self.0.join("resources/views/test.blade.html");
+        if fs::read_to_string(&path).ok().as_deref() != Some(source) {
+            fs::write(path, source).unwrap();
+        }
         let incoming = axum::extract::Request::builder()
             .uri("/test")
             .header("x-locale", locale)
@@ -124,7 +127,8 @@ async fn helpers_translate_at_render_time_including_cached_templates_and_include
     let source = "{{ __($key, ['name' => $name]) }}|{{ trans('messages.hello', ['name' => 'Bob'], 'en') }}|{{ __('messages.fallback') }}|{{ __('missing.key') }}|@include('part')|<x-translated :name=\"$name\" />";
     for _ in 0..2 {
         assert_eq!(
-            root.render(&kernel, source, "zh_CN", StatusCode::OK).await,
+            root.render(&kernel, source, "zh-Hans", StatusCode::OK)
+                .await,
             "你好 &lt;Alice&gt;|Hello Bob|Fallback|missing.key|你好 &lt;Alice&gt;|你好 &lt;Alice&gt;"
         );
         assert_eq!(
@@ -154,7 +158,7 @@ async fn choice_and_directives_keep_replacements_and_html_escaping_semantics() {
         ("{{ trans_choice('messages.plural', [1]) }}", "one"),
         ("@choice('messages.plural', 4)", "4 items"),
         (
-            "{{ trans_choice('messages.plural', 5, [], 'zh_CN') }}",
+            "{{ trans_choice('messages.plural', 5, [], 'zh-Hans') }}",
             "5 项",
         ),
         (
@@ -182,7 +186,6 @@ async fn invalid_arguments_and_missing_translator_fail_instead_of_leaking_keys_o
     let root = Root::new();
     let kernel = root.kernel().await;
     for source in [
-        "{{ __() }}",
         "{{ __('key', [], 'en', 1) }}",
         "{{ trans_choice('key') }}",
         "{{ __(123) }}",
@@ -241,7 +244,7 @@ async fn translation_blocks_trim_rendered_keys_and_share_upstream_replacements()
         root.render(
             &kernel,
             "@lang(['name' => 'Ada']) messages.hello @endlang",
-            "zh_CN",
+            "zh-Hans",
             StatusCode::OK
         )
         .await,
@@ -254,5 +257,89 @@ async fn translation_blocks_trim_rendered_keys_and_share_upstream_replacements()
     ] {
         root.render(&kernel, source, "en", StatusCode::INTERNAL_SERVER_ERROR)
             .await;
+    }
+}
+
+#[tokio::test]
+async fn helper_nulls_group_values_and_directive_fallback_follow_their_own_contracts() {
+    let root = Root::new();
+    fs::write(
+        root.0.join("lang/en/arrays.json"),
+        r#"{"items":["Hi :name","Bye :name"],"labels":{"title":"Title :name"}}"#,
+    )
+    .unwrap();
+    let kernel = root.kernel().await;
+    for (source, expected) in [
+        ("A{{ __() }}B{{ __(null) }}C", "ABC"),
+        ("{{ __(null, 'ignored', 42) }}ok", "ok"),
+        (
+            "@foreach(__('arrays.items', ['name' => 'Ada']) as $item){{ $item }};@endforeach",
+            "Hi Ada;Bye Ada;",
+        ),
+        (
+            "{{ trans('arrays.labels', ['name' => 'Ada'])['title'] }}",
+            "Title Ada",
+        ),
+        (
+            "@lang('messages.fallback', [], null, false)",
+            "messages.fallback",
+        ),
+        ("@lang('messages.fallback', [], null, true)", "Fallback"),
+        ("@lang('messages.fallback', [], 'en', false)", "Fallback"),
+        (
+            "{{ __('messages.hello', ['name' => 'Ada'], '') }}",
+            "你好 Ada",
+        ),
+        (
+            "{{ trans_choice('messages.plural', 3, ['count' => null]) }}",
+            "3 项",
+        ),
+        (
+            "{{ trans_choice('messages.plural', 3, ['count' => 0]) }}",
+            "0 项",
+        ),
+    ] {
+        assert_eq!(
+            root.render(&kernel, source, "zh-Hans", StatusCode::OK)
+                .await,
+            expected,
+            "{source}"
+        );
+    }
+    for source in [
+        "{{ trans() }}",
+        "{{ trans(null) }}",
+        "@lang('key', [], null, [])",
+        "{{ __('arrays.items') }}",
+    ] {
+        root.render(&kernel, source, "en", StatusCode::INTERNAL_SERVER_ERROR)
+            .await;
+    }
+}
+
+#[tokio::test]
+async fn template_helpers_preserve_missing_key_hook_context_and_replacements() {
+    use openrust::{contracts::container::Container as _, contracts::foundation::Application as _};
+    let root = Root::new();
+    let kernel = root.kernel().await;
+    kernel
+        .get_application()
+        .container()
+        .get::<openrust::translation::Translator>("translator")
+        .unwrap()
+        .handleMissingKeysUsing(|missing| {
+            assert_eq!(missing.key, "hook.missing");
+            assert_eq!(missing.replacements["name"], "ada");
+            Some(format!("{}:{}::Name", missing.locale, missing.fallback))
+        });
+    let source = "{{ __('hook.missing', ['name' => 'ada']) }}|@lang('hook.missing', ['name' => 'ada'], null, false)";
+    for (locale, expected) in [
+        ("zh-Hans", "zh-Hans:true:Ada|zh-Hans:false:Ada"),
+        ("en", "en:true:Ada|en:false:Ada"),
+    ] {
+        assert_eq!(
+            root.render(&kernel, source, locale, StatusCode::OK).await,
+            expected
+        );
     }
 }

@@ -220,8 +220,22 @@ def main():
             with urllib.request.urlopen(authenticated,timeout=5) as response:
                 assert response.status == 200
                 assert json.loads(response.read())['id'] == 9871
-            with urllib.request.urlopen(base + '/', timeout=5) as response:
-                assert response.status == 200
+            for browser_locale, resource_locale, heading in [
+                ('en-US', 'en', 'Let’s get started'),
+                ('zh-CN', 'zh-Hans', '开始使用'),
+                ('zh-TW', 'zh-Hant', '開始使用'),
+            ]:
+                request = urllib.request.Request(base + '/', headers={'Accept-Language': browser_locale})
+                with urllib.request.urlopen(request, timeout=5) as response:
+                    body = response.read().decode()
+                    assert response.status == 200
+                    assert response.headers['Content-Language'] == resource_locale
+                    assert f'lang="{resource_locale}"' in body and heading in body
+                    assert f'/docs/{resource_locale}/README.md' in body
+            assert (source / 'lang/zh-Hans/welcome.json').is_file()
+            assert (source / 'lang/zh-Hant/welcome.json').is_file()
+            assert not (source / 'lang/zh_CN').exists()
+            assert not (source / 'lang/zh_TW').exists()
             if os.environ.get('OPENRUST_INIT_TEST_INTEGRATIONS'):
                 key=next(line.split('=',1)[1] for line in reverb_credentials if line.startswith('REVERB_APP_KEY='))
                 key=json.loads(key) if key.startswith('"') else key

@@ -104,7 +104,7 @@ fn phone_with_prefix(
     default: fn(&Faker) -> DatabaseResult<String>,
     with_options: fn(&Faker, bool, bool) -> DatabaseResult<String>,
 ) -> DatabaseResult<Value> {
-    if faker.locale() != "ms_MY" {
+    if faker.provider_locale() != "ms_MY" {
         arguments::<0>(args)?;
         return default(faker).map(Value::from);
     }
@@ -115,7 +115,7 @@ fn phone_with_prefix(
 }
 
 fn brazilian_formatting(faker: &Faker, args: &[Value]) -> DatabaseResult<Option<bool>> {
-    if faker.locale() != "pt_BR" {
+    if faker.provider_locale() != "pt_BR" {
         arguments::<0>(args)?;
         return Ok(None);
     }

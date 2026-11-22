@@ -1,6 +1,27 @@
 # 当前交接
 
-## 当前任务：统一请求与模板国际化（2026-11-22）
+## 当前任务：BCP 47 全项目迁移（2026-11-22）
+
+基线 `59cb9f0d1`，master；本轮在用户和协作者在途修改上实施，默认三语、公开配置／API／事件／序列化载荷、语言资源及文档目录／URL 统一为 en／zh-Hans／zh-Hant。用户已授权实施及隔离验收，随后明确授权暂存和本地提交；本记录随本次提交保存，**不包含推送、发布或操作开发／生产数据**。本节覆盖下方历史任务的 Git 授权与旧下划线约定。
+
+按[计划](plans/locale-bcp47.md) A→E 完成：复用 ICU 完整 Locale 规范化，区分地区与文字、保留支持的扩展；Faker 仅私有 provider 适配，Number／翻译／邮件／通知／Worker 采用同一公开标签。lang 和 docs 实际迁至 zh-Hans／zh-Hant，浏览器选择三语是应用策略，关闭中间件的欢迎页回退与有效链接保留；Blade 缓存版本38。三库只读 inventory 和默认 ROLLBACK 迁移脚本已交付，不覆盖冲突。
+
+Rust1.94.0 定向测试、fmt、workspace/all-targets严格Clippy、三库翻译与升级、Faker实际消费者、启用8扩展9项配置消费者、Passport MySQL12项、真正邮件通知Worker与生成器、MySQL完整初始化／生成应用通过。真正Kernel＋Chromium欢迎页36组合、三语文档站12组合及搜索／切换／404、独立二进制冷／缓存／搬迁运行、原始Dockerfile Linux release构建与6语言HTTP／资源复制通过。Schema注释的旧zh-CN简体期待已纠正，三库实际消费者复验通过。后续收尾已复用 TestApp::mysql 修复 seeding 共享表冲突，保留正常并发，新增隔离／清理回归后完整71项连续三轮通过；最后两轮同实例运行，逐轮确认没有遗留测试数据库。逐项命令、失败记录和边界见[验收记录](audits/03-07/locale-bcp47-2026-11-22.md#后续收尾2026-11-22)。
+
+用户后续要求全部处理好，本地 `.env` 的 APP_LOCALE／APP_FALLBACK_LOCALE／APP_FAKER_LOCALE 已由 zh_CN 更新为 zh-Hans，仅改这三个值，其他字节及权限不变，私密备份保留在本批 target/tmp/ 下。使用该配置的隔离副本通过 Artisan、冷／缓存启动及三语8个HTTP场景；真实配置缓存原本不存在，未清开发缓存、未访问开发／生产数据库或卷。应用自有数据、设置及旧队列仍须部署者按[升级说明](../../docs/zh-Hans/digging-deeper/localization.md#bcp47-upgrade)审阅迁移。独立private-use／grandfathered／extlang为ICU Unicode Locale的公开支持边界，显式失败。Windows、正式托管及真实外部供应商未验，见待办。未变更共享缓存引擎／持久化键协议，未启动无关三缓存矩阵；配置、Blade及进程翻译缓存已验。
+
+源码和独占Cargo缓存复用 `target/tmp/welcome-locale-20261122/`，本轮日志与临时材料在 `target/tmp/locale-bcp47-20261122/`；保留增量和正常并发，所有子进程TMPDIR在项目内。最终按范围对账验收输入与交付源码，HEAD及索引未变；本批隔离服务退出、缓存／源码／日志／独立交付保留，开发数据及卷未动。本节以下均为历史，仅代表其当时源码与授权。
+
+## 历史任务：欢迎页与翻译契约二次复核（2026-11-22）
+
+基线 `d4a40d7f4`；修复深层 Config 父键替换残留、数组下标和关联列表操作、关闭 SetLocale 后非三语语言的欢迎页元信息及文档链接、Blade 空键／集合／回退／复数边界、App 事件错误传播顺序及首次解析译器污染应用默认值。复用既有仓储、Arr、译器和作用域快照，语言标识保留下划线；不重复修改已完成项。缓存版本37，六份三语正文同步。
+
+最终100项定向测试、workspace/all-targets严格Clippy、fmt、三语文档构建与导航／浏览器检查通过；固定PHP最小夹具26项、真实Kernel浏览器24组合通过。Rust1.94.0，源码和Cargo缓存复用 `target/tmp/welcome-locale-20261122/`，本轮证据 `target/tmp/welcome-locale-review-20261122/`。详见[本轮复核](audits/03-07/welcome-language-2026-11-22.md#d4a40d7f4-基线复核)。模板trans()服务对象尚未实现；未验完整PHPUnit、Docker镜像、独立部署、Windows／优化release或真实队列worker专项，不涉及数据库／缓存矩阵。
+
+本提示词未授权暂存、提交、推送或发布，索引保持原状；其他协作者的BCP47迁移计划及全量审计保留原样，本轮不实施语言迁移。
+
+
+## 历史任务：统一请求与模板国际化（2026-11-22）
 
 在已提交欢迎页三语识别 `443f40af4` 上继续改造：语言选择从 WelcomeController 移入应用 SetLocale 中间件，经 bootstrap/app.rs 全局注册，候选语言直接定义在应用中间件中，为 en／zh_CN／zh_TW，不新增 app.supported_locales。中间件通过 App::setLocale 设置当前请求语言，控制器、校验及模板共用请求语言，保留其他请求、任务与应用默认值隔离；已有 Content-Language／Vary 保留。
 
@@ -10,7 +31,7 @@ Blade 已接入 __／trans／trans_choice 以及 @lang 区块和带参数 @lang�
 
 最终 70 项定向回归（含三语原始路由示例实际编译运行）、工作区全部目标严格 Clippy、fmt、三语文档构建和导航／桌面手机检查通过；精确别名设置场景追加后 application_locale 4 项及 Clippy／fmt 补跑通过。固定 Laravel 翻译 Trait 在隔离 PHP 8.5.12 中 4 项对照、独立部署实际服务三语×桌面手机×明暗 12 组合通过。复用 target/tmp/welcome-locale-20261122/，Rust 1.94.0；曾触及磁盘停线，持锁清理净释放约 38 GB 后重新完成最终验证，日志与源码保留。未重建 Docker 镜像、未验 Windows／优化 release，未访问开发数据库。最终证据和限制见上述报告末节与 tutorial-closure.json。2026-11-22 用户授权将本次国际化实现、测试、三语文档及验收记录本地提交；本记录随该提交保存，不包含推送。
 
-## 当前任务：清理后全面测试与运行（2026-11-22）
+## 历史任务：清理后全面测试与运行（2026-11-22）
 
 用户要求清除编译产物后重新全面测试，基线 `fb5240e1ae08855857d9b9988ac5453d8623e608`。本轮可执行的本地验收已完成：首轮 67 组覆盖 20 个 workspace 包、19 个库与 303 个集成目标；原失败退出码保留，对应目标均按根因修复并实际补验。详见 [本批报告](audits/08-04/clean-full-acceptance-2026-11-22.md) 的结果表和失败映射。
 
@@ -18,7 +39,7 @@ Blade 已接入 __／trans／trans_choice 以及 @lang 区块和带参数 @lang�
 
 本批目录 `target/tmp/clean-full-acceptance-20261122/`，短 TMPDIR `target/tmp/cf/`；Rust 1.94.0、独占 target，保留增量和正常并发。磁盘四次停线均安全停构建持锁清理，保留锁 inode、源码、日志、下载、数据库和卷；收尾可用约 51.82 GB／48.26 GiB。5 个本批测试容器已回收，原开发服务状态与卷集合保持不变。3,246 项输入仅 artisan.bat 的 LF/CRLF 有字节差别，归一化后全部内容一致。2026-11-22 用户授权将本轮修复、测试、三语文档及验收记录本地提交；不包含推送。其他协作者独立复核原文和欢迎页国际化在途改动保留。用户随后要求清理构建产物，已持锁清理并净释放约 18.02 GB；验收源码、日志、下载、独立交付和数据保留，详见本批 user-cleanup-result.json。
 
-## 当前任务：Laravel 对齐审计 L01–L22
+## 历史任务：Laravel 对齐审计 L01–L22
 
 2026-11-21 用户明确要求修复 [Laravel 对照审计](audits/laravel-code-audit-2026-11-21.md) 的 L01–L22。固定 Laravel Framework v13.40.0、骨架 v13.11.0；本任务独立执行，不调度其他对话，不重复处理历史扩展 R1–R6。以下旧收尾记录为历史结果，不代替本批源码验收。
 

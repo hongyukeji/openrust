@@ -30,7 +30,7 @@ impl Languages {
         ));
         std::fs::create_dir(&path).unwrap();
         std::fs::create_dir(path.join("lang")).unwrap();
-        for locale in ["en", "zh_CN", "zh_TW"] {
+        for locale in ["en", "zh-Hans", "zh-Hant"] {
             std::fs::create_dir_all(path.join(format!("lang/{locale}"))).unwrap();
             std::fs::copy(
                 PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -163,7 +163,9 @@ async fn all_builtin_migrations_write_localized_comments_on_postgres() {
     let registry = builtin_registry();
     for (number, (locale, user_name, email, status)) in [
         ("en", "Users", "Email", "accepted=accepted"),
-        ("zh-CN", "用户表", "邮箱", "accepted=已受理"),
+        ("zh-Hans", "用户表", "邮箱", "accepted=已受理"),
+        // 地区标签不自动合并到简体资源；精确目录缺失时使用配置的繁体回退。
+        ("zh-CN", "使用者資料表", "電子郵件", "accepted=已受理"),
         ("zh-Hant", "使用者資料表", "電子郵件", "accepted=已受理"),
         ("fr", "Utilisateurs", "Courriel", "accepted=已受理"),
         ("ja", "使用者資料表", "電子郵件", "accepted=已受理"),
@@ -171,7 +173,7 @@ async fn all_builtin_migrations_write_localized_comments_on_postgres() {
     .into_iter()
     .enumerate()
     {
-        let app = languages.application(locale, "zh_TW");
+        let app = languages.application(locale, "zh-Hant");
         let registry = registry.clone();
         let url = url.clone();
         let root = root.clone();
@@ -179,7 +181,7 @@ async fn all_builtin_migrations_write_localized_comments_on_postgres() {
         assert_eq!(__("schema.tables.users", &Default::default()).unwrap(), user_name, "translation before migrations: {locale}");
         let namespace = format!("schema_comments_{}_{}",std::process::id(),number);
         let config = Arc::new(Repository::new(BTreeMap::from([
-            ("app".into(),json!({"locale":locale,"fallback_locale":"zh_TW"})),
+            ("app".into(),json!({"locale":locale,"fallback_locale":"zh-Hant"})),
             ("database".into(),json!({"default":"test","connections":{"test":{"url":url,"search_path":namespace}}})),
         ])));
         let manager = Arc::new(DatabaseManager::new(config,root.clone()));
@@ -247,8 +249,9 @@ async fn mysql_comments_select_the_app_language_in_pretend_mode() {
     let languages = Languages::new();
     for (locale, expected) in [
         ("en", "Email"),
-        ("zh_CN", "邮箱"),
+        ("zh-Hans", "邮箱"),
         ("zh-Hant", "電子郵件"),
+        ("zh-CN", "Email"),
         ("fr", "Courriel"),
         ("ja", "Email"),
     ] {
@@ -292,8 +295,9 @@ async fn builtin_migrations_run_on_mysql_and_sqlite() {
     for (driver, connection) in connections {
         for (locale, users, email) in [
             ("en", "Users", "Email"),
-            ("zh_CN", "用户表", "邮箱"),
-            ("zh_TW", "使用者資料表", "電子郵件"),
+            ("zh-Hans", "用户表", "邮箱"),
+            ("zh-Hant", "使用者資料表", "電子郵件"),
+            ("zh-CN", "Users", "Email"),
             ("fr", "Utilisateurs", "Courriel"),
             ("ja", "Users", "Email"),
         ] {

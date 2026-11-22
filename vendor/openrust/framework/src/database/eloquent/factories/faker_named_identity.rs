@@ -153,7 +153,7 @@ pub(super) fn formatter(name: &str) -> Option<Builtin> {
         },
         "idnumber" => |faker, args| {
             let [birth, citizen, gender] = arguments(args)?;
-            if faker.locale() == "en_ZA" {
+            if faker.provider_locale() == "en_ZA" {
                 faker
                     .idNumberWithBirthdate(date(birth)?, optional_flag(citizen)?, text(gender)?)
                     .map(Value::from)
@@ -288,7 +288,7 @@ fn optional_flag(value: Option<&Value>) -> DatabaseResult<Option<bool>> {
 }
 
 fn personal_identity_number(faker: &Faker, args: &[Value]) -> DatabaseResult<Value> {
-    match faker.locale() {
+    match faker.provider_locale() {
         "lt_LT" => {
             let [gender, birth, serial] = arguments(args)?;
             faker.personalIdentityNumberWithSerial(

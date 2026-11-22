@@ -18,7 +18,7 @@ fn native_artisan_discovers_horizon_and_preserves_published_and_cached_configura
         }
     }
     let _cleanup = Cleanup(root.clone());
-    for language in ["en", "zh_CN", "zh_TW"] {
+    for language in ["en", "zh-Hans", "zh-Hant"] {
         let path = root.as_path().join(format!("lang/{language}"));
         std::fs::create_dir_all(&path).unwrap();
         std::fs::copy(

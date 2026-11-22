@@ -10,7 +10,7 @@ pub(crate) fn text(key: &str, english: &str, simplified: &str, traditional: &str
         return translated;
     }
     let locale = Lang::getLocale().unwrap_or_default();
-    let mut parts = locale.split('_');
+    let mut parts = locale.split('-');
     if parts.next() != Some("zh") {
         return english.into();
     }

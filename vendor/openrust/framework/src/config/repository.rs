@@ -45,46 +45,18 @@ impl Repository {
         validate_key(key)?;
         if (key == "app" || key.starts_with("app."))
             && let Some(overrides) = self.locale_overrides()
-            && overrides
+            && (overrides
                 .0
                 .lock()
                 .expect("语言配置作用域锁中毒")
                 .contains_key("app")
+                || matches!(key, "app.locale" | "app.fallback_locale"))
         {
-            let mut items = match self.get(key) {
-                Some(Value::Array(items)) => items,
-                None => Vec::new(),
-                Some(_) => {
-                    return Err(ConfigError::InvalidType {
-                        key: key.to_owned(),
-                        expected: "an array",
-                    });
-                }
-            };
-            if prepend {
-                items.insert(0, value);
-            } else {
-                items.push(value);
-            }
-            return self.set(key, Value::Array(items));
+            return self.set(key, list_value(self.get(key), key, value, prepend)?);
         }
         let mut values = self.values.write().expect("configuration lock poisoned");
-        let mut items = match get(&values, key).cloned() {
-            Some(Value::Array(items)) => items,
-            None => Vec::new(),
-            Some(_) => {
-                return Err(ConfigError::InvalidType {
-                    key: key.to_owned(),
-                    expected: "an array",
-                });
-            }
-        };
-        if prepend {
-            items.insert(0, value);
-        } else {
-            items.push(value);
-        }
-        set(&mut values, key, Value::Array(items));
+        let items = list_value(get(&values, key).cloned(), key, value, prepend)?;
+        set(&mut values, key, items);
         Ok(())
     }
 }
@@ -132,7 +104,12 @@ impl config::Repository for Repository {
             if matches!(key, "app.locale" | "app.fallback_locale")
                 || (key.starts_with("app.") && overrides.contains_key("app"))
             {
-                overrides.insert(key.to_owned(), value);
+                // 在已覆盖的 app 对象上按写入顺序修改，避免排序重放旧子键。
+                if let Some(app) = overrides.get_mut("app") {
+                    set_value(app, key.strip_prefix("app.").expect("应用子键"), &value);
+                } else {
+                    overrides.insert(key.to_owned(), value);
+                }
                 return Ok(());
             }
         }
@@ -151,6 +128,37 @@ impl config::Repository for Repository {
     fn push(&self, key: &str, value: Value) -> Result<(), ConfigError> {
         self.insert_list_value(key, value, false)
     }
+}
+
+fn list_value(
+    current: Option<Value>,
+    key: &str,
+    value: Value,
+    prepend: bool,
+) -> Result<Value, ConfigError> {
+    let mut items = match current {
+        Some(Value::Array(items)) => Value::Array(items),
+        Some(Value::Object(items)) => Value::Object(items),
+        None => Value::Array(Vec::new()),
+        Some(Value::Null) if !prepend => Value::Array(Vec::new()),
+        Some(_) => {
+            return Err(ConfigError::InvalidType {
+                key: key.to_owned(),
+                expected: "an array",
+            });
+        }
+    };
+    if prepend {
+        items = crate::support::Arr::prepend(&items, value, None);
+    } else {
+        crate::support::Arr::push(&mut items, None, [value]).map_err(|_| {
+            ConfigError::InvalidType {
+                key: key.to_owned(),
+                expected: "an array with an available integer key",
+            }
+        })?;
+    }
+    Ok(items)
 }
 
 fn validate_key(key: &str) -> Result<(), ConfigError> {
@@ -185,21 +193,22 @@ fn set(values: &mut BTreeMap<String, Value>, key: &str, value: Value) {
         values.insert(key.to_owned(), value);
         return;
     };
-    let mut node = values.entry(root.to_owned()).or_insert(Value::Null);
-    let mut path = path.split('.').peekable();
-    while let Some(segment) = path.next() {
-        if !node.is_object() {
-            *node = Value::Object(Default::default());
-        }
-        let object = node
-            .as_object_mut()
-            .expect("configuration node is an object");
-        if path.peek().is_none() {
-            object.insert(segment.to_owned(), value);
-            return;
-        }
-        node = object.entry(segment.to_owned()).or_insert(Value::Null);
-    }
+    set_value(
+        values.entry(root.to_owned()).or_insert(Value::Null),
+        path,
+        &value,
+    );
+}
+
+fn set_value(node: &mut Value, path: &str, value: &Value) {
+    // 与 Arr::set 共用字面点路径写入，保留数组兄弟项、稀疏索引和对象键。
+    crate::support::data_write(
+        node,
+        &path.split('.').collect::<Vec<_>>(),
+        value,
+        true,
+        false,
+    );
 }
 
 /// 应用语言在单次请求／队列任务中的配置覆盖。

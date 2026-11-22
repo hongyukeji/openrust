@@ -13,7 +13,7 @@ try{
  for(const base of ['/','/docs/']){
   const {server}=await serve({root,base,port:0});
   try{
-   for(const language of ['en','zh_CN','zh_TW']){
+   for(const language of ['en','zh-Hans','zh-Hant']){
     const page=await browser.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));let count=0;
     for(const file of new Set(paths)){
      const url=`http://127.0.0.1:${server.address().port}${base}${language}/${file==='index.md'?'':file.replace(/\.md$/,'.html')}`;

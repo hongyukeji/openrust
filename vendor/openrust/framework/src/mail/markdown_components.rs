@@ -171,7 +171,7 @@ impl<'a> Render<'a> {
 
     fn layout(&self, mut data: ViewData) -> MailResult<String> {
         let locale = Lang::getLocale().unwrap_or_else(|_| self.markdown.locale.clone());
-        data.insert("mail_locale".into(), locale.replace('_', "-").into());
+        data.insert("mail_locale".into(), locale.into());
         data.insert("mail_title".into(), self.markdown.app_name.as_str().into());
         self.markdown.render_layout(self.format, self.views, &data)
     }

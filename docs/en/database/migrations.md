@@ -282,7 +282,7 @@ async fn create_users() -> DatabaseResult<()> {
 }
 ```
 
-For localization, reuse `__()` and Laravel-style grouped translations in JSON files. For example, put the following entries in `lang/zh_CN/schema.json`:
+For localization, reuse `__()` and Laravel-style grouped translations in JSON files. For example, put the following entries in `lang/zh-Hans/schema.json`:
 
 ```json
 {

@@ -3867,16 +3867,16 @@ fn polish_surname(random: &FakerRandom) -> &'static str {
 impl Faker {
     /// Samples a company slogan from the selected Company provider.
     pub fn catchPhrase(&self) -> DatabaseResult<String> {
-        phrases::catch_phrase(&self.random, self.locale()).ok_or(DatabaseError::InvalidQuery(
-            "unsupported Faker catch phrase locale",
-        ))
+        phrases::catch_phrase(&self.random, self.provider_locale()).ok_or(
+            DatabaseError::InvalidQuery("unsupported Faker catch phrase locale"),
+        )
     }
 
     /// Samples a business phrase from the selected Company provider.
     pub fn bs(&self) -> DatabaseResult<String> {
-        phrases::business_phrase(&self.random, self.locale()).ok_or(DatabaseError::InvalidQuery(
-            "unsupported Faker business phrase locale",
-        ))
+        phrases::business_phrase(&self.random, self.provider_locale()).ok_or(
+            DatabaseError::InvalidQuery("unsupported Faker business phrase locale"),
+        )
     }
 
     pub fn catchPhraseNoun(&self) -> DatabaseResult<&'static str> {
@@ -3892,7 +3892,7 @@ impl Faker {
     }
 
     fn catch_phrase_part(&self, part: Part) -> DatabaseResult<&'static str> {
-        part.sample(&self.random, self.locale())
+        part.sample(&self.random, self.provider_locale())
             .ok_or(DatabaseError::InvalidQuery(
                 "unsupported Faker catch phrase component locale",
             ))
@@ -3902,7 +3902,7 @@ impl Faker {
     pub fn company(&self) -> String {
         let surname = || self.lastName();
         let suffix = || self.companySuffix();
-        match self.locale() {
+        match self.provider_locale() {
             "ar_EG" => {
                 let prefix = || self.random.sample(ARABIC_PREFIXES);
                 let surname = || self.random.sample(EGYPTIAN_SURNAMES);
@@ -4041,12 +4041,12 @@ impl Faker {
 
     /// Samples a job title using the configured Company provider.
     pub fn jobTitle(&self) -> String {
-        job_title::job_title(&self.random, self.locale())
+        job_title::job_title(&self.random, self.provider_locale())
     }
 
     /// Samples a company prefix for a locale with a prefix catalog.
     pub fn companyPrefix(&self) -> DatabaseResult<&'static str> {
-        let prefixes = match self.locale() {
+        let prefixes = match self.provider_locale() {
             "ar_EG" | "ar_JO" | "ar_SA" => ARABIC_PREFIXES,
             "zh_CN" => CHINESE_PREFIXES,
             "zh_TW" => TAIWANESE_PREFIXES,
@@ -4067,7 +4067,7 @@ impl Faker {
 
     /// Samples the modifier in a Taiwanese company name.
     pub fn companyModifier(&self) -> DatabaseResult<&'static str> {
-        if self.locale() != "zh_TW" {
+        if self.provider_locale() != "zh_TW" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker company modifier locale",
             ));
@@ -4100,7 +4100,7 @@ impl Faker {
         &self,
         mut last_name: impl FnMut() -> DatabaseResult<String>,
     ) -> DatabaseResult<String> {
-        if self.locale() != "zh_TW" {
+        if self.provider_locale() != "zh_TW" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker English company name locale",
             ));
@@ -4117,7 +4117,7 @@ impl Faker {
 
     /// Samples a Taiwanese English company-name suffix.
     pub fn companyEnSuffix(&self) -> DatabaseResult<&'static str> {
-        if self.locale() != "zh_TW" {
+        if self.provider_locale() != "zh_TW" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker English company suffix locale",
             ));
@@ -4127,7 +4127,7 @@ impl Faker {
 
     /// Samples a company name from the locale’s company catalog.
     pub fn companyName(&self) -> DatabaseResult<&'static str> {
-        match self.locale() {
+        match self.provider_locale() {
             "me_ME" => Ok(balkan::company_name(&self.random)),
             "uk_UA" => Ok(cyrillic::ukrainian_name(&self.random)),
             locale => south_southeast_asian::company_names(locale)
@@ -4140,7 +4140,7 @@ impl Faker {
 
     /// Generates the Ukrainian company label used by the upstream URL formatter.
     pub fn companyUrl(&self) -> DatabaseResult<String> {
-        if self.locale() != "uk_UA" {
+        if self.provider_locale() != "uk_UA" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker company URL locale",
             ));
@@ -4155,7 +4155,7 @@ impl Faker {
 
     /// Samples a company type from the locale’s company catalog.
     pub fn companyType(&self) -> DatabaseResult<&'static str> {
-        match self.locale() {
+        match self.provider_locale() {
             "me_ME" => Ok(balkan::company_type(&self.random)),
             "bn_BD" => Ok(south_southeast_asian::bangladeshi_company_type(
                 &self.random,
@@ -4168,7 +4168,7 @@ impl Faker {
 
     /// Samples a Malaysian industry.
     pub fn industry(&self) -> DatabaseResult<&'static str> {
-        if self.locale() != "ms_MY" {
+        if self.provider_locale() != "ms_MY" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker industry locale",
             ));
@@ -4178,7 +4178,7 @@ impl Faker {
 
     /// Generates a Thai slogan.
     pub fn slogan(&self) -> DatabaseResult<String> {
-        if self.locale() != "th_TH" {
+        if self.provider_locale() != "th_TH" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker slogan locale",
             ));
@@ -4188,7 +4188,7 @@ impl Faker {
 
     /// Samples a Turkish or Iranian company field.
     pub fn companyField(&self) -> DatabaseResult<&'static str> {
-        match self.locale() {
+        match self.provider_locale() {
             "tr_TR" => Ok(lt_sl_tr::company_field(&self.random)),
             "fa_IR" => Ok(west_asian::company_field(&self.random)),
             _ => Err(DatabaseError::InvalidQuery(
@@ -4198,8 +4198,8 @@ impl Faker {
     }
 
     pub fn companyNameElement(&self) -> DatabaseResult<&'static str> {
-        cyrillic::elements(self.locale())
-            .or_else(|| west_asian::elements(self.locale()))
+        cyrillic::elements(self.provider_locale())
+            .or_else(|| west_asian::elements(self.provider_locale()))
             .map(|values| self.random.sample(values))
             .ok_or(DatabaseError::InvalidQuery(
                 "unsupported Faker companyNameElement locale",
@@ -4207,8 +4207,8 @@ impl Faker {
     }
 
     pub fn companyNameSuffix(&self) -> DatabaseResult<&'static str> {
-        cyrillic::name_suffixes(self.locale())
-            .or_else(|| west_asian::name_suffixes(self.locale()))
+        cyrillic::name_suffixes(self.provider_locale())
+            .or_else(|| west_asian::name_suffixes(self.provider_locale()))
             .map(|values| self.random.sample(values))
             .ok_or(DatabaseError::InvalidQuery(
                 "unsupported Faker companyNameSuffix locale",
@@ -4217,7 +4217,7 @@ impl Faker {
 
     /// Samples an Iranian job contract type.
     pub fn contract(&self) -> DatabaseResult<&'static str> {
-        if self.locale() != "fa_IR" {
+        if self.provider_locale() != "fa_IR" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker contract locale",
             ));
@@ -4227,7 +4227,7 @@ impl Faker {
 
     /// Samples the selected company provider's suffix.
     pub fn companySuffix(&self) -> String {
-        let suffixes = match self.locale() {
+        let suffixes = match self.provider_locale() {
             "ar_EG" => EGYPTIAN_SUFFIXES,
             "ar_JO" | "ar_SA" => JORDANIAN_SAUDI_SUFFIXES,
             "de_DE" => DE_DE_SUFFIXES,

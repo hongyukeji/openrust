@@ -4482,7 +4482,7 @@ fn norwegian_and_swedish_addresses_keep_postcode_shapes_and_uppercase_buildings(
             let postal = faker.postcode();
             assert!(postcode.is_match(&postal));
             assert!(!place.starts_with(' '));
-            if faker.locale() == "sv_SE" {
+            if faker.locale() == "sv-SE" {
                 se_spacing[usize::from(postal.contains(' '))] = true;
             } else {
                 no_leading_zero |= postal.starts_with('0');

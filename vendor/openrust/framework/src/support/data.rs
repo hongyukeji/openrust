@@ -109,7 +109,7 @@ pub(super) fn integer_key(key: &str) -> bool {
         .is_ok_and(|number| number.to_string() == key)
 }
 
-pub(super) fn write(
+pub(crate) fn write(
     target: &mut Value,
     parts: &[&str],
     value: &Value,

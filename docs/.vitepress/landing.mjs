@@ -1,8 +1,8 @@
 export const siteMarker = '{"site":"openrust-docs"}\n';
 export const languages = {
     en: { label: "English", lang: "en", path: "en" },
-    zh_CN: { label: "简体中文", lang: "zh-CN", path: "zh_CN" },
-    "zh_TW": { label: "繁體中文", lang: "zh-TW", path: "zh_TW" },
+    "zh-Hans": { label: "简体中文", lang: "zh-Hans", path: "zh-Hans" },
+    "zh-Hant": { label: "繁體中文", lang: "zh-Hant", path: "zh-Hant" },
 };
 const supported = Object.fromEntries(Object.values(languages).map(({ path, lang }) => [path, lang]));
 
@@ -11,7 +11,7 @@ export function landing(notFound) {
         `<a lang="${lang}" data-path="${path}" href="./${path}/">${label}</a>`
     ).join("\n        ");
     return `<!doctype html>
-<html lang="${languages.zh_CN.lang}">
+<html lang="${languages["zh-Hans"].lang}">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${notFound ? "404 · OpenRust" : "OpenRust"}</title>
@@ -31,21 +31,24 @@ export function landing(notFound) {
     const supported = ${JSON.stringify(supported)};
     const preferences = navigator.languages?.length ? navigator.languages : [navigator.language];
     const preferred = preferences.map((tag) => {
-        const [language, ...parts] = tag.toLowerCase().split("-");
-        if (language === "en") return "en";
-        if (language !== "zh") return null;
-        if (parts.includes("hant")) return "zh_TW";
-        if (parts.includes("hans")) return "zh_CN";
-        return parts.some((part) => ["tw", "hk", "mo"].includes(part)) ? "zh_TW" : "zh_CN";
-    }).find(Boolean) ?? "zh_CN";
+        try {
+            const locale = new Intl.Locale(tag);
+            if (locale.language === "en") return "en";
+            if (locale.language !== "zh") return null;
+            if (locale.script === "Hant") return "zh-Hant";
+            if (locale.script === "Hans") return "zh-Hans";
+            if (locale.script) return null;
+            return ["TW", "HK", "MO"].includes(locale.region) ? "zh-Hant" : "zh-Hans";
+        } catch { return null; }
+    }).find(Boolean) ?? "zh-Hans";
     const errorPage = ${notFound};
     if (errorPage) {
         const locale = location.pathname.split("/").findLast((part) => Object.hasOwn(supported, part)) ?? preferred;
         document.documentElement.lang = supported[locale];
         document.getElementById("message").textContent = {
             en: "Page not found. Return to the documentation:",
-            "zh_CN": "找不到页面。返回文档首页：",
-            "zh_TW": "找不到頁面。返回文件首頁：",
+            "zh-Hans": "找不到页面。返回文档首页：",
+            "zh-Hant": "找不到頁面。返回文件首頁：",
         }[locale];
         const links = [...document.querySelectorAll("nav a")];
         links.forEach((link) => link.removeAttribute("href"));

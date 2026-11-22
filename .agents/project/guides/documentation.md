@@ -79,4 +79,4 @@ python3 -B docs/tests/check_api_cli.py -v
 
 `DOCS_API_DIR` 是站点接入 API 的唯一变量。联合产物位于 `docs/.vitepress/dist/`，其中 `api/` 包含 Rustdoc、源码页及本地搜索，侧栏使用完整页面导航。导出列出骨架包不表示其功能已经完成；发布前仍须核对源码提交、指南、接口参考和实际托管地址。
 
-普通 `npm --prefix docs run build` 只生成指南，不显示 Rustdoc 入口；用 `node docs/tests/check_api_snapshot.mjs --without-export` 检查普通构建。浏览器环境变量见上文。开发者操作见[API 参考](../../../docs/zh_CN/reference/api.md)。
+普通 `npm --prefix docs run build` 只生成指南，不显示 Rustdoc 入口；用 `node docs/tests/check_api_snapshot.mjs --without-export` 检查普通构建。浏览器环境变量见上文。开发者操作见[API 参考](../../../docs/zh-Hans/reference/api.md)。

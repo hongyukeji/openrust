@@ -41,8 +41,8 @@ impl Root {
         .unwrap();
         for (locale, data) in [
             ("en", include_str!("../lang/en/welcome.json")),
-            ("zh_CN", include_str!("../lang/zh_CN/welcome.json")),
-            ("zh_TW", include_str!("../lang/zh_TW/welcome.json")),
+            ("zh-Hans", include_str!("../lang/zh-Hans/welcome.json")),
+            ("zh-Hant", include_str!("../lang/zh-Hant/welcome.json")),
         ] {
             fs::create_dir_all(path.join("lang").join(locale)).unwrap();
             fs::write(path.join("lang").join(locale).join("welcome.json"), data).unwrap();
@@ -61,6 +61,10 @@ impl Root {
     }
 
     async fn kernel(&self) -> Kernel {
+        self.kernel_with_browser(true).await
+    }
+
+    async fn kernel_with_browser(&self, browser: bool) -> Kernel {
         let application = Application::configure(self.0.clone())
             .withConfig(|base, env| {
                 let mut values = config::load(base, env)?;
@@ -69,8 +73,10 @@ impl Root {
                 values.get_mut("session").unwrap()["driver"] = "array".into();
                 Ok(values)
             })
-            .withMiddleware(|middleware| {
-                middleware.append(Arc::new(http::middleware::SetLocale));
+            .withMiddleware(move |middleware| {
+                if browser {
+                    middleware.append(Arc::new(http::middleware::SetLocale));
+                }
             })
             .withRouting(Routing::default().web(|| {
                 web::register()?;
@@ -139,7 +145,7 @@ fn validate(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 }
 fn switched_locale(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
-        App::setLocale("zh_TW").await.unwrap();
+        App::setLocale("zh-Hant").await.unwrap();
         Response::view(
             StatusCode::OK,
             openrust::view::view("other"),
@@ -182,16 +188,16 @@ async fn send_status(
 }
 fn assert_page(headers: &openrust::http::HeaderMap, html: &str, locale: &str) {
     let (tag, heading, documentation, source, deployment, changelog) = match locale {
-        "zh_CN" => (
-            "zh-CN",
+        "zh-Hans" => (
+            "zh-Hans",
             "开始使用",
             "开发文档",
             "项目源码",
             "部署指南",
             "查看更新日志",
         ),
-        "zh_TW" => (
-            "zh-TW",
+        "zh-Hant" => (
+            "zh-Hant",
             "開始使用",
             "開發文件",
             "專案原始碼",
@@ -241,33 +247,35 @@ async fn browser_preferences_localize_the_real_welcome_view_and_links() {
         ("en", "en"),
         ("en-US", "en"),
         ("en-GB", "en"),
-        ("zh", "zh_CN"),
-        ("zh-CN", "zh_CN"),
-        ("zh-SG", "zh_CN"),
-        ("zh-Hans", "zh_CN"),
-        ("zh-TW", "zh_TW"),
-        ("zh-HK", "zh_TW"),
-        ("zh-MO", "zh_TW"),
-        ("zh-Hant", "zh_TW"),
-        ("zh-Hant-CN", "zh_TW"),
-        ("zh-Hans-TW", "zh_CN"),
-        ("ZH-hk", "zh_TW"),
-        ("en;q=0.2, zh-TW;q=0.9, zh-CN;q=0.5", "zh_TW"),
-        ("fr-FR, zh-CN;q=0.8, en;q=0.7", "zh_CN"),
+        ("zh", "zh-Hans"),
+        ("zh-CN", "zh-Hans"),
+        ("zh-SG", "zh-Hans"),
+        ("zh-Hans", "zh-Hans"),
+        ("zh-TW", "zh-Hant"),
+        ("zh-HK", "zh-Hant"),
+        ("zh-MO", "zh-Hant"),
+        ("zh-Hant", "zh-Hant"),
+        ("zh-Hant-CN", "zh-Hant"),
+        ("zh-Latn-TW", "en"),
+        ("zh-Hans-TW-u-nu-hanidec", "zh-Hans"),
+        ("zh-Hans-TW", "zh-Hans"),
+        ("ZH-hk", "zh-Hant"),
+        ("en;q=0.2, zh-TW;q=0.9, zh-CN;q=0.5", "zh-Hant"),
+        ("fr-FR, zh-CN;q=0.8, en;q=0.7", "zh-Hans"),
         ("zh-TW;q=0, en;q=0.5", "en"),
-        ("zh-CN;q=0.5, zh-TW;q=0.5", "zh_CN"),
-        ("zh-TW;q=1.000, en;q=0.999", "zh_TW"),
+        ("zh-CN;q=0.5, zh-TW;q=0.5", "zh-Hans"),
+        ("zh-TW;q=1.000, en;q=0.999", "zh-Hant"),
     ] {
         let (headers, html) = send(&kernel, "/", &[language]).await;
         assert_page(&headers, &html, expected);
     }
     let (headers, html) = send(&kernel, "/", &["en;q=0.2", "zh-HK;q=0.9"]).await;
-    assert_page(&headers, &html, "zh_TW");
+    assert_page(&headers, &html, "zh-Hant");
 }
 
 #[tokio::test]
 async fn invalid_or_unsupported_preferences_use_the_supported_default() {
-    for (default, expected) in [("zh_TW", "zh_TW"), ("zh_CN", "zh_CN"), ("fr", "en")] {
+    for (default, expected) in [("zh-Hant", "zh-Hant"), ("zh-Hans", "zh-Hans"), ("fr", "en")] {
         let root = Root::new(default);
         let kernel = root.kernel().await;
         for language in [
@@ -295,7 +303,7 @@ async fn invalid_or_unsupported_preferences_use_the_supported_default() {
 #[tokio::test]
 async fn concurrent_languages_do_not_change_request_or_application_defaults() {
     let english = Root::new("en");
-    let traditional = Root::new("zh_TW");
+    let traditional = Root::new("zh-Hant");
     let (first, second) = tokio::join!(english.kernel(), traditional.kernel());
     for _ in 0..8 {
         let (en, cn, tw, fallback) = tokio::join!(
@@ -306,34 +314,34 @@ async fn concurrent_languages_do_not_change_request_or_application_defaults() {
         );
         for ((headers, html), locale) in [
             (en, "en"),
-            (cn, "zh_CN"),
-            (tw, "zh_TW"),
-            (fallback, "zh_TW"),
+            (cn, "zh-Hans"),
+            (tw, "zh-Hant"),
+            (fallback, "zh-Hant"),
         ] {
             assert_page(&headers, &html, locale);
         }
     }
     assert_eq!(send(&first, "/locale", &[]).await.1, "en");
-    assert_eq!(send(&first, "/locale", &["zh-CN"]).await.1, "zh_CN");
-    assert_eq!(send(&first, "/locale", &["zh-TW"]).await.1, "zh_TW");
+    assert_eq!(send(&first, "/locale", &["zh-CN"]).await.1, "zh-Hans");
+    assert_eq!(send(&first, "/locale", &["zh-TW"]).await.1, "zh-Hant");
     assert_eq!(send(&first, "/locale", &[]).await.1, "en");
     let (headers, html) = send(&first, "/other", &["zh-TW"]).await;
-    assert_eq!(headers["content-language"], "zh-TW");
+    assert_eq!(headers["content-language"], "zh-Hant");
     assert_eq!(html, "開始使用|開發文件");
-    assert_eq!(send(&second, "/locale", &[]).await.1, "zh_TW");
+    assert_eq!(send(&second, "/locale", &[]).await.1, "zh-Hant");
 }
 
 #[tokio::test]
 async fn missing_translation_uses_the_existing_english_fallback() {
     let root = Root::new("en");
-    let path = root.0.join("lang/zh_TW/welcome.json");
+    let path = root.0.join("lang/zh-Hant/welcome.json");
     let mut copy: serde_json::Value =
         serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
     copy.as_object_mut().unwrap().remove("changelog");
     fs::write(path, serde_json::to_vec(&copy).unwrap()).unwrap();
     let kernel = root.kernel().await;
     let (headers, html) = send(&kernel, "/", &["zh-TW"]).await;
-    assert_eq!(headers["content-language"], "zh-TW");
+    assert_eq!(headers["content-language"], "zh-Hant");
     assert!(html.contains("開始使用"));
     assert!(html.contains("View changelog"));
     assert!(!html.contains("welcome.changelog"));
@@ -344,8 +352,8 @@ async fn language_middleware_handles_other_consumers_errors_and_response_metadat
     let root = Root::new("en");
     for (locale, message) in [
         ("en", "EN required"),
-        ("zh_CN", "简体必填"),
-        ("zh_TW", "繁體必填"),
+        ("zh-Hans", "简体必填"),
+        ("zh-Hant", "繁體必填"),
     ] {
         fs::write(
             root.0.join("lang").join(locale).join("validation.json"),
@@ -356,8 +364,8 @@ async fn language_middleware_handles_other_consumers_errors_and_response_metadat
     let kernel = root.kernel().await;
     for (locale, message) in [
         ("en", "EN required"),
-        ("zh-CN", "简体必填"),
-        ("zh-TW", "繁體必填"),
+        ("zh-Hans", "简体必填"),
+        ("zh-Hant", "繁體必填"),
     ] {
         let (headers, body) = send(&kernel, "/validation", &[locale]).await;
         assert_eq!(headers["content-language"], locale);
@@ -382,24 +390,83 @@ async fn language_middleware_handles_other_consumers_errors_and_response_metadat
         assert_eq!(headers["vary"], expected);
     }
     let (headers, body) = send(&kernel, "/switch", &["en"]).await;
-    assert_eq!(headers["content-language"], "zh-TW");
+    assert_eq!(headers["content-language"], "zh-Hant");
     assert_eq!(body, "開始使用|開發文件");
     assert_eq!(send(&kernel, "/locale", &[]).await.1, "en");
     let (headers, _) = send_status(&kernel, "/not-found", &["zh-TW"], StatusCode::NOT_FOUND).await;
-    assert_eq!(headers["content-language"], "zh-TW");
+    assert_eq!(headers["content-language"], "zh-Hant");
 }
 
 #[tokio::test]
 async fn browser_language_policy_does_not_require_extra_application_configuration() {
-    let root = Root::new("zh_TW");
+    let root = Root::new("zh-Hant");
     let kernel = root.kernel().await;
     for (header, expected) in [
-        ("fr-CA", "zh_TW"),
-        ("zh-CN", "zh_CN"),
-        ("zh-TW", "zh_TW"),
-        ("de", "zh_TW"),
+        ("fr-CA", "zh-Hant"),
+        ("zh-CN", "zh-Hans"),
+        ("zh-TW", "zh-Hant"),
+        ("de", "zh-Hant"),
         ("en-US", "en"),
     ] {
         assert_eq!(send(&kernel, "/locale", &[header]).await.1, expected);
+    }
+}
+
+#[tokio::test]
+async fn welcome_without_browser_detection_keeps_links_in_existing_documentation_languages() {
+    for (locale, fallback, page_locale, title) in [
+        ("fr", "en", "en", "Let’s get started"),
+        ("fr", "zh-Hant", "zh-Hant", "開始使用"),
+        ("zh-Hans", "en", "zh-Hans", "开始使用"),
+    ] {
+        let root = Root::new(locale);
+        fs::write(
+            root.0.join(".env"),
+            format!("APP_LOCALE={locale}\nAPP_FALLBACK_LOCALE={fallback}\n"),
+        )
+        .unwrap();
+        let kernel = root.kernel_with_browser(false).await;
+        let (headers, html) = send(&kernel, "/", &["zh-CN"]).await;
+        assert!(html.contains(title));
+        assert!(html.contains(&format!("<html lang=\"{page_locale}\">")));
+        for suffix in ["README.md", "getting-started/deployment.md"] {
+            assert!(html.contains(&format!("docs/{page_locale}/{suffix}")));
+        }
+        assert!(!html.contains("docs/fr/"));
+        assert_eq!(headers["content-language"], page_locale);
+        assert!(!headers.contains_key("vary"));
+        assert_eq!(send(&kernel, "/locale", &[]).await.1, locale);
+    }
+}
+
+#[tokio::test]
+async fn custom_welcome_translation_keeps_its_language_and_uses_an_available_docs_language() {
+    for fallback in ["en", "zh-Hant", "de"] {
+        let root = Root::new("fr");
+        fs::write(
+            root.0.join(".env"),
+            format!("APP_LOCALE=fr\nAPP_FALLBACK_LOCALE={fallback}\n"),
+        )
+        .unwrap();
+        fs::create_dir_all(root.0.join("lang/fr")).unwrap();
+        fs::write(
+            root.0.join("lang/fr/welcome.json"),
+            include_str!("../lang/en/welcome.json").replace("Let’s get started", "Bienvenue"),
+        )
+        .unwrap();
+        let kernel = root.kernel_with_browser(false).await;
+        let (headers, html) = send(&kernel, "/", &["zh-TW"]).await;
+        assert_eq!(headers["content-language"], "fr");
+        assert!(html.contains("<html lang=\"fr\">"));
+        assert!(html.contains("Bienvenue"));
+        let docs = if fallback == "zh-Hant" {
+            "zh-Hant"
+        } else {
+            "en"
+        };
+        assert!(html.contains(&format!("docs/{docs}/README.md")));
+        assert!(html.contains(&format!("docs/{docs}/getting-started/deployment.md")));
+        assert!(!html.contains("docs/fr/"));
+        assert_eq!(send(&kernel, "/locale", &[]).await.1, "fr");
     }
 }

@@ -26,7 +26,7 @@ impl Root {
         ));
         fs::create_dir_all(path.join("database")).unwrap();
         fs::File::create(path.join("database/database.sqlite")).unwrap();
-        for locale in ["en", "zh_CN", "zh_TW"] {
+        for locale in ["en", "zh-Hans", "zh-Hant"] {
             fs::create_dir_all(path.join(format!("lang/{locale}"))).unwrap();
             fs::copy(
                 PathBuf::from(env!("CARGO_MANIFEST_DIR"))

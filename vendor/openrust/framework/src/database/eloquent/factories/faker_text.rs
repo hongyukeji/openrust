@@ -20,14 +20,14 @@ impl Faker {
         indexSize: Option<usize>,
     ) -> DatabaseResult<String> {
         let max = maxNbChars.unwrap_or(200);
-        if self.locale() == "fa_IR" {
+        if self.provider_locale() == "fa_IR" {
             validate(1, max, indexSize.unwrap_or(2))?;
-            let (model, syntax) = text_model(self.locale(), indexSize.unwrap_or(2));
+            let (model, syntax) = text_model(self.provider_locale(), indexSize.unwrap_or(2));
             return Ok(model.generate(&self.random, max, syntax, true));
         }
         let min = max - (max / 5 + usize::from(max % 5 >= 3));
         let mut text = self.realTextBetween(Some(min), Some(max), indexSize)?;
-        if self.locale() == "cs_CZ" {
+        if self.provider_locale() == "cs_CZ" {
             text.retain(|ch| !matches!(ch, '„' | '“'));
         }
         Ok(text)
@@ -45,7 +45,7 @@ impl Faker {
             indexSize.unwrap_or(2),
         );
         validate(min, max, index)?;
-        let (model, syntax) = text_model(self.locale(), index);
+        let (model, syntax) = text_model(self.provider_locale(), index);
         for _ in 0..99 {
             let text = model.generate(&self.random, max, syntax, false);
             if text.chars().count() > min {

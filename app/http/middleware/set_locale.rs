@@ -16,7 +16,7 @@ impl Middleware for SetLocale {
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
             // 浏览器识别是应用策略，不向 Laravel 默认配置增加配置键。
-            let supported = ["en", "zh_CN", "zh_TW"].map(str::to_owned);
+            let supported = ["en", "zh-Hans", "zh-Hant"].map(str::to_owned);
             let locale = preferred_locale(
                 request,
                 &App::currentLocale().map_err(internal)?,
@@ -25,7 +25,7 @@ impl Middleware for SetLocale {
             App::setLocale(&locale).await.map_err(internal)?;
             let mut response = next.run(request).await;
             // 使用下游最终语言；控制器可以在当前请求内主动切换语言。
-            let language = App::currentLocale().map_err(internal)?.replace('_', "-");
+            let language = App::currentLocale().map_err(internal)?;
             if !response.headers().contains_key("content-language") {
                 response
                     .parts_mut()
@@ -104,24 +104,20 @@ fn preferred_locale(request: &Request, default: &str, supported: &[String]) -> S
 
 fn supported_locale<'a>(locale: &str, supported: &'a [String]) -> Option<&'a str> {
     let locale = canonical_locale(locale).ok()?;
-    let mut segments = locale.split('_');
-    let language = segments.next()?;
-    let parts: Vec<_> = segments.collect();
-    // 中文文字体系优先地区；别名只选择应用明确支持的语言。
+    let base = locale
+        .split('-')
+        .take_while(|part| part.len() != 1)
+        .collect::<Vec<_>>();
+    let language = *base.first()?;
+    let script = base.iter().skip(1).find(|part| part.len() == 4);
+    // 显式文字体系优先；未知文字体系不再通过地区推断中文资源。
     let chinese = if language == "zh" {
-        if parts.contains(&"Hant") {
-            Some("zh_TW")
-        } else if parts.contains(&"Hans") {
-            Some("zh_CN")
-        } else if parts.iter().any(|part| matches!(*part, "TW" | "HK" | "MO")) {
-            Some("zh_TW")
-        } else if parts.iter().any(|part| part.len() == 4) {
-            return supported
-                .iter()
-                .find(|item| **item == locale)
-                .map(String::as_str);
-        } else {
-            Some("zh_CN")
+        match script.copied() {
+            Some("Hant") => Some("zh-Hant"),
+            Some("Hans") => Some("zh-Hans"),
+            Some(_) => return None,
+            None if base.iter().any(|part| matches!(*part, "TW" | "HK" | "MO")) => Some("zh-Hant"),
+            None => Some("zh-Hans"),
         }
     } else {
         None

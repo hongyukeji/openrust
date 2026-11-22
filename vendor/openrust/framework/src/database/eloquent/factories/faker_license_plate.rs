@@ -594,7 +594,7 @@ impl Faker {
         voivodeships: Option<&[&str]>,
         counties: Option<&[&str]>,
     ) -> DatabaseResult<String> {
-        if self.locale() != "pl_PL" {
+        if self.provider_locale() != "pl_PL" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker license plate locale",
             ));

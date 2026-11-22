@@ -3,7 +3,7 @@ use openrust::database::{DatabaseError, DatabaseResult};
 #[test]
 fn faker_regexify_generates_matching_strings_and_rejects_unsupported_patterns() -> DatabaseResult<()>
 {
-    let faker = openrust::database::eloquent::factories::Faker::new("en_US")?;
+    let faker = openrust::database::eloquent::factories::Faker::new("en-US")?;
     for pattern in [
         r"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,4}",
         r"(AB|XY){1,3}-\d{4}\.?\w*",

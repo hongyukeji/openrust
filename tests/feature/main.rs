@@ -59,8 +59,8 @@ fn artisan_text_lists_show_localized_global_options() {
             "Options:",
             "The environment the command should run under",
         ),
-        ("zh_CN", "选项：", "指定运行环境"),
-        ("zh_TW", "選項：", "指定執行環境"),
+        ("zh-Hans", "选项：", "指定运行环境"),
+        ("zh-Hant", "選項：", "指定執行環境"),
     ] {
         for args in [
             vec!["list", "--no-ansi"],
@@ -158,8 +158,8 @@ fn artisan_optimization_commands_allow_excluding_tasks() {
 fn artisan_raw_help_keeps_full_localized_text_without_ansi() {
     for (locale, usage, options) in [
         ("en", "Usage:", "Options:"),
-        ("zh_CN", "用法：", "选项："),
-        ("zh_TW", "用法：", "選項："),
+        ("zh-Hans", "用法：", "选项："),
+        ("zh-Hant", "用法：", "選項："),
     ] {
         let plain = artisan_in(&["help", "list", "--no-ansi"], locale, None);
         let raw = artisan_in(&["help", "list", "--raw", "--ansi"], locale, None);
@@ -307,8 +307,8 @@ fn artisan_invalid_option_uses_the_console_error_status() {
 #[test]
 fn artisan_localizes_help_and_errors_without_changing_command_identifiers() {
     for (locale, options, invalid) in [
-        ("zh_CN", "选项：", "无法识别的参数"),
-        ("zh_TW", "選項：", "無法辨識的引數"),
+        ("zh-Hans", "选项：", "无法识别的参数"),
+        ("zh-Hant", "選項：", "無法辨識的引數"),
     ] {
         let help = artisan_in(&["help", "list"], locale, None);
         let flag = artisan_in(&["list", "--help"], locale, None);
@@ -348,8 +348,8 @@ fn artisan_localizes_help_and_errors_without_changing_command_identifiers() {
 fn artisan_localizes_production_cancellation_without_a_terminal() {
     for (locale, cancellation) in [
         ("en", "Command cancelled."),
-        ("zh_CN", "命令已取消。"),
-        ("zh_TW", "命令已取消。"),
+        ("zh-Hans", "命令已取消。"),
+        ("zh-Hant", "命令已取消。"),
     ] {
         let output = Command::new(env!("CARGO_BIN_EXE_main"))
             .args(["artisan", "migrate", "--no-interaction"])
@@ -385,4 +385,77 @@ fn artisan_uses_application_translation_fallback() {
     );
     let help = String::from_utf8(output.stdout).unwrap();
     assert!(help.contains("Options de secours :") && help.contains("Liste de secours"));
+}
+
+#[test]
+fn artisan_publishes_consumable_catalogs_without_replacing_bcp47_resources() {
+    use openrust::translation::{FileLoader, Translator};
+    use std::{collections::BTreeMap, fs};
+
+    struct Cleanup(std::path::PathBuf);
+    impl Drop for Cleanup {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+    for relative in ["lang", "resources/lang"] {
+        let root = std::env::temp_dir().join(format!(
+            "openrust-publish-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir(&root).unwrap();
+        let _cleanup = Cleanup(root.clone());
+        let catalogs = root.join(relative);
+        fs::create_dir_all(catalogs.join("zh-Hans")).unwrap();
+        let custom = catalogs.join("zh-Hans/validation.json");
+        let contents = r#"{"required":"请填写:attribute。"}"#;
+        fs::write(&custom, contents).unwrap();
+        let output = artisan_in(&["lang:publish"], "zh-Hans", Some(&root));
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(fs::read_to_string(&custom).unwrap(), contents);
+        let result = artisan_in(&["lang:publish"], "zh-Hans", Some(&root));
+        assert!(
+            result.status.success(),
+            "{}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+        for name in ["auth", "pagination", "passwords", "validation"] {
+            let published = catalogs.join(format!("en/{name}.json"));
+            let _: serde_json::Value =
+                serde_json::from_slice(&fs::read(published).unwrap()).unwrap();
+        }
+        assert_eq!(fs::read_to_string(&custom).unwrap(), contents);
+        assert!(!catalogs.join("zh_CN").exists());
+        if relative == "resources/lang" {
+            assert!(!root.join("lang").exists());
+        }
+        let translator =
+            Translator::new(FileLoader::new(catalogs), "zh-Hans".into(), "en".into()).unwrap();
+        let replacements = BTreeMap::from([("attribute".into(), "email".into())]);
+        assert_eq!(
+            translator
+                .string("validation.required", &replacements, None)
+                .unwrap(),
+            "请填写email。"
+        );
+        assert_eq!(
+            translator
+                .string("validation.required", &replacements, Some("zh-CN"))
+                .unwrap(),
+            "The email field is required."
+        );
+        assert!(
+            translator
+                .string("validation.required", &replacements, Some("zh_CN"))
+                .is_err()
+        );
+    }
 }

@@ -29,28 +29,29 @@ impl Application {
         self.locale_config("app.fallback_locale")
     }
 
-    /// 配置与译器就绪后切换语言，等待事件监听器完成。
+    /// 按配置、译器、事件的顺序切换语言，等待事件监听器完成。
     pub async fn setLocale(&self, locale: &str) -> TranslationResult<()> {
         let locale = canonical_locale(locale)?;
         let config = self
             .container()
             .get::<dyn Repository>("config")
             .map_err(TranslationError::Unavailable)?;
-        let translator = self
-            .container()
+        let previousLocale = config
+            .get("app.locale")
+            .and_then(|value| value.as_str().map(str::to_owned))
+            .map(|locale| canonical_locale(&locale))
+            .transpose()?;
+        config
+            .set("app.locale", locale.clone().into())
+            .map_err(source)?;
+        self.container()
             .get::<Translator>("translator")
-            .map_err(TranslationError::Unavailable)?;
+            .map_err(TranslationError::Unavailable)?
+            .setLocale(&locale)?;
         let events = self
             .container()
             .get::<Dispatcher>("events")
             .map_err(TranslationError::Unavailable)?;
-        let previousLocale = config
-            .get("app.locale")
-            .and_then(|value| value.as_str().map(str::to_owned));
-        config
-            .set("app.locale", locale.clone().into())
-            .map_err(source)?;
-        translator.setLocale(&locale)?;
         events
             .dispatch(
                 Arc::new(LocaleUpdated {
@@ -70,14 +71,13 @@ impl Application {
             .container()
             .get::<dyn Repository>("config")
             .map_err(TranslationError::Unavailable)?;
-        let translator = self
-            .container()
-            .get::<Translator>("translator")
-            .map_err(TranslationError::Unavailable)?;
         config
             .set("app.fallback_locale", locale.clone().into())
             .map_err(source)?;
-        translator.setFallback(&locale)
+        self.container()
+            .get::<Translator>("translator")
+            .map_err(TranslationError::Unavailable)?
+            .setFallback(&locale)
     }
 
     fn locale_config(&self, key: &str) -> TranslationResult<String> {
@@ -87,6 +87,7 @@ impl Application {
             .get(key)
             .and_then(|value| value.as_str().map(str::to_owned))
             .ok_or(TranslationError::InvalidLocale)
+            .and_then(|locale| canonical_locale(&locale))
     }
 }
 

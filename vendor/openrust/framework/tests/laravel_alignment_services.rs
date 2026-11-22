@@ -297,7 +297,7 @@ async fn translation_contract_names_observe_nested_locales_and_fallback() {
         let contract: &mut dyn Contract = &mut translator;
         contract.setLocale("zh-CN").unwrap();
         contract.setFallback("en").unwrap();
-        assert_eq!(contract.getLocale(), "zh_CN");
+        assert_eq!(contract.getLocale(), "zh-CN");
         assert_eq!(contract.getFallback(), "en");
     }
     translator
@@ -313,7 +313,7 @@ async fn translation_contract_names_observe_nested_locales_and_fallback() {
         })
         .await
         .unwrap();
-    assert_eq!(translator.getLocale(), "zh_CN");
+    assert_eq!(translator.getLocale(), "zh-CN");
     let (one, two) = tokio::join!(
         translator.withLocale("en", async {
             tokio::task::yield_now().await;
@@ -1192,7 +1192,7 @@ async fn translation_defaults_come_from_cached_configuration_without_reloading_e
         .container()
         .make::<openrust::translation::Translator>()
         .unwrap();
-    assert_eq!(translator.getLocale(), "zh_CN");
+    assert_eq!(translator.getLocale(), "zh-CN");
     assert_eq!(translator.getFallback(), "en");
     app.container()
         .scope(async {
@@ -1201,7 +1201,7 @@ async fn translation_defaults_come_from_cached_configuration_without_reloading_e
             assert_eq!(translator.getLocale(), "fr");
         })
         .await;
-    assert_eq!(translator.getLocale(), "zh_CN");
+    assert_eq!(translator.getLocale(), "zh-CN");
     assert_eq!(translator.getFallback(), "en");
 }
 

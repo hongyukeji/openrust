@@ -172,7 +172,7 @@ impl Faker {
     }
 
     fn require_jpj_locale(&self) -> DatabaseResult<()> {
-        if self.locale() != "ms_MY" {
+        if self.provider_locale() != "ms_MY" {
             return Err(DatabaseError::InvalidQuery("unsupported Faker JPJ locale"));
         }
         Ok(())
@@ -221,6 +221,7 @@ malaysian_person_formatters! {
 /// Generates localized sample data for tests and seeders.
 pub struct Faker {
     locale: String,
+    provider_locale: String,
     has_local_address_provider: bool,
     application_timezone: TimeZone,
     default_timezone: RwLock<Option<TimeZone>>,
@@ -347,7 +348,7 @@ macro_rules! formatters {
         #[allow(non_snake_case, reason = "Matches Faker formatter names")]
         impl Faker {
             $(pub fn $name(&self) -> String {
-                generate!(&self.random, self.locale.as_str(), $generator,)
+                generate!(&self.random, self.provider_locale(), $generator,)
             })+
         }
 
@@ -428,7 +429,6 @@ macro_rules! sample_formatters {
 }
 
 sample_formatters! {
-    randomLocale => LOCALE_DATA,
     languageCode => LANGUAGE_CODE,
     countryCode => COUNTRY_CODE,
     countryISOAlpha3 => COUNTRY_ISOALPHA3,
@@ -487,11 +487,25 @@ impl Faker {
     }
 
     fn with_canonical_locale(locale: String, application_timezone: TimeZone) -> Self {
+        // FakerPHP 数据键仅在此消费者边界使用下划线，公开标签保持不变。
+        let id = locale
+            .parse::<icu_locale_core::Locale>()
+            .expect("已验证的语言标签")
+            .id;
+        let provider_locale = match (
+            id.language.as_str(),
+            id.script.map(|script| script.to_string()).as_deref(),
+        ) {
+            ("zh", Some("Hans")) => "zh_CN".to_owned(),
+            ("zh", Some("Hant")) => "zh_TW".to_owned(),
+            _ => id.to_string().replace('-', "_"),
+        };
         let has_local_address_provider = faker_address::ADDRESS_LOCALES
-            .binary_search(&locale.as_str())
+            .binary_search(&provider_locale.as_str())
             .is_ok();
         Self {
             locale,
+            provider_locale,
             has_local_address_provider,
             application_timezone,
             default_timezone: RwLock::default(),
@@ -516,7 +530,7 @@ impl Faker {
         binding: &str,
     ) -> DatabaseResult<Arc<Self>> {
         let Some(container) = container else {
-            return Self::new(locale.unwrap_or("en_US")).map(Arc::new);
+            return Self::new(locale.unwrap_or("en-US")).map(Arc::new);
         };
         let config = container
             .get::<dyn Repository>("config")
@@ -524,7 +538,7 @@ impl Faker {
         let locale = match (locale, config.get("app.faker_locale")) {
             (Some(locale), _) => locale.to_owned(),
             (None, Some(serde_json::Value::String(locale))) => locale,
-            (None, None) => "en_US".to_owned(),
+            (None, None) => "en-US".to_owned(),
             _ => return Err(DatabaseError::InvalidConfiguration("app.faker_locale")),
         };
         let locale = canonical_locale(&locale)
@@ -565,6 +579,23 @@ impl Faker {
         &self.locale
     }
 
+    pub(super) fn provider_locale(&self) -> &str {
+        &self.provider_locale
+    }
+
+    pub fn randomLocale(&self) -> &'static str {
+        static LOCALES: OnceLock<Vec<String>> = OnceLock::new();
+        let locales = LOCALES.get_or_init(|| {
+            faker_miscellaneous::LOCALE_DATA
+                .iter()
+                .map(|locale| {
+                    canonical_locale(&locale.replace('_', "-")).expect("内置 Faker 语言标签有效")
+                })
+                .collect()
+        });
+        &locales[self.random.usize(..locales.len())]
+    }
+
     /// Restarts this generator’s random sequence. Pass None to use fresh entropy.
     ///
     /// Uniqueness history is independent and can be reset with `unique(true)`.
@@ -588,7 +619,7 @@ impl Faker {
     pub fn sentence(&self, words: Range<usize>) -> String {
         generate!(
             &self.random,
-            self.locale.as_str(),
+            self.provider_locale(),
             faker::lorem::raw::Sentence,
             words
         )
@@ -702,21 +733,21 @@ impl Faker {
     }
 
     pub fn localLatitude(&self) -> DatabaseResult<f64> {
-        match self.locale() {
+        match self.provider_locale() {
             "zh_TW" => self.latitude(Some(22.0), Some(25.0)),
             _ => self.local_coordinate_latitude(),
         }
     }
 
     pub fn localLongitude(&self) -> DatabaseResult<f64> {
-        match self.locale() {
+        match self.provider_locale() {
             "zh_TW" => self.longitude(Some(120.0), Some(122.0)),
             _ => self.local_coordinate_longitude(),
         }
     }
 
     fn local_coordinate_latitude(&self) -> DatabaseResult<f64> {
-        match self.locale() {
+        match self.provider_locale() {
             "hu_HU" => self.latitude(Some(46.262740), Some(47.564721)),
             "me_ME" => self.latitude(Some(42.43), Some(42.45)),
             _ => self.latitude(None, None),
@@ -724,7 +755,7 @@ impl Faker {
     }
 
     fn local_coordinate_longitude(&self) -> DatabaseResult<f64> {
-        match self.locale() {
+        match self.provider_locale() {
             "hu_HU" => self.longitude(Some(17.077949), Some(20.604560)),
             "me_ME" => self.longitude(Some(19.16), Some(19.27)),
             _ => self.longitude(None, None),
@@ -740,7 +771,7 @@ impl Faker {
 
     fn address_locale(&self) -> &str {
         if self.has_local_address_provider {
-            self.locale()
+            self.provider_locale()
         } else {
             "en_US"
         }
@@ -1546,7 +1577,7 @@ impl Faker {
 
     /// Returns a district from the Simplified Chinese Address provider.
     pub fn area(&self) -> DatabaseResult<&'static str> {
-        if self.locale() == "zh_CN" {
+        if self.provider_locale() == "zh_CN" {
             Ok(self.random.sample(DISTRICTS_ZH_CN))
         } else {
             Err(DatabaseError::InvalidQuery("unsupported Faker area locale"))
@@ -1555,7 +1586,7 @@ impl Faker {
 
     /// Returns a street stem from the supported regional catalogs.
     pub fn street(&self) -> DatabaseResult<&'static str> {
-        let values = match self.locale() {
+        let values = match self.provider_locale() {
             "sr_RS" | "sr_Cyrl_RS" => faker_address::STREET_SR_RS,
             "sr_Latn_RS" => faker_address::STREET_SR_LATN_RS,
             "me_ME" => faker_address::STREET_ME_ME,
@@ -1579,7 +1610,10 @@ impl Faker {
 
     /// Samples the autonomous community catalog inherited by the Spanish Address providers.
     pub fn community(&self) -> DatabaseResult<&'static str> {
-        if !matches!(self.locale(), "es_ES" | "es_AR" | "es_PE" | "es_VE") {
+        if !matches!(
+            self.provider_locale(),
+            "es_ES" | "es_AR" | "es_PE" | "es_VE"
+        ) {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker community locale",
             ));
@@ -1588,7 +1622,7 @@ impl Faker {
     }
 
     pub fn streetPrefix(&self) -> DatabaseResult<&'static str> {
-        let values = match self.locale() {
+        let values = match self.provider_locale() {
             "sr_RS" | "sr_Cyrl_RS" => faker_address::STREET_PREFIX_SR_RS,
             "sr_Latn_RS" => faker_address::STREET_PREFIX_SR_LATN_RS,
             "me_ME" => faker_address::STREET_PREFIX_ME_ME,
@@ -1628,7 +1662,7 @@ impl Faker {
     }
 
     pub fn streetNumber(&self) -> DatabaseResult<String> {
-        if self.locale() == "bn_BD" {
+        if self.provider_locale() == "bn_BD" {
             return Ok(self.bangla_street_number());
         }
         Ok(self.numerify(Some(
@@ -1647,7 +1681,7 @@ impl Faker {
     }
 
     pub fn apartmentNumber(&self) -> DatabaseResult<&'static str> {
-        match self.locale() {
+        match self.provider_locale() {
             "ro_RO" | "ro_MD" => Ok(Self::romanian_unit_number(&self.random)),
             _ => self.singapore_address_value(faker_address::APARTMENT_NUMBER_EN_SG),
         }
@@ -1669,7 +1703,7 @@ impl Faker {
     }
 
     pub fn streetPlainName(&self) -> DatabaseResult<&'static str> {
-        let names = match self.locale() {
+        let names = match self.provider_locale() {
             "ro_RO" => faker_address::STREET_PLAIN_NAME_RO_RO,
             "ro_MD" => faker_address::STREET_PLAIN_NAME_RO_MD,
             _ => {
@@ -1682,7 +1716,7 @@ impl Faker {
     }
 
     fn require_romanian_address_locale(&self) -> DatabaseResult<()> {
-        if !matches!(self.locale(), "ro_RO" | "ro_MD") {
+        if !matches!(self.provider_locale(), "ro_RO" | "ro_MD") {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker Romanian address locale",
             ));
@@ -1705,7 +1739,7 @@ impl Faker {
     }
 
     fn singapore_address_value(&self, values: &[&'static str]) -> DatabaseResult<&'static str> {
-        if self.locale() != "en_SG" {
+        if self.provider_locale() != "en_SG" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker Singapore address locale",
             ));
@@ -1739,7 +1773,7 @@ impl Faker {
     }
 
     fn require_indian_address_locale(&self) -> DatabaseResult<()> {
-        if self.locale() != "en_IN" {
+        if self.provider_locale() != "en_IN" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker Indian address locale",
             ));
@@ -1770,7 +1804,7 @@ impl Faker {
     }
 
     pub fn municipality(&self) -> DatabaseResult<&'static str> {
-        if self.locale() == "lt_LT" {
+        if self.provider_locale() == "lt_LT" {
             return Ok(self.random.sample(faker_address::MUNICIPALITY_LT_LT));
         }
         self.require_address_locale("en_PH")?;
@@ -1834,7 +1868,7 @@ impl Faker {
     }
 
     fn require_address_locale(&self, locale: &str) -> DatabaseResult<()> {
-        if self.locale() != locale {
+        if self.provider_locale() != locale {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker address formatter locale",
             ));
@@ -1878,7 +1912,7 @@ impl Faker {
     }
 
     pub fn prefecture(&self) -> DatabaseResult<&'static str> {
-        let values = match self.locale() {
+        let values = match self.provider_locale() {
             "el_GR" => faker_address::PREFECTURE_EL_GR,
             "ja_JP" => faker_address::PREFECTURE_JA_JP,
             _ => {
@@ -2094,7 +2128,7 @@ impl Faker {
     }
 
     pub fn governorate(&self) -> DatabaseResult<&'static str> {
-        match self.locale() {
+        match self.provider_locale() {
             "ar_EG" => Ok(self.random.sample(faker_address::GOVERNORATES_AR_EG).0),
             "ar_SA" => Ok(self.random.sample(faker_address::GOVERNORATES_AR_SA)),
             _ => Err(DatabaseError::InvalidQuery(
@@ -2161,7 +2195,7 @@ impl Faker {
     }
 
     pub fn regionSuffix(&self) -> DatabaseResult<&'static str> {
-        match self.locale() {
+        match self.provider_locale() {
             "hy_AM" => Ok(self.random.sample(faker_address::REGION_SUFFIX_HY_AM)),
             "ka_GE" => Ok(self.random.sample(faker_address::REGION_SUFFIX_KA_GE)),
             "lt_LT" => Ok(self.random.sample(faker_address::REGION_SUFFIX_LT_LT)),
@@ -2185,7 +2219,7 @@ impl Faker {
     }
 
     pub fn streetSuffixShort(&self) -> DatabaseResult<&'static str> {
-        let values = match self.locale() {
+        let values = match self.provider_locale() {
             "de_DE" => faker_address::STREET_SUFFIX_SHORT_DE_DE,
             "de_AT" => faker_address::STREET_SUFFIX_SHORT_DE_AT,
             "de_CH" => faker_address::STREET_SUFFIX_SHORT_DE_CH,
@@ -2199,7 +2233,7 @@ impl Faker {
     }
 
     pub fn streetSuffixLong(&self) -> DatabaseResult<&'static str> {
-        let values = match self.locale() {
+        let values = match self.provider_locale() {
             "de_DE" => faker_address::STREET_SUFFIX_LONG_DE_DE,
             "de_AT" => faker_address::STREET_SUFFIX_LONG_DE_AT,
             "de_CH" => faker_address::STREET_SUFFIX_LONG_DE_CH,
@@ -2213,7 +2247,7 @@ impl Faker {
     }
 
     fn german_street_name(&self) -> String {
-        let swiss = self.locale() == "de_CH";
+        let swiss = self.provider_locale() == "de_CH";
         match self.random.u8(0..if swiss { 3 } else { 2 }) {
             0 => format!(
                 "{}{}",
@@ -2247,7 +2281,7 @@ impl Faker {
     }
 
     pub fn streetSuffixWord(&self) -> DatabaseResult<&'static str> {
-        let values = match self.locale() {
+        let values = match self.provider_locale() {
             "nb_NO" => faker_address::STREET_SUFFIX_WORD_NB_NO,
             "sv_SE" => faker_address::STREET_SUFFIX_WORD_SV_SE,
             "da_DK" => faker_address::STREET_SUFFIX_WORD_DA_DK,
@@ -2297,7 +2331,7 @@ impl Faker {
     }
 
     pub fn cityName(&self) -> DatabaseResult<&'static str> {
-        let values = match self.locale() {
+        let values = match self.provider_locale() {
             "sr_RS" | "sr_Cyrl_RS" => faker_address::CITY_NAMES_SR_RS,
             "sr_Latn_RS" => faker_address::CITY_NAMES_SR_LATN_RS,
             "me_ME" => faker_address::CITY_NAMES_ME_ME,
@@ -2338,7 +2372,7 @@ impl Faker {
 
     /// Samples a county from the British Address provider.
     pub fn county(&self) -> DatabaseResult<&'static str> {
-        let values = match self.locale() {
+        let values = match self.provider_locale() {
             "ro_RO" => faker_address::COUNTIES_RO_RO,
             "en_GB" => faker_address::COUNTY_EN_GB,
             "en_NG" => faker_address::COUNTY_EN_NG,
@@ -2352,7 +2386,7 @@ impl Faker {
     }
 
     pub fn province(&self) -> DatabaseResult<&'static str> {
-        let provinces = match self.locale() {
+        let provinces = match self.provider_locale() {
             "fr_BE" => faker_address::PROVINCE_FR_BE,
             "en_ZA" => faker_address::PROVINCE_EN_ZA,
             "en_CA" => faker_address::PROVINCE_EN_CA,
@@ -2370,7 +2404,7 @@ impl Faker {
     }
 
     pub fn provinceAbbr(&self) -> DatabaseResult<&'static str> {
-        let values = match self.locale() {
+        let values = match self.provider_locale() {
             "en_CA" => faker_address::PROVINCE_ABBR_EN_CA,
             "en_ZA" => faker_address::PROVINCE_ABBR_EN_ZA,
             _ => {
@@ -2383,7 +2417,7 @@ impl Faker {
     }
 
     pub fn randomPostcodeLetter(&self) -> DatabaseResult<&'static str> {
-        if self.locale() != "en_CA" {
+        if self.provider_locale() != "en_CA" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker postcode letter locale",
             ));
@@ -2392,7 +2426,7 @@ impl Faker {
     }
 
     pub fn buildingLetter(&self) -> DatabaseResult<&'static str> {
-        if self.locale() != "en_AU" {
+        if self.provider_locale() != "en_AU" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker building letter locale",
             ));
@@ -2401,7 +2435,7 @@ impl Faker {
     }
 
     pub fn canton(&self) -> DatabaseResult<(&'static str, &'static str)> {
-        let cantons = match self.locale() {
+        let cantons = match self.provider_locale() {
             "it_CH" => faker_address::CANTONS_IT_CH,
             "de_CH" => faker_address::CANTONS_DE_CH,
             "fr_CH" => faker_address::CANTONS_FR_CH,
@@ -2423,7 +2457,7 @@ impl Faker {
     }
 
     pub fn district(&self) -> DatabaseResult<&'static str> {
-        let values = match self.locale() {
+        let values = match self.provider_locale() {
             "en_UG" => faker_address::DISTRICT_EN_UG,
             "ne_NP" => faker_address::DISTRICT_NE_NP,
             _ => {
@@ -2442,7 +2476,7 @@ impl Faker {
     }
 
     pub fn region(&self) -> DatabaseResult<&'static str> {
-        let values = match self.locale() {
+        let values = match self.provider_locale() {
             "hy_AM" => Some(faker_address::REGION_HY_AM),
             "ka_GE" => Some(faker_address::REGION_KA_GE),
             "lt_LT" => Some(faker_address::REGION_LT_LT),
@@ -2464,7 +2498,10 @@ impl Faker {
         if let Some(values) = values {
             return Ok(self.random.sample(values));
         }
-        if !matches!(self.locale(), "fr_FR" | "fr_BE" | "fr_CH" | "fr_CA") {
+        if !matches!(
+            self.provider_locale(),
+            "fr_FR" | "fr_BE" | "fr_CH" | "fr_CA"
+        ) {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker region locale",
             ));
@@ -2474,7 +2511,10 @@ impl Faker {
 
     /// Returns the French department code and name from the same catalog entry.
     pub fn department(&self) -> DatabaseResult<(&'static str, &'static str)> {
-        if !matches!(self.locale(), "fr_FR" | "fr_BE" | "fr_CH" | "fr_CA") {
+        if !matches!(
+            self.provider_locale(),
+            "fr_FR" | "fr_BE" | "fr_CH" | "fr_CA"
+        ) {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker department locale",
             ));
@@ -2506,7 +2546,7 @@ impl Faker {
     }
 
     fn ensure_taiwan_address_locale(&self) -> DatabaseResult<()> {
-        if self.locale() != "zh_TW" {
+        if self.provider_locale() != "zh_TW" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker Taiwanese number locale",
             ));
@@ -3305,10 +3345,10 @@ impl Faker {
     }
 
     pub fn lastName(&self) -> String {
-        if self.locale() == "nl_NL" {
+        if self.provider_locale() == "nl_NL" {
             return company::dutch::dutch_surname(&self.random).to_owned();
         }
-        match self.locale() {
+        match self.provider_locale() {
             "ru_RU" => return self.russian_surname(self.random.bool()),
             "is_IS" => return company::nordic::icelandic_surname(&self.random),
             // The pinned Lithuanian no-argument surname template samples given names.
@@ -3321,21 +3361,22 @@ impl Faker {
             }
             _ => {}
         }
-        let surnames = faker_person::surnames(faker_person::provider_locale(self.locale()))
-            .expect("fixed Faker surname catalog");
+        let surnames =
+            faker_person::surnames(faker_person::provider_locale(self.provider_locale()))
+                .expect("fixed Faker surname catalog");
         surnames[self.random.usize(..surnames.len())].to_owned()
     }
 
     pub fn middleName(&self) -> DatabaseResult<&'static str> {
-        if matches!(self.locale(), "ru_RU" | "uk_UA") {
+        if matches!(self.provider_locale(), "ru_RU" | "uk_UA") {
             return self.gendered_middle_name(self.random.bool());
         }
-        let names = match self.locale() {
+        let names = match self.provider_locale() {
             "da_DK" => company::nordic::DA_DK_MIDDLE,
             "is_IS" => company::nordic::IS_IS_MIDDLE,
             // The pinned Vietnamese no-argument middle-name template samples given names.
             "vi_VN" => {
-                let catalog = faker_person::catalog(self.locale());
+                let catalog = faker_person::catalog(self.provider_locale());
                 if self.random.bool() {
                     catalog.male
                 } else {
@@ -3368,7 +3409,7 @@ impl Faker {
     }
 
     fn gendered_middle_name(&self, male: bool) -> DatabaseResult<&'static str> {
-        let names = match (self.locale(), male) {
+        let names = match (self.provider_locale(), male) {
             ("ru_RU", true) => faker_person::RU_RU_MIDDLE_MALE,
             ("ru_RU", false) => faker_person::RU_RU_MIDDLE_FEMALE,
             ("uk_UA", true) => faker_person::UK_UA_MIDDLE_MALE,
@@ -3399,7 +3440,7 @@ impl Faker {
 
     pub fn lastNameWithGender(&self, gender: Option<&str>) -> String {
         if matches!(
-            self.locale(),
+            self.provider_locale(),
             "lt_LT" | "pl_PL" | "cs_CZ" | "sk_SK" | "el_GR" | "bg_BG" | "ru_RU" | "id_ID" | "en_UG"
         ) {
             match gender {
@@ -3422,7 +3463,7 @@ impl Faker {
     }
 
     fn gendered_surname(&self, male: bool) -> DatabaseResult<String> {
-        let names = match (self.locale(), male) {
+        let names = match (self.provider_locale(), male) {
             ("ru_RU", _) => return Ok(self.russian_surname(male)),
             ("lt_LT", true) => faker_person::LT_LT_LAST_MALE,
             ("lt_LT", false) => faker_person::LT_LT_LAST_FEMALE,
@@ -3466,7 +3507,7 @@ impl Faker {
         &self,
         names: &'static [&'static str],
     ) -> DatabaseResult<&'static str> {
-        if self.locale() != "hu_HU" {
+        if self.provider_locale() != "hu_HU" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker married name locale",
             ));
@@ -3475,15 +3516,15 @@ impl Faker {
     }
 
     pub fn firstNameMale(&self) -> String {
-        self.sample_given_name(faker_person::catalog(self.locale()).male)
+        self.sample_given_name(faker_person::catalog(self.provider_locale()).male)
     }
 
     pub fn firstNameFemale(&self) -> String {
-        self.sample_given_name(faker_person::catalog(self.locale()).female)
+        self.sample_given_name(faker_person::catalog(self.provider_locale()).female)
     }
 
     fn require_malaysian_person(&self) -> DatabaseResult<()> {
-        if self.locale() != "ms_MY" {
+        if self.provider_locale() != "ms_MY" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker Malaysian Person locale",
             ));
@@ -3530,7 +3571,7 @@ impl Faker {
         county: Option<&str>,
         isResident: bool,
     ) -> DatabaseResult<String> {
-        if self.locale() != "ro_RO" {
+        if self.provider_locale() != "ro_RO" {
             return Err(DatabaseError::InvalidQuery("unsupported Faker CNP locale"));
         }
         romanian_serbian::cnp(&self.random, gender, dateOfBirth, county, isResident)
@@ -3540,7 +3581,7 @@ impl Faker {
         match gender {
             Some("male") => self.firstNameMale(),
             Some("female") => self.firstNameFemale(),
-            _ if self.locale() == "ms_MY" => {
+            _ if self.provider_locale() == "ms_MY" => {
                 south_southeast_asian::malaysian_first_name(&self.random)
             }
             _ if self.boolean(None) => self.firstNameMale(),
@@ -3549,7 +3590,7 @@ impl Faker {
     }
 
     pub fn nameWithGender(&self, gender: Option<&str>) -> String {
-        let catalog = faker_person::catalog(self.locale());
+        let catalog = faker_person::catalog(self.provider_locale());
         let formats = match gender {
             Some("male") => catalog.male_formats,
             Some("female") => catalog.female_formats,
@@ -3572,7 +3613,7 @@ impl Faker {
 
     /// Concatenates independent draws from a Taiwanese name pool.
     pub fn randomName(&self, pool: &[&str], count: usize) -> DatabaseResult<String> {
-        if self.locale() != "zh_TW" {
+        if self.provider_locale() != "zh_TW" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker random name locale",
             ));
@@ -3595,7 +3636,7 @@ impl Faker {
     }
 
     fn sample_given_name(&self, names: &[&str]) -> String {
-        if self.locale() == "zh_TW" {
+        if self.provider_locale() == "zh_TW" {
             return self
                 .randomName(names, self.random.usize(1..=2))
                 .expect("fixed random name locale");
@@ -3644,7 +3685,7 @@ impl Faker {
                 "suffix" => {
                     name.push_str(catalog.suffixes[self.random.usize(..catalog.suffixes.len())])
                 }
-                _ if self.locale() == "ms_MY" => {
+                _ if self.provider_locale() == "ms_MY" => {
                     name.push_str(&south_southeast_asian::malaysian_name_part(
                         &self.random,
                         token,
@@ -3689,7 +3730,7 @@ impl Faker {
     }
 
     fn sample_kana(&self, names: &'static [&'static str]) -> DatabaseResult<&'static str> {
-        if self.locale() != "ja_JP" {
+        if self.provider_locale() != "ja_JP" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker kana name locale",
             ));
@@ -3699,9 +3740,9 @@ impl Faker {
 
     /// Samples a name prefix from the selected Person provider.
     pub fn prefix(&self) -> DatabaseResult<&'static str> {
-        let catalog = match self.locale() {
+        let catalog = match self.provider_locale() {
             "ar_EG" | "ar_JO" | "ar_SA" | "fr_CH" | "fr_FR" | "nl_NL" => {
-                faker_person::catalog(self.locale()).prefixes
+                faker_person::catalog(self.provider_locale()).prefixes
             }
             _ => {
                 return Err(DatabaseError::InvalidQuery(
@@ -3714,7 +3755,7 @@ impl Faker {
 
     /// Samples a name suffix, including the upstream null and empty-string values.
     pub fn suffix(&self) -> DatabaseResult<Option<&'static str>> {
-        let locale = faker_person::provider_locale(self.locale());
+        let locale = faker_person::provider_locale(self.provider_locale());
         let catalog = match locale {
             "it_CH" | "it_IT" => return Ok(None),
             "hy_AM" | "zh_TW" => return Ok(Some("")),
@@ -3732,7 +3773,7 @@ impl Faker {
     }
 
     pub fn title(&self, gender: Option<&str>) -> &'static str {
-        if self.locale() == "sl_SI" {
+        if self.provider_locale() == "sl_SI" {
             let titles = faker_person::SLOVENIAN_TITLES;
             return titles[self.random.usize(..titles.len())];
         }
@@ -3745,7 +3786,7 @@ impl Faker {
     }
 
     pub fn titleMale(&self) -> &'static str {
-        let titles: &[&str] = match self.locale() {
+        let titles: &[&str] = match self.provider_locale() {
             "en_ZA" => &["Mr.", "Dr.", "Prof.", "Rev.", "Hon."],
             "fr_BE" => &["M.", "Dr.", "Pr.", "Me.", "Mgr"],
             "fr_CH" => &["M.", "Dr.", "Pr.", "Me."],
@@ -3836,7 +3877,7 @@ impl Faker {
     }
 
     pub fn titleFemale(&self) -> &'static str {
-        let titles: &[&str] = match self.locale() {
+        let titles: &[&str] = match self.provider_locale() {
             "en_ZA" => &["Mrs.", "Ms.", "Miss", "Dr.", "Prof.", "Rev.", "Hon."],
             "fr_BE" => &["Mme.", "Mlle", "Dr.", "Pr.", "Me."],
             "fr_CH" => &["Mme.", "Mlle", "Dr.", "Pr.", "Me."],
@@ -3930,15 +3971,15 @@ impl Faker {
     }
 
     pub fn firstNameAscii(&self) -> DatabaseResult<&'static str> {
-        username::ascii_given_name(&self.random, self.locale()).ok_or(DatabaseError::InvalidQuery(
-            "unsupported Faker ASCII name locale",
-        ))
+        username::ascii_given_name(&self.random, self.provider_locale()).ok_or(
+            DatabaseError::InvalidQuery("unsupported Faker ASCII name locale"),
+        )
     }
 
     pub fn lastNameAscii(&self) -> DatabaseResult<&'static str> {
-        username::ascii_surname(&self.random, self.locale()).ok_or(DatabaseError::InvalidQuery(
-            "unsupported Faker ASCII name locale",
-        ))
+        username::ascii_surname(&self.random, self.provider_locale()).ok_or(
+            DatabaseError::InvalidQuery("unsupported Faker ASCII name locale"),
+        )
     }
 
     pub fn userName(&self) -> String {
@@ -3955,7 +3996,7 @@ impl Faker {
     }
 
     pub fn freeEmailDomain(&self) -> &'static str {
-        let domains = domains::free_email_domains(self.locale());
+        let domains = domains::free_email_domains(self.provider_locale());
         domains[self.random.usize(..domains.len())]
     }
 
@@ -3972,7 +4013,7 @@ impl Faker {
     }
 
     pub fn email(&self) -> DatabaseResult<String> {
-        match self.locale() {
+        match self.provider_locale() {
             "zh_CN" => Ok(self.freeEmail()),
             "ne_NP" => match self.random.u8(0..6) {
                 0..=1 => self.companyEmail(),
@@ -4020,7 +4061,7 @@ impl Faker {
     }
 
     pub fn e164PhoneNumber(&self) -> String {
-        match self.locale() {
+        match self.provider_locale() {
             locale if faker_phone::uses_us_phone_provider(locale) => format!(
                 "+1{}{}{}",
                 self.us_phone_area_code(),
@@ -4079,7 +4120,7 @@ impl Faker {
     }
 
     pub fn creditCardType(&self) -> &'static str {
-        let vendors = if self.locale() == "pt_BR" {
+        let vendors = if self.provider_locale() == "pt_BR" {
             CARD_VENDORS_PT_BR
         } else {
             CARD_VENDORS
@@ -4094,7 +4135,7 @@ impl Faker {
         separator: Option<&str>,
     ) -> DatabaseResult<String> {
         let vendor = cardType.unwrap_or_else(|| self.creditCardType());
-        let masks = if self.locale() == "pt_BR" {
+        let masks = if self.provider_locale() == "pt_BR" {
             card_masks_pt_br(vendor)
         } else {
             card_masks(vendor)
@@ -4146,7 +4187,7 @@ impl Faker {
         locale: &str,
         catalog: &'static [&'static str],
     ) -> DatabaseResult<&'static str> {
-        if self.locale() != locale {
+        if self.provider_locale() != locale {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker institution locale",
             ));
@@ -4156,11 +4197,11 @@ impl Faker {
 
     /// Selects a bank from the locale's catalog.
     pub fn bank(&self) -> DatabaseResult<&'static str> {
-        if self.locale() == "ms_MY" {
+        if self.provider_locale() == "ms_MY" {
             return [Self::localBank, Self::foreignBank, Self::governmentBank]
                 [self.random.usize(..3)](self);
         }
-        let catalog = faker_institutions::banks(self.locale())
+        let catalog = faker_institutions::banks(self.provider_locale())
             .ok_or(DatabaseError::InvalidQuery("unsupported Faker bank locale"))?;
         Ok(catalog[self.random.usize(..catalog.len())])
     }
@@ -4172,7 +4213,7 @@ impl Faker {
 
     /// Generates a SWIFT code using the Malaysian or Nepali provider.
     pub fn swiftCode(&self) -> DatabaseResult<String> {
-        match self.locale() {
+        match self.provider_locale() {
             "ms_MY" => {
                 let pattern =
                     self.institution_sample("ms_MY", faker_institutions::MS_MY_SWIFT_CODES)?;
@@ -4195,7 +4236,7 @@ impl Faker {
             ""
         };
         let digits = |count| self.randomNumber(Some(count), true);
-        match self.locale() {
+        match self.provider_locale() {
             "zh_TW" => Ok(self.VAT()?.to_string()),
             "bg_BG" => Ok(format!(
                 "BG{separator}{}{}",
@@ -4241,7 +4282,7 @@ impl Faker {
 
     /// Selects the UK provider's standard, branch, government or health VAT sample.
     pub fn vatWithType(&self, vatType: Option<&str>) -> DatabaseResult<String> {
-        if self.locale() != "en_GB" {
+        if self.provider_locale() != "en_GB" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker VAT type locale",
             ));
@@ -4280,7 +4321,7 @@ impl Faker {
     }
 
     pub fn siren(&self, formatted: bool) -> DatabaseResult<String> {
-        if self.locale() != "fr_FR" {
+        if self.provider_locale() != "fr_FR" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker SIREN locale",
             ));
@@ -4300,7 +4341,7 @@ impl Faker {
     }
 
     pub fn vatId(&self) -> DatabaseResult<String> {
-        if self.locale() != "it_IT" {
+        if self.provider_locale() != "it_IT" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker vatId locale",
             ));
@@ -4309,7 +4350,7 @@ impl Faker {
     }
 
     pub fn btw(&self) -> DatabaseResult<String> {
-        if self.locale() != "nl_NL" {
+        if self.provider_locale() != "nl_NL" {
             return Err(DatabaseError::InvalidQuery("unsupported Faker btw locale"));
         }
         self.vat(None)
@@ -4322,7 +4363,7 @@ impl Faker {
         countryCode: Option<&str>,
         length: Option<usize>,
     ) -> DatabaseResult<String> {
-        if let Some((country, default_length)) = account_iban_defaults(self.locale()) {
+        if let Some((country, default_length)) = account_iban_defaults(self.provider_locale()) {
             return self.iban(
                 Some(countryCode.unwrap_or(country)),
                 prefix,
@@ -4334,7 +4375,7 @@ impl Faker {
                 "Faker local bank account takes no arguments",
             ));
         }
-        match self.locale() {
+        match self.provider_locale() {
             "ar_EG" => self.iban(Some("EG"), "", Some(25)),
             locale if uses_us_payment_provider(locale) => {
                 let length = 5 + (0..4).map(|_| self.random.usize(0..=3)).sum::<usize>();
@@ -4354,7 +4395,7 @@ impl Faker {
 
     /// Generates a routing number when the US Payment provider is selected.
     pub fn bankRoutingNumber(&self) -> DatabaseResult<String> {
-        if !uses_us_payment_provider(self.locale()) {
+        if !uses_us_payment_provider(self.provider_locale()) {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker bank routing locale",
             ));
@@ -4487,12 +4528,12 @@ impl Faker {
     }
 
     pub fn tld(&self) -> &'static str {
-        let suffixes = domains::tlds(self.locale());
+        let suffixes = domains::tlds(self.provider_locale());
         suffixes[self.random.usize(..suffixes.len())]
     }
 
     pub fn domainName(&self) -> DatabaseResult<String> {
-        let name = match username::ascii_surname(&self.random, self.locale()) {
+        let name = match username::ascii_surname(&self.random, self.provider_locale()) {
             Some(surname) => surname.to_owned(),
             None => self.domainWord()?,
         };
@@ -4509,7 +4550,7 @@ impl Faker {
     }
 
     pub fn url(&self) -> DatabaseResult<String> {
-        if self.locale() == "ne_NP" {
+        if self.provider_locale() == "ne_NP" {
             let format = match self.random.u8(0..11) {
                 0 | 1 => ("http://www.", ".np", false, ""),
                 2 | 3 => ("http://", ".np", false, ""),
@@ -5131,7 +5172,7 @@ impl Faker {
     pub fn amPm(&self, max: Option<Timestamp>) -> String {
         let date = self.dateTimeInTimezone(max, None);
         let morning = date.hour() < 12;
-        match (self.locale(), morning) {
+        match (self.provider_locale(), morning) {
             ("tr_TR", true) => "öö".into(),
             ("tr_TR", false) => "ös".into(),
             ("zh_CN" | "zh_TW", true) => "上午".into(),
@@ -5141,7 +5182,7 @@ impl Faker {
     }
 
     pub fn dayOfMonth(&self, max: Option<Timestamp>) -> String {
-        let pattern = if self.locale() == "cs_CZ" {
+        let pattern = if self.provider_locale() == "cs_CZ" {
             "%-d"
         } else {
             "%d"
@@ -5153,7 +5194,7 @@ impl Faker {
 
     pub fn dayOfWeek(&self, max: Option<Timestamp>) -> String {
         let date = self.dateTimeInTimezone(max, None);
-        let names: &[&str] = match self.locale() {
+        let names: &[&str] = match self.provider_locale() {
             "cs_CZ" => &[
                 "neděle",
                 "pondělí",
@@ -5203,7 +5244,7 @@ impl Faker {
 
     pub fn monthName(&self, max: Option<Timestamp>) -> String {
         let date = self.dateTimeInTimezone(max, None);
-        let names: &[&str] = match self.locale() {
+        let names: &[&str] = match self.provider_locale() {
             "cs_CZ" => &[
                 "leden",
                 "únor",
@@ -5257,7 +5298,7 @@ impl Faker {
 
     /// Samples the Czech genitive form of a month name.
     pub fn monthNameGenitive(&self, max: Option<Timestamp>) -> DatabaseResult<&'static str> {
-        if self.locale() != "cs_CZ" {
+        if self.provider_locale() != "cs_CZ" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker genitive month locale",
             ));
@@ -5281,7 +5322,7 @@ impl Faker {
 
     /// Samples the Czech display date, drawing each of its three fields separately.
     pub fn formattedDate(&self) -> DatabaseResult<String> {
-        if self.locale() != "cs_CZ" {
+        if self.provider_locale() != "cs_CZ" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker formatted date locale",
             ));
@@ -6722,4 +6763,11 @@ fn phone_area_code(
     });
     let digit = random.u8(2..=9);
     format!("{digit}{}", patterns[usize::from(digit - 2)].sample(random))
+}
+
+#[allow(non_snake_case, reason = "沿用 Faker 公开方法名")]
+impl UniqueFaker<'_> {
+    pub fn randomLocale(&self) -> DatabaseResult<&'static str> {
+        self.generate("randomLocale", || self.0.randomLocale())
+    }
 }

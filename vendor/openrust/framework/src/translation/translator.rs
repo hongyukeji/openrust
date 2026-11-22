@@ -344,6 +344,30 @@ impl Translator {
         })
     }
 
+    /// 模板助手保留分组／列表原值，并共享译器的缺键与回退处理。
+    pub(crate) fn value(
+        &self,
+        key: &str,
+        replacements: &Replacements,
+        locale: Option<&str>,
+        fallback: bool,
+    ) -> TranslationResult<Line> {
+        let locale = self.resolve_locale(locale)?;
+        let line = self
+            .lookup(key, &locale, fallback)?
+            .map(|found| found.line)
+            .unwrap_or_else(|| {
+                Line::Text(self.hooks.missing(MissingTranslation {
+                    key,
+                    replacements,
+                    mixed_replacements: &[],
+                    locale: &locale,
+                    fallback,
+                }))
+            });
+        map_line(line, &|text| Ok(replace(&text, replacements)))
+    }
+
     pub fn string(
         &self,
         key: &str,

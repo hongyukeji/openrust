@@ -2617,7 +2617,7 @@ const LT_FEMALE_LAST: &[&str] = &[
 use super::{Faker, company::job_title::LOREM_WORDS};
 
 pub(super) fn candidate(random: &FakerRandom, faker: &Faker) -> String {
-    let locale = faker.locale();
+    let locale = faker.provider_locale();
     if locale == "lt_LT" {
         return match random.u8(0..6) {
             0 => format!(

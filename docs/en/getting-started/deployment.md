@@ -215,3 +215,5 @@ Nginx permits request bodies up to 8 MiB, matching the framework input limit. Pr
 Back up the database and storage and retain the existing `APP_KEY`. For a source release, run `build app`, then `run --rm --no-deps app artisan migrate --force`, and finally `up -d --no-build --wait`. Use the same Compose and environment-file arguments shown above for each command. For a published image, set a fixed `APP_IMAGE_NAME` / `APP_IMAGE_VERSION` and use `pull app` instead of `build app`. Run migrations once per release, rather than automatically in every container.
 
 For rollback, select a retained previous image tag and run `up -d --no-build --wait` again. Image rollback does not undo database migrations; confirm schema compatibility and restore a backup when necessary. `stop` retains data; do not remove `docker/data/` or use `down -v` during updates.
+
+When upgrading an existing installation, follow [Upgrading locale identifiers](../digging-deeper/localization.md#bcp47-upgrade) to migrate language resources, stored values and caches together.

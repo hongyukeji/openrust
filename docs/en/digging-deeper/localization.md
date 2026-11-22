@@ -25,7 +25,7 @@ pub fn register() -> Result<(), RoutingError> {
 fn greeting(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     let locale = request.route("locale").unwrap_or("en").to_owned();
     Box::pin(async move {
-        if !["en", "zh_CN", "zh_TW"].contains(&locale.as_str()) {
+        if !["en", "zh-Hans", "zh-Hant"].contains(&locale.as_str()) {
             return Err(abort(StatusCode::BAD_REQUEST, "", Default::default()));
         }
         App::setLocale(&locale).await.map_err(|source| HttpError::Internal {
@@ -41,7 +41,9 @@ fn greeting(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
 
 `App::getLocale` is an alias for `currentLocale`; `getFallbackLocale` and `setFallbackLocale` read and update the fallback locale. `setLocale` updates both `app.locale` and the translator, then dispatches `foundation::events::LocaleUpdated` with `locale` and `previousLocale`. Rust event listeners may be asynchronous, so this method requires `.await` and returns failures through `Result`. Request and queue-task changes are isolated; changes during startup become that application's defaults.
 
-Locale identifiers use the shared underscore format. Both `setLocale` and `isLocale` canonicalize input, so `zh-CN` and `zh_CN` identify the same locale; invalid identifiers return an error.
+Service failures propagate at the step where they occur: configuration is written before the translator is updated, followed by event dispatch. On first resolution, the long-lived translator reads application defaults separately from the current scope configuration, so the first request cannot become the application default. A listener failure keeps the updated configuration and translator until the current lifecycle ends; the error retains its original source. Setting the same locale again still dispatches the event, while changing the fallback locale does not.
+
+Language identifiers use BCP 47 throughout configuration, APIs, resources, documentation URLs, HTML and HTTP. `setLocale("zh-CN")` keeps `zh-CN`; `isLocale("ZH-cn")` is true and `isLocale("zh-Hans")` is false. Normalization preserves script, region, variants and supported extensions; choosing a translation resource is a separate operation. Old underscore input returns an error.
 
 The `App` facade currently exposes these locale methods; other Laravel App methods are not exposed through this facade. Templates use the translation helpers below. `Lang::withLocale` provides a temporary translator-only locale scope without changing application locale configuration.
 
@@ -51,11 +53,11 @@ This is application configuration enabled for this project’s browser-language 
 
 The application registers `app/http/middleware/set_locale.rs` in `bootstrap/app.rs`. This middleware selects a language for the entire request from `Accept-Language`; controllers, validation, and Blade templates use the same current language. It respects quality weights, skips `q=0`, and keeps browser order for equal weights. Without a match, it uses a supported `APP_LOCALE`, then English.
 
-The three candidates `["en", "zh_CN", "zh_TW"]` are defined in the application middleware, without adding a Laravel application configuration key. Chinese `zh-Hans`, `zh-CN`, `zh-SG`, and bare `zh` select Simplified Chinese; `zh-Hant`, `zh-TW`, `zh-HK`, and `zh-MO` select Traditional Chinese. An explicit script takes precedence over the region. Other languages match an exact supported locale or its base language.
+The three candidates `["en", "zh-Hans", "zh-Hant"]` are defined in the application middleware, without adding a Laravel application configuration key. Chinese `zh-Hans`, `zh-CN`, `zh-SG`, and bare `zh` select Simplified Chinese; `zh-Hant`, `zh-TW`, `zh-HK`, and `zh-MO` select Traditional Chinese. An explicit script takes precedence over the region; unknown scripts do not use the Chinese region heuristic. Other languages match an exact supported locale or its base language.
 
 The middleware calls `App::setLocale` before downstream processing, including view rendering and exception responses. It adds `Content-Language` when absent and merges `Accept-Language` into `Vary`, preserving existing values. It does not write cookies or change other requests, jobs, or the application default. Remove its registration to use only the configured default, or adapt this application middleware for your own language-selection policy.
 
-The welcome page uses this shared language. Edit `lang/en/welcome.json`, `lang/zh_CN/welcome.json`, and `lang/zh_TW/welcome.json` to customize its text; its documentation links follow the selected language.
+The welcome page translates using the current application locale and the configured fallback. Its HTML `lang` and `Content-Language` reflect the locale providing `welcome.heading`; individual missing entries can still fall back. Documentation and deployment links use an available documentation locale: the heading locale, then the configured fallback, then English, limited to `en`, `zh-Hans`, and `zh-Hant`. This also applies after removing `SetLocale`: `APP_LOCALE=fr` with the bundled catalogs displays English and links to English docs while the application locale remains `fr`. Edit the three `lang/*/welcome.json` catalogs to customize the page.
 
 ### Translating in Blade {#blade-translations}
 
@@ -67,11 +69,11 @@ Read translations directly in templates. The controller only supplies page data:
 <p>{{ trans_choice('messages.items', $count) }}</p>
 ```
 
-`__` and `trans` accept a string key, an optional replacement array, and an optional locale. `trans_choice` adds a numeric or array count after the key. Omitting the locale or passing `null` uses the current request language; an explicit locale affects only that call. Replacement values may be strings, numbers, booleans, or `null`. Missing keys and fallback languages follow the same rules as `Lang`.
+`__` and `trans` accept a string key, an optional replacement array, and an optional locale. `trans_choice` adds a numeric or array count after the key. Omitting the locale or passing `null` or an empty string uses the current request language; an explicit locale affects only that call. Replacement values may be strings, numbers, booleans, or `null`. Missing keys and fallback languages follow the same rules as `Lang`.
 
-<code v-pre>{{ ... }}</code> escapes HTML. `@lang('messages.title')` and `@choice('messages.items', $count)` output raw text, as does `{!! __('messages.title') !!}`; use these only with trusted HTML and replacement values. Includes and components inherit the rendering language, and compiled templates resolve translations at render time. The helpers require an active application translation service. Template translation calls return text; use `Lang::array` in Rust for translation groups or lists.
+<code v-pre>{{ ... }}</code> escapes HTML. `@lang('messages.title')` and `@choice('messages.items', $count)` output raw text, as does `{!! __('messages.title') !!}`; use these only with trusted HTML and replacement values. Includes and components inherit the rendering language, and compiled templates resolve translations at render time. The helpers require an active application translation service. Helpers return text or a translation group/list. Use groups and lists in `@foreach` or read an entry with an array offset; directly echoing an array returns an error. Rust callers can use `Lang::array`.
 
-`@lang ... @endlang` renders a translation block, trims surrounding whitespace, and translates the resulting key. Use `@lang(['name' => $name]) ... @endlang` for replacements; output is raw text. Nested blocks follow Laravel's shared replacement behavior: starting an inner block replaces the outer replacement array. Helpers and blocks support text only. Parameterless translator access, arbitrary PHP functions, facade method calls, and named arguments are not supported.
+`@lang ... @endlang` renders a translation block, trims surrounding whitespace, and translates the resulting key. Use `@lang(['name' => $name]) ... @endlang` for replacements; output is raw text. Nested blocks share replacement state: starting an inner block replaces the outer replacement array. `__()` and `__(null)` return `null`, which echoes as empty text. `@lang('messages.title', [], null, false)` disables group fallback for that call. For plural translations, `count => null` uses the actual count, while explicit zero and empty strings remain replacements. `trans()` / `trans(null)` would return a translator object, which the template value model does not expose; use `Lang` from Rust instead. Arbitrary PHP functions, facade method calls, and named arguments are not implemented. Argument counts and types are checked explicitly rather than relying on PHP coercion.
 
 ## Publishing Language Files {#publishing-the-language-files}
 
@@ -157,7 +159,7 @@ pub async fn create_translations(connection: &Connection) -> DatabaseResult<()> 
 }
 ```
 
-The schema follows Spatie’s Laravel Translation Loader: one row per group/key; `text` is a JSON object such as `{"en":"Hello :name","fr":"Bonjour :name"}`. Use canonical locale keys (`en_US`, `zh_CN`). A missing or null locale leaves the file value available. Translation values must be strings; empty strings are valid. Group `*` stores literal keys, including dots. Other groups expand dotted keys such as `nested.title` or `items.0`. Package namespaces use only the file source, matching Spatie. Duplicate or overlapping keys, invalid JSON, empty key segments, and keys deeper than 128 segments fail the load.
+The schema follows Spatie’s Laravel Translation Loader: one row per group/key; `text` is a JSON object such as `{"en":"Hello :name","fr":"Bonjour :name"}`. Use canonical locale keys (`en-US`, `zh-Hans`). A missing or null locale leaves the file value available. Translation values must be strings; empty strings are valid. Group `*` stores literal keys, including dots. Other groups expand dotted keys such as `nested.title` or `items.0`. Package namespaces use only the file source, matching Spatie. Duplicate or overlapping keys, invalid JSON, empty key segments, and keys deeper than 128 segments fail the load.
 
 Call this function inside an asynchronous application scope, such as a provider's `boot`, after migrations are available:
 
@@ -210,7 +212,7 @@ use openrust::{support::facades::Lang, translation::TranslationResult};
 pub fn register_lookup_hooks() -> TranslationResult<()> {
     Lang::determineLocalesUsing(|locales| {
         let mut locales = locales.to_vec();
-        if locales.first().is_some_and(|locale| locale == "fr_CA") {
+        if locales.first().is_some_and(|locale| locale == "fr-CA") {
             locales.insert(1, "fr".into());
         }
         locales
@@ -284,7 +286,7 @@ pub async fn summary(locale: &str) -> TranslationResult<(String, String)> {
 }
 ```
 
-Use lowercase language codes and underscores in application configuration, catalog names, and documentation paths. Use uppercase region codes and title-case script codes. Examples include `en`, `en_GB`, `fr_CA`, `es_419`, `sr_Latn_RS`, `zh_CN`, and `zh_TW`. Locale input accepts hyphens, underscores, and mixed case. `zh-Hans` resolves to `zh_CN` and `zh-Hant` resolves to `zh_TW`. Explicit locales such as `zh_HK` and `zh_Hant_HK` keep their own catalogs. HTML uses language tags such as `zh-CN` and `zh-TW`. Rename any existing catalogs to match the normalized identifiers.
+Use BCP 47 tags with hyphens: `en`, `en-GB`, `fr-CA`, `es-419`, `sr-Latn-RS`, `zh-Hans`, `zh-Hant`, `zh-Hant-HK`, `en-US-u-nu-latn` and `en-x-demo`. The existing ICU4X 2.4 parser and CLDR canonicalizer normalize casing and deprecated aliases, such as `iw-IL` to `he-IL`, without likely-subtag expansion. This validates the supported Unicode locale syntax, not every IANA registration. Unsupported forms such as grandfathered `i-klingon`, standalone private-use `x-demo` and extlang forms return an explicit error; supported extensions are never silently removed. Translation lookup uses the complete canonical tag as an exact catalog name and then the configured fallback for grouped messages; literal JSON keys keep their existing lookup semantics. No implicit region-to-script lookup is added. Number consumes Unicode extensions; Faker adapts its private provider keys without changing the public locale.
 
 ## Overriding Package Language Files {#overriding-package-language-files}
 
@@ -296,8 +298,8 @@ Artisan uses `APP_LOCALE` for list headings, help and argument errors. Built-in 
 
 ```sh
 APP_LOCALE=en ./artisan help list
-APP_LOCALE=zh_CN ./artisan list make
-APP_LOCALE=zh_Hant ./artisan help list
+APP_LOCALE=zh-Hans ./artisan list make
+APP_LOCALE=zh-Hant ./artisan help list
 ```
 
 To customize help, use keys such as `options`, `commands.list.description` and `commands.list.arguments.namespace` inside the console group. See [Artisan output formats](./artisan.md#command-help-and-output-formats).
@@ -310,4 +312,22 @@ The Translator contract, concrete translator, and Lang facade expose `getLocale`
 
 ## Locale Ownership
 
-Locale and fallback getters return owned `String` snapshots. Setters take `&self` and return `TranslationResult<()>`; invalid locale identifiers return an error. Locale identifiers are canonicalized, for example `zh-CN` becomes `zh_CN`. Boot-time values form the defaults; changes during a request or queue task stay in that container scope. `withLocale` temporarily overrides only the active task and restores the enclosing locale after completion.
+Locale and fallback getters return owned `String` snapshots. Setters take `&self` and return `TranslationResult<()>`; invalid tags return an error. Normalization keeps `zh-CN` distinct from `zh-Hans`. Boot-time values form the defaults; request and queue-task changes stay in that container scope. `withLocale` temporarily overrides only the active task and restores the enclosing locale after completion.
+
+## Upgrading Locale Identifiers {#bcp47-upgrade}
+
+Pause new jobs and drain old queued mail/notification jobs before stopping the old web and queue processes. If draining is impossible, retain those jobs for application-specific migration. Back up configuration, catalogs and affected data before changing resources or stored locale values, and do not mix old and new processes. Update `APP_LOCALE`, `APP_FALLBACK_LOCALE` and `APP_FAKER_LOCALE` explicitly; the application never edits your `.env` automatically.
+
+| Existing project value/path | Replacement |
+| --- | --- |
+| `zh_CN`, `lang/zh_CN`, `docs/zh_CN` | `zh-Hans`, `lang/zh-Hans`, `docs/zh-Hans` |
+| `zh_TW`, `lang/zh_TW`, `docs/zh_TW` | `zh-Hant`, `lang/zh-Hant`, `docs/zh-Hant` |
+| Regional `en_US`, `en_GB`, `zh_HK`, `zh_Hant_HK` | `en-US`, `en-GB`, `zh-HK`, `zh-Hant-HK` |
+
+The first two mappings apply only to this project's default catalogs and confirmed data. Valid `zh-CN` and `zh-TW` remain regional tags. Rename sentence-key JSON files and package overrides as well as grouped directories. Detect duplicate destination files or JSON keys before moving anything; preserve both versions for manual resolution. No old URL redirects or underscore aliases are installed by default; configure any transitional redirects at your hosting layer.
+
+Clear old configuration and view caches with the old binary (`./main artisan config:clear`, `./main artisan view:clear`) before replacing it, or use the existing source `./artisan` entrypoint. Deploy the new code and resources together, rebuild with `config:cache` and `view:cache` using the new configuration, and restart all long-lived processes. Translation directory caches are process-local and disappear on restart. Drain old queued mail/notification jobs before upgrading, or inspect their serialized `locale` fields with application-specific tooling; encrypted payloads require the old application's encryption keys. A generic text replacement in queue, cache or settings blobs is unsafe.
+
+For database translations, inventory `language_lines.text` JSON keys and any application-owned settings or locale columns first. The templates in `vendor/openrust/translation-database/database/upgrade-bcp47/` include separate read-only inventory queries and PostgreSQL, MySQL and SQLite transactions. They map the two default catalogs plus `en_US`/`en_GB`; customize table names and any other legacy locale mappings after review. Unknown underscore keys or any old/new collision abort the transaction, including equal or null values; no content is overwritten. The final statement is **ROLLBACK** by default. Inspect the result and backup before explicitly changing it to **COMMIT**. On error roll back and close that dedicated database session. Re-running a successful migration is a no-op; rollback after a committed migration requires restoring the backup, since existing new-format keys cannot safely be distinguished from migrated ones.
+
+Faker keeps native provider keys private; `locale()` and `randomLocale()` return BCP 47. Script-only `zh-Hans`/`zh-Hant` use the corresponding existing Chinese providers, while the public label retains its original region and extensions. Third-party protocols such as WeChat's native `lang=zh_CN` are unchanged at that boundary.

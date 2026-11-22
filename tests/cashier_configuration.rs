@@ -18,7 +18,7 @@ async fn native_artisan_registers_billing_migration_without_api_keys_and_preserv
         }
     }
     let _cleanup = Cleanup(path.clone());
-    for lang in ["en", "zh_CN", "zh_TW"] {
+    for lang in ["en", "zh-Hans", "zh-Hant"] {
         std::fs::create_dir_all(path.join(format!("lang/{lang}"))).unwrap();
         std::fs::copy(
             std::path::Path::new(env!("CARGO_MANIFEST_DIR"))

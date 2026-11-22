@@ -41,11 +41,11 @@ impl Root {
                 r#"{"welcome":"Hi :Name / :NAME","items":"one item|:count items","fallback":"English fallback","nested":{"values":[":name","second"]},"identity":"messages.identity","empty":[]}"#,
             ),
             (
-                "zh_CN",
+                "zh-Hans",
                 r#"{"welcome":"你好，:name","items":"{0} 没有项目|[1,*] :count 个项目"}"#,
             ),
             (
-                "zh_TW",
+                "zh-Hant",
                 r#"{"welcome":"您好，:name","items":"{0} 沒有項目|[1,*] :count 個項目"}"#,
             ),
         ] {
@@ -54,7 +54,7 @@ impl Root {
             fs::write(directory.join("messages.json"), source).unwrap();
         }
         fs::write(
-            path.join("lang/zh_CN.json"),
+            path.join("lang/zh-Hans.json"),
             r#"{"Hello":"你好","Literal Zero":"0"}"#,
         )
         .unwrap();
@@ -109,7 +109,7 @@ fn default_locale(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
 fn install_lookup_hooks(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
         Lang::determineLocalesUsing(|locales| {
-            ["zh-Hant".into(), "zh_TW".into()]
+            ["zh-Hant".into(), "zh-Hant".into()]
                 .into_iter()
                 .chain(locales.iter().cloned())
                 .collect()
@@ -137,7 +137,7 @@ fn lookup_hooks(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
                 "literal": Lang::get("Hello", &replacements, Some("zh-Hans"))?,
                 "missing": Lang::get("missing.key", &replacements, None)?,
                 "missing_exists": Lang::has("missing.key", None, true)?,
-                "literal_zero_exists": Lang::hasForLocale("Literal Zero", Some("zh-CN"))?,
+                "literal_zero_exists": Lang::hasForLocale("Literal Zero", Some("zh-Hans"))?,
                 "exact": Lang::hasForLocale("messages.welcome", None)?,
                 "fallback": Lang::has("messages.welcome", None, true)?,
                 "plural": Lang::choice("missing.plural", 2_i64, &replacements, None)?,
@@ -217,7 +217,7 @@ fn register_runtime_lines(_: &mut Request) -> HttpFuture<'_, Result<Response, Ht
         Lang::load(None, "messages", "zh-Hans").map_err(http_error)?;
         Lang::addLines(
             [("messages.welcome".into(), Line::Text("运行期 :name".into()))],
-            "zh-CN",
+            "zh-Hans",
             None,
         )
         .map_err(http_error)?;
@@ -256,7 +256,7 @@ impl openrust::contracts::translation::Loader for ExternalLoader {
     > {
         Box::pin(async move {
             tokio::task::yield_now().await;
-            assert_eq!((locale, group, namespace), ("zh_TW", "messages", None));
+            assert_eq!((locale, group, namespace), ("zh-Hant", "messages", None));
             Ok(BTreeMap::from([(
                 "welcome".into(),
                 openrust::translation::Line::Text("外部 :name".into()),
@@ -292,10 +292,7 @@ async fn start(root: &Root) -> (SocketAddr, tokio::task::JoinHandle<()>) {
             Ok(config)
         })
         .withRouting(Routing::default().web(|| {
-            for route in [
-                "/en", "/zh_CN", "/zh-CN", "/zh-Hans", "/zh_Hans", "/zh_TW", "/zh-Hant",
-                "/zh_Hant", "/zh-TW",
-            ] {
+            for route in ["/en", "/zh-Hans", "/ZH-hans", "/zh-Hant", "/ZH-hant"] {
                 Route::get(route, translate)?;
             }
             Route::get("/install-hooks", install_lookup_hooks)?;
@@ -337,12 +334,12 @@ async fn send(address: SocketAddr, path: &str) -> String {
 #[tokio::test]
 async fn localizes_http_requests_with_isolated_defaults_and_fallback() {
     let english = Root::new("en");
-    let traditional = Root::new("zh_TW");
+    let traditional = Root::new("zh-Hant");
     let ((first, one), (second, two)) = tokio::join!(start(&english), start(&traditional));
     let (en, hans, hant) = tokio::join!(
         send(first, "/en"),
-        send(first, "/zh_CN"),
-        send(second, "/zh_TW")
+        send(first, "/zh-Hans"),
+        send(second, "/zh-Hant")
     );
     let parse = |value: &str| serde_json::from_str::<Value>(value).unwrap();
     let (en, hans, hant) = (parse(&en), parse(&hans), parse(&hant));
@@ -352,10 +349,10 @@ async fn localizes_http_requests_with_isolated_defaults_and_fallback() {
     assert_eq!(hans["choice"], "2 个项目");
     assert_eq!(hans["literal"], "你好");
     assert_eq!(hans["literal_miss"], "English only");
-    for alias in ["/zh-CN", "/zh-Hans", "/zh_Hans"] {
+    for alias in ["/zh-Hans", "/ZH-hans"] {
         assert_eq!(parse(&send(first, alias).await), hans);
     }
-    for alias in ["/zh-Hant", "/zh_Hant", "/zh-TW"] {
+    for alias in ["/zh-Hant", "/ZH-hant"] {
         assert_eq!(parse(&send(second, alias).await), hant);
     }
     assert_eq!(hant["greeting"], "您好，ada");
@@ -366,13 +363,13 @@ async fn localizes_http_requests_with_isolated_defaults_and_fallback() {
         assert_eq!(output["nested"], "ada");
     }
     assert_eq!(send(first, "/default").await, "en");
-    assert_eq!(send(second, "/default").await, "zh_TW");
+    assert_eq!(send(second, "/default").await, "zh-Hant");
     one.abort();
     two.abort();
 }
 
 #[test]
-fn normalizes_simplified_chinese_at_each_translator_entry() {
+fn normalizes_bcp47_without_merging_region_resources() {
     use openrust::translation::{FileLoader, Translator};
 
     let root = Root::new("locale-aliases");
@@ -380,39 +377,41 @@ fn normalizes_simplified_chinese_at_each_translator_entry() {
     let translator =
         Translator::new(FileLoader::new(lang.clone()), "zh-Hans".into(), "en".into()).unwrap();
     let args = BTreeMap::new();
-    assert_eq!(translator.locale(), "zh_CN");
+    assert_eq!(translator.locale(), "zh-Hans");
     assert_eq!(translator.string("Hello", &args, None).unwrap(), "你好");
     assert_eq!(
         translator.string("messages.fallback", &args, None).unwrap(),
         "English fallback"
     );
-    for alias in ["zh-Hans", "zh_Hans", "zh-CN"] {
+    for alias in ["zh-Hans", "ZH-hans"] {
         assert_eq!(
             translator.string("Hello", &args, Some(alias)).unwrap(),
             "你好"
         );
     }
     translator.setLocale("zh-CN").unwrap();
-    assert_eq!(translator.getLocale(), "zh_CN");
+    assert_eq!(translator.getLocale(), "zh-CN");
+    assert_eq!(translator.string("Hello", &args, None).unwrap(), "Hello");
+    assert!(translator.setLocale("zh_CN").is_err());
     translator.setLocale("zh-SG").unwrap();
-    assert_eq!(translator.getLocale(), "zh_SG");
+    assert_eq!(translator.getLocale(), "zh-SG");
     assert!(translator.setLocale("../zh-CN").is_err());
-    assert_eq!(translator.getLocale(), "zh_SG");
+    assert_eq!(translator.getLocale(), "zh-SG");
 
     for (input, canonical) in [
-        ("EN-gb", "en_GB"),
-        ("en-us", "en_US"),
-        ("pt-PT", "pt_PT"),
-        ("de-de", "de_DE"),
-        ("ko-KR", "ko_KR"),
-        ("FR-ca", "fr_CA"),
-        ("pt-br", "pt_BR"),
-        ("es-419", "es_419"),
-        ("ja-JP", "ja_JP"),
-        ("sr-latn-rs", "sr_Latn_RS"),
-        ("zh-HK", "zh_HK"),
-        ("zh-Hant-HK", "zh_Hant_HK"),
-        ("zh-hant", "zh_TW"),
+        ("EN-gb", "en-GB"),
+        ("en-us", "en-US"),
+        ("pt-PT", "pt-PT"),
+        ("de-de", "de-DE"),
+        ("ko-KR", "ko-KR"),
+        ("FR-ca", "fr-CA"),
+        ("pt-br", "pt-BR"),
+        ("es-419", "es-419"),
+        ("ja-JP", "ja-JP"),
+        ("sr-latn-rs", "sr-Latn-RS"),
+        ("zh-HK", "zh-HK"),
+        ("zh-Hant-HK", "zh-Hant-HK"),
+        ("zh-hant", "zh-Hant"),
     ] {
         let directory = lang.join(canonical);
         fs::create_dir_all(&directory).unwrap();
@@ -432,7 +431,7 @@ fn normalizes_simplified_chinese_at_each_translator_entry() {
     }
     assert!(translator.string("Hello", &args, Some("en--GB")).is_err());
 
-    let translator = Translator::new(FileLoader::new(lang), "en".into(), "zh_Hans".into()).unwrap();
+    let translator = Translator::new(FileLoader::new(lang), "en".into(), "zh-Hans".into()).unwrap();
     assert_eq!(
         translator
             .string("messages.welcome", &args, Some("fr"))
@@ -505,8 +504,8 @@ async fn loads_package_overrides_and_keeps_invalid_catalogs_retryable() {
 
 #[tokio::test]
 async fn translation_lookup_hooks_are_local_to_each_http_application() {
-    let configured = Root::new("en_GB");
-    let untouched = Root::new("en_US");
+    let configured = Root::new("en-GB");
+    let untouched = Root::new("en-US");
     let ((first, one), (second, two)) = tokio::join!(start(&configured), start(&untouched));
     assert_eq!(send(first, "/install-hooks").await, "installed");
     let (changed, default) = tokio::join!(send(first, "/hooks"), send(second, "/hooks"));
@@ -514,7 +513,7 @@ async fn translation_lookup_hooks_are_local_to_each_http_application() {
     let default: Value = serde_json::from_str(&default).unwrap();
     assert_eq!(changed["chosen"], "您好，ada");
     assert_eq!(changed["literal"], "你好");
-    assert_eq!(changed["missing"], "missing.key|en_GB|nested.missing|Ada");
+    assert_eq!(changed["missing"], "missing.key|en-GB|nested.missing|Ada");
     assert_eq!(changed["missing_exists"], false);
     assert_eq!(changed["literal_zero_exists"], true);
     assert_eq!(changed["exact"], false);
@@ -601,11 +600,11 @@ fn translation_existence_and_hooks_preserve_exact_lookup_and_recovery() {
 
 #[tokio::test]
 async fn runtime_translation_lines_extend_a_loaded_group_in_only_one_http_application() {
-    let changed = Root::new("fr_CA");
-    let original = Root::new("en_CA");
+    let changed = Root::new("fr-CA");
+    let original = Root::new("en-CA");
     let ((first, one), (second, two)) = tokio::join!(start(&changed), start(&original));
     assert_eq!(send(first, "/register-runtime-lines").await, "installed");
-    let (changed, original) = tokio::join!(send(first, "/zh-Hans"), send(second, "/zh_Hans"));
+    let (changed, original) = tokio::join!(send(first, "/zh-Hans"), send(second, "/zh-Hans"));
     let changed: Value = serde_json::from_str(&changed).unwrap();
     let original: Value = serde_json::from_str(&original).unwrap();
     assert_eq!(changed["greeting"], "运行期 ada");
@@ -782,13 +781,13 @@ fn translation_catalogs_obey_path_order_and_runtime_line_registration() {
 
 #[tokio::test]
 async fn asynchronous_source_loads_for_only_the_selected_http_application() {
-    let first_root = Root::new("fr_FR");
-    let second_root = Root::new("en_AU");
+    let first_root = Root::new("fr-FR");
+    let second_root = Root::new("en-AU");
     let ((first, one), (second, two)) = tokio::join!(start(&first_root), start(&second_root));
-    let before: Value = serde_json::from_str(&send(first, "/zh-TW").await).unwrap();
+    let before: Value = serde_json::from_str(&send(first, "/zh-Hant").await).unwrap();
     assert_eq!(before["greeting"], "您好，ada");
     assert_eq!(send(first, "/load-external-lines").await, "loaded");
-    let (loaded, original) = tokio::join!(send(first, "/zh-TW"), send(second, "/zh-Hant"));
+    let (loaded, original) = tokio::join!(send(first, "/zh-Hant"), send(second, "/zh-Hant"));
     let loaded: Value = serde_json::from_str(&loaded).unwrap();
     let original: Value = serde_json::from_str(&original).unwrap();
     assert_eq!(loaded["greeting"], "外部 ada");
@@ -803,17 +802,17 @@ async fn asynchronous_translation_source_publishes_only_complete_batches() {
 
     let root = Root::new("batch-loader");
     let source = root.0.join("source");
-    fs::create_dir_all(source.join("zh_CN")).unwrap();
+    fs::create_dir_all(source.join("zh-Hans")).unwrap();
     fs::write(
-        source.join("zh_CN/messages.json"),
+        source.join("zh-Hans/messages.json"),
         r#"{"welcome":"新 :name"}"#,
     )
     .unwrap();
-    fs::write(source.join("zh_CN.json"), "{invalid").unwrap();
+    fs::write(source.join("zh-Hans.json"), "{invalid").unwrap();
     let loader = FileLoader::new(source.clone());
     let translator = Translator::new(
         FileLoader::new(root.0.join("lang")),
-        "zh_CN".into(),
+        "zh-Hans".into(),
         "en".into(),
     )
     .unwrap();
@@ -825,7 +824,7 @@ async fn asynchronous_translation_source_publishes_only_complete_batches() {
             namespace: Some("*"),
         },
         TranslationResource {
-            locale: "zh_CN",
+            locale: "zh-Hans",
             group: "*",
             namespace: None,
         },
@@ -843,7 +842,7 @@ async fn asynchronous_translation_source_publishes_only_complete_batches() {
         "你好，Ada"
     );
     assert_eq!(translator.string("Hello", &args, None).unwrap(), "你好");
-    fs::write(source.join("zh_CN.json"), r#"{"Hello":"新字面鍵"}"#).unwrap();
+    fs::write(source.join("zh-Hans.json"), r#"{"Hello":"新字面鍵"}"#).unwrap();
     translator.loadFrom(&loader, &resources).await.unwrap();
     assert_eq!(
         translator.string("messages.welcome", &args, None).unwrap(),
@@ -881,7 +880,7 @@ async fn asynchronous_translation_source_preserves_concurrent_writes() {
             namespace: Option<&'a str>,
         ) -> TranslationFuture<'a, TranslationResult<Lines>> {
             Box::pin(async move {
-                assert_eq!((locale, group, namespace), ("zh_CN", "messages", None));
+                assert_eq!((locale, group, namespace), ("zh-Hans", "messages", None));
                 self.started.notify_one();
                 self.resume.notified().await;
                 Ok(BTreeMap::from([(
@@ -895,13 +894,13 @@ async fn asynchronous_translation_source_preserves_concurrent_writes() {
     let root = Root::new("loader-concurrent");
     let translator = Translator::new(
         FileLoader::new(root.0.join("lang")),
-        "zh_CN".into(),
+        "zh-Hans".into(),
         "en".into(),
     )
     .unwrap();
     let resources = [
         TranslationResource {
-            locale: "zh-CN",
+            locale: "zh-Hans",
             group: "messages",
             namespace: None,
         },
@@ -925,7 +924,7 @@ async fn asynchronous_translation_source_preserves_concurrent_writes() {
             translator
                 .addLines(
                     [("messages.welcome".into(), Line::Text("concurrent".into()))],
-                    "zh_CN",
+                    "zh-Hans",
                     None,
                 )
                 .unwrap();
@@ -945,8 +944,8 @@ async fn asynchronous_translation_source_preserves_concurrent_writes() {
 
 #[tokio::test]
 async fn translation_replacements_are_isolated_across_http_applications() {
-    let left = Root::new("en_CA");
-    let right = Root::new("en_AU");
+    let left = Root::new("en-CA");
+    let right = Root::new("en-AU");
     let ((first, one), (second, two)) = tokio::join!(start(&left), start(&right));
     assert_eq!(send(first, "/install-replacements").await, "installed");
     let (changed, default) = tokio::join!(

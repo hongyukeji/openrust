@@ -109,7 +109,7 @@ async fn seed_scheduled<M: HasFactory>() -> DatabaseResult<()> {
 
 下文涉及的上游格式以[上游 Faker 词库与生成器](https://github.com/FakerPHP/Faker/tree/v1.24.1)为准。
 
-使用 `Factory::withFaker` 定义生成的模型属性。它读取所选连接所属应用的 `app.faker_locale`。使用 `fake(Some("fr_FR"))` 显式指定语言，或用 `fake(None)` 读取当前应用配置。Rust 生成器使用 fake-rs 的数据，提供 `name`、`safeEmail`、`city` 和 `sentence`。未支持的语言使用英文数据。
+使用 `Factory::withFaker` 定义生成的模型属性。它读取所选连接所属应用的 `app.faker_locale`。使用 `fake(Some("fr-FR"))` 显式指定语言，或用 `fake(None)` 读取当前应用配置。Rust 生成器使用 fake-rs 的数据，提供 `name`、`safeEmail`、`city` 和 `sentence`。未支持的语言使用英文数据。
 
 ```rust
 use openrust::database::eloquent::{Attributes, Model, factories::Factory};
@@ -447,7 +447,7 @@ fn sample_named_collections() -> DatabaseResult<(Value, Value)> {
 
 ### 语言、国家和货币样本 {#locale-and-code-samples}
 
-用 `languageCode()`、`countryCode()`、`countryISOAlpha3()`、`currencyCode()` 和 `emoji()` 从固定上游 Faker 目录生成测试值。`randomLocale()` 抽取 `en_GB`、`zh_TW` 等语言环境标识，对应上游 Faker 的 `locale()` 生成器。OpenRust 已有的 `locale()` 读取当前生成器的配置。样本目录包含历史标识。六个生成器均支持 `unique`。 这些目录也可通过 `format` 按名称调用。名称 `locale` 抽取样本标识，`faker.locale()` 则读取生成器的配置。
+用 `languageCode()`、`countryCode()`、`countryISOAlpha3()`、`currencyCode()` 和 `emoji()` 从固定上游 Faker 目录生成测试值。`randomLocale()` 抽取 `en-GB`、`zh-Hant` 等语言环境标识，对应上游 Faker 的 `locale()` 生成器。OpenRust 已有的 `locale()` 读取当前生成器的配置。样本目录包含历史标识。六个生成器均支持 `unique`。 这些目录也可通过 `format` 按名称调用。名称 `locale` 抽取样本标识，`faker.locale()` 则读取生成器的配置。
 
 通过 `format` 调用 `toLower` 和 `toUpper`，按 Unicode 规则转换 UTF-8 文本的大小写。省略参数返回空字符串。
 
@@ -981,7 +981,7 @@ fn bank_samples() -> DatabaseResult<(String, String)> {
 
 ### 地区银行账号 {#regional-bank-account-samples}
 
-用 `bankAccountNumber(prefix, countryCode, length)` 按 Faker 地区生成账号。支持 IBAN 别名的地区默认使用本国代码，可显式覆盖参数。埃及地区固定生成埃及 IBAN。美国英语、马来西亚马来语和尼泊尔语生成本地账号。这四种地区传入 `("", None, None)`。`bankRoutingNumber()` 为 `en_US` 生成九位路由号样本。`Faker::calculateRoutingNumberChecksum` 读取前八位并返回校验位。两种生成方法均支持 `unique`。
+用 `bankAccountNumber(prefix, countryCode, length)` 按 Faker 地区生成账号。支持 IBAN 别名的地区默认使用本国代码，可显式覆盖参数。埃及地区固定生成埃及 IBAN。美国英语、马来西亚马来语和尼泊尔语生成本地账号。这四种地区传入 `("", None, None)`。`bankRoutingNumber()` 为 `en-US` 生成九位路由号样本。`Faker::calculateRoutingNumberChecksum` 读取前八位并返回校验位。两种生成方法均支持 `unique`。
 
 地区缺少本地 Payment 提供器时，美国提供器负责生成本地账号和路由号。本地提供器缺少某项方法时，该方法返回错误。回退账号使用 `("", None, None)`。旧版 `at-AT` 别名使用奥地利账号和 VAT 格式。
 
@@ -1000,7 +1000,7 @@ fn regional_bank_samples() -> DatabaseResult<(String, String)> {
 
 ### 金融机构 {#institution-samples}
 
-`bank()` 在 `de_DE`、`el_CY`、`ka_GE`、`kk_KZ`、`ms_MY`、`pl_PL`、`pt_BR`、`ru_RU`、`th_TH`、`uk_UA` 和 `zh_CN` 使用固定地区目录。马来西亚马来语还提供 `localBank`、`foreignBank`、`governmentBank`、`insurance` 和 `currencySymbol`。尼泊尔语提供 `commercialBank`、`developmentBank`、`financeCompany`、`microFinance` 和 `digitalWallet`。两个地区的 `swiftCode()` 使用各自的目录。这些生成器支持 `unique`，不支持的地区返回错误。
+`bank()` 在 `de-DE`、`el-CY`、`ka-GE`、`kk-KZ`、`ms-MY`、`pl-PL`、`pt-BR`、`ru-RU`、`th-TH`、`uk-UA` 和 `zh-Hans` 使用固定地区目录。马来西亚马来语还提供 `localBank`、`foreignBank`、`governmentBank`、`insurance` 和 `currencySymbol`。尼泊尔语提供 `commercialBank`、`developmentBank`、`financeCompany`、`microFinance` 和 `digitalWallet`。两个地区的 `swiftCode()` 使用各自的目录。这些生成器支持 `unique`，不支持的地区返回错误。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1013,7 +1013,7 @@ fn institution_samples() -> DatabaseResult<(&'static str, String)> {
 
 ### VAT 样本 {#vat-samples}
 
-用 `vat(None)` 采用地区默认格式。对支持空格选项的地区，可用 `vat(Some(false))` 生成紧凑格式。支持 `bg_BG`、`de_AT`、`es_ES`、`fr_BE`、`nl_BE`、`fr_FR`、`en_GB`、`it_IT` 和 `nl_NL`。英国的 `vatWithType` 接受 `branch`、`gov` 和 `health`，其他值使用标准格式。法国 VAT 复用 `siren`，意大利 `vatId` 和荷兰 `btw` 沿用各自的生成规则。各生成器支持 `unique`。
+用 `vat(None)` 采用地区默认格式。对支持空格选项的地区，可用 `vat(Some(false))` 生成紧凑格式。支持 `bg-BG`、`de-AT`、`es-ES`、`fr-BE`、`nl-BE`、`fr-FR`、`en-GB`、`it-IT` 和 `nl-NL`。英国的 `vatWithType` 接受 `branch`、`gov` 和 `health`，其他值使用标准格式。法国 VAT 复用 `siren`，意大利 `vatId` 和荷兰 `btw` 沿用各自的生成规则。各生成器支持 `unique`。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1878,7 +1878,7 @@ fn named_person_and_company_samples() -> DatabaseResult<[Value; 3]> {
 
 ### 坐标 {#coordinate-samples}
 
-用 `latitude(None, None)?` 和 `longitude(None, None)?` 生成有符号十进制度数，舍入到小数点后六位。任一边界可传入 `Some(value)`，默认范围分别为 −90 到 90 和 −180 到 180。接受反向边界，非有限边界返回错误。`localCoordinates()?` 返回含 `latitude` 和 `longitude` 字段的可序列化 `Coordinates`。匈牙利和黑山采用固定上游地区范围，其他地区采用全球范围。台湾范围在 `zh_TW` 下由独立的 `localLatitude()?` 和 `localLongitude()?` 提供。五个方法均支持 `unique`。 在 `zh-Hant-TW` 下，可用 `format("localLatitude", &[])` 和 `format("localLongitude", &[])` 调用台湾坐标格式化器。
+用 `latitude(None, None)?` 和 `longitude(None, None)?` 生成有符号十进制度数，舍入到小数点后六位。任一边界可传入 `Some(value)`，默认范围分别为 −90 到 90 和 −180 到 180。接受反向边界，非有限边界返回错误。`localCoordinates()?` 返回含 `latitude` 和 `longitude` 字段的可序列化 `Coordinates`。匈牙利和黑山采用固定上游地区范围，其他地区采用全球范围。台湾范围在 `zh-Hant` 下由独立的 `localLatitude()?` 和 `localLongitude()?` 提供。五个方法均支持 `unique`。 在 `zh-Hant-TW` 下，可用 `format("localLatitude", &[])` 和 `format("localLongitude", &[])` 调用台湾坐标格式化器。
 
 ### 软删除状态 {#trashed-state}
 

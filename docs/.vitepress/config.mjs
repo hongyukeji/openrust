@@ -23,7 +23,7 @@ const labels = {
         next: "Next page",
         api: "API Documentation",
     },
-    "zh_CN": {
+    "zh-Hans": {
         title: "OpenRust 文档",
         outline: "本页目录",
         menu: "菜单",
@@ -33,7 +33,7 @@ const labels = {
         api: "API 文档",
         search: ["搜索文档", "关闭搜索", "清除搜索", "搜索结果详情", "选择", "切换", "关闭"],
     },
-    "zh_TW": {
+    "zh-Hant": {
         title: "OpenRust 文件",
         outline: "本頁目錄",
         menu: "選單",
@@ -74,7 +74,7 @@ function localeConfig(language) {
     const apiSource = `${language}/reference/api.md`;
     const apiTarget = `${prefix}/reference/api.md`;
     if (apiSource !== apiTarget) rewrites[apiSource] = apiTarget;
-    sidebar.push({ text: { en: "API reference guide", zh_CN: "API 参考指南", zh_TW: "API 參考指南" }[language], link: `/${prefix}/reference/api` });
+    sidebar.push({ text: { en: "API reference guide", "zh-Hans": "API 参考指南", "zh-Hant": "API 參考指南" }[language], link: `/${prefix}/reference/api` });
     if (publication.rustdoc) sidebar.push({ text: "Rustdoc", link: publication.rustdoc, target: "_self" });
 
     return {
@@ -103,12 +103,12 @@ function localeConfig(language) {
 }
 
 const locales = {
-    root: localeConfig("zh_CN"),
+    root: localeConfig("zh-Hans"),
     en: localeConfig("en"),
-    "zh_TW": localeConfig("zh_TW"),
+    "zh-Hant": localeConfig("zh-Hant"),
 };
 const searchLocales = {};
-for (const [key, language] of [["root", "zh_CN"], ["zh_TW", "zh_TW"]]) {
+for (const [key, language] of [["root", "zh-Hans"], ["zh-Hant", "zh-Hant"]]) {
     const [search, close, reset, details, select, navigate, footerClose] = labels[language].search;
     searchLocales[key] = {
         translations: {
@@ -117,7 +117,7 @@ for (const [key, language] of [["root", "zh_CN"], ["zh_TW", "zh_TW"]]) {
                 displayDetails: details,
                 resetButtonTitle: reset,
                 backButtonTitle: close,
-                noResultsText: language === "zh_CN" ? "没有找到相关结果" : "找不到相關結果",
+                noResultsText: language === "zh-Hans" ? "没有找到相关结果" : "找不到相關結果",
                 footer: { selectText: select, navigateText: navigate, closeText: footerClose },
             },
         },
@@ -125,7 +125,7 @@ for (const [key, language] of [["root", "zh_CN"], ["zh_TW", "zh_TW"]]) {
 }
 
 export default defineConfig(({ command }) => ({
-    title: labels["zh_CN"].title,
+    title: labels["zh-Hans"].title,
     base: command === "build" ? "./" : "/",
     srcExclude: ["README.md", "*/README.md"],
     rewrites,

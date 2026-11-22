@@ -11,7 +11,7 @@ try {
     for (const mount of ["/", "/docs/"]) {
         const { server } = await serve({ root, base: mount, port: 0 });
         try {
-            for (const language of ["en", "zh_CN", "zh_TW"]) {
+            for (const language of ["en", "zh-Hans", "zh-Hant"]) {
                 for (const mobile of [false, true]) {
                     const page = await browser.newPage({
                         viewport: mobile ? { width: 375, height: 812 } : { width: 1440, height: 900 },

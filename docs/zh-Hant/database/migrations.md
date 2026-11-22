@@ -282,7 +282,7 @@ async fn create_users() -> DatabaseResult<()> {
 }
 ```
 
-多語言沿用現有 `__()` 與 Laravel 風格的 JSON 翻譯檔案。例如在 `lang/zh_CN/schema.json` 中設定：
+多語言沿用現有 `__()` 與 Laravel 風格的 JSON 翻譯檔案。例如在 `lang/zh-Hans/schema.json` 中設定：
 
 ```json
 {

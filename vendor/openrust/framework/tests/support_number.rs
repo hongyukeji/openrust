@@ -20,15 +20,15 @@ fn decimal_precision_and_negative_zero_follow_laravel() -> Result<(), NumberErro
 fn number_scopes_follow_locale_and_currency_without_mutating_defaults() -> Result<(), NumberError> {
     let number = Number::default();
     assert_eq!(
-        number.withLocale("de_DE", |de| de.format(12_345.675, Some(2), None))??,
+        number.withLocale("de-DE", |de| de.format(12_345.675, Some(2), None))??,
         "12.345,68"
     );
     assert_eq!(
-        number.withLocale("fr_FR", |fr| fr.currency(1_234.5, Some("EUR"), None))??,
+        number.withLocale("fr-FR", |fr| fr.currency(1_234.5, Some("EUR"), None))??,
         "1\u{202f}234,50\u{a0}€"
     );
     assert_eq!(
-        number.withLocale("fr_FR", |fr| fr.percentage(10.25, 2, None))??,
+        number.withLocale("fr-FR", |fr| fr.percentage(10.25, 2, None))??,
         "10,25\u{a0}%"
     );
     assert_eq!(
@@ -54,7 +54,7 @@ fn number_scopes_follow_locale_and_currency_without_mutating_defaults() -> Resul
 fn parses_locale_digits_groups_exponents_and_prefixes() -> Result<(), NumberError> {
     let number = Number::default();
     assert_eq!(
-        number.withLocale("de_DE", |de| de.parseFloat("12.345,67 kg"))??,
+        number.withLocale("de-DE", |de| de.parseFloat("12.345,67 kg"))??,
         12_345.67
     );
     assert_eq!(
@@ -118,7 +118,7 @@ fn spellout_matches_the_fixed_laravel_locale_matrix() -> Result<(), NumberError>
     let mut number = Number::default();
     for line in include_str!("fixtures/number-spellout-php85.tsv").lines() {
         let [locale, value, words, ordinal] = spellout_fields(line);
-        number.useLocale(locale)?;
+        number.useLocale(&locale.replace('_', "-"))?;
         let value = if value.contains('.') || value == "-0" {
             NumberValue::Float(value.parse().unwrap())
         } else {
@@ -139,7 +139,7 @@ fn spellout_matches_icu_nonfinite_values() -> Result<(), NumberError> {
     let mut number = Number::default();
     for line in include_str!("fixtures/number-spellout-special-icu76.tsv").lines() {
         let [locale, value, words, ordinal] = spellout_fields(line);
-        number.useLocale(locale)?;
+        number.useLocale(&locale.replace('_', "-"))?;
         let value: f64 = value.parse().unwrap();
         assert_eq!(number.spell(value, None, None)?, words, "{locale} {value}");
         assert_eq!(number.spellOrdinal(value)?, ordinal, "{locale} {value}");
@@ -158,11 +158,11 @@ fn spellout_fields(line: &str) -> [&str; 4] {
 fn spellout_resolves_region_aliases_and_keeps_thresholds_inclusive() -> Result<(), NumberError> {
     let number = Number::default();
     assert_eq!(
-        number.withLocale("zh_TW", |number| number.spell(1.25, None, None))??,
+        number.withLocale("zh-Hant", |number| number.spell(1.25, None, None))??,
         "一點二五"
     );
     assert_eq!(
-        number.withLocale("fr_CH", |number| number.spell(80, None, None))??,
+        number.withLocale("fr-CH", |number| number.spell(80, None, None))??,
         "huitante"
     );
     assert_eq!(

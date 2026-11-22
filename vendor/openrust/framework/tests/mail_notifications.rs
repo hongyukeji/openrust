@@ -592,11 +592,43 @@ impl Listener for MailLifecycleProbe {
 
 struct FixtureMailProvider;
 
+struct LocaleTransport(PathBuf);
+impl Transport for LocaleTransport {
+    fn send<'a>(&'a self, message: &'a Message) -> MailFuture<'a, MailResult<SentMessage>> {
+        Box::pin(async move {
+            let record = json!({
+                "locale": Lang::getLocale().unwrap(),
+                "app_locale": openrust::support::facades::App::currentLocale().unwrap(),
+                "html": message.getHtmlBody(),
+                "subject": message.envelope().subject,
+            });
+            let mut file = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(&self.0)
+                .unwrap();
+            writeln!(file, "{record}").unwrap();
+            Ok(SentMessage {
+                message: message.clone(),
+            })
+        })
+    }
+}
+
 impl ServiceProvider for FixtureMailProvider {
     fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
             let container = app.container();
             let configuration = container.make::<dyn Repository>()?;
+            if configuration.has("fixture.locale_records") {
+                container
+                    .make::<openrust::mail::MailManager>()?
+                    .extend("locale", |config| {
+                        Ok(Arc::new(LocaleTransport(PathBuf::from(
+                            config["path"].as_str().unwrap(),
+                        ))))
+                    });
+            }
             if let Some(path) = configuration.get("fixture.mail_customizer_marker") {
                 use openrust::mail::{MailError, MailManager};
                 let fail = |message: &'static str| MailError::Composition {
@@ -5165,4 +5197,212 @@ async fn smtp_security_rejects_control_characters_in_display_names() {
         )
         .await
         .unwrap();
+}
+
+#[tokio::test]
+async fn mail_and_notification_locale_labels_are_canonical_before_recording_or_queueing() {
+    let root = fixture(None, None, None);
+    let mut application = app(&root.0);
+    application.boot().await.unwrap();
+    let manager = application.container().make::<ChannelManager>().unwrap();
+    application
+        .call(
+            Callback::new(&[], move |_| {
+                let manager = manager.clone();
+                async move {
+                    let mail = Mail::fake().unwrap();
+                    for queued in [false, true] {
+                        let pending = Mail::to("locale@example.test").unwrap().locale("ZH-hant");
+                        if queued {
+                            pending
+                                .queue(&Receipt, Default::default(), None)
+                                .await
+                                .unwrap();
+                        } else {
+                            pending.sendNow(&Receipt).await.unwrap();
+                        }
+                    }
+                    assert_eq!(
+                        mail.sent(Receipt.kind())[0].locale.as_deref(),
+                        Some("zh-Hant")
+                    );
+                    assert_eq!(
+                        mail.queued(Receipt.kind())[0].locale.as_deref(),
+                        Some("zh-Hant")
+                    );
+                    assert!(
+                        Mail::to("locale@example.test")
+                            .unwrap()
+                            .locale("zh_TW")
+                            .sendNow(&Receipt)
+                            .await
+                            .is_err()
+                    );
+                    mail.assertOutgoingCount(2);
+                    let notices = Notification::fake().unwrap();
+                    let recipient = user();
+                    let notice = Payment { queued: false };
+                    openrust::notifications::NotificationSender::new(&manager)
+                        .locale("ZH-hans")
+                        .sendNow(&[&recipient], &notice, Some(&["mail"]))
+                        .await
+                        .unwrap();
+                    notices.assertSentToMatching(
+                        &NotificationTarget::from(recipient.route.clone()),
+                        notice.kind(),
+                        |entry| entry.locale.as_deref() == Some("zh-Hans"),
+                    );
+                    assert!(
+                        openrust::notifications::NotificationSender::new(&manager)
+                            .locale("zh_CN")
+                            .sendNow(&[&recipient], &notice, Some(&["mail"]))
+                            .await
+                            .is_err()
+                    );
+                    notices.assertSentToOnce(
+                        &NotificationTarget::from(recipient.route),
+                        notice.kind(),
+                    );
+                    assert_eq!(Lang::getLocale().unwrap(), "en");
+                    Ok(())
+                }
+            }),
+            Default::default(),
+        )
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn real_artisan_worker_preserves_bcp47_mail_and_notification_locales() {
+    let root = fixture(None, None, None);
+    let records = root.0.join("locale-records.jsonl");
+    let config_path = root.0.join("config.json");
+    let mut config: Json = serde_json::from_slice(&std::fs::read(&config_path).unwrap()).unwrap();
+    config["fixture"]["locale_records"] = json!(true);
+    config["mail"]["default"] = json!("locale");
+    config["mail"]["mailers"]["locale"] = json!({"transport":"locale","path":records});
+    std::fs::write(config_path, config.to_string()).unwrap();
+    for (locale, title) in [
+        ("en", "English receipt"),
+        ("zh-Hans", "简体收据"),
+        ("zh-Hant", "繁體收據"),
+    ] {
+        std::fs::create_dir_all(root.0.join("lang").join(locale)).unwrap();
+        std::fs::write(
+            root.0.join("lang").join(locale).join("receipt.json"),
+            json!({"title":title}).to_string(),
+        )
+        .unwrap();
+    }
+    std::fs::write(
+        root.0.join("resources/views/receipt.blade.html"),
+        "<p>{{ trans('receipt.title') }}</p>",
+    )
+    .unwrap();
+    let mut application = app(&root.0);
+    application.boot().await.unwrap();
+    let db = setup(&application).await;
+    let manager = application.container().make::<ChannelManager>().unwrap();
+    application
+        .call(
+            Callback::new(&[], move |_| {
+                let manager = manager.clone();
+                async move {
+                    for locale in ["ZH-hans", "ZH-hant"] {
+                        Mail::to("locale@example.test")
+                            .unwrap()
+                            .locale(locale)
+                            .queue(&Receipt, Default::default(), None)
+                            .await
+                            .unwrap();
+                        openrust::notifications::NotificationSender::new(&manager)
+                            .locale(locale)
+                            .send(&[&user()], &Payment { queued: true }, None)
+                            .await
+                            .unwrap();
+                        assert_eq!(Lang::getLocale().unwrap(), "en");
+                    }
+                    assert!(
+                        Mail::to("locale@example.test")
+                            .unwrap()
+                            .locale("zh_CN")
+                            .queue(&Receipt, Default::default(), None)
+                            .await
+                            .is_err()
+                    );
+                    Mail::to("default@example.test")
+                        .unwrap()
+                        .queue(&Receipt, Default::default(), None)
+                        .await
+                        .unwrap();
+                    Ok(())
+                }
+            }),
+            Default::default(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(db.table("jobs").count("*").await.unwrap(), 7);
+    let serialized = db.table("jobs").pluck("payload").await.unwrap();
+    let payloads = serialized
+        .iter()
+        .map(|value| match value {
+            Value::Text(text) => text.as_str(),
+            _ => panic!("队列载荷应序列化为 JSON 文本"),
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(payloads.contains("zh-Hans") && payloads.contains("zh-Hant"));
+    assert!(!payloads.contains("ZH-hans") && !payloads.contains("zh_CN"));
+    artisan(
+        &root.0,
+        &[
+            "queue:work",
+            "database",
+            "--queue=default,mail,database",
+            "--stop-when-empty",
+            "--sleep=0",
+        ],
+    )
+    .await;
+    assert_eq!(db.table("jobs").count("*").await.unwrap(), 0);
+    assert_eq!(db.table("failed_jobs").count("*").await.unwrap(), 0);
+    assert_eq!(db.table("notifications").count("*").await.unwrap(), 2);
+    let records: Vec<Json> = std::fs::read_to_string(records)
+        .unwrap()
+        .lines()
+        .map(|line| serde_json::from_str(line).unwrap())
+        .collect();
+    assert_eq!(records.len(), 5);
+
+    for (locale, title) in [
+        ("zh-Hans", "简体收据"),
+        ("zh-Hant", "繁體收據"),
+        ("en", "English receipt"),
+    ] {
+        let mail = records
+            .iter()
+            .find(|row| row["html"] == format!("<p>{title}</p>"))
+            .unwrap();
+        assert_eq!(mail["subject"], "OpenRust receipt");
+        // 邮件的临时语言只包围 compose；传输阶段已恢复任务默认语言。
+        assert_eq!(mail["locale"], "en", "{locale}");
+    }
+    for locale in ["zh-Hans", "zh-Hant"] {
+        let notice = records
+            .iter()
+            .find(|row| row["subject"] == format!("OpenRust payment ({locale})"))
+            .unwrap();
+        assert_eq!(notice["locale"], locale);
+        assert!(
+            notice["html"]
+                .as_str()
+                .unwrap()
+                .contains(&format!("lang=\"{locale}\""))
+        );
+    }
+    // Lang::withLocale 只控制单次投递，App 配置仍是当前任务默认值。
+    assert!(records.iter().all(|row| row["app_locale"] == "en"));
+    assert_eq!(application.currentLocale().unwrap(), "en");
 }

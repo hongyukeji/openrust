@@ -1878,7 +1878,7 @@ async fn verify_generated_columns(db: Connection, mysql: bool) {
     );
     assert_eq!(generation("label").kind, GenerationType::Stored);
     let json =
-        Value::Json(json!({"menu.name":{"value":"zh_TW"},"fields":[{"display":"customer's"}]}));
+        Value::Json(json!({"menu.name":{"value":"zh-Hant"},"fields":[{"display":"customer's"}]}));
     db.insert(
         "insert into generated_samples (base_units, payload) values (?, ?)",
         &[3.into(), json],
@@ -1893,7 +1893,7 @@ async fn verify_generated_columns(db: Connection, mysql: bool) {
         .unwrap();
     assert_eq!(row.get("twice"), Some(&6.into()));
     assert_eq!(row.get("total"), Some(&7.into()));
-    assert_eq!(row.get("locale"), Some(&"zh_TW".into()));
+    assert_eq!(row.get("locale"), Some(&"zh-Hant".into()));
     assert_eq!(row.get("label"), Some(&"customer's".into()));
 
     db.update("update generated_samples set base_units = ?", &[5.into()])
@@ -1971,7 +1971,7 @@ async fn verify_generated_columns(db: Connection, mysql: bool) {
         );
         assert_eq!(
             db.table("generated_samples").value("locale").await.unwrap(),
-            "zh_TW".into()
+            "zh-Hant".into()
         );
         assert!(
             schema

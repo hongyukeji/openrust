@@ -13,7 +13,7 @@ Docker专用配置示例位于docker/.env.example，仅供按需合并到根.env
 
 PostgreSQL默认127.0.0.1:5432，MySQL默认127.0.0.1:3306，Redis默认127.0.0.1:6379。POSTGRES_PORT／MYSQL_PORT只改变宿主映射，容器数据库端口仍为5432／3306。REDIS_PORT同时改变Redis内部监听、宿主映射、健康检查和应用连接。
 
-首次先启动依赖，再按[部署文档](../../../docs/zh_CN/getting-started/deployment.md#docker-deployment)准备可写存储、构建镜像、生成缺失密钥并迁移。已有APP_KEY必须保留。初始化后启动全部五服务（含 Nginx）：
+首次先启动依赖，再按[部署文档](../../../docs/zh-Hans/getting-started/deployment.md#docker-deployment)准备可写存储、构建镜像、生成缺失密钥并迁移。已有APP_KEY必须保留。初始化后启动全部五服务（含 Nginx）：
 
 ```sh
 docker compose --env-file .env -f docker/docker-compose.yml up -d --wait
@@ -35,4 +35,4 @@ docker compose --env-file .env -f docker/docker-compose.yml up -d --wait
 
 默认随完整环境启动，转发至 `app:8000`，等待应用健康后启动。默认对外绑定 `0.0.0.0:8080`；根 `.env` 可设置 `NGINX_HOST` 和 `NGINX_PORT`，Nginx 内部端口始终为 `80`。`APP_URL` 设为实际对外地址。配置文件为 `docker/nginx/default.conf`，支持 WebSocket、流式响应及应用重建后的 DNS 地址刷新。仅运行外部依赖应用时，可在应用就绪后用 `docker compose --env-file .env -f docker/docker-compose.yml up -d --no-deps nginx` 启动代理。
 
-Nginx请求体上限8 MiB，与框架输入限制一致；代理读写超时沿用Nginx默认60秒，流式／WebSocket应及时传送数据或心跳；有明确需求时再调整超时。Compose已传入APP_BUILD_JOBS（默认4）。更新及回滚步骤见[部署文档](../../../docs/zh_CN/getting-started/deployment.md#更新与回滚)，迁移显式执行一次；镜像回滚不会回滚数据。
+Nginx请求体上限8 MiB，与框架输入限制一致；代理读写超时沿用Nginx默认60秒，流式／WebSocket应及时传送数据或心跳；有明确需求时再调整超时。Compose已传入APP_BUILD_JOBS（默认4）。更新及回滚步骤见[部署文档](../../../docs/zh-Hans/getting-started/deployment.md#更新与回滚)，迁移显式执行一次；镜像回滚不会回滚数据。

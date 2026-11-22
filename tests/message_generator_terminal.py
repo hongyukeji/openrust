@@ -80,5 +80,5 @@ with TemporaryDirectory() as folder:
         assert '<name>' in artisan(root, [command, '--help'])
     out = artisan(root, ['make:mail'], [(mail, 'Cancelled\n'), (choose, '\x04')], expected=1)
     assert 'Command cancelled.' in out and not (root/'app/mail/cancelled.rs').exists()
-    artisan(root, ['make:mail','--test'], [('邮件类叫什么？', 'SimplifiedMail\n')], locale='zh_CN')
-    artisan(root, ['make:notification','--test'], [('通知類別叫什麼？', 'TraditionalNotice\n')], locale='zh_TW')
+    artisan(root, ['make:mail','--test'], [('邮件类叫什么？', 'SimplifiedMail\n')], locale='zh-Hans')
+    artisan(root, ['make:notification','--test'], [('通知類別叫什麼？', 'TraditionalNotice\n')], locale='zh-Hant')

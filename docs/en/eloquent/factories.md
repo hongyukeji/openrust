@@ -109,7 +109,7 @@ The catalog below lists the supported formatters.
 
 The [upstream Faker catalog](https://github.com/FakerPHP/Faker/tree/v1.24.1) is the reference for the formats described below.
 
-Use `Factory::withFaker` to define generated model attributes. It reads `app.faker_locale` from the application owning the selected connection. Use `fake(Some("fr_FR"))` to select a locale explicitly, or `fake(None)` to use the current application. The Rust generator uses fake-rs data and exposes `name`, `safeEmail`, `city`, and `sentence`. Unsupported locales use English data.
+Use `Factory::withFaker` to define generated model attributes. It reads `app.faker_locale` from the application owning the selected connection. Use `fake(Some("fr-FR"))` to select a locale explicitly, or `fake(None)` to use the current application. The Rust generator uses fake-rs data and exposes `name`, `safeEmail`, `city`, and `sentence`. Unsupported locales use English data.
 
 ```rust
 use openrust::database::eloquent::{Attributes, Model, factories::Factory};
@@ -447,7 +447,7 @@ fn sample_named_collections() -> DatabaseResult<(Value, Value)> {
 
 ### Locale, Country and Currency Samples {#locale-and-code-samples}
 
-Use `languageCode()`, `countryCode()`, `countryISOAlpha3()`, `currencyCode()`, and `emoji()` for fixture values from the pinned upstream Faker catalog. `randomLocale()` samples a locale identifier such as `en_GB` or `zh_TW`. It corresponds to upstream Faker’s `locale()` formatter. OpenRust’s existing `locale()` reads the configured generator locale. The sample catalog includes historical identifiers. All six formatters support `unique`. Call these catalogs by name with `format`. The name `locale` samples fixture data and `faker.locale()` reads the configured generator locale.
+Use `languageCode()`, `countryCode()`, `countryISOAlpha3()`, `currencyCode()`, and `emoji()` for fixture values from the pinned upstream Faker catalog. `randomLocale()` samples a locale identifier such as `en-GB` or `zh-Hant`. It corresponds to upstream Faker’s `locale()` formatter. OpenRust’s existing `locale()` reads the configured generator locale. The sample catalog includes historical identifiers. All six formatters support `unique`. Call these catalogs by name with `format`. The name `locale` samples fixture data and `faker.locale()` reads the configured generator locale.
 
 Use `toLower` and `toUpper` through `format` to convert UTF-8 text with Unicode case rules. An omitted argument yields an empty string.
 
@@ -981,7 +981,7 @@ fn bank_samples() -> DatabaseResult<(String, String)> {
 
 ### Regional Bank Accounts {#regional-bank-account-samples}
 
-Use `bankAccountNumber(prefix, countryCode, length)` to select the account format for the Faker locale. The supported IBAN aliases default to their own country and accept explicit overrides. The Egyptian provider always generates an Egyptian IBAN. US English, Malaysian Malay and Nepali generate domestic formats. For these four providers, pass `("", None, None)`. `bankRoutingNumber()` generates a nine-digit routing sample for `en_US`. `Faker::calculateRoutingNumberChecksum` reads the first eight digits and returns the check digit. Both generators support `unique`.
+Use `bankAccountNumber(prefix, countryCode, length)` to select the account format for the Faker locale. The supported IBAN aliases default to their own country and accept explicit overrides. The Egyptian provider always generates an Egyptian IBAN. US English, Malaysian Malay and Nepali generate domestic formats. For these four providers, pass `("", None, None)`. `bankRoutingNumber()` generates a nine-digit routing sample for `en-US`. `Faker::calculateRoutingNumberChecksum` reads the first eight digits and returns the check digit. Both generators support `unique`.
 
 If a locale lacks a local Payment provider, it uses the US provider for domestic accounts and routing numbers. A local Payment provider that lacks either method returns an error for that method. Use `("", None, None)` for a fallback bank account. The legacy `at-AT` alias uses Austrian account and VAT formats.
 
@@ -1000,7 +1000,7 @@ fn regional_bank_samples() -> DatabaseResult<(String, String)> {
 
 ### Financial Institutions {#institution-samples}
 
-`bank()` uses the fixed locale catalog for `de_DE`, `el_CY`, `ka_GE`, `kk_KZ`, `ms_MY`, `pl_PL`, `pt_BR`, `ru_RU`, `th_TH`, `uk_UA`, and `zh_CN`. Malaysian Malay also provides `localBank`, `foreignBank`, `governmentBank`, `insurance`, and `currencySymbol`. Nepali provides `commercialBank`, `developmentBank`, `financeCompany`, `microFinance`, and `digitalWallet`. Both provide `swiftCode()` from their respective catalogs. These formatters support `unique` and return errors for unsupported locales.
+`bank()` uses the fixed locale catalog for `de-DE`, `el-CY`, `ka-GE`, `kk-KZ`, `ms-MY`, `pl-PL`, `pt-BR`, `ru-RU`, `th-TH`, `uk-UA`, and `zh-Hans`. Malaysian Malay also provides `localBank`, `foreignBank`, `governmentBank`, `insurance`, and `currencySymbol`. Nepali provides `commercialBank`, `developmentBank`, `financeCompany`, `microFinance`, and `digitalWallet`. Both provide `swiftCode()` from their respective catalogs. These formatters support `unique` and return errors for unsupported locales.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1013,7 +1013,7 @@ fn institution_samples() -> DatabaseResult<(&'static str, String)> {
 
 ### VAT Samples {#vat-samples}
 
-Use `vat(None)` for the locale default and `vat(Some(false))` for compact output where the upstream provider accepts spacing. Supported locales are `bg_BG`, `de_AT`, `es_ES`, `fr_BE`, `nl_BE`, `fr_FR`, `en_GB`, `it_IT`, and `nl_NL`. For the UK, `vatWithType` accepts `branch`, `gov`, and `health`; other values use the standard format. French VAT uses `siren`, and the Italian `vatId` and Dutch `btw` aliases follow their own providers. The generators support `unique` and preserve their upstream sample rules.
+Use `vat(None)` for the locale default and `vat(Some(false))` for compact output where the upstream provider accepts spacing. Supported locales are `bg-BG`, `de-AT`, `es-ES`, `fr-BE`, `nl-BE`, `fr-FR`, `en-GB`, `it-IT`, and `nl-NL`. For the UK, `vatWithType` accepts `branch`, `gov`, and `health`; other values use the standard format. French VAT uses `siren`, and the Italian `vatId` and Dutch `btw` aliases follow their own providers. The generators support `unique` and preserve their upstream sample rules.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1878,7 +1878,7 @@ fn named_person_and_company_samples() -> DatabaseResult<[Value; 3]> {
 
 ### Coordinates {#coordinate-samples}
 
-Use `latitude(None, None)?` and `longitude(None, None)?` for signed decimal degrees, rounded to six decimal places. Pass `Some(value)` for either bound. The defaults are −90 to 90 and −180 to 180, respectively. Reversed bounds are accepted and non-finite bounds return an error. `localCoordinates()?` returns a serializable `Coordinates` with `latitude` and `longitude` fields. It uses the pinned Hungarian and Montenegrin ranges, with global ranges elsewhere. For Taiwan bounds, use the separate `localLatitude()?` and `localLongitude()?` methods with `zh_TW`. All five methods support `unique`. Use `format("localLatitude", &[])` and `format("localLongitude", &[])` with `zh-Hant-TW` for the two Taiwanese coordinate formatters.
+Use `latitude(None, None)?` and `longitude(None, None)?` for signed decimal degrees, rounded to six decimal places. Pass `Some(value)` for either bound. The defaults are −90 to 90 and −180 to 180, respectively. Reversed bounds are accepted and non-finite bounds return an error. `localCoordinates()?` returns a serializable `Coordinates` with `latitude` and `longitude` fields. It uses the pinned Hungarian and Montenegrin ranges, with global ranges elsewhere. For Taiwan bounds, use the separate `localLatitude()?` and `localLongitude()?` methods with `zh-Hant`. All five methods support `unique`. Use `format("localLatitude", &[])` and `format("localLongitude", &[])` with `zh-Hant-TW` for the two Taiwanese coordinate formatters.
 
 ### Soft-deleted State {#trashed-state}
 

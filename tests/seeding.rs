@@ -5,7 +5,7 @@ use std::{
     path::{Path, PathBuf},
     process::{Command, Output},
     sync::{
-        Arc,
+        Arc, OnceLock,
         atomic::{AtomicUsize, Ordering},
     },
 };
@@ -32,6 +32,7 @@ use openrust::{
     foundation::Application,
     http::HttpFuture,
     support::{ProviderResult, ServiceProvider, facades::DB},
+    testing::TestApp,
 };
 use serde_json::{Value as Json, json};
 
@@ -989,8 +990,8 @@ impl Seeder for PolymorphicFactories {
                 Some(&"many-quiet".into())
             );
             assert_eq!(connection.table("seed_factory_children").delete().await?, 7);
-            assert_eq!(fake(None)?.locale(), "zh_TW");
-            assert_eq!(fake(Some("fr-fr"))?.locale(), "fr_FR");
+            assert_eq!(fake(None)?.locale(), "zh-Hant");
+            assert_eq!(fake(Some("fr-fr"))?.locale(), "fr-FR");
             let invalid = fake(Some("../en"));
             assert!(matches!(
                 invalid,
@@ -1047,7 +1048,10 @@ impl Seeder for PolymorphicFactories {
                 utc
             );
             faker.setDefaultTimezone(Some(utc.clone()));
-            assert_eq!(fake(Some("zh_TW"))?.getDefaultTimezone(), Some(utc.clone()));
+            assert_eq!(
+                fake(Some("zh-Hant"))?.getDefaultTimezone(),
+                Some(utc.clone())
+            );
             for value in [
                 faker.firstName(),
                 faker.lastName(),
@@ -1408,7 +1412,7 @@ impl Seeder for PolymorphicFactories {
                     0
                 );
             }
-            let same_locale = fake(Some("zh-Hant-TW"))?;
+            let same_locale = fake(Some("ZH-hant"))?;
             assert!(Arc::ptr_eq(&faker, &same_locale));
             assert!(!Arc::ptr_eq(&faker, &other));
             assert!(matches!(
@@ -1462,7 +1466,7 @@ impl Seeder for PolymorphicFactories {
             Box::pin(verify_parent_attributes(connection)).await?;
             Box::pin(verify_existing_attachments(connection, &sqlite)).await?;
             let localized = Factory::<FactoryChild>::tryWithFaker(move |faker| {
-                assert_eq!(faker.locale(), "zh_TW");
+                assert_eq!(faker.locale(), "zh-Hant");
                 assert_eq!(
                     faker
                         .dateTimeInTimezone(Some(epoch), None)
@@ -1535,7 +1539,8 @@ impl Seeder for PolymorphicFactories {
 
             let foreign = Root::new();
             let url = std::env::var("SEED_FIXTURE_MYSQL").unwrap();
-            let foreign_connection = foreign.connection(Some(&url), "");
+            // 验证同库的独立连接，不另建隔离数据库。
+            let foreign_connection = foreign.connect(json!({"url":url}));
             let foreign_owner = FactoryOwner::queryOn(&foreign_connection)
                 .findOrFail(first[0].getAttribute("owner_id").unwrap().clone())
                 .await?;
@@ -1891,7 +1896,68 @@ async fn seeder_command_fixture() {
 }
 
 static NEXT: AtomicUsize = AtomicUsize::new(0);
-struct Root(PathBuf);
+struct Root(PathBuf, OnceLock<Mysql>);
+
+struct Mysql {
+    source: String,
+    url: String,
+    connection: Connection,
+    stop: Option<tokio::sync::oneshot::Sender<()>>,
+    worker: Option<std::thread::JoinHandle<()>>,
+}
+
+impl Mysql {
+    fn new(source: &str) -> Self {
+        let (ready, receiver) = std::sync::mpsc::sync_channel(1);
+        let (stop, stopped) = tokio::sync::oneshot::channel();
+        let source_owned = source.to_owned();
+        // 同步 Artisan 用例和异步工厂用例共用既有隔离夹具；独立线程避免嵌套运行时。
+        let worker = std::thread::spawn(move || {
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap()
+                .block_on(async {
+                    let mut app = TestApp::mysql(&source_owned, |builder| builder)
+                        .await
+                        .expect("创建 Seeder 隔离数据库失败");
+                    let connection = app.database().await.unwrap();
+                    let url = app
+                        .app()
+                        .config()
+                        .unwrap()
+                        .get("database.connections.mysql.url")
+                        .and_then(|value| value.as_str().map(str::to_owned))
+                        .unwrap();
+                    let _ = ready.send((url, connection));
+                    let _ = stopped.await;
+                    app.close().await.expect("清理 Seeder 隔离数据库失败");
+                });
+        });
+        let (url, connection) = receiver.recv().expect("Seeder 隔离数据库未就绪");
+        Self {
+            source: source.to_owned(),
+            url,
+            connection,
+            stop: Some(stop),
+            worker: Some(worker),
+        }
+    }
+}
+
+impl Drop for Mysql {
+    fn drop(&mut self) {
+        let _ = self.stop.take().unwrap().send(());
+        if self.worker.take().unwrap().join().is_err() {
+            if std::thread::panicking() {
+                eprintln!("Seeder 隔离数据库清理失败，请核对验收日志");
+            } else {
+                panic!("Seeder 隔离数据库清理失败");
+            }
+        }
+    }
+}
+
 impl Root {
     fn new() -> Self {
         let root = std::env::temp_dir().join(format!(
@@ -1903,7 +1969,15 @@ impl Root {
         for file in ["database.sqlite", "alternate.sqlite"] {
             fs::File::create(root.join("database").join(file)).unwrap();
         }
-        Self(root)
+        Self(root, OnceLock::new())
+    }
+    fn mysql(&self, source: &str) -> &Mysql {
+        let mysql = self.1.get_or_init(|| Mysql::new(source));
+        assert!(
+            mysql.source == source,
+            "同一 Seeder 夹具不能切换 MySQL 实例"
+        );
+        mysql
     }
     fn fixture(&self, environment: &str, mysql: Option<&str>, args: &[&str]) -> Output {
         let mut command = Command::new(std::env::current_exe().unwrap());
@@ -1915,17 +1989,19 @@ impl Root {
             .env("SEED_FIXTURE_ENV", environment)
             .env("SEED_FIXTURE_ARGS", serde_json::to_string(args).unwrap());
         if let Some(url) = mysql {
-            command.env("SEED_FIXTURE_MYSQL", url);
+            command.env("SEED_FIXTURE_MYSQL", &self.mysql(url).url);
         } else {
             command.env_remove("SEED_FIXTURE_MYSQL");
         }
         command.output().unwrap()
     }
     fn connection(&self, mysql: Option<&str>, file: &str) -> Connection {
-        let config = mysql.map_or_else(
-            || json!({"driver":"sqlite","database":file}),
-            |url| json!({"url":url}),
-        );
+        match mysql {
+            Some(url) => self.mysql(url).connection.clone(),
+            None => self.connect(json!({"driver":"sqlite","database":file})),
+        }
+    }
+    fn connect(&self, config: Json) -> Connection {
         let manager = DatabaseManager::new(
             Arc::new(Repository::new(BTreeMap::from([(
                 "database".into(),
@@ -1935,9 +2011,18 @@ impl Root {
         );
         manager.connection(None).unwrap()
     }
+    async fn close(mut self) {
+        if let Some(mysql) = self.1.take() {
+            // 归还连接期间让调用者的运行时继续处理连接池关闭。
+            tokio::task::spawn_blocking(move || drop(mysql))
+                .await
+                .unwrap();
+        }
+    }
 }
 impl Drop for Root {
     fn drop(&mut self) {
+        drop(self.1.take());
         let _ = fs::remove_dir_all(&self.0);
     }
 }
@@ -2049,6 +2134,7 @@ async fn verify(mysql: Option<&str>, allow_fresh: bool) {
     for table in ["seed_items", "seed_migrations"] {
         db.getSchemaBuilder().drop(table).await.unwrap();
     }
+    root.close().await;
 }
 
 #[tokio::test]
@@ -2063,6 +2149,44 @@ async fn artisan_seeders_write_to_real_mysql() {
         return;
     };
     verify(Some(&url), false).await;
+}
+
+#[tokio::test]
+async fn mysql_seed_fixtures_isolate_tables_and_cleanup_owned_databases() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    };
+    let first = Root::new();
+    let second = Root::new();
+    let first_db = first.connection(Some(&url), "");
+    let second_db = second.connection(Some(&url), "");
+    assert_ne!(first_db.getDatabaseName(), second_db.getDatabaseName());
+    let second_name = second_db.getDatabaseName().to_owned();
+    let migrate = ["migrate", "--database=alternate", "--seed"];
+    success(first.fixture("local", Some(&url), &migrate));
+    success(second.fixture("local", Some(&url), &migrate));
+    first_db.table("seed_items").delete().await.unwrap();
+    assert_eq!(first_db.table("seed_items").count("*").await.unwrap(), 0);
+    assert!(second_db.table("seed_items").count("*").await.unwrap() > 0);
+    success(first.fixture(
+        "local",
+        Some(&url),
+        &["db:seed", "--database=alternate", "--class=FirstSeeder"],
+    ));
+    assert_eq!(first_db.table("seed_items").count("*").await.unwrap(), 1);
+    drop(second_db);
+    second.close().await;
+    assert!(
+        !first_db
+            .table("information_schema.SCHEMATA")
+            .r#where("SCHEMA_NAME", "=", second_name)
+            .exists()
+            .await
+            .unwrap()
+    );
+    assert_eq!(first_db.table("seed_items").count("*").await.unwrap(), 1);
+    first.close().await;
 }
 
 #[tokio::test]
@@ -2153,12 +2277,15 @@ async fn artisan_seeder_persists_polymorphic_factory_relationships_on_mysql() {
     ] {
         schema.drop(table).await.unwrap();
     }
+    root.close().await;
 }
 
 #[tokio::test]
 async fn mysql_fresh_seeds_the_selected_database() {
     if let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_WIPE_URL") {
         verify(Some(&url), true).await;
+    } else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
     }
 }
 
@@ -2194,7 +2321,7 @@ fn seed_generator_preserves_existing_files_until_forced() {
 
 #[test]
 fn faker_float_rounding_matches_upstream_decimal_boundaries() -> DatabaseResult<()> {
-    let faker = openrust::database::eloquent::factories::Faker::new("en_US")?;
+    let faker = openrust::database::eloquent::factories::Faker::new("en-US")?;
     for (value, decimals, expected) in [
         (5.0e-310, 309, 5.0e-310),
         (1.4239704891618352e-200, 200, 1.0e-200),
@@ -2212,7 +2339,7 @@ fn faker_float_rounding_matches_upstream_decimal_boundaries() -> DatabaseResult<
 
 #[test]
 fn faker_lorem_preserves_counts_byte_limits_and_unique_history() -> DatabaseResult<()> {
-    let faker = openrust::database::eloquent::factories::Faker::new("en_US")?;
+    let faker = openrust::database::eloquent::factories::Faker::new("en-US")?;
     assert!(faker.words(0).is_empty());
     assert!(faker.sentenceWithWordCount(0, true).is_empty());
     assert!(faker.paragraph(0, true).is_empty());
@@ -2250,7 +2377,7 @@ fn faker_lorem_preserves_counts_byte_limits_and_unique_history() -> DatabaseResu
     assert!(unique.paragraphs(0)?.is_empty());
     assert!(unique.paragraphs(0).is_err());
     assert!(faker.unique(true).words(0)?.is_empty());
-    let localized = openrust::database::eloquent::factories::Faker::new("zh_CN")?;
+    let localized = openrust::database::eloquent::factories::Faker::new("zh-Hans")?;
     let text = localized.text(200)?;
     assert!(text.len() <= 200 && !text.is_ascii());
     Ok(())
@@ -2258,7 +2385,7 @@ fn faker_lorem_preserves_counts_byte_limits_and_unique_history() -> DatabaseResu
 
 #[test]
 fn faker_placeholders_preserve_classes_literals_and_unique_history() -> DatabaseResult<()> {
-    let faker = openrust::database::eloquent::factories::Faker::new("zh_TW")?;
+    let faker = openrust::database::eloquent::factories::Faker::new("zh-Hant")?;
     for _ in 0..64 {
         let digits = faker.numerify(Some("##########%%%%-樣品?*"));
         assert!(digits[..10].bytes().all(|byte| byte.is_ascii_digit()));
@@ -2304,7 +2431,7 @@ fn faker_placeholders_preserve_classes_literals_and_unique_history() -> Database
 
 #[test]
 fn faker_sampling_and_shuffle_follow_collection_boundaries() -> DatabaseResult<()> {
-    let faker = openrust::database::eloquent::factories::Faker::new("en_US")?;
+    let faker = openrust::database::eloquent::factories::Faker::new("en-US")?;
     let values = [4, 4, 9];
     assert_eq!(faker.randomElement::<i32>(&[]), None);
     assert_eq!(faker.randomKey::<i32>(&[]), None);
@@ -2379,7 +2506,9 @@ fn faker_miscellaneous_codes_and_emoji_preserve_the_configured_locale() -> Datab
     assert!(unique.languageCode().is_err());
 
     let mut locales = std::collections::HashSet::new();
-    for _ in 0..255 {
+    // 固定 provider 的 255 项经 CLDR 规范化后有 252 个不同标签：
+    // sh_CS／sh_YU 合并，sr_CS／sr_RS／sr_YU 合并。
+    for _ in 0..252 {
         let locale = unique.randomLocale()?;
         assert_eq!(
             openrust::translation::canonical_locale(locale)
@@ -2389,7 +2518,7 @@ fn faker_miscellaneous_codes_and_emoji_preserve_the_configured_locale() -> Datab
         );
         assert!(locales.insert(locale));
     }
-    for locale in ["en_GB", "en_US", "zh_CN", "zh_HK", "zh_TW"] {
+    for locale in ["en-GB", "en-US", "zh-CN", "zh-HK", "zh-TW"] {
         assert!(locales.contains(locale));
     }
     assert!(unique.randomLocale().is_err());
@@ -2420,7 +2549,7 @@ fn faker_miscellaneous_codes_and_emoji_preserve_the_configured_locale() -> Datab
     assert_eq!(emoji.first(), Some(&"😀"));
     assert_eq!(emoji.last(), Some(&"😷"));
     assert!(unique.emoji().is_err());
-    assert_eq!(faker.locale(), "zh_TW");
+    assert_eq!(faker.locale(), "zh-Hant-TW");
     assert!(faker.unique(true).emoji().is_ok());
     Ok(())
 }
@@ -2447,7 +2576,7 @@ fn faker_digest_samples_are_lowercase_hex_and_support_unique() -> DatabaseResult
         Ok(())
     }
 
-    let faker = Faker::new("en_US")?;
+    let faker = Faker::new("en-US")?;
     let unique = faker.unique(false);
     check_samples(|| unique.md5(), 32)?;
     check_samples(|| unique.sha1(), 40)?;
@@ -2461,7 +2590,7 @@ fn faker_network_addresses_follow_expected_formats_and_ranges() -> DatabaseResul
     use openrust::database::eloquent::factories::Faker;
     use std::net::{Ipv4Addr, Ipv6Addr};
 
-    let faker = Faker::new("en_US")?;
+    let faker = Faker::new("en-US")?;
     let unique = faker.unique(false);
     let mut addresses = std::collections::HashSet::new();
     for _ in 0..256 {
@@ -2505,7 +2634,7 @@ fn faker_network_addresses_follow_expected_formats_and_ranges() -> DatabaseResul
 fn faker_internet_formats_use_localized_suffixes_and_upstream_slug_counts() -> DatabaseResult<()> {
     use openrust::database::eloquent::factories::Faker;
 
-    let faker = Faker::new("en_US")?;
+    let faker = Faker::new("en-US")?;
     assert!(faker.slug(Some(0), true).is_empty());
     for _ in 0..64 {
         assert_eq!(faker.slug(Some(3), false).split('-').count(), 3);
@@ -2531,14 +2660,14 @@ fn faker_internet_formats_use_localized_suffixes_and_upstream_slug_counts() -> D
 
     for (locale, expected) in [
         (
-            "zh_CN",
+            "zh-Hans",
             &[
                 "biz", "biz.cn", "cn", "com", "com.cn", "edu.cn", "gov.cn", "info", "net",
                 "net.cn", "org", "org.cn",
             ][..],
         ),
-        ("zh_TW", &["biz", "com", "info", "net", "org"][..]),
-        ("fr_FR", &["com", "fr", "net", "org"][..]),
+        ("zh-Hant", &["biz", "com", "info", "net", "org"][..]),
+        ("fr-FR", &["com", "fr", "net", "org"][..]),
     ] {
         let faker = Faker::new(locale)?;
         let unique = faker.unique(false);
@@ -2657,11 +2786,11 @@ fn faker_phone_numbers_and_imei_follow_pinned_formats() -> DatabaseResult<()> {
     }
 
     for (locale, prefix, lengths) in [
-        ("en_US", "+1", 12..=12),
-        ("fr_FR", "+33", 12..=12),
-        ("de_DE", "+49", 12..=15),
-        ("en_GB", "+44", 13..=13),
-        ("tr_TR", "+90", 13..=13),
+        ("en-US", "+1", 12..=12),
+        ("fr-FR", "+33", 12..=12),
+        ("de-DE", "+49", 12..=15),
+        ("en-GB", "+44", 13..=13),
+        ("tr-TR", "+90", 13..=13),
     ] {
         let faker = Faker::new(locale)?;
         let unique = faker.unique(false);
@@ -2754,8 +2883,8 @@ fn faker_gendered_names_follow_catalogs_and_share_unique_history() -> DatabaseRe
     use openrust::database::eloquent::factories::Faker;
 
     for locale in [
-        "ar_SA", "de_DE", "fa_IR", "fr_FR", "it_IT", "ja_JP", "nl_NL", "pt_BR", "pt_PT", "tr_TR",
-        "zh_CN", "zh_TW", "en_US", "cy_GB",
+        "ar-SA", "de-DE", "fa-IR", "fr-FR", "it-IT", "ja-JP", "nl-NL", "pt-BR", "pt-PT", "tr-TR",
+        "zh-Hans", "zh-Hant", "en-US", "cy-GB",
     ] {
         let faker = Faker::new(locale)?;
         for _ in 0..64 {
@@ -2764,7 +2893,7 @@ fn faker_gendered_names_follow_catalogs_and_share_unique_history() -> DatabaseRe
             for gender in [Some("male"), Some("female"), None, Some("other")] {
                 let name = faker.nameWithGender(gender);
                 assert!(!name.trim().is_empty());
-                if matches!(locale, "zh_CN" | "zh_TW") {
+                if matches!(locale, "zh-Hans" | "zh-Hant") {
                     assert!(name.chars().all(|character| !character.is_ascii()));
                 }
             }
@@ -2794,7 +2923,7 @@ fn faker_gendered_names_follow_catalogs_and_share_unique_history() -> DatabaseRe
 fn faker_coordinates_preserve_bounds_precision_and_unique_history() -> DatabaseResult<()> {
     use openrust::database::eloquent::factories::Faker;
 
-    let global = Faker::new("en_US")?;
+    let global = Faker::new("en-US")?;
     let taiwan = Faker::new("zh-Hant-TW")?;
     let hungary = Faker::new("hu-HU")?;
     let montenegro = Faker::new("me-ME")?;
@@ -2939,6 +3068,7 @@ async fn factory_trashed_state_respects_scopes_on_sqlite_and_mysql() {
             "soft deletes are disabled for this model"
         ))
     ));
+    root.close().await;
 }
 
 struct ConditionalProbe(ModelState);
@@ -3036,6 +3166,7 @@ async fn factory_conditionals_select_only_one_branch_and_keep_batch_count() {
     } else {
         assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
     }
+    root.close().await;
 }
 
 struct BoundFactory;
@@ -3237,6 +3368,7 @@ async fn relation_factories_supply_parent_to_states_and_create_callbacks() {
     } else {
         assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
     }
+    root.close().await;
 }
 
 struct ExpansionOwner(ModelState);
@@ -3364,6 +3496,7 @@ async fn factory_relationship_expansion_defaults_are_snapshotted() {
     } else {
         assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
     }
+    root.close().await;
 }
 
 async fn verify_deferred_factory_owner(connection: &Connection) -> DatabaseResult<()> {
@@ -3471,6 +3604,7 @@ async fn factory_owner_resolution_skips_overwritten_keys() {
     } else {
         assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
     }
+    root.close().await;
 }
 
 async fn verify_factory_parent_cache(
@@ -3607,6 +3741,7 @@ async fn factory_parent_cache_survives_calls_and_respects_connections() {
     } else {
         assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
     }
+    root.close().await;
 }
 
 struct ShortcutModel(ModelState);
@@ -3745,6 +3880,7 @@ async fn named_factory_shortcuts_preserve_configuration_and_model_construction()
     } else {
         assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
     }
+    root.close().await;
 }
 
 async fn verify_factory_raw_overrides(connection: &Connection) -> DatabaseResult<()> {
@@ -3823,6 +3959,7 @@ async fn factory_raw_overrides_are_temporary_and_resolve_parents_after_state() {
     } else {
         assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
     }
+    root.close().await;
 }
 
 async fn verify_raw_parent_context(connection: &Connection) -> DatabaseResult<()> {
@@ -3902,6 +4039,7 @@ async fn factory_raw_parent_is_state_context_without_automatic_association() {
     } else {
         assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
     }
+    root.close().await;
 }
 
 async fn verify_make_and_insert_parent(connection: &Connection) -> DatabaseResult<()> {
@@ -4014,6 +4152,7 @@ async fn factory_make_and_insert_share_parent_state_without_associating_it() {
     } else {
         assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
     }
+    root.close().await;
 }
 
 async fn verify_attachment_pivot_count(connection: &Connection) -> DatabaseResult<()> {
@@ -4110,6 +4249,7 @@ async fn factory_attachment_infers_count_only_for_uncounted_factories() {
     } else {
         assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
     }
+    root.close().await;
 }
 
 async fn verify_seeder_events(root: &Root, mysql: Option<&str>) {
@@ -4165,6 +4305,7 @@ async fn seeder_event_muting_covers_children_and_restores_after_errors() {
     } else {
         assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
     }
+    root.close().await;
 }
 
 #[test]
@@ -4256,7 +4397,7 @@ async fn verify_default_application_seeder(root: &Root, mysql: Option<&str>) {
             .args(["artisan"])
             .args(args);
         if let Some(url) = mysql {
-            command.env("DB_URL", url);
+            command.env("DB_URL", &root.mysql(url).url);
         }
         command.output().unwrap()
     };
@@ -4302,7 +4443,9 @@ async fn application_default_seeder_creates_the_verified_example_user_on_mysql()
         assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
         return;
     };
-    verify_default_application_seeder(&Root::new(), Some(&url)).await;
+    let root = Root::new();
+    verify_default_application_seeder(&root, Some(&url)).await;
+    root.close().await;
 }
 
 async fn verify_sequence_lifecycle(connection: &Connection) -> DatabaseResult<()> {
@@ -4503,6 +4646,7 @@ async fn factory_sequences_continue_across_operations_and_attachments() {
     } else {
         assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
     }
+    root.close().await;
 }
 
 async fn verify_factory_many_count(connection: &Connection) -> DatabaseResult<()> {
@@ -4579,6 +4723,7 @@ async fn factory_many_operations_consume_the_configured_count() {
     } else {
         assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
     }
+    root.close().await;
 }
 
 #[test]
@@ -4710,9 +4855,11 @@ async fn factory_insert_projects_attributes_before_writing_on_mysql() {
         assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
         return;
     };
-    verify_factory_insert_projection(&Root::new().connection(Some(&url), ""))
+    let root = Root::new();
+    verify_factory_insert_projection(&root.connection(Some(&url), ""))
         .await
         .unwrap();
+    root.close().await;
 }
 
 fn assert_test_iban(iban: &str) {
@@ -4895,49 +5042,49 @@ fn faker_regional_bank_accounts_and_routing_follow_provider_contract() -> Databa
     use openrust::database::eloquent::factories::{Faker, fake};
 
     for (locale, country) in [
-        ("ar_SA", "SA"),
-        ("bg_BG", "BG"),
-        ("cs_CZ", "CZ"),
-        ("da_DK", "DK"),
-        ("at_AT", "AT"),
-        ("de_AT", "AT"),
-        ("de_CH", "CH"),
-        ("de_DE", "DE"),
-        ("el_CY", "CY"),
-        ("el_GR", "GR"),
-        ("en_GB", "GB"),
-        ("es_ES", "ES"),
-        ("fi_FI", "FI"),
-        ("fr_BE", "BE"),
-        ("fr_CH", "CH"),
-        ("fr_FR", "FR"),
-        ("he_IL", "IL"),
-        ("hr_HR", "HR"),
-        ("hu_HU", "HU"),
-        ("is_IS", "IS"),
-        ("it_CH", "CH"),
-        ("it_IT", "IT"),
-        ("ka_GE", "GE"),
-        ("kk_KZ", "KZ"),
-        ("lt_LT", "LT"),
-        ("lv_LV", "LV"),
-        ("me_ME", "ME"),
-        ("nb_NO", "NO"),
-        ("nl_BE", "BE"),
-        ("nl_NL", "NL"),
-        ("pl_PL", "PL"),
-        ("pt_BR", "BR"),
-        ("pt_PT", "PT"),
-        ("ro_MD", "MD"),
-        ("ro_RO", "RO"),
-        ("sk_SK", "SK"),
-        ("sl_SI", "SI"),
-        ("sr_Cyrl_RS", "RS"),
-        ("sr_Latn_RS", "RS"),
-        ("sr_RS", "RS"),
-        ("sv_SE", "SE"),
-        ("tr_TR", "TR"),
-        ("ar_EG", "EG"),
+        ("ar-SA", "SA"),
+        ("bg-BG", "BG"),
+        ("cs-CZ", "CZ"),
+        ("da-DK", "DK"),
+        ("at-AT", "AT"),
+        ("de-AT", "AT"),
+        ("de-CH", "CH"),
+        ("de-DE", "DE"),
+        ("el-CY", "CY"),
+        ("el-GR", "GR"),
+        ("en-GB", "GB"),
+        ("es-ES", "ES"),
+        ("fi-FI", "FI"),
+        ("fr-BE", "BE"),
+        ("fr-CH", "CH"),
+        ("fr-FR", "FR"),
+        ("he-IL", "IL"),
+        ("hr-HR", "HR"),
+        ("hu-HU", "HU"),
+        ("is-IS", "IS"),
+        ("it-CH", "CH"),
+        ("it-IT", "IT"),
+        ("ka-GE", "GE"),
+        ("kk-KZ", "KZ"),
+        ("lt-LT", "LT"),
+        ("lv-LV", "LV"),
+        ("me-ME", "ME"),
+        ("nb-NO", "NO"),
+        ("nl-BE", "BE"),
+        ("nl-NL", "NL"),
+        ("pl-PL", "PL"),
+        ("pt-BR", "BR"),
+        ("pt-PT", "PT"),
+        ("ro-MD", "MD"),
+        ("ro-RO", "RO"),
+        ("sk-SK", "SK"),
+        ("sl-SI", "SI"),
+        ("sr-Cyrl-RS", "RS"),
+        ("sr-Latn-RS", "RS"),
+        ("sr-RS", "RS"),
+        ("sv-SE", "SE"),
+        ("tr-TR", "TR"),
+        ("ar-EG", "EG"),
     ] {
         let account = fake(Some(locale))?.bankAccountNumber("", None, None)?;
         assert!(account.starts_with(country), "{locale}: {account}");
@@ -5029,20 +5176,20 @@ fn faker_institutions_and_local_swift_follow_provider_contract() -> DatabaseResu
     use openrust::database::eloquent::factories::fake;
 
     for (locale, distinct, representative) in [
-        ("de_DE", 60, "Bank 1 Saar"),
-        ("el_CY", 12, "Τράπεζα Κύπρου"),
-        ("ka_GE", 19, "ბანკი რესპუბლიკა"),
-        ("kk_KZ", 2, "Қазкоммерцбанк"),
-        ("pl_PL", 68, "Narodowy Bank Polski"),
+        ("de-DE", 60, "Bank 1 Saar"),
+        ("el-CY", 12, "Τράπεζα Κύπρου"),
+        ("ka-GE", 19, "ბანკი რესპუბლიკა"),
+        ("kk-KZ", 2, "Қазкоммерцбанк"),
+        ("pl-PL", 68, "Narodowy Bank Polski"),
         (
-            "pt_BR",
+            "pt-BR",
             59,
             "BADESUL Desenvolvimento S.A. – Agência de Fomento/RS",
         ),
-        ("ru_RU", 788, "Новый Промышленный Банк"),
-        ("th_TH", 22, "ธนาคารแห่งประเทศไทย"),
-        ("uk_UA", 89, "А-Банк"),
-        ("zh_CN", 19, "渤海银行"),
+        ("ru-RU", 788, "Новый Промышленный Банк"),
+        ("th-TH", 22, "ธนาคารแห่งประเทศไทย"),
+        ("uk-UA", 89, "А-Банк"),
+        ("zh-Hans", 19, "渤海银行"),
     ] {
         let faker = fake(Some(locale))?;
         let unique = faker.unique(true);
@@ -5352,8 +5499,10 @@ async fn factory_deferred_attributes_resolve_in_order_on_mysql() {
         assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
         return;
     };
-    let db = Root::new().connection(Some(&url), "");
+    let root = Root::new();
+    let db = root.connection(Some(&url), "");
     verify_deferred_factory_attributes(&db).await.unwrap();
+    root.close().await;
 }
 
 #[tokio::test]
@@ -5362,8 +5511,10 @@ async fn factory_model_keys_and_relation_cache_follow_lifecycle_on_mysql() {
         assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
         return;
     };
-    let db = Root::new().connection(Some(&url), "");
+    let root = Root::new();
+    let db = root.connection(Some(&url), "");
     verify_factory_relation_cache(&db).await.unwrap();
+    root.close().await;
 }
 async fn verify_factory_relation_cache(connection: &Connection) -> DatabaseResult<()> {
     use openrust::database::eloquent::{
@@ -5459,9 +5610,11 @@ async fn factory_named_custom_pivot_reloads_touched_members_on_mysql() {
         assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
         return;
     };
-    verify_factory_pivot_touch(&Root::new().connection(Some(&url), ""))
+    let root = Root::new();
+    verify_factory_pivot_touch(&root.connection(Some(&url), ""))
         .await
         .unwrap();
+    root.close().await;
 }
 type PivotMembers = openrust::database::eloquent::relations::BelongsToMany<PivotOwner, PivotMember>;
 struct PivotOwner(ModelState);
@@ -5995,7 +6148,7 @@ fn faker_named_miscellaneous_and_base_match_typed_values() -> DatabaseResult<()>
         faker.seed(94);
         assert_eq!(faker.format(method, &[])?, expected.into());
     }
-    assert_eq!(faker.locale(), "en_US");
+    assert_eq!(faker.locale(), "en-US");
 
     assert_eq!(faker.format("toLower", &["ÉCOLE".into()])?, "école".into());
     assert_eq!(
@@ -7040,9 +7193,12 @@ impl Seeder for FakerApplicationScope {
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
         Box::pin(async move {
             let default = fake(None)?;
-            let alias = fake(Some("zh-Hant-TW"))?;
+            let alias = fake(Some("ZH-hant"))?;
             let independent = openrust::database::eloquent::factories::Faker::new("zh-TW")?;
             assert!(Arc::ptr_eq(&default, &alias));
+            let regional = fake(Some("zh-Hant-TW"))?;
+            assert!(!Arc::ptr_eq(&default, &regional));
+            assert_eq!(regional.locale(), "zh-Hant-TW");
             assert!(matches!(
                 default.format("registeredHere", &[]),
                 Err(DatabaseError::UnknownFakerFormatter(_))
@@ -7131,7 +7287,10 @@ async fn artisan_faker_is_shared_by_application_and_locale_on_mysql() {
             .get::<dyn openrust::contracts::config::Repository>("config")
             .unwrap();
         config
-            .set("database.connections.faker_test", json!({"url":url}))
+            .set(
+                "database.connections.faker_test",
+                json!({"url":root.mysql(&url).url}),
+            )
             .unwrap();
         let mut arguments = args.clone();
         arguments[1] = "--database=faker_test".into();
@@ -7146,6 +7305,8 @@ async fn artisan_faker_is_shared_by_application_and_locale_on_mysql() {
         control.seed(951);
         assert_eq!(current.address(), control.address());
         previous = Some((current, control));
+        drop(config);
+        root.close().await;
     }
 }
 

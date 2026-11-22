@@ -547,7 +547,7 @@ fn legacy_date_formatter(name: &str) -> Option<Builtin> {
         },
         "formatteddate" => |faker, args| {
             let [] = arguments(args)?;
-            if faker.locale() != "cs_CZ" {
+            if faker.provider_locale() != "cs_CZ" {
                 return Err(DatabaseError::InvalidQuery(
                     "unsupported Faker formatted date locale",
                 ));

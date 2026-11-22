@@ -109,7 +109,7 @@ async fn seed_scheduled<M: HasFactory>() -> DatabaseResult<()> {
 
 下文涉及的上游格式以[上游 Faker 資料集與產生器](https://github.com/FakerPHP/Faker/tree/v1.24.1)為準。
 
-使用 `Factory::withFaker` 定義產生的模型屬性。它讀取所選連線所屬應用程式的 `app.faker_locale`。使用 `fake(Some("fr_FR"))` 明確指定語言，或用 `fake(None)` 讀取目前應用程式的設定。Rust 產生器使用 fake-rs 的資料，提供 `name`、`safeEmail`、`city` 和 `sentence`。尚未支援的語言使用英文資料。
+使用 `Factory::withFaker` 定義產生的模型屬性。它讀取所選連線所屬應用程式的 `app.faker_locale`。使用 `fake(Some("fr-FR"))` 明確指定語言，或用 `fake(None)` 讀取目前應用程式的設定。Rust 產生器使用 fake-rs 的資料，提供 `name`、`safeEmail`、`city` 和 `sentence`。尚未支援的語言使用英文資料。
 
 ```rust
 use openrust::database::eloquent::{Attributes, Model, factories::Factory};
@@ -447,7 +447,7 @@ fn sample_named_collections() -> DatabaseResult<(Value, Value)> {
 
 ### 語言、國家和貨幣樣本 {#locale-and-code-samples}
 
-用 `languageCode()`、`countryCode()`、`countryISOAlpha3()`、`currencyCode()` 和 `emoji()` 從固定上游 Faker 目錄產生測試值。`randomLocale()` 抽取 `en_GB`、`zh_TW` 等語言地區識別碼，對應上游 Faker 的 `locale()` 產生器。OpenRust 既有的 `locale()` 讀取目前產生器的設定。樣本目錄包含歷史識別碼。六個產生器均支援 `unique`。 這些目錄也可透過 `format` 依名稱呼叫。名稱 `locale` 取樣測試識別碼，`faker.locale()` 則讀取產生器的設定。
+用 `languageCode()`、`countryCode()`、`countryISOAlpha3()`、`currencyCode()` 和 `emoji()` 從固定上游 Faker 目錄產生測試值。`randomLocale()` 抽取 `en-GB`、`zh-Hant` 等語言地區識別碼，對應上游 Faker 的 `locale()` 產生器。OpenRust 既有的 `locale()` 讀取目前產生器的設定。樣本目錄包含歷史識別碼。六個產生器均支援 `unique`。 這些目錄也可透過 `format` 依名稱呼叫。名稱 `locale` 取樣測試識別碼，`faker.locale()` 則讀取產生器的設定。
 
 透過 `format` 呼叫 `toLower` 和 `toUpper`，依 Unicode 規則轉換 UTF-8 文字的大小寫。省略參數會回傳空字串。
 
@@ -981,7 +981,7 @@ fn bank_samples() -> DatabaseResult<(String, String)> {
 
 ### 地區銀行帳號 {#regional-bank-account-samples}
 
-用 `bankAccountNumber(prefix, countryCode, length)` 依 Faker 地區產生帳號。支援 IBAN 別名的地區預設使用本國代碼，可明確覆寫參數。埃及地區固定產生埃及 IBAN。美國英語、馬來西亞馬來語和尼泊爾語產生本地帳號。這四種地區傳入 `("", None, None)`。`bankRoutingNumber()` 為 `en_US` 產生九位路由號範例。`Faker::calculateRoutingNumberChecksum` 讀取前八位並回傳檢查碼。兩種產生方法都支援 `unique`。
+用 `bankAccountNumber(prefix, countryCode, length)` 依 Faker 地區產生帳號。支援 IBAN 別名的地區預設使用本國代碼，可明確覆寫參數。埃及地區固定產生埃及 IBAN。美國英語、馬來西亞馬來語和尼泊爾語產生本地帳號。這四種地區傳入 `("", None, None)`。`bankRoutingNumber()` 為 `en-US` 產生九位路由號範例。`Faker::calculateRoutingNumberChecksum` 讀取前八位並回傳檢查碼。兩種產生方法都支援 `unique`。
 
 地區缺少本地 Payment 提供器時，美國提供器負責產生本地帳號和路由號。本地提供器缺少某項方法時，該方法回傳錯誤。回退帳號使用 `("", None, None)`。舊版 `at-AT` 別名使用奧地利帳號和 VAT 格式。
 
@@ -1000,7 +1000,7 @@ fn regional_bank_samples() -> DatabaseResult<(String, String)> {
 
 ### 金融機構 {#institution-samples}
 
-`bank()` 在 `de_DE`、`el_CY`、`ka_GE`、`kk_KZ`、`ms_MY`、`pl_PL`、`pt_BR`、`ru_RU`、`th_TH`、`uk_UA` 與 `zh_CN` 使用固定地區目錄。馬來西亞馬來語另提供 `localBank`、`foreignBank`、`governmentBank`、`insurance` 和 `currencySymbol`。尼泊爾語提供 `commercialBank`、`developmentBank`、`financeCompany`、`microFinance` 和 `digitalWallet`。兩個地區的 `swiftCode()` 使用各自的目錄。這些產生器支援 `unique`，未支援的地區會回傳錯誤。
+`bank()` 在 `de-DE`、`el-CY`、`ka-GE`、`kk-KZ`、`ms-MY`、`pl-PL`、`pt-BR`、`ru-RU`、`th-TH`、`uk-UA` 與 `zh-Hans` 使用固定地區目錄。馬來西亞馬來語另提供 `localBank`、`foreignBank`、`governmentBank`、`insurance` 和 `currencySymbol`。尼泊爾語提供 `commercialBank`、`developmentBank`、`financeCompany`、`microFinance` 和 `digitalWallet`。兩個地區的 `swiftCode()` 使用各自的目錄。這些產生器支援 `unique`，未支援的地區會回傳錯誤。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1013,7 +1013,7 @@ fn institution_samples() -> DatabaseResult<(&'static str, String)> {
 
 ### VAT 範例 {#vat-samples}
 
-用 `vat(None)` 採用地區預設格式。對支援空格選項的地區，可用 `vat(Some(false))` 產生緊湊格式。支援 `bg_BG`、`de_AT`、`es_ES`、`fr_BE`、`nl_BE`、`fr_FR`、`en_GB`、`it_IT` 和 `nl_NL`。英國的 `vatWithType` 接受 `branch`、`gov` 和 `health`，其他值採用標準格式。法國 VAT 共用 `siren`，義大利 `vatId` 與荷蘭 `btw` 沿用各自的產生規則。各產生器均支援 `unique`。
+用 `vat(None)` 採用地區預設格式。對支援空格選項的地區，可用 `vat(Some(false))` 產生緊湊格式。支援 `bg-BG`、`de-AT`、`es-ES`、`fr-BE`、`nl-BE`、`fr-FR`、`en-GB`、`it-IT` 和 `nl-NL`。英國的 `vatWithType` 接受 `branch`、`gov` 和 `health`，其他值採用標準格式。法國 VAT 共用 `siren`，義大利 `vatId` 與荷蘭 `btw` 沿用各自的產生規則。各產生器均支援 `unique`。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1878,7 +1878,7 @@ fn named_person_and_company_samples() -> DatabaseResult<[Value; 3]> {
 
 ### 座標 {#coordinate-samples}
 
-用 `latitude(None, None)?` 和 `longitude(None, None)?` 產生帶正負號的十進位度數，四捨五入至小數點後六位。任一邊界可傳入 `Some(value)`，預設範圍分別為 −90 到 90 和 −180 到 180。接受反向邊界，非有限邊界回傳錯誤。`localCoordinates()?` 回傳含 `latitude` 和 `longitude` 欄位的可序列化 `Coordinates`。匈牙利和蒙特內哥羅採用固定上游地區範圍，其他地區採用全球範圍。臺灣範圍在 `zh_TW` 下由獨立的 `localLatitude()?` 和 `localLongitude()?` 提供。五個方法均支援 `unique`。 在 `zh-Hant-TW` 下，可用 `format("localLatitude", &[])` 和 `format("localLongitude", &[])` 呼叫臺灣座標格式化器。
+用 `latitude(None, None)?` 和 `longitude(None, None)?` 產生帶正負號的十進位度數，四捨五入至小數點後六位。任一邊界可傳入 `Some(value)`，預設範圍分別為 −90 到 90 和 −180 到 180。接受反向邊界，非有限邊界回傳錯誤。`localCoordinates()?` 回傳含 `latitude` 和 `longitude` 欄位的可序列化 `Coordinates`。匈牙利和蒙特內哥羅採用固定上游地區範圍，其他地區採用全球範圍。臺灣範圍在 `zh-Hant` 下由獨立的 `localLatitude()?` 和 `localLongitude()?` 提供。五個方法均支援 `unique`。 在 `zh-Hant-TW` 下，可用 `format("localLatitude", &[])` 和 `format("localLongitude", &[])` 呼叫臺灣座標格式化器。
 
 ### 軟刪除狀態 {#trashed-state}
 

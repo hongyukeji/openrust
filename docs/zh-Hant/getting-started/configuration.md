@@ -40,7 +40,9 @@ pub fn application_name() -> String {
 
 以 `Config::set` 更新目前應用程式的設定。`string`、`integer`、`float`、`boolean`、`array` 和 `collection` 檢查值的型別。`array` 接受 JSON 清單和物件，`collection` 保留集合鍵。
 
-語言切換使用 [App 語言方法](../digging-deeper/localization.md#配置語言)，同步設定、譯器和切換事件。在請求或佇列工作中，`app.locale`、`app.fallback_locale` 的修改僅影響目前作用域；整組替換 `app` 設定也僅影響目前作用域，並清除原有子鍵覆寫。直接修改 `Config` 不會自動更新譯器。
+語言切換使用 [App 語言方法](../digging-deeper/localization.md#配置語言)，同步設定、譯器和切換事件。在請求或佇列工作中，`app.locale`、`app.fallback_locale` 的修改僅影響目前作用域；整組替換 `app` 設定也僅影響目前作用域，並清除原有子鍵覆寫。直接修改 `Config` 不會自動更新已解析的譯器。
+
+整體取代 `app` 後，子鍵依呼叫順序寫入：取代 `app.ui` 會移除其原有子鍵，之後寫入 `app.ui.title` 則加入新父物件。寫入陣列下標保留兄弟元素；`get`、`all`、`has`、`push`、`prepend` 讀取相同作用域值，稀疏陣列轉為帶數字鍵的 JSON 物件。同一生命週期中的巢狀呼叫共用變更，其他請求或工作以及應用程式預設值不受影響。`push` 可把目前為 `null` 的設定初始化為清單；兩種方法皆接受關聯陣列，追加保留原鍵，前插會重新排列整數鍵並保留具名鍵。對 `null` 使用 `prepend`，或對其他純量執行這兩種操作，皆傳回錯誤。
 
 用 `Config::stringOr("app.name", "App")` 直接取得字串。缺少鍵、值為 `null` 或型別不符、設定儲存庫無法使用時，均使用傳入的預設值。需要嚴格讀取並處理錯誤時，用 `Config::string("app.name")?`。原始值讀取 `Config::getOr("app.name", Value::from("App"))?` 僅在缺少鍵時使用預設值，並保留顯式空值。`Config::getMany([("app.name", Value::from("App")), ("app.debug", Value::Bool(false))])?` 按輸入順序讀取多個鍵，各自套用預設值。讀取整組設定時，為結構體衍生 `serde::Deserialize`，再用 `Config::deserialize::<MailOptions>("mail")?`。
 
@@ -196,3 +198,5 @@ async fn activate_maintenance(
 編譯型設定載入器使用 `env.storage_path(base_path, subpath)` 作為 Rust 上下文適配。弱引用選取所屬應用的路徑，不依賴全域 Facade，也不延長應用生命週期。獨立環境快照依自身變數及傳入的預設根目錄解析。後續更改應用路徑不會回寫已經載入或快取的設定值。
 
 檔案維護模式每次操作都解析目前路徑，服務已解析後仍有效。啟動前的預先轉譯檢查使用 boot 前可用的路徑：此時應提供程序變數或明確 setter，僅在 dotenv 中設定的值尚不可用。Pail 在首次解析 Files 時決定目錄，應在首次使用前設定。設定、路由、事件和套件快取產物的位置繼續遵守各自的快取路徑契約。
+
+升級既有專案時，請依[語言標識升級說明](../digging-deeper/localization.md#bcp47-upgrade)同步遷移語言資源、持久化值與快取。

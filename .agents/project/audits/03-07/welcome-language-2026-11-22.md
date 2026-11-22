@@ -1,6 +1,6 @@
 # 欢迎页浏览器语言识别（2026-11-22）
 
-> 下方初版为提交 `443f40af4` 的历史实现；当前方案见本文末尾「统一请求与模板国际化」。
+> 下方为历史实现与验收记录；d4a40d7f4 复核见末节。后续 BCP 47 迁移已覆盖旧下划线约定，当前行为与验收见[语言标识迁移](locale-bcp47-2026-11-22.md)。
 
 ## 实现范围
 
@@ -123,6 +123,53 @@ Docker runtime 增加 COPY lang/，三语部署命令增加复制 lang；避免�
 - 曾触及磁盘停线，安全等待构建结束并持全部已登记 Cargo 锁清理项目编译产物，保留锁 inode、源码、日志、下载、独立部署及全部数据；净释放 38,006,120,448 字节，清理后可用 68,855,119,872 字节。详见 tutorial-disk-cleanup.json；恢复后对最终源码重新执行上述检查。
 - 本次没有数据库／缓存驱动行为变更，未使用开发数据；未重建应用 Docker 镜像、未验 Windows／优化 release。语言组使用 JSON 而非 PHP 文件；异步事件使用 await／Result；App Facade 当前只暴露语言方法，模板未支持任意 PHP 函数／Facade 方法调用、命名参数或无参获取译器。三语正文明确这些真实边界。
 - 最终验收时尚未暂存、提交或推送，输入一致性、空间和后台资源状态见 tutorial-closure.json。2026-11-22 用户随后授权将本次国际化实现、测试、三语文档及验收记录本地提交；本记录随该提交保存，不包含推送。
+
+
+## d4a40d7f4 基线复核
+
+2026-11-22 从 `d4a40d7f46e708e6e2b12dee3033148042984638` 重新核对；开始时工作区与索引干净。本节取代前述旧快照对当前交付的结论。本轮没有暂存、提交、推送或发布授权。
+
+### 核对与实际修改
+
+| 核对项 | 结论与修改 | 失败回归与验收 |
+| --- | --- | --- |
+| 已修复项 | `app.supported_locales` 已移除；候选留在应用中间件；isLocale 别名归一、整体 app 替换、翻译区块均已存在，本次不重复实现。语言标识继续 en／zh_CN／zh_TW；浏览器别名及 q 权重策略不变 | application_locale、welcome 与既有翻译区块测试重新通过；不宣称完整 Symfony 协商等价 |
+| 深层父键覆盖 | 复现 app={} → app.ui.title=旧标题 → app.ui={theme:dark} 后旧 title 回流。改为在已覆盖的 app 根值上按调用顺序写入，父对象替换自然丢弃旧子键；沿用现有仓储与作用域 | config-red.log 三项实际失败；新增 config_scoped_overrides 4 项覆盖正反顺序、重复替换、null／标量／列表、任意深度、相邻前缀、get／get(app)／all／has、并发任务及退出作用域恢复 |
+| 数组与列表操作 | 原点路径写入会丢弃数组兄弟项。复用现有 data_write，不扩展通配符；复用 Arr 的追加／前插处理 null 与关联数组，读取当前语言覆盖值后写回 | mixed-arrays-red.log 实际失败；数组下标、稀疏及前导零索引、push／prepend、错误后原值保持、关联键保留／整数键重排通过。push(null) 初始化列表，prepend(null) 报错；其他标量拒绝，不模拟 PHP 已弃用的 false 自动转数组 |
+| 关闭浏览器识别 | APP_LOCALE=fr 时不能把应用语言直接当作文档语言。标题所属语言决定 HTML lang／Content-Language；文档语言依次使用已有标题语言、配置回退语言、英文，不改变 App 当前语言 | welcome-red.log 实际失败；无 SetLocale 的 fr/en、fr/zh_TW、正常中文、自定义法文目录及非三语回退通过；不存在 docs/fr 链接；缺失的个别词条仍独立回退 |
+| 翻译助手与返回值 | 补齐 __()／__(null) 原生 null、翻译分组／列表值、@lang 第四参数关闭回退、空语言使用当前值、复数 count=null 使用实际计数。共享现有译器查找、缺键回调、替换与复数选择，不新增管理器 | blade-red.log 实际失败；blade_translations 6 项包含缺键回调上下文、原生分组／列表消费、替换、复数、转义／可信原样输出、区块嵌套、缓存模板、include 与组件、非法参数／缺失服务 |
+| 事件顺序及错误 | App 按配置 → 解析并更新译器 → 解析并分发事件执行；同语言重复设置仍发事件，回退语言设置不发事件。监听器失败保留此前更新并传播原始错误；Source 提示改为翻译或语言设置失败，不误报为目录加载失败 | event-display-red.log、service-order-red.log 实际失败；服务绑定失效、监听器 yield 后失败、来源链、HTTP 500 与下一请求默认值恢复均通过 |
+| 首次解析隔离 | 新增复现：首次翻译前先覆盖请求 app 配置，会把请求语言保存为常驻译器默认值。Provider 首次构造分别读取应用默认值和当前作用域值；复用 ScopeSnapshot 排除所属应用作用域，仅在默认配置读取期间生效 | lazy-translator-red.log 下一请求读取到 zh_TW 而非 en，真实失败；application_locale 7 项通过，含首次请求和任务解析、退出后默认值、并发请求与独立应用。没有提前解析全部服务或更改全部配置隔离模型 |
+| 编译缓存与正文 | AST 字段新增后缓存版本更新为 37，旧版缓存失效断言同步；三语国际化和配置正文同步用法、作用域与迁移边界 | blade_arithmetic／blade_statements 的当前缓存和旧缓存回归；三语构建、两种部署前缀导航与桌面手机检查通过 |
+
+### 固定来源与适配
+
+在线读取固定 Framework `1449bf241017087fbd38c118ecaabef3f6797fdc` 的 Config/Repository、Collections/Arr、Foundation/Application、Foundation/helpers、Translation/Translator／TranslationServiceProvider、View 的 CompilesTranslations／ManagesTranslations 及对应 Contracts；核对 RepositoryTest、FoundationApplicationTest、TranslationTranslatorTest、BladeLangTest。来源清单、原文及 SHA-256 见本批 research/sources.json、more-sources.json、final-sources.json。最初两个错误的 Config 测试文件路径返回 404，后通过固定提交树定位并实际取得 tests/Config/RepositoryTest.php，不把 404 当作已核对。
+
+关键上游入口：[Config](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Config/Repository.php)、[Application](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Application.php)、[Translator](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Translation/Translator.php)、[TranslationServiceProvider](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Translation/TranslationServiceProvider.php)、[翻译编译](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/View/Compilers/Concerns/CompilesTranslations.php)、[翻译区块](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/View/Concerns/ManagesTranslations.php)。另检查 v0.x 旧版配置实现，其结构不适合当前仓储，复用现有 data_write／Arr／ScopeSnapshot，未迁入旧管理层或引入新依赖。
+
+具体适配与未实现必须分开：下划线语言归一是既有项目约定；请求／任务隔离和阻塞渲染语言快照是常驻 Rust 运行时所需；JSON 目录、Result／await、参数数量与类型校验、直接输出数组报错是明确适配。trans()／trans(null) 返回译器服务对象尚未在模板值模型实现，并非 Rust 无法表达；Rust 中可用 Lang。任意 PHP 函数、Facade 方法及命名参数仍未实现，不把本轮称为任意 PHP 执行器或全部翻译 API 等价。
+
+### 最终验收与边界
+
+证据目录 `target/tmp/welcome-locale-review-20261122/`；隔离源码和独占 Cargo 缓存复用 `target/tmp/welcome-locale-20261122/{source,cargo-target}/`。最终验收子进程 TMPDIR 均显式设为项目内目录；Rust 1.94.0，保留增量、默认并发及热缓存，沿用本工作流 dev/test debug=0、strip=symbols。本轮没有触及32 GB停线或清理缓存。
+
+| 验收 | 最终结果及证据 |
+| --- | --- |
+| 配置、App、Blade 与支持函数 | final-framework.log／json：14 个目标、58 项通过 |
+| 根应用配置、配置缓存、翻译、欢迎页与骨架 | final-root.log／json：5 个目标、27 项通过 |
+| 具名欢迎页启动 | final-startup.log／json：精确运行 1 项通过 |
+| 容器作用域 | final-scoped.log／json：scoped:: 14 项通过 |
+| 合计 | 100 项通过、0 失败、0 ignored；不累计重复执行次数，不把过滤项计作通过 |
+| 真实 HTTP 与浏览器 | 实际 Kernel 经随机回环 TCP 接入 Chromium；三语、禁用识别后英文／繁体回退、自定义法文共 6 场景 × 桌面／手机 × 明／暗 =24 组合通过。验证文案、HTML／响应头、Vary、文档和部署链接对应仓库文件存在、无页面异常或横向溢出；browser-results.json、browser.log、browser-server.log。人工检查禁用识别后的繁体手机截图，临时夹具已删除 |
+| 固定 PHP 对照 | 既有 php:8.5.12-cli-alpine，无网络／只读挂载，26 项通过；php-golden.json。使用固定上游类与最小 trait／Str／Loader／容器夹具，非完整 PHPUnit；ASCII Str 夹具不证明 Unicode 全覆盖，容器自动回收 |
+| 质量 | workspace／all-targets／locked 严格 Clippy、fmt --all --check 与 git diff --check 通过，final-clippy／final-fmt。第三方补丁依赖仍有既有 cfg／弃用诊断，不冒称全依赖零诊断 |
+| 三语正文 | 六份正文同步；docs-results.json：构建含内容检查、根与 /docs/ 全导航范围检查、三语桌面手机检查全部通过 |
+| 交付一致性 | closure.json 保存 HEAD、输入指纹和逐字节比较、测试统计、资源及 Git 状态；最终交付代码与本轮验收代码一致。工作区另有协作者的 locale-bcp47 计划及 full-parity 审计，本轮保留，不执行语言迁移 |
+
+早期浏览器临时脚本只给 Cargo 子进程设置了 TMPDIR，外层 Node 仍继承系统临时路径；最终已为整个浏览器进程树设置项目内 TMPDIR，并重跑24组合，浏览器调试日志确认 profile／artifacts 使用项目内路径且退出时清除；系统临时目录未发现近期相关残留。过程中的夹具类型错误、测试目标拼写错误及一次嵌套作用域预期修正均不计为产品失败或通过。最初按顺序移动 App 服务解析后暴露了首次解析隔离回归，随后在 Provider 根因处修复，最终源码重新运行上述验收；不以中途快照或仅编译通过关闭问题。
+
+未重建应用 Docker 镜像、未执行 Windows／优化 release 或本轮独立部署；浏览器为实际 Kernel 消费者，不冒充完整部署验收。任务语言隔离验证使用队列共用的容器生命周期，未新增真实队列 worker 专项。没有数据库／共享缓存驱动行为修改，未操作开发数据库、Redis 或数据卷，不把本轮当作三库／三缓存矩阵。完整 Laravel PHPUnit、真实部署平台及上述未实现的模板服务对象能力仍未验证或未实现。当前已实施修复没有未解除的外部阻塞。
 
 
 ## 手机端名称与版本间距修复（2026-11-22）

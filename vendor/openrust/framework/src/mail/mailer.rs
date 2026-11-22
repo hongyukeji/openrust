@@ -161,8 +161,14 @@ impl Mailer {
         kind: &str,
         queued: bool,
     ) -> MailResult<Option<SentMessage>> {
-        let locale = recipients.locale.as_deref().or_else(|| mailable.locale());
-        let message = match locale {
+        let locale = recipients
+            .locale
+            .as_deref()
+            .or_else(|| mailable.locale())
+            .map(crate::translation::canonical_locale)
+            .transpose()
+            .map_err(super::composition)?;
+        let message = match locale.as_deref() {
             Some(locale) => Lang::withLocale(locale, self.compose(mailable, &recipients))
                 .await
                 .map_err(super::composition)??,
@@ -175,7 +181,7 @@ impl Mailer {
                 kind: mailable.kind().into(),
                 mailer: self.name.clone(),
                 envelope: sent.message.1.envelope.clone(),
-                locale: locale.map(str::to_owned).or_else(|| Lang::getLocale().ok()),
+                locale: locale.clone().or_else(|| Lang::getLocale().ok()),
                 message: Some(sent.clone()),
                 queue: None,
             });

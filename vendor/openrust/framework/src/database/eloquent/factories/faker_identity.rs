@@ -82,7 +82,7 @@ const GREEK_OBJECT: &[&str] = &[
 impl Faker {
     /// Samples the selected Person provider's SSN format.
     pub fn ssn(&self) -> DatabaseResult<String> {
-        match super::faker_person::provider_locale(self.locale()) {
+        match super::faker_person::provider_locale(self.provider_locale()) {
             "en_US" | "th_TH" => Ok(us_ssn(&self.random)),
             "de_AT" => self.ssnWithBirthdate(None),
             "is_IS" => Ok(icelandic_ssn(&self.random, self.identity_birthdate()?)),
@@ -92,7 +92,7 @@ impl Faker {
 
     /// Samples the Austrian SSN using the supplied civil birth date, if any.
     pub fn ssnWithBirthdate(&self, birthdate: Option<CivilDate>) -> DatabaseResult<String> {
-        if self.locale() != "de_AT" {
+        if self.provider_locale() != "de_AT" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker SSN birthdate locale",
             ));
@@ -116,7 +116,7 @@ impl Faker {
 
     /// Samples the British Person provider's National Insurance number format.
     pub fn nino(&self) -> DatabaseResult<String> {
-        if self.locale() != "en_GB" {
+        if self.provider_locale() != "en_GB" {
             return Err(DatabaseError::InvalidQuery("unsupported Faker NINO locale"));
         }
         const LETTERS: &[u8] = b"ABCEGHJKLMNOPRSTWXYZ";
@@ -139,7 +139,7 @@ impl Faker {
 
     /// Samples a Danish CPR number using the Person provider's date and serial mask.
     pub fn cpr(&self) -> DatabaseResult<String> {
-        if self.locale() != "da_DK" {
+        if self.provider_locale() != "da_DK" {
             return Err(DatabaseError::InvalidQuery("unsupported Faker CPR locale"));
         }
         Ok(format!(
@@ -157,7 +157,7 @@ impl Faker {
         maxAge: u32,
         slashProbability: i64,
     ) -> DatabaseResult<String> {
-        if self.locale() != "cs_CZ" {
+        if self.provider_locale() != "cs_CZ" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker Czech birth number locale",
             ));
@@ -226,7 +226,7 @@ impl Faker {
 
     /// Samples a Swiss social security number with the German formatter name.
     pub fn ahv13(&self) -> DatabaseResult<String> {
-        if self.locale() != "de_CH" {
+        if self.provider_locale() != "de_CH" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker AHV13 locale",
             ));
@@ -236,7 +236,7 @@ impl Faker {
 
     /// Samples a Swiss social security number in dotted notation.
     pub fn avs13(&self) -> DatabaseResult<String> {
-        if !matches!(self.locale(), "de_CH" | "fr_CH" | "it_CH") {
+        if !matches!(self.provider_locale(), "de_CH" | "fr_CH" | "it_CH") {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker AVS13 locale",
             ));
@@ -252,7 +252,7 @@ impl Faker {
         birthDate: Option<CivilDate>,
         gender: Option<&str>,
     ) -> DatabaseResult<String> {
-        if self.locale() != "kk_KZ" {
+        if self.provider_locale() != "kk_KZ" {
             return Err(DatabaseError::InvalidQuery("unsupported Faker IIN locale"));
         }
         let female = match gender {
@@ -308,7 +308,7 @@ impl Faker {
 
     /// Samples a Venezuelan national ID with an optional separator.
     pub fn nationalId(&self, separator: Option<&str>) -> DatabaseResult<String> {
-        if self.locale() != "es_VE" {
+        if self.provider_locale() != "es_VE" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker Venezuelan national ID locale",
             ));
@@ -324,7 +324,7 @@ impl Faker {
 
     /// Samples an Iranian national code with its modulo-11 check digit.
     pub fn nationalCode(&self) -> DatabaseResult<String> {
-        if self.locale() != "fa_IR" {
+        if self.provider_locale() != "fa_IR" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker Iranian national code locale",
             ));
@@ -348,7 +348,7 @@ impl Faker {
         gender: Option<&str>,
         birthDate: Option<CivilDate>,
     ) -> DatabaseResult<String> {
-        if self.locale() != "id_ID" {
+        if self.provider_locale() != "id_ID" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker Indonesian NIK locale",
             ));
@@ -381,7 +381,7 @@ impl Faker {
 
     /// Samples a French NIR with optional spacing.
     pub fn nir(&self, gender: Option<&str>, formatted: bool) -> DatabaseResult<String> {
-        if !matches!(self.locale(), "fr_FR" | "fr_CH") {
+        if !matches!(self.provider_locale(), "fr_FR" | "fr_CH") {
             return Err(DatabaseError::InvalidQuery("unsupported Faker NIR locale"));
         }
 
@@ -431,7 +431,7 @@ impl Faker {
 
     /// Samples the uppercase Italian tax ID mask.
     pub fn taxId(&self) -> DatabaseResult<String> {
-        if !matches!(self.locale(), "it_IT" | "it_CH") {
+        if !matches!(self.provider_locale(), "it_IT" | "it_CH") {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker Italian tax ID locale",
             ));
@@ -441,7 +441,7 @@ impl Faker {
 
     /// Samples a Belgian National Register number.
     pub fn rrn(&self, gender: Option<&str>) -> DatabaseResult<String> {
-        if self.locale() != "nl_BE" {
+        if self.provider_locale() != "nl_BE" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker Belgian identity locale",
             ));
@@ -483,7 +483,7 @@ impl Faker {
         issueDate: Option<CivilDate>,
         foreigner: bool,
     ) -> DatabaseResult<String> {
-        if self.locale() != "en_SG" {
+        if self.provider_locale() != "en_SG" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker Singapore identity locale",
             ));
@@ -519,7 +519,7 @@ impl Faker {
 
     /// Samples an identification number for the selected locale.
     pub fn idNumber(&self) -> DatabaseResult<String> {
-        match self.locale() {
+        match self.provider_locale() {
             "en_ZA" => self.idNumberWithBirthdate(None, None, None),
             "nl_NL" => Ok(dutch_identity(&self.random)),
             "ar_SA" => Ok(self.saudi_identity(if self.random.bool() { "1" } else { "2" })),
@@ -542,7 +542,7 @@ impl Faker {
         citizen: Option<bool>,
         gender: Option<&str>,
     ) -> DatabaseResult<String> {
-        if self.locale() != "en_ZA" {
+        if self.provider_locale() != "en_ZA" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker dated identity number locale",
             ));
@@ -574,7 +574,7 @@ impl Faker {
     }
 
     pub fn nationalIdNumber(&self) -> DatabaseResult<String> {
-        if self.locale() == "ar_SA" {
+        if self.provider_locale() == "ar_SA" {
             return Ok(self.saudi_identity("1"));
         }
         self.nationalIdNumberWithGender(None)
@@ -582,7 +582,7 @@ impl Faker {
 
     /// Samples an Egyptian national ID with the requested registration sequence parity.
     pub fn nationalIdNumberWithGender(&self, gender: Option<&str>) -> DatabaseResult<String> {
-        if self.locale() != "ar_EG" {
+        if self.provider_locale() != "ar_EG" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker gendered national ID locale",
             ));
@@ -606,7 +606,7 @@ impl Faker {
     }
 
     pub fn foreignerIdNumber(&self) -> DatabaseResult<String> {
-        if self.locale() != "ar_SA" {
+        if self.provider_locale() != "ar_SA" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker foreigner ID locale",
             ));
@@ -623,7 +623,7 @@ impl Faker {
 
     /// Samples the initial used in Mongolian full names.
     pub fn namePrefix(&self) -> DatabaseResult<char> {
-        if self.locale() != "mn_MN" {
+        if self.provider_locale() != "mn_MN" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker name prefix locale",
             ));
@@ -636,7 +636,7 @@ impl Faker {
     }
 
     pub fn alphabet(&self) -> DatabaseResult<char> {
-        if self.locale() != "mn_MN" {
+        if self.provider_locale() != "mn_MN" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker alphabet locale",
             ));
@@ -650,7 +650,7 @@ impl Faker {
     }
 
     pub fn governorateId(&self) -> DatabaseResult<&'static str> {
-        if self.locale() != "ar_EG" {
+        if self.provider_locale() != "ar_EG" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker governorate locale",
             ));
@@ -660,7 +660,7 @@ impl Faker {
 
     /// Samples a driving licence number using the Lithuanian or Latvian provider.
     pub fn driverLicence(&self) -> DatabaseResult<String> {
-        match self.locale() {
+        match self.provider_locale() {
             "lt_LT" => Ok(self.numerify(Some("########"))),
             "lv_LV" => Ok(self.bothify(Some("??######"))),
             _ => Err(DatabaseError::InvalidQuery(
@@ -671,7 +671,7 @@ impl Faker {
 
     /// Samples a passport number using the Lithuanian or Latvian provider.
     pub fn passportNumber(&self) -> DatabaseResult<String> {
-        match self.locale() {
+        match self.provider_locale() {
             "lt_LT" => Ok(self.numerify(Some("########"))),
             "lv_LV" => Ok(self.bothify(Some("??#######"))),
             _ => Err(DatabaseError::InvalidQuery(
@@ -682,7 +682,7 @@ impl Faker {
 
     /// Samples a Turkish identity number using the fixed FakerPHP checksum.
     pub fn tcNo(&self) -> DatabaseResult<String> {
-        if self.locale() != "tr_TR" {
+        if self.provider_locale() != "tr_TR" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker Turkish identity locale",
             ));
@@ -721,7 +721,7 @@ impl Faker {
 
     /// Samples the Taiwanese eight-digit VAT identifier.
     pub fn VAT(&self) -> DatabaseResult<i64> {
-        if self.locale() != "zh_TW" {
+        if self.provider_locale() != "zh_TW" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker Taiwanese VAT locale",
             ));
@@ -731,7 +731,7 @@ impl Faker {
 
     /// Samples a Greek tax office.
     pub fn doy(&self) -> DatabaseResult<&'static str> {
-        if self.locale() != "el_GR" {
+        if self.provider_locale() != "el_GR" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker tax office locale",
             ));
@@ -741,7 +741,7 @@ impl Faker {
 
     /// Samples a Greek company's business activity.
     pub fn object(&self) -> DatabaseResult<&'static str> {
-        if self.locale() != "el_GR" {
+        if self.provider_locale() != "el_GR" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker business activity locale",
             ));
@@ -754,7 +754,7 @@ impl Faker {
         &self,
         registration_date: Option<CivilDate>,
     ) -> DatabaseResult<String> {
-        if self.locale() != "kk_KZ" {
+        if self.provider_locale() != "kk_KZ" {
             return Err(DatabaseError::InvalidQuery("unsupported Faker BIN locale"));
         }
         let date = match registration_date {
@@ -777,7 +777,7 @@ impl Faker {
 
     /// Samples a South African company registration number.
     pub fn companyNumber(&self) -> DatabaseResult<String> {
-        if self.locale() != "en_ZA" {
+        if self.provider_locale() != "en_ZA" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker company registration locale",
             ));
@@ -800,7 +800,7 @@ impl Faker {
 
     /// Samples a Saudi company identification number.
     pub fn companyIdNumber(&self) -> DatabaseResult<String> {
-        if self.locale() != "ar_SA" {
+        if self.provider_locale() != "ar_SA" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker Saudi company ID locale",
             ));
@@ -810,7 +810,7 @@ impl Faker {
 
     /// Samples an Egyptian company tax identification number.
     pub fn companyTaxIdNumber(&self) -> DatabaseResult<String> {
-        if self.locale() != "ar_EG" {
+        if self.provider_locale() != "ar_EG" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker Egyptian company tax ID locale",
             ));
@@ -820,7 +820,7 @@ impl Faker {
 
     /// Samples an Egyptian commercial registration number.
     pub fn companyTradeRegisterNumber(&self) -> DatabaseResult<String> {
-        if self.locale() != "ar_EG" {
+        if self.provider_locale() != "ar_EG" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker Egyptian commercial registration locale",
             ));
@@ -836,7 +836,7 @@ impl Faker {
 
     /// Samples a Czech business identification number (IČO).
     pub fn ico(&self) -> DatabaseResult<String> {
-        if self.locale() != "cs_CZ" {
+        if self.provider_locale() != "cs_CZ" {
             return Err(DatabaseError::InvalidQuery("unsupported Faker IČO locale"));
         }
         let mut number = self.numerify(Some("#######"));
@@ -851,7 +851,7 @@ impl Faker {
 
     /// Samples a Danish business registration number (CVR).
     pub fn cvr(&self) -> DatabaseResult<String> {
-        if self.locale() != "da_DK" {
+        if self.provider_locale() != "da_DK" {
             return Err(DatabaseError::InvalidQuery("unsupported Faker CVR locale"));
         }
         Ok(self.numerify(Some("%#######")))
@@ -859,7 +859,7 @@ impl Faker {
 
     /// Samples a Danish production unit number.
     pub fn p(&self) -> DatabaseResult<String> {
-        if self.locale() != "da_DK" {
+        if self.provider_locale() != "da_DK" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker P number locale",
             ));
@@ -869,7 +869,7 @@ impl Faker {
 
     /// Samples an Icelandic VAT registration number (VSK).
     pub fn vsk(&self) -> DatabaseResult<String> {
-        if self.locale() != "is_IS" {
+        if self.provider_locale() != "is_IS" {
             return Err(DatabaseError::InvalidQuery("unsupported Faker VSK locale"));
         }
         Ok(self.numerify(Some("%####")))
@@ -896,7 +896,7 @@ impl Faker {
 
     /// Samples a Polish national business register number.
     pub fn regon(&self) -> DatabaseResult<String> {
-        if self.locale() != "pl_PL" {
+        if self.provider_locale() != "pl_PL" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker REGON locale",
             ));
@@ -926,7 +926,7 @@ impl Faker {
             55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 71, 72, 73, 74, 75, 76, 77, 80,
             81, 82, 83, 84, 85, 86, 87, 88, 90, 91, 92, 93, 94, 95, 98, 99,
         ];
-        if self.locale() != "en_US" {
+        if self.provider_locale() != "en_US" {
             return Err(DatabaseError::InvalidQuery("unsupported Faker EIN locale"));
         }
 
@@ -942,7 +942,7 @@ impl Faker {
 
     /// Samples a Russian ten-digit taxpayer identification number.
     pub fn inn10(&self, area_code: Option<&str>) -> DatabaseResult<String> {
-        if self.locale() != "ru_RU" {
+        if self.provider_locale() != "ru_RU" {
             return Err(DatabaseError::InvalidQuery("unsupported Faker INN locale"));
         }
 
@@ -968,7 +968,7 @@ impl Faker {
 
     /// Samples a Russian tax registration reason code from the first four INN digits.
     pub fn kpp(&self, inn: Option<&str>) -> DatabaseResult<String> {
-        if self.locale() != "ru_RU" {
+        if self.provider_locale() != "ru_RU" {
             return Err(DatabaseError::InvalidQuery("unsupported Faker KPP locale"));
         }
 
@@ -1008,7 +1008,7 @@ impl Faker {
 
     /// Samples a DNI for Spain or Peru.
     pub fn dni(&self) -> DatabaseResult<String> {
-        match self.locale() {
+        match self.provider_locale() {
             "es_ES" => {
                 const LETTERS: &[u8; 23] = b"TRWAGMYFPDXBNJZSQVHLCKE";
                 let number = self.random.usize(..100_000_000);
@@ -1022,7 +1022,7 @@ impl Faker {
 
     /// Samples the pinned Peruvian RUC format.
     pub fn ruc(&self, isNaturalPerson: Option<bool>) -> DatabaseResult<String> {
-        if self.locale() != "es_PE" {
+        if self.provider_locale() != "es_PE" {
             return Err(DatabaseError::InvalidQuery("unsupported Faker RUC locale"));
         }
         let mask = if isNaturalPerson.unwrap_or(false) {
@@ -1035,7 +1035,7 @@ impl Faker {
 
     /// Samples a driving licence category for Spain or South Africa.
     pub fn licenceCode(&self) -> DatabaseResult<&'static str> {
-        let codes: &[&str] = match self.locale() {
+        let codes: &[&str] = match self.provider_locale() {
             "es_ES" => &[
                 "AM", "A1", "A2", "A", "B", "B+E", "C1", "C1+E", "C", "C+E", "D1", "D1+E", "D",
                 "D+E",
@@ -1099,7 +1099,7 @@ impl Faker {
     }
 
     fn brazilian_identifier(&self, mask: &str, check_digits: usize) -> DatabaseResult<String> {
-        if self.locale() != "pt_BR" {
+        if self.provider_locale() != "pt_BR" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker Brazilian identity locale",
             ));
@@ -1113,7 +1113,7 @@ impl Faker {
 
     /// Samples a Polish PESEL, using a generated birth date when omitted.
     pub fn pesel(&self, birthdate: Option<CivilDate>, sex: Option<&str>) -> DatabaseResult<String> {
-        if self.locale() != "pl_PL" {
+        if self.provider_locale() != "pl_PL" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker PESEL locale",
             ));
@@ -1154,10 +1154,10 @@ impl Faker {
 
     /// Samples a Portuguese NIF, Polish NIP, or Venezuelan RIF.
     pub fn taxpayerIdentificationNumber(&self) -> DatabaseResult<String> {
-        if self.locale() == "es_VE" {
+        if self.provider_locale() == "es_VE" {
             return self.taxpayerIdentificationNumberWithSeparator(None);
         }
-        if self.locale() == "pt_PT" {
+        if self.provider_locale() == "pt_PT" {
             const MASKS: &[&str] = &[
                 "1#######", "2#######", "3#######", "45######", "5#######", "6#######", "70######",
                 "71######", "72######", "77######", "79######", "8#######", "90######", "98######",
@@ -1169,7 +1169,7 @@ impl Faker {
             number.push(char::from(b'0' + digit));
             return Ok(number);
         }
-        if self.locale() != "pl_PL" {
+        if self.provider_locale() != "pl_PL" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker taxpayer identification locale",
             ));
@@ -1188,7 +1188,7 @@ impl Faker {
         &self,
         separator: Option<&str>,
     ) -> DatabaseResult<String> {
-        if self.locale() != "es_VE" {
+        if self.provider_locale() != "es_VE" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker taxpayer identification separator locale",
             ));
@@ -1202,7 +1202,7 @@ impl Faker {
 
     /// Samples the selected Person provider's personal identity number.
     pub fn personalIdentityNumber(&self, gender: Option<&str>) -> DatabaseResult<String> {
-        match self.locale() {
+        match self.provider_locale() {
             "zh_TW" => Ok(self.taiwanese_identity(gender)),
             "pl_PL" => Ok(polish_identity(&self.random)),
             _ => self.personalIdentityNumberWithBirthdate(None, gender),
@@ -1215,7 +1215,7 @@ impl Faker {
         birthdate: Option<CivilDate>,
         gender: Option<&str>,
     ) -> DatabaseResult<String> {
-        let locale = self.locale();
+        let locale = self.provider_locale();
         if !matches!(locale, "lt_LT" | "lv_LV" | "fi_FI" | "nb_NO" | "sv_SE") {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker dated personal identity locale",
@@ -1241,7 +1241,7 @@ impl Faker {
         gender: Option<&str>,
         serial: Option<&str>,
     ) -> DatabaseResult<String> {
-        if self.locale() != "lt_LT" {
+        if self.provider_locale() != "lt_LT" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker personal identity serial locale",
             ));

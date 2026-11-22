@@ -933,7 +933,7 @@ pub(super) fn uses_us_phone_provider(locale: &str) -> bool {
 impl Faker {
     /// Generates a display number from the selected PhoneNumber provider.
     pub fn phoneNumber(&self) -> String {
-        match self.locale() {
+        match self.provider_locale() {
             "zh_CN" => {
                 let prefix = self.random.sample(CHINA_OPERATORS);
                 format!(
@@ -976,7 +976,7 @@ impl Faker {
 
     /// Generates a Brazilian display number without punctuation.
     pub fn phoneNumberCleared(&self) -> DatabaseResult<String> {
-        if self.locale() != "pt_BR" {
+        if self.provider_locale() != "pt_BR" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker cleared phone number locale",
             ));
@@ -990,10 +990,10 @@ impl Faker {
     }
 
     pub fn mobileNumber(&self) -> DatabaseResult<String> {
-        if self.locale() == "ms_MY" {
+        if self.provider_locale() == "ms_MY" {
             return self.mobileNumberWithOptions(true, true);
         }
-        let formats = mobile_formats(self.locale()).ok_or(DatabaseError::InvalidQuery(
+        let formats = mobile_formats(self.provider_locale()).ok_or(DatabaseError::InvalidQuery(
             "unsupported Faker mobile number locale",
         ))?;
         Ok(self.sample_phone_template(formats, true))
@@ -1016,7 +1016,7 @@ impl Faker {
     }
 
     pub fn fixedLineNumber(&self) -> DatabaseResult<String> {
-        match self.locale() {
+        match self.provider_locale() {
             "ms_MY" => self.fixedLineNumberWithOptions(true, true),
             "el_GR" => Ok(self.sample_phone_template(FIXED_GR, true)),
             "en_SG" => Ok(self.sample_phone_template(FIXED_SG, false)),
@@ -1043,7 +1043,7 @@ impl Faker {
     }
 
     pub fn mobilePhoneNumber(&self) -> DatabaseResult<String> {
-        if self.locale() != "el_GR" {
+        if self.provider_locale() != "el_GR" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker mobile phone number alias locale",
             ));
@@ -1054,7 +1054,7 @@ impl Faker {
 
     /// The Brazilian formatter and its case-insensitive PHP alias in Korean.
     pub fn cellphoneNumber(&self, formatted: Option<bool>) -> DatabaseResult<String> {
-        match self.locale() {
+        match self.provider_locale() {
             "pt_BR" => Ok(self.brazilian_phone_number(BR_CELL, formatted.unwrap_or(true))),
             "ko_KR" => Ok(self.numerify(Some("010-####-####"))),
             _ => Err(DatabaseError::InvalidQuery(
@@ -1068,7 +1068,7 @@ impl Faker {
     }
 
     pub fn landlineNumber(&self, formatted: Option<bool>) -> DatabaseResult<String> {
-        match self.locale() {
+        match self.provider_locale() {
             "pt_BR" => Ok(self.brazilian_phone_number(BR_LAND, formatted.unwrap_or(true))),
             "en_HK" => Ok(self.sample_phone_template(LANDLINE_HK, false)),
             _ => Err(DatabaseError::InvalidQuery(
@@ -1078,7 +1078,7 @@ impl Faker {
     }
 
     pub fn phoneNumberWithExtension(&self) -> DatabaseResult<String> {
-        if !uses_us_phone_provider(self.locale()) {
+        if !uses_us_phone_provider(self.provider_locale()) {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker phone extension locale",
             ));
@@ -1088,7 +1088,7 @@ impl Faker {
 
     /// Generate a regional VoIP sample with the provider's default formatting.
     pub fn voipNumber(&self) -> DatabaseResult<String> {
-        match self.locale() {
+        match self.provider_locale() {
             "ms_MY" => self.voipNumberWithOptions(true, true),
             "en_SG" => Ok(self.sample_phone_template(SG_VOIP, false)),
             _ => Err(DatabaseError::InvalidQuery(
@@ -1111,7 +1111,7 @@ impl Faker {
     }
 
     pub fn tollFreePhoneNumber(&self) -> DatabaseResult<String> {
-        let formats = match self.locale() {
+        let formats = match self.provider_locale() {
             "de_DE" => TOLL_DE,
             "ro_RO" => RO_TOLL,
             locale if uses_us_phone_provider(locale) => TOLL_US,
@@ -1126,7 +1126,7 @@ impl Faker {
 
     /// Samples a regional area code while preserving any leading zeros.
     pub fn areaCode(&self) -> DatabaseResult<String> {
-        let locale = self.locale();
+        let locale = self.provider_locale();
         if !matches!(
             locale,
             "de_DE" | "el_GR" | "en_AU" | "en_NZ" | "en_ZA" | "pt_BR"
@@ -1140,7 +1140,7 @@ impl Faker {
     }
 
     pub fn exchangeCode(&self) -> DatabaseResult<String> {
-        if !uses_us_phone_provider(self.locale()) {
+        if !uses_us_phone_provider(self.provider_locale()) {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker exchange code locale",
             ));
@@ -1149,7 +1149,7 @@ impl Faker {
     }
 
     pub fn tollFreeAreaCode(&self) -> DatabaseResult<String> {
-        if self.locale() != "de_DE" && !uses_us_phone_provider(self.locale()) {
+        if self.provider_locale() != "de_DE" && !uses_us_phone_provider(self.provider_locale()) {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker toll-free area code locale",
             ));
@@ -1158,7 +1158,7 @@ impl Faker {
     }
 
     pub fn countryCodePrefix(&self, formatting: bool) -> DatabaseResult<&'static str> {
-        if self.locale() != "ms_MY" {
+        if self.provider_locale() != "ms_MY" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker country code prefix locale",
             ));
@@ -1168,7 +1168,7 @@ impl Faker {
 
     /// Samples a subscriber mask. Number templates fill the placeholders when rendered.
     pub fn numberFormat(&self) -> DatabaseResult<&'static str> {
-        let formats = match self.locale() {
+        let formats = match self.provider_locale() {
             "hy_AM" => AM_FORMAT,
             "fi_FI" => FI_FORMAT,
             _ => {
@@ -1181,7 +1181,7 @@ impl Faker {
     }
 
     pub fn separator(&self) -> DatabaseResult<&'static str> {
-        if self.locale() != "fi_FI" {
+        if self.provider_locale() != "fi_FI" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker phone separator locale",
             ));
@@ -1210,7 +1210,7 @@ impl Faker {
     }
 
     fn brazilian_subscriber(&self, formats: &[&str], formatted: bool) -> DatabaseResult<String> {
-        if self.locale() != "pt_BR" {
+        if self.provider_locale() != "pt_BR" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker Brazilian subscriber number locale",
             ));
@@ -1265,7 +1265,7 @@ impl Faker {
     }
 
     fn append_phone_token(&self, rendered: &mut String, token: &str) {
-        let literal = match (self.locale(), token) {
+        let literal = match (self.provider_locale(), token) {
             ("el_GR", "internationalCodePrefix") => self.random.sample(&["", "+30"]),
             ("en_SG", "internationalCodePrefix") => self.random.sample(&["+65", "65"]),
             ("el_GR", "mobileCode") => self.random.sample(MOBILE_CODES_GR),
@@ -1546,7 +1546,7 @@ macro_rules! phone_formatters {
         impl Faker {
             $(
                 pub fn $name(&self) -> DatabaseResult<String> {
-                    let (formats, trim): (&[&str], bool) = match self.locale() {
+                    let (formats, trim): (&[&str], bool) = match self.provider_locale() {
                         $($locale => ($formats, $trim),)+
                         _ => return Err(DatabaseError::InvalidQuery(
                             concat!("unsupported Faker ", stringify!($name), " locale"),

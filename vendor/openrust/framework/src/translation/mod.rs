@@ -67,7 +67,9 @@ impl std::fmt::Display for TranslationError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::InvalidCount => formatter.write_str("Invalid translation plural count."),
-            Self::InvalidLocale => formatter.write_str("Invalid translation locale."),
+            Self::InvalidLocale => {
+                formatter.write_str("无效的 BCP 47 语言标签；旧下划线形式请按升级说明迁移。")
+            }
             Self::InvalidKey => formatter.write_str("Invalid translation key."),
             Self::UnexpectedType => {
                 formatter.write_str("Translation value has an unexpected type.")
@@ -82,7 +84,7 @@ impl std::fmt::Display for TranslationError {
             Self::CatalogChanged => {
                 formatter.write_str("Translation catalog changed during loading.")
             }
-            Self::Source(_) => formatter.write_str("Could not load translation catalog."),
+            Self::Source(source) => write!(formatter, "翻译或语言设置失败：{source}"),
             Self::Unavailable(_) => formatter.write_str("Translation service is unavailable."),
         }
     }

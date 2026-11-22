@@ -82,7 +82,7 @@ pub(super) fn load(env: &Environment) -> Result<Loaded<'_>, ConfigError> {
         "timezone": get(env, "APP_TIMEZONE", "UTC")?,
         "locale": locale(env, "APP_LOCALE", "en")?,
         "fallback_locale": locale(env, "APP_FALLBACK_LOCALE", "en")?,
-        "faker_locale": locale(env, "APP_FAKER_LOCALE", "en_US")?,
+        "faker_locale": locale(env, "APP_FAKER_LOCALE", "en-US")?,
 
         /*
         |--------------------------------------------------------------------------
@@ -170,6 +170,6 @@ fn resolve_url(
 fn locale(env: &Environment, key: &str, default: &str) -> Result<String, ConfigError> {
     canonical_locale(env.get_utf8(key)?.unwrap_or(default)).map_err(|_| ConfigError::InvalidType {
         key: key.into(),
-        expected: "a language identifier such as en, zh_CN or zh_TW",
+        expected: "BCP 47 语言标签（如 en、zh-Hans、zh-Hant）",
     })
 }

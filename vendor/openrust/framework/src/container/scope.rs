@@ -464,6 +464,15 @@ impl ScopeSnapshot {
         Self(CURRENT.try_with(Clone::clone).unwrap_or_default())
     }
 
+    /// 读取常驻服务默认值时排除所属应用的请求覆盖，保留其他应用的作用域。
+    pub(crate) fn without(container: &Container) -> Self {
+        let mut contexts = CURRENT
+            .try_with(|contexts| contexts.as_ref().clone())
+            .unwrap_or_default();
+        contexts.remove(&container.identity);
+        Self(Arc::new(contexts))
+    }
+
     pub(crate) fn run<R>(&self, operation: impl FnOnce() -> R) -> R {
         CURRENT.sync_scope(self.0.clone(), operation)
     }

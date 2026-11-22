@@ -11,7 +11,7 @@ try {
     for (const base of ["/", "/docs/"]) {
         const { server } = await serve({ root, base, port: 0 });
         try {
-            for (const language of ["en", "zh_CN", "zh_TW"]) {
+            for (const language of ["en", "zh-Hans", "zh-Hant"]) {
                 const page = await browser.newPage();
                 await page.goto(`http://127.0.0.1:${server.address().port}${base}${language}/digging-deeper/artisan.html#complete-installation`);
                 await page.locator("#complete-installation").waitFor();

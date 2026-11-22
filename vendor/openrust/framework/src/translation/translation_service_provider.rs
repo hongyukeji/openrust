@@ -34,11 +34,23 @@ impl ServiceProvider for TranslationServiceProvider {
             container.singletonNamed("translator", move |container| {
                 let config = container.get::<dyn Repository>("config")?;
                 let loader = container.get::<FileLoader>("translation.loader")?;
-                let make = || {
+                let make = || -> Result<Translator, TranslationError> {
                     let selected = locale(config.as_ref(), "app.locale")?;
                     let fallback = locale(config.as_ref(), "app.fallback_locale")?;
-                    Translator::with_loader(loader, selected, fallback)
-                        .map(|translator| translator.with_owner(owner.clone()))
+                    // 首次解析也可能发生在请求内；常驻默认值不能取自请求配置。
+                    let (default_locale, default_fallback) =
+                        crate::container::ScopeSnapshot::without(container).run(|| {
+                            Ok::<_, TranslationError>((
+                                locale(config.as_ref(), "app.locale")?,
+                                locale(config.as_ref(), "app.fallback_locale")?,
+                            ))
+                        })?;
+                    let translator =
+                        Translator::with_loader(loader, default_locale, default_fallback)?
+                            .with_owner(owner.clone());
+                    translator.setLocale(&selected)?;
+                    translator.setFallback(&fallback)?;
+                    Ok(translator)
                 };
                 make()
                     .map(Arc::new)

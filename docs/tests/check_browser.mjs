@@ -10,8 +10,8 @@ const root = fileURLToPath(new URL("../", import.meta.url));
 
 const languages = [
     ["en", "en-US", "en", "English", "Routing"],
-    ["zh_CN", "zh-CN", "zh-CN", "简体中文", "路由"],
-    ["zh_TW", "zh-TW", "zh-TW", "繁體中文", "路由"],
+    ["zh-Hans", "zh-CN", "zh-Hans", "简体中文", "路由"],
+    ["zh-Hant", "zh-TW", "zh-Hant", "繁體中文", "路由"],
 ];
 
 const browser = await chromium.launch({ executablePath: process.env.DOCS_BROWSER_PATH });
@@ -22,14 +22,14 @@ try {
             const base = `http://127.0.0.1:${server.address().port}${mount}`;
             const fallback = await browser.newPage({ locale: "fr-FR" });
             await fallback.goto(base);
-            await fallback.waitForURL(base + "zh_CN/");
+            await fallback.waitForURL(base + "zh-Hans/");
             await fallback.close();
             const simplified = await browser.newPage({ locale: "zh-Hans" });
             await simplified.goto(base);
-            await simplified.waitForURL(base + "zh_CN/");
+            await simplified.waitForURL(base + "zh-Hans/");
             await simplified.close();
 
-            for (const [locale, path] of [["zh-Hant", "zh_TW"], ["zh-HK", "zh_TW"], ["en-GB", "en"]]) {
+            for (const [locale, path] of [["zh-Hant", "zh-Hant"], ["zh-HK", "zh-Hant"], ["en-GB", "en"], ["zh-Hant-CN", "zh-Hant"], ["zh-Hans-TW", "zh-Hans"], ["zh-Latn-TW", "zh-Hans"], ["en-US-u-nu-latn", "en"]]) {
                 const page = await browser.newPage({ locale });
                 await page.goto(base);
                 await page.waitForURL(base + path + "/");

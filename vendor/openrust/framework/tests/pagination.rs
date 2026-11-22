@@ -2670,7 +2670,7 @@ async fn select_count(connection: &mut Transaction) -> DatabaseResult<u64> {
 async fn verify(config: Json) -> DatabaseResult<()> {
     let mysql = config.get("url").is_some();
     let base = tempfile::tempdir().unwrap();
-    let lang = base.path().join("lang/zh_TW");
+    let lang = base.path().join("lang/zh-Hant");
     std::fs::create_dir_all(&lang).unwrap();
     std::fs::write(
         lang.join("pagination.json"),
@@ -3106,13 +3106,16 @@ async fn verify(config: Json) -> DatabaseResult<()> {
     let previous = second["prev_page_url"].as_str().unwrap();
     assert_eq!(request(address, previous).await["data"], first["data"]);
     let (chinese, english) = tokio::join!(
-        request_body(address, "/api/links?locale=zh-TW&filter=all"),
+        request_body(address, "/api/links?locale=zh-Hant&filter=all"),
         request_body(address, "/api/links?filter=all"),
     );
     assert!(chinese.contains("上一頁"));
     assert!(chinese.contains("下一頁 &lt;more&gt;"));
     assert!(english.contains("« Previous"));
     assert!(english.contains("Next »"));
+    let regional = request_body(address, "/api/links?locale=zh-TW").await;
+    assert!(regional.contains("« Previous"));
+    assert!(!regional.contains("上一頁"));
     assert!(english.contains("aria-current=\"page\""));
     assert!(english.contains("aria-disabled=\"true\""));
     assert!(english.contains("filter=all&amp;page=2#results"));
@@ -3130,7 +3133,7 @@ async fn verify(config: Json) -> DatabaseResult<()> {
     let following = request_body(address, &next.replace("&amp;", "&")).await;
     assert!(following.contains(r#"rel="prev""#));
 
-    let json_links = request(address, "/api/links?mode=json&locale=zh-TW").await;
+    let json_links = request(address, "/api/links?mode=json&locale=zh-Hant").await;
     assert_eq!(json_links["links"][0]["label"], "上一頁");
     assert_eq!(json_links["links"][4]["label"], "下一頁 <more>");
     assert!(

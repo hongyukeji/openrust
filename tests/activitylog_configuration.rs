@@ -20,7 +20,7 @@ async fn native_artisan_discovers_activitylog_publishes_migrates_and_caches_conf
         }
     }
     let _cleanup = Cleanup(path.clone());
-    for lang in ["en", "zh_CN", "zh_TW"] {
+    for lang in ["en", "zh-Hans", "zh-Hant"] {
         std::fs::create_dir_all(path.join(format!("lang/{lang}"))).unwrap();
         std::fs::copy(
             std::path::Path::new(env!("CARGO_MANIFEST_DIR"))

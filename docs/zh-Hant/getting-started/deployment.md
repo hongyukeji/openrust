@@ -215,3 +215,5 @@ Nginx 請求本文上限為 8 MiB，與框架輸入限制一致。代理讀取�
 先備份資料庫和儲存內容，保留已有 `APP_KEY`。原始碼發布依序執行 `build app`、`run --rm --no-deps app artisan migrate --force`、`up -d --no-build --wait`；每條命令均使用上文相同的 Compose 及環境檔案參數。使用發布映像時設定固定的 `APP_IMAGE_NAME` / `APP_IMAGE_VERSION`，以 `pull app` 取代 `build app`。遷移每次發布集中執行一次，不在每個容器啟動時自動執行。
 
 回復時選擇仍保留的上一版映像標籤，再執行 `up -d --no-build --wait`。映像回復不會撤銷資料庫遷移，須先確認資料表結構相容，必要時使用備份還原。`stop` 保留資料；更新時不要刪除 `docker/data/` 或使用 `down -v`。
+
+升級既有專案時，請依[語言標識升級說明](../digging-deeper/localization.md#bcp47-upgrade)同步遷移語言資源、持久化值與快取。

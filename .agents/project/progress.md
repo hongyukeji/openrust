@@ -2,6 +2,12 @@
 
 本页按日期保存交付、验收和提交证据。历史条目中的进度、额度、磁盘与推送状态以记录当时为准。最新交接见[当前交接](current.md)，核心闭合状态见[核心功能闭合对账](audits/core-closure-ledger.md)。
 
+## 2026-11-22 BCP 47 全项目迁移
+
+用户明确覆盖旧下划线约定，默认三语、公开接口、资源和文档目录／URL 统一 en／zh-Hans／zh-Hant，保留地区标签独立语义。核心规范化、Faker／Number／邮件通知／Worker、生成应用及部署复制同步；三库迁移脚本默认回滚并阻断冲突。Rust1.94定向回归、fmt、严格Clippy、三库翻译／迁移及消费者、欢迎页36浏览器组合、三语文档12组合、独立二进制搬迁和原始Dockerfile实际构建运行通过，详细证据及边界见[验收记录](audits/03-07/locale-bcp47-2026-11-22.md)。
+
+用户后续要求全部处理好，已将本地 .env 三个语言值迁至 zh-Hans，其他内容及权限保留；Seeder并行用例改用既有独立数据库夹具，完整71项连续三轮通过，最后两轮同实例逐轮确认无遗留数据库。fmt、workspace/all-targets严格Clippy、42项语言与启动回归及本地配置冷／缓存启动8个HTTP场景通过。未操作开发／生产数据或缓存；其他部署环境与历史数据升级、Windows和外部目标保留待办。用户随后授权暂存和本地提交，本记录随该提交保存；不包含推送或发布，以下旧语言记录保留历史语境。
+
 ## 2026-11-10 启动与 HTTP 主线
 
 | 功能 | 骨架 | 实现 | 验收 |
@@ -113,7 +119,7 @@ macOS ARM64 上 Rust 1.94.0 的格式检查、25 项工作区测试、严格 Cli
 
 ## 2026-11-10 HTTP 异常渲染声明
 
-应用通过 `with_exceptions` 声明 `api/*` 或请求期望 JSON 时渲染为 JSON。框架在原有错误转响应的位置应用策略，保留 HTTP 状态和 `Allow`。核对固定 Laravel 应用的 `withExceptions`，并参考 `v0.x` 提交 `6d1a8192` 中 `vendor/openrust/framework/src/foundation/exceptions.rs` 的策略回调和 `vendor/openrust/framework/src/http/request.rs` 的请求头协商。 [Laravel 应用装配](https://github.com/laravel/laravel/blob/06d016a364a37430eec9cbc52209adce3d7667ce/bootstrap/app.php#L7-L19) · [错误处理文档](../../docs/zh_CN/the-basics/errors.md)
+应用通过 `with_exceptions` 声明 `api/*` 或请求期望 JSON 时渲染为 JSON。框架在原有错误转响应的位置应用策略，保留 HTTP 状态和 `Allow`。核对固定 Laravel 应用的 `withExceptions`，并参考 `v0.x` 提交 `6d1a8192` 中 `vendor/openrust/framework/src/foundation/exceptions.rs` 的策略回调和 `vendor/openrust/framework/src/http/request.rs` 的请求头协商。 [Laravel 应用装配](https://github.com/laravel/laravel/blob/06d016a364a37430eec9cbc52209adce3d7667ce/bootstrap/app.php#L7-L19) · [错误处理文档](../../docs/zh-Hans/the-basics/errors.md)
 
 macOS ARM64 上 Rust 1.94.0 的格式检查、26 项工作区测试、严格 Clippy 和锁定构建通过。仅复制 [352 个启动文件](audits/00-01/README.md#文件范围和复现)，使用全新的 `target/` 完成锁定离线构建。实际 HTTP 请求确认 API 路径即使偏好 HTML 也返回 JSON `404`，普通 Web 路径返回 HTML `404`，Web 请求偏好 JSON 时返回 JSON `404`。同时覆盖 Accept 权重、AJAX 与 PJAX、HEAD 正文抑制和 `405 Allow`。`/up` 返回 `200`，端口占用时 Artisan 列表正常。三语文档构建及 12 项浏览器检查通过。
 
@@ -168,7 +174,7 @@ macOS ARM64 上 Rust 1.94.0 的格式检查、默认与全特性各 27 项工作
 
 ## 2026-11-10 部署产物命名
 
-根应用包名保留 `openrust`，唯一 Cargo 二进制目标定为 `main`，由 Cargo 自动选择运行目标。参考固定版 Goravel 的 Dockerfile，它显式输出并启动 `main`。核对旧版 `6d1a8192` 的 `Cargo.toml`、`Dockerfile` 与 `tests/server/server/aggregate.rs`，沿用按 Cargo 目标定位测试产物的方式，当前测试改用 `CARGO_BIN_EXE_main`。三语部署路径见[应用根目录规则](../../docs/zh_CN/architecture-concepts/lifecycle.md)。 [Goravel Dockerfile](https://github.com/goravel/goravel/blob/31651f646ccedf1701471bf01285111270a9d370/Dockerfile#L8-L20)
+根应用包名保留 `openrust`，唯一 Cargo 二进制目标定为 `main`，由 Cargo 自动选择运行目标。参考固定版 Goravel 的 Dockerfile，它显式输出并启动 `main`。核对旧版 `6d1a8192` 的 `Cargo.toml`、`Dockerfile` 与 `tests/server/server/aggregate.rs`，沿用按 Cargo 目标定位测试产物的方式，当前测试改用 `CARGO_BIN_EXE_main`。三语部署路径见[应用根目录规则](../../docs/zh-Hans/architecture-concepts/lifecycle.md)。 [Goravel Dockerfile](https://github.com/goravel/goravel/blob/31651f646ccedf1701471bf01285111270a9d370/Dockerfile#L8-L20)
 
 macOS ARM64 上，Rust 1.94.0 的 `fmt --all --check`、`test --workspace --locked`（27 项）、`clippy --workspace --all-targets --locked -- -D warnings` 和 `build --release --locked --features standalone` 均通过。将发布产物 `main` 复制到临时目录启动，实际 HTTP 请求 `/` 与 `/up` 均返回 200，首页正文与欢迎页文件一致。服务运行期间，发布产物的 `main artisan inspire` 与源码入口 `./artisan inspire` 均退出 0，输出引言和作者。三语文档通过 `npm run build` 及 `node tests/check_browser.mjs` 的 12 项检查，覆盖 `/` 与 `/docs/`。Windows 实机待验证。
 

@@ -676,7 +676,7 @@ fn configure(env: &mut BTreeMap<String, String>, reverb: bool) -> Result<(), Con
         ("APP_NAME", "App"),
         ("APP_URL", "http://127.0.0.1:8000"),
         ("APP_TIMEZONE", "Asia/Shanghai"),
-        ("APP_LOCALE", "zh_CN"),
+        ("APP_LOCALE", "zh-Hans"),
         ("DB_CONNECTION", "mysql"),
     ] {
         prompt(env, key, default, false)?;

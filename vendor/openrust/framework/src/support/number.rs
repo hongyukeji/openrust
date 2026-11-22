@@ -76,7 +76,7 @@ pub enum NumberError {
 impl std::fmt::Display for NumberError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let message = match self {
-            Self::InvalidLocale => "invalid locale",
+            Self::InvalidLocale => "无效的 BCP 47 语言标签",
             Self::InvalidCurrency => "invalid ISO currency code",
             Self::LocaleData(_) => "number formatting data unavailable",
             Self::NonFinite => "this operation requires a finite number",
@@ -115,8 +115,8 @@ impl Default for Number {
 #[allow(non_snake_case, reason = "Matches Laravel's Number API")]
 impl Number {
     pub fn useLocale(&mut self, locale: &str) -> Result<(), NumberError> {
-        self.locale = locale
-            .replace('_', "-")
+        self.locale = crate::translation::canonical_locale(locale)
+            .map_err(|_| NumberError::InvalidLocale)?
             .parse()
             .map_err(|_| NumberError::InvalidLocale)?;
         Ok(())

@@ -4,14 +4,16 @@ use serde::{Deserialize, Serialize};
 
 use super::{Expression, ViewData, ViewResult, ViewValue, invalid, separators};
 use crate::{
-    support::facades::Lang,
-    translation::PluralCount,
+    support::facades::{Facade, Lang},
+    translation::{Line, PluralCount},
     view::{ViewError, rendering::render_error},
 };
 
 #[derive(Serialize, Deserialize)]
 pub(super) struct Translation {
     choice: bool,
+    nullable: bool,
+    directive: bool,
     arguments: Vec<Expression>,
 }
 
@@ -25,12 +27,29 @@ impl Translation {
             else {
                 continue;
             };
-            return Self::arguments(arguments, name == "trans_choice", depth).map(Some);
+            return Self::parse_arguments(
+                arguments,
+                name == "trans_choice",
+                name == "__",
+                false,
+                depth,
+            )
+            .map(Some);
         }
         Ok(None)
     }
 
     pub(super) fn arguments(source: &str, choice: bool, depth: usize) -> ViewResult<Self> {
+        Self::parse_arguments(source, choice, false, !choice, depth)
+    }
+
+    fn parse_arguments(
+        source: &str,
+        choice: bool,
+        nullable: bool,
+        directive: bool,
+        depth: usize,
+    ) -> ViewResult<Self> {
         let mut start = 0;
         let mut arguments = Vec::new();
         for end in separators(source, ",").chain(std::iter::once(source.len())) {
@@ -41,11 +60,17 @@ impl Translation {
             }
             start = end + 1;
         }
-        let minimum = if choice { 2 } else { 1 };
-        if !(minimum..=minimum + 2).contains(&arguments.len()) {
+        let minimum = if choice { 2 } else { usize::from(!nullable) };
+        let maximum = if choice || directive { 4 } else { 3 };
+        if !(minimum..=maximum).contains(&arguments.len()) {
             return Err(invalid("翻译函数的参数数量无效。"));
         }
-        Ok(Self { choice, arguments })
+        Ok(Self {
+            choice,
+            nullable,
+            directive,
+            arguments,
+        })
     }
 
     pub(super) fn evaluate(
@@ -60,21 +85,34 @@ impl Translation {
                 super::expressions::value(argument, data, bindings).map(|value| value.into_owned())
             })
             .collect::<ViewResult<Vec<_>>>()?;
+        if self.nullable
+            && arguments
+                .first()
+                .is_none_or(|key| matches!(key, ViewValue::Null))
+        {
+            return Ok(ViewValue::Null);
+        }
         let key = arguments[0]
             .as_str()
             .ok_or_else(|| render_error("翻译键必须是字符串。"))?;
         let replace_index = if self.choice { 2 } else { 1 };
-        let replacements = arguments
+        let mut replacements = arguments
             .get(replace_index)
             .map(replacements)
             .transpose()?
             .unwrap_or_default();
         let locale = match arguments.get(replace_index + 1) {
             None | Some(ViewValue::Null) => None,
+            Some(ViewValue::String(locale)) if locale.is_empty() => None,
             Some(ViewValue::String(locale)) => Some(locale.as_str()),
             _ => return Err(render_error("翻译语言必须是字符串或 null。")),
         };
-        let result = if self.choice {
+        if self.choice {
+            // 复数的 count=null 与未提供一致，显式 0／空字符串仍保留。
+            if matches!(arguments.get(replace_index), Some(ViewValue::Object(items)) if matches!(items.get("count"), Some(ViewValue::Null)))
+            {
+                replacements.remove("count");
+            }
             let number = &arguments[1];
             let count = if let Some(integer) = number.as_i64() {
                 PluralCount::Integer(integer)
@@ -91,12 +129,19 @@ impl Translation {
             } else {
                 return Err(render_error("复数计数必须是数字或数组。"));
             };
-            Lang::choice(key, count, &replacements, locale)
-        } else {
-            Lang::get(key, &replacements, locale)
+            return Lang::choice(key, count, &replacements, locale)
+                .map(ViewValue::String)
+                .map_err(|source| ViewError::RenderFailed(Box::new(source)));
+        }
+        let fallback = match arguments.get(3).filter(|_| self.directive) {
+            None => true,
+            Some(ViewValue::Bool(fallback)) => *fallback,
+            _ => return Err(render_error("翻译回退参数必须是布尔值。")),
         };
-        result
-            .map(ViewValue::String)
+        Lang::getFacadeRoot()
+            .map_err(|source| ViewError::RenderFailed(Box::new(source)))?
+            .value(key, &replacements, locale, fallback)
+            .map(view_value)
             .map_err(|source| ViewError::RenderFailed(Box::new(source)))
     }
 }
@@ -136,4 +181,17 @@ pub(super) fn block(key: &str, replace: &ViewValue) -> ViewResult<String> {
         None,
     )
     .map_err(|source| ViewError::RenderFailed(Box::new(source)))
+}
+
+fn view_value(line: Line) -> ViewValue {
+    match line {
+        Line::Text(text) => ViewValue::String(text),
+        Line::List(items) => ViewValue::Array(items.into_iter().map(view_value).collect()),
+        Line::Group(items) => ViewValue::Object(
+            items
+                .into_iter()
+                .map(|(key, value)| (key, view_value(value)))
+                .collect(),
+        ),
+    }
 }

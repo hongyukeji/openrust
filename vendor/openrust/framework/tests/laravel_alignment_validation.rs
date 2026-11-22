@@ -216,9 +216,9 @@ async fn standard_rules_preserve_missing_null_wildcards_and_translated_condition
     use openrust::translation::{FileLoader, Translator};
     use std::{collections::BTreeMap, sync::Arc};
     let root = tempfile::tempdir().unwrap();
-    std::fs::create_dir(root.path().join("zh_CN")).unwrap();
+    std::fs::create_dir(root.path().join("zh-Hans")).unwrap();
     std::fs::write(
-        root.path().join("zh_CN/validation.json"),
+        root.path().join("zh-Hans/validation.json"),
         serde_json::to_vec(&json!({
             "numeric": ":attribute 必须为数值",
             "required_if": ":other 为 :value 时必须填写 :attribute",
@@ -231,7 +231,7 @@ async fn standard_rules_preserve_missing_null_wildcards_and_translated_condition
     let factory = Factory::new(Arc::new(
         Translator::new(
             FileLoader::new(root.path().to_owned()),
-            "zh_CN".into(),
+            "zh-Hans".into(),
             "en".into(),
         )
         .unwrap(),

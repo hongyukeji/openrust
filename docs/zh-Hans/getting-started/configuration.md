@@ -40,7 +40,9 @@ pub fn application_name() -> String {
 
 用 `Config::set` 更新当前应用的配置。`string`、`integer`、`float`、`boolean`、`array` 和 `collection` 检查值的类型。`array` 接受 JSON 列表和对象，`collection` 保留集合键。
 
-语言切换使用 [App 语言方法](../digging-deeper/localization.md#配置语言)，以同步配置、译器和切换事件。在请求或队列任务中，`app.locale`、`app.fallback_locale` 的修改仅影响当前作用域；整体替换 `app` 配置组也仅影响当前作用域，并清除原有子键覆盖。直接修改 `Config` 不会自动更新译器。
+语言切换使用 [App 语言方法](../digging-deeper/localization.md#配置语言)，以同步配置、译器和切换事件。在请求或队列任务中，`app.locale`、`app.fallback_locale` 的修改仅影响当前作用域；整体替换 `app` 配置组也仅影响当前作用域，并清除原有子键覆盖。直接修改 `Config` 不会自动更新已解析的译器。
+
+整体替换 `app` 后，子键按调用顺序写入：替换 `app.ui` 会移除它原有的子键，之后写入 `app.ui.title` 则加入新父对象。写入数组下标保留兄弟元素；`get`、`all`、`has`、`push`、`prepend` 读取同一作用域值，稀疏数组转为带数字键的 JSON 对象。同一生命周期中的嵌套调用共享改动，其他请求或任务以及应用默认值不受影响。`push` 可把当前为 `null` 的配置初始化为列表；两种方法都接受关联数组，追加保留原键，前插会重排整数键并保留命名键。对 `null` 使用 `prepend`，或对其他标量执行这两种操作，均返回错误。
 
 用 `Config::stringOr("app.name", "App")` 直接取得字符串。键缺失、值为 `null` 或类型不符、配置仓储不可用时，均使用传入的默认值。需要严格读取并处理错误时，用 `Config::string("app.name")?`。原始值读取 `Config::getOr("app.name", Value::from("App"))?` 仅在缺键时使用默认值，并保留显式空值。`Config::getMany([("app.name", Value::from("App")), ("app.debug", Value::Bool(false))])?` 按输入顺序读取多个键，各自使用默认值。读取整组配置时，为结构体派生 `serde::Deserialize`，再用 `Config::deserialize::<MailOptions>("mail")?`。
 
@@ -196,3 +198,5 @@ async fn activate_maintenance(
 编译型配置加载器使用 `env.storage_path(base_path, subpath)` 作为 Rust 上下文适配。弱引用选取所属应用的路径，不依赖全局 Facade，也不延长应用生命周期。独立环境快照按自身变量及传入的默认根目录解析。后续更改应用路径不会回写已经加载或缓存的配置值。
 
 文件维护模式每次操作都解析当前路径，服务已解析后仍有效。启动前的预渲染检查使用 boot 前可用的路径：此时应提供进程变量或显式 setter，仅在 dotenv 中设置的值尚不可用。Pail 在首次解析 Files 时确定目录，应在首次使用前配置。配置、路由、事件和包缓存产物的位置继续遵守各自的缓存路径契约。
+
+升级已有项目时，请按[语言标识升级说明](../digging-deeper/localization.md#bcp47-upgrade)同步迁移语言资源、持久化值与缓存。
