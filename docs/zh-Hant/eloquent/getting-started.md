@@ -397,3 +397,13 @@ let users = query.get().await?;
 ```
 
 `value(column)` 回傳首個模型的屬性，無結果回傳 `Value::Null`。`valueOrFail(column)` 在無結果時回傳模型不存在錯誤。`sole()` 和 `soleValue(column)` 要求恰好一列：零列回傳模型不存在錯誤，多列回傳 `DatabaseError::MultipleModelsFound`。這些介面經過模型水合，保留存取器、型別轉換、檢索事件與全域作用域。已選欄位不會被覆蓋；只選擇 `id` 後查詢其他屬性，不會自動補查。實際列的欄位為 SQL NULL 時，`valueOrFail` 仍回傳 `Value::Null`。
+
+## 儲存與刪除變體 {#write-variants}
+
+`saveOrFail()` 在模型連線上開啟交易。`updateOrFail(attributes)` 先填入已存在的模型，再在交易中儲存；`deleteOrFail()` 在交易中刪除已存在的模型。事件取消回傳 `false`，SQL 或監聽器錯誤回滾寫入並向上傳播；非同步任務取消也經現有機制釋放並回滾交易。資料庫回滾不會還原模型記憶體中的屬性或存在標記，應捨棄或重新讀取受影響實例。需要共用外層交易時，將同一個可變交易傳給 `saveInTransaction`、`updateInTransaction` 或 `deleteInTransaction`；自訂交易儲存邏輯也在這些型別化鉤子中實作。
+
+`updateQuietly(attributes)` 先填入已存在的模型，再抑制實例事件儲存。兩個更新變體對不存在的模型在填入前回傳 `false`；`deleteOrFail` 此時也不會開啟交易。
+
+`saveOrIgnore(None)` 插入新模型並忽略唯一衝突，`Some(&["email"])` 指定衝突欄位。發生衝突回傳 `false`，不標記模型已存在，也不觸發 `Created` / `Saved`；插入成功會取得產生的主鍵並發出正常建立事件。對已存在模型呼叫會報錯。該方法復用驅動的插入忽略並回傳能力：PostgreSQL、SQLite 支援；MySQL、SQL Server 對非空插入明確回傳不支援錯誤。該方法不會自動開啟交易，也不會吞掉監聽器錯誤。關閉時間戳且沒有屬性的空模型可能回傳 `true` 而不插入列。
+
+`original` 只在儲存後事件與關聯觸碰成功後，同步最終模型屬性；儲存後監聽器失敗時保留待儲存變化，監聽器成功修改的屬性也納入同步。

@@ -1575,6 +1575,49 @@ pub trait Model: Sized + Send + Sync + 'static {
         persistence::update(self, attributes, None)
     }
 
+    /// 在事务内保存；事件取消返回 false，错误或取消时回滚数据库写入。
+    fn saveOrFail(&mut self) -> impl Future<Output = DatabaseResult<bool>> + Send {
+        persistence::save_or_fail(self)
+    }
+
+    fn updateOrFail(
+        &mut self,
+        attributes: Attributes,
+    ) -> impl Future<Output = DatabaseResult<bool>> + Send {
+        async move {
+            if !self.state().exists {
+                return Ok(false);
+            }
+            self.fillAsync(attributes).await?;
+            self.saveOrFail().await
+        }
+    }
+
+    fn updateQuietly(
+        &mut self,
+        attributes: Attributes,
+    ) -> impl Future<Output = DatabaseResult<bool>> + Send {
+        async move {
+            if !self.state().exists {
+                return Ok(false);
+            }
+            self.fillAsync(attributes).await?;
+            self.saveQuietly().await
+        }
+    }
+
+    fn deleteOrFail(&mut self) -> impl Future<Output = DatabaseResult<bool>> + Send {
+        persistence::delete_or_fail(self)
+    }
+
+    /// 插入新模型并忽略指定唯一约束冲突，支持范围沿用驱动的 RETURNING 能力。
+    fn saveOrIgnore<'a>(
+        &'a mut self,
+        uniqueBy: Option<&'a [&'a str]>,
+    ) -> impl Future<Output = DatabaseResult<bool>> + Send + 'a {
+        persistence::save_or_ignore(self, uniqueBy)
+    }
+
     fn delete(&mut self) -> impl Future<Output = DatabaseResult<bool>> + Send {
         persistence::delete(self, false, None)
     }

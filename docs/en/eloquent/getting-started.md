@@ -397,3 +397,13 @@ let users = query.get().await?;
 ```
 
 `value(column)` returns the first model's attribute or `Value::Null` for no row. `valueOrFail(column)` returns a model-not-found error for no row. `sole()` and `soleValue(column)` require exactly one row; zero rows return a model-not-found error and multiple rows return `DatabaseError::MultipleModelsFound`. These methods hydrate models and retain accessors, casts, retrieved events and global scopes. Existing selected columns are preserved; selecting only `id` does not implicitly fetch another requested attribute. A present row containing SQL NULL still returns `Value::Null` from `valueOrFail`.
+
+## Saving and Deleting Variants {#write-variants}
+
+`saveOrFail()` starts a transaction on the model's connection. `updateOrFail(attributes)` fills an existing model and saves it in a transaction; `deleteOrFail()` deletes an existing model in a transaction. A canceled event returns `false`; SQL or listener errors roll back writes and propagate. A canceled async task also releases the transaction through the existing rollback mechanism. Database rollback does not restore the model's in-memory attributes or existence flag; discard or reload affected instances. When sharing an outer transaction, use `saveInTransaction`, `updateInTransaction` or `deleteInTransaction` with that mutable transaction. Custom transaction behavior belongs in those typed hooks.
+
+`updateQuietly(attributes)` fills an existing model, then saves with instance events suppressed. A model that does not exist returns `false` before filling for both update variants and before starting a transaction for `deleteOrFail`.
+
+`saveOrIgnore(None)` inserts a new model and ignores unique conflicts; `Some(&["email"])` targets the named conflict columns. A conflict returns `false` without marking the model as existing or dispatching `Created` / `Saved`. Successful inserts receive their generated key and emit normal creation events. Calling it on an existing model returns an error. This method uses the driver's insert-ignore-returning support: PostgreSQL and SQLite support it; MySQL and SQL Server return an unsupported-operation error for nonempty inserts. It does not start a transaction or suppress listener errors. An empty model with timestamps disabled can return `true` without inserting a row.
+
+`original` is synchronized only after successful post-save events and owner touches, using the final model attributes. A post-save listener failure leaves pending changes visible; a successful listener's attribute changes are included in that synchronization.

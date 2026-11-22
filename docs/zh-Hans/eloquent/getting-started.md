@@ -397,3 +397,13 @@ let users = query.get().await?;
 ```
 
 `value(column)` 返回首个模型的属性，无结果返回 `Value::Null`。`valueOrFail(column)` 在无结果时返回模型不存在错误。`sole()` 和 `soleValue(column)` 要求恰好一行：零行返回模型不存在错误，多行返回 `DatabaseError::MultipleModelsFound`。这些接口经过模型水合，保留访问器、类型转换、检索事件与全局作用域。已选列不会被覆盖；只选择 `id` 后查询其他属性，不会自动补查。实际行的字段为 SQL NULL 时，`valueOrFail` 仍返回 `Value::Null`。
+
+## 保存与删除变体 {#write-variants}
+
+`saveOrFail()` 在模型连接上开启事务。`updateOrFail(attributes)` 先填充已存在的模型，再在事务中保存；`deleteOrFail()` 在事务中删除已存在的模型。事件取消返回 `false`，SQL 或监听器错误回滚写入并向上传播；异步任务取消也经现有机制释放并回滚事务。数据库回滚不会恢复模型内存中的属性或存在标记，应丢弃或重新读取受影响实例。需要共用外层事务时，将同一个可变事务传给 `saveInTransaction`、`updateInTransaction` 或 `deleteInTransaction`；自定义事务保存逻辑也在这些类型化钩子中实现。
+
+`updateQuietly(attributes)` 先填充已存在的模型，再抑制实例事件保存。两个更新变体对不存在的模型在填充前返回 `false`；`deleteOrFail` 此时也不会开启事务。
+
+`saveOrIgnore(None)` 插入新模型并忽略唯一冲突，`Some(&["email"])` 指定冲突列。发生冲突返回 `false`，不标记模型已存在，也不触发 `Created` / `Saved`；插入成功会取得生成主键并发出正常创建事件。对已存在模型调用会报错。该方法复用驱动的插入忽略并返回能力：PostgreSQL、SQLite 支持；MySQL、SQL Server 对非空插入明确返回不支持错误。该方法不会自动开启事务，也不会吞掉监听器错误。关闭时间戳且没有属性的空模型可能返回 `true` 而不插入行。
+
+`original` 只在保存后事件与关联触碰成功后，同步最终模型属性；保存后监听器失败时保留待保存变化，监听器成功修改的属性也纳入同步。

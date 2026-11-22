@@ -83,6 +83,16 @@ C11–C15追加真实Session默认/login命名错误袋的返回上一页断言�
 
 Q02全部声明/类型/模块/19包裁决、余下基础组件、Validation其余规则、Testing/Query/ORM、真实流式sink与Reverb signin等仍按下方依赖顺序实施；本节不是最终交付结论。
 
+## 模型保存删除变体验收（2026-11-23）
+
+C24 已补 `saveOrFail`、`updateOrFail`、`updateQuietly`、`deleteOrFail`、`saveOrIgnore`，复用现有保存引擎、模型连接事务和驱动 `insertOrIgnoreReturning`。22组真实固定 PHP/PDO SQLite 参考覆盖成功、空模型、不存在模型、保存/创建/更新/删除取消、唯一冲突、保存/删除后监听器失败、quiet、忽略冲突与事件修改。SQLite、独立 PostgreSQL 18.7、MySQL 8.4.13 各1项集成通过，另测任务取消后数据库与审计写入回滚。MySQL/SQL Server 的忽略插入 RETURNING 按固定 Grammar 明确不支持；MySQL 验证 Unsupported，不称22组全部支持。
+
+真实对照发现原实现提前同步 original：保存后监听器失败会错误清除 dirty，成功监听器修改却保留为 dirty。红测试 `model-write-original-red.log` 复现；修复为保存后事件/owner touch成功才从最终实例属性同步，22组版本通过。普通模型与事件5项回归通过，其中旧MySQL缺变量早退不计真实数据库；关系6项在 `RUST_MIN_STACK=16777216` 下通过，默认线程栈曾溢出（`model-write-final.log`），只证明增栈可通过，默认栈原因仍需定位，不掩盖为原环境通过。
+
+`fmt-model-write.log`、`clippy-model-write.log`、`docs-{build,browser,scope}-model-write.log` 均通过，包含严格workspace/all-targets Clippy、三语构建、12页面组合与双前缀全部导航。证据及隔离驱动位于 `target/tmp/framework-parity-20261122/`；源码参考固定 Framework v13.40.0 的 Model.php，来源及许可沿用既有记录。新联网读取仍为空，未宣称额外联网核实。真实PHP参考补用 serializable-closure v2.0.10 测试依赖，Composer报告该包6项advisory，仅用于隔离参考工具，不将其声明为已通过安全审计。
+
+Rust通过 `saveInTransaction`/`deleteInTransaction` hook执行事务变体；已有外层事务显式传入，未实现PHP环境式事务或动态save覆盖及options数组。模型内存状态不会因数据库回滚自动复原，符合实测参考。C20/C21/C23及其他未完成任务继续实施，此处不是全任务完成结论。
+
 ## 目标与依据
 
 按固定上游逐项补齐可实现的目录、命名、公开接口、默认值、装配顺序、生命周期和错误行为。Rust 必要适配与用户确认的额外功能单独登记，保留可追溯的差异；不能把这些差异删除后称为完成，也不能将其算作字面 1:1。

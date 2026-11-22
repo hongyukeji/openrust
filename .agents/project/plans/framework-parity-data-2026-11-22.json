@@ -570,13 +570,13 @@
         "vendor/openrust/framework/src/database/eloquent/model.rs:33",
         "Illuminate\\Database\\Eloquent\\Model.updateOrFail;Illuminate\\Database\\Eloquent\\Model.updateQuietly;Illuminate\\Database\\Eloquent\\Model.saveOrIgnore;Illuminate\\Database\\Eloquent\\Model.saveOrFail;Illuminate\\Database\\Eloquent\\Model.deleteOrFail",
         "vendor/openrust/framework/tests/eloquent_models.rs;vendor/openrust/framework/tests/eloquent_events.rs",
-        "历史发现待当前契约复核；复核仍成立后实施",
-        "",
+        "受支持保存删除变体已实现并验收；显式事务与动态options边界保留",
+        "tests/eloquent_write_variants.rs；tests/reference/eloquent-write-variants.php/json；target/tmp/framework-parity-20261122/model-write-*、clippy-model-write及docs-*-model-write日志",
         "Q01;C21",
-        "本轮未执行框架验收",
-        "历史差异待当前契约裁决",
-        "先复核已有实现后补缺口；本计划未执行",
-        "本轮未运行功能验收，历史结果仅限对应提交和环境"
+        "22组真实固定PHP/PDO SQLite状态与事件参考；SQLite/隔离PostgreSQL18/MySQL8.4各1项集成通过，MySQL显式Unsupported不记为RETURNING支持。事件/模型5项通过中旧MySQL无变量早退不计真实库；关系6项在RUST_MIN_STACK=16777216通过，默认测试线程栈原先溢出如实保留。fmt/严格workspace-all-targets Clippy/三语build、12页面组合及双前缀全导航通过。",
+        "复用固定Model的事务/事件与insertOrIgnoreReturning机制；Rust显式Transaction hook及Result代替动态异常/options",
+        "saveOrFail/updateOrFail/updateQuietly/deleteOrFail/saveOrIgnore已实现；保存后事件失败不提前syncOriginal，成功监听器修改纳入original；不关闭整个ORM",
+        "2026-11-23定向三库、真实PHP对照、fmt/Clippy/三语通过；关系专项默认线程栈容量问题仍须后续独立定位"
       ],
       [
         "main",
@@ -293272,6 +293272,15 @@
       ],
       "note": "16真实PHP/PDO SQLite参考，SQLite/隔离PG/MySQL各1集成用例通过；原有聚合引擎及缓存保护复用，fmt/严格Clippy/三语站点通过。typed关系映射与返回类型差异保留，不将整个ORM记为完成。",
       "evidence": "target/tmp/framework-parity-20261122/eloquent-morph-reference.log、morph-数据库、clippy及docs-morph日志"
+    },
+    {
+      "date": "2026-11-23",
+      "kind": "model_write_variants_verified",
+      "tasks": [
+        "C24"
+      ],
+      "note": "22组真实固定PHP写入参考，三库实际验收包含事务回滚、事件取消、SQL失败、quiet、取消与内存状态；MySQL的忽略插入RETURNING明确Unsupported。红测试证明original提前同步，修复后绿。fmt/严格Clippy/三语站点通过；关系6项增加测试线程栈后通过，未将默认栈溢出记为无条件通过。显式事务hook/动态options边界保留。新联网读取空内容，来源采用既有固定源码与真实PHP依赖。",
+      "evidence": "target/tmp/framework-parity-20261122/model-write-*、fmt/clippy/docs-model-write日志"
     }
   ]
 }

@@ -1,0 +1,294 @@
+{
+    "save_success": {
+        "result": {
+            "ok": true
+        },
+        "events": [
+            "saving",
+            "creating",
+            "created",
+            "saved"
+        ],
+        "exists": true,
+        "recent": true,
+        "dirty": false,
+        "rows": 1
+    },
+    "update_success": {
+        "result": {
+            "ok": true
+        },
+        "events": [
+            "saving",
+            "updating",
+            "updated",
+            "saved"
+        ],
+        "exists": true,
+        "recent": true,
+        "dirty": false,
+        "rows": 1
+    },
+    "update_cancel": {
+        "result": {
+            "ok": false
+        },
+        "events": [
+            "saving",
+            "updating"
+        ],
+        "exists": true,
+        "recent": true,
+        "dirty": true,
+        "rows": 1
+    },
+    "update_quiet": {
+        "result": {
+            "ok": true
+        },
+        "events": [],
+        "exists": true,
+        "recent": true,
+        "dirty": false,
+        "rows": 1
+    },
+    "update_listener_error": {
+        "result": {
+            "error": "listener"
+        },
+        "events": [
+            "saving",
+            "updating",
+            "updated",
+            "saved"
+        ],
+        "exists": true,
+        "recent": true,
+        "dirty": true,
+        "rows": 1
+    },
+    "update_sql_error": {
+        "result": {
+            "error": "query"
+        },
+        "events": [
+            "saving",
+            "updating"
+        ],
+        "exists": true,
+        "recent": true,
+        "dirty": true,
+        "rows": 2
+    },
+    "cancel_saving": {
+        "result": {
+            "ok": false
+        },
+        "events": [
+            "saving"
+        ],
+        "exists": false,
+        "recent": false,
+        "dirty": true,
+        "rows": 2
+    },
+    "cancel_creating": {
+        "result": {
+            "ok": false
+        },
+        "events": [
+            "saving",
+            "creating"
+        ],
+        "exists": false,
+        "recent": false,
+        "dirty": true,
+        "rows": 2
+    },
+    "post_error": {
+        "result": {
+            "error": "listener"
+        },
+        "events": [
+            "saving",
+            "creating",
+            "created",
+            "saved"
+        ],
+        "exists": true,
+        "recent": true,
+        "dirty": true,
+        "rows": 2
+    },
+    "mutate_saved": {
+        "result": {
+            "ok": true
+        },
+        "events": [
+            "saving",
+            "creating",
+            "created",
+            "saved"
+        ],
+        "exists": true,
+        "recent": true,
+        "dirty": false,
+        "rows": 3
+    },
+    "duplicate": {
+        "result": {
+            "error": "query"
+        },
+        "events": [
+            "saving",
+            "creating"
+        ],
+        "exists": false,
+        "recent": false,
+        "dirty": true,
+        "rows": 3
+    },
+    "delete_cancel": {
+        "result": {
+            "ok": false
+        },
+        "events": [
+            "deleting"
+        ],
+        "exists": true,
+        "recent": true,
+        "dirty": false,
+        "rows": 4
+    },
+    "delete_error": {
+        "result": {
+            "error": "listener"
+        },
+        "events": [
+            "deleting",
+            "deleted"
+        ],
+        "exists": false,
+        "recent": true,
+        "dirty": false,
+        "rows": 5
+    },
+    "delete_success": {
+        "result": {
+            "ok": true
+        },
+        "events": [
+            "deleting",
+            "deleted"
+        ],
+        "exists": false,
+        "recent": true,
+        "dirty": false,
+        "rows": 4
+    },
+    "ignore_empty": {
+        "result": {
+            "ok": true
+        },
+        "events": [
+            "saving",
+            "creating",
+            "saved"
+        ],
+        "exists": false,
+        "recent": false,
+        "dirty": false,
+        "rows": 4
+    },
+    "ignore_cancel_saving": {
+        "result": {
+            "ok": false
+        },
+        "events": [
+            "saving"
+        ],
+        "exists": false,
+        "recent": false,
+        "dirty": true,
+        "rows": 4
+    },
+    "ignore_cancel_creating": {
+        "result": {
+            "ok": false
+        },
+        "events": [
+            "saving",
+            "creating"
+        ],
+        "exists": false,
+        "recent": false,
+        "dirty": true,
+        "rows": 4
+    },
+    "ignore_post_error": {
+        "result": {
+            "error": "listener"
+        },
+        "events": [
+            "saving",
+            "creating",
+            "created",
+            "saved"
+        ],
+        "exists": true,
+        "recent": true,
+        "dirty": true,
+        "rows": 5
+    },
+    "ignore_success": {
+        "result": {
+            "ok": true
+        },
+        "events": [
+            "saving",
+            "creating",
+            "created",
+            "saved"
+        ],
+        "exists": true,
+        "recent": true,
+        "dirty": false,
+        "rows": 6
+    },
+    "ignore_existing": {
+        "result": {
+            "error": "logic"
+        },
+        "events": [],
+        "exists": true,
+        "recent": true,
+        "dirty": false,
+        "rows": 6
+    },
+    "ignore_conflict": {
+        "result": {
+            "ok": false
+        },
+        "events": [
+            "saving",
+            "creating"
+        ],
+        "exists": false,
+        "recent": false,
+        "dirty": true,
+        "rows": 6
+    },
+    "ignore_other_constraint": {
+        "result": {
+            "error": "query"
+        },
+        "events": [
+            "saving",
+            "creating"
+        ],
+        "exists": false,
+        "recent": false,
+        "dirty": true,
+        "rows": 6
+    }
+}

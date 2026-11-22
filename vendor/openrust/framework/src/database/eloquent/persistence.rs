@@ -151,10 +151,68 @@ pub(super) async fn save<M: Model>(
     save_with_touch(model, transaction, true).await
 }
 
+#[derive(Clone, Copy)]
+enum InsertMode<'a> {
+    Normal,
+    Ignore(Option<&'a [&'a str]>),
+}
+
+pub(super) async fn save_or_ignore<M: Model>(
+    model: &mut M,
+    unique_by: Option<&[&str]>,
+) -> DatabaseResult<bool> {
+    if model.state().exists {
+        return Err(DatabaseError::InvalidQuery(
+            "已存在的模型不能使用 saveOrIgnore",
+        ));
+    }
+    save_model(model, None, true, InsertMode::Ignore(unique_by)).await
+}
+
+async fn finish_transaction(
+    transaction: &mut Transaction,
+    result: DatabaseResult<bool>,
+) -> DatabaseResult<bool> {
+    match result {
+        Ok(saved) => {
+            transaction.commit().await?;
+            Ok(saved)
+        }
+        Err(error) => {
+            transaction.rollBack(None).await?;
+            Err(error)
+        }
+    }
+}
+
+pub(super) async fn save_or_fail<M: Model>(model: &mut M) -> DatabaseResult<bool> {
+    let mut transaction = connection(model)?.beginTransaction().await?;
+    let result = model.saveInTransaction(&mut transaction).await;
+    finish_transaction(&mut transaction, result).await
+}
+
+pub(super) async fn delete_or_fail<M: Model>(model: &mut M) -> DatabaseResult<bool> {
+    if !model.state().exists {
+        return Ok(false);
+    }
+    let mut transaction = connection(model)?.beginTransaction().await?;
+    let result = model.deleteInTransaction(&mut transaction).await;
+    finish_transaction(&mut transaction, result).await
+}
+
 pub(in crate::database::eloquent) async fn save_with_touch<M: Model>(
+    model: &mut M,
+    transaction: Option<&mut Transaction>,
+    touch: bool,
+) -> DatabaseResult<bool> {
+    save_model(model, transaction, touch, InsertMode::Normal).await
+}
+
+async fn save_model<M: Model>(
     model: &mut M,
     mut transaction: Option<&mut Transaction>,
     touch: bool,
+    insert: InsertMode<'_>,
 ) -> DatabaseResult<bool> {
     let metadata = M::metadata();
     let connection = operation_connection(model, transaction.as_deref())?;
@@ -233,7 +291,28 @@ pub(in crate::database::eloquent) async fn save_with_touch<M: Model>(
         transaction.as_deref_mut(),
         persistence_table(model),
     );
-    if exists {
+    if let InsertMode::Ignore(unique_by) = insert {
+        // 上游在插入前将时间戳合并到实例，忽略冲突时仍保留待保存属性。
+        model.state_mut().apply_attributes(attributes.clone());
+        if attributes.is_empty() {
+            model.state_mut().connection = Some(connection.clone());
+            return finish_save(model, &connection, transaction).await;
+        }
+        let rows = query
+            .insertOrIgnoreReturning(std::slice::from_ref(&attributes), &["*"], unique_by)
+            .await?;
+        model.state_mut().connection = Some(connection.clone());
+        let Some(row) = rows.first() else {
+            return Ok(false);
+        };
+        if model.getIncrementingForInstance() {
+            let id = row
+                .get(metadata.primary_key)
+                .cloned()
+                .ok_or(DatabaseError::InvalidQuery("插入结果缺少主键"))?;
+            attributes.insert(metadata.primary_key.into(), id);
+        }
+    } else if exists {
         scoped_model(model, query)?
             .update(attributes.clone())
             .await?;
@@ -279,12 +358,7 @@ pub(in crate::database::eloquent) async fn save_with_touch<M: Model>(
                 }
                 state.apply_attributes(refreshed);
             }
-            Err(error) => {
-                // The write already ran; a retry must operate on the persisted identity.
-                let state = model.state_mut();
-                state.original.clone_from(&state.attributes);
-                return Err(error);
-            }
+            Err(error) => return Err(error),
         }
     }
     let persisted = model.state().attributes.clone();
@@ -304,8 +378,11 @@ pub(in crate::database::eloquent) async fn save_with_touch<M: Model>(
         Ok(true)
     }
     .await;
-    // Record the write even if a post-write listener fails. Preserve listener mutations as dirty.
-    model.state_mut().original = persisted;
+    // 保存后事件及关联触碰全部成功后，才同步最终实例属性。
+    if result.is_ok() {
+        let state = model.state_mut();
+        state.original.clone_from(&state.attributes);
+    }
     result
 }
 
@@ -594,9 +671,9 @@ async fn finish_save<M: Model>(
     connection: &Connection,
     transaction: Option<&mut Transaction>,
 ) -> DatabaseResult<bool> {
-    let persisted = model.state().attributes.clone();
     fire_with_transaction(model, connection, Saved, false, transaction).await?;
-    model.state_mut().original = persisted;
+    let state = model.state_mut();
+    state.original.clone_from(&state.attributes);
     Ok(true)
 }
 
