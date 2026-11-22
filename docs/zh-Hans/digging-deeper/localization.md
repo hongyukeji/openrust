@@ -120,7 +120,7 @@ OpenRust 扩展 `app.locale_cookie` 默认 `"locale"`，缺键相同，应用保
 "locale_form_field": get(env, "APP_LOCALE_FORM_FIELD", "locale")?,
 ```
 
-设置 `APP_LOCALE_FORM_FIELD=preferred_locale` 后，欢迎页表单与保存入口同步使用该名称。缺键默认 `locale`，修改后需重建配置缓存。字段须为非空顶层名称，不含空白、控制字符、点或方括号，且不能使用 `redirect`、`_token`、`_method`。错误类型及 JSON `null` 属于配置错误，不表示关闭。下方通用保存方法仍由调用者指定字段；自定义表单应传入其配置名称。此应用配置不改变 Cookie 或 URL 参数名称。
+设置 `APP_LOCALE_FORM_FIELD=preferred_locale` 后，欢迎页表单与保存入口同步使用该名称。缺键默认 `locale`，修改后需重建配置缓存。字段须为非空顶层名称，不含空白、控制字符、点或方括号，且不能使用 `redirect`、`_token`、`_method`。错误类型及 JSON `null` 属于配置错误，不表示关闭。下方通用保存方法仍由调用者指定字段；自定义表单应传入其配置名称。此应用配置不改变 Cookie 或 URL 参数名称。 模板通过 `config` 直接读取该配置；保存入口在写入偏好前校验类型及安全字段名。
 
 ```rust
 let redirect = match request.post(Some("redirect")).await? {

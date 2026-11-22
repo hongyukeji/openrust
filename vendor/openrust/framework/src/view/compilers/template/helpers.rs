@@ -7,6 +7,9 @@ use crate::support::Arr;
 
 #[derive(Serialize, Deserialize)]
 enum Operation {
+    CurrentLocale,
+    Repository,
+    FrameworkVersion,
     Query,
     Except,
     InArray,
@@ -28,6 +31,7 @@ enum RequestOperation {
     FullUrl,
     Method,
     Secure,
+    LocaleSelection,
 }
 
 /// 仅开放已实现的只读助手，不执行任意 PHP／Rust 调用。
@@ -39,7 +43,20 @@ pub(super) struct Helper {
 
 impl Helper {
     pub(super) fn parse(source: &str, depth: usize) -> ViewResult<Option<Self>> {
+        let constant = match source {
+            "Application::REPOSITORY" => Some(Operation::Repository),
+            "Application::VERSION" => Some(Operation::FrameworkVersion),
+            _ => None,
+        };
+        if let Some(operation) = constant {
+            return Ok(Some(Self {
+                operation,
+                arguments: Vec::new(),
+            }));
+        }
         let mut calls = vec![
+            ("App::currentLocale", Operation::CurrentLocale, 0, 0),
+            ("App::getLocale", Operation::CurrentLocale, 0, 0),
             ("Arr::query", Operation::Query, 1, 1),
             ("Arr::except", Operation::Except, 2, 2),
             ("in_array", Operation::InArray, 2, 3),
@@ -84,6 +101,12 @@ impl Helper {
                 ),
                 ("method", Operation::Request(RequestOperation::Method), 0, 0),
                 ("secure", Operation::Request(RequestOperation::Secure), 0, 0),
+                (
+                    "localeSelection",
+                    Operation::Request(RequestOperation::LocaleSelection),
+                    0,
+                    0,
+                ),
             ];
             source.trim_start()
         } else {
@@ -137,6 +160,11 @@ impl Helper {
                 .map_err(|source| super::ViewError::RenderFailed(Box::new(source)))
         };
         match self.operation {
+            Operation::CurrentLocale => crate::support::facades::App::currentLocale()
+                .map(ViewValue::String)
+                .map_err(|source| super::ViewError::RenderFailed(Box::new(source))),
+            Operation::Repository => Ok(crate::foundation::Application::REPOSITORY.into()),
+            Operation::FrameworkVersion => Ok(crate::foundation::Application::VERSION.into()),
             Operation::Config | Operation::HasConfig => {
                 let key = arguments[0]
                     .as_ref()
@@ -180,6 +208,7 @@ impl Helper {
                     RequestOperation::FullUrl => RequestRead::FullUrl,
                     RequestOperation::Method => RequestRead::Method,
                     RequestOperation::Secure => RequestRead::Secure,
+                    RequestOperation::LocaleSelection => RequestRead::LocaleSelection,
                 })
             }
             Operation::HasTranslationForLocale => {

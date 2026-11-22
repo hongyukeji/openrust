@@ -69,6 +69,14 @@ HTTP views can read the current request and loaded configuration directly, witho
 
 Request reads use the live request during HTTP response rendering. Includes, components and cached templates share that request, while separate requests and applications remain isolated. Offline rendering cannot read Request; configuration reads also require an application scope. Templates expose only these read calls: they do not return arbitrary mutable `request()` or `config()` objects, write configuration, mutate requests or execute arbitrary PHP methods. Use `App::currentLocale()` for the actual application locale; request headers do not represent the final selection.
 
+Blade can read `App::currentLocale()` and `App::getLocale()` directly; both return the current application locale, including downstream changes. `Application::VERSION` and `Application::REPOSITORY` expose framework package metadata. The OpenRust request extension `request()->localeSelection()` (also `Request::localeSelection()`) returns the middleware's selection state, or `null` when it did not run. Its `supported`, `preference`, `from_query`, `query_parameter` and `can_store` fields describe switching capabilities rather than the final locale. These values need no controller parameters:
+
+```blade
+<html lang="{{ App::currentLocale() }}">
+<input name="{{ config('app.locale_form_field', 'locale') }}">
+<a href="{{ Application::REPOSITORY }}/blob/master/docs/{{ App::currentLocale() }}/README.md">Docs</a>
+```
+
 ### HTML Entity Encoding {#html-entity-encoding}
 
 Escaped Blade echoes double-encode existing HTML entities by default. To preserve valid HTML 4.01 entities in an application, configure its Blade compiler during provider startup. Use `withDoubleEncoding()` to restore the default.

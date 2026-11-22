@@ -150,7 +150,10 @@ async fn cached_templates_children_components_and_concurrent_apps_keep_their_con
     for root in [&first, &second] {
         root.write("main","@extends('layout')@section('content')@include('part')<x-read :value=\"config('app.name')\" />@endsection");
         root.write("layout", "{{ config('app.name') }}:@yield('content')");
-        root.write("part", "{{ Request::query('id') }}:");
+        root.write(
+            "part",
+            "{{ Request::query('id') }}:{{ App::currentLocale() }}:",
+        );
         root.write(
             "components/read",
             "@props(['value']){{ $value }}:{{ request()->input('id') }}",
@@ -168,8 +171,21 @@ async fn cached_templates_children_components_and_concurrent_apps_keep_their_con
         jobs.push(tokio::spawn(async move {
             let query = format!("/view?id={n}");
             assert_eq!(
-                send(&kernel, "GET", &query, &[], "").await,
-                (StatusCode::OK, format!("{name}:{n}:{name}:{n}"))
+                send(
+                    &kernel,
+                    "GET",
+                    &query,
+                    &[("x-config-locale", if n % 2 == 0 { "fr" } else { "zh-Hant" })],
+                    ""
+                )
+                .await,
+                (
+                    StatusCode::OK,
+                    format!(
+                        "{name}:{n}:{}:{name}:{n}",
+                        if n % 2 == 0 { "fr" } else { "zh-Hant" }
+                    )
+                )
             );
         }));
     }
@@ -179,7 +195,7 @@ async fn cached_templates_children_components_and_concurrent_apps_keep_their_con
     // 前面各次使用相同模板文件，后续请求仍在渲染时读取新值。
     assert_eq!(
         send(&a, "GET", "/view?id=again", &[], "").await.1,
-        "Alpha:again:Alpha:again"
+        "Alpha:again:en:Alpha:again"
     );
 }
 
@@ -232,5 +248,50 @@ fn request_helpers_outside_http_render_fail_instead_of_reusing_an_old_request() 
             assert!(source.to_string().contains("HTTP"), "{source}")
         }
         other => panic!("错误种类不符：{other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn application_locale_and_metadata_are_read_in_the_render_scope() {
+    let root = Root::new();
+    root.write("main", "{{ App::currentLocale() }}|{{ App::getLocale() }}|{{ Application::REPOSITORY }}|{{ Application::VERSION }}|{{ request()->localeSelection() === null }}|@include('part')|<x-current />");
+    root.write("part", "{{ App::currentLocale() }}");
+    root.write("components/current", "{{ App::getLocale() }}");
+    let kernel = root.kernel("App").await;
+    for locale in ["fr", "zh-Hant", "en", "fr"] {
+        let (status, body) = send(
+            &kernel,
+            "GET",
+            "/view",
+            &[("x-config-locale", locale), ("accept-language", "de")],
+            "",
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        assert_eq!(
+            body,
+            format!(
+                "{locale}|{locale}|{}|{}|1|{locale}|{locale}",
+                Application::REPOSITORY,
+                Application::VERSION
+            )
+        );
+    }
+    assert!(
+        send(&kernel, "GET", "/view", &[], "")
+            .await
+            .1
+            .starts_with("en|en|")
+    );
+    for invalid in [
+        "{{ App::currentLocale('fr') }}",
+        "{{ App::getLocale('en') }}",
+        "{{ request()->localeSelection('locale') }}",
+    ] {
+        root.write("main", invalid);
+        assert_eq!(
+            send(&kernel, "GET", "/view", &[], "").await.0,
+            StatusCode::INTERNAL_SERVER_ERROR
+        );
     }
 }

@@ -922,3 +922,19 @@ Rust1.94.0，隔离源码 `target/tmp/locale-save-20261123/source/`；所有命�
 初次命令误用不存在的blade_auth测试目标，改为实际承载授权消费者的view_finder重跑。测试初版误将app.name当作请求隔离键，以及只检查ViewError外层通用文本，失败后改用既有app.locale作用域，并检查错误source；没有扩大为全部Config隔离重构、删除必要断言或跳过测试。ConfigLoader只接受fn，fixture改从隔离文件读取应用名称。最终上述结果均重新执行，失败尝试不计通过。
 
 日志与source-match.json位于target/tmp/blade-request-config-20261123，11处交付实现／测试／三语正文与验收快照逐字节一致。未跑完整workspace／其他引擎或实机／Windows／Docker／性能测试；未改共享数据库或缓存行为，不启动无关服务、不操作开发数据。前一轮表单字段已按用户授权提交532681181；用户本轮明确要求提交，后续继续要求落实视图读取建议，因此按本轮范围本地提交，不推送，保留无关在途代码。
+
+
+## 欢迎页 Blade 直接读取（2026-11-23）
+
+用户最新要求覆盖早期“单页值统一由控制器传入”的约定。基线9e2727e7a，保留其他图片等协作WIP；没有暂存、提交或推送。
+
+- Blade增加只读App::currentLocale／getLocale及Application::VERSION／REPOSITORY；沿用Facade语言作用域与默认HTML转义。Request增加localeSelection，模板通过真实请求桥接读取同一扩展对象，未执行SetLocale时为null，没有重复状态仓储。编译缓存版本42。
+- 欢迎页删除全部.with传参，直接读取当前App语言、框架仓库常量、请求选择状态及config表单字段。Controller仍负责HTTP响应语言头及写入／303，不把写入逻辑放进视图。删除locale_form_field包装函数；保存入口直接读取配置，原有配置安全校验仍在写Cookie前执行。GET模板不再预先运行保存入口的校验，这是本次明确的职责变化。
+- 固定Laravel1449bf241017087fbd38c118ecaabef3f6797fdc的Foundation/Application.php核对getLocale／currentLocale转发，CompilesEchos.php核对普通输出转义；原文保存本批research/*.txt。既有v0.x视图为不同结构，无可直接复用的本批选择状态入口；复用当前渲染桥接，未引入任意PHP执行器。Request::localeSelection及REPOSITORY仍为OpenRust扩展。
+- Rust1.94.0、独占复用target/tmp/locale-save-20261123/cargo-target，子进程TMPDIR由build_guard设置。checks.py执行框架blade_request_config6、blade_translations7、request_input30、urls6、view_finder5，应用configuration3、welcome34，共91项通过，0失败／忽略。新增覆盖当前语言与原始头不同、模板缓存／包含／组件、多应用12并发语言隔离、错误参数；欢迎页既有偏好／CSRF／配置缓存／关闭中间件／三语链接消费者同步通过。
+- 首轮旧repository注入夹具失败，因欢迎页已改读常量；改为验证恶意／多余视图数据不能覆盖框架常量后，重跑通过。非法表单配置仍逐项验证POST报500且不写偏好，不再要求GET提前执行保存校验。
+- quality.py受影响Rust fmt、框架lib及相关测试和应用测试严格Clippy通过。依赖imgalifier-avif既有cfg警告保留，不改其他协作范围。
+- docs.py三语内容检查、VitePress构建、12组浏览器和6组全站导航通过；browser-checks.py实际HTTP Kernel＋Chromium25组通过，覆盖三语、桌面手机、明暗主题、保存／更新／清除／自动、无JS及改名／关闭来源。
+- 14个实现／测试／三语正文文件与最终验收快照逐字节一致，source-match.json记录SHA256。材料统一target/tmp/blade-welcome-direct-20261123/，未操作开发数据。未运行完整workspace测试、其他浏览器引擎／实机、Windows、Docker或发布流程；不据本批声明Blade支持任意PHP方法。
+
+用户随后授权本轮本地提交，不包含推送；其他协作改动保留。

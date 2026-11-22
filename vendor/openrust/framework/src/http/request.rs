@@ -459,6 +459,14 @@ impl Request {
         })
     }
 
+    /// 当前请求实际执行的语言中间件选择状态；未启用时为空。
+    /// 这是 OpenRust 扩展，当前实际语言请使用 App::currentLocale。
+    #[allow(non_snake_case, reason = "沿用请求方法命名")]
+    pub fn localeSelection(&self) -> Option<&super::middleware::LocaleSelection> {
+        self.extensions()
+            .get::<super::middleware::LocaleSelection>()
+    }
+
     /// The named attributes set by server-side application code for this request.
     pub fn attributes(&self) -> &RequestAttributes {
         &self.attributes

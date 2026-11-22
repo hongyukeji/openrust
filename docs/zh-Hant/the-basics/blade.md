@@ -69,6 +69,14 @@ HTTP 視圖可直接讀取目前請求與已載入的設定，不必由控制器
 
 請求讀取透過 HTTP 回應渲染取得真實請求，子視圖、元件與快取模板共用本次請求，獨立請求及應用保持隔離。離線渲染不能讀取 Request；設定讀取也需要有效應用作用域。模板僅開放上述讀取呼叫，不支援將 `request()`／`config()` 傳回為任意可變物件，也不執行設定寫入、請求修改或任意 PHP 方法。業務目前語言仍使用 `App::currentLocale()`，請求標頭不代表最終應用語言。
 
+Blade 可直接呼叫 `App::currentLocale()` 和 `App::getLocale()`，讀取目前應用程式語言，也能看到下游主動切換的結果。`Application::VERSION`、`Application::REPOSITORY` 讀取框架套件中繼資料。OpenRust 請求擴充 `request()->localeSelection()`（也支援 `Request::localeSelection()`）讀取中介軟體選擇狀態，未執行時回傳 `null`；其中 `supported`、`preference`、`from_query`、`query_parameter`、`can_store` 描述切換能力，不代替目前實際語言。這些值無需控制器傳參：
+
+```blade
+<html lang="{{ App::currentLocale() }}">
+<input name="{{ config('app.locale_form_field', 'locale') }}">
+<a href="{{ Application::REPOSITORY }}/blob/master/docs/{{ App::currentLocale() }}/README.md">文件</a>
+```
+
 ### HTML 實體編碼 {#html-entity-encoding}
 
 Blade 預設會對跳脫輸出中的現有 HTML 實體再次編碼。若要保留有效的 HTML 4.01 實體，可在應用程式服務提供者啟動時設定 Blade 編譯器。呼叫 `withDoubleEncoding()` 可恢復預設行為。

@@ -69,6 +69,14 @@ HTTP 视图可以直接读取当前请求和已加载的配置，不必由控制
 
 请求读取通过 HTTP 响应渲染获取真实请求，子视图、组件和缓存模板共用本次请求，独立请求及应用保持隔离。离线渲染不能读取 Request；配置读取也需要有效应用作用域。模板仅开放上述读取调用，不支持把 `request()`／`config()` 返回为任意可变对象，也不执行配置写入、请求修改或任意 PHP 方法。业务当前语言仍使用 `App::currentLocale()`，请求头不代表最终应用语言。
 
+Blade 可直接调用 `App::currentLocale()` 和 `App::getLocale()`，读取当前应用语言，也能看到下游主动切换的结果。`Application::VERSION`、`Application::REPOSITORY` 读取框架包元信息。OpenRust 请求扩展 `request()->localeSelection()`（也支持 `Request::localeSelection()`）读取中间件选择状态，未执行时返回 `null`；其中 `supported`、`preference`、`from_query`、`query_parameter`、`can_store` 描述切换能力，不代替当前实际语言。这些值无需控制器传参：
+
+```blade
+<html lang="{{ App::currentLocale() }}">
+<input name="{{ config('app.locale_form_field', 'locale') }}">
+<a href="{{ Application::REPOSITORY }}/blob/master/docs/{{ App::currentLocale() }}/README.md">文档</a>
+```
+
 ### HTML 实体编码 {#html-entity-encoding}
 
 Blade 默认会对转义输出中的已有 HTML 实体再次编码。要保留有效的 HTML 4.01 实体，可在应用服务提供者启动时配置 Blade 编译器。调用 `withDoubleEncoding()` 可恢复默认行为。

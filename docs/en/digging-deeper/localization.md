@@ -120,7 +120,7 @@ The welcome form field is configured separately from the Cookie and query parame
 "locale_form_field": get(env, "APP_LOCALE_FORM_FIELD", "locale")?,
 ```
 
-Set `APP_LOCALE_FORM_FIELD=preferred_locale` to change both the welcome form and its save handler. A missing key defaults to `locale`; rebuild the configuration cache after changes. The field must be a nonempty top-level name without whitespace, control characters, dots or brackets, and cannot be `redirect`, `_token` or `_method`. Invalid types and JSON `null` are configuration errors, not a disable switch. The generic saver below still accepts the field selected by its caller; pass the configured name when using a custom form. This application setting does not rename Cookie or URL inputs.
+Set `APP_LOCALE_FORM_FIELD=preferred_locale` to change both the welcome form and its save handler. A missing key defaults to `locale`; rebuild the configuration cache after changes. The field must be a nonempty top-level name without whitespace, control characters, dots or brackets, and cannot be `redirect`, `_token` or `_method`. Invalid types and JSON `null` are configuration errors, not a disable switch. The generic saver below still accepts the field selected by its caller; pass the configured name when using a custom form. This application setting does not rename Cookie or URL inputs. The template reads this setting directly with `config`; the save endpoint validates its type and safe field name before writing a preference.
 
 ```rust
 let redirect = match request.post(Some("redirect")).await? {

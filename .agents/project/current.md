@@ -1,3 +1,13 @@
+## 欢迎页直接读取视图上下文（2026-11-23）
+
+欢迎页不再通过控制器.with注入语言、仓库、选择状态或表单字段；Blade使用App::currentLocale、Application包常量、request()->localeSelection和config。删除locale_form_field包装方法，保存入口直接读配置并在写入前保留安全校验；GET不再执行保存入口配置验证。保留HTTP头、CSRF、偏好及303职责。
+
+Rust1.94.0隔离91项定向测试、fmt、受影响目标严格Clippy、三语内容／构建／12组浏览器／6组导航及欢迎页25组HTTP Chromium通过。14个交付文件与快照一致，证据见[主题记录](audits/03-07/welcome-language-2026-11-22.md#欢迎页-blade-直接读取2026-11-23)。保留其他协作者WIP；未暂存／提交／推送，完整workspace、其他平台和发布未验。
+
+# 当前交接
+
+用户随后授权本轮本地提交，不包含推送。
+
 # 当前交接
 
 ## Blade 请求与配置读取（2026-11-23）

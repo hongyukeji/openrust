@@ -1,10 +1,8 @@
 use super::controller::Controller;
 use openrust::{
     config::ConfigError,
-    foundation::Application,
     http::{
-        HeaderMap, HttpError, HttpFuture, Request, Response, StatusCode,
-        middleware::{LocaleSelection, SetLocale},
+        HeaderMap, HttpError, HttpFuture, Request, Response, StatusCode, middleware::SetLocale,
     },
     support::facades::{App, Config, Redirect},
     view::view,
@@ -20,12 +18,7 @@ impl WelcomeController {
             let locale = App::currentLocale().map_err(|source| HttpError::Internal {
                 source: Box::new(source),
             })?;
-            let selection = request.extensions().get::<LocaleSelection>();
-            let page = view("welcome")
-                .with("repository", Application::REPOSITORY)
-                .with("language", locale.clone())
-                .with("locale_selection", serde_json::json!(selection))
-                .with("locale_form_field", Self::locale_form_field()?);
+            let page = view("welcome");
             let mut headers = HeaderMap::new();
             headers.insert(
                 "content-language",
@@ -40,7 +33,31 @@ impl WelcomeController {
         request: &mut Request,
     ) -> HttpFuture<'_, Result<Response, HttpError>> {
         Box::pin(async move {
-            let field = Self::locale_form_field()?;
+            let value =
+                Config::getOr("app.locale_form_field", "locale".into()).map_err(|source| {
+                    HttpError::Internal {
+                        source: Box::new(source),
+                    }
+                })?;
+            let field = match value {
+                serde_json::Value::String(field)
+                    if !field.is_empty()
+                        && !matches!(field.as_str(), "redirect" | "_token" | "_method")
+                        && !field.chars().any(|c| {
+                            c.is_whitespace() || c.is_control() || matches!(c, '.' | '[' | ']')
+                        }) =>
+                {
+                    field
+                }
+                _ => {
+                    return Err(HttpError::Internal {
+                        source: Box::new(ConfigError::InvalidType {
+                            key: "app.locale_form_field".into(),
+                            expected: "不与 redirect、_token、_method 冲突的非空顶层字段名（不含空白、控制字符、点或方括号）",
+                        }),
+                    });
+                }
+            };
             let redirect = match request.post(Some("redirect")).await? {
                 None => "/".to_owned(),
                 Some(serde_json::Value::String(path)) => path,
@@ -57,30 +74,5 @@ impl WelcomeController {
             )?
             .into())
         })
-    }
-
-    fn locale_form_field() -> Result<String, HttpError> {
-        let value = Config::getOr("app.locale_form_field", "locale".into()).map_err(|source| {
-            HttpError::Internal {
-                source: Box::new(source),
-            }
-        })?;
-        match value {
-            serde_json::Value::String(field)
-                if !field.is_empty()
-                    && !matches!(field.as_str(), "redirect" | "_token" | "_method")
-                    && !field.chars().any(|c| {
-                        c.is_whitespace() || c.is_control() || matches!(c, '.' | '[' | ']')
-                    }) =>
-            {
-                Ok(field)
-            }
-            _ => Err(HttpError::Internal {
-                source: Box::new(ConfigError::InvalidType {
-                    key: "app.locale_form_field".into(),
-                    expected: "不与 redirect、_token、_method 冲突的非空顶层字段名（不含空白、控制字符、点或方括号）",
-                }),
-            }),
-        }
     }
 }
