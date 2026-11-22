@@ -39,3 +39,7 @@
 - 基线 `e451aed47` 在 Redis 8.10.3 集群上的双额度请求复现 HTTP 500。命名策略按名称和连接前缀派生槽标签，槽标签放在用户前缀之前，避免其中的花括号改变 Redis 的槽解析。数值节流及单机物理键保持原格式。已有集群命名计数的旧键按原 TTL 过期，升级开启新窗口。
 - 真 Redis 8.10.3 集群上的 `sh tests/redis_cluster.sh` 五项通过。双进程 HTTP 验证多额度计数、后置额度拒绝不消耗前置额度、条件计数、访客和认证模型配额，以及 24 次同时竞争中 5 次通过、19 次返回 429。单机 Redis 和 Array 定向回归通过，并复验旧有的 Redis 跨槽读写、独立锁库、标签清理、迁槽和故障切换。
 - Rust 1.94.0 全仓格式、严格 Clippy、独立 `./artisan route:list`、三语站点、12 项通用和 6 项路由到 Redis 配置的浏览器检查通过。临时 Redis 与本批产物已回收，Cargo 清理 3.8 GiB。项目卷可用 81.05 GB（75.49 GiB），周额度剩余 51%。证据目录 `/private/tmp/openrust-04-07-cluster-quota.MgGkhGxn`。
+
+## 默认 API 组限流配置
+
+`Middleware::throttleApi` 的配置接入、默认优先级及实际 HTTP／Redis 回归见[专项记录](api-throttle.md)。

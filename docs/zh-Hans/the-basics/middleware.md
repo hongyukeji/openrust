@@ -25,3 +25,19 @@
 ## 默认 Web 和 API 组
 
 配置会话驱动后，默认 `web` 组依次运行 `EncryptCookies`、`AddQueuedCookiesToResponse`、`StartSession`、`ShareErrorsFromSession`、`PreventRequestForgery` 和 `SubstituteBindings`。默认 `api` 组运行 `SubstituteBindings`。
+
+### API 请求限流
+
+默认 `api` 组不启用限流。先按[路由限流](routing.md#定义限流器)在服务提供者的 `boot` 方法中注册命名策略，再在 `withMiddleware` 中启用：
+
+```rust
+.withMiddleware(|middleware| {
+    middleware.throttleApi(Some("api"), false);
+})
+```
+
+参数须显式传入：`Some("api")` 选择 `api` 策略，`false` 保持当前后端。传入其他名称可选择对应策略，传入 `None` 可关闭默认 API 组内的限流。多次调用时使用最后指定的策略；此方法不会代替应用注册策略。
+
+第二个参数传入 `true` 时会调用 `throttleWithRedis()`，将 API 及其他路由的 `throttle` 别名统一切换为 Redis。后续传入 `false` 不会撤销该切换。
+
+默认 API 组依次执行 `statefulApi()` 启用的有状态会话中间件、限流中间件和 `SubstituteBindings`。通过 `group("api", ...)` 显式替换组时，以自定义组为准，不受 `throttleApi` 调用顺序影响。

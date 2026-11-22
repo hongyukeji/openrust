@@ -27,6 +27,8 @@ pub struct Middleware {
     pub(crate) trim_strings: TrimStrings,
     pub(crate) empty_strings_to_null: ConvertEmptyStringsToNull,
     default_web: bool,
+    default_api: bool,
+    api_limiter: Option<String>,
     #[cfg(feature = "sanctum")]
     stateful_api: bool,
     cookie_exceptions: Arc<HashSet<String>>,
@@ -46,6 +48,8 @@ impl Default for Middleware {
             trim_strings: TrimStrings::default(),
             empty_strings_to_null: ConvertEmptyStringsToNull::default(),
             default_web: true,
+            default_api: true,
+            api_limiter: None,
             #[cfg(feature = "sanctum")]
             stateful_api: false,
             cookie_exceptions: Arc::default(),
@@ -56,7 +60,10 @@ impl Default for Middleware {
             "web".into(),
             vec![MiddlewareEntry::Instance(bindings.clone())],
         );
-        middleware.group("api", [MiddlewareEntry::Instance(bindings)]);
+        middleware
+            .registry
+            .groups
+            .insert("api".into(), vec![MiddlewareEntry::Instance(bindings)]);
         middleware.registry.priority.extend([
             TypeId::of::<crate::foundation::http::middleware::HandlePrecognitiveRequests>(),
             TypeId::of::<EncryptCookies>(),
@@ -65,6 +72,8 @@ impl Default for Middleware {
             TypeId::of::<ShareErrorsFromSession>(),
             TypeId::of::<crate::auth::middleware::Authenticate>(),
             TypeId::of::<crate::auth::middleware::AuthenticateWithBasicAuth>(),
+            TypeId::of::<crate::routing::middleware::ThrottleRequests>(),
+            TypeId::of::<crate::routing::middleware::ThrottleRequestsWithRedis>(),
             TypeId::of::<crate::auth::middleware::AuthenticateSession>(),
             TypeId::of::<SubstituteBindings>(),
             TypeId::of::<crate::auth::middleware::Authorize>(),
@@ -265,6 +274,17 @@ impl Middleware {
     }
 
     pub(crate) fn configure_web(&mut self, config: &dyn Repository) -> Result<(), ConfigError> {
+        if self.default_api {
+            let mut stack = Vec::new();
+            if let Some(limiter) = &self.api_limiter
+                && !limiter.is_empty()
+                && limiter != "0"
+            {
+                stack.push(MiddlewareEntry::named(format!("throttle:{limiter}")));
+            }
+            stack.push(MiddlewareEntry::Instance(Arc::new(SubstituteBindings)));
+            self.registry.groups.insert("api".into(), stack);
+        }
         #[cfg(feature = "sanctum")]
         self.configure_stateful_api(config)?;
         if !self.default_web || matches!(config.get("session.driver"), None | Some(Value::Null)) {
@@ -395,6 +415,18 @@ impl Middleware {
         Ok(())
     }
 
+    /// 为默认 API 组指定限流策略；传入 `None` 可关闭组内限流。
+    ///
+    /// 使用 `Some("api")` 和 `false` 对应默认策略及缓存后端。
+    #[allow(non_snake_case, reason = "沿用中间件配置接口名称")]
+    pub fn throttleApi(&mut self, limiter: Option<&str>, redis: bool) -> &mut Self {
+        self.api_limiter = limiter.map(str::to_owned);
+        if redis {
+            self.throttleWithRedis();
+        }
+        self
+    }
+
     /// Resolves the throttle alias through the Redis duration limiter.
     #[allow(non_snake_case, reason = "Matches Laravel's Middleware API")]
     pub fn throttleWithRedis(&mut self) -> &mut Self {
@@ -410,6 +442,9 @@ impl Middleware {
         let name = name.into();
         if name == "web" {
             self.default_web = false;
+        }
+        if name == "api" {
+            self.default_api = false;
         }
         self.registry
             .groups

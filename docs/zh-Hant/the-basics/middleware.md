@@ -25,3 +25,19 @@
 ## 預設 Web 和 API 群組
 
 設定工作階段驅動程式後，預設 `web` 群組依序執行 `EncryptCookies`、`AddQueuedCookiesToResponse`、`StartSession`、`ShareErrorsFromSession`、`PreventRequestForgery` 和 `SubstituteBindings`。預設 `api` 群組執行 `SubstituteBindings`。
+
+### API 請求限流
+
+預設 `api` 群組不啟用限流。先按[路由限流](routing.md#定義限流器)在服務提供者的 `boot` 方法中註冊具名策略，再在 `withMiddleware` 中啟用：
+
+```rust
+.withMiddleware(|middleware| {
+    middleware.throttleApi(Some("api"), false);
+})
+```
+
+參數須明確傳入：`Some("api")` 選擇 `api` 策略，`false` 保持目前後端。傳入其他名稱可選擇對應策略，傳入 `None` 可關閉預設 API 群組內的限流。多次呼叫時使用最後指定的策略；此方法不會代替應用程式註冊策略。
+
+第二個參數傳入 `true` 時會呼叫 `throttleWithRedis()`，將 API 及其他路由的 `throttle` 別名統一切換為 Redis。後續傳入 `false` 不會撤銷該切換。
+
+預設 API 群組依次執行 `statefulApi()` 啟用的有狀態工作階段中間件、限流中間件和 `SubstituteBindings`。透過 `group("api", ...)` 明確替換群組時，以自訂群組為準，不受 `throttleApi` 呼叫順序影響。

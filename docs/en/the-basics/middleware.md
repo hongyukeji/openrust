@@ -25,3 +25,19 @@ On graceful shutdown, the built-in HTTP server stops accepting new connections a
 ## Default Web and API Groups
 
 With a configured session driver, the default `web` group runs `EncryptCookies`, `AddQueuedCookiesToResponse`, `StartSession`, `ShareErrorsFromSession`, `PreventRequestForgery` and `SubstituteBindings` in that order. The default `api` group runs `SubstituteBindings`.
+
+### API rate limiting
+
+The default `api` group does not enable rate limiting. Register a named limiter in a service provider's `boot` method as described in [routing](routing.md#defining-rate-limiters), then enable it in `withMiddleware`:
+
+```rust
+.withMiddleware(|middleware| {
+    middleware.throttleApi(Some("api"), false);
+})
+```
+
+Arguments are explicit: `Some("api")` selects the `api` policy and `false` keeps the current backend. Pass another policy name to select it, or `None` to disable throttling in the default API group. The last policy selection takes effect; the policy must be registered separately.
+
+Passing `true` as the second argument calls `throttleWithRedis()`, switching the `throttle` alias to Redis for API and other routes. A subsequent call with `false` does not undo that switch.
+
+In the default API group, stateful session middleware enabled by `statefulApi()` runs first, followed by throttling and `SubstituteBindings`. Explicitly replacing the group with `group("api", ...)` takes precedence over `throttleApi`, regardless of call order.
