@@ -39,6 +39,7 @@ pub struct UrlGenerator {
     defaults: HashMap<String, String>,
     force_scheme: Option<String>,
     force_root: Option<String>,
+    asset_origin: Option<Option<String>>,
     host_formatter: Option<Arc<UrlFormatter>>,
     pub(super) path_formatter: Option<Arc<UrlFormatter>>,
 }
@@ -229,6 +230,7 @@ impl UrlGenerator {
             defaults: HashMap::new(),
             force_scheme: None,
             force_root: None,
+            asset_origin: None,
             host_formatter: None,
             path_formatter: None,
         }
@@ -246,6 +248,50 @@ impl UrlGenerator {
     pub fn forceRootUrl(&mut self, root: Option<&str>) {
         self.force_root = root.map(|root| root.trim_end_matches('/').to_owned());
     }
+    /// 设置路由 URL 的来源；None 恢复请求或配置中的来源。
+    #[allow(non_snake_case)]
+    pub fn useOrigin(&mut self, root: Option<&str>) {
+        self.forceRootUrl(root.filter(|value| !value.is_empty()));
+    }
+
+    /// 设置资源来源；None 显式取消 CDN 来源，恢复普通 URL 来源。
+    #[allow(non_snake_case)]
+    pub fn useAssetOrigin(&mut self, root: Option<&str>) {
+        self.asset_origin = Some(
+            root.filter(|value| !value.is_empty())
+                .map(|value| value.trim_end_matches('/').to_owned()),
+        );
+    }
+
+    #[allow(non_snake_case)]
+    pub fn getDefaultParameters(&self) -> &HashMap<String, String> {
+        &self.defaults
+    }
+
+    #[allow(non_snake_case)]
+    pub fn secureAsset(&self, path: &str) -> UrlResult<String> {
+        self.asset(path, Some(true))
+    }
+
+    #[allow(non_snake_case)]
+    pub fn assetFrom(&self, root: &str, path: &str, secure: Option<bool>) -> UrlResult<String> {
+        if path.contains('\\') || path.bytes().any(|byte| byte.is_ascii_control()) {
+            return Err(UrlError::InvalidParameter);
+        }
+        let mut root = valid_http_url(root)?;
+        root.set_scheme(self.root(secure)?.scheme())
+            .map_err(|()| UrlError::InvalidOrigin)?;
+        root.set_query(None);
+        root.set_fragment(None);
+        Ok(format!(
+            "{}/{}",
+            root.as_str()
+                .trim_end_matches('/')
+                .replace("/index.php", ""),
+            path.trim_matches('/')
+        ))
+    }
+
     #[allow(non_snake_case, reason = "遵循 Laravel URL 原名")]
     pub fn formatHostUsing(
         &mut self,
@@ -418,7 +464,7 @@ impl UrlGenerator {
         }
     }
 
-    fn valid_signature_at(
+    pub(crate) fn valid_signature_at(
         &self,
         request: &Request,
         mode: SignatureMode,
@@ -683,7 +729,11 @@ impl Contract for UrlGenerator {
         {
             return Err(UrlError::InvalidParameter);
         }
-        let root = match self.string_config("app.asset_url") {
+        let root = match self
+            .asset_origin
+            .clone()
+            .unwrap_or_else(|| self.string_config("app.asset_url"))
+        {
             Some(asset) => valid_http_url(&asset)?,
             None => self.root(secure)?,
         };

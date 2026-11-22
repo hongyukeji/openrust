@@ -262,6 +262,15 @@ impl LogManager {
             .set("logging.default", Value::String(name.to_owned()))
     }
 
+    /// 返回已解析通道的快照，不触发尚未使用通道的解析。
+    pub fn getChannels(&self) -> HashMap<String, Arc<Logger>> {
+        self.channels
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .entries
+            .clone()
+    }
+
     pub fn forgetChannel(&self, name: Option<&str>) {
         let Some(name) = self.channel_name(name) else {
             return;

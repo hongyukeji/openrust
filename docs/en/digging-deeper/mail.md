@@ -340,3 +340,8 @@ mail.assertNothingQueued();
 ## Default addresses and cancellation
 
 `Mailer::alwaysTo`, `alwaysFrom`, `alwaysReplyTo`, and `alwaysReturnPath` configure that mailer. Boot-time values become application defaults; overrides inside a request or queue scope affect that execution only. `alwaysTo` replaces recipients and clears CC/BCC after customization. Configuration supports `mail.to`, `mail.from`, `mail.reply_to`, and `mail.return_path`. Cancellation returns `Ok(None)` from `send`, `sendNow`, and `PendingMail`, without invoking transport or emitting `MessageSent`. Existing consumers must handle `Option<SentMessage>` explicitly.
+
+
+## Clearing resolved mailers
+
+`MailManager::forgetMailers()` clears all resolved mailer instances and returns the manager. The next `mailer(...)` call creates a fresh instance using the registered configuration and factories. Previously returned `Arc` handles remain usable until their owners release them.

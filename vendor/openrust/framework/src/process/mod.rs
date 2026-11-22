@@ -20,7 +20,7 @@ pub(crate) mod windows_background;
 
 pub use facade::Process;
 pub(crate) use facade::ProcessServiceProvider;
-pub use factory::{Factory, RecordedProcess};
+pub use factory::{Factory, ProcessAssertion, RecordedProcess};
 pub use fake_description::FakeProcessDescription;
 pub use invoked_process::{InvokedProcess, OutputStream, Signal};
 pub use pending_process::{Command, PendingProcess};

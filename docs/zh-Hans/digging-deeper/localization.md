@@ -409,3 +409,7 @@ Translator 契约、具体实现和 Lang Facade 均提供 `getLocale`、`setLoca
 数据库翻译先只读盘点 `language_lines.text` 的 JSON 语言键，以及应用自有设置或语言列。`vendor/openrust/translation-database/database/upgrade-bcp47/`提供独立只读盘点及 PostgreSQL、MySQL、SQLite 事务，映射默认两种中文及 `en_US`／`en_GB`；审阅后按实际情况调整表名和其他旧语言映射。未列入映射的下划线键、任意新旧键碰撞（包括相同值或 null）均使事务失败，不覆盖内容。默认末尾为 **ROLLBACK**，核对结果和备份后，才显式改为 **COMMIT**。发生错误需回滚并关闭该专属数据库会话。成功后重复执行为空操作；已提交后的回退需要恢复备份，不能凭新键名判断哪些内容来自迁移。
 
 Faker 原生 provider 键仅保留在私有边界，`locale()`、`randomLocale()` 输出 BCP 47；仅有文字体系的 `zh-Hans`／`zh-Hant` 使用已有对应中文 provider，公开标签仍保留原地区与扩展。微信原生 `lang=zh_CN` 等第三方协议字段保持不变。
+
+## 替换复数选择器
+
+`Translator::getSelector()` 返回当前 `Arc<dyn Selector>`。实现 `openrust::translation::Selector` 后传入 `setSelector`，即可自定义复数分支选择。其 `choose` 接收原始文案、`PluralCount` 和解析后的语言，返回 `TranslationResult<String>`，之后才替换 `:count` 等占位符。通过 `setSelector(MessageSelector)` 恢复默认选择器。`getLoader()` 返回实际共享的 `Arc<FileLoader>`；先前取出的选择器和加载器句柄仍然有效。

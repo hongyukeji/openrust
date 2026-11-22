@@ -72,3 +72,8 @@ fn article_url() -> Result<String, openrust::routing::UrlError> {
 ## 產生策略
 
 複製請求的 `UrlGenerator` 後，可呼叫 `forceScheme`、`forceHttps`、`forceRootUrl`、`formatHostUsing`、`formatPathUsing`。這些方法需要該產生器的可變借用，不修改其他請求的策略。傳入 `None` 清除強制協定或根位址。格式化器作用於產生路徑和具名路由，包括簽章位址；驗證簽章時使用產生時相同的絕對或相對模式。信任代理需另行設定，使請求來源使用預期的轉送網域和協定。
+
+
+## 資源來源與預設參數
+
+透過 `UrlGenerator::useOrigin(Some(root))` 覆蓋產生 URL 的來源，傳入 `None` 恢復請求或設定來源。`useAssetOrigin(Some(root))` 覆蓋資源來源，`None` 清除資源來源（包括設定的 CDN）。這些修改屬於目前產生器實例及其複本。`secureAsset(path)` 要求 HTTPS，但保留明確的資源來源。`assetFrom(root, path, secure)` 使用自訂根位址，通訊協定採用目前請求或強制通訊協定。`getDefaultParameters()` 讀取命名預設參數。`URL` Facade 同樣提供 `secureAsset`、`assetFrom` 和 `getDefaultParameters`。

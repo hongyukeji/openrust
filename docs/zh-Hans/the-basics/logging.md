@@ -308,3 +308,8 @@ Provider 通过所属应用的 ConsoleKernel 注册命令，沿用捕获的 test
 ## 频道上下文
 
 使用 `withContext`、`withoutContext` 设置或移除频道上下文。`shareContext` 合并到已解析及未来的频道，每条日志的同名字段优先。`sharedContext` 读取未来频道的默认值。`flushSharedContext` 只清空这些默认值，不删除已合并到频道的字段；移除频道字段使用 `withoutContext`。启动阶段默认值由请求或队列任务继承，动态上下文按作用域隔离，复用频道句柄也不会跨请求共享。
+
+
+## 读取已解析通道
+
+`LogManager::getChannels()` 与 `Log::getChannels()` 返回已解析通道名称到 `Arc<Logger>` 句柄的快照，不创建尚未使用的通道。`forgetChannel` 移除通道后，影响后续解析；先前返回的快照和日志句柄仍可使用。

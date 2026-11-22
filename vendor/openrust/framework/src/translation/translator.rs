@@ -5,13 +5,13 @@ use std::{
     collections::{BTreeMap, HashMap, HashSet},
     future::Future,
     path::PathBuf,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, RwLock},
 };
 
 use crate::contracts::translation::{Loader, Translator as Contract};
 
 use super::{
-    FileLoader, Line, Lines, MessageSelector, PluralCount, Replacement, TranslationError,
+    FileLoader, Line, Lines, MessageSelector, PluralCount, Replacement, Selector, TranslationError,
     TranslationResource, TranslationResult,
     file_loader::{merge::indexed, valid_group, valid_segment},
     locale::canonical_locale,
@@ -80,6 +80,7 @@ pub(crate) struct LocaleState(Mutex<HashMap<usize, (Arc<()>, Locales)>>);
 /// Resolves translations using one application's catalog and locale defaults.
 pub struct Translator {
     loader: Arc<FileLoader>,
+    selector: RwLock<Arc<dyn Selector>>,
     defaults: Mutex<Locales>,
     owner: std::sync::Weak<crate::container::Container>,
     loaded: Mutex<HashMap<CatalogKey, Catalog>>,
@@ -100,6 +101,7 @@ impl Translator {
     ) -> TranslationResult<Self> {
         Ok(Self {
             loader,
+            selector: RwLock::new(Arc::new(MessageSelector)),
             defaults: Mutex::new(Locales {
                 locale: canonical_locale(&locale)?,
                 fallback: canonical_locale(&fallback)?,
@@ -136,6 +138,25 @@ impl Translator {
     }
 
     /// Adds a language directory for subsequent group and literal JSON loads.
+    /// 返回当前选择器句柄，替换后已取出的句柄仍可继续使用。
+    pub fn getSelector(&self) -> Arc<dyn Selector> {
+        self.selector
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone()
+    }
+
+    pub fn setSelector(&self, selector: impl Selector + 'static) {
+        *self
+            .selector
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = Arc::new(selector);
+    }
+
+    pub fn getLoader(&self) -> Arc<FileLoader> {
+        self.loader.clone()
+    }
+
     pub fn addPath(&self, path: PathBuf) {
         self.loader.addPath(path);
     }
@@ -507,7 +528,7 @@ impl Translator {
                 self.getFallback(),
             ),
         };
-        Ok(MessageSelector.choose(&line, count, &selected)?.to_owned())
+        self.getSelector().choose(&line, count, &selected)
     }
 
     fn resolve_locale(&self, locale: Option<&str>) -> TranslationResult<String> {

@@ -50,3 +50,8 @@ pub async fn refresh_password(password: &[u8], stored: &str) -> HashResult<Optio
 应用默认启用 `HASH_VERIFY`。已存哈希采用其他算法时返回 `HashError::AlgorithmMismatch`。迁移期间可用 `HASH_VERIFY=false` 校验其他受支持算法的旧哈希。生成新哈希时仍使用当前驱动。
 
 OpenRust 在阻塞线程上运行密码操作。每个应用默认允许两个并发操作，容量耗尽时返回 `CapacityExhausted`。已存哈希或操作参数超出预算时返回 `ExecutionLimit`。默认上限为 bcrypt 成本 16，Argon 内存 256 MiB、迭代成本 10 和 4 个并行通道。可用 `hashing.max_concurrent_operations` 和 `hashing.execution_limits` 配置。
+
+
+## 修改实例默认参数
+
+在可变的具体哈希实例上调用 `BcryptHasher::setRounds(rounds)`，或 `ArgonHasher` / `Argon2IdHasher` 的 `setMemory(kib)`、`setTime(iterations)`、`setThreads(threads)`。这些方法支持链式调用，只修改当前实例的默认参数。单次操作传入的选项优先，资源上限仍在实际执行时检查。

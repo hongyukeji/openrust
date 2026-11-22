@@ -409,3 +409,7 @@ Translator 契約、具體實作與 Lang Facade 都提供 `getLocale`、`setLoca
 資料庫翻譯先唯讀盤點 `language_lines.text` 的 JSON 語言鍵，以及應用程式自有設定或語言欄位。`vendor/openrust/translation-database/database/upgrade-bcp47/`提供獨立唯讀盤點與 PostgreSQL、MySQL、SQLite 交易，映射預設兩種中文與 `en_US`／`en_GB`；審閱後按實際情況調整資料表名稱及其他舊語言映射。未列入映射的底線鍵、任意新舊鍵碰撞（包括相同值或 null）均使交易失敗，不覆寫內容。預設結尾為 **ROLLBACK**，核對結果與備份後，才明確改為 **COMMIT**。發生錯誤需回滾並關閉該專屬資料庫連線。成功後重複執行為空操作；已提交後的回退需要還原備份，不能僅憑新鍵名判斷哪些內容來自遷移。
 
 Faker 原生 provider 鍵僅保留於私有邊界，`locale()`、`randomLocale()` 輸出 BCP 47；僅有文字體系的 `zh-Hans`／`zh-Hant` 使用既有對應中文 provider，公開標籤仍保留原地區及擴充。微信原生 `lang=zh_CN` 等第三方協定欄位保持不變。
+
+## 替換複數選擇器
+
+`Translator::getSelector()` 傳回目前的 `Arc<dyn Selector>`。實作 `openrust::translation::Selector` 後傳入 `setSelector`，即可自訂複數分支選擇。其 `choose` 接收原始文案、`PluralCount` 和解析後的語言，傳回 `TranslationResult<String>`，之後才替換 `:count` 等預留位置。透過 `setSelector(MessageSelector)` 恢復預設選擇器。`getLoader()` 傳回實際共用的 `Arc<FileLoader>`；先前取出的選擇器和載入器控制代碼仍然有效。

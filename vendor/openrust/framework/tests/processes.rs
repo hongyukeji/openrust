@@ -26,20 +26,21 @@ async fn fake_configuration_and_results_are_isolated() {
     assert_eq!(left_result.errorOutput(), b"stderr");
     assert!(matches!(left_result.throw(), Err(Error::Failed(_))));
     assert_eq!(right_result.unwrap().output(), b"right");
-    left.assertRan(|process| {
-        process
-            .environment
-            .get(std::ffi::OsStr::new("MODE"))
-            .is_some_and(|mode| mode.as_ref().is_some_and(|mode| mode == "test"))
+    left.assertRan(|process, result| {
+        result.is_some_and(|result| result.exitCode() == 3)
+            && process
+                .environment
+                .get(std::ffi::OsStr::new("MODE"))
+                .is_some_and(|mode| mode.as_ref().is_some_and(|mode| mode == "test"))
             && process.environment.get(std::ffi::OsStr::new("HOME")) == Some(&None)
             && process.input == b"payload"
     });
-    right.assertRanTimes(|_| true, 1);
+    right.assertRanTimes(|_, _| true, 1);
     assert!(matches!(
         left.run(["other"]).await,
         Err(Error::StrayProcess)
     ));
-    left.assertDidntRun(|process| process.command == Command::from(["other"]));
+    left.assertDidntRun(|process, _| process.command == Command::from(["other"]));
 }
 
 #[tokio::test]
@@ -61,7 +62,7 @@ async fn uses_registered_fakes_and_keeps_the_recording_across_reconfiguration() 
     ));
     factory.fake(|_| Some(Ok(Factory::result("replaced", "", 0))));
     assert_eq!(factory.run("example").await.unwrap().output(), b"replaced");
-    factory.assertRanTimes(|process| process.command == Command::from("example"), 4);
+    factory.assertRanTimes(|process, _| process.command == Command::from("example"), 4);
 }
 
 #[tokio::test]
@@ -198,7 +199,7 @@ async fn scripted_fakes_play_ordered_chunks_and_track_signals() {
     assert_eq!(result.output(), b"ready\nfinished\n");
     assert_eq!(result.errorOutput(), b"diagnostic\n");
     assert_eq!(observed.lock().unwrap().len(), 3);
-    factory.assertRanTimes(|probe| probe.command == "script".into(), 1);
+    factory.assertRanTimes(|probe, _| probe.command == "script".into(), 1);
     assert_eq!(
         factory.recorded()[0].1.as_ref().unwrap().output(),
         result.output()
@@ -561,4 +562,36 @@ mod unix {
             b"completed"
         );
     }
+}
+
+#[tokio::test]
+async fn ordered_and_negative_assertions_inspect_real_record_order_and_results() {
+    use std::panic::{AssertUnwindSafe, catch_unwind};
+    let factory = Factory::new();
+    factory.assertNothingRan().assertRanInOrder(&[]);
+    factory.fakeCommand("*", Factory::result("output", "", 0));
+    factory.run(["tool", "first"]).await.unwrap();
+    factory.run(["tool", "second"]).await.unwrap();
+    let first = |process: &openrust::process::RecordedProcess,
+                 result: Option<&openrust::process::ProcessResult>| {
+        process.command == Command::from(["tool", "first"])
+            && result.is_some_and(|result| result.output() == b"output")
+    };
+    let second = |process: &openrust::process::RecordedProcess,
+                  _: Option<&openrust::process::ProcessResult>| {
+        process.command == Command::from(["tool", "second"])
+    };
+    factory
+        .assertRanInOrder(&[&first, &second])
+        .assertNotRan(|process, _| process.command == Command::from("missing"));
+    assert!(
+        catch_unwind(AssertUnwindSafe(
+            || factory.assertRanInOrder(&[&second, &first])
+        ))
+        .is_err()
+    );
+    assert!(catch_unwind(AssertUnwindSafe(|| factory.assertRanInOrder(&[&first]))).is_err());
+    assert!(catch_unwind(AssertUnwindSafe(|| factory.assertNotRan(first))).is_err());
+    assert!(catch_unwind(AssertUnwindSafe(|| factory.assertNothingRan())).is_err());
+    Factory::new().assertNothingRan();
 }

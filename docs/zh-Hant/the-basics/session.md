@@ -120,3 +120,8 @@ impl ServiceProvider for AppSessionProvider {
 ## 預設 Cookie 名稱
 
 預設名稱為 `Str::slug(APP_NAME) + "-session"`，例如 `My App` 對應 `my-app-session`，`ExampleStore` 對應 `examplestore-session`。升級會改變舊版預設 Cookie 名稱，使瀏覽器原登入工作階段不可見；需要沿用時明確設定 `SESSION_COOKIE`。快取與 Redis 預設前綴也使用同一 slug；保留既有資料命名空間時明確設定 `CACHE_PREFIX`、`REDIS_PREFIX`。
+
+
+## 讀取工作階段設定
+
+`SessionManager::shouldBlock()` 讀取 `session.block`，`blockDriver()` 讀取 `session.block_store`。`defaultRouteBlockLockSeconds()` 和 `defaultRouteBlockWaitSeconds()` 傳回鎖持有與等待時長，均預設 10 秒。`getSessionConfig()` 傳回建立管理器時使用的設定快照，保留自訂鍵；建立後修改設定儲存庫不會更新該快照。

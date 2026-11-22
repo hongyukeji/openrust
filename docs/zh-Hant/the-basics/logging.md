@@ -308,3 +308,8 @@ Provider 透過所屬應用程式的 ConsoleKernel 註冊命令，沿用擷取�
 ## 頻道上下文
 
 使用 `withContext`、`withoutContext` 設定或移除頻道上下文。`shareContext` 合併到已解析及未來的頻道，每則日誌的同名欄位優先。`sharedContext` 讀取未來頻道的預設值。`flushSharedContext` 只清空這些預設值，不刪除已合併到頻道的欄位；移除頻道欄位使用 `withoutContext`。啟動階段預設值由請求或佇列工作繼承，動態上下文按作用域隔離，重用頻道控制代碼也不跨請求共用。
+
+
+## 讀取已解析通道
+
+`LogManager::getChannels()` 與 `Log::getChannels()` 傳回已解析通道名稱到 `Arc<Logger>` 控制代碼的快照，不建立尚未使用的通道。`forgetChannel` 移除通道後，影響後續解析；先前傳回的快照和日誌控制代碼仍可使用。

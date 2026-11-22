@@ -120,3 +120,8 @@ Register this provider with the application and set `SESSION_DRIVER=app_memory`.
 ## Default cookie name
 
 The default is `Str::slug(APP_NAME) + "-session"`: `My App` becomes `my-app-session`, while `ExampleStore` becomes `examplestore-session`. Upgrading changes the old default cookie name and makes existing browser sessions unavailable. Set `SESSION_COOKIE` explicitly to retain the old name. Cache and Redis prefixes use the same slug; set `CACHE_PREFIX` and `REDIS_PREFIX` explicitly to retain existing namespaces.
+
+
+## Inspecting session configuration
+
+`SessionManager::shouldBlock()` reads `session.block`; `blockDriver()` reads `session.block_store`. `defaultRouteBlockLockSeconds()` and `defaultRouteBlockWaitSeconds()` return the configured lock and wait durations, each defaulting to 10 seconds. `getSessionConfig()` returns the configuration snapshot used when assembling this manager, including custom keys. Changes to the configuration repository after assembly do not update this snapshot.

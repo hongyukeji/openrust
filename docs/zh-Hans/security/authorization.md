@@ -69,3 +69,8 @@ fn register_gate_listener(events: &Dispatcher) -> EventResult<()> {
     events.listen("GateEvaluated", Arc::new(RecordGate), Delivery::Sync)
 }
 ```
+
+
+## 响应状态
+
+通过 `Response::deny("原因").withStatus(StatusCode::CONFLICT)` 设置拒绝状态，或用 `asNotFound()` 选择 404。`withStatus(None)` 清除先前设置的状态。这些 Builder 消费并返回响应，保留授权结论及原因；给允许的响应设置状态不会将其改为拒绝。

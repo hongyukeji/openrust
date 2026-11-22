@@ -50,3 +50,8 @@ pub async fn refresh_password(password: &[u8], stored: &str) -> HashResult<Optio
 `HASH_VERIFY` is enabled by default in the application. A stored hash using another algorithm returns `HashError::AlgorithmMismatch`. For a migration, `HASH_VERIFY=false` permits verification using any of the supported stored algorithms. New hashes use the currently configured driver.
 
 OpenRust runs password operations on blocking workers. The application defaults to two concurrent operations and returns `CapacityExhausted` when both are busy. A stored hash or operation may also return `ExecutionLimit` if its costs exceed the application budget. The default maxima are bcrypt cost 16 and Argon memory 256 MiB, time cost 10, and 4 lanes. Configure these limits with `hashing.max_concurrent_operations` and `hashing.execution_limits`.
+
+
+## Changing instance defaults
+
+On a mutable concrete hasher, call `BcryptHasher::setRounds(rounds)` or `ArgonHasher` / `Argon2IdHasher` methods `setMemory(kib)`, `setTime(iterations)`, and `setThreads(threads)`. These chainable setters change that instance’s defaults. Options passed to an individual operation take precedence; resource limits are checked when the operation runs.

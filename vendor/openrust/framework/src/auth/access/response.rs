@@ -40,6 +40,17 @@ impl Response {
         Self::denyWithStatus(StatusCode::NOT_FOUND, message)
     }
 
+    /// 设置可选 HTTP 状态，保留授权结论和原因。
+    pub fn withStatus(mut self, status: impl Into<Option<StatusCode>>) -> Self {
+        self.status = status.into();
+        self
+    }
+
+    /// 将响应状态设置为 404，保留授权结论和原因。
+    pub fn asNotFound(self) -> Self {
+        self.withStatus(StatusCode::NOT_FOUND)
+    }
+
     pub fn allowed(&self) -> bool {
         self.allowed
     }

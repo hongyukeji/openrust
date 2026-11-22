@@ -88,7 +88,9 @@ impl Process {
     }
 
     #[track_caller]
-    pub fn assertRan(predicate: impl Fn(&RecordedProcess) -> bool) -> Result<()> {
+    pub fn assertRan(
+        predicate: impl Fn(&RecordedProcess, Option<&ProcessResult>) -> bool,
+    ) -> Result<()> {
         Self::getFacadeRoot()
             .map_err(Error::Unavailable)?
             .assertRan(predicate);
@@ -96,7 +98,46 @@ impl Process {
     }
 
     #[track_caller]
-    pub fn assertDidntRun(predicate: impl Fn(&RecordedProcess) -> bool) -> Result<()> {
+    pub fn assertRanTimes(
+        predicate: impl Fn(&RecordedProcess, Option<&ProcessResult>) -> bool,
+        expected: usize,
+    ) -> Result<()> {
+        Self::getFacadeRoot()
+            .map_err(Error::Unavailable)?
+            .assertRanTimes(predicate, expected);
+        Ok(())
+    }
+
+    #[track_caller]
+    pub fn assertNotRan(
+        predicate: impl Fn(&RecordedProcess, Option<&ProcessResult>) -> bool,
+    ) -> Result<()> {
+        Self::getFacadeRoot()
+            .map_err(Error::Unavailable)?
+            .assertNotRan(predicate);
+        Ok(())
+    }
+
+    #[track_caller]
+    pub fn assertNothingRan() -> Result<()> {
+        Self::getFacadeRoot()
+            .map_err(Error::Unavailable)?
+            .assertNothingRan();
+        Ok(())
+    }
+
+    #[track_caller]
+    pub fn assertRanInOrder(callbacks: &[&super::ProcessAssertion<'_>]) -> Result<()> {
+        Self::getFacadeRoot()
+            .map_err(Error::Unavailable)?
+            .assertRanInOrder(callbacks);
+        Ok(())
+    }
+
+    #[track_caller]
+    pub fn assertDidntRun(
+        predicate: impl Fn(&RecordedProcess, Option<&ProcessResult>) -> bool,
+    ) -> Result<()> {
         Self::getFacadeRoot()
             .map_err(Error::Unavailable)?
             .assertDidntRun(predicate);

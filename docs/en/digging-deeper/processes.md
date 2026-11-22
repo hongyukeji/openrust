@@ -98,7 +98,7 @@ processes.fakeCommand("deploy *", Factory::result("deployed", "", 0));
 processes.preventStrayProcesses(true);
 let result = processes.run(["deploy", "preview"]).await?;
 assert!(result.successful());
-processes.assertRan(|process| process.command == ["deploy", "preview"].into());
+processes.assertRan(|process, _| process.command == ["deploy", "preview"].into());
 ```
 
 ### Scripted fake processes {#scripted-fakes}
@@ -125,3 +125,8 @@ worker.signal(Signal::Terminate).await?;
 assert!(worker.hasReceivedSignal(Signal::Terminate));
 assert_eq!(worker.wait().await?.output(), b"finished\n");
 ```
+
+
+## Ordered assertions
+
+Call `assertNothingRan()` before any simulated invocation to require an empty record. `assertNotRan(|process, result| ...)` rejects any matching record. `assertRanInOrder(&[&first, &second])` requires exactly that many records in that order; each predicate receives `&RecordedProcess` and `Option<&ProcessResult>`. A failed simulated operation may have no result. Each assertion panics when its expectation is violated; use the same methods on the `Process` facade inside an application scope.

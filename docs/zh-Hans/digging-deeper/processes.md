@@ -98,7 +98,7 @@ processes.fakeCommand("deploy *", Factory::result("deployed", "", 0));
 processes.preventStrayProcesses(true);
 let result = processes.run(["deploy", "preview"]).await?;
 assert!(result.successful());
-processes.assertRan(|process| process.command == ["deploy", "preview"].into());
+processes.assertRan(|process, _| process.command == ["deploy", "preview"].into());
 ```
 
 ### 模拟进程脚本 {#scripted-fakes}
@@ -125,3 +125,8 @@ worker.signal(Signal::Terminate).await?;
 assert!(worker.hasReceivedSignal(Signal::Terminate));
 assert_eq!(worker.wait().await?.output(), b"finished\n");
 ```
+
+
+## 顺序断言
+
+调用 `assertNothingRan()` 要求当前没有调用记录。`assertNotRan(|process, result| ...)` 要求没有记录符合条件。`assertRanInOrder(&[&first, &second])` 同时检查调用总数与顺序；每个谓词接收 `&RecordedProcess` 和 `Option<&ProcessResult>`，失败的模拟操作可能没有结果。预期不符时断言 panic。在应用作用域内也可通过 `Process` Facade 调用这些方法。

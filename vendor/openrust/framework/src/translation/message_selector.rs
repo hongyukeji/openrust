@@ -342,3 +342,14 @@ fn double_string(number: f64) -> String {
         format!("{sign}{}.{}", &digits[..decimal], &digits[decimal..])
     }
 }
+
+/// 可替换的复数选择器，返回选中分支；调用方负责占位符替换。
+pub trait Selector: Send + Sync {
+    fn choose(&self, line: &str, count: PluralCount, locale: &str) -> TranslationResult<String>;
+}
+
+impl Selector for MessageSelector {
+    fn choose(&self, line: &str, count: PluralCount, locale: &str) -> TranslationResult<String> {
+        MessageSelector::choose(self, line, count, locale).map(str::to_owned)
+    }
+}

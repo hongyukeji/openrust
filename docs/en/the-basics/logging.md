@@ -308,3 +308,8 @@ The loaded-provider check is repeated when resolving the registry, so an early q
 ## Channel Context
 
 Use `withContext` and `withoutContext` for channel context. `shareContext` merges context into resolved and future channels; per-message fields override channel fields. `sharedContext` reads the defaults for future channels. `flushSharedContext` clears those defaults without deleting fields already merged into channels; use `withoutContext` to remove channel fields. Boot-time defaults are inherited by each request or queue scope. Dynamic context is isolated by scope, even when channel handles are reused.
+
+
+## Inspecting resolved channels
+
+`LogManager::getChannels()` and `Log::getChannels()` return a snapshot mapping resolved channel names to their `Arc<Logger>` handles. Reading the map does not create unused channels. Removing a channel with `forgetChannel` affects subsequent resolutions; previously returned snapshots and logger handles remain usable.

@@ -50,3 +50,8 @@ pub async fn refresh_password(password: &[u8], stored: &str) -> HashResult<Optio
 應用程式預設啟用 `HASH_VERIFY`。已存雜湊採用其他演算法時傳回 `HashError::AlgorithmMismatch`。移轉期間可用 `HASH_VERIFY=false` 驗證其他受支援演算法的舊雜湊。產生新雜湊時仍使用目前的驅動程式。
 
 OpenRust 在阻塞執行緒上執行密碼操作。每個應用程式預設允許兩個並行操作，容量用盡時傳回 `CapacityExhausted`。已存雜湊或操作參數超出預算時傳回 `ExecutionLimit`。預設上限為 bcrypt 成本 16，Argon 記憶體 256 MiB、迭代成本 10 和 4 個平行通道。可用 `hashing.max_concurrent_operations` 和 `hashing.execution_limits` 設定。
+
+
+## 修改實例預設參數
+
+在可變的具體雜湊實例上呼叫 `BcryptHasher::setRounds(rounds)`，或 `ArgonHasher` / `Argon2IdHasher` 的 `setMemory(kib)`、`setTime(iterations)`、`setThreads(threads)`。這些方法支援鏈式呼叫，只修改目前實例的預設參數。單次操作傳入的選項優先，資源上限仍在實際執行時檢查。

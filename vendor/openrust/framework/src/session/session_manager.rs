@@ -76,6 +76,7 @@ impl Default for Settings {
 /// Selects a session driver and creates a fresh store for each request.
 pub struct SessionManager {
     settings: Settings,
+    config: Value,
     database: Arc<DatabaseManager>,
     array: ArraySessionHandler,
     cache: Arc<CacheManager>,
@@ -101,6 +102,7 @@ impl SessionManager {
         cache: Arc<CacheManager>,
         base: PathBuf,
     ) -> SessionResult<Self> {
+        let raw_config = config.clone().unwrap_or(Value::Null);
         let settings: Settings = match config {
             None | Some(Value::Null) => Settings::default(),
             Some(config) => {
@@ -118,6 +120,7 @@ impl SessionManager {
         let lifetime = Duration::from_secs(lifetime);
         Ok(Self {
             settings,
+            config: raw_config,
             database,
             array: ArraySessionHandler::new(lifetime),
             cache,
@@ -127,6 +130,28 @@ impl SessionManager {
             paths: None,
             lifetime,
         })
+    }
+
+    #[allow(non_snake_case)]
+    pub fn shouldBlock(&self) -> bool {
+        self.settings.block
+    }
+    #[allow(non_snake_case)]
+    pub fn blockDriver(&self) -> Option<&str> {
+        self.settings.block_store.as_deref()
+    }
+    #[allow(non_snake_case)]
+    pub fn defaultRouteBlockLockSeconds(&self) -> u64 {
+        self.settings.block_lock_seconds
+    }
+    #[allow(non_snake_case)]
+    pub fn defaultRouteBlockWaitSeconds(&self) -> u64 {
+        self.settings.block_wait_seconds
+    }
+    /// 返回装配时的配置快照，保留自定义配置字段。
+    #[allow(non_snake_case)]
+    pub fn getSessionConfig(&self) -> &Value {
+        &self.config
     }
 
     pub(super) fn with_paths(mut self, paths: Arc<crate::foundation::Paths>) -> Self {
@@ -197,7 +222,7 @@ impl SessionManager {
         options: Option<super::RouteBlock>,
         id: &str,
     ) -> Result<Option<super::SessionLock>, crate::http::HttpError> {
-        if !self.settings.block && options.is_none_or(|route| route.lock_seconds == 0) {
+        if !self.shouldBlock() && options.is_none_or(|route| route.lock_seconds == 0) {
             return Ok(None);
         }
         if self.settings.driver.as_deref() == Some("cookie") {
@@ -206,9 +231,11 @@ impl SessionManager {
         let lease = options
             .map(|route| route.lock_seconds)
             .filter(|seconds| *seconds != 0)
-            .unwrap_or(self.settings.block_lock_seconds);
-        let wait = options.map_or(self.settings.block_wait_seconds, |route| route.wait_seconds);
-        super::SessionLock::acquire(self.settings.block_store.as_deref(), id, lease, wait)
+            .unwrap_or(self.defaultRouteBlockLockSeconds());
+        let wait = options.map_or(self.defaultRouteBlockWaitSeconds(), |route| {
+            route.wait_seconds
+        });
+        super::SessionLock::acquire(self.blockDriver(), id, lease, wait)
             .await
             .map(Some)
             .map_err(super::blocking::http_error)

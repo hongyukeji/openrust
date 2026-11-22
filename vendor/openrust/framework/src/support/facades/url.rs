@@ -82,6 +82,18 @@ impl URL {
         Self::generator()?.asset(path, secure)
     }
 
+    pub fn secureAsset(path: &str) -> UrlResult<String> {
+        Self::generator()?.secureAsset(path)
+    }
+
+    pub fn assetFrom(root: &str, path: &str, secure: Option<bool>) -> UrlResult<String> {
+        Self::generator()?.assetFrom(root, path, secure)
+    }
+
+    pub fn getDefaultParameters() -> UrlResult<std::collections::HashMap<String, String>> {
+        Ok(Self::generator()?.getDefaultParameters().clone())
+    }
+
     pub fn query(
         path: &str,
         query: &[RouteParameter],

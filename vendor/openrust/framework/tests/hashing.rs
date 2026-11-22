@@ -401,3 +401,55 @@ async fn custom_hash_driver_resolves_its_own_application_over_http() {
     first_server.abort();
     second_server.abort();
 }
+
+#[tokio::test]
+async fn parameter_setters_change_defaults_preserve_overrides_and_enforce_limits() {
+    let options = HashOptions::new();
+    let mut bcrypt = BcryptHasher::new(BcryptConfig {
+        rounds: 4,
+        ..Default::default()
+    });
+    let before = bcrypt.make(b"secret", &options).await.unwrap();
+    bcrypt.setRounds(5);
+    assert!(bcrypt.needsRehash(&before, &options).unwrap());
+    let overridden = json!({"rounds":4});
+    assert!(
+        !bcrypt
+            .needsRehash(&before, overridden.as_object().unwrap())
+            .unwrap()
+    );
+    let after = bcrypt.make(b"secret", &options).await.unwrap();
+    assert_eq!(bcrypt.info(&after).unwrap().options["cost"], json!(5));
+    bcrypt.setRounds(17);
+    assert!(matches!(
+        bcrypt.make(b"secret", &options).await,
+        Err(HashError::ExecutionLimit)
+    ));
+    let mut argon = ArgonHasher::new(ArgonConfig {
+        memory: 1024,
+        time: 2,
+        threads: 1,
+        verify: false,
+    });
+    let mut argon2 = Argon2IdHasher::new(ArgonConfig {
+        memory: 1024,
+        time: 2,
+        threads: 1,
+        verify: false,
+    });
+    argon.setMemory(2048).setTime(1).setThreads(2);
+    argon2.setMemory(2048).setTime(1).setThreads(2);
+    for driver in [&argon as &dyn Hasher, &argon2 as &dyn Hasher] {
+        let hash = driver.make(b"secret", &options).await.unwrap();
+        assert!(hash.contains("m=2048,t=1,p=2"));
+        assert!(driver.check(b"secret", &hash, &options).await.unwrap());
+        assert!(!driver.needsRehash(&hash, &options).unwrap());
+    }
+    argon.setMemory(0);
+    assert!(argon.make(b"secret", &options).await.is_err());
+    argon2.setThreads(5);
+    assert!(matches!(
+        argon2.make(b"secret", &options).await,
+        Err(HashError::ExecutionLimit)
+    ));
+}

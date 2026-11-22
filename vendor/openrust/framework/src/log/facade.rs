@@ -60,6 +60,12 @@ impl Log {
             .build(config)
     }
 
+    pub fn getChannels() -> LogResult<std::collections::HashMap<String, Arc<Logger>>> {
+        Ok(Self::getFacadeRoot()
+            .map_err(LogError::Unavailable)?
+            .getChannels())
+    }
+
     pub fn channel(name: Option<&str>) -> LogResult<Arc<Logger>> {
         Self::getFacadeRoot()
             .map_err(LogError::Unavailable)?

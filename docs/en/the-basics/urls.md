@@ -72,3 +72,8 @@ Domain routes take precedence. Among active routes of the same kind, the first r
 ## Generation Policies
 
 Clone the request's `UrlGenerator` before applying `forceScheme`, `forceHttps`, `forceRootUrl`, `formatHostUsing`, or `formatPathUsing`. These methods take mutable access to that generator; they do not mutate another request's policies. Pass `None` to clear forced scheme/root settings. Formatters affect generated paths and named routes, including signed URLs. Verify signatures against the same absolute/relative mode used to generate them. Configure trusted proxies separately so request-derived origins use the intended forwarded host and scheme.
+
+
+## Resource origins and defaults
+
+Use `UrlGenerator::useOrigin(Some(root))` to override the origin for generated URLs and pass `None` to restore the request or configured origin. `useAssetOrigin(Some(root))` overrides the asset origin; `None` clears the asset origin, including the configured CDN. These changes belong to that generator instance and its clones. `secureAsset(path)` requests HTTPS while retaining an explicitly configured asset origin. `assetFrom(root, path, secure)` uses a custom root with the selected request or forced scheme. `getDefaultParameters()` reads the generator’s named defaults. The `URL` facade also exposes `secureAsset`, `assetFrom`, and `getDefaultParameters`.

@@ -16,7 +16,7 @@ pub use facade::{__, Lang, trans_choice};
 pub use file_loader::FileLoader;
 pub use locale::canonical_locale;
 pub use lookup::MissingTranslation;
-pub use message_selector::{MessageSelector, PluralCount};
+pub use message_selector::{MessageSelector, PluralCount, Selector};
 pub use replacement::Replacement;
 pub use translation_service_provider::TranslationServiceProvider;
 pub use translator::Translator;

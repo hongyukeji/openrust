@@ -149,35 +149,77 @@ impl Factory {
     }
 
     #[track_caller]
-    pub fn assertRan(&self, predicate: impl Fn(&RecordedProcess) -> bool) {
+    pub fn assertRan(
+        &self,
+        predicate: impl Fn(&RecordedProcess, Option<&ProcessResult>) -> bool,
+    ) -> &Self {
         assert!(
             self.recorded()
                 .iter()
-                .any(|(process, _)| predicate(process)),
-            "no recorded process matched"
+                .any(|(process, result)| predicate(process, result.as_ref())),
+            "未找到符合预期的进程"
         );
+        self
     }
 
     #[track_caller]
-    pub fn assertDidntRun(&self, predicate: impl Fn(&RecordedProcess) -> bool) {
+    pub fn assertNotRan(
+        &self,
+        predicate: impl Fn(&RecordedProcess, Option<&ProcessResult>) -> bool,
+    ) -> &Self {
         assert!(
             !self
                 .recorded()
                 .iter()
-                .any(|(process, _)| predicate(process)),
-            "a recorded process matched"
+                .any(|(process, result)| predicate(process, result.as_ref())),
+            "发现不应执行的进程"
         );
+        self
     }
 
     #[track_caller]
-    pub fn assertRanTimes(&self, predicate: impl Fn(&RecordedProcess) -> bool, expected: usize) {
+    pub fn assertDidntRun(
+        &self,
+        predicate: impl Fn(&RecordedProcess, Option<&ProcessResult>) -> bool,
+    ) -> &Self {
+        self.assertNotRan(predicate)
+    }
+
+    #[track_caller]
+    pub fn assertNothingRan(&self) -> &Self {
+        assert!(self.recorded().is_empty(), "发现不应执行的进程");
+        self
+    }
+
+    /// 顺序断言同时检查记录总量，回调可以核对命令与执行结果。
+    #[track_caller]
+    pub fn assertRanInOrder(&self, callbacks: &[&ProcessAssertion<'_>]) -> &Self {
+        let recorded = self.recorded();
+        assert_eq!(recorded.len(), callbacks.len(), "执行进程数量不匹配");
+        for (index, ((process, result), callback)) in recorded.iter().zip(callbacks).enumerate() {
+            assert!(
+                callback(process, result.as_ref()),
+                "第 {} 个进程不符合预期",
+                index + 1
+            );
+        }
+        self
+    }
+
+    #[track_caller]
+    pub fn assertRanTimes(
+        &self,
+        predicate: impl Fn(&RecordedProcess, Option<&ProcessResult>) -> bool,
+        expected: usize,
+    ) -> &Self {
         assert_eq!(
             self.recorded()
                 .iter()
-                .filter(|(process, _)| predicate(process))
+                .filter(|(process, result)| predicate(process, result.as_ref()))
                 .count(),
             expected
         );
+        self
     }
 
     pub(super) fn resolveFake(
@@ -226,3 +268,6 @@ impl Factory {
             .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 }
+
+/// 进程断言可同时读取记录和已完成结果；失败记录的结果可能为空。
+pub type ProcessAssertion<'a> = dyn Fn(&RecordedProcess, Option<&ProcessResult>) -> bool + 'a;

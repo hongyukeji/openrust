@@ -1319,3 +1319,39 @@ fn forgetting_a_channel_during_factory_execution_prevents_stale_publication() {
     assert!(root.read("new.log").contains("current"));
     assert!(root.read("old.log").contains("in flight"));
 }
+
+#[test]
+fn resolved_channels_are_inspectable_without_creating_unused_channels() {
+    let root = Root::new();
+    let (logs, _) = manager(
+        &root,
+        json!({"default":"first","channels":{
+            "first":{"driver":"single","path":"first.log"},
+            "second":{"driver":"single","path":"second.log"}
+        }}),
+    );
+    assert!(logs.getChannels().is_empty());
+    let first = logs.channel(None).unwrap();
+    let snapshot = logs.getChannels();
+    assert_eq!(snapshot.len(), 1);
+    assert!(Arc::ptr_eq(snapshot.get("first").unwrap(), &first));
+    assert!(!root.0.join("second.log").exists());
+    first
+        .log(Level::Info, "first entry", &LogContext::new())
+        .unwrap();
+    assert!(root.read("first.log").contains("first entry"));
+    let second = logs.channel(Some("second")).unwrap();
+    assert_eq!(logs.getChannels().len(), 2);
+    assert_eq!(snapshot.len(), 1);
+    logs.forgetChannel(Some("first"));
+    assert!(!logs.getChannels().contains_key("first"));
+    snapshot["first"]
+        .log(Level::Info, "retained entry", &LogContext::new())
+        .unwrap();
+    assert!(root.read("first.log").contains("retained entry"));
+    assert!(Arc::ptr_eq(
+        logs.getChannels().get("second").unwrap(),
+        &second
+    ));
+    assert!(!Arc::ptr_eq(&first, &logs.channel(Some("first")).unwrap()));
+}

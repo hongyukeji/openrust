@@ -158,7 +158,7 @@ impl Settings {
 }
 
 pub(super) struct Driver {
-    settings: Settings,
+    pub(super) settings: Settings,
     pool: OperationPool,
 }
 

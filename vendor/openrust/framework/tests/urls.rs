@@ -1167,3 +1167,83 @@ async fn redirects_preserve_intended_and_flash_data_in_the_encrypted_http_sessio
     assert_eq!(flashed["input"], json!({"name": "Ada"}));
     server.abort();
 }
+
+#[tokio::test]
+async fn asset_origins_secure_assets_and_defaults_are_instance_scoped() {
+    use openrust::contracts::container::Container as _;
+    let mut app = make();
+    app.boot().await.unwrap();
+    app.config()
+        .unwrap()
+        .set("app.url", json!("http://origin.test/base/index.php"))
+        .unwrap();
+    app.config()
+        .unwrap()
+        .set("app.asset_url", json!("https://configured-cdn.test/static"))
+        .unwrap();
+    let service = app.container().make::<UrlGenerator>().unwrap();
+    let mut urls = service.as_ref().clone().withDefaults(&[("locale", "en")]);
+    assert_eq!(
+        urls.getDefaultParameters()
+            .get("locale")
+            .map(String::as_str),
+        Some("en")
+    );
+    assert!(service.getDefaultParameters().is_empty());
+    assert_eq!(
+        urls.secureAsset("/logo.svg").unwrap(),
+        "https://configured-cdn.test/static/logo.svg"
+    );
+    urls.useAssetOrigin(Some("http://cdn.test/assets/"));
+    assert_eq!(
+        urls.asset("/logo.svg/", Some(true)).unwrap(),
+        "http://cdn.test/assets/logo.svg"
+    );
+    urls.useAssetOrigin(None);
+    assert_eq!(
+        urls.secureAsset("logo.svg").unwrap(),
+        "https://origin.test/base/logo.svg"
+    );
+    urls.useOrigin(Some("http://override.test/sub/"));
+    assert_eq!(
+        urls.asset("logo.svg", None).unwrap(),
+        "http://override.test/sub/logo.svg"
+    );
+    assert_eq!(
+        urls.assetFrom("https://custom.test/sub/index.php/", "/logo.svg/", None)
+            .unwrap(),
+        "http://custom.test/sub/logo.svg"
+    );
+    assert_eq!(
+        urls.assetFrom("http://custom.test/", "logo.svg", Some(true))
+            .unwrap(),
+        "https://custom.test/logo.svg"
+    );
+    urls.forceScheme(Some("https"));
+    assert_eq!(
+        urls.assetFrom("http://custom.test/", "logo.svg", None)
+            .unwrap(),
+        "https://custom.test/logo.svg"
+    );
+    assert_eq!(
+        urls.secureAsset("https://external.test/logo.svg").unwrap(),
+        "https://external.test/logo.svg"
+    );
+    assert!(
+        urls.assetFrom("javascript:alert(1)", "logo.svg", None)
+            .is_err()
+    );
+    assert!(
+        urls.assetFrom("https://custom.test/", "a\nb", None)
+            .is_err()
+    );
+    urls.useOrigin(None);
+    assert_eq!(
+        urls.asset("logo.svg", None).unwrap(),
+        "https://origin.test/base/logo.svg"
+    );
+    assert_eq!(
+        service.asset("logo.svg", None).unwrap(),
+        "https://configured-cdn.test/static/logo.svg"
+    );
+}

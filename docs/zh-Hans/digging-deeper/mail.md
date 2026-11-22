@@ -340,3 +340,8 @@ mail.assertNothingQueued();
 ## 默认地址与取消
 
 `Mailer::alwaysTo`、`alwaysFrom`、`alwaysReplyTo`、`alwaysReturnPath` 配置当前邮件器。启动时设置的地址作为应用默认值；请求和队列作用域内的覆盖只影响当前执行。`alwaysTo` 在邮件定制完成后替换收件人并清空抄送、密送。配置支持 `mail.to`、`mail.from`、`mail.reply_to`、`mail.return_path`。取消时 `send`、`sendNow` 和 `PendingMail` 都返回 `Ok(None)`，不调用传输、不派发 `MessageSent`；需要消息的旧调用端应显式处理 `Option<SentMessage>`。
+
+
+## 清除已解析的邮件实例
+
+`MailManager::forgetMailers()` 清除全部已解析的邮件实例并返回管理器。下次调用 `mailer(...)` 时，按原有配置和工厂重新创建实例。调用方已经持有的 `Arc` 句柄仍可使用，直到持有者释放。

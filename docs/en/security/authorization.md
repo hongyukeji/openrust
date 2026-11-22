@@ -69,3 +69,8 @@ fn register_gate_listener(events: &Dispatcher) -> EventResult<()> {
     events.listen("GateEvaluated", Arc::new(RecordGate), Delivery::Sync)
 }
 ```
+
+
+## Response status
+
+Use `Response::deny("reason").withStatus(StatusCode::CONFLICT)` to set a denial status, or `asNotFound()` to select 404. `withStatus(None)` clears a previously selected status. These consuming builders retain the authorization decision and message; setting a status on an allowed response does not deny it.

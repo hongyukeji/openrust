@@ -443,6 +443,13 @@ impl MailManager {
         PendingMail::new(self.clone(), address.into())
     }
 
+    /// 清除所有已解析邮件实例，下一次访问按配置重新解析。
+    #[allow(non_snake_case)]
+    pub fn forgetMailers(&self) -> &Self {
+        self.mailers.lock().expect("邮件实例缓存锁已损坏").clear();
+        self
+    }
+
     pub fn purge(&self, name: &str) {
         self.mailers
             .lock()

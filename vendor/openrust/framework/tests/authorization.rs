@@ -556,3 +556,20 @@ async fn gate_evaluated_delivers_original_arguments_and_raw_result_over_http() {
     assert_eq!(*trace.lock().unwrap(), ["before:error"]);
     server.abort();
 }
+
+#[test]
+fn response_status_setters_preserve_decision_and_can_clear_status() {
+    let allowed = Decision::allow().asNotFound();
+    assert!(allowed.allowed());
+    assert_eq!(allowed.status(), Some(StatusCode::NOT_FOUND));
+    let denied = Decision::deny("拒绝访问").withStatus(StatusCode::CONFLICT);
+    assert!(denied.denied());
+    assert_eq!(denied.status(), Some(StatusCode::CONFLICT));
+    assert_eq!(denied.message(), "拒绝访问");
+    let missing = denied.asNotFound();
+    assert_eq!(missing.status(), Some(StatusCode::NOT_FOUND));
+    let cleared = missing.withStatus(None);
+    assert_eq!(cleared.status(), None);
+    assert!(cleared.denied());
+    assert_eq!(cleared.message(), "拒绝访问");
+}
