@@ -1,4 +1,18 @@
-use crate::database::{DatabaseResult, query};
+use crate::database::DatabaseResult;
+
+use super::{Builder, Model, Scope};
+
+/// 排除已软删除模型的默认全局作用域。
+pub struct SoftDeletingScope;
+
+impl<M: Model> Scope<M> for SoftDeletingScope {
+    fn apply(&self, builder: &mut Builder<'_, M>) -> DatabaseResult<()> {
+        if let Some(column) = M::metadata().deleted_at {
+            builder.whereNull(&builder.qualifyColumn(column));
+        }
+        Ok(())
+    }
+}
 
 #[derive(Clone, Copy, Default)]
 pub(super) enum Trashed {
@@ -7,19 +21,4 @@ pub(super) enum Trashed {
     Without,
     Include,
     Only,
-}
-
-impl Trashed {
-    pub(super) fn apply<'connection>(
-        &self,
-        query: query::Builder<'connection>,
-        column: Option<&str>,
-    ) -> DatabaseResult<query::Builder<'connection>> {
-        match (self, column) {
-            (Self::Exclude | Self::Without, Some(column)) => Ok(query.whereNull(column)),
-            (Self::Only, Some(column)) => Ok(query.whereNotNull(column)),
-            (Self::Only, None) => Err(super::soft_deletes::unsupported()),
-            _ => Ok(query),
-        }
-    }
 }

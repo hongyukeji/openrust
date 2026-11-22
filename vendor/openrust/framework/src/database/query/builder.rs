@@ -192,6 +192,15 @@ impl<'connection> Builder<'connection> {
 
     predicate_methods!();
 
+    pub fn getConnection(&self) -> &Connection {
+        self.executor.source()
+    }
+
+    pub(in crate::database) fn group_predicates(mut self) -> Self {
+        self.predicates = Conditions::default().whereNested(|_| self.predicates);
+        self
+    }
+
     pub fn from(mut self, table: &str) -> Self {
         self.source = Source::Table(table.into());
         self

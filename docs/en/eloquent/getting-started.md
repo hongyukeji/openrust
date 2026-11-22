@@ -168,6 +168,12 @@ async fn copy_without_secret<M: Model>(source: &M) -> DatabaseResult<M> {
 
 Implement `Scope<Model>` to reuse a query constraint. Apply it with `withScope`, or register it in the model’s `globalScopes`. Remove a named global scope with `withoutGlobalScope`. This example uses the `Flight` model above and a table with the declared columns and timestamps.
 
+`withGlobalScope(name, scope)` registers or replaces a scope on one query. It accepts a `Scope<M>` implementation or a `Send + Sync + 'static` closure returning `DatabaseResult<()>`. The scope's `extend` hook runs at registration; `apply` runs when scopes are applied. `withoutGlobalScopes()` removes the currently registered scopes; scopes registered afterwards still run. `withoutGlobalScopesExcept(&["tenant"])` retains only those names. `removedScopes()` preserves the order and repeated names of removal calls. Registrations belong to a query and do not change another query or model type.
+
+Soft deletion uses the same registry. To retain its filter when removing other scopes, include `std::any::type_name::<SoftDeletingScope>()` in the retained names after importing `eloquent::SoftDeletingScope`. Conditions explicitly added by `onlyTrashed()` or `withoutTrashed()` remain even if all registered scopes are removed.
+
+`applyScopes()` consumes the model builder and returns the builder with its scopes applied. Repeating it applies the registered scopes again. `getQuery()` consumes the model builder and returns its current base query without applying pending scopes; call `applyScopes()?.getQuery()` when those constraints are required. `setQuery(query)` replaces the base query and its previous conditions while retaining the model scopes and eager loads. `getEagerLoads()` borrows the typed `EagerLoads<M>` configuration, whose `names()` method lists registered names; `setEagerLoads(loads)` replaces that configuration, including an empty configuration. Override `Model::newEloquentBuilder(query)` and construct with `Builder::fromQuery(query)` to configure the builder used by public model queries. The factory returns the framework's typed builder; additional application methods use Rust traits or wrappers rather than runtime class names.
+
 ```rust
 use openrust::database::{
     Connection, DatabaseResult,

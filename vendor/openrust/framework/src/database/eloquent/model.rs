@@ -49,6 +49,13 @@ pub trait Model: Sized + Send + Sync + 'static {
         R::make(self)
     }
 
+    /// 定制模型查询的默认行为；通过 fromQuery 构造后沿用公共查询入口。
+    fn newEloquentBuilder(
+        query: crate::database::query::Builder<'static>,
+    ) -> Builder<'static, Self> {
+        Builder::fromQuery(query)
+    }
+
     fn globalScopes() -> &'static [(&'static str, &'static dyn Scope<Self>)] {
         &[]
     }

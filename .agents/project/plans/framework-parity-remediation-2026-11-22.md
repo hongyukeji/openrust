@@ -95,6 +95,14 @@ C24 已补 `saveOrFail`、`updateOrFail`、`updateQuietly`、`deleteOrFail`、`s
 
 Rust通过 `saveInTransaction`/`deleteInTransaction` hook执行事务变体；已有外层事务显式传入，未实现PHP环境式事务或动态save覆盖及options数组。模型内存状态不会因数据库回滚自动复原，符合实测参考。C20/C21/C23及其他未完成任务继续实施，此处不是全任务完成结论。
 
+## 模型作用域与查询构造器验收（2026-11-23）
+
+C21已实现 `withGlobalScope`、`withoutGlobalScopesExcept`、`removedScopes`、`applyScopes`、`getQuery`、`setQuery`、`getEagerLoads`、`setEagerLoads`，增加 `Scope::extend` 注册钩子和 `Model::newEloquentBuilder` 默认查询工厂。采用现有 Scope/Conditions/EagerLoads，不引入依赖或第二套查询器。注册表按顺序覆盖同名项，移除历史保留顺序/重复，清空后新增与移除后重注册可生效；软删除成为公开 `SoftDeletingScope` 并使用同一注册/移除路径。Rust类型名通过 `std::any::type_name` 引用，无PHP类名别名。
+
+23组真实固定PHP/PDO SQLite参考覆盖默认/覆盖/移除/仅保留/OR保护、软删除、查询替换、未应用及重复应用作用域、预加载替换与关系模型隔离。SQLite、独立PG18.7、MySQL8.4.13各1项集成通过，另验证工厂公开消费、extend/apply时机、错误恢复及并发查询隔离。相关事件/主键181参考/模型/聚合/写入12项，默认栈关系6项、factory/force-fill/路由9项通过；旧MySQL缺变量早退不算真实库。首轮测试夹具签名/关系输出类型错误已修，日志保留；登记表堆存放后关系回归默认栈通过。fmt、严格workspace/all-targets Clippy、三语build/12页面组合/双前缀全导航通过，日志 `scopes-{fourth,third,regression,postgres,mysql}.log`、`clippy-scopes.log`、`fmt-scopes.log`、`docs-*-scopes.log`。
+
+来源为固定Framework v13.40.0 Builder.php/SoftDeletingScope.php；本地旧版v0.x的Model元数据与Query使用不同SeaQuery装配，查阅后未直接搬入。联网raw读取仍为空，采用既有固定源码与真实PHP oracle，不宣称新增联网验证。`getQuery`/`applyScopes`用消费所有权代替PHP共享对象/隐式克隆，工厂返回框架typed Builder而非任意运行期派生类；应用额外方法用Rust trait/wrapper，文档已明确。动态Model静态scope注册/宏等全域不据此冒称完成。C20分类bindings独立未实现，此批未依赖其公开API，未把依赖状态改成已交付。
+
 ## 目标与依据
 
 按固定上游逐项补齐可实现的目录、命名、公开接口、默认值、装配顺序、生命周期和错误行为。Rust 必要适配与用户确认的额外功能单独登记，保留可追溯的差异；不能把这些差异删除后称为完成，也不能将其算作字面 1:1。

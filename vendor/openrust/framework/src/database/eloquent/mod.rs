@@ -50,6 +50,7 @@ pub use queueable::{ModelCollectionIdentifier, ModelIdentifier, QueueablePivot};
 pub use related_batch::{RelatedBatch, RelatedCollection, RelatedModels};
 pub use scope::Scope;
 pub use serialization::VisibilityCondition;
+pub use soft_deleting_scope::SoftDeletingScope;
 pub use touches::Touches;
 pub use unique_ids::UniqueId;
 

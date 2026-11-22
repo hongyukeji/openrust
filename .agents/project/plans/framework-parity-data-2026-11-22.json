@@ -501,13 +501,13 @@
         "vendor/openrust/framework/src/database/eloquent/model.rs:52",
         "Illuminate\\Database\\Eloquent\\Builder.withGlobalScope;Illuminate\\Database\\Eloquent\\Builder.withoutGlobalScopesExcept;Illuminate\\Database\\Eloquent\\Builder.removedScopes;Illuminate\\Database\\Eloquent\\Builder.applyScopes;Illuminate\\Database\\Eloquent\\Builder.getQuery;Illuminate\\Database\\Eloquent\\Builder.setQuery;Illuminate\\Database\\Eloquent\\Builder.getEagerLoads;Illuminate\\Database\\Eloquent\\Builder.setEagerLoads",
         "vendor/openrust/framework/tests/eloquent_models.rs;vendor/openrust/framework/tests/eloquent_relationships.rs",
-        "历史发现待当前契约复核；复核仍成立后实施",
-        "",
+        "具名作用域、底层查询/预加载与模型工厂职责已实现并验收；Rust所有权及动态类型边界保留",
+        "tests/eloquent_scopes.rs；reference/eloquent-scopes.php/json；target/tmp/framework-parity-20261122/scopes-*、clippy-scopes及docs-*-scopes日志",
         "Q01;C20;R06",
-        "本轮未执行框架验收",
-        "历史差异待当前契约裁决",
-        "先复核已有实现后补缺口；本计划未执行",
-        "本轮未运行功能验收，历史结果仅限对应提交和环境"
+        "23组真实固定PHP/PDO SQLite参考；SQLite/PG18/MySQL8.4各1项作用域集成通过。现有事件/主键181参考/模型/聚合/写入12项、关系6项默认栈、factory/force-fill/路由9项通过；旧MySQL早退不计真实驱动。fmt、严格workspace/all-targets Clippy、三语build/12页面组合/双前缀全部导航通过。",
+        "注册表按固定Builder顺序与覆盖/移除职责实现，软删除同表；Rust使用Scope/闭包及Model::newEloquentBuilder工厂",
+        "withGlobalScope/withoutGlobalScopesExcept/removedScopes/applyScopes/getQuery/setQuery/getEagerLoads/setEagerLoads及Scope::extend、新模型查询工厂已实现；C20分类binding仍未实现，不冒称由这些入口补齐",
+        "2026-11-23受支持作用域/工厂核心三库及真实参考通过；getQuery/applyScopes消费所有权而非PHP共享对象/克隆，工厂返回框架typed Builder，运行期派生类与宏仍为语言适配边界"
       ],
       [
         "main",
@@ -293290,6 +293290,15 @@
       ],
       "note": "单独将insertOrIgnoreReturning的Future装箱，避免分支状态扩大普通save Future；同一关系回归由默认栈溢出变为默认栈6项通过，22组写入及独立PG/MySQL重验通过。严格Clippy/fmt以HEAD加本批变更验收，排除协作者未完成WIP；保留初次混合失败日志。",
       "evidence": "target/tmp/framework-parity-20261122/model-write-boxed*.log、clippy-model-write-boxed-clean.log、fmt-model-write-boxed.log"
+    },
+    {
+      "date": "2026-11-23",
+      "kind": "eloquent_scope_builder_verified",
+      "tasks": [
+        "C21"
+      ],
+      "note": "23真实固定PHP参考，三库实际验证作用域覆盖/重注册/移除历史顺序/OR分组/软删除/底层查询替换及预加载。typed工厂、extend时机、关系模型隔离和并发查询隔离通过。登记表堆存放避免放大async栈，关系6项默认栈通过。fmt/严格Clippy/三语站点通过。所有权及派生Builder动态域边界保留，C20未实现。",
+      "evidence": "target/tmp/framework-parity-20261122/scopes-*、clippy/fmt/docs-scopes日志"
     }
   ]
 }

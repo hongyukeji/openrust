@@ -430,6 +430,11 @@ impl<M: Model> Default for EagerLoads<M> {
 }
 
 impl<M: Model> EagerLoads<M> {
+    /// 按注册顺序读取预加载关系名称。
+    pub fn names(&self) -> impl Iterator<Item = &str> {
+        self.relations.keys().map(String::as_str)
+    }
+
     #[must_use]
     pub fn with(mut self, name: impl Into<String>, relation: impl Relation<Parent = M>) -> Self {
         self.relations.insert(name.into(), Arc::new(relation));

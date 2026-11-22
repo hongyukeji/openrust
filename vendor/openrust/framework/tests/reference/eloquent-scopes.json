@@ -1,0 +1,152 @@
+{
+    "default": {
+        "ids": [
+            1
+        ],
+        "removed": []
+    },
+    "override": {
+        "ids": [
+            3
+        ],
+        "removed": []
+    },
+    "except_tenant": {
+        "ids": [
+            1,
+            3,
+            4
+        ],
+        "removed": [
+            "soft",
+            "visible"
+        ]
+    },
+    "except_empty": {
+        "ids": [
+            1,
+            2,
+            3,
+            4
+        ],
+        "removed": [
+            "soft",
+            "visible",
+            "tenant"
+        ]
+    },
+    "except_all": {
+        "ids": [
+            1
+        ],
+        "removed": []
+    },
+    "remove_repeat": {
+        "ids": [
+            1,
+            3
+        ],
+        "removed": [
+            "visible",
+            "visible",
+            "missing"
+        ]
+    },
+    "remove_reregister": {
+        "ids": [
+            3
+        ],
+        "removed": [
+            "visible"
+        ]
+    },
+    "clear_add": {
+        "ids": [
+            2
+        ],
+        "removed": [
+            "soft",
+            "visible",
+            "tenant"
+        ]
+    },
+    "or_safe": {
+        "ids": [
+            1
+        ],
+        "removed": []
+    },
+    "scope_or_safe": {
+        "ids": [
+            1
+        ],
+        "removed": []
+    },
+    "with_trashed": {
+        "ids": [
+            1,
+            4
+        ],
+        "removed": [
+            "soft"
+        ]
+    },
+    "without_trashed": {
+        "ids": [
+            1
+        ],
+        "removed": [
+            "soft"
+        ]
+    },
+    "only_trashed": {
+        "ids": [
+            4
+        ],
+        "removed": [
+            "soft"
+        ]
+    },
+    "only_except_empty": {
+        "ids": [
+            4
+        ],
+        "removed": [
+            "soft",
+            "visible",
+            "tenant"
+        ]
+    },
+    "replace_query": {
+        "ids": [
+            1
+        ],
+        "removed": []
+    },
+    "base_unscoped": [
+        1,
+        2,
+        3,
+        4
+    ],
+    "base_predicates": [
+        2
+    ],
+    "applied_once": [
+        1
+    ],
+    "applied_twice": [
+        1
+    ],
+    "eager_names": [
+        "children"
+    ],
+    "eager_children": [
+        10
+    ],
+    "eager_reset": [],
+    "model_isolation": [
+        10,
+        12
+    ]
+}

@@ -82,8 +82,8 @@ pub struct Builder<'connection, M: Model> {
     pub(super) pending_attributes: Attributes,
     eager_load: EagerLoads<M>,
     default_counts: bool,
-    removed_scopes: HashSet<String>,
-    apply_global_scopes: bool,
+    removed_scopes: Vec<String>,
+    scopes: Box<IndexMap<String, super::scope::ScopeEntry<M>>>,
     trashed: Trashed,
     model: PhantomData<M>,
 }
@@ -91,9 +91,14 @@ pub struct Builder<'connection, M: Model> {
 #[allow(non_snake_case, reason = "Matches Laravel's Eloquent Builder API")]
 impl<M: Model> Builder<'static, M> {
     pub(super) fn new(connection: Connection) -> Self {
+        M::newEloquentBuilder(connection.table(M::metadata().table))
+    }
+
+    /// 用指定底层查询构造模型查询，供模型工厂定制默认行为。
+    pub fn fromQuery(query: query::Builder<'static>) -> Self {
         Self {
-            query: connection.table(M::metadata().table),
-            connection,
+            connection: query.getConnection().clone(),
+            query,
             table_alias: None,
             pivot: None,
             existence_attributes: HashSet::new(),
@@ -102,8 +107,24 @@ impl<M: Model> Builder<'static, M> {
             pending_attributes: Attributes::new(),
             eager_load: EagerLoads::default(),
             default_counts: false,
-            removed_scopes: HashSet::new(),
-            apply_global_scopes: true,
+            removed_scopes: Vec::new(),
+            scopes: Box::new(
+                M::metadata()
+                    .deleted_at
+                    .map(|_| {
+                        (
+                            std::any::type_name::<super::SoftDeletingScope>().into(),
+                            super::scope::ScopeEntry::Static(
+                                &super::SoftDeletingScope as &'static dyn Scope<M>,
+                            ),
+                        )
+                    })
+                    .into_iter()
+                    .chain(M::globalScopes().iter().map(|(name, scope)| {
+                        ((*name).into(), super::scope::ScopeEntry::Static(*scope))
+                    }))
+                    .collect(),
+            ),
             trashed: Trashed::default(),
             model: PhantomData,
         }
@@ -384,7 +405,7 @@ impl<M: Model> Builder<'static, M> {
 }
 
 #[allow(non_snake_case, reason = "Matches Laravel's Eloquent Builder API")]
-impl<M: Model> Builder<'_, M> {
+impl<'connection, M: Model> Builder<'connection, M> {
     pub fn r#where(&mut self, column: &str, operator: &str, value: impl Into<Value>) -> &mut Self {
         self.predicates = mem::take(&mut self.predicates).r#where(column, operator, value);
         self
@@ -704,33 +725,103 @@ impl<M: Model> Builder<'_, M> {
         Ok(self)
     }
 
+    /// 注册或替换本查询的具名全局作用域，并执行其装配钩子。
+    pub fn withGlobalScope(
+        mut self,
+        identifier: impl Into<String>,
+        scope: impl Scope<M> + 'static,
+    ) -> DatabaseResult<Self> {
+        let scope: std::sync::Arc<dyn Scope<M>> = std::sync::Arc::new(scope);
+        self.scopes.insert(
+            identifier.into(),
+            super::scope::ScopeEntry::Owned(scope.clone()),
+        );
+        scope.extend(&mut self)?;
+        Ok(self)
+    }
+
+    #[must_use]
+    pub fn withoutGlobalScopesExcept(mut self, scopes: &[&str]) -> Self {
+        let removed: Vec<_> = self
+            .scopes
+            .keys()
+            .filter(|name| !scopes.contains(&name.as_str()))
+            .cloned()
+            .collect();
+        for name in removed {
+            self = self.withoutGlobalScope(&name);
+        }
+        self
+    }
+
+    pub fn removedScopes(&self) -> &[String] {
+        &self.removed_scopes
+    }
+
+    /// 取得当前底层查询的所有权，不自动应用尚未执行的全局作用域。
+    pub fn getQuery(self) -> query::Builder<'connection> {
+        self.query.whereNested(|_| self.predicates)
+    }
+
+    #[must_use]
+    pub fn setQuery(mut self, query: query::Builder<'connection>) -> Self {
+        self.connection = query.getConnection().clone();
+        self.query = query;
+        self.predicates = query::Conditions::default();
+        self
+    }
+
+    pub fn getEagerLoads(&self) -> &EagerLoads<M> {
+        &self.eager_load
+    }
+
+    #[must_use]
+    pub fn setEagerLoads(mut self, eagerLoads: EagerLoads<M>) -> Self {
+        self.eager_load = eagerLoads;
+        self
+    }
+
     #[must_use]
     pub fn withoutGlobalScope(mut self, name: &str) -> Self {
-        self.removed_scopes.insert(name.into());
+        self.scopes.shift_remove(name);
+        self.removed_scopes.push(name.into());
         self
     }
 
     #[must_use]
     pub fn withoutGlobalScopes(mut self) -> Self {
-        self.apply_global_scopes = false;
-        self.withTrashed()
+        let names: Vec<_> = self.scopes.keys().cloned().collect();
+        for name in names {
+            self = self.withoutGlobalScope(&name);
+        }
+        self
     }
 
     #[must_use]
     pub fn withTrashed(mut self) -> Self {
         self.trashed = Trashed::Include;
-        self
+        self.withoutGlobalScope(std::any::type_name::<super::SoftDeletingScope>())
     }
 
     #[must_use]
     pub fn withoutTrashed(mut self) -> Self {
+        self = self.withTrashed();
         self.trashed = Trashed::Without;
+        if let Some(column) = M::metadata().deleted_at {
+            self.whereNull(&self.qualifyColumn(column));
+        }
         self
     }
 
     #[must_use]
     pub fn onlyTrashed(mut self) -> Self {
+        self = self.withTrashed();
         self.trashed = Trashed::Only;
+        // 不支持软删除的模型仍在执行时显式报错。
+        if let Some(column) = M::metadata().deleted_at {
+            let column = self.qualifyColumn(column);
+            self.predicates = mem::take(&mut self.predicates).whereNotNull(&column);
+        }
         self
     }
 }
@@ -749,27 +840,31 @@ impl<M: Model> Builder<'static, M> {
         Ok(self)
     }
 
-    pub(super) fn scoped(mut self) -> DatabaseResult<(query::Builder<'static>, Connection)> {
+    /// 应用当前作用域并移交查询所有权；保留注册项，重复调用会再次应用。
+    pub fn applyScopes(mut self) -> DatabaseResult<Self> {
+        let scopes = self.scopes.clone();
         let mut conditions = mem::take(&mut self.predicates);
-        if self.apply_global_scopes {
-            // Keep each registered scope in its own AND group so an OR in the
-            // caller's predicates or another scope cannot bypass its constraint.
+        if !scopes.is_empty() {
+            self.query = self.query.group_predicates();
             conditions = query::Conditions::default().whereNested(|_| conditions);
-            for (name, scope) in M::globalScopes() {
-                if !self.removed_scopes.contains(*name) {
-                    scope.apply(&mut self)?;
+            for (name, scope) in *scopes {
+                if self.scopes.contains_key(&name) {
+                    scope.get().apply(&mut self)?;
                     conditions = conditions.whereNested(|_| mem::take(&mut self.predicates));
                 }
             }
         }
-        let deleted_at = M::metadata()
-            .deleted_at
-            .map(|column| self.qualifyColumn(column));
-        let query = self.query.whereNested(|_| conditions);
-        Ok((
-            self.trashed.apply(query, deleted_at.as_deref())?,
-            self.connection,
-        ))
+        self.predicates = conditions;
+        if matches!(self.trashed, Trashed::Only) && M::metadata().deleted_at.is_none() {
+            return Err(soft_deletes::unsupported());
+        }
+        Ok(self)
+    }
+
+    pub(super) fn scoped(self) -> DatabaseResult<(query::Builder<'static>, Connection)> {
+        let query = self.applyScopes()?;
+        let connection = query.connection.clone();
+        Ok((query.getQuery(), connection))
     }
 
     #[cfg(feature = "sanctum")]
@@ -812,7 +907,7 @@ impl<M: Model> Builder<'static, M> {
     pub(super) fn unconstrained_relation_query(&self) -> Self {
         let mut candidate = Self::new(self.connection.clone());
         candidate.removed_scopes.clone_from(&self.removed_scopes);
-        candidate.apply_global_scopes = self.apply_global_scopes;
+        candidate.scopes.clone_from(&self.scopes);
         candidate.trashed = self.trashed;
         candidate
     }
@@ -2304,7 +2399,7 @@ impl<M: Model> Builder<'static, M> {
     }
 
     pub async fn forceDelete(mut self) -> DatabaseResult<u64> {
-        self.apply_global_scopes = false;
+        self.scopes.clear();
         if matches!(self.trashed, Trashed::Exclude) {
             self = self.withTrashed();
         }
