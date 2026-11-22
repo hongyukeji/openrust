@@ -130,6 +130,7 @@ async fn exercise(first: &Repository, second: &Repository, db: bool) {
         .lock("resource", Some(Duration::from_secs(3)), None)
         .unwrap();
     assert!(!first_lock.isLocked().await.unwrap());
+    assert_eq!(first_lock.currentOwner().await.unwrap(), None);
     assert!(first_lock.isOwnedBy(None).await.unwrap());
     let (left, right) = tokio::join!(first_lock.get(), contender.get());
     let (held, waiting) = if left.unwrap() {
@@ -144,11 +145,15 @@ async fn exercise(first: &Repository, second: &Repository, db: bool) {
         Err(CacheError::LockTimeout)
     ));
     assert!(waiting.isLocked().await.unwrap());
+    assert_eq!(
+        waiting.currentOwner().await.unwrap().as_deref(),
+        Some(held.owner())
+    );
     assert!(!waiting.isOwnedByCurrentProcess().await.unwrap());
     assert!(waiting.isOwnedBy(held.owner()).await.unwrap());
     assert!(!waiting.release().await.unwrap());
     assert!(!waiting.refresh(None).await.unwrap());
-    let mut restored = second.restore_lock("resource", held.owner()).unwrap();
+    let mut restored = second.restoreLock("resource", held.owner()).unwrap();
     assert!(
         restored
             .refresh(Some(Duration::from_millis(120)))
@@ -180,7 +185,8 @@ async fn exercise(first: &Repository, second: &Repository, db: bool) {
         .await
         .unwrap();
     assert!(!timed.release().await.unwrap());
-    retry.force_release().await.unwrap();
+    retry.forceRelease().await.unwrap();
+    assert_eq!(retry.currentOwner().await.unwrap(), None);
 
     assert!(
         first
@@ -269,7 +275,7 @@ async fn file_lock_process_fixture() {
         .unwrap();
     let result = if std::env::var_os("OPENRUST_FILE_LOCK_RELEASE").is_some() {
         store
-            .restore_lock("cross-process", &owner)
+            .restoreLock("cross-process", &owner)
             .unwrap()
             .release()
             .await
@@ -573,7 +579,7 @@ async fn failover_resolves_named_stores_lazily_and_keeps_the_last_error() {
         .lock("lease", Some(Duration::from_secs(10)), Some("owner"))
         .unwrap();
     assert!(lock.get().await.unwrap());
-    let mut restored = failover.restore_lock("lease", "owner").unwrap();
+    let mut restored = failover.restoreLock("lease", "owner").unwrap();
     assert!(restored.release().await.unwrap());
     let isolated = manager.store(Some("isolated")).unwrap();
     assert!(
@@ -1256,10 +1262,10 @@ async fn null_store_discards_values_and_returns_nonexclusive_lock_handles() {
     assert!(second.get().await.unwrap());
     assert!(second.refresh(None).await.unwrap());
     assert!(second.release().await.unwrap());
-    let mut restored = cache.restore_lock("no-lock", first.owner()).unwrap();
+    let mut restored = cache.restoreLock("no-lock", first.owner()).unwrap();
     assert_eq!(restored.owner(), first.owner());
     restored.block(Duration::ZERO).await.unwrap();
-    restored.force_release().await.unwrap();
+    restored.forceRelease().await.unwrap();
     root.success(&["cache:forget", "reports/latest", "null"]);
     root.success(&["cache:clear", "null", "--tags=reports"]);
     root.success(&["cache:clear", "null", "--locks"]);
@@ -1602,7 +1608,7 @@ async fn memcached_values_tags_and_owner_checked_locks_are_shared() {
     ));
     assert!(!other.release().await.unwrap());
     assert!(!other.refresh(None).await.unwrap());
-    let mut restored = second.restore_lock("rebuild", "first").unwrap();
+    let mut restored = second.restoreLock("rebuild", "first").unwrap();
     assert!(
         restored
             .refresh(Some(Duration::from_secs(1)))
@@ -1905,7 +1911,7 @@ async fn dynamodb_cache_batches_expiry_counters_and_locks_use_the_real_table() {
         other.block(Duration::from_millis(30)).await,
         Err(CacheError::LockTimeout)
     ));
-    let mut restored = second.restore_lock("guard", "first").unwrap();
+    let mut restored = second.restoreLock("guard", "first").unwrap();
     assert!(
         restored
             .refresh(Some(Duration::from_secs(1)))
@@ -2124,7 +2130,7 @@ async fn verify_lock_callbacks(first: &Repository, second: &Repository) {
     let owner = owned.owner().to_owned();
     let result = owned
         .getWith(|| async {
-            assert!(second.restore_lock(key, &owner)?.release().await?);
+            assert!(second.restoreLock(key, &owner)?.release().await?);
             assert!(contender.get().await?);
             Ok("new owner")
         })
@@ -2198,7 +2204,7 @@ async fn verify_lock_callbacks(first: &Repository, second: &Repository) {
         }
 
         fn force_release(&mut self) -> CacheFuture<'_, CacheResult<()>> {
-            self.lock.force_release()
+            self.lock.forceRelease()
         }
 
         fn owner(&self) -> &str {

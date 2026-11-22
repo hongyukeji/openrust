@@ -393,3 +393,8 @@ let events = app.fakeEvents(&[CacheHit::NAME]).await?;
 let _ = cache.get("reports/latest").await?;
 events.assertDispatched(CacheHit::NAME);
 ```
+
+
+## 查詢與恢復鎖
+
+`Lock` 契約提供 `currentOwner()` 查詢後端 owner，不取得鎖；`forceRelease()` 強制釋放鎖，不檢查目前控制代碼的 owner。`LockProvider::restoreLock(name, owner)` 使用保存的 owner 識別重建控制代碼。trait 物件也可直接呼叫這些方法；恢復控制代碼不會取得鎖或續租。

@@ -11,6 +11,18 @@ pub trait Lock: Send {
     fn force_release(&mut self) -> CacheFuture<'_, CacheResult<()>>;
     fn owner(&self) -> &str;
 
+    /// 按公开名称强制释放锁，不校验当前句柄的 owner。
+    #[allow(non_snake_case)]
+    fn forceRelease(&mut self) -> CacheFuture<'_, CacheResult<()>> {
+        self.force_release()
+    }
+
+    /// 查询后端当前 owner，不获取或续租锁。
+    #[allow(non_snake_case)]
+    fn currentOwner(&mut self) -> CacheFuture<'_, CacheResult<Option<String>>> {
+        self.current_owner()
+    }
+
     /// Reads the current owner without acquiring or renewing the lease.
     fn current_owner(&mut self) -> CacheFuture<'_, CacheResult<Option<String>>> {
         Box::pin(async { Err(CacheError::LockInspectionUnsupported) })

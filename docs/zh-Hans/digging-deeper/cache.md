@@ -393,3 +393,8 @@ let events = app.fakeEvents(&[CacheHit::NAME]).await?;
 let _ = cache.get("reports/latest").await?;
 events.assertDispatched(CacheHit::NAME);
 ```
+
+
+## 查询与恢复锁
+
+`Lock` 契约提供 `currentOwner()` 查询后端 owner，不获取锁；`forceRelease()` 强制释放锁，不校验当前句柄的 owner。`LockProvider::restoreLock(name, owner)` 使用保存的 owner 标识重建句柄。trait 对象也可直接调用这些方法；恢复句柄不会获取锁或续租。

@@ -393,3 +393,8 @@ let events = app.fakeEvents(&[CacheHit::NAME]).await?;
 let _ = cache.get("reports/latest").await?;
 events.assertDispatched(CacheHit::NAME);
 ```
+
+
+## Inspecting and restoring locks
+
+The `Lock` contract exposes `currentOwner()` to inspect the backend owner without acquiring a lock and `forceRelease()` to release it regardless of the current handle’s owner. `LockProvider::restoreLock(name, owner)` reconstructs a handle from its saved owner token. These methods are also available through trait objects; restoration does not acquire or renew the lock.

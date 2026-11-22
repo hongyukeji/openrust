@@ -13,4 +13,8 @@ pub trait LockProvider: Send + Sync {
         owner: Option<&str>,
     ) -> CacheResult<Box<dyn Lock>>;
     fn restore_lock(&self, name: &str, owner: &str) -> CacheResult<Box<dyn Lock>>;
+    #[allow(non_snake_case)]
+    fn restoreLock(&self, name: &str, owner: &str) -> CacheResult<Box<dyn Lock>> {
+        self.restore_lock(name, owner)
+    }
 }
