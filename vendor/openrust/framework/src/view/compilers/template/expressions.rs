@@ -12,6 +12,7 @@ use super::{
 pub(super) enum Expression {
     Value(ViewValue),
     Translation(Box<super::translations::Translation>),
+    Helper(Box<super::helpers::Helper>),
     Variable(Vec<String>),
     Not(Box<Expression>),
     Numeric(super::arithmetic::Literal),
@@ -194,6 +195,9 @@ pub(super) fn parse_expression(expression: &str, depth: usize) -> ViewResult<Exp
     }
     if let Some(translation) = super::translations::Translation::parse(expression, depth)? {
         return Ok(Expression::Translation(Box::new(translation)));
+    }
+    if let Some(helper) = super::helpers::Helper::parse(expression, depth)? {
+        return Ok(Expression::Helper(Box::new(helper)));
     }
     if let Some(path) = expression.strip_prefix('$') {
         let path: Vec<_> = path.split("->").map(str::trim).collect();
@@ -484,6 +488,7 @@ fn evaluate_with<'a>(
         Expression::Translation(translation) => {
             Evaluated::Json(Cow::Owned(translation.evaluate(data, bindings)?))
         }
+        Expression::Helper(helper) => Evaluated::Json(Cow::Owned(helper.evaluate(data, bindings)?)),
         Expression::Value(v) => Evaluated::Json(Cow::Borrowed(v)),
         Expression::Array(entries) => {
             Evaluated::Json(Cow::Owned(evaluate_array(entries, data, bindings)?))
@@ -705,7 +710,7 @@ fn boolean(value: bool) -> &'static ViewValue {
     }
 }
 
-fn strict_equal(left: &ViewValue, right: &ViewValue) -> bool {
+pub(super) fn strict_equal(left: &ViewValue, right: &ViewValue) -> bool {
     match (left, right) {
         (ViewValue::Object(left), ViewValue::Object(right)) => {
             left.len() == right.len()

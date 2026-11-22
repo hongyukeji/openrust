@@ -34,52 +34,41 @@ THE SOFTWARE.
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="color-scheme" content="light dark">
         <title>{{ $name }}</title>
+        <script>
+            // 在首次绘制前恢复手动主题；没有偏好时交给 CSS 跟随系统。
+            try {
+                const appearance = localStorage.getItem('appearance');
+                if (appearance === 'light' || appearance === 'dark') {
+                    document.documentElement.dataset.theme = appearance;
+                }
+            } catch { /* 存储不可用时仍可跟随系统。 */ }
+        </script>
         <style>
             :root {
                 color-scheme: light dark;
-                --page: #fdfdfc;
-                --card: #fff;
-                --text: #1b1b18;
-                --muted: #706f6c;
-                --outline: #e3e3e0;
-                --art-outline: rgb(26 26 26 / 16%);
-                --dot: #dbdbd7;
-                --accent: #c72c09;
-                --button: #1b1b18;
-                --button-text: #fff;
-                --button-hover: #000;
-                --art: #fff2f2;
-                --wordmark: #f53003;
-                --stroke-color: #1b1b18;
-                --depth-front: #1b1b18;
-                --depth-rose: #f3bec7;
-                --depth-amber: #f8b803;
-                --depth-orange: #f3bec7;
+                --page: light-dark(#fdfdfc, #0a0a0a);
+                --card: light-dark(#fff, #161615);
+                --text: light-dark(#1b1b18, #ededec);
+                --muted: light-dark(#706f6c, #a1a09a);
+                --outline: light-dark(#e3e3e0, #3e3e3a);
+                --art-outline: light-dark(rgb(26 26 26 / 16%), rgb(255 250 237 / 18%));
+                --dot: light-dark(#dbdbd7, #3e3e3a);
+                --accent: light-dark(#c72c09, #ff6857);
+                --button: light-dark(#1b1b18, #eeeeec);
+                --button-text: light-dark(#fff, #1c1c1a);
+                --button-hover: light-dark(#000, #fff);
+                --art: light-dark(#fff2f2, #1d0002);
+                --wordmark: light-dark(#f53003, #f61500);
+                --stroke-color: light-dark(#1b1b18, #ff750f);
+                --depth-front: light-dark(#1b1b18, #000);
+                --depth-rose: light-dark(#f3bec7, #4b0600);
+                --depth-amber: light-dark(#f8b803, #391800);
+                --depth-orange: light-dark(#f3bec7, #733000);
                 font-family: "Instrument Sans", Arial, sans-serif;
             }
 
-            @media (prefers-color-scheme: dark) {
-                :root {
-                    --page: #0a0a0a;
-                    --card: #161615;
-                    --text: #ededec;
-                    --muted: #a1a09a;
-                    --outline: #3e3e3a;
-                    --art-outline: rgb(255 250 237 / 18%);
-                    --dot: #3e3e3a;
-                    --accent: #ff6857;
-                    --button: #eeeeec;
-                    --button-text: #1c1c1a;
-                    --button-hover: #fff;
-                    --art: #1d0002;
-                    --wordmark: #f61500;
-                    --stroke-color: #ff750f;
-                    --depth-front: #000;
-                    --depth-rose: #4b0600;
-                    --depth-amber: #391800;
-                    --depth-orange: #733000;
-                }
-            }
+            :root[data-theme="light"] { color-scheme: light; }
+            :root[data-theme="dark"] { color-scheme: dark; }
 
             *, *::before, *::after {
                 box-sizing: border-box;
@@ -90,8 +79,9 @@ THE SOFTWARE.
                 margin: 0;
                 padding: 24px;
                 display: flex;
-                justify-content: center;
-                align-items: flex-start;
+                flex-direction: column;
+                align-items: center;
+                gap: 32px;
                 background: var(--page);
                 color: var(--text);
                 font-size: 13px;
@@ -257,13 +247,17 @@ THE SOFTWARE.
             .depth-back { color: var(--depth-rose); mix-blend-mode: hard-light; }
 
             @media (prefers-color-scheme: dark) {
-                .depth-front, .depth-orange { mix-blend-mode: normal; }
-                .depth-amber { mix-blend-mode: hard-light; }
+                :root:not([data-theme="light"]) .depth-front,
+                :root:not([data-theme="light"]) .depth-orange { mix-blend-mode: normal; }
+                :root:not([data-theme="light"]) .depth-amber { mix-blend-mode: hard-light; }
             }
+
+            :root[data-theme="dark"] .depth-front,
+            :root[data-theme="dark"] .depth-orange { mix-blend-mode: normal; }
+            :root[data-theme="dark"] .depth-amber { mix-blend-mode: hard-light; }
 
             @media (min-width: 1024px) {
                 body {
-                    align-items: center;
                     padding: 32px;
                     font-size: 16px;
                     line-height: 1.5;
@@ -272,7 +266,8 @@ THE SOFTWARE.
                 main {
                     display: grid;
                     grid-template-columns: minmax(0, 54fr) minmax(0, 46fr);
-                    width: clamp(960px, 76%, 1280px);
+                    width: min(100%, 1280px);
+                    margin-block: auto;
                     max-width: 100%;
                 }
 
@@ -313,37 +308,102 @@ THE SOFTWARE.
                 }
 
             }
-            .language-switcher {
+            .page-header {
                 display: flex;
-                flex-wrap: wrap;
-                gap: 6px;
-                margin-bottom: 20px;
-                font-size: 12px;
-                line-height: 1.5;
+                align-items: center;
+                justify-content: space-between;
+                gap: 16px;
+                width: 100%;
+                max-width: 1280px;
             }
-            .language-switcher a {
-                padding: 4px 8px;
-                border: 1px solid transparent;
+            .brand { display: flex; align-items: center; gap: 10px; min-width: 0; font-size: 17px; font-weight: 700; }
+            .brand svg { flex: 0 0 28px; color: var(--wordmark); }
+            .brand-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+            .preferences { display: flex; gap: 4px; flex-shrink: 0; }
+            .preference-menu { position: relative; }
+            .preference-menu summary {
+                display: grid;
+                width: 44px;
+                height: 44px;
+                place-items: center;
+                border-radius: 8px;
+                list-style: none;
+                cursor: pointer;
+            }
+            .preference-menu summary::-webkit-details-marker { display: none; }
+            .preference-menu summary:hover, .preference-menu[open] summary { background: var(--outline); }
+            .preference-menu summary:focus-visible, .theme-options button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+            .preference-menu nav, .theme-options {
+                position: absolute;
+                z-index: 5;
+                right: 0;
+                top: calc(100% + 8px);
+                min-width: 176px;
+                padding: 6px;
+                border: 1px solid var(--outline);
+                border-radius: 10px;
+                background: var(--card);
+                box-shadow: 0 8px 24px rgb(0 0 0 / 10%);
+            }
+            .language-switcher a, .theme-options button {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                width: 100%;
+                min-height: 44px;
+                padding: 8px 12px;
+                border: 0;
                 border-radius: 5px;
+                font: inherit;
+                font-size: 14px;
+                text-align: start;
                 text-decoration: none;
-                color: inherit;
+                color: var(--text);
+                background: transparent;
+                cursor: pointer;
             }
             .language-switcher a[data-current-language="true"] { text-decoration: underline; text-underline-offset: 3px; }
-            .language-switcher a[aria-current="true"] { border-color: currentColor; }
-            .language-switcher a:hover { background: light-dark(#f3f3f0, #242423); }
-            .language-switcher a:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+            .language-switcher a[aria-current="true"], .theme-options button[aria-pressed="true"] { background: var(--outline); }
+            .language-switcher a:hover, .theme-options button:hover { background: var(--outline); }
+            .language-switcher a[aria-current="true"]::after, .theme-options button[aria-pressed="true"]::after { content: "✓"; margin-inline-start: auto; }
         </style>
     </head>
     <body>
+        <header class="page-header">
+            <div class="brand">
+                <svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true"><rect x="2" y="2" width="24" height="24" rx="7" stroke="currentColor" stroke-width="2"/><path d="m11 9-5 5 5 5m6-10 5 5-5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <span class="brand-name" title="{{ $name }}">{{ $name }}</span>
+            </div>
+            <div class="preferences">
+                @if(($locale_parameter ?? null) && (in_array('en', $locale_candidates, true) || in_array('zh-Hans', $locale_candidates, true) || in_array('zh-Hant', $locale_candidates, true)))
+                <details class="preference-menu" name="welcome-preferences">
+                    <summary aria-label="{{ __('welcome.language') }}" title="{{ __('welcome.language') }}">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><path d="M3 12h18M5 6h14M5 18h14"/></svg>
+                    </summary>
+                    <nav class="language-switcher" aria-label="{{ __('welcome.language') }}" data-locale="{{ $language }}">
+                        @foreach(['en', 'zh-Hans', 'zh-Hant'] as $choice)
+                        @if(in_array($choice, $locale_candidates, true))
+                        <a href="{{ $base_path }}/?{{ Arr::query([$locale_parameter => $choice] + $query) }}" @if($locale_from_query && $language === $choice)aria-current="true"@endif @if($language === $choice)data-current-language="true"@endif lang="{{ $choice }}">{{ __('languages.name', [], $choice) }}</a>
+                        @endif
+                        @endforeach
+                        <a href="{{ $base_path }}/@if(Arr::query(Arr::except($query, [$locale_parameter])))?{{ Arr::query(Arr::except($query, [$locale_parameter])) }}@endif" @if(!$locale_from_query)aria-current="true"@endif lang="{{ $language }}">{{ __('welcome.follow_browser') }}</a>
+                    </nav>
+                </details>
+                @endif
+                <details class="preference-menu" name="welcome-preferences" id="theme-menu" hidden>
+                    <summary aria-label="{{ __('welcome.theme') }}" title="{{ __('welcome.theme') }}">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9A9 9 0 0 1 12 3Z"/><path d="M17 3v4m-2-2h4M20 7v4m-2-2h4"/></svg>
+                    </summary>
+                    <div class="theme-options" role="group" aria-label="{{ __('welcome.theme') }}">
+                        <button type="button" data-theme-choice="light" aria-pressed="false">{{ __('welcome.theme_light') }}</button>
+                        <button type="button" data-theme-choice="dark" aria-pressed="false">{{ __('welcome.theme_dark') }}</button>
+                        <button type="button" data-theme-choice="system" aria-pressed="true">{{ __('welcome.theme_system') }}</button>
+                    </div>
+                </details>
+            </div>
+        </header>
         <main>
             <section class="introduction" aria-labelledby="welcome-heading">
-                @if($language_links ?? [])
-                <nav class="language-switcher" aria-label="{{ __('welcome.language') }}" data-locale="{{ $language }}">
-                    @foreach($language_links as $link)
-                    <a href="{{ $link['href'] }}" @if($link['selected'])aria-current="true"@endif @if($link['current'])data-current-language="true"@endif>{{ __($link['label']) }}</a>
-                    @endforeach
-                </nav>
-                @endif
                 <h1 id="welcome-heading">{{ __('welcome.heading') }}</h1>
                 <p>{{ __('welcome.description') }}</p>
 
@@ -379,5 +439,42 @@ THE SOFTWARE.
                 </svg>
             </div>
         </main>
+        <script>
+            (() => {
+                const root = document.documentElement;
+                const menu = document.getElementById('theme-menu');
+                const choices = menu.querySelectorAll('[data-theme-choice]');
+                const update = (appearance) => {
+                    if (appearance === 'system') delete root.dataset.theme;
+                    else root.dataset.theme = appearance;
+                    choices.forEach(button => button.setAttribute('aria-pressed', String(button.dataset.themeChoice === appearance)));
+                };
+                update(root.dataset.theme || 'system');
+                menu.hidden = false;
+                choices.forEach(button => button.addEventListener('click', () => {
+                    const appearance = button.dataset.themeChoice;
+                    update(appearance);
+                    try {
+                        if (appearance === 'system') localStorage.removeItem('appearance');
+                        else localStorage.setItem('appearance', appearance);
+                    } catch { /* 存储受限时，手动选择仍在当前页面生效。 */ }
+                    menu.open = false;
+                    menu.querySelector('summary').focus();
+                }));
+                // 原生 disclosure 保留键盘操作；补齐 Escape 与点击外部关闭。
+                document.addEventListener('keydown', event => {
+                    if (event.key !== 'Escape') return;
+                    document.querySelectorAll('.preference-menu[open]').forEach(details => {
+                        details.open = false;
+                        details.querySelector('summary').focus();
+                    });
+                });
+                document.addEventListener('click', event => {
+                    document.querySelectorAll('.preference-menu[open]').forEach(details => {
+                        if (!details.contains(event.target)) details.open = false;
+                    });
+                });
+            })();
+        </script>
     </body>
 </html>

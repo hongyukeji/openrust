@@ -37,6 +37,20 @@ Blade 模板使用 `.blade.html` 后缀。普通 `.html` 视图以 UTF-8 HTML �
 
 直接标量输出、算术、真假判断和比较保留 `INF`、`NAN` 及有符号零。[原生视图数据](./views.md#native-view-values)在数组、包含视图、组件和自定义指令之间也保留这些值。模板不执行任意 PHP 或调用未注册函数。编译器会自动使旧表达式缓存失效。
 
+### 模板中的数组助手 {#array-query-helpers}
+
+`Arr::query($array)` 编码查询参数；`Arr::except($array, $keys)` 返回排除指定键或点路径后的数组副本，`$keys` 接受字符串或字符串数组。两者均不修改输入。`in_array($value, $array, true)` 严格比较候选值，省略第三个参数时使用宽松比较；提供第三个参数时必须是布尔值。
+
+```blade
+@foreach(['en', 'zh-Hans', 'zh-Hant'] as $choice)
+    @if(in_array($choice, $candidates, true))
+        <a href="/?{{ Arr::query([$parameter => $choice] + $query) }}">{{ __('languages.name', [], $choice) }}</a>
+    @endif
+@endforeach
+```
+
+将 `$query`、`$parameter` 和 `$candidates` 作为视图数据传入。使用 `Arr::except($query, [$parameter])` 只删除语言参数。保留默认转义输出：查询编码和 HTML 转义各有作用。上述助手也可用于子视图及组件属性；模板不执行任意 PHP 函数或静态方法。
+
 ### HTML 实体编码 {#html-entity-encoding}
 
 Blade 默认会对转义输出中的已有 HTML 实体再次编码。要保留有效的 HTML 4.01 实体，可在应用服务提供者启动时配置 Blade 编译器。调用 `withDoubleEncoding()` 可恢复默认行为。

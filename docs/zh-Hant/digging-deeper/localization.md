@@ -83,9 +83,11 @@ OpenRust 的預設全域中介軟體堆疊包含 `openrust::http::middleware::Se
 
 改為 `"language"` 後只讀取 `?language=...`；設為 JSON `null` 只關閉 URL 選擇，仍保留回呼與瀏覽器協商。缺鍵時預設使用 `lang`，相容舊設定快取。空名稱、空白、控制字元、點、方括號及非字串值屬於設定錯誤，請使用非空的頂層查詢鍵。設定快取保留原有值，修改後需重建快取；不需要額外環境變數或中介軟體註冊。
 
-歡迎頁提供候選中實際可用的 `en`、`zh-Hans`、`zh-Hant` 及「跟隨瀏覽器」的一般 GET 連結。連結保留其他查詢參數，自動選項只刪除設定的語言鍵。目前語言使用底線標示，邊框標示明確選擇或自動模式。重新整理或分享帶參數 URL 可保留選擇；存取不帶該參數的首頁恢復瀏覽器協商，不寫入 Cookie、Session、資料庫或 localStorage。
+歡迎頁頂端的語言圖示展開候選中實際可用語言的一般 GET 連結，名稱始終使用母語：English、简体中文、繁體中文，另提供「跟隨瀏覽器」。每種語言在自己的 `lang/{語言}/languages.json` 中以 `name` 儲存名稱，模板指定目標語言讀取，無須重複維護其他語言名稱。連結保留其他查詢參數，自動選項只刪除設定的語言鍵。目前語言使用底線標示，醒目背景與勾選標示明確選擇或自動模式。重新整理或分享帶參數 URL 可保留選擇；存取不帶該參數的首頁恢復瀏覽器協商，不寫入 Cookie、Session、資料庫或 localStorage。
 
-關閉 URL 選擇、停用中介軟體、沒有歡迎頁語言候選，或回呼已選定 URL 無法覆蓋的語言時，不顯示切換控制項。自訂候選不會產生未翻譯的選單項目。中介軟體將 `LocaleSelection` 放入請求原生擴充，提供實際參數名、候選及 `from_query` 標示；控制器僅用它產生控制項，不再選擇語言。URL 選擇保留 `Content-Language`、`Vary: Accept-Language` 及下游回應標頭行為；回呼涉及私人內容時，仍需應用程式設定快取策略。
+主題圖示提供淺色、深色、跟隨系統。未手動設定時，CSS 自動回應系統主題變化；手動選擇儲存在瀏覽器 localStorage（`appearance`），選擇跟隨系統會移除該覆寫。儲存不可用時仍可切換目前頁面。停用 JavaScript 後，語言連結仍可使用，主題繼續跟隨系統。
+
+關閉 URL 選擇、停用中介軟體、沒有歡迎頁語言候選，或回呼已選定 URL 無法覆蓋的語言時，不顯示切換控制項。自訂候選不會產生未翻譯的選單項目。中介軟體將 `LocaleSelection` 放入請求原生擴充，提供實際參數名、候選及 `from_query` 標示；控制器僅將這些原始資訊、查詢參數和基礎路徑傳入 Blade，由模板篩選候選、翻譯母語名稱、產生編碼連結和標示選中項，不重新選擇語言。URL 選擇保留 `Content-Language`、`Vary: Accept-Language` 及下游回應標頭行為；回呼涉及私人內容時，仍需應用程式設定快取策略。
 
 ### 自訂語言選擇 {#custom-locale-selection}
 
@@ -409,6 +411,7 @@ Translator 契約、具體實作與 Lang Facade 都提供 `getLocale`、`setLoca
 資料庫翻譯先唯讀盤點 `language_lines.text` 的 JSON 語言鍵，以及應用程式自有設定或語言欄位。`vendor/openrust/translation-database/database/upgrade-bcp47/`提供獨立唯讀盤點與 PostgreSQL、MySQL、SQLite 交易，映射預設兩種中文與 `en_US`／`en_GB`；審閱後按實際情況調整資料表名稱及其他舊語言映射。未列入映射的底線鍵、任意新舊鍵碰撞（包括相同值或 null）均使交易失敗，不覆寫內容。預設結尾為 **ROLLBACK**，核對結果與備份後，才明確改為 **COMMIT**。發生錯誤需回滾並關閉該專屬資料庫連線。成功後重複執行為空操作；已提交後的回退需要還原備份，不能僅憑新鍵名判斷哪些內容來自遷移。
 
 Faker 原生 provider 鍵僅保留於私有邊界，`locale()`、`randomLocale()` 輸出 BCP 47；僅有文字體系的 `zh-Hans`／`zh-Hant` 使用既有對應中文 provider，公開標籤仍保留原地區及擴充。微信原生 `lang=zh_CN` 等第三方協定欄位保持不變。
+
 
 ## 替換複數選擇器
 

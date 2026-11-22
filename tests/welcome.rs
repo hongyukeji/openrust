@@ -39,13 +39,30 @@ impl Root {
             include_str!("../resources/views/welcome.blade.html"),
         )
         .unwrap();
-        for (locale, data) in [
-            ("en", include_str!("../lang/en/welcome.json")),
-            ("zh-Hans", include_str!("../lang/zh-Hans/welcome.json")),
-            ("zh-Hant", include_str!("../lang/zh-Hant/welcome.json")),
+        for (locale, data, language_name) in [
+            (
+                "en",
+                include_str!("../lang/en/welcome.json"),
+                include_str!("../lang/en/languages.json"),
+            ),
+            (
+                "zh-Hans",
+                include_str!("../lang/zh-Hans/welcome.json"),
+                include_str!("../lang/zh-Hans/languages.json"),
+            ),
+            (
+                "zh-Hant",
+                include_str!("../lang/zh-Hant/welcome.json"),
+                include_str!("../lang/zh-Hant/languages.json"),
+            ),
         ] {
             fs::create_dir_all(path.join("lang").join(locale)).unwrap();
             fs::write(path.join("lang").join(locale).join("welcome.json"), data).unwrap();
+            fs::write(
+                path.join("lang").join(locale).join("languages.json"),
+                language_name,
+            )
+            .unwrap();
         }
         fs::write(
             path.join("resources/views/other.blade.html"),
@@ -181,9 +198,7 @@ fn validate(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
             RuleSet::parse([("name", "required")])?,
         )?;
         let _ = validator.validate().await;
-        Ok(Response::from(
-            validator.errors_mut().first().unwrap().to_owned(),
-        ))
+        Ok(Response::from(validator.errors_mut().first(None, None)))
     })
 }
 fn switched_locale(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
@@ -656,7 +671,7 @@ async fn switcher_tracks_custom_parameter_null_and_actual_candidates() {
         .await;
     let (headers, html) = send(&custom, "/?language=zh-Hant&lang=keep", &["en"]).await;
     assert_page(&headers, &html, "zh-Hant");
-    assert!(html.contains("/?lang=keep&amp;language=en"));
+    assert!(html.contains("/?language=en&amp;lang=keep"));
     assert!(html.contains("href=\"/?lang=keep\""));
     assert!(!html.contains("language=zh-Hans"));
     assert!(!html.contains("language=fr"));
@@ -683,4 +698,68 @@ async fn callback_selected_language_hides_controls_that_cannot_override_it() {
     let (headers, html) = send(&kernel, "/?lang[]=invalid", &["en"]).await;
     assert_page(&headers, &html, "zh-Hant");
     assert!(!html.contains("class=\"language-switcher\""));
+}
+
+#[tokio::test]
+async fn header_shows_native_language_names_and_default_system_theme_controls() {
+    let root = Root::new("en");
+    let kernel = root.kernel().await;
+    for locale in ["en", "zh-Hans", "zh-Hant"] {
+        let (headers, html) = send(&kernel, &format!("/?lang={locale}"), &["en-US"]).await;
+        assert_page(&headers, &html, locale);
+        let header = html
+            .split("<header class=\"page-header\">")
+            .nth(1)
+            .expect("页头存在")
+            .split("</header>")
+            .next()
+            .unwrap();
+        assert!(header.contains("Welcome &lt;Test&gt;"));
+        for (tag, name) in [
+            ("en", "English"),
+            ("zh-Hans", "简体中文"),
+            ("zh-Hant", "繁體中文"),
+        ] {
+            assert!(header.contains(&format!("lang=\"{tag}\"")));
+            assert!(header.contains(&format!(">{name}</a>")));
+        }
+        assert_eq!(header.matches("<summary ").count(), 2);
+        for appearance in ["light", "dark", "system"] {
+            assert!(header.contains(&format!("data-theme-choice=\"{appearance}\"")));
+        }
+        assert!(!html.contains("welcome.english"));
+        assert!(!html.contains("languages.name"));
+    }
+}
+
+#[tokio::test]
+async fn blade_switcher_keeps_nested_encoded_query_data_and_does_not_retain_previous_request() {
+    let root = Root::new("en");
+    let kernel = root.kernel().await;
+    let (_, html) = send(
+        &kernel,
+        "/?lang=zh-Hant&filter[tags][]=a%26b&filter[tags][]=%E7%94%B2&search=%3Cscript%3E",
+        &["en"],
+    )
+    .await;
+    assert!(html.contains("filter%5Btags%5D%5B0%5D=a%26b"));
+    assert!(html.contains("filter%5Btags%5D%5B1%5D=%E7%94%B2"));
+    assert!(html.contains("search=%3Cscript%3E"));
+    assert!(html.contains("href=\"/?lang=en&amp;"));
+    assert!(!html.contains("search=<script>"));
+    let (_, next) = send(&kernel, "/?lang=en", &["zh-TW"]).await;
+    assert!(!next.contains("filter%5Btags%5D"));
+    assert!(!next.contains("search=%3Cscript%3E"));
+    assert!(next.contains("href=\"/\""));
+}
+
+#[tokio::test]
+async fn blade_switcher_preserves_numeric_keys_for_custom_language_parameter() {
+    let root = Root::new("en");
+    let kernel = root.kernel_options(true, Some("5".into()), None).await;
+    let (headers, html) = send(&kernel, "/?5=zh-Hant&9=keep", &["en"]).await;
+    assert_page(&headers, &html, "zh-Hant");
+    assert!(html.contains("href=\"/?5=en&amp;9=keep\""));
+    assert!(html.contains("href=\"/?9=keep\""));
+    assert!(!html.contains("0=zh-Hant"));
 }

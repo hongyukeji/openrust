@@ -37,6 +37,20 @@ Blade 範本使用 `.blade.html` 副檔名。一般 `.html` 視圖以 UTF-8 HTML
 
 直接標量輸出、算術、真假判斷和比較保留 `INF`、`NAN` 及有符號零。[原生視圖資料](./views.md#native-view-values)在陣列、引入視圖、元件和自訂指令之間也保留這些值。模板不執行任意 PHP 或呼叫未註冊函式。編譯器會自動使舊運算式快取失效。
 
+### 模板中的陣列助手 {#array-query-helpers}
+
+`Arr::query($array)` 編碼查詢參數；`Arr::except($array, $keys)` 傳回排除指定鍵或點路徑後的陣列副本，`$keys` 接受字串或字串陣列。兩者均不修改輸入。`in_array($value, $array, true)` 嚴格比較候選值，省略第三個參數時使用寬鬆比較；提供第三個參數時必須是布林值。
+
+```blade
+@foreach(['en', 'zh-Hans', 'zh-Hant'] as $choice)
+    @if(in_array($choice, $candidates, true))
+        <a href="/?{{ Arr::query([$parameter => $choice] + $query) }}">{{ __('languages.name', [], $choice) }}</a>
+    @endif
+@endforeach
+```
+
+將 `$query`、`$parameter` 和 `$candidates` 作為視圖資料傳入。使用 `Arr::except($query, [$parameter])` 只刪除語言參數。保留預設跳脫輸出：查詢編碼與 HTML 跳脫各有作用。上述助手也可用於子視圖及元件屬性；模板不執行任意 PHP 函式或靜態方法。
+
 ### HTML 實體編碼 {#html-entity-encoding}
 
 Blade 預設會對跳脫輸出中的現有 HTML 實體再次編碼。若要保留有效的 HTML 4.01 實體，可在應用程式服務提供者啟動時設定 Blade 編譯器。呼叫 `withDoubleEncoding()` 可恢復預設行為。

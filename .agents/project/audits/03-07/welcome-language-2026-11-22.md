@@ -498,3 +498,51 @@ Rust 1.94.0；隔离源码、独占 `cargo-target/`、日志、浏览器脚本�
 2026-11-22 用户随后明确授权本轮本地提交，不包含推送或发布。仅提交 URL 语言选择、欢迎页切换及必要的实例回调依赖；其他版本 API、MessageBag、复数选择器、测试框架和新增环境变量改动留在工作区。提交范围保持已验收的静态 lang 默认配置。
 
 提交前核对：将实际暂存树导出为本批 source-index，与已验收 source 的3,272个非内部记录文件逐一核对，运行源码、配置、测试及资源全部一致；差异仅为三语正文排除其他协作者的复数选择器段落。实际暂存树重新通过 fmt、三语内容检查及 git diff --cached --check。沿用上述一致源码的131项范围回归与严格Clippy证据，不重复构建。config/app.rs 的后续环境变量改造、MessageBag消费者迁移及testing辅助转换保留未提交；本次不将组合139项结果解释为其已纳入提交。
+
+## 欢迎页页头、母语名称与 Blade 链接生成（2026-11-23）
+
+用户要求语言名称独立维护、页头图标切换语言和主题，随后明确要求将整个 `language_links()` 的处理移入视图。控制器仅传入 LocaleSelection 原始字段、查询参数、基础路径及原有页面元信息；不预生成链接或翻译文案。Blade 负责三语遍历、实际候选过滤、当前语言／手动选择标记、语言参数覆盖和自动模式参数删除，已删除 Rust 的 language_links 函数。
+
+复用与边界：
+
+- 核对固定 Framework v13.40.0／1449bf241017087fbd38c118ecaabef3f6797fdc 的 Collections/Arr.php、View/Compilers/Concerns/CompilesEchos.php，以及 PHP in_array 文档。快照及成功获取字节记录在本批 `view/research.json`。复用现有 Arr::query 的 RFC3986 编码、Arr::except 的点路径删除和 Blade 数组／比较实现；新增白名单表达式入口 Arr::query、Arr::except、in_array，不添加欢迎页专用 Rust 助手或任意 PHP 执行器。保留默认 HTML 转义。数组联合 `[$parameter => $choice] + $query` 保留数字键，避免 PHP 展开数字键重排。链接仍为包含可信基础路径的相对 URL。
+- Arr::except 模板参数支持字符串或字符串数组；in_array 的 strict 显式参数限定布尔值，未提供为宽松比较。这是有限表达式适配，不能据此声称支持任意 PHP 函数、静态方法或全部 PHP 弱类型转换。模板缓存 schema 38→39，并同步两项既有失效测试的版本断言。
+- 名称使用 `lang/{en,zh-Hans,zh-Hant}/languages.json` 各自的 name，通过 `__('languages.name', [], $choice)` 读取目标语言；删除 welcome.json 内原英文／简体／繁体名称词条。支持范围仍由已执行中间件决定，不增加应用语言配置、不重做协商。
+- 页头左侧品牌及应用名，右侧原生 details 语言／主题菜单；键盘、焦点、触控和窄屏可用。主题默认 CSS color-scheme 跟随系统，light/dark 覆盖保存在 localStorage.appearance，system 删除覆盖；禁用 JS 时语言链接正常，主题继续跟随系统。受限存储只影响持久化。
+- 页头／主题参考当日 Laravel React starter-kit use-appearance.tsx、W3C 语言导航母语名称指引、MDN color-scheme 与 details；来源及快照保存在 header/research/。没有引入 React、Cookie 或额外依赖，不宣称固定 Laravel 核心已有此默认控件。
+
+验收使用 Rust1.94.0、项目内 TMPDIR 及独占 Cargo 目录。材料在 `target/tmp/locale-query-20261122/`。新增助手回归先在旧实现失败：view-red-behavior.log 中4项因 Unsupported Blade expression 失败，非仅编译报错。后续修正测试夹具的相邻指令边界及38→39缓存断言，没有放宽生产逻辑；欢迎页的两处断言更新查询键顺序，仍核对参数内容、编码及自动删除。
+
+范围快照 Blade 28项（含6项新助手回归）通过。最终完整工作区快照 source-current 基线076a32825，保留其他协作者的 MessageBag／测试框架等修改，不再替换消费者 API：
+
+```sh
+cargo +1.94.0 test --locked -p openrust -p openrust-framework \
+  --test welcome --test configuration --test localization --test startup --test console \
+  --test blade_query_helpers --test blade_expression_contracts --test blade_arithmetic \
+  --test blade_statements --test blade_translations
+cargo +1.94.0 fmt --all -- --check
+```
+
+上述96项通过、0 ignored；fmt通过。实际日志为 view-current-tests.log／view-current-fmt.log。覆盖真实Kernel语言切换、null／空候选／回调优先隐藏、关闭中间件、参数配置、嵌套查询及恶意字符编码、数字键、请求和应用隔离、错误传播、缓存／子视图／组件／并发消费者、翻译及启动。三语正文同步模板助手示例、页头与主题操作；三语内容检查／构建（view-docs.log）、桌面手机浏览器（view-doc-browser.log）、双前缀全导航（view-doc-scope.log）通过。
+
+本批构建中曾触及磁盘停线，已协调清理全部本项目旧编译产物；清理后的新活动缓存受锁保护并保留。清理仅针对构建目录，源码、日志、依赖下载、开发数据及卷未动，详情见 header/cleanup-result.json。后续保持增量和正常并发，可用空间恢复至90GiB以上。
+
+未修改数据库／共享缓存行为，未启动无关服务。本批结果不代表其他协作者全仓对齐任务已完成；Windows、Docker、正式发布、真实移动设备、其他浏览器引擎及性能未验。语言选择和非三语文档链接的既有边界保留。本次用户授权实施与验收，没有暂存、提交、推送或发布授权。
+
+最终质量与浏览器复验：
+
+```sh
+cargo +1.94.0 clippy --locked -p openrust -p openrust-framework --lib \
+  --test welcome --test configuration --test localization --test startup --test console \
+  --test blade_query_helpers --test blade_expression_contracts --test blade_arithmetic \
+  --test blade_statements --test blade_translations -- -D warnings
+```
+
+当前组合上述严格Clippy通过（view-current-clippy.log），未增加lint豁免；第三方已有依赖警告不代表本项目代码lint失败。真实HTTP Kernel＋Chromium最终36组交互通过（view-browser.log、header/browser-results.json），含无JS320px、存储不可用／非法持久值、自动系统切换／手动覆盖／刷新恢复、原生菜单键盘／互斥／点击外部关闭、三语所有链接、保留查询、四类非法query400和无横溢出。已实际查看 header/header-zh-CN-mobile-light.png，母语菜单、品牌及右侧控件布局正常。临时HTTP服务正常关闭，fixture已移除。22个本批源码／测试／资源／正文文件与包含协作者在途改动的 source-current 快照逐字节一致（view/delivery-consistency.json）；其他协作者的后续无关改动不混入本次通过结论。
+
+夹具修正记录：编译器缓存版本变更后，两项原有硬编码38的断言更新为39；新增模板测试按已有指令边界分行，避免相邻指令／词末指令被当作正文。语言参数现在先进入数组，查询键顺序相应变化，两项旧顺序断言已同步，仍验证全部实际键值，没有删除语言覆盖或参数保留断言。最终通过结果均来自修正后的源码与测试，不把中间失败计为通过。
+
+
+2026-11-23 用户随后明确授权本轮本地提交，不包含推送或发布。提交欢迎页、通用Blade助手、母语资源、关联回归和三语正文及本主题记录；保留框架版本及其他对齐任务的未提交内容。欢迎页测试中已有的 MessageBag::first(None, None) 消费者迁移随测试保留，因为当前HEAD的MessageBag已采用该签名；不修改MessageBag实现。
+
+提交前复验：从实际暂存树导出全新 source-commit-welcome-20261123，96项定向测试、全项目fmt、受影响lib／tests严格Clippy和三语内容检查全部通过，分别见commit-welcome-tests／fmt／clippy／content.log。22个运行／测试／资源／正文文件与此前96项及36组浏览器验收源码一致。首次导出误用了既有source-index目录，发现历史文件未覆盖后已中断该次运行，改用全新目录重新导出；中断批次commit-index-tests不计通过。内部交接及待办仅暂存本主题追加内容，其余修改保留在工作区。

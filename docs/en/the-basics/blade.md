@@ -37,6 +37,20 @@ Fractional floating-point modulo operands truncate to integers, and a zero base 
 
 Direct scalar echoes, arithmetic, truth tests and comparisons preserve `INF`, `NAN` and signed zero. Native [view data](./views.md#native-view-values) also preserves these values through arrays, includes, components and custom directives. Templates do not execute arbitrary PHP or call unregistered functions. The compiler invalidates older expression artifacts automatically.
 
+### Array helpers in templates {#array-query-helpers}
+
+Use `Arr::query($array)` to encode query parameters and `Arr::except($array, $keys)` to copy an array without selected keys or dotted paths. `$keys` accepts a string or an array of strings. Neither helper changes its input. `in_array($value, $array, true)` checks values with strict comparison; omit the third argument for loose comparison. When supplied, the third argument must be a boolean.
+
+```blade
+@foreach(['en', 'zh-Hans', 'zh-Hant'] as $choice)
+    @if(in_array($choice, $candidates, true))
+        <a href="/?{{ Arr::query([$parameter => $choice] + $query) }}">{{ __('languages.name', [], $choice) }}</a>
+    @endif
+@endforeach
+```
+
+Pass `$query`, `$parameter` and `$candidates` as view data. Use `Arr::except($query, [$parameter])` to remove only the language parameter. Keep the default escaped output: query encoding and HTML escaping serve different purposes. These helpers also work in includes and component attributes. The template does not execute arbitrary PHP functions or static methods.
+
 ### HTML Entity Encoding {#html-entity-encoding}
 
 Escaped Blade echoes double-encode existing HTML entities by default. To preserve valid HTML 4.01 entities in an application, configure its Blade compiler during provider startup. Use `withDoubleEncoding()` to restore the default.

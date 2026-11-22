@@ -45,3 +45,5 @@ L01–L22本批实现和实际验收见[审计修复节](audits/laravel-code-aud
 - [x] **数据库翻译扩展**。沿用 Spatie `language_lines` 多语言 JSON 结构，实现显式 DatabaseLoader、文件覆盖和 Lang 原子发布；Rust1.94＋PostgreSQL18 的 8 项行为／HTTP 测试、4 示例、严格全feature Clippy／fmt与三语12＋6浏览器通过。精确语言回退和缺表错误适配见 [验收与调研](audits/translation-database/README.md)。
 
 - [x] **06-08 Artisan 交互本地化**。命令列表、帮助、参数错误与生产确认复用应用翻译器。默认使用 `APP_LOCALE`，应用翻译缺失时按 `APP_FALLBACK_LOCALE` 回退。命令名、选项、退出码与机器可读输出结构沿用现有契约。 [基础验收](audits/06-08/README.md) · [生产确认验收](audits/06-08/production-confirmation.md)
+
+- [x] **欢迎页页头与Blade语言链接（2026-11-23）**：移除language_links控制器函数，候选／编码链接／母语名称及状态全部由模板处理；语言名称独立JSON，页头主题默认跟随系统。96项定向回归、fmt、严格Clippy、36组真实HTTP浏览器及三语文档构建／浏览器／导航通过，交付文件与快照一致；边界及证据见[主题记录](audits/03-07/welcome-language-2026-11-22.md#欢迎页页头母语名称与-blade-链接生成2026-11-23)。用户已授权本轮本地提交，不包含推送或发布。

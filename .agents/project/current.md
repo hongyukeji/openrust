@@ -118,3 +118,9 @@ Blade 已接入 __／trans／trans_choice 以及 @lang 区块和带参数 @lang�
 
 
 2026-11-22 用户随后明确授权本轮本地提交，不包含推送或发布。仅提交 URL 语言选择、欢迎页切换及必要的实例回调依赖；其他版本 API、MessageBag、复数选择器、测试框架和新增环境变量改动留在工作区。提交范围保持已验收的静态 lang 默认配置。
+
+## 欢迎页页头与 Blade 语言链接（2026-11-23）
+
+用户明确要求 language_links 全部移入视图。本轮已删除控制器 helper，控制器只传原始查询及LocaleSelection信息；Blade完成候选过滤、母语翻译、参数增删编码及选中样式。名称各自维护在lang/*/languages.json；原生页头语言／主题菜单默认分别跟随浏览器／系统，手动主题复用localStorage.appearance。新增通用Arr::query、Arr::except、in_array模板表达式，复用现有数组联合和编码，缓存版本39；未引入任意PHP执行器、语言管理器或依赖。
+
+最终包含在途改动的隔离组合快照96项定向回归、fmt、受影响lib／tests严格Clippy及36组真实HTTP浏览器交互通过，0 ignored；三语正文构建／浏览器／双前缀导航通过。22个交付源码／测试／资源／正文文件与最终快照一致，其他Agent的变更保留，未将其全部计为验收完成。详情见[主题记录](audits/03-07/welcome-language-2026-11-22.md#欢迎页页头母语名称与-blade-链接生成2026-11-23)，材料位于target/tmp/locale-query-20261122/。本任务无功能验收阻塞；真实设备／其他引擎／Windows／Docker／性能及正式发布未验。用户随后明确授权本轮本地提交，不包含推送或发布；未操作开发数据或卷。

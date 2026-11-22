@@ -83,9 +83,11 @@ OpenRust 的默认全局中间件栈包含 `openrust::http::middleware::SetLocal
 
 改成 `"language"` 后只读取 `?language=...`；设为 JSON `null` 只关闭 URL 选择，仍保留回调和浏览器协商。缺键时默认使用 `lang`，兼容旧配置缓存。空名称、空白、控制字符、点、方括号及非字符串值属于配置错误，请使用非空的顶层查询键。配置缓存保留原有值，修改后需重建缓存；无需额外环境变量或中间件注册。
 
-欢迎页提供候选中实际可用的 `en`、`zh-Hans`、`zh-Hant` 及“跟随浏览器”的普通 GET 链接。链接保留其他查询参数，自动选项只删除配置的语言键。当前语言使用下划线标识，边框标识显式选择或自动模式。刷新或分享带参数 URL 可保留选择；访问不带该参数的首页恢复浏览器协商，不写入 Cookie、Session、数据库或 localStorage。
+欢迎页头部的语言图标展开候选中实际可用语言的普通 GET 链接，名称始终使用母语：English、简体中文、繁體中文，另提供“跟随浏览器”。每种语言在自己的 `lang/{语言}/languages.json` 中用 `name` 保存名称，模板指定目标语言读取，无需重复维护其他语言名称。链接保留其他查询参数，自动选项只删除配置的语言键。当前语言使用下划线标识，高亮与勾选标识显式选择或自动模式。刷新或分享带参数 URL 可保留选择；访问不带该参数的首页恢复浏览器协商，不写入 Cookie、Session、数据库或 localStorage。
 
-关闭 URL 选择、停用中间件、没有欢迎页语言候选，或回调已选定 URL 无法覆盖的语言时，不显示切换控件。自定义候选不会生成未翻译的菜单项。中间件将 `LocaleSelection` 放入请求原生扩展，提供实际参数名、候选及 `from_query` 标识；控制器仅用它生成控件，不再选择语言。URL 选择保留 `Content-Language`、`Vary: Accept-Language` 及下游响应头行为；回调涉及私有内容时，仍需应用设置缓存策略。
+主题图标提供浅色、深色、跟随系统。未手动设置时，CSS 自动响应系统主题变化；手动选择保存在浏览器 localStorage（`appearance`），选择跟随系统会移除该覆盖。存储不可用时仍可切换当前页面。禁用 JavaScript 后，语言链接仍可使用，主题继续跟随系统。
+
+关闭 URL 选择、停用中间件、没有欢迎页语言候选，或回调已选定 URL 无法覆盖的语言时，不显示切换控件。自定义候选不会生成未翻译的菜单项。中间件将 `LocaleSelection` 放入请求原生扩展，提供实际参数名、候选及 `from_query` 标识；控制器仅将这些原始信息、查询参数和基础路径传入 Blade，由模板过滤候选、翻译母语名称、生成编码链接和标记选中项，不重新选择语言。URL 选择保留 `Content-Language`、`Vary: Accept-Language` 及下游响应头行为；回调涉及私有内容时，仍需应用设置缓存策略。
 
 ### 自定义语言选择 {#custom-locale-selection}
 
@@ -409,6 +411,7 @@ Translator 契约、具体实现和 Lang Facade 均提供 `getLocale`、`setLoca
 数据库翻译先只读盘点 `language_lines.text` 的 JSON 语言键，以及应用自有设置或语言列。`vendor/openrust/translation-database/database/upgrade-bcp47/`提供独立只读盘点及 PostgreSQL、MySQL、SQLite 事务，映射默认两种中文及 `en_US`／`en_GB`；审阅后按实际情况调整表名和其他旧语言映射。未列入映射的下划线键、任意新旧键碰撞（包括相同值或 null）均使事务失败，不覆盖内容。默认末尾为 **ROLLBACK**，核对结果和备份后，才显式改为 **COMMIT**。发生错误需回滚并关闭该专属数据库会话。成功后重复执行为空操作；已提交后的回退需要恢复备份，不能凭新键名判断哪些内容来自迁移。
 
 Faker 原生 provider 键仅保留在私有边界，`locale()`、`randomLocale()` 输出 BCP 47；仅有文字体系的 `zh-Hans`／`zh-Hant` 使用已有对应中文 provider，公开标签仍保留原地区与扩展。微信原生 `lang=zh_CN` 等第三方协议字段保持不变。
+
 
 ## 替换复数选择器
 

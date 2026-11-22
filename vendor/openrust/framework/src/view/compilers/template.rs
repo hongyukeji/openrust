@@ -15,6 +15,7 @@ mod attributes;
 mod authorization;
 mod expressions;
 mod fonts;
+mod helpers;
 mod html;
 mod includes;
 mod javascript;
