@@ -293,7 +293,7 @@ fn form(response: openrust::http::client::Response) -> Result<BTreeMap<String, S
         return Err(Error::ProviderStatus(response.status().as_u16()));
     }
     let mut fields = BTreeMap::new();
-    for (k, v) in url::form_urlencoded::parse(response.body()) {
+    for (k, v) in url::form_urlencoded::parse(&response.body()?) {
         fields.insert(k.into_owned(), v.into_owned());
     }
     if fields.is_empty() || fields.contains_key("error") {

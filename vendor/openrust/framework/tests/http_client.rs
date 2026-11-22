@@ -144,7 +144,7 @@ async fn sends_real_requests_and_classifies_responses() {
     let missing = factory.get(&redirect).await.unwrap();
     assert!(missing.notFound());
     assert!(
-        matches!(missing.throw(), Err(Error::RequestFailed(response)) if response.body() == b"missing")
+        matches!(missing.throw(), Err(Error::RequestFailed(response)) if response.body().unwrap().as_ref() == b"missing")
     );
     task.abort();
 }
@@ -386,7 +386,9 @@ async fn http_factory_delivers_typed_events_to_its_own_application() {
             .downcast_ref::<ResponseReceived>()
             .unwrap()
             .response
-            .body(),
+            .body()
+            .unwrap()
+            .as_ref(),
         b"ok"
     );
     let failures = events.dispatched(r"OpenRust\Http\Client\Events\ConnectionFailed");
@@ -432,7 +434,10 @@ async fn named_pool_keeps_order_and_per_request_results() {
         results.keys().map(String::as_str).collect::<Vec<_>>(),
         ["slow", "fast", "unknown"]
     );
-    assert_eq!(results["slow"].as_ref().unwrap().body(), b"retried");
+    assert_eq!(
+        results["slow"].as_ref().unwrap().body().unwrap().as_ref(),
+        b"retried"
+    );
     assert!(results["fast"].as_ref().unwrap().notFound());
     assert!(matches!(results["unknown"], Err(Error::StrayRequest)));
     assert!(sequence.isEmpty());
@@ -889,7 +894,7 @@ async fn digest_auth_replays_the_body_and_never_uses_credentials_on_another_orig
         )
         .await
         .unwrap();
-    assert_eq!(response.body(), b"validated");
+    assert_eq!(response.body().unwrap().as_ref(), b"validated");
     let recorded = factory.recorded();
     assert_eq!(recorded.len(), 3);
     assert!(!recorded[0].0.headers.contains_key(header::AUTHORIZATION));
@@ -927,7 +932,7 @@ async fn expands_uri_templates_before_parsing_the_outgoing_url() {
         .await
         .unwrap();
     assert_eq!(
-        response.body(),
+        response.body().unwrap().as_ref(),
         b"/files/a%2Fb?search=%E4%B8%AD%E6%96%87&tags=a%20b&tags=c&empty=&sort=a%3Ab"
     );
 
@@ -941,7 +946,7 @@ async fn expands_uri_templates_before_parsing_the_outgoing_url() {
         .await
         .unwrap();
     assert_eq!(
-        nested.body(),
+        nested.body().unwrap().as_ref(),
         b"/files?range%5Bfrom%5D=1&range%5Bto%5D=5&flags%5B0%5D=1&flags%5B1%5D=0"
     );
 
@@ -954,7 +959,10 @@ async fn expands_uri_templates_before_parsing_the_outgoing_url() {
         .get("/folders{?search}")
         .await
         .unwrap();
-    assert_eq!(relative.body(), b"/api/v2/folders?actual=x%20y");
+    assert_eq!(
+        relative.body().unwrap().as_ref(),
+        b"/api/v2/folders?actual=x%20y"
+    );
 
     let literal = factory
         .get(&format!(
@@ -963,7 +971,7 @@ async fn expands_uri_templates_before_parsing_the_outgoing_url() {
         .await
         .unwrap();
     assert_eq!(
-        literal.body(),
+        literal.body().unwrap().as_ref(),
         b"/files/%7Bdraft%7D.txt?where=%7B%22status%22:%22open%22%7D"
     );
 
@@ -1010,7 +1018,9 @@ async fn selective_stray_allowance_checks_redirects_and_keeps_fake_priority() {
             .get(&format!("{origin}/allowed/live"))
             .await
             .unwrap()
-            .body(),
+            .body()
+            .unwrap()
+            .as_ref(),
         b"local upstream"
     );
     assert_eq!(
@@ -1018,7 +1028,9 @@ async fn selective_stray_allowance_checks_redirects_and_keeps_fake_priority() {
             .get(&format!("{origin}/allowed/fake"))
             .await
             .unwrap()
-            .body(),
+            .body()
+            .unwrap()
+            .as_ref(),
         b"fake"
     );
     assert!(matches!(
@@ -1199,14 +1211,14 @@ async fn global_middleware_wraps_each_redirect_and_retry_with_network_transfer_s
             Ok(Response::new(
                 response.status(),
                 response.headers().clone(),
-                response.body().to_vec(),
+                response.body().unwrap().as_ref().to_vec(),
             ))
         })
         .retry(2, Duration::ZERO)
         .get(&format!("{base}/redirect"))
         .await
         .unwrap();
-    assert_eq!(response.body(), b"measured");
+    assert_eq!(response.body().unwrap().as_ref(), b"measured");
     assert!(response.handlerStats()["total_time"] >= 0.008);
     assert_eq!(
         response.handlerStats()["total_time"],
@@ -1324,7 +1336,7 @@ async fn global_middleware_observes_failures_and_redacted_events_keep_measured_d
     let events = events.dispatched(r"OpenRust\Http\Client\Events\ResponseReceived");
     let event = events[0].downcast_ref::<ResponseReceived>().unwrap();
     assert!(event.request.url.query().is_none());
-    assert!(event.response.body().is_empty());
+    assert!(event.response.body().unwrap().as_ref().is_empty());
     assert_eq!(
         event.response.handlerStats()["total_time"],
         response.handlerStats()["total_time"]
@@ -1376,7 +1388,7 @@ async fn handler_stats_include_network_response_body_reads() {
         .get(&format!("{base}/body"))
         .await
         .unwrap();
-    assert_eq!(response.body(), b"aa");
+    assert_eq!(response.body().unwrap().as_ref(), b"aa");
     assert!(response.handlerStats()["total_time"] >= 0.02);
     server.abort();
 }
@@ -1413,7 +1425,10 @@ async fn laravel_header_replacement_preserves_other_keys_multi_values_and_sink_f
     assert_eq!(body["keep"], "keep");
     assert_eq!(body["replace"], json!(["one", "two"]));
     assert_eq!(body["type"], "text/plain");
-    assert_eq!(std::fs::read(file).unwrap(), response.body());
+    assert_eq!(
+        std::fs::read(file).unwrap(),
+        response.body().unwrap().as_ref()
+    );
     assert!(matches!(
         factory
             .pendingRequest()

@@ -448,8 +448,8 @@ async fn real_http_code_pkce_session_rotation_and_protocol_failures() {
         *op.mode.lock().unwrap() = mode.into();
         let r = call(&one.base, &path, Some(&c)).await;
         assert_eq!(r.status(), 400, "{mode}");
-        let body = r.body();
-        assert!(!String::from_utf8_lossy(body).contains("private"));
+        let body = r.body().unwrap();
+        assert!(!String::from_utf8_lossy(&body).contains("private"));
     }
     for mode in [
         "discovery-error",

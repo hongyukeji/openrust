@@ -178,7 +178,14 @@ async fn certificate_verification_is_disabled_only_for_the_selected_request() {
         Err(Error::Connection)
     ));
     assert_eq!(
-        factory.withoutVerifying().get(&url).await.unwrap().body(),
+        factory
+            .withoutVerifying()
+            .get(&url)
+            .await
+            .unwrap()
+            .body()
+            .unwrap()
+            .as_ref(),
         b"ok"
     );
     assert!(matches!(
@@ -193,7 +200,9 @@ async fn certificate_verification_is_disabled_only_for_the_selected_request() {
             .get(&url)
             .await
             .unwrap()
-            .body(),
+            .body()
+            .unwrap()
+            .as_ref(),
         b"ok"
     );
     assert!(matches!(
@@ -215,6 +224,9 @@ async fn certificate_verification_is_disabled_only_for_the_selected_request() {
         .unwrap();
     app.boot().await.unwrap();
     let request = pending.lock().unwrap().take().unwrap();
-    assert_eq!(request.get(&url).await.unwrap().body(), b"ok");
+    assert_eq!(
+        request.get(&url).await.unwrap().body().unwrap().as_ref(),
+        b"ok"
+    );
     assert_eq!(server.join().unwrap(), 3);
 }

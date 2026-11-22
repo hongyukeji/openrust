@@ -419,7 +419,7 @@ async fn real_sessions_sign_exchange_map_cache_and_reject_cross_app_and_replay()
     )
     .await;
     assert_eq!(replay.status(), StatusCode::BAD_REQUEST);
-    assert!(!String::from_utf8_lossy(replay.body()).contains("private"));
+    assert!(!String::from_utf8_lossy(&replay.body().unwrap()).contains("private"));
     assert_eq!(r.calls.lock().unwrap().len(), 4);
     let direct = call(&http, &format!("{one}/direct"), None).await;
     assert_eq!(direct.status(), StatusCode::OK);
@@ -427,7 +427,7 @@ async fn real_sessions_sign_exchange_map_cache_and_reject_cross_app_and_replay()
     assert_eq!(r.calls.lock().unwrap().len(), 7);
     for (request, response) in observations.recorded() {
         assert!(request.body.is_none());
-        assert!(response.unwrap().body().is_empty());
+        assert!(response.unwrap().body().unwrap().is_empty());
         assert!(!request.headers.contains_key("authorization"));
     }
     first.abort();
@@ -443,7 +443,7 @@ async fn credential_and_profile_failures_remain_explicit_and_redacted() {
         *r.mode.lock().unwrap() = mode.into();
         let response = call(&http, &format!("{base}/login"), None).await;
         assert_eq!(response.status(), StatusCode::BAD_REQUEST);
-        assert!(!String::from_utf8_lossy(response.body()).contains("private"));
+        assert!(!String::from_utf8_lossy(&response.body().unwrap()).contains("private"));
     }
     for mode in ["exchange-error", "revoked", "bad-profile"] {
         *r.mode.lock().unwrap() = String::new();
@@ -457,7 +457,7 @@ async fn credential_and_profile_failures_remain_explicit_and_redacted() {
         )
         .await;
         assert_eq!(response.status(), StatusCode::BAD_REQUEST);
-        assert!(!String::from_utf8_lossy(response.body()).contains("private"));
+        assert!(!String::from_utf8_lossy(&response.body().unwrap()).contains("private"));
     }
     app.abort();
     task.abort();

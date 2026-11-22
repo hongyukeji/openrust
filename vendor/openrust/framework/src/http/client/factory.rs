@@ -268,6 +268,10 @@ impl Factory {
         self.pendingRequest().withoutVerifying()
     }
 
+    pub fn sink(&self, sink: impl Into<super::Sink>) -> PendingRequest {
+        self.pendingRequest().sink(sink)
+    }
+
     pub fn pendingRequest(&self) -> PendingRequest {
         PendingRequest::new(self.clone())
     }

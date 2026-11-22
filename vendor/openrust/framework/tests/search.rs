@@ -429,7 +429,7 @@ async fn model_search_paginates_through_the_http_entry_point() {
     assert!(
         response.ok(),
         "{}",
-        String::from_utf8_lossy(response.body())
+        String::from_utf8_lossy(&response.body().unwrap())
     );
     let page = response.json::<Json>().unwrap();
     assert_eq!(page["total"], 2);

@@ -366,7 +366,7 @@ async fn provider_facade_http_callbacks_are_application_local_and_http_observati
         assert!(request.body.is_none());
         assert!(!request.headers.contains_key("authorization"));
         assert!(request.url.query().is_none());
-        assert!(response.unwrap().body().is_empty());
+        assert!(response.unwrap().body().unwrap().is_empty());
     }
     let config = app
         .get::<dyn openrust::contracts::config::Repository>("config")

@@ -78,9 +78,27 @@ C26补PendingRequest、Factory和Http Facade的 `withUserAgent` 与 `withoutVeri
 
 参考固定PendingRequest.php 524/551/617与reqwest0.13.5官方ClientBuilder，运行期rustls0.23.46/tokio1.54.1。官方固定raw SHA256 `2e9119d425ddfc683ab4b23b4210623d12af3198b2fbe7ed34460c591b4abf9e` 与已有源码一致，来源 https://raw.githubusercontent.com/laravel/framework/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/Client/PendingRequest.php 及 https://raw.githubusercontent.com/seanmonstar/reqwest/v0.13.5/src/async_impl/client.rs 。旧版v0.x http/client.rs使用共享HttpClientConfig/目标约束接口，不直接搬入不同契约。Rust的User-Agent输入是字符串而非PHP string|bool域，Result和所有权Builder保留为适配。
 
-C26未关闭：当前reqwest没有集成NTLM握手，withNtlmAuth未伪造入口。已调研Devolutions/sspi-rs（master当时提交2f447436fe6ff696aab9284bd18ab5f6410de5c1）官方README，存在跨平台NTLM实现，但尚未集成并验证连接绑定、多轮握手、凭据/重试/重定向；不能以Basic、Digest或拼头冒充。C27静态核对确认Response::from_transport先全量缓冲，PendingRequest::execute之后写sink路径；分块写入、内存上界、资源输入和中断文件语义仍未实现。
+C26未关闭：当前reqwest没有集成NTLM握手，withNtlmAuth未伪造入口。已调研Devolutions/sspi-rs（master当时提交2f447436fe6ff696aab9284bd18ab5f6410de5c1）官方README，存在跨平台NTLM实现，但尚未集成并验证连接绑定、多轮握手、凭据/重试/重定向；不能以Basic、Digest或拼头冒充。该批时C27静态核对确认先全量缓冲再写sink路径；后续实现与当前验收见下方“HTTP分块下载与正文资源”，不将该批历史核对当作当前状态。
 
 全部证据在target/tmp/framework-parity-20261122/。遵循并行更新的PHP工具规范，新的PHP脚本移至该批次reference/http-client-options.php，仅作本地工具，不提交；普通Rust回归只消费保存的JSON。重新执行上游需要准备此本地脚本、固定源码与PHP依赖，不把新克隆缺少脚本时的Rust回归说成重新跑过PHP。
+
+## HTTP分块下载与正文资源（2026-11-23）
+
+C27将sink移到既有Transport响应消费链中：网络正文逐块写文件，不再先收集完整Vec再写路径；Response持文件句柄，非sink响应继续使用Bytes。PendingRequest、Factory及Http Facade提供sink(path/file)。路径沿Guzzle LazyOpenStream的首次写入创建/截断行为，成功空响应也打开/清空；文件资源从当前游标写入、不截断，完成后rewind。每次重试/重定向独立处理路径，首块前连接失败保留旧文件，断连/超时/取消/超限及I/O错误保留已写部分，不增加原子替换或删除语义。
+
+Response::body改为Result<Bytes>，显式调用时从开头读取完整正文；json传播读取失败。resource返回Read/Write/Seek资源，与Response克隆共享正文和游标；close关闭共享正文，后续操作报错。调用方已同步支付、Socialite、OIDC测试、图片、邮件、短信、Slack和Telescope：支付保持OutcomeUnknown分类，通知保留既有投递错误，Telescope已关闭正文记录Stream Response，可定位文件读取失败沿事件链传播原始I/O错误。读取完整正文的观察器仍会分配正文内存，这个边界已写入三语正文。
+
+固定Framework13.40.0 Response.php官方raw SHA256为fa3e52a026f8aeb47e73a3d98fc049bef2fe276956583499e1ca0d42ab4cd5b7；联网取得Guzzle7.10.0 StreamHandler/CurlFactory，采用LazyOpenStream/rewind/sink职责，不引入另一套HTTP引擎或新Rust依赖。v0.x的HttpResponse只有消费式next_chunk/bytes接口，无现契约的sink，复用其分块消费思想，不迁回旧配置/目标约束组织。PHP8.5.12+真实Guzzle7.10.0/PSR7 2.8.0 StreamHandler通过本地HTTP生成12字段对照，覆盖路径、空响应、连接失败旧文件、文件偏移、不截断、重复读取、关闭及Laravel fake。Rust保存JSON用于普通回归；PHP脚本仅留target/tmp/framework-parity-20261122/reference/http-sink.php，新克隆不声称能独立重跑该本地脚本。
+
+新增11项HTTP sink测试及既有HTTP22项通过，真实TCP在终止块发送前检查文件已经写入，覆盖partial/timeout/cancel/limit、只读句柄写错、只写句柄读取失败、三层公开入口、响应资源读写/定位/共享关闭及重试/重定向。单独进程接收128MiB正文，macOS /usr/bin/time -l实测sink峰值RSS 19,726,336字节，完整内存缓冲对照154,697,728字节；此为本机场景，非跨平台固定上限。三语build、12组合浏览器和双前缀全部导航通过。严格workspace/all-targets Clippy通过（clippy-http-sink-accepted.log），并修正bindings.rs两处get_or_insert_with(Box::default)为get_or_insert_default。相关扩展回归：框架图片/邮件/短信54项、支付10项、Socialite39项、Cashier8项通过；最终核心HTTP/语言41项、配置/翻译15项、Telescope4项和OIDC真实HTTP1项通过。邮件两个ignored夹具分别由父测试调用或需要专用SMTP；OIDC共享MySQL专项未配置URL，本批最终精确筛除，不能计作数据库驱动验收。没有真实商户或第三方账号验收；不得据此声称完整HTTP API或全框架已关闭。
+
+必要Rust适配：File所有权移交及I/O Result；std资源直接共享游标，不复制PHP包装资源的预读缓冲/独立包装位置，亦不覆盖任意PHP流包装器。File::try_clone使用OS共享偏移，原请求选项持有的资源生命周期随其所有权结束，不承诺关闭调用方另行克隆的文件描述符。body/json及Telescope等主动读取正文仍可占用完整内存。真实磁盘耗尽未注入；I/O错误使用真实只读/只写文件描述符验证，不通过耗尽宿主磁盘验收。
+
+扩展回归同时修复Telescope入站相对URI，以及服务端/客户端响应字符限制的整除与1000倍放大错误；固定Telescope源码在PHP实际运行21组边界，保留`size_limit * 1000`的字符职责。入站不透明正文仍为Not Captured，客户端已关闭正文为Stream Response，可定位文件读取错误传播到底层io::Error。现有URI用例覆盖普通根路径与查询串，非默认应用baseUrl的全部组合未验，不能据此关闭整个Telescope模块。
+
+OIDC真实HTTP验收发现Provider.register设置的app父配置在启动容器作用域中被LocaleOverrides截留，导致启动后丢失app.key。已提交fe462307c：以任务局部且按应用容器区分的启动标记，使register、boot及booted回调中的配置与译器语言成为应用默认值；正常请求/任务仍隔离。新增bootstrap_locale_config及既有application_locale、config_scoped_overrides等回归通过，未改OIDC配置夹具绕过。联网核对固定Application.php（SHA256 ae13509777d78c237c3a31d048ed0c2270edf31924bc102d3e757a88b4460191），与本地固定源码相同；v0.x版本化Figment仓储无可直接复用的语言作用域实现。临时OIDC诊断仅在快照使用，最终已从正常源码还原；参考HTTP服务器已安全停止。
+
+证据均在target/tmp/framework-parity-20261122/：http-sink-final.log、http-sink-reference.json/log、http-sink-source-verification.json、http-sink-memory-{stream,buffer}.log、clippy-http-sink-final.log、fmt-http-sink-final.log、http-sink-{core,config,telescope,oidc}-final.log及docs-{build,browser,scope}-http-sink.log；相关扩展结果使用http-sink-{framework,pay,socialite,cashier,telescope,oidc}.log。验收快照沿本批登记目录复用；为修正已提交调用方和旧快照路由接口组合，显式同步f0cdf6150的router.rs/support/facades.rs，以及本批启动修复所需application/config/translator与测试；未混入其他语言/路由WIP。三语站点日志来自本批正文最终版本，触线清理已回收dist，不将清理后的目录当作仍存在的交付文件。
 
 ## 当前实施与验收（2026-11-22）
 

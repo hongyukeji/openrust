@@ -63,6 +63,10 @@ impl Http {
         Ok(())
     }
 
+    pub fn sink(sink: impl Into<super::Sink>) -> Result<PendingRequest> {
+        Ok(Self::pendingRequest()?.sink(sink))
+    }
+
     pub fn pendingRequest() -> Result<PendingRequest> {
         Ok(Self::getFacadeRoot()
             .map_err(Error::Unavailable)?

@@ -36,7 +36,7 @@ pub struct Response {
     pub transferStats: Option<TransferStats>,
     status: StatusCode,
     headers: HeaderMap,
-    body: axum::body::Bytes,
+    body: super::body::Body,
 }
 
 impl std::fmt::Debug for Response {
@@ -55,7 +55,7 @@ impl Response {
             transferStats: None,
             status,
             headers,
-            body: axum::body::Bytes::from(body.into()),
+            body: super::body::Body::new(axum::body::Bytes::from(body.into())),
         }
     }
 
@@ -79,12 +79,26 @@ impl Response {
         self.headers.get(name)
     }
 
-    pub fn body(&self) -> &[u8] {
-        &self.body
+    /// 按需读取完整正文；文件响应在调用此方法时才分配完整内存。
+    pub fn body(&self) -> Result<axum::body::Bytes> {
+        self.body.read().map_err(Error::ResponseBody)
+    }
+
+    pub fn resource(&self) -> Result<super::ResponseResource> {
+        self.body.resource().map_err(Error::ResponseBody)
+    }
+
+    pub fn close(&self) -> Result<&Self> {
+        self.body.close().map_err(Error::ResponseBody)?;
+        Ok(self)
+    }
+
+    pub(super) fn body_len(&self) -> Result<u64> {
+        self.body.len().map_err(Error::ResponseBody)
     }
 
     pub fn json<T: DeserializeOwned>(&self) -> Result<T> {
-        serde_json::from_slice(self.body()).map_err(Error::InvalidJson)
+        serde_json::from_slice(&self.body()?).map_err(Error::InvalidJson)
     }
 
     pub fn successful(&self) -> bool {
@@ -177,8 +191,10 @@ impl Response {
     pub(super) async fn from_transport(
         mut response: reqwest::Response,
         limit: usize,
+        mut sink: Option<super::sink::Writer>,
     ) -> Result<Self> {
         let mut body = Vec::new();
+        let mut received = 0usize;
         // HEAD and 304 may advertise the size of a representation they do not send.
         if response
             .content_length()
@@ -187,13 +203,27 @@ impl Response {
             return Err(Error::BodyTooLarge);
         }
         while let Some(chunk) = response.chunk().await.map_err(transport_error)? {
-            if chunk.len() > limit.saturating_sub(body.len()) {
+            if chunk.len() > limit.saturating_sub(received) {
                 return Err(Error::BodyTooLarge);
             }
-            body.extend_from_slice(&chunk);
+            received += chunk.len();
+            if let Some(sink) = &mut sink {
+                sink.write(&chunk).await?;
+            } else {
+                body.extend_from_slice(&chunk);
+            }
         }
         let headers = std::mem::take(response.headers_mut());
-        Ok(Self::new(response.status(), headers, body))
+        if let Some(sink) = sink {
+            Ok(Self {
+                transferStats: None,
+                status: response.status(),
+                headers,
+                body: super::body::Body::file(sink.finish().await?),
+            })
+        } else {
+            Ok(Self::new(response.status(), headers, body))
+        }
     }
 
     pub fn from_json(status: StatusCode, value: &impl serde::Serialize) -> Result<Self> {

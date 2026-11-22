@@ -1,6 +1,7 @@
 //! Outbound HTTP requests, responses, and application-local testing.
 
 mod batch;
+mod body;
 mod digest;
 pub mod events;
 mod facade;
@@ -9,10 +10,12 @@ mod middleware;
 mod pending_request;
 mod pool;
 mod response;
+mod sink;
 mod transport;
 mod uri_template;
 
 pub use batch::{Batch, BatchProgress, BatchResults};
+pub use body::ResponseResource;
 pub use facade::{Http, HttpClientServiceProvider};
 pub use factory::{Factory, RecordedRequest, ResponseSequence};
 pub use middleware::{Middleware, Next};
@@ -21,6 +24,7 @@ pub use pool::Pool;
 pub use reqwest::Request;
 pub use reqwest::multipart::{Form, Part};
 pub use response::{Response, TransferStats};
+pub use sink::Sink;
 
 use std::fmt;
 
@@ -29,6 +33,7 @@ use std::fmt;
 pub enum Error {
     Configuration,
     Sink(std::io::Error),
+    ResponseBody(std::io::Error),
     InvalidRequest,
     InvalidUriTemplate,
     Connection,
@@ -48,6 +53,7 @@ pub enum Error {
 impl fmt::Display for Error {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::ResponseBody(error) => write!(formatter, "读取 HTTP 响应正文失败：{error}"),
             Self::Sink(error) => write!(formatter, "保存 HTTP 响应失败：{error}"),
             Self::Configuration => formatter.write_str("invalid HTTP client configuration"),
             Self::InvalidRequest => formatter.write_str("invalid outgoing HTTP request"),
@@ -86,7 +92,17 @@ impl fmt::Display for Error {
     }
 }
 
-impl std::error::Error for Error {}
+impl std::error::Error for Error {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Sink(error) | Self::ResponseBody(error) => Some(error),
+            Self::InvalidJson(error) => Some(error),
+            Self::Event(error) => Some(error),
+            Self::Unavailable(error) => Some(error),
+            _ => None,
+        }
+    }
+}
 
 pub type Result<T> = std::result::Result<T, Error>;
 

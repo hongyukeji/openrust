@@ -283,7 +283,7 @@ async fn three_drivers_exchange_profiles_refresh_and_redact_real_http() {
         assert!(request.url.query().is_none());
         assert!(request.body.is_none());
         assert!(request.headers.is_empty());
-        assert!(response.unwrap().body().is_empty());
+        assert!(response.unwrap().body().unwrap().is_empty());
     }
     task.abort();
 }

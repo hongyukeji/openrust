@@ -25,6 +25,7 @@ pub(super) struct Transport<'a> {
     pub max_redirects: Option<usize>,
     pub timeout: Duration,
     pub body_limit: usize,
+    pub sink: Option<&'a super::Sink>,
 }
 
 impl Transport<'_> {
@@ -68,6 +69,10 @@ impl Transport<'_> {
                     .flatten();
                     let transfer_started = Instant::now();
                     let (mut response, network) = tokio::time::timeout(remaining, async {
+                        let sink = self.sink.map(super::Sink::writer);
+                        if let Some(sink) = &sink {
+                            sink.validate().await?;
+                        }
                         let incoming = self.factory.dispatch(self.client, request).await?;
                         let network = matches!(&incoming, Incoming::Network(_));
                         // Redirect/authentication bodies remain unbuffered, as in the original transport.
@@ -86,7 +91,10 @@ impl Transport<'_> {
                             || redirect.as_ref().is_some_and(|redirect| {
                                 redirect.can_follow(incoming.status(), incoming.headers())
                             });
-                        Ok((incoming.finish(self.body_limit, following).await?, network))
+                        Ok((
+                            incoming.finish(self.body_limit, following, sink).await?,
+                            network,
+                        ))
                     })
                     .await
                     .unwrap_or(Err(Error::Timeout))?;
@@ -293,16 +301,29 @@ impl Incoming {
         }
     }
 
-    async fn finish(self, limit: usize, following: bool) -> Result<Response> {
+    async fn finish(
+        self,
+        limit: usize,
+        following: bool,
+        sink: Option<super::sink::Writer>,
+    ) -> Result<Response> {
         match self {
-            Self::Network(mut response) if following => {
+            Self::Network(mut response) if following && sink.is_none() => {
                 let status = response.status();
                 let headers = std::mem::take(response.headers_mut());
                 Ok(Response::new(status, headers, Vec::new()))
             }
-            Self::Network(response) => Response::from_transport(response, limit).await,
-            Self::Fake(response) if following || response.body().len() <= limit => Ok(response),
-            Self::Fake(_) => Err(Error::BodyTooLarge),
+            Self::Network(response) => Response::from_transport(response, limit, sink).await,
+            Self::Fake(response) => {
+                if !(following && sink.is_none()) && response.body_len()? > limit as u64 {
+                    return Err(Error::BodyTooLarge);
+                }
+                if let Some(mut sink) = sink {
+                    sink.write(&response.body()?).await?;
+                    let _ = sink.finish().await?;
+                }
+                Ok(response)
+            }
         }
     }
 }

@@ -458,7 +458,7 @@ async fn remote_failures_and_revocation_reject_without_exposing_provider_body() 
             )
             .await;
             assert_eq!(failed.status(), 400);
-            assert!(!String::from_utf8_lossy(failed.body()).contains("private"));
+            assert!(!String::from_utf8_lossy(&failed.body().unwrap()).contains("private"));
         }
     }
     task.abort();

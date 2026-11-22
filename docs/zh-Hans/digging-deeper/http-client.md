@@ -2,7 +2,7 @@
 
 ## 发送请求 {#making-requests}
 
-应用处理器可以使用 `openrust::support::facades` 中的 `Http`。`Http::get(url).await?` 返回带状态码的响应。用 `status`、`successful` 或 `failed` 检查状态，`throw()` 将 4xx 或 5xx 转为携带响应的错误。`json::<T>()` 用于类型化解码，`body()` 返回缓冲的字节。
+应用处理器可以使用 `openrust::support::facades` 中的 `Http`。`Http::get(url).await?` 返回带状态码的响应。用 `status`、`successful` 或 `failed` 检查状态，`throw()` 将 4xx 或 5xx 转为携带响应的错误。`json::<T>()` 用于类型化解码，`body()?` 按需返回正文 `Bytes`；文件读取失败返回 `Error::ResponseBody`。
 
 用 `Http::acceptJson()?` 或 `Http::pendingRequest()?` 创建可配置请求。POST、PUT、PATCH 和 DELETE 数据按引用传入，默认编码为 JSON。用 `asForm`、`withBody` 或 `attach` 更换编码。`withQueryParameters` 设置编码后的查询参数，省略时保留 URL 内的查询串。超时使用 `Duration`，响应缓冲可用 `maxResponseBytes` 限制。默认连接设置下，同一个应用共享连接池。
 
@@ -20,7 +20,7 @@ let response = Http::withDigestAuth("example-user", "example-password")?
     .get(&format!("{origin}/digest"))
     .await?
     .throw()?;
-assert_eq!(response.body(), b"authenticated");
+assert_eq!(response.body()?.as_ref(), b"authenticated");
 ```
 
 ## 重试与测试 {#retries-and-testing}
@@ -87,7 +87,7 @@ let response = Http::withUrlParameters(parameters)?
     })
     .get("{+origin}/retry/{item}{?tag}")
     .await?;
-assert_eq!(response.body(), b"retried");
+assert_eq!(response.body()?.as_ref(), b"retried");
 assert!(matches!(Http::get(&format!("{origin}/blocked")).await, Err(Error::StrayRequest)));
 ```
 
@@ -179,7 +179,13 @@ Http::globalMiddleware(|request, next| Box::pin(async move {
 
 ## 请求选项
 
-`replaceHeaders` 仅替换传入的同名请求头，保留其他头和多值。`withHeader`、`contentType`、`asMultipart`、`maxRedirects` 沿用原请求构建链。`sink(path)` 将成功读取的响应正文写入文件，写入错误返回 `Error::Sink`；当前仍缓冲正文并受 `body_limit` 限制，不适合无限流或超大文件下载。
+`replaceHeaders` 仅替换传入的同名请求头，保留其他头和多值。`withHeader`、`contentType`、`asMultipart`、`maxRedirects` 沿用原请求构建链。
+
+`sink(path)` 在网络传输中逐块写入文件，响应保留文件句柄，不常驻完整正文；也可将 `std::fs::File` 移交给 `sink(file)`。PendingRequest、Factory 和 Http Facade 均提供入口。路径首次写入时创建或截断；文件资源从当前游标写入，不截断，传输完成后回到开头。成功的空响应也会创建或清空路径文件。每次重试和重定向重新处理目标路径；未收到正文便连接失败时保留旧文件。
+
+`response.resource()?` 返回实现 `Read`、`Write` 和 `Seek` 的资源，与响应克隆共享正文及游标；Rust 资源直接操作共享游标，不模拟 PHP 包装资源的预读缓冲。`body()?` 每次从开头读取完整正文，`json::<T>()?` 同样需要完整正文；调用这两个方法或启用会读取正文的观察器（例如 Telescope）仍会分配正文内存。`close()?` 关闭共享正文，后续读取、写入和定位返回错误。
+
+下载仍受 `maxResponseBytes` 及超时限制。写入失败返回 `Error::Sink`；断连、超时、取消或超限保留已经写入的部分文件，不保证原子替换，也不自动删除。fake 请求把原有缓冲正文写入目标，响应继续保留 fake 正文。
 
 `withUserAgent("OpenRust/1.0")` 设置 `User-Agent`，覆盖已有的同名头，并移除首尾 ASCII 空格、制表、换行、回车、NUL 和垂直制表符；Unicode 空格保留。参数为 Rust 字符串，非法头值会在发出请求前返回 `InvalidRequest`。PendingRequest、Factory 和 Http Facade 都提供这个入口。
 

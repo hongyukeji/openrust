@@ -1,0 +1,14 @@
+{
+    "path_body": "OK",
+    "path_file": "OK",
+    "body_repeated": "OK",
+    "shared_cursor": 0,
+    "close_body": "error",
+    "closed_resource": true,
+    "empty": "",
+    "failed_file": "old",
+    "resource_body": "prefixOKtail",
+    "resource_file": "prefixOKtail",
+    "fake_body": "fake",
+    "fake_file": "fake"
+}

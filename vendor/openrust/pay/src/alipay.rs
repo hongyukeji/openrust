@@ -87,8 +87,9 @@ impl Alipay {
             return Err(Error::OutcomeUnknown);
         }
         // RawValue preserves the exact UTF-8 JSON bytes covered by Alipay's signature.
+        let body = response.body().map_err(|_| Error::OutcomeUnknown)?;
         let fields: BTreeMap<String, &RawValue> =
-            serde_json::from_slice(response.body()).map_err(|_| Error::OutcomeUnknown)?;
+            serde_json::from_slice(&body).map_err(|_| Error::OutcomeUnknown)?;
         let name = method.replace('.', "_") + "_response";
         let raw = fields.get(&name).ok_or(Error::OutcomeUnknown)?;
         let signed: String =

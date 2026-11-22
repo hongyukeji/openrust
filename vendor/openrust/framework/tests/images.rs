@@ -369,7 +369,7 @@ async fn transforms_a_real_http_upload_and_reads_it_from_storage_and_url() {
     assert!(
         response.created(),
         "{}",
-        String::from_utf8_lossy(response.body())
+        String::from_utf8_lossy(&response.body().unwrap())
     );
     let data = response.json::<Value>().unwrap();
     let path = data["path"].as_str().unwrap();

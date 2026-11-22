@@ -142,8 +142,11 @@ impl Wechat {
             .send(method, url.as_str())
             .await
             .map_err(|_| Error::OutcomeUnknown)?;
-        self.verify(response.headers(), response.body())
-            .map_err(|_| Error::OutcomeUnknown)?;
+        self.verify(
+            response.headers(),
+            &response.body().map_err(|_| Error::OutcomeUnknown)?,
+        )
+        .map_err(|_| Error::OutcomeUnknown)?;
         if !response.successful() {
             return Err(if response.status().is_server_error() {
                 Error::OutcomeUnknown

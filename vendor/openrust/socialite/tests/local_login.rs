@@ -569,7 +569,7 @@ async fn native_mysql_bound_identity_login_restores_rotates_isolates_and_rejects
     let state = failed.begin("github").await;
     let response = failed.finish("github", &state, "007").await;
     assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
-    assert!(!String::from_utf8_lossy(response.body()).contains("github-secret"));
+    assert!(!String::from_utf8_lossy(&response.body().unwrap()).contains("github-secret"));
     assert!(failed.who().await["user"].is_null());
     let mut unaffected = Client::new(&two);
     let state = unaffected.begin("github").await;

@@ -83,7 +83,7 @@ async fn default_endpoint_and_fields_follow_easywechat_without_redirect_or_sessi
     for (request, response) in http.recorded() {
         assert!(request.url.query().is_none());
         assert!(request.body.is_none());
-        assert!(response.unwrap().body().is_empty());
+        assert!(response.unwrap().body().unwrap().is_empty());
     }
 }
 #[tokio::test]

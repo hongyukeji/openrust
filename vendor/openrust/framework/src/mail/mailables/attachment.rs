@@ -171,7 +171,11 @@ impl AttachmentSource {
                     .header("content-type")
                     .and_then(|header| header.to_str().ok())
                     .map(str::to_owned);
-                (filename, response.body().to_vec(), content_type)
+                (
+                    filename,
+                    response.body().map_err(composition)?.to_vec(),
+                    content_type,
+                )
             }
         };
         let name = self

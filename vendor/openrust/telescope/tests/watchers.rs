@@ -23,7 +23,8 @@ impl Event for Probe {
 }
 fn routes() -> Result<(), openrust::routing::RoutingError> {
     Route::get("/watchers", handler)?;
-    for path in ["/json", "/plain", "/large", "/opaque"] {
+    Route::get("/client-error", client_error_handler)?;
+    for path in ["/json", "/plain", "/boundary", "/large", "/opaque"] {
         Route::get(path, response_handler)?;
     }
     Ok(())
@@ -51,7 +52,7 @@ fn application() -> TestApp {
             ("app".into(), json!({"env":"testing"})),
             ("database".into(), json!({"default":"test","connections":{"test":database_config(base)}})),
             ("cache".into(),json!({"default":"file","stores":{"file":{"driver":"file","path":base.join("cache"),"lock_path":base.join("locks")}}})),
-            ("telescope".into(),json!({"watchers":{"QueryWatcher":false,"EventWatcher":false,"RequestWatcher":{"size_limit":0}}})),
+            ("telescope".into(),json!({"watchers":{"QueryWatcher":false,"EventWatcher":false,"RequestWatcher":{"size_limit":1},"ClientRequestWatcher":true}})),
         ])))
         .withProviders(vec![Box::new(TelescopeServiceProvider)])
         .withRouting(Routing::default().api(routes))
@@ -158,7 +159,11 @@ fn response_handler(request: &mut Request) -> HttpFuture<'_, Result<Response, Ht
                 HeaderName::from_static("content-type"),
                 HeaderValue::from_static("text/plain"),
             )),
-            "api/large" => Ok(Response::from("好".repeat(1000)).header(
+            "api/boundary" => Ok(Response::from("好".repeat(1000)).header(
+                HeaderName::from_static("content-type"),
+                HeaderValue::from_static("text/plain"),
+            )),
+            "api/large" => Ok(Response::from("好".repeat(1001)).header(
                 HeaderName::from_static("content-type"),
                 HeaderValue::from_static("text/plain"),
             )),
@@ -175,7 +180,7 @@ async fn request_observes_buffered_content_redaction_character_limits_and_route_
         .await
         .unwrap()
         .hideResponseParameters(&["secret", "nested.password"]);
-    for path in ["/json", "/plain", "/large", "/opaque"] {
+    for path in ["/json", "/plain", "/boundary", "/large", "/opaque"] {
         app.get(&format!("/api{path}")).await.unwrap().assertOk();
     }
     let entries = app
@@ -186,7 +191,7 @@ async fn request_observes_buffered_content_redaction_character_limits_and_route_
         .get(Some(EntryType::Request), EntryQueryOptions::default())
         .await
         .unwrap();
-    assert_eq!(entries.len(), 4);
+    assert_eq!(entries.len(), 5);
     for entry in entries {
         assert!(
             entry.content["controller_action"]
@@ -201,6 +206,7 @@ async fn request_observes_buffered_content_redaction_character_limits_and_route_
                 json!({"secret":"********","nested":{"password":"********"},"actual":true})
             ),
             "/api/plain" => assert_eq!(entry.content["response"], "好".repeat(999)),
+            "/api/boundary" => assert_eq!(entry.content["response"], "好".repeat(1000)),
             "/api/large" => assert_eq!(entry.content["response"], "Purged By Telescope"),
             "/api/opaque" => assert_eq!(entry.content["response"], "Not Captured"),
             value => panic!("unexpected URI {value}"),
@@ -232,4 +238,159 @@ fn database_config(base: &std::path::Path) -> serde_json::Value {
     connection["prefix"] = prefix.into();
     connection["prefix_indexes"] = true.into();
     connection
+}
+
+fn client_routes() -> Result<(), openrust::routing::RoutingError> {
+    Route::get("/client/{mode}", client_handler)?;
+    Ok(())
+}
+fn client_handler(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let url = format!("http://example.test/{}", request.route("mode").unwrap());
+        let response = openrust::support::facades::Http::get(&url)
+            .await
+            .map_err(|error| HttpError::Internal {
+                source: Box::new(error),
+            })?;
+        Ok(Response::from(response.status().as_u16().to_string()))
+    })
+}
+#[tokio::test]
+async fn client_watcher_handles_closed_streams_and_uses_character_kilobytes() {
+    use openrust::http::client::{Factory, Response as ClientResponse};
+    let mut app = TestApp::create(|builder| {
+        builder
+            .withConfig(|base, _| {
+                Ok(std::collections::BTreeMap::from([
+                    ("app".into(), json!({"env":"testing"})),
+                    (
+                        "database".into(),
+                        json!({"default":"test","connections":{"test":database_config(base)}}),
+                    ),
+                    (
+                        "telescope".into(),
+                        json!({"watchers":{"ClientRequestWatcher":{"size_limit":1}}}),
+                    ),
+                ]))
+            })
+            .withProviders(vec![Box::new(TelescopeServiceProvider)])
+            .withRouting(Routing::default().api(client_routes))
+    })
+    .unwrap();
+    std::fs::write(app.root().join("watchers.sqlite"), []).unwrap();
+    app.artisan(["migrate", "--force"]).await.assertSuccessful();
+    let telescope = app.app().make::<Telescope>().await.unwrap();
+    telescope.hideResponseParameters(&["secret"]);
+    let client = app.app().make::<Factory>().await.unwrap();
+    client.fake(|request| {
+        Some(Ok(match request.url().path() {
+            "/small" => ClientResponse::from_json(
+                http::StatusCode::OK,
+                &json!({"secret":"value","actual":true}),
+            )
+            .unwrap(),
+            "/large" => ClientResponse::new(
+                http::StatusCode::OK,
+                [(
+                    http::header::CONTENT_TYPE,
+                    http::HeaderValue::from_static("text/plain"),
+                )]
+                .into_iter()
+                .collect(),
+                "好".repeat(1001).into_bytes(),
+            ),
+            _ => ClientResponse::new(
+                http::StatusCode::OK,
+                [(
+                    http::HeaderName::from_static("x-close"),
+                    http::HeaderValue::from_static("yes"),
+                )]
+                .into_iter()
+                .collect(),
+                b"closed",
+            ),
+        }))
+    });
+    client.globalResponseMiddleware(|response| {
+        if response.header("x-close").is_some() {
+            response.close()?;
+        }
+        Ok(response)
+    });
+    for mode in ["small", "large", "closed"] {
+        app.get(&format!("/api/client/{mode}"))
+            .await
+            .unwrap()
+            .assertOk();
+    }
+    let entries = app
+        .app()
+        .make::<DatabaseEntriesRepository>()
+        .await
+        .unwrap()
+        .get(Some(EntryType::ClientRequest), EntryQueryOptions::default())
+        .await
+        .unwrap();
+    assert_eq!(entries.len(), 3);
+    for entry in entries {
+        match entry.content["uri"].as_str().unwrap() {
+            "http://example.test/small" => assert_eq!(
+                entry.content["response"],
+                json!({"secret":"********","actual":true})
+            ),
+            "http://example.test/large" => {
+                assert_eq!(entry.content["response"], "Purged By Telescope")
+            }
+            "http://example.test/closed" => {
+                assert_eq!(entry.content["response"], "Stream Response")
+            }
+            uri => panic!("unexpected URI {uri}"),
+        }
+    }
+}
+
+fn client_error_handler(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+        let file = tempfile::NamedTempFile::new().unwrap();
+        let output = std::fs::OpenOptions::new()
+            .write(true)
+            .open(file.path())
+            .unwrap();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut request = Vec::new();
+            while !request.ends_with(b"\r\n\r\n") {
+                request.push(socket.read_u8().await.unwrap());
+            }
+            socket
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nOK")
+                .await
+                .unwrap();
+        });
+        let result = openrust::support::facades::Http::sink(output)
+            .unwrap()
+            .get(&url)
+            .await;
+        server.await.unwrap();
+        let error = result.unwrap_err();
+        assert!(matches!(error, openrust::http::client::Error::Event(_)));
+        let mut source: &(dyn std::error::Error + 'static) = &error;
+        while let Some(inner) = source.source() {
+            source = inner;
+        }
+        assert!(source.downcast_ref::<std::io::Error>().is_some());
+        Ok(Response::from("read error propagated"))
+    })
+}
+#[tokio::test]
+async fn client_watcher_propagates_unreadable_seekable_file_errors() {
+    let mut app = application();
+    app.artisan(["migrate", "--force"]).await.assertSuccessful();
+    app.get("/api/client-error")
+        .await
+        .unwrap()
+        .assertSee("read error propagated", true);
 }

@@ -639,13 +639,13 @@
         "vendor/openrust/framework/src/http/client/pending_request.rs:542",
         "",
         "vendor/openrust/framework/tests/http_client.rs",
-        "当前源码确认先缓冲完整正文再写路径；真实流式sink/资源输入/失败文件语义未实现",
-        "vendor/openrust/framework/src/http/client/response.rs::from_transport;pending_request.rs::execute；target/tmp/framework-parity-20261122/http-options-third.log仅既有路径sink回归，不代表流式验收",
+        "分块sink、File资源和按需正文已完成本批验收；保留明确Rust资源表达差异，不代表全部HTTP API关闭",
+        "target/tmp/framework-parity-20261122/ [http-sink-{core,config,telescope,oidc}-final.log;http-sink-{framework,pay,socialite,cashier}.log;http-sink-reference.json;http-sink-memory-{stream,buffer}.log;clippy-http-sink-final.log;fmt-http-sink-final.log;docs-{build,browser,scope}-http-sink.log]",
         "Q01",
-        "本轮未执行框架验收",
-        "历史差异待当前契约裁决",
-        "先复核已有实现后补缺口；本计划未执行",
-        "本轮未运行功能验收，历史结果仅限对应提交和环境"
+        "HTTP33项、语言及启动8项、配置/翻译15项、Telescope4项和OIDC真实HTTP1项最终通过；相关框架54/支付10/Socialite39/Cashier8项前序通过。128MiB下载RSS 19726336对照154697728字节；PHP sink12字段与Telescope21组边界对照。SMTP专用夹具未运行，OIDC共享MySQL未验，真实商户/第三方账号和磁盘耗尽未验",
+        "沿Transport/reqwest逐块消费，路径LazyOpen/空成功清空/重试重定向重新写入；File移交、Result<Bytes>和Read/Write/Seek共享游标为Rust表达，不模拟PHP包装预读缓冲及任意流包装器。主动body/json/观察器仍完整读取",
+        "分块写入及公开三层入口、正文资源/关闭、调用方错误传播已实现",
+        "本批定向验收、严格workspace/all-targets Clippy/fmt和三语站点通过；资源及I/O语言适配保留，不关闭完整HTTP或全仓"
       ],
       [
         "main",
@@ -293360,6 +293360,24 @@
         "https://github.com/Devolutions/sspi-rs/tree/2f447436fe6ff696aab9284bd18ab5f6410de5c1"
       ],
       "local_reference_script": "target/tmp/framework-parity-20261122/reference/http-client-options.php; local-only; fresh upstream replay requires this script plus pinned source/dependencies"
+    },
+    {
+      "date": "2026-11-23",
+      "kind": "http_streaming_sink_and_bootstrap_scope_verified",
+      "tasks": [
+        "C27"
+      ],
+      "note": "HTTP33项、语言及启动8项、配置/翻译15项、Telescope4项和OIDC真实HTTP1项最终通过；相关框架54/支付10/Socialite39/Cashier8项前序通过。128MiB下载RSS 19726336对照154697728字节；PHP sink12字段与Telescope21组边界对照。SMTP专用夹具未运行，OIDC共享MySQL未验，真实商户/第三方账号和磁盘耗尽未验",
+      "evidence": "target/tmp/framework-parity-20261122/ [http-sink-{core,config,telescope,oidc}-final.log;http-sink-{framework,pay,socialite,cashier}.log;http-sink-reference.json;http-sink-memory-{stream,buffer}.log;clippy-http-sink-final.log;fmt-http-sink-final.log;docs-{build,browser,scope}-http-sink.log]",
+      "related_fix": "fe462307c: bootstrap locale/config persistence; Telescope relative URI and character limits, closed-body detection and seekable-read errors",
+      "limits": "File ownership, Result<Bytes>, shared direct cursor are Rust adaptations; observers reading body still materialize it; no arbitrary PHP stream wrapper or atomic downloads; no final whole-workspace test claim",
+      "references": [
+        "https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/Client/Response.php",
+        "https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Application.php",
+        "https://github.com/laravel/telescope/tree/39a8ea8ad79915df6c3ac9b4e72659ade808eba3",
+        "https://github.com/guzzle/guzzle/tree/7.10.0"
+      ],
+      "local_reference_script": "target/tmp/framework-parity-20261122/reference/http-sink.php and telescope-limits.php; local-only; replay requires pinned local sources and PHP dependencies"
     }
   ]
 }

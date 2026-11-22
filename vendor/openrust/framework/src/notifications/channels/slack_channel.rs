@@ -126,7 +126,12 @@ async fn send_webhook(
         )));
     }
     Ok(Some(ChannelResponse::Custom(Value::String(
-        String::from_utf8_lossy(response.body()).into_owned(),
+        String::from_utf8_lossy(
+            &response
+                .body()
+                .map_err(|_| delivery("读取 Slack 响应失败；投递状态可能未知。"))?,
+        )
+        .into_owned(),
     ))))
 }
 

@@ -347,7 +347,7 @@ impl Image {
                 if !response.successful() {
                     return Err(Error::Missing);
                 }
-                Bytes::copy_from_slice(response.body())
+                response.body().map_err(Error::Http)?
             }
         };
         if bytes.len() > limits.max_input_bytes {

@@ -362,7 +362,7 @@ async fn facebook_manager_and_sensitive_query_observations_preserve_wire_behavio
     for (request, response) in http.recorded() {
         assert!(request.url.query().is_none());
         assert!(request.body.is_none());
-        assert!(response.unwrap().body().is_empty());
+        assert!(response.unwrap().body().unwrap().is_empty());
     }
     let other = SocialiteManager::new(config, Arc::new(Factory::new().unwrap()));
     let mut p = other

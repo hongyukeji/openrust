@@ -50,7 +50,10 @@ impl SmsDriver for SmsBao {
                     .get(self.endpoint.as_str())
                     .await,
             )?;
-            let code = std::str::from_utf8(response.body())
+            let body = response
+                .body()
+                .map_err(|_| unknown("读取短信宝提交结果失败。"))?;
+            let code = std::str::from_utf8(&body)
                 .ok()
                 .and_then(|body| body.trim().parse::<u32>().ok())
                 .ok_or_else(|| unknown("SmsBao returned an invalid submission code."))?;

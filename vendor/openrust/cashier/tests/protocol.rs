@@ -437,7 +437,7 @@ async fn http_recording_redacts_authorization_keys_and_request_response_payloads
                 .and_then(|v| v.to_str().ok()),
             Some("private-operation")
         );
-        assert!(response.unwrap().body().is_empty());
+        assert!(response.unwrap().body().unwrap().is_empty());
     }
 }
 

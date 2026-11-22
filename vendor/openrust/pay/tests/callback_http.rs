@@ -176,7 +176,7 @@ async fn signed_http_callbacks_acknowledge_only_committed_business_and_recover_d
         let response = send(body.clone()).await.unwrap();
         assert_eq!(response.status(), status);
         assert_eq!(
-            response.body(),
+            response.body().unwrap(),
             if provider == "wechat" {
                 b"".as_slice()
             } else {

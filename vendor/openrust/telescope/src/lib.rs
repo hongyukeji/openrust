@@ -33,6 +33,7 @@ pub enum Error {
     NotFound,
     Database(openrust::database::DatabaseError),
     Hostname(std::io::Error),
+    Http(openrust::http::client::Error),
     Queue(openrust::queue::QueueError),
 }
 pub type Result<T> = std::result::Result<T, Error>;
@@ -44,6 +45,7 @@ impl std::fmt::Display for Error {
             Self::NotFound => "Telescope entry not found",
             Self::Database(_) => "Telescope database operation failed",
             Self::Hostname(_) => "Cannot read the host name",
+            Self::Http(_) => "无法读取 HTTP 客户端响应正文",
             Self::Queue(_) => "Cannot dispatch Telescope pending updates",
         })
     }
@@ -53,6 +55,7 @@ impl std::error::Error for Error {
         match self {
             Self::Database(error) => Some(error),
             Self::Hostname(error) => Some(error),
+            Self::Http(error) => Some(error),
             Self::Queue(error) => Some(error),
             _ => None,
         }

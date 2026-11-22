@@ -92,7 +92,7 @@ pub struct PendingRequest {
     verify_tls: bool,
     timeout: Duration,
     redirects: Option<usize>,
-    sink: Option<std::path::PathBuf>,
+    sink: Option<super::Sink>,
     body_limit: usize,
     payload: Payload,
     retry: Retry,
@@ -178,7 +178,7 @@ impl PendingRequest {
     }
 
     /// 将已受响应大小限制的响应保存到文件；文件错误保留原始原因。
-    pub fn sink(mut self, path: impl Into<std::path::PathBuf>) -> Self {
+    pub fn sink(mut self, path: impl Into<super::Sink>) -> Self {
         self.sink = Some(path.into());
         self
     }
@@ -554,15 +554,11 @@ impl PendingRequest {
             max_redirects: self.redirects,
             timeout: self.timeout,
             body_limit: self.body_limit,
+            sink: self.sink.as_ref(),
         };
         let mut request = request;
         loop {
             let result = transport.send(request).await;
-            if let (Some(path), Ok(response)) = (&self.sink, &result) {
-                tokio::fs::write(path, response.body())
-                    .await
-                    .map_err(Error::Sink)?;
-            }
             let result = result.and_then(|response| {
                 let stats = response.transferStats.clone();
                 let mut response = self

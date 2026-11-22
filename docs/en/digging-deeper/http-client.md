@@ -2,7 +2,7 @@
 
 ## Making requests {#making-requests}
 
-Use the application-scoped `Http` facade from `openrust::support::facades` in application handlers. `Http::get(url).await?` returns a response for every HTTP status. Inspect it with `status`, `successful`, or `failed`, and call `throw()` to turn a 4xx or 5xx into an error containing the response. Use `json::<T>()` for typed decoding or `body()` for the buffered bytes.
+Use the application-scoped `Http` facade from `openrust::support::facades` in application handlers. `Http::get(url).await?` returns a response for every HTTP status. Inspect it with `status`, `successful`, or `failed`, and call `throw()` to turn a 4xx or 5xx into an error containing the response. Use `json::<T>()` for typed decoding or `body()?` to read the body as `Bytes` on demand. File read failures return `Error::ResponseBody`.
 
 Use `Http::acceptJson()?` or `Http::pendingRequest()?` to start a configurable request. Supply POST, PUT, PATCH, or DELETE data by reference. JSON is the default. Use `asForm`, `withBody`, or `attach` to select another encoding. `withQueryParameters` sets the encoded query. Without it the query in the URL is preserved. Set timeouts with `Duration` and use `maxResponseBytes` to limit buffered bytes. An application shares the connection pool for default connection settings.
 
@@ -20,7 +20,7 @@ let response = Http::withDigestAuth("example-user", "example-password")?
     .get(&format!("{origin}/digest"))
     .await?
     .throw()?;
-assert_eq!(response.body(), b"authenticated");
+assert_eq!(response.body()?.as_ref(), b"authenticated");
 ```
 
 ## Retries and testing {#retries-and-testing}
@@ -87,7 +87,7 @@ let response = Http::withUrlParameters(parameters)?
     })
     .get("{+origin}/retry/{item}{?tag}")
     .await?;
-assert_eq!(response.body(), b"retried");
+assert_eq!(response.body()?.as_ref(), b"retried");
 assert!(matches!(Http::get(&format!("{origin}/blocked")).await, Err(Error::StrayRequest)));
 ```
 
@@ -179,7 +179,13 @@ Http::globalMiddleware(|request, next| Box::pin(async move {
 
 ## Request options
 
-`replaceHeaders` replaces only the supplied header names, preserving other headers and multiple values. `withHeader`, `contentType`, `asMultipart`, and `maxRedirects` use the existing request builder. `sink(path)` writes the successfully read response body to a file and reports write failures as `Error::Sink`. It currently buffers the body and respects `body_limit`; it is not an unbounded streaming download.
+`replaceHeaders` replaces only the supplied header names, preserving other headers and multiple values. `withHeader`, `contentType`, `asMultipart`, and `maxRedirects` use the existing request builder.
+
+`sink(path)` writes network chunks directly to a file and keeps a file handle in the response instead of buffering the full body. Pass an owned `std::fs::File` with `sink(file)` to write to a file resource. PendingRequest, Factory and the Http Facade provide this method. A path is created or truncated on its first write; a file resource is written from its current position without truncation, then rewound on completion. A successful empty response also creates or truncates a path. Each retry and redirect handles the path again. A connection failure before any body arrives preserves the old file.
+
+`response.resource()?` implements `Read`, `Write` and `Seek`, sharing the body and cursor with response clones. Rust resources operate directly on that cursor rather than reproducing PHP wrapper read buffering. `body()?` reads the entire body from the start on each call; `json::<T>()?` also needs the complete body. These calls and body-reading observers such as Telescope still allocate body memory. `close()?` closes the shared body; subsequent reads, writes and seeks fail.
+
+Downloads remain subject to `maxResponseBytes` and timeouts. Write failures return `Error::Sink`. Disconnects, timeouts, cancellation and limit failures leave bytes already written in the file. Downloads are not atomic replacements and partial files are not deleted automatically. Fakes write their existing buffered body to the target and retain that body in the response.
 
 `withUserAgent("OpenRust/1.0")` sets `User-Agent`, replaces an existing value, and trims leading and trailing ASCII space, tab, newline, carriage return, NUL and vertical tab. Unicode spaces remain unchanged. The argument is a Rust string; invalid header values return `InvalidRequest` before transmission. PendingRequest, Factory and the Http Facade all provide this method.
 

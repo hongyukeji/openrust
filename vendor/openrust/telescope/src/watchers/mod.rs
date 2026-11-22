@@ -276,7 +276,7 @@ impl NativeWatcher {
             .option("RequestWatcher", "size_limit")
             .and_then(|v| v.as_u64())
             .unwrap_or(64);
-        let within = text.chars().count() as u64 / 1000 <= limit;
+        let within = text.chars().count() as u64 <= limit.saturating_mul(1000);
         if let Ok(value @ (Value::Array(_) | Value::Object(_))) =
             serde_json::from_slice::<Value>(bytes)
         {
@@ -449,7 +449,7 @@ impl NativeWatcher {
                 .get::<openrust::routing::RouteMetadata>();
             let response =
                 self.responseContent(telescope, &event.response, event.responseContent.as_deref());
-            let entry = IncomingEntry::make(json!({"method":event.request.method.as_str(),"uri":event.request.uri.to_string(),"headers":telescope.headers(&event.request.headers),"response_status":event.response.status.as_u16(),"response_headers":telescope.headers(&event.response.headers),"duration":event.duration.as_secs_f64()*1000.0,"controller_action":route.map(|route|&route.action),"route_name":event.routeName,"payload":event.payload.clone().map(|payload|telescope.requestParameters(payload)),"middleware":route.map(|route|&route.middleware),"response":response}).as_object().unwrap().clone())?;
+            let entry = IncomingEntry::make(json!({"method":event.request.method.as_str(),"uri":event.request.uri.path_and_query().map_or("/", |uri| uri.as_str()),"headers":telescope.headers(&event.request.headers),"response_status":event.response.status.as_u16(),"response_headers":telescope.headers(&event.response.headers),"duration":event.duration.as_secs_f64()*1000.0,"controller_action":route.map(|route|&route.action),"route_name":event.routeName,"payload":event.payload.clone().map(|payload|telescope.requestParameters(payload)),"middleware":route.map(|route|&route.middleware),"response":response}).as_object().unwrap().clone())?;
             telescope.recordRequest(entry);
         } else if let Some(event) =
             event.downcast_ref::<openrust::database::events::QueryExecuted>()
@@ -588,16 +588,27 @@ impl NativeWatcher {
             let limit = self
                 .option("ClientRequestWatcher", "size_limit")
                 .and_then(|v| v.as_u64())
-                .unwrap_or(64)
-                .saturating_mul(1000);
-            let withinLimit = String::from_utf8_lossy(event.response.body())
-                .chars()
-                .count() as u64
-                / 1000
-                <= limit;
+                .unwrap_or(64);
+            let body = match event.response.resource() {
+                Ok(mut resource) => {
+                    let body = event.response.body().map_err(crate::Error::Http)?;
+                    std::io::Seek::rewind(&mut resource).map_err(|error| {
+                        crate::Error::Http(openrust::http::client::Error::ResponseBody(error))
+                    })?;
+                    Some(body)
+                }
+                Err(_) => None,
+            };
+            let bytes = body.as_deref().unwrap_or_default();
+            let withinLimit =
+                String::from_utf8_lossy(bytes).chars().count() as u64 <= limit.saturating_mul(1000);
             let response = {
-                match event.response.json::<Value>() {
-                    Ok(value @ (Value::Array(_) | Value::Object(_))) => {
+                match body
+                    .as_ref()
+                    .map(|bytes| serde_json::from_slice::<Value>(bytes))
+                {
+                    None => "Stream Response".into(),
+                    Some(Ok(value @ (Value::Array(_) | Value::Object(_)))) => {
                         if withinLimit {
                             telescope.responseParameters(value)
                         } else {
@@ -611,9 +622,7 @@ impl NativeWatcher {
                         .is_some_and(|v| v.to_ascii_lowercase().starts_with("text/plain")) =>
                     {
                         if withinLimit {
-                            String::from_utf8_lossy(event.response.body())
-                                .into_owned()
-                                .into()
+                            String::from_utf8_lossy(bytes).into_owned().into()
                         } else {
                             "Purged By Telescope".into()
                         }
@@ -627,7 +636,7 @@ impl NativeWatcher {
                             .unwrap_or("")
                     )
                     .into(),
-                    _ if event.response.body().is_empty() => "Empty Response".into(),
+                    _ if bytes.is_empty() => "Empty Response".into(),
                     _ => "HTML Response".into(),
                 }
             };

@@ -424,13 +424,13 @@ async fn provider_http_observations_redact_credentials_and_user_bodies_but_keep_
     for (request, response) in factory.recorded() {
         assert!(request.body.is_none());
         assert!(!request.headers.contains_key("authorization"));
-        assert!(response.unwrap().body().is_empty());
+        assert!(response.unwrap().body().unwrap().is_empty());
     }
     let responses = events.dispatched(r"OpenRust\Http\Client\Events\ResponseReceived");
     assert_eq!(responses.len(), 3);
     for e in responses {
         let response = &e.downcast_ref::<ResponseReceived>().unwrap().response;
-        assert!(response.body().is_empty());
+        assert!(response.body().unwrap().is_empty());
         assert!(response.headers().is_empty());
         assert_eq!(response.status(), 200);
     }
