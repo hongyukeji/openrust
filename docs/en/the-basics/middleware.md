@@ -6,7 +6,7 @@ Global middleware wraps route matching, so it can also inspect 404 and 405 respo
 
 ## Default Locale Middleware {#locale-middleware}
 
-The framework automatically installs `openrust::http::middleware::SetLocale`. It runs after Cookie decryption and queuing on protected Web routes, before ordinary Web Session; stateless APIs use no preference Cookie. See [Automatic and fixed language](../digging-deeper/localization.md#locale-preference) and [Custom locale selection](../digging-deeper/localization.md#custom-locale-selection) for persistence, disabling, execution order and callbacks. [URL selection](../digging-deeper/localization.md#locale-query) and [`app.locale_header`](../digging-deeper/localization.md#locale-header) can be configured or disabled independently.
+The framework automatically installs `openrust::http::middleware::SetLocale`. It runs after Cookie decryption and queuing on protected Web routes, before ordinary Web Session; stateless APIs use no preference Cookie. See [Automatic and fixed language](../digging-deeper/localization.md#locale-preference) and [Custom locale selection](../digging-deeper/localization.md#custom-locale-selection) for persistence, disabling, execution order and callbacks. [URL selection](../digging-deeper/localization.md#locale-query) and [`app.locale_header`](../digging-deeper/localization.md#locale-header) can be configured or disabled independently. At startup, its default candidates come from [application translation resources](../digging-deeper/localization.md#available-locales); explicit candidate lists take precedence.
 
 ## Named groups and priority
 

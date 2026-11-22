@@ -6,7 +6,7 @@
 
 ## 預設語言中介軟體 {#locale-middleware}
 
-框架自動裝配 `openrust::http::middleware::SetLocale`，在安全 Web 路由的 Cookie 解密和佇列之後、一般 Web Session 之前執行；無狀態 API 不讀取偏好 Cookie。儲存、關閉、執行順序與回呼見[自動與固定語言](../digging-deeper/localization.md#locale-preference)和[自訂語言選擇](../digging-deeper/localization.md#custom-locale-selection)。[URL 選擇](../digging-deeper/localization.md#locale-query)與[`app.locale_header`](../digging-deeper/localization.md#locale-header)可獨立設定或關閉。
+框架自動裝配 `openrust::http::middleware::SetLocale`，在安全 Web 路由的 Cookie 解密和佇列之後、一般 Web Session 之前執行；無狀態 API 不讀取偏好 Cookie。儲存、關閉、執行順序與回呼見[自動與固定語言](../digging-deeper/localization.md#locale-preference)和[自訂語言選擇](../digging-deeper/localization.md#custom-locale-selection)。[URL 選擇](../digging-deeper/localization.md#locale-query)與[`app.locale_header`](../digging-deeper/localization.md#locale-header)可獨立設定或關閉。預設候選在啟動時從[應用程式翻譯資源](../digging-deeper/localization.md#available-locales)發現，明確候選清單優先。
 
 ## 命名群組與優先順序
 

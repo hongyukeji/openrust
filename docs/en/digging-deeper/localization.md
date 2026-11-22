@@ -51,11 +51,11 @@ The `App` facade currently exposes these locale methods; other Laravel App metho
 
 OpenRust automatically installs `openrust::http::middleware::SetLocale`. Applications do not need a locale middleware file or manual registration in `bootstrap/app.rs`.
 
-The defaults are `en`, `zh-Hans`, and `zh-Hant`. The middleware shares the request language parser for its configured negotiation header, respects quality weights, skips `q=0`, and keeps browser order for equal weights. Without a match, it uses a supported `APP_LOCALE`, then the first candidate (English by default). Controllers, validation, and Blade share the current request locale.
+Default candidates are discovered once at HTTP startup from the application translation resources; the shipped resources provide `en`, `zh-Hans`, and `zh-Hant`. The middleware shares the request language parser for its configured negotiation header, respects quality weights, skips `q=0`, and keeps browser order for equal weights. Without a match, it uses a supported `APP_LOCALE`, then the first candidate in stable tag order. Controllers, validation, and Blade share the current request locale.
 
 `zh-Hans`, `zh-CN`, `zh-SG`, and bare `zh` select Simplified Chinese; `zh-Hant`, `zh-TW`, `zh-HK`, and `zh-MO` select Traditional Chinese. An explicit script takes precedence over region; unknown scripts are not inferred from Chinese regions. Numeric variants are not scripts. Other languages match an exact tag or base language. This selection policy does not change public locale canonicalization.
 
-To support other languages, override candidates inside `withMiddleware` in `bootstrap/app.rs`, without adding configuration keys:
+To restrict enabled languages, set their order, or use languages from non-file sources, override candidates inside `withMiddleware` in `bootstrap/app.rs`, without adding configuration keys:
 
 ```rust
 .withMiddleware(|middleware| {
@@ -70,6 +70,14 @@ Before dispatching downstream, the middleware calls `App::setLocale`, updating c
 Remove the previous application `SetLocale` file and its `append` registration to avoid duplicate execution. Use the empty-list setting above to disable detection.
 
 The welcome page uses the current application locale for HTML `lang` and `Content-Language`. Display text uses the configured translation fallback. Repository links use the framework package metadata, and the template builds documentation paths with the current application locale. The default `en`, `zh-Hans`, and `zh-Hant` locales have matching documentation directories. If detection is disabled and `APP_LOCALE=fr`, text may fall back to English, but documentation links still point to `docs/fr`, which is not included. For another application locale, provide the corresponding documentation or customize the welcome template.
+
+### Available Languages {#available-locales}
+
+`FileLoader::availableLocales()` discovers `<locale>.json` files and locale directories containing grouped JSON resources, including nested groups. It uses the same selected application root as translation loading (`resources/lang` when present, otherwise `lang`), plus application paths registered with `addPath` and top-level JSON files registered with `addJsonPath`. Package namespaces, `vendor`, hidden entries, symbolic links and empty locale directories do not enable languages. Names must already match their canonical BCP 47 tag; for example, use `zh-Hans`, not `zh_CN` or `ZH-hans`. Results are deduplicated and sorted by tag. Discovery does not parse message contents or assess translation completeness.
+
+The default middleware captures this list after application Providers finish booting and before serving requests. It does not scan on each request; restart the application after adding or removing language files. This list is independent of the configuration cache. Explicit `setLocale` candidates, including an empty list, skip discovery and remain authoritative. An empty discovered list leaves the configured application locale in effect and hides the welcome switcher. Database-only languages require explicit candidates; discovery never queries the database or enables every package language.
+
+For Japanese, add `lang/ja/welcome.json` and `lang/ja/languages.json` containing `{"name":"日本語"}`; no controller or menu changes are needed. Missing messages retain the normal translation fallback. Templates can use `Lang::hasForLocale('languages.name', $choice)` to test exact-locale presence. For right-to-left pages, set `"direction":"rtl"` in that locale's `languages.json`; the welcome page sets HTML `dir="rtl"`, and its scrollable menu supports a longer language list. Missing direction uses the document's default left-to-right layout. New UI translations do not create documentation directories; keep the welcome documentation links consistent with the actual documentation available.
 
 ### URL Language Selection {#locale-query}
 
@@ -87,7 +95,7 @@ The default query and Cookie names are now `locale` (`?locale=zh-Hans`, `locale=
 
 ### Automatic and Fixed Language {#locale-preference}
 
-With no manual preference, Web pages negotiate the language on every request. The welcome-page language menu offers English, 简体中文, 繁體中文 and Follow browser. A POST form protected by the existing Web CSRF middleware saves the selected candidate; Follow browser deletes it. Automatic detection and GET requests never save a preference. The underlined item is the current request language; the check mark identifies the saved choice or automatic mode, including during a temporary URL override. Native names come from each locale's `languages.json`. Other query parameters survive the POST/303 redirect to the local home page; the temporary language parameter is removed. Disabling URL selection does not disable these forms.
+With no manual preference, Web pages negotiate the language on every request. The welcome-page language menu lists the same active candidates as the middleware and offers Follow browser. A POST form protected by the existing Web CSRF middleware saves the selected candidate; Follow browser deletes it. Automatic detection and GET requests never save a preference. The underlined item is the current request language; the check mark identifies the saved choice or automatic mode, including during a temporary URL override. Native names come from each locale's `languages.json`; a missing exact-locale name displays the locale code, without falling back to another language's name. Other query parameters survive the POST/303 redirect to the local home page; the temporary language parameter is removed. Disabling URL selection does not disable these forms.
 
 The OpenRust extension `app.locale_cookie` defaults to `"locale"`, including when absent; the application preserves `APP_LOCALE_COOKIE` to override the name. JSON `null` disables preference reads and writes (the environment string `null` is a name). Choose a nonempty top-level Cookie name that does not conflict with Session or `XSRF-TOKEN`. Invalid configuration is an error. The Cookie must pass through `EncryptCookies` and must not be excluded from encryption. The default instance runs after Web Cookie decryption and queue setup, before the ordinary Web Session middleware. Stateless API routes do not read raw preference Cookies or automatically start Session. Without a protected Cookie queue, the welcome page retains temporary GET links when URL selection is enabled.
 

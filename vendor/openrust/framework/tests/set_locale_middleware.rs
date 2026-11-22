@@ -206,7 +206,7 @@ async fn default_stack_detects_languages_without_application_registration() {
     for (header, expected) in [
         ("zh-CN", "zh-Hans|你好"),
         ("zh-TW", "zh-Hant|您好"),
-        ("de", "en|Hello"),
+        ("de", "de|Hallo"),
         ("zh-TW-1901", "zh-Hant|您好"),
     ] {
         let (status, headers, body) = send(&kernel, "/", header).await;
@@ -220,7 +220,7 @@ async fn default_stack_detects_languages_without_application_registration() {
     }
     assert_eq!(
         *events.0.lock().unwrap(),
-        ["zh-Hans", "zh-Hant", "en", "zh-Hant"]
+        ["zh-Hans", "zh-Hant", "de", "zh-Hant"]
     );
 }
 
@@ -472,7 +472,7 @@ async fn invalid_or_unsupported_callback_values_fail_without_dispatch_or_event()
             events.clone(),
         )
         .await;
-    for selected in ["zh_CN", "", "fr", "zh-CN", "en-US", "en-u-ca-gregory"] {
+    for selected in ["zh_CN", "", "it", "zh-CN", "en-US", "en-u-ca-gregory"] {
         let (status, _, body) = send_selected(&kernel, "/", Some(selected), "en").await;
         assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR, "{selected}");
         assert!(!body.contains("en|Hello"));
@@ -653,7 +653,7 @@ async fn callback_policy_is_isolated_between_requests_instances_and_applications
         assert_eq!(fr.2, "fr|Bonjour");
         assert_eq!(fallback.2, "en|Hello");
         assert_eq!(other.2, "fr|Bonjour");
-        assert_eq!(unchanged.2, "en|Hello");
+        assert_eq!(unchanged.2, "de|Hallo");
     }
     for kernel in [&selected, &constant, &default] {
         assert_eq!(
@@ -909,7 +909,7 @@ async fn query_is_exact_and_overrides_browser_with_one_event_per_request() {
         "/?locale=",
         "/?locale",
         "/?locale=zh_CN",
-        "/?locale=fr",
+        "/?locale=it",
         "/?locale=zh-CN",
         "/?locale[]=en",
         "/?locale[x]=en",
@@ -1014,7 +1014,7 @@ async fn callback_precedes_query_and_none_continues_query() {
             .starts_with("zh-Hans|")
     );
     assert_eq!(
-        send_selected(&kernel, "/?locale=en", Some("fr"), "en")
+        send_selected(&kernel, "/?locale=en", Some("it"), "en")
             .await
             .0,
         StatusCode::INTERNAL_SERVER_ERROR

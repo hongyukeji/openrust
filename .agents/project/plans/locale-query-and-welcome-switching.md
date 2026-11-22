@@ -273,3 +273,16 @@ LocaleSelection分别提供最终选择来源、有效持久偏好及可写能�
 
 
 用户随后明确授权本轮本地提交，不含推送或发布。提交语言请求头配置、请求偏好职责边界、持久偏好及locale默认命名的完整依赖；框架版本查询和无关对齐审计改动保留工作区。提交前31个语言相关暂存文件与本轮验收SHA256一致，10项构建守卫测试及三语内容检查再次通过。
+
+
+## 语言候选自动发现（2026-11-23）
+
+用户采纳启动发现、显式配置优先、控制器传候选和模板遍历方案。复用现有 FileLoader/SetLocale/LocaleSelection，默认 HTTP 引导后调用新增 FileLoader::availableLocales；不逐请求扫描，不查询数据库，不引入管理器、依赖或新配置键。缺少目录为空、读取失败明确报错；显式候选含空列表跳过扫描。文件与目录须使用规范 BCP47 标签，识别分组与顶层JSON，忽略包命名空间/vendor/隐藏/链接/空目录，结果排序去重。仅枚举资源，不判断词条完整。
+
+菜单使用实际候选，母语名称不跨语言回退，缺少显示代码；可用 languages.direction=rtl 指定方向，长列表滚动。现有 GET 临时选择、CSRF POST 加密Cookie偏好、请求隔离及配置缓存保持原职责。文档链接继续使用当前语言，不通过页面词条判断整页语言或更改文档路由；非三语文档由应用提供或定制模板。
+
+调研核对固定 Framework v13.40.0 的 Translation/FileLoader.php 与固定国际化正文；mcamara/laravel-localization 的 supportedLocales/getSupportedLocales/native 示范候选与菜单共用，Spatie laravel-translation-loader 保留文件与数据库混合来源。自动发现是 OpenRust 扩展，上述项目不作为自动扫描的等价证明。旧 v0.x FileLoader 的资源目录枚举仅作参考；复用当前 cap_std 与 ICU 校验，不移入旧 Catalog/快照框架。来源与本轮实际验收见同主题审计记录。
+
+实施与验收完成：179次定向Rust测试、24组真实HTTP Chromium、fmt／workspace严格Clippy及三语文档检查通过；17个技术交付文件与快照一致。详见[本轮证据与未验边界](../audits/03-07/welcome-language-2026-11-22.md#语言候选自动发现2026-11-23)。没有新增18种正式译文；未授权提交或推送。
+
+用户随后授权本轮本地提交，不包含推送；后续欢迎页视图变量合并及其他在途改动保留工作区。

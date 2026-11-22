@@ -1,5 +1,11 @@
 # 项目待办
 
+## 语言候选自动发现（2026-11-23）
+
+默认HTTP启动后从FileLoader应用资源发现候选，显式setLocale（含空列表）优先；控制器共用LocaleSelection，欢迎页两个菜单分支已移除三语硬编码。母语名称精确读取、缺少显示代码，长菜单滚动及RTL元信息可用。新增规范标签语言资源后重启，无需修改控制器或菜单；纯数据库语言显式配置。没有增加18种正式译文或其文档。
+
+179次定向Rust执行（93框架＋76应用＋10有状态API）、24组真实HTTP Chromium、fmt、workspace/all-targets严格Clippy及三语内容／构建／双前缀浏览器／全导航通过。17个技术交付文件与验收快照一致，详见[验收与边界](audits/03-07/welcome-language-2026-11-22.md#语言候选自动发现2026-11-23)。无本轮剩余实现阻塞；其他引擎／实机、Windows／Docker／性能及完整workspace测试未验。用户随后授权本轮本地提交，不含推送；保留并行改动。
+
 ## 默认语言名称统一为 locale（2026-11-23）
 
 应用与框架缺省query／偏好Cookie统一locale，保留Accept-Language、既有环境覆盖、自定义lang及null语义；复用POST /locale和store_locale。旧lang不默认读取，升级重新选择、更新书签并重建配置缓存。覆盖此前默认lang约定，历史记录保留当时边界。

@@ -698,11 +698,10 @@ async fn switcher_tracks_custom_parameter_null_and_actual_candidates() {
     assert!(html.contains("/?language=en&amp;lang=keep"));
     assert!(html.contains("href=\"/?lang=keep\""));
     assert!(!html.contains("language=zh-Hans"));
-    assert!(!html.contains("language=fr"));
+    assert!(html.contains("language=fr"));
     for (browser, parameter, candidates) in [
         (true, Some(serde_json::Value::Null), None),
         (false, None, None),
-        (true, None, Some(vec!["fr"])),
     ] {
         let path = if browser && candidates.is_some() {
             "/"
@@ -1424,4 +1423,95 @@ async fn default_locale_ignores_old_query_and_explicit_lang_configuration_still_
         preference_request(&custom, "GET", "/", "zh-TW", &response_cookies(&saved), "").await;
     assert_page(&headers, &html, "zh-Hans");
     assert_mode(&html, "fixed", "zh-Hans");
+}
+
+#[tokio::test]
+async fn discovered_languages_render_native_names_and_support_eighteen_choices() {
+    let root = Root::new("en");
+    let extra = [
+        ("ar", "العربية"),
+        ("de", "Deutsch"),
+        ("es", ""),
+        ("fr", "Français"),
+        ("he", "עברית"),
+        ("id", "Bahasa Indonesia"),
+        ("it", "Italiano"),
+        ("ja", "日本語"),
+        ("ko", "한국어"),
+        ("nl", "Nederlands"),
+        ("pl", "Polski"),
+        ("pt", "Português"),
+        ("ru", "Русский"),
+        ("th", "ไทย"),
+        ("tr", "Türkçe"),
+    ];
+    for (locale, name) in extra {
+        let path = root.0.join("lang").join(locale);
+        fs::create_dir_all(&path).unwrap();
+        fs::write(path.join("welcome.json"), "{}").unwrap();
+        if !name.is_empty() {
+            fs::write(path.join("languages.json"),
+                serde_json::json!({"name":name, "direction": if matches!(locale,"ar"|"he") { "rtl" } else { "ltr" }}).to_string()).unwrap();
+        }
+    }
+    let kernel = root.kernel().await;
+    let (headers, html) = send(&kernel, "/?locale=ja", &["en"]).await;
+    assert_eq!(headers["content-language"], "ja");
+    assert_eq!(html.matches("name=\"locale\" value=").count(), 19);
+    for (locale, name) in extra {
+        assert!(html.contains(&format!("value=\"{locale}\"")));
+        assert!(html.contains(&format!(
+            ">{}</button>",
+            if name.is_empty() { locale } else { name }
+        )));
+    }
+    // 西语缺少名称时显示代码，不能使用英文资源中的 English。
+    assert!(html.contains("lang=\"es\" dir=\"auto\">es</button>"));
+    assert!(!html.contains("languages.name"));
+    for locale in ["ar", "he"] {
+        let (headers, html) = send(&kernel, &format!("/?locale={locale}"), &["en"]).await;
+        assert_eq!(headers["content-language"], locale);
+        assert!(html.contains(&format!("<html lang=\"{locale}\" dir=\"rtl\">")));
+    }
+    // 自动候选也直接供 GET 模式使用，无需额外维护页面列表。
+    fs::write(root.0.join("locale-cookie.json"), "null").unwrap();
+    let temporary = root.kernel().await;
+    let (_, html) = send(&temporary, "/", &["ja"]).await;
+    assert_eq!(html.matches("<a href=\"/?locale=").count(), 18);
+    assert!(html.contains("lang=\"ja\" dir=\"auto\">日本語</a>"));
+}
+
+#[tokio::test]
+async fn a_new_language_uses_existing_csrf_preference_and_explicit_candidate_controls() {
+    let root = Root::new("en");
+    fs::create_dir_all(root.0.join("lang/ja")).unwrap();
+    fs::write(
+        root.0.join("lang/ja/languages.json"),
+        r#"{"name":"日本語"}"#,
+    )
+    .unwrap();
+    let kernel = root.kernel().await;
+    let (_, headers, html) = preference_request(&kernel, "GET", "/", "en", "", "").await;
+    let body = format!("_token={}&locale=ja", csrf_token(&html));
+    let (status, saved, _) = preference_request(
+        &kernel,
+        "POST",
+        "/locale",
+        "en",
+        &response_cookies(&headers),
+        &body,
+    )
+    .await;
+    assert_eq!(status, StatusCode::SEE_OTHER);
+    let (status, headers, html) =
+        preference_request(&kernel, "GET", "/", "en", &response_cookies(&saved), "").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(headers["content-language"], "ja");
+    assert_mode(&html, "fixed", "ja");
+    let restricted = root.kernel_options(true, None, Some(vec!["en"])).await;
+    let (_, html) = send(&restricted, "/", &["ja"]).await;
+    assert!(!html.contains("value=\"ja\""));
+    let inactive = root.kernel_with_browser(false).await;
+    let (_, html) = send(&inactive, "/?locale[]=invalid", &["ja"]).await;
+    assert!(!html.contains("class=\"language-switcher\""));
 }

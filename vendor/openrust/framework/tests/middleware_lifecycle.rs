@@ -93,6 +93,9 @@ async fn cors_uses_host_paths_and_wraps_real_http_errors() {
             )]
             .into())
         })
+        .withMiddleware(|middleware| {
+            middleware.setLocale(&["en"]).unwrap();
+        })
         .withExceptions(|exceptions| {
             exceptions.shouldRenderJsonWhen(|request, _| request.expectsJson());
         })
@@ -175,6 +178,9 @@ async fn cors_skip_callbacks_apply_only_to_the_configured_application() {
                     json!({"paths": ["api/*"], "allowed_origins": ["*"]}),
                 )]
                 .into())
+            })
+            .withMiddleware(|middleware| {
+                middleware.setLocale(&["en"]).unwrap();
             })
             .withRouting(Routing::default().api(routes))
     };

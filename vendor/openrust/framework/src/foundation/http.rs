@@ -174,6 +174,13 @@ impl Kernel {
                 self.application
                     .boot_with_configuration_signal(None, configuration_ready)
                     .await?;
+                self.middleware
+                    .set_locale
+                    .configure(&self.application)
+                    .await
+                    .map_err(|source| BootstrapError::LifecycleFailed {
+                        source: Box::new(source),
+                    })?;
                 let config = self
                     .application
                     .config()

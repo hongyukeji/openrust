@@ -1,7 +1,7 @@
 #![allow(non_snake_case, reason = "Matches Laravel's translation loader API")]
 
 use std::{
-    collections::HashMap,
+    collections::{BTreeSet, HashMap},
     io,
     path::{Path, PathBuf},
     sync::RwLock,
@@ -55,6 +55,26 @@ impl FileLoader {
         self.add_namespace(namespace.into(), path);
     }
 
+    /// 发现应用资源中的语言，按规范标签排序并去重；不枚举包命名空间。
+    ///
+    /// 识别 `<语言>.json` 和包含分组 JSON 文件的语言目录；名称须与规范
+    /// BCP 47 标签完全一致。忽略空目录、隐藏项及符号链接，不预加载翻译内容。
+    /// 缺失的根目录视为空来源，其他读取错误保留；结果由调用方决定何时刷新。
+    pub fn availableLocales(&self) -> TranslationResult<Vec<String>> {
+        let paths = self.paths.read().unwrap().clone();
+        let json_paths = self.json_paths.read().unwrap().clone();
+        let mut locales = BTreeSet::new();
+        for (root, grouped) in paths
+            .iter()
+            .map(|path| (path, true))
+            .chain(json_paths.iter().map(|path| (path, false)))
+        {
+            discover_locales(root, grouped, &mut locales)
+                .map_err(|source| TranslationError::Source(Box::new(source)))?;
+        }
+        Ok(locales.into_iter().collect())
+    }
+
     pub(super) fn add_namespace(&self, namespace: String, path: PathBuf) {
         self.namespaces.write().unwrap().insert(namespace, path);
     }
@@ -100,6 +120,61 @@ impl FileLoader {
         }
         Ok(lines)
     }
+}
+
+fn discover_locales(root: &Path, grouped: bool, locales: &mut BTreeSet<String>) -> io::Result<()> {
+    let dir = match Dir::open_ambient_dir(root, ambient_authority()) {
+        Ok(dir) => dir,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(error),
+    };
+    for entry in dir.entries()? {
+        let entry = entry?;
+        let kind = entry.file_type()?;
+        let name = entry.file_name();
+        let path = Path::new(&name);
+        let candidate = if kind.is_file() && path.extension().is_some_and(|ext| ext == "json") {
+            path.file_stem().and_then(|name| name.to_str())
+        } else if grouped && kind.is_dir() && name != "vendor" {
+            name.to_str()
+        } else {
+            None
+        };
+        let Some(locale) = candidate.filter(|candidate| {
+            super::canonical_locale(candidate).is_ok_and(|locale| locale == *candidate)
+        }) else {
+            continue;
+        };
+        if kind.is_file() || has_groups(dir.open_dir(&name)?)? {
+            locales.insert(locale.to_owned());
+        }
+    }
+    Ok(())
+}
+
+fn has_groups(dir: Dir) -> io::Result<bool> {
+    let mut pending = vec![dir];
+    while let Some(dir) = pending.pop() {
+        for entry in dir.entries()? {
+            let entry = entry?;
+            let kind = entry.file_type()?;
+            let name = entry.file_name();
+            let path = Path::new(&name);
+            if kind.is_file()
+                && path.extension().is_some_and(|ext| ext == "json")
+                && path
+                    .file_stem()
+                    .and_then(|name| name.to_str())
+                    .is_some_and(valid_segment)
+            {
+                return Ok(true);
+            }
+            if kind.is_dir() && name.to_str().is_some_and(valid_segment) {
+                pending.push(dir.open_dir(&name)?);
+            }
+        }
+    }
+    Ok(false)
 }
 
 impl Loader for FileLoader {

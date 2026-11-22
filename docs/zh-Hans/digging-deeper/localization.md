@@ -51,11 +51,11 @@ fn greeting(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
 
 OpenRust 默认自动装配 `openrust::http::middleware::SetLocale`，应用无需创建语言中间件或在 `bootstrap/app.rs` 手动注册。
 
-默认支持 `en`、`zh-Hans`、`zh-Hant`。中间件为配置的协商头复用请求语言解析器，按权重选择、跳过 `q=0`，同权重保持浏览器顺序。没有匹配项时使用受支持的 `APP_LOCALE`，否则使用候选列表的第一项（默认英文）。控制器、校验和 Blade 模板共用当前请求语言。
+默认候选在 HTTP 启动时从应用翻译资源发现一次；随附资源提供 `en`、`zh-Hans`、`zh-Hant`。中间件为配置的协商头复用请求语言解析器，按权重选择、跳过 `q=0`，同权重保持浏览器顺序。没有匹配项时使用受支持的 `APP_LOCALE`，否则使用按标签稳定排序后的首个候选。控制器、校验和 Blade 模板共用当前请求语言。
 
 `zh-Hans`、`zh-CN`、`zh-SG` 和仅 `zh` 对应简体；`zh-Hant`、`zh-TW`、`zh-HK`、`zh-MO` 对应繁体，明确的文字体系优先于地区，未知文字体系不按中文地区猜测。数字变体不作为文字体系。其他语言匹配完整标识或基础语言。此选择规则不改变公开语言标签的规范化语义。
 
-需要其他语言时，在 `bootstrap/app.rs` 的 `withMiddleware` 中覆盖候选，不必新增配置键：
+需要限制启用语言、指定顺序或使用非文件来源的语言时，在 `bootstrap/app.rs` 的 `withMiddleware` 中显式覆盖候选，不需要新增配置键：
 
 ```rust
 .withMiddleware(|middleware| {
@@ -70,6 +70,14 @@ OpenRust 默认自动装配 `openrust::http::middleware::SetLocale`，应用无�
 原先应用中的 `SetLocale` 文件和 `append` 注册应移除，避免重复执行；需要关闭识别时改用上述空列表设置。
 
 欢迎页的 HTML `lang` 与 `Content-Language` 使用应用当前语言，显示文案按配置进行翻译回退。仓库地址来自框架包元信息，模板使用应用当前语言拼接文档路径。默认的 `en`、`zh-Hans`、`zh-Hant` 均有对应文档目录。关闭识别并设置 `APP_LOCALE=fr` 时，文案可以回退到英文，但文档链接仍指向仓库未提供的 `docs/fr`。使用其他应用语言时，请提供对应文档或定制欢迎页模板。
+
+### 可用语言 {#available-locales}
+
+`FileLoader::availableLocales()` 发现 `<语言>.json` 和包含分组 JSON 资源的语言目录，也支持嵌套分组。扫描路径与翻译加载一致：存在 `resources/lang` 时使用该目录，否则使用 `lang`，并包含 `addPath` 登记的应用路径和 `addJsonPath` 登记的顶层 JSON 文件。包命名空间、`vendor`、隐藏项、符号链接和空语言目录不会启用语言。文件及目录名必须已是规范 BCP 47 标签，例如使用 `zh-Hans`，不用 `zh_CN` 或 `ZH-hans`。结果去重并按标签排序；发现过程不解析词条内容，也不判断翻译是否完整。
+
+默认中间件在应用 Provider 启动完成后、接收请求前保存这份候选。每个请求不再扫描；添加或移除语言资源后需重启应用。候选发现独立于配置缓存。显式调用 `setLocale` 时跳过扫描，包括空列表，仍以显式设置为准。未发现语言时保留应用配置的语言并隐藏欢迎页切换菜单。仅来自数据库的语言通过显式候选启用；发现过程不查询数据库，也不自动启用所有包的语言。
+
+例如增加 `lang/ja/welcome.json`，以及内容为 `{"name":"日本語"}` 的 `lang/ja/languages.json`，即可增加日语，无需修改控制器或菜单。缺少文案继续使用正常翻译回退。模板可通过 `Lang::hasForLocale('languages.name', $choice)` 判断该语言自身是否提供名称。右至左页面在该语言的 `languages.json` 中增加 `"direction":"rtl"`，欢迎页据此设置 HTML `dir="rtl"`；菜单支持长列表滚动。未提供方向时使用文档默认的左至右布局。新增界面翻译不会创建文档目录，欢迎页文档链接仍须对应实际提供的文档。
 
 ### URL 语言选择 {#locale-query}
 
@@ -87,7 +95,7 @@ OpenRust 默认自动装配 `openrust::http::middleware::SetLocale`，应用无�
 
 ### 自动跟随与固定语言 {#locale-preference}
 
-从未手动设置时，Web 页面每次请求重新协商语言。欢迎页菜单提供 English、简体中文、繁體中文和“跟随浏览器”。受现有 Web CSRF 中间件保护的 POST 表单保存选择，“跟随浏览器”删除偏好；自动识别和 GET 不保存偏好。下划线表示本次实际语言，勾选表示固定选择或自动模式，URL 临时覆盖时也分别显示。母语名称来自各语言的 `languages.json`。POST 后以 303 跳转至站内首页，保留其他查询参数并移除临时语言参数；关闭 URL 识别不影响保存表单。
+从未手动设置时，Web 页面每次请求重新协商语言。欢迎页菜单遍历中间件的同一份有效候选，并提供“跟随浏览器”。受现有 Web CSRF 中间件保护的 POST 表单保存选择，“跟随浏览器”删除偏好；自动识别和 GET 不保存偏好。下划线表示本次实际语言，勾选表示固定选择或自动模式，URL 临时覆盖时也分别显示。母语名称来自各语言的 `languages.json`；该语言缺少名称时显示语言代码，不回退为其他语言的名称。POST 后以 303 跳转至站内首页，保留其他查询参数并移除临时语言参数；关闭 URL 识别不影响保存表单。
 
 OpenRust 扩展 `app.locale_cookie` 默认 `"locale"`，缺键相同，应用保留 `APP_LOCALE_COOKIE` 覆盖名称。JSON `null` 关闭偏好读取与写入（环境字符串 `null` 是名称）。名称须为非空顶层 Cookie 名称，不能与 Session 或 `XSRF-TOKEN` 冲突，非法配置报错。必须经过 `EncryptCookies`，不能豁免加密。默认实例自动装配在 Web Cookie 解密和队列之后、普通 Web Session 之前。无状态 API 不读取原始偏好 Cookie，也不自动启动 Session。没有安全 Cookie 队列时，欢迎页在 URL 识别启用时保留单次 GET 链接。
 

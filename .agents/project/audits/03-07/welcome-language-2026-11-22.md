@@ -725,3 +725,48 @@ app.locale_cookie 缺键默认lang，保留应用已有 APP_LOCALE_COOKIE 覆盖
 
 
 用户随后明确授权本轮本地提交，不含推送或发布。提交语言请求头配置、请求偏好职责边界、持久偏好及locale默认命名的完整依赖；框架版本查询和无关对齐审计改动保留工作区。提交前31个语言相关暂存文件与本轮验收SHA256一致，10项构建守卫测试及三语内容检查再次通过。
+
+
+## 语言候选自动发现（2026-11-23）
+
+用户授权移除欢迎页三语硬编码并按已议方案实施；本轮无暂存、提交、推送或发布授权。既有控制器已传递 LocaleSelection.supported，继续复用，不在控制器重复扫描或新增语言管理器、依赖和配置键。
+
+### 调研与实施
+
+- 固定 [Framework v13.40.0 FileLoader](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Translation/FileLoader.php)：沿用路径、分组／顶层JSON与命名空间职责；自动发现属于 OpenRust 用户确认扩展，不宣称为上游原生接口。
+- [mcamara/laravel-localization](https://github.com/mcamara/laravel-localization) README 的 supportedLocales／getSupportedLocales／native：借鉴候选与页面共用及母语标签；未引入包、路由管理或完整语言元数据库。该 README 提及其他继任方案，不据此判断本项目必须迁入其生态。
+- [spatie/laravel-translation-loader](https://github.com/spatie/laravel-translation-loader)：保留文件与数据库混合来源职责；本轮只枚举 FileLoader 资源，纯数据库语言使用已有显式候选。后两项按2026-11-23读取的默认分支文档核对，非固定依赖。
+- 旧 openrust-v0.x 的 FileLoader 目录枚举仅作参考；实际复用当前 cap_std、BCP47规范化和既有 HTTP 生命周期。参考源码保存在本工作流 research/，sources.json 记录实际成功获取的原始地址。
+- FileLoader::availableLocales 枚举应用分组／顶层JSON及额外登记路径，稳定排序去重；忽略包命名空间、vendor、隐藏项、符号链接、空目录及非规范标签。缺失来源为空，其他IO错误返回；不解析JSON或推断完整度。
+- 默认候选在 Provider boot 后、HTTP路由管线建立前发现一次；显式候选含空列表直接跳过扫描。运行中资源改变不刷新，重启新Kernel发现；无资源则不选择语言。独立注册的 SetLocale 实例使用 new 显式指定候选，Default 的发现由Kernel负责。
+- Blade 两个分支遍历实际候选；补充可调用的 Lang::hasForLocale，复用既有精确语言检查，母语名称缺少时显示代码。增加 RTL 方向元信息、逻辑定位和长列表滚动，保留CSRF／加密Cookie／临时URL／header／配置缓存职责。三语正文说明新增资源后重启及非三语文档须自行提供。
+
+### 验收与失败修正
+
+隔离源码位于 target/tmp/locale-discovery-20261123/source，独占 cargo-target 及临时日志位于同一工作流。所有构建／测试通过 tests/build_guard.py，Rust1.94.0，正常并发和增量；未启动无关数据库／缓存服务，未操作开发数据。验收快照外的其他协作者改动不计为通过。
+
+- 首轮框架失败4项：旧测试将实际存在的de／fr当成不支持；更新发现后的预期，负例改用未提供的it，未降低非法输入／事件／隔离断言。
+- 首轮应用失败2项：GET分支仍保留三语循环；修复为与POST同源后全部通过。
+- 新辅助函数测试曾写成普通英文紧贴@endif，被现有指令词边界规则拒绝；改用标准Blade输出表达式，保留缓存、无回退、默认／null语言、类型及参数数量错误验证。
+- CORS生命周期两项原先隐含固定语言候选，而夹具没有语言资源；明确指定en候选以继续验证CORS与语言Vary共存，保留原断言；无资源默认停用由独立发现测试覆盖。
+
+| 范围 | 实际入口／证据 | 结果 |
+| --- | --- | --- |
+| 框架 | regression-final.log；11个test目标：application_locale、blade_query_helpers、blade_translations、locale_bcp47、locale_preference、middleware_exclusions、middleware_lifecycle、request_languages、set_locale_middleware、translation_choice、translation_locales | 93 passed，0 failed／ignored；包括8项资源发现、启动快照、显式覆盖及新增辅助函数消费者 |
+| 应用 | application-tests-second.log；welcome、http、startup、application_skeleton、configuration | 76 passed，0 failed／ignored；28项欢迎页，18语言夹具、名称缺失、RTL、CSRF持久选择及显式关闭 |
+| 浏览器 | 新编译的快照专用TCP服务器，browser/results.json、browser.log | 24组真实HTTP＋Chromium通过：3视口×2主题×en/ar/he共18组，JS开关2组，GET临时模式／显式候选／空列表／callback4组；检查19项含自动、滚动、布局、Cookie保存读取删除。已人工查看手机RTL与桌面暗色截图。服务器正常退出，临时测试入口移除 |
+| 三语文档 | docs-results.log、docs-content-final.log | 内容、VitePress构建、根与/docs双前缀浏览器、全导航均通过；格式收尾后内容检查再通过 |
+
+测试中的15种新增语言仅为隔离夹具，本轮没有交付18种正式译文，也不自动创建其文档。
+
+### 收尾
+
+Sanctum feature 的 locale_preference 10项通过，stateful.log；合计179次定向Rust测试执行，0失败／忽略。cargo +1.94.0 fmt --all -- --check、cargo +1.94.0 clippy --locked --workspace --all-targets -- -D warnings 最终exit=0，见fmt-final.log及clippy-final.log。依赖既有sqlx-sqlite弃用及imgalifier-avif cfg警告保留，未新增项目级豁免。git diff --check通过。
+
+17个技术交付源码／测试／三语正文与最终快照逐字节一致，closure.json记录SHA256及本轮HEAD／磁盘；当前可用约76.1 GB／70.9 GiB，高于停线。其他协作者的HTTP Client、第三方来源／PHP参考文件清理等后续改动未同步本轮快照，未计入通过、未修改其暂存状态。当前计划范围无剩余实现阻塞。未验完整workspace测试、其他浏览器引擎／真实设备、Windows、Docker部署和性能压测；本次没有修改共享数据库／缓存行为，不据此计入三库／三缓存验收。
+
+新增语言：在实际生效的资源根加入规范标签目录与JSON资源，languages.name提供母语名称，可选languages.direction=rtl，重启应用后自动出现；显式setLocale继续优先。数据库独有语言、启用子集及排序通过同一显式入口配置。此次未暂存、提交或推送；既有协作改动保留。
+
+用户随后授权本轮本地提交，不含推送。暂存期间其他任务已提交欢迎页视图数据合并（971d8fe94）；保留新契约，复验当前组合后提交语言发现增量。
+
+提交前组合复验：保留971d8fe94已提交的locale_selection整体视图变量，快照同步两处共享文件及控制器。precommit-welcome.log的28项测试、precommit-fmt.log及precommit-clippy.log（应用welcome消费者与框架库严格Clippy）均exit=0；17个暂存技术文件及HEAD控制器与本次快照逐字节一致。未重跑浏览器，不扩大原24组界面验收范围。

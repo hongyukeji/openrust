@@ -10,9 +10,10 @@ enum Operation {
     Query,
     Except,
     InArray,
+    HasTranslationForLocale,
 }
 
-/// 仅开放已实现的通用数组函数，不执行任意 PHP／Rust 调用。
+/// 仅开放已实现的数组与翻译函数，不执行任意 PHP／Rust 调用。
 #[derive(Serialize, Deserialize)]
 pub(super) struct Helper {
     operation: Operation,
@@ -25,6 +26,12 @@ impl Helper {
             ("Arr::query", Operation::Query, 1, 1),
             ("Arr::except", Operation::Except, 2, 2),
             ("in_array", Operation::InArray, 2, 3),
+            (
+                "Lang::hasForLocale",
+                Operation::HasTranslationForLocale,
+                1,
+                2,
+            ),
         ] {
             let Some(source) = source
                 .strip_prefix(name)
@@ -43,7 +50,7 @@ impl Helper {
                 start = end + 1;
             }
             if !(minimum..=maximum).contains(&arguments.len()) {
-                return Err(invalid("数组函数的参数数量无效。"));
+                return Err(invalid("辅助函数的参数数量无效。"));
             }
             return Ok(Some(Self {
                 operation,
@@ -73,6 +80,20 @@ impl Helper {
                 .map_err(|source| super::ViewError::RenderFailed(Box::new(source)))
         };
         match self.operation {
+            Operation::HasTranslationForLocale => {
+                let key = arguments[0]
+                    .as_ref()
+                    .as_str()
+                    .ok_or_else(|| render_error("翻译键必须是字符串。"))?;
+                let locale = match arguments.get(1).map(|value| value.as_ref()) {
+                    None | Some(ViewValue::Null) => None,
+                    Some(ViewValue::String(locale)) => Some(locale.as_str()),
+                    _ => return Err(render_error("翻译语言必须是字符串或 null。")),
+                };
+                crate::translation::Lang::hasForLocale(key, locale)
+                    .map(ViewValue::Bool)
+                    .map_err(|source| super::ViewError::RenderFailed(Box::new(source)))
+            }
             Operation::Query => Arr::query(&array(0)?)
                 .map(ViewValue::String)
                 .map_err(|source| super::ViewError::RenderFailed(Box::new(source))),

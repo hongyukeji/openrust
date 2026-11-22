@@ -6,7 +6,7 @@
 
 ## 默认语言中间件 {#locale-middleware}
 
-框架自动装配 `openrust::http::middleware::SetLocale`，在安全 Web 路由的 Cookie 解密和队列之后、普通 Web Session 之前执行；无状态 API 不读取偏好 Cookie。保存、关闭、执行顺序及回调见[自动与固定语言](../digging-deeper/localization.md#locale-preference)和[自定义语言选择](../digging-deeper/localization.md#custom-locale-selection)。[URL 选择](../digging-deeper/localization.md#locale-query)与[`app.locale_header`](../digging-deeper/localization.md#locale-header)可独立配置或关闭。
+框架自动装配 `openrust::http::middleware::SetLocale`，在安全 Web 路由的 Cookie 解密和队列之后、普通 Web Session 之前执行；无状态 API 不读取偏好 Cookie。保存、关闭、执行顺序及回调见[自动与固定语言](../digging-deeper/localization.md#locale-preference)和[自定义语言选择](../digging-deeper/localization.md#custom-locale-selection)。[URL 选择](../digging-deeper/localization.md#locale-query)与[`app.locale_header`](../digging-deeper/localization.md#locale-header)可独立配置或关闭。默认候选在启动时从[应用翻译资源](../digging-deeper/localization.md#available-locales)发现，显式候选列表优先。
 
 ## 命名组与优先级
 

@@ -31,16 +31,19 @@ pub struct LocaleSelection {
 /// 默认语言中间件；由框架在路由管线自动装配，Web 在 Cookie 解密之后执行。
 /// 按回调、URL、受保护 Cookie、app.locale_header 指定头及默认候选选择。
 /// 自定义头缺失时不重试 Accept-Language；停用中间件后配置本身不会选择语言。
+/// 默认实例的资源发现由 HTTP Kernel 初始化；独立注册路由中间件时用 `new` 指定候选。
 #[derive(Clone)]
 pub struct SetLocale {
     supported: Vec<String>,
+    discover: bool,
     locale_callback: Option<LocaleCallback>,
 }
 
 impl Default for SetLocale {
     fn default() -> Self {
         Self {
-            supported: ["en", "zh-Hans", "zh-Hant"].map(str::to_owned).to_vec(),
+            supported: Vec::new(),
+            discover: true,
             locale_callback: None,
         }
     }
@@ -55,6 +58,7 @@ impl SetLocale {
             .collect::<TranslationResult<_>>()?;
         Ok(Self {
             supported,
+            discover: false,
             locale_callback: None,
         })
     }
@@ -63,7 +67,29 @@ impl SetLocale {
     #[allow(non_snake_case, reason = "沿用中间件配置方法的命名风格")]
     pub fn setLocale(&mut self, locales: &[&str]) -> TranslationResult<&mut Self> {
         self.supported = Self::new(locales)?.supported;
+        self.discover = false;
         Ok(self)
+    }
+
+    /// 默认实例在 HTTP 引导完成后读取一次来源；显式候选（含空列表）不扫描。
+    pub(crate) async fn configure(
+        &mut self,
+        app: &crate::foundation::Application,
+    ) -> TranslationResult<()> {
+        use crate::contracts::{container::Container as _, foundation::Application as _};
+        if self.discover {
+            let loader = app
+                .container()
+                .get::<crate::translation::FileLoader>("translation.loader")
+                .map_err(crate::translation::TranslationError::Unavailable)?;
+            self.supported = tokio::task::spawn_blocking(move || loader.availableLocales())
+                .await
+                .map_err(|source| {
+                    crate::translation::TranslationError::Source(Box::new(source))
+                })??;
+            self.discover = false;
+        }
+        Ok(())
     }
 
     /// 为此实例选择语言；None 继续 URL 参数、受保护 Cookie 及请求头选择，错误交给 HTTP 异常处理。

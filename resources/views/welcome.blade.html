@@ -25,7 +25,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 -->
-<html lang="{{ $language }}">
+<html lang="{{ $language }}"@if(Lang::hasForLocale('languages.direction', $language) && __('languages.direction', [], $language) === 'rtl') dir="rtl"@endif>
     <head>
         <meta charset="utf-8">
         <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
@@ -140,7 +140,7 @@ THE SOFTWARE.
 
             .steps li::before {
                 position: absolute;
-                left: 6.5px;
+                inset-inline-start: 6.5px;
                 top: 0;
                 bottom: 50%;
                 border-left: 1px solid var(--outline);
@@ -336,7 +336,7 @@ THE SOFTWARE.
             .preference-menu nav, .theme-options {
                 position: absolute;
                 z-index: 5;
-                right: 0;
+                inset-inline-end: 0;
                 top: calc(100% + 8px);
                 min-width: 176px;
                 padding: 6px;
@@ -345,6 +345,7 @@ THE SOFTWARE.
                 background: var(--card);
                 box-shadow: 0 8px 24px rgb(0 0 0 / 10%);
             }
+            .language-switcher { max-height: min(70vh, 28rem); overflow-y: auto; }
             .language-switcher :is(a, button), .theme-options button {
                 display: flex;
                 align-items: center;
@@ -375,7 +376,7 @@ THE SOFTWARE.
                 <span class="brand-name" title="{{ $name }}">{{ $name }}</span>
             </div>
             <div class="preferences">
-                @if((($locale_selection['can_store'] ?? false) || ($locale_selection['query_parameter'] ?? null)) && (in_array('en', $locale_selection['supported'] ?? [], true) || in_array('zh-Hans', $locale_selection['supported'] ?? [], true) || in_array('zh-Hant', $locale_selection['supported'] ?? [], true)))
+                @if((($locale_selection['can_store'] ?? false) || ($locale_selection['query_parameter'] ?? null)) && ($locale_selection['supported'] ?? []))
                 <details class="preference-menu" name="welcome-preferences">
                     <summary aria-label="{{ __('welcome.language') }}" title="{{ __('welcome.language') }}">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><path d="M3 12h18M5 6h14M5 18h14"/></svg>
@@ -388,18 +389,14 @@ THE SOFTWARE.
                         <form method="post" action="{{ $base_path }}/locale?{{ Arr::query($query) }}">
                         @endif
                             @csrf
-                            @foreach(['en', 'zh-Hans', 'zh-Hant'] as $choice)
-                            @if(in_array($choice, $locale_selection['supported'], true))
-                            <button type="submit" name="locale" value="{{ $choice }}" @if(($locale_selection['preference'] ?? null) === $choice)aria-current="true"@endif @if($language === $choice)data-current-language="true"@endif lang="{{ $choice }}">{{ __('languages.name', [], $choice) }}</button>
-                            @endif
+                            @foreach($locale_selection['supported'] as $choice)
+                            <button type="submit" name="locale" value="{{ $choice }}" @if(($locale_selection['preference'] ?? null) === $choice)aria-current="true"@endif @if($language === $choice)data-current-language="true"@endif lang="{{ $choice }}" dir="auto">@if(Lang::hasForLocale('languages.name', $choice)){{ __('languages.name', [], $choice) }}@else{{ $choice }}@endif</button>
                             @endforeach
                             <button type="submit" name="locale" value="" @if(!($locale_selection['preference'] ?? null))aria-current="true"@endif lang="{{ $language }}">{{ __('welcome.follow_browser') }}</button>
                         </form>
                         @else
-                        @foreach(['en', 'zh-Hans', 'zh-Hant'] as $choice)
-                        @if(in_array($choice, $locale_selection['supported'], true))
-                        <a href="{{ $base_path }}/?{{ Arr::query([$locale_selection['query_parameter'] => $choice] + $query) }}" @if($locale_selection['from_query'] && $language === $choice)aria-current="true"@endif @if($language === $choice)data-current-language="true"@endif lang="{{ $choice }}">{{ __('languages.name', [], $choice) }}</a>
-                        @endif
+                        @foreach($locale_selection['supported'] as $choice)
+                        <a href="{{ $base_path }}/?{{ Arr::query([$locale_selection['query_parameter'] => $choice] + $query) }}" @if($locale_selection['from_query'] && $language === $choice)aria-current="true"@endif @if($language === $choice)data-current-language="true"@endif lang="{{ $choice }}" dir="auto">@if(Lang::hasForLocale('languages.name', $choice)){{ __('languages.name', [], $choice) }}@else{{ $choice }}@endif</a>
                         @endforeach
                         <a href="{{ $base_path }}/@if(Arr::query(Arr::except($query, [$locale_selection['query_parameter']])))?{{ Arr::query(Arr::except($query, [$locale_selection['query_parameter']])) }}@endif" @if(!$locale_selection['from_query'])aria-current="true"@endif lang="{{ $language }}">{{ __('welcome.follow_browser') }}</a>
                         @endif

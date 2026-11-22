@@ -343,3 +343,31 @@ async fn template_helpers_preserve_missing_key_hook_context_and_replacements() {
         );
     }
 }
+
+#[tokio::test]
+async fn exact_locale_checks_do_not_fall_back_and_validate_helper_arguments() {
+    let root = Root::new();
+    let kernel = root.kernel().await;
+    let source = "@if(Lang::hasForLocale('messages.hello')){{ 'yes' }}@endif|@if(Lang::hasForLocale('messages.hello', null)){{ 'current' }}@endif|@if(Lang::hasForLocale('messages.fallback', 'en')){{ 'english' }}@endif|@if(!Lang::hasForLocale('messages.fallback', 'zh-Hans')){{ 'missing' }}@endif";
+    for _ in 0..2 {
+        assert_eq!(
+            root.render(&kernel, source, "zh-Hans", StatusCode::OK)
+                .await,
+            "yes|current|english|missing"
+        );
+    }
+    for source in [
+        "{{ Lang::hasForLocale() }}",
+        "{{ Lang::hasForLocale('messages.hello', 'en', true) }}",
+        "{{ Lang::hasForLocale(42) }}",
+        "{{ Lang::hasForLocale('messages.hello', []) }}",
+    ] {
+        root.render(
+            &kernel,
+            source,
+            "zh-Hans",
+            StatusCode::INTERNAL_SERVER_ERROR,
+        )
+        .await;
+    }
+}
