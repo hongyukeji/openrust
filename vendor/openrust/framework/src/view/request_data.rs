@@ -32,6 +32,7 @@ enum RequestCheck {
     Authenticated(Option<String>),
     Authorized(AuthorizationMode, Vec<String>, Vec<GateArgument>),
     Read(RequestRead),
+    Object(super::ObjectValue, String, Vec<ViewValue>),
 }
 
 /// 只读模板调用仍由持有真实请求的异步管线执行，不复制请求体或暴露可变请求。
@@ -64,6 +65,21 @@ pub(super) fn read(read: RequestRead) -> ViewResult<ViewValue> {
         .map_err(|_| render_error("Blade 请求读取需要通过 HTTP 响应渲染。"))?
 }
 
+pub(super) fn call_object(
+    object: &super::ObjectValue,
+    method: &str,
+    arguments: Vec<ViewValue>,
+) -> ViewResult<ViewValue> {
+    match RENDER_REQUEST.try_with(|request| request.clone()) {
+        Ok(request) => request.query(RequestCheck::Object(
+            object.clone(),
+            method.to_owned(),
+            arguments,
+        )),
+        Err(_) => object.call(method, &arguments),
+    }
+}
+
 pub(super) struct ViewRequestQuery {
     check: RequestCheck,
     answer: oneshot::Sender<ViewResult<(ViewValue, RequestSnapshot)>>,
@@ -73,6 +89,9 @@ impl ViewRequestQuery {
     pub async fn resolve(self, request: &mut Request) {
         let result = match self.check {
             RequestCheck::Read(read) => read.resolve(request).await,
+            RequestCheck::Object(object, method, arguments) => {
+                object.call_async(&method, arguments).await
+            }
             check => async {
                 match check {
                     RequestCheck::Authenticated(guard) => Ok(Auth::manager()?
@@ -98,7 +117,7 @@ impl ViewRequestQuery {
                             AuthorizationMode::Any => gate.any(&abilities, &arguments).await,
                         }
                     }
-                    RequestCheck::Read(_) => unreachable!(),
+                    RequestCheck::Read(_) | RequestCheck::Object(..) => unreachable!(),
                 }
             }
             .await

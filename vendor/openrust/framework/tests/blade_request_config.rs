@@ -315,7 +315,7 @@ async fn string_config_helper_preserves_strings_and_errors_for_missing_or_other_
 }
 
 #[tokio::test]
-async fn app_helper_reads_the_current_application_and_rejects_mutation_or_bad_arguments() {
+async fn app_helper_reads_the_current_application_and_rejects_bad_arguments() {
     let root = Root::new();
     root.write("main", "{{ app()->currentLocale() }}|{{ app()->getLocale() }}|{{ app()->isLocale(app()->currentLocale()) }}|{{ app()->isLocale('de') }}|{{ app()->version() }}|{{ config('app.version') }}|@include('application-part')|<x-application />");
     root.write("application-part", "{{ app()->getLocale() }}");
@@ -348,7 +348,6 @@ async fn app_helper_reads_the_current_application_and_rejects_mutation_or_bad_ar
         "{{ app()->isLocale() }}",
         "{{ app()->isLocale(false) }}",
         "{{ app()->isLocale('en', 'fr') }}",
-        "{{ app()->setLocale('fr') }}",
     ] {
         root.write("main", source);
         assert_eq!(
@@ -361,5 +360,25 @@ async fn app_helper_reads_the_current_application_and_rejects_mutation_or_bad_ar
     assert_eq!(
         send(&kernel, "GET", "/view", &[], "").await,
         (StatusCode::OK, "en".into())
+    );
+}
+
+#[tokio::test]
+async fn app_helper_resolves_configuration_and_application_aliases_as_real_objects() {
+    let root = Root::new();
+    root.write("main", "@include('app-object', ['application' => app(), 'settings' => app('config')])|{{ app()->make('config')->has('app.nullable') }}|{{ app('app')->getLocale() }}|{{ app()->environment('testing') }}|{{ app()->bound('config') }}|{{ app()->make('config')->get('app.version') }}");
+    root.write(
+        "app-object",
+        "{{ $application->version() }}|{{ $settings->get('app.name') }}",
+    );
+    let kernel = root.kernel("<object>").await;
+    let (status, body) = send(&kernel, "GET", "/view", &[], "").await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(
+        body,
+        format!(
+            "{}|&lt;object&gt;|1|en|1|1|application-version",
+            Application::VERSION
+        )
     );
 }

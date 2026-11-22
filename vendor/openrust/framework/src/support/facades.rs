@@ -37,8 +37,8 @@ pub use crate::validation::facade::Validator;
 pub use config::Config;
 pub use facade::Facade;
 pub(crate) use facade::{
-    ContextSnapshot, application_scope, application_scope_sync, context_snapshot,
-    current_container, database_routing, isolated_scope, scope,
+    ContextSnapshot, WeakContextSnapshot, application_scope, application_scope_sync,
+    context_snapshot, current_container, database_routing, isolated_scope, scope,
 };
 pub use redirect::Redirect;
 pub use response::Response;

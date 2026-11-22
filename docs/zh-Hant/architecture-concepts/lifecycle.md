@@ -10,7 +10,7 @@ Tokio 入口將 `bootstrap::create_application` 交給 `openrust::foundation::ru
 
 HTTP Kernel 建立時套用中介軟體設定，引導後解析路由中介軟體堆疊，完成後才繫結監聽連接埠。Console Kernel 引導同一個應用程式，接著註冊命令。
 
-HTTP 核心執行[中介軟體](../the-basics/middleware.md)，並透過框架[路由器](../the-basics/routing.md)分派請求。`/` 由 `WelcomeController::index` 處理，控制器呼叫 `view("welcome")`。框架將檢視名稱解析為應用程式根目錄下的 `resources/views/welcome.blade.html`，並在請求時讀取。控制器將設定中的應用程式名稱和建置時記錄的 Cargo 套件版本傳入 Blade 檢視。修改 HTML 後，下次請求即可看到結果。`/up` 提供健康檢查。
+HTTP 核心執行[中介軟體](../the-basics/middleware.md)，並透過框架[路由器](../the-basics/routing.md)分派請求。`/` 由 `WelcomeController::index` 處理，控制器呼叫 `view("welcome")`。框架將檢視名稱解析為應用程式根目錄下的 `resources/views/welcome.blade.html`，並在請求時讀取。Blade 檢視透過 `config()` 讀取應用程式名稱和版本，透過 `app()->currentLocale()` 讀取目前應用程式語言，無需控制器重複傳入資料。修改 HTML 後，下次請求即可看到結果。`/up` 提供健康檢查。
 
 預設應用程式透過 `bootstrap/app.rs` 的 `withRouting` 宣告 Web 路由、主控台路由及健康路徑。Web 路由使用[預設 Web 中介軟體群組](../the-basics/middleware.md)，主控台路由在 Console Kernel 引導後登記。API、廣播和 gRPC 使用各自的選用註冊入口。應用程式引導完成後，`/up` 處理器傳回 `200 OK`。
 

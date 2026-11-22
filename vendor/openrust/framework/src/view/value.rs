@@ -94,8 +94,14 @@ pub enum ViewValue {
     String(String),
     Array(Vec<ViewValue>),
     Object(ViewData),
+    /// 当前作用域中的可调用对象，不经过 JSON 序列化。
+    Instance(super::ObjectValue),
 }
 impl ViewValue {
+    pub fn from_object(value: std::sync::Arc<dyn super::ViewObject>) -> Self {
+        Self::Instance(super::ObjectValue::new(value))
+    }
+
     pub fn is_null(&self) -> bool {
         matches!(self, Self::Null)
     }
@@ -209,6 +215,7 @@ impl Serialize for ViewValue {
             Self::String(v) => v.serialize(serializer),
             Self::Array(v) => v.serialize(serializer),
             Self::Object(v) => v.serialize(serializer),
+            Self::Instance(_) => Err(serde::ser::Error::custom("视图服务对象不能序列化。")),
         }
     }
 }

@@ -113,8 +113,8 @@ fn cached_numeric_nodes_preserve_special_values_and_invalidate_old_compiler_sche
     let compiler = engine.getCompiler();
     let artifact = compiler.getCompiledPath(&path).unwrap();
     let mut contents: Value = serde_json::from_slice(&fs::read(&artifact).unwrap()).unwrap();
-    assert_eq!(contents["compiler_version"], 40);
-    contents["compiler_version"] = json!(36);
+    assert_eq!(contents["compiler_version"], 45);
+    contents["compiler_version"] = json!(44);
     fs::write(&artifact, contents.to_string()).unwrap();
     assert!(compiler.isExpired(&path).unwrap());
     assert_eq!(
@@ -122,6 +122,8 @@ fn cached_numeric_nodes_preserve_special_values_and_invalidate_old_compiler_sche
         "INF|NAN|-0|3"
     );
     assert!(!compiler.isExpired(&path).unwrap());
+    let rebuilt: Value = serde_json::from_slice(&fs::read(&artifact).unwrap()).unwrap();
+    assert_eq!(rebuilt["compiler_version"], 45);
 }
 fn routes(
     _: &openrust::foundation::Application,

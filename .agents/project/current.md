@@ -1,3 +1,9 @@
+## Blade 应用与容器访问（2026-11-23）
+
+本节覆盖此前Blade app助手仅有四种读取调用的限制。app()／app(null)返回应用对象；app(service, parameters)与make／makeWith复用命名容器、别名、参数覆盖及作用域；ViewObject配合既有类型投影／绑定公开Rust服务方法，通用成员调用支持链、子视图、组件及缓存模板。语言切换保留事件顺序和错误传播，弱作用域凭据拒绝跨请求调用；三语Blade与生命周期文档、计划24和规范同步。
+
+Rust1.94.0隔离122项定向回归（69框架＋53应用，0失败／忽略）、范围fmt和严格Clippy、25组真实HTTP Chromium及三语内容／构建／12组浏览器／6组导航通过。交付索引与验收源码逐字节一致；见[主题记录](audits/03-08/blade-app-container-2026-11-23.md)，材料target/tmp/blade-app-container-20261123/。完整workspace／all-features、其他平台／引擎／实机及发布未验；未公开Rust方法须显式适配，不宣称自动反射或整个Blade完全对齐。用户授权本轮本地提交，不推送／发布；其他协作WIP保留。
+
 ## Blade app 助手（2026-11-23）
 
 欢迎页优先使用config、request及app()->currentLocale；补齐模板app()->getLocale／isLocale／version，复用App Facade与当前应用语言作用域，不支持任意app(service)解析、裸对象返回或修改。配置读取无默认值；保存入口仍严格Config::string。仓库元信息保留Application::REPOSITORY。三语正文、规范和计划23同步。

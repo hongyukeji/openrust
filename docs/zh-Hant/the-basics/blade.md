@@ -67,11 +67,49 @@ HTTP 視圖可直接讀取目前請求與已載入的設定，不必由控制器
 
 `request()->` 與 `Request::` 支援 `query`、`input`、`header`、`path`、`getPathInfo`、`getBaseUrl`、`url`、`fullUrl`、`method`、`secure`。`query()` 傳回完整查詢參數，單鍵查詢讀取頂層鍵；`input()` 合併請求本文與查詢參數，支援點路徑，同名時本文優先；兩者均可傳入鍵與缺失預設值。`header` 需要標頭名稱，可傳缺失預設值。`path()` 不含兩端斜杠（根路徑為 `/`）；`getPathInfo()` 保留開頭斜杠及編碼；部署前綴由 `getBaseUrl()` 單獨傳回。其他方法不接受參數。預設跳脫同樣適用。
 
-請求讀取透過 HTTP 回應渲染取得真實請求，子視圖、元件與快取模板共用本次請求，獨立請求及應用保持隔離。離線渲染不能讀取 Request；設定讀取也需要有效應用作用域。模板僅開放上述讀取呼叫，不支援將 `request()`／`config()` 傳回為任意可變物件，也不執行設定寫入、請求修改或任意 PHP 方法。業務目前語言仍使用 `app()->currentLocale()`，請求標頭不代表最終應用語言。
+請求讀取透過 HTTP 回應渲染取得真實請求，子視圖、元件與快取模板共用本次請求，獨立請求及應用保持隔離。離線渲染不能讀取 Request；設定讀取也需要有效應用作用域。這些請求與設定助手開放上述讀取呼叫；應用物件和可呼叫服務見下文。模板不執行任意 PHP。業務目前語言仍使用 `app()->currentLocale()`，請求標頭不代表最終應用語言。
 
 Blade 可直接呼叫 `app()->currentLocale()` 和 `app()->getLocale()`，讀取目前應用程式語言，也能看到下游主動切換的結果。`Application::VERSION`、`Application::REPOSITORY` 讀取框架套件中繼資料。OpenRust 請求擴充 `request()->localeSelection()`（也支援 `Request::localeSelection()`）讀取中介軟體選擇狀態，未執行時回傳 `null`；其中 `supported`、`preference`、`from_query`、`query_parameter`、`can_store` 描述切換能力，不代替目前實際語言。這些值無需控制器傳參：
 
-`app()->currentLocale()` 和 `app()->getLocale()` 讀取目前應用程式語言；`app()->isLocale('zh-Hans')` 判斷目前語言，`app()->version()` 回傳框架版本。應用程式版本仍使用 `config('app.version')`。這些呼叫在子檢視、元件和快取範本中復用目前應用程式及語言作用域，原有 App Facade 呼叫繼續可用。範本中的 `app()` 支援這些唯讀呼叫，不支援 `app('service')` 等任意容器解析、回傳應用程式物件或修改方法。
+### 應用與容器 {#application-and-container}
+
+`app()` 和 `app(null)` 回傳目前應用物件；`app('service')` 與 `app()->make('service')` 透過現有容器解析具名服務，保留別名、作用域綁定與延遲 Provider。`app('service', ['name' => 'value'])` 與 `app()->makeWith('service', ['name' => 'value'])` 傳入建構參數覆寫。參數必須是陣列；字串、布林、整數和浮點數保持 Rust 純量型別，複合值保留為 `ViewValue`，不另建服務容器。
+
+```blade
+{{ app()->currentLocale() }}
+{{ app()->version() }}
+{{ app('config')->get('app.name') }}
+@include('footer', ['application' => app()])
+```
+
+應用物件支援 `getLocale`、`currentLocale`、`isLocale`、`getFallbackLocale`、`version`、`environment`、`basePath`、`publicPath`、`storagePath`、`configurationIsCached`、`routesAreCached`、`runningUnitTests`、`bound`、`has`、`resolved`、`isShared`、`make` 和 `makeWith`。應用版本仍使用 `config('app.version')`。設定服務開放既有的 `get`、`has`、`all`、`set`、`push`、`prepend`。`setLocale`、`setFallbackLocale` 委託應用執行，保留語言事件及錯誤傳播；業務寫入仍建議放在控制器或服務中。
+
+Rust 沒有 PHP 的方法反射。自訂服務實作 `ViewObject` 後，透過一般容器綁定公開為 `dyn ViewObject`，或在既有類別描述中加入 `class_projection!(MyService => dyn ViewObject)`。投影保留實際實例與生命週期，無需為每個服務修改編譯器。簡單服務範例：
+
+```rust
+use std::sync::Arc;
+use openrust::view::{ViewError, ViewObject, ViewResult, ViewValue};
+
+struct Greeting;
+impl ViewObject for Greeting {
+    fn call(&self, method: &str, arguments: &[ViewValue]) -> ViewResult<ViewValue> {
+        match (method, arguments) {
+            ("message", []) => Ok("Hello".into()),
+            _ => Err(ViewError::InvalidName),
+        }
+    }
+}
+// 在 Provider 中使用既有 Container trait：
+// app.container().instanceNamed::<dyn ViewObject>("greeting", Arc::new(Greeting))?;
+```
+
+```blade
+{{ app('greeting')->message() }}
+```
+
+物件可用於鏈式呼叫、變數、子視圖及元件屬性，輸出仍由 Blade 跳脫。未知服務、未公開方法和錯誤參數型別使渲染失敗；物件不能直接列印或編碼為 JSON。快取模板只保存運算式，不保存已解析服務；請求結束後被保留的物件不能在另一請求或應用呼叫。
+
+HTTP 渲染複用現有非同步請求橋接，支援非同步工廠及 `ViewObject::callAsync`，後者預設委託 `call`。離線渲染支援有效應用作用域中的同步解析與呼叫；僅非同步服務及語言切換需要 HTTP 渲染。這是容器存取的 Rust 適配，不執行任意 PHP，也不自動公開所有 Rust 方法。
 
 `Config::string(key)` 要求設定存在且為字串；缺鍵、null 或其他型別報錯。
 

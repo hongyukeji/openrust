@@ -2338,6 +2338,11 @@ fn echo(output: &mut String, value: &ViewValue, escape: bool) -> ViewResult<()> 
                 write!(output, "{number}").unwrap();
             }
         }
+        ViewValue::Instance(_) => {
+            return Err(render_error(
+                "视图服务对象不能直接输出，请调用返回显示值的方法。",
+            ));
+        }
         ViewValue::Array(_) | ViewValue::Object(_) => {
             return Err(render_error("Array to string conversion in Blade echo."));
         }

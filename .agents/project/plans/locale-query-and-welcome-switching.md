@@ -329,3 +329,8 @@ LocaleSelection分别提供最终选择来源、有效持久偏好及可写能�
 ## 23. 模板优先使用函数助手（2026-11-23）
 
 用户要求视图尽量使用config／request／app风格。欢迎页配置统一config且无默认参数，当前语言使用app()->currentLocale；补齐app()->getLocale／isLocale／version的只读模板调用，复用现有App Facade与请求语言作用域。Application::REPOSITORY保留既有包常量，不为风格新增repository访问方法。控制器仍严格读取表单字段；模板config沿用缺键null与默认转义契约，非法保存配置不写偏好。Facade与常量旧语法保留，不支持任意app对象或app(service)容器解析，不在模板修改状态。最终验收见主题记录；用户随后授权本轮本地提交，不含推送或发布。
+
+
+## 24. Blade 应用与容器访问（2026-11-23）
+
+用户要求继续对齐 app() 并授权本地提交。以既有实例作用域、命名容器、ClassProjection和请求桥接实现应用对象与服务解析；通用成员调用取代四种解析器特例。Rust服务通过ViewObject显式公开模板方法，不宣称PHP反射或全部Application接口均已对齐。同步三语用法，正反回归覆盖构造参数、别名、延迟与异步服务、缓存模板／子视图／组件、语言事件、跨请求／跨应用隔离；最终结果见[专题记录](../audits/03-08/blade-app-container-2026-11-23.md)。

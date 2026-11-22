@@ -115,8 +115,8 @@ fn cached_statement_schema_invalidates_previous_compiler_artifacts() {
     let compiler = engine.getCompiler();
     let artifact = compiler.getCompiledPath(&path).unwrap();
     let mut contents: Value = serde_json::from_slice(&fs::read(&artifact).unwrap()).unwrap();
-    assert_eq!(contents["compiler_version"], 40);
-    contents["compiler_version"] = json!(36);
+    assert_eq!(contents["compiler_version"], 45);
+    contents["compiler_version"] = json!(44);
     fs::write(&artifact, contents.to_string()).unwrap();
     assert!(compiler.isExpired(&path).unwrap());
     assert_eq!(
@@ -124,6 +124,8 @@ fn cached_statement_schema_invalidates_previous_compiler_artifacts() {
         "<b>cache</b>"
     );
     assert!(!compiler.isExpired(&path).unwrap());
+    let rebuilt: Value = serde_json::from_slice(&fs::read(&artifact).unwrap()).unwrap();
+    assert_eq!(rebuilt["compiler_version"], 45);
 }
 fn routes(
     _: &openrust::foundation::Application,

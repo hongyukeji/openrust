@@ -76,7 +76,31 @@ pub(crate) struct ContextSnapshot(Option<Arc<Context>>);
 pub(crate) fn context_snapshot() -> ContextSnapshot {
     ContextSnapshot(APPLICATION.try_with(Clone::clone).ok().flatten())
 }
+/// 不延长请求／应用生命周期的模板对象身份凭据。
+#[derive(Clone)]
+pub(crate) struct WeakContextSnapshot(Option<std::sync::Weak<Context>>);
+impl WeakContextSnapshot {
+    pub(crate) fn is_current(&self) -> bool {
+        match &self.0 {
+            None => true,
+            Some(context) => context.upgrade().is_some_and(|origin| {
+                !origin.closed.load(Ordering::Acquire)
+                    && APPLICATION
+                        .try_with(|current| {
+                            current
+                                .as_ref()
+                                .is_some_and(|current| Arc::ptr_eq(&origin, current))
+                        })
+                        .unwrap_or(false)
+            }),
+        }
+    }
+}
+
 impl ContextSnapshot {
+    pub(crate) fn downgrade(&self) -> WeakContextSnapshot {
+        WeakContextSnapshot(self.0.as_ref().map(Arc::downgrade))
+    }
     pub(crate) fn empty() -> Self {
         Self(None)
     }

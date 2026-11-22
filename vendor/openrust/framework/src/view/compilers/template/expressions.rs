@@ -13,6 +13,8 @@ pub(super) enum Expression {
     Value(ViewValue),
     Translation(Box<super::translations::Translation>),
     Helper(Box<super::helpers::Helper>),
+    Application(Vec<Expression>),
+    Method(Box<Expression>, String, Vec<Expression>),
     Variable(Vec<String>),
     Not(Box<Expression>),
     Numeric(super::arithmetic::Literal),
@@ -49,6 +51,21 @@ pub(super) enum BinaryOperator {
     LessOrEqual,
     Greater,
     GreaterOrEqual,
+}
+
+fn parse_arguments(source: &str, depth: usize) -> ViewResult<Vec<Expression>> {
+    if source.trim().is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut start = 0;
+    separators(source, ",")
+        .chain(std::iter::once(source.len()))
+        .map(|end| {
+            let argument = parse_expression(&source[start..end], depth + 1);
+            start = end + 1;
+            argument
+        })
+        .collect()
 }
 
 pub(super) fn expression_value(expression: &str) -> ViewResult<Expression> {
@@ -192,6 +209,32 @@ pub(super) fn parse_expression(expression: &str, depth: usize) -> ViewResult<Exp
         && !literal.contains(['\'', '\\'])
     {
         return Ok(Expression::Value(ViewValue::String(literal.to_owned())));
+    }
+    // 成员调用按通用语法解析；具体方法由接收对象负责，不在解析器维护服务方法清单。
+    if !expression.starts_with("request()")
+        && let Some(index) = separators(expression, "->").last()
+    {
+        let call = &expression[index + 2..];
+        if let Some(open) = call.find('(')
+            && let Some(arguments) = call[open + 1..].strip_suffix(')')
+            && identifier(call[..open].trim())
+        {
+            return Ok(Expression::Method(
+                Box::new(parse_expression(&expression[..index], depth + 1)?),
+                call[..open].trim().to_owned(),
+                parse_arguments(arguments, depth)?,
+            ));
+        }
+    }
+    if let Some(arguments) = expression
+        .strip_prefix("app(")
+        .and_then(|v| v.strip_suffix(')'))
+    {
+        let arguments = parse_arguments(arguments, depth)?;
+        if arguments.len() > 2 {
+            return Err(invalid("app 最多接受服务名与构造参数两个参数。"));
+        }
+        return Ok(Expression::Application(arguments));
     }
     if let Some(translation) = super::translations::Translation::parse(expression, depth)? {
         return Ok(Expression::Translation(Box::new(translation)));
@@ -489,6 +532,37 @@ fn evaluate_with<'a>(
             Evaluated::Json(Cow::Owned(translation.evaluate(data, bindings)?))
         }
         Expression::Helper(helper) => Evaluated::Json(Cow::Owned(helper.evaluate(data, bindings)?)),
+        Expression::Application(arguments) => {
+            let arguments = arguments
+                .iter()
+                .map(|argument| value(argument, data, bindings).map(Cow::into_owned))
+                .collect::<ViewResult<Vec<_>>>()?;
+            crate::view::object::validate_arguments(&arguments)?;
+            let application = crate::view::object::application()?;
+            let value = if arguments.is_empty() || arguments[0].is_null() {
+                application
+            } else {
+                let ViewValue::Instance(object) = application else {
+                    unreachable!()
+                };
+                crate::view::request_data::call_object(&object, "make", arguments)?
+            };
+            Evaluated::Json(Cow::Owned(value))
+        }
+        Expression::Method(receiver, method, arguments) => {
+            let receiver = value(receiver, data, bindings)?;
+            let ViewValue::Instance(object) = receiver.as_ref() else {
+                return Err(render_error("Blade 方法调用需要服务对象。"));
+            };
+            let arguments = arguments
+                .iter()
+                .map(|argument| value(argument, data, bindings).map(Cow::into_owned))
+                .collect::<ViewResult<Vec<_>>>()?;
+            Evaluated::Json(Cow::Owned(crate::view::request_data::call_object(
+                object, method, arguments,
+            )?))
+        }
+
         Expression::Value(v) => Evaluated::Json(Cow::Borrowed(v)),
         Expression::Array(entries) => {
             Evaluated::Json(Cow::Owned(evaluate_array(entries, data, bindings)?))
@@ -740,5 +814,6 @@ pub(super) fn truthy(value: &ViewValue) -> bool {
         ViewValue::String(value) => !value.is_empty() && value != "0",
         ViewValue::Array(value) => !value.is_empty(),
         ViewValue::Object(value) => !value.is_empty(),
+        ViewValue::Instance(_) => true,
     }
 }

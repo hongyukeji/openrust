@@ -67,11 +67,49 @@ HTTP views can read the current request and loaded configuration directly, witho
 
 `request()->` and `Request::` support `query`, `input`, `header`, `path`, `getPathInfo`, `getBaseUrl`, `url`, `fullUrl`, `method` and `secure`. `query()` returns all query parameters; a single key reads the top-level query bag. `input()` combines body and query input, supports dotted paths and gives body keys precedence. Both accept a key and missing-value default. `header` requires a name and accepts a missing-value default. `path()` trims surrounding slashes (the root remains `/`); `getPathInfo()` preserves the leading slash and encoding. `getBaseUrl()` returns the deployment prefix separately. Other methods take no arguments. Default HTML escaping still applies.
 
-Request reads use the live request during HTTP response rendering. Includes, components and cached templates share that request, while separate requests and applications remain isolated. Offline rendering cannot read Request; configuration reads also require an application scope. Templates expose only these read calls: they do not return arbitrary mutable `request()` or `config()` objects, write configuration, mutate requests or execute arbitrary PHP methods. Use `app()->currentLocale()` for the actual application locale; request headers do not represent the final selection.
+Request reads use the live request during HTTP response rendering. Includes, components and cached templates share that request, while separate requests and applications remain isolated. Offline rendering cannot read Request; configuration reads also require an application scope. These request and configuration helpers expose the read calls listed above; application objects and callable services are described below. Templates do not execute arbitrary PHP. Use `app()->currentLocale()` for the actual application locale; request headers do not represent the final selection.
 
 Blade can read `app()->currentLocale()` and `app()->getLocale()` directly; both return the current application locale, including downstream changes. `Application::VERSION` and `Application::REPOSITORY` expose framework package metadata. The OpenRust request extension `request()->localeSelection()` (also `Request::localeSelection()`) returns the middleware's selection state, or `null` when it did not run. Its `supported`, `preference`, `from_query`, `query_parameter` and `can_store` fields describe switching capabilities rather than the final locale. These values need no controller parameters:
 
-`app()->currentLocale()` and `app()->getLocale()` read the current application locale; `app()->isLocale('zh-Hans')` checks it and `app()->version()` returns the framework version. The application version remains `config('app.version')`. These calls use the current application and locale scope in includes, components and cached templates. Existing App Facade calls remain available. Template `app()` supports these read calls, not arbitrary container resolution such as `app('service')`, returning the application object, or mutation methods.
+### Application and Container {#application-and-container}
+
+`app()` and `app(null)` return the current application object. `app('service')` and `app()->make('service')` resolve a named service through the existing container, including aliases, scoped bindings and deferred providers. `app('service', ['name' => 'value'])` and `app()->makeWith('service', ['name' => 'value'])` pass constructor overrides. Parameters must be arrays; strings, booleans, integers and floats retain their Rust scalar types, while compound values remain `ViewValue`. There is no second service container.
+
+```blade
+{{ app()->currentLocale() }}
+{{ app()->version() }}
+{{ app('config')->get('app.name') }}
+@include('footer', ['application' => app()])
+```
+
+Application calls include `getLocale`, `currentLocale`, `isLocale`, `getFallbackLocale`, `version`, `environment`, `basePath`, `publicPath`, `storagePath`, `configurationIsCached`, `routesAreCached`, `runningUnitTests`, `bound`, `has`, `resolved`, `isShared`, `make` and `makeWith`. Application version remains `config('app.version')`. Configuration services expose their existing `get`, `has`, `all`, `set`, `push` and `prepend` methods. `setLocale` and `setFallbackLocale` delegate to the application; locale events and error propagation are preserved. Keep business writes in controllers or services.
+
+Rust has no PHP method reflection. A custom service implements `ViewObject`, then uses an ordinary container binding to `dyn ViewObject`, or its existing class descriptor adds `class_projection!(MyService => dyn ViewObject)`. This projection preserves the actual instance and its lifetime. No compiler changes are needed for each service. A small service can be declared as follows:
+
+```rust
+use std::sync::Arc;
+use openrust::view::{ViewError, ViewObject, ViewResult, ViewValue};
+
+struct Greeting;
+impl ViewObject for Greeting {
+    fn call(&self, method: &str, arguments: &[ViewValue]) -> ViewResult<ViewValue> {
+        match (method, arguments) {
+            ("message", []) => Ok("Hello".into()),
+            _ => Err(ViewError::InvalidName),
+        }
+    }
+}
+// In a provider, using the existing Container trait:
+// app.container().instanceNamed::<dyn ViewObject>("greeting", Arc::new(Greeting))?;
+```
+
+```blade
+{{ app('greeting')->message() }}
+```
+
+Objects support method chains, variables, includes and component properties; outputs retain Blade escaping. Unknown services, unexposed methods and invalid argument types fail rendering. Objects cannot be printed or JSON-encoded directly. Compiled templates cache expressions, never resolved service instances. Instances retained after a request cannot be called from another request or application.
+
+HTTP rendering uses the existing asynchronous request bridge for async factories and `ViewObject::callAsync`; its default delegates to `call`. Offline rendering supports synchronous resolution and calls inside an active application scope. Async-only services and language switching require HTTP rendering. This is a Rust adaptation of container access, not an arbitrary PHP executor or automatic exposure of every Rust method.
 
 `Config::string(key)` requires an existing string value; missing keys, null and other types are errors.
 

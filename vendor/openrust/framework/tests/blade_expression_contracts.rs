@@ -186,7 +186,6 @@ fn unsupported_php_runtime_syntax_fails_compilation_but_literals_and_unknown_dir
     for (i, source) in [
         "{{ strtoupper($name) }}",
         "{{ $callback($name) }}",
-        "{{ $model->method() }}",
         "{{ $$name }}",
         "{{ [&$name] }}",
         "{{ [...&$items] }}",
@@ -209,6 +208,23 @@ fn unsupported_php_runtime_syntax_fails_compilation_but_literals_and_unknown_dir
             !compiler.getCompiledPath(&path).unwrap().exists(),
             "{source}"
         );
+    }
+    // 方法语法可以编译；未适配为 ViewObject 的普通数据在调用时明确失败。
+    let method = root.write("plain_method", "{{ $model->method() }}");
+    compiler.compile(&method).unwrap();
+    for model in [
+        ViewValue::Null,
+        "plain".into(),
+        serde_json::json!({"method":"value"}).into(),
+    ] {
+        assert!(matches!(
+            compiler.render(
+                &method,
+                "{{ $model->method() }}",
+                &ViewData::from_iter([("model".into(), model)])
+            ),
+            Err(ViewError::RenderFailed(_))
+        ));
     }
     assert_eq!(
         compiler
