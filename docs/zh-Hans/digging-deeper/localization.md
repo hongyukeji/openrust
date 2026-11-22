@@ -69,7 +69,7 @@ OpenRust 的默认全局中间件栈包含 `openrust::http::middleware::SetLocal
 
 原先应用中的 `SetLocale` 文件和 `append` 注册应移除，避免重复执行；需要关闭识别时改用上述空列表设置。
 
-欢迎页的 HTML `lang` 与 `Content-Language` 使用应用当前语言。文案和链接直接在 Blade 中翻译，缺失词条由译器按配置回退。在 `lang/*/welcome.json` 中设置 `documentation_url`、`deployment_url`，即可为各语言指定文档链接，增加语言不需要修改控制器。例如关闭识别后，`APP_LOCALE=fr`、`APP_FALLBACK_LOCALE=en` 时，缺失的法文词条使用英文文案和链接，应用及页面语言仍为 `fr`。请在当前语言或配置的回退语言中提供词条；两者均缺失时遵循普通翻译缺键行为。
+欢迎页的 HTML `lang` 与 `Content-Language` 使用应用当前语言，显示文案按配置进行翻译回退。仓库地址来自框架包元信息，模板使用应用当前语言拼接文档路径。默认的 `en`、`zh-Hans`、`zh-Hant` 均有对应文档目录。关闭识别并设置 `APP_LOCALE=fr` 时，文案可以回退到英文，但文档链接仍指向仓库未提供的 `docs/fr`。使用其他应用语言时，请提供对应文档或定制欢迎页模板。
 
 ### 在 Blade 中翻译 {#blade-translations}
 

@@ -69,7 +69,7 @@ OpenRust 的預設全域中介軟體堆疊包含 `openrust::http::middleware::Se
 
 原先應用程式中的 `SetLocale` 檔案與 `append` 註冊應移除，避免重複執行；需要關閉辨識時改用上述空清單設定。
 
-歡迎頁的 HTML `lang` 與 `Content-Language` 使用應用程式目前語言。文案和連結直接在 Blade 中翻譯，缺少的詞條由譯器依設定備援。在 `lang/*/welcome.json` 中設定 `documentation_url`、`deployment_url`，即可為各語言指定文件連結，新增語言不需要修改控制器。例如关闭识别后，`APP_LOCALE=fr`、`APP_FALLBACK_LOCALE=en` 時，缺少的法文詞條使用英文文案和連結，應用程式及頁面語言仍為 `fr`。請在目前語言或設定的備援語言中提供詞條；兩者均缺少時遵循一般翻譯缺鍵行為。
+歡迎頁的 HTML `lang` 與 `Content-Language` 使用應用程式目前語言，顯示文案依設定進行翻譯備援。儲存庫網址來自框架套件中繼資料，範本使用應用程式目前語言組合文件路徑。預設的 `en`、`zh-Hans`、`zh-Hant` 均有對應文件目錄。關閉辨識並設定 `APP_LOCALE=fr` 時，文案可以備援至英文，但文件連結仍指向儲存庫未提供的 `docs/fr`。使用其他應用程式語言時，請提供對應文件或自訂歡迎頁範本。
 
 ### 在 Blade 中翻譯 {#blade-translations}
 

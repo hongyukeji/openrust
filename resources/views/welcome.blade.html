@@ -324,19 +324,19 @@ THE SOFTWARE.
                 <ul class="steps">
                     <li>
                         <span class="step-dot" aria-hidden="true"></span>
-                        <span>{{ __('welcome.read') }} <a class="text-link" href="{{ __('welcome.documentation_url') }}">{{ __('welcome.documentation') }} <span class="arrow" aria-hidden="true">↗</span></a></span>
+                        <span>{{ __('welcome.read') }} <a class="text-link" href="{{ $repository }}/blob/master/docs/{{ $language }}/README.md">{{ __('welcome.documentation') }} <span class="arrow" aria-hidden="true">↗</span></a></span>
                     </li>
                     <li>
                         <span class="step-dot" aria-hidden="true"></span>
-                        <span>{{ __('welcome.explore') }} <a class="text-link" href="https://github.com/hongyukeji/openrust">{{ __('welcome.source') }} <span class="arrow" aria-hidden="true">↗</span></a></span>
+                        <span>{{ __('welcome.explore') }} <a class="text-link" href="{{ $repository }}">{{ __('welcome.source') }} <span class="arrow" aria-hidden="true">↗</span></a></span>
                     </li>
                 </ul>
 
-                <a class="button" href="{{ __('welcome.deployment_url') }}">{{ __('welcome.deployment') }}</a>
+                <a class="button" href="{{ $repository }}/blob/master/docs/{{ $language }}/getting-started/deployment.md">{{ __('welcome.deployment') }}</a>
 
                 <p class="release">
                     {{ $name }} v{{ $version }}
-                    <a class="text-link" href="https://github.com/hongyukeji/openrust/blob/master/CHANGELOG.md">{{ __('welcome.changelog') }} <span class="arrow" aria-hidden="true">↗</span></a>
+                    <a class="text-link" href="{{ $repository }}/blob/master/CHANGELOG.md">{{ __('welcome.changelog') }} <span class="arrow" aria-hidden="true">↗</span></a>
                 </p>
             </section>
             <div class="artwork" aria-hidden="true">

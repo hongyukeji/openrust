@@ -351,6 +351,8 @@ fn facades_keep_concurrent_applications_isolated() {
                         view("welcome")
                             .with("name", "first")
                             .with("version", "test")
+                            .with("repository", Application::REPOSITORY)
+                            .with("language", "en")
                     })
                 },
                 || {
@@ -371,6 +373,8 @@ fn facades_keep_concurrent_applications_isolated() {
                         view("welcome")
                             .with("name", "second")
                             .with("version", "test")
+                            .with("repository", Application::REPOSITORY)
+                            .with("language", "en")
                     })
                 },
                 || {

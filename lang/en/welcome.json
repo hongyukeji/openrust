@@ -6,7 +6,5 @@
   "explore": "Explore the",
   "source": "Source code",
   "deployment": "Deployment guide",
-  "changelog": "View changelog",
-  "documentation_url": "https://github.com/hongyukeji/openrust/blob/master/docs/en/README.md",
-  "deployment_url": "https://github.com/hongyukeji/openrust/blob/master/docs/en/getting-started/deployment.md"
+  "changelog": "View changelog"
 }

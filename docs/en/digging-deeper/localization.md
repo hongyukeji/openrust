@@ -69,7 +69,7 @@ Before dispatching downstream, the middleware calls `App::setLocale`, updating c
 
 Remove the previous application `SetLocale` file and its `append` registration to avoid duplicate execution. Use the empty-list setting above to disable detection.
 
-The welcome page uses the current application locale for HTML `lang` and `Content-Language`. Each text and link is translated directly in Blade, with missing entries resolved by the configured fallback. Set `documentation_url` and `deployment_url` in `lang/*/welcome.json` to choose the documentation links for each language. Adding another language does not require changing the controller. For example, with detection disabled and `APP_LOCALE=fr` and `APP_FALLBACK_LOCALE=en`, missing French entries use English text and links while the application and page locale remain `fr`. Provide the entries in the selected language or its configured fallback; a key missing from both follows the usual missing-translation behavior.
+The welcome page uses the current application locale for HTML `lang` and `Content-Language`. Display text uses the configured translation fallback. Repository links use the framework package metadata, and the template builds documentation paths with the current application locale. The default `en`, `zh-Hans`, and `zh-Hant` locales have matching documentation directories. If detection is disabled and `APP_LOCALE=fr`, text may fall back to English, but documentation links still point to `docs/fr`, which is not included. For another application locale, provide the corresponding documentation or customize the welcome template.
 
 ### Translating in Blade {#blade-translations}
 

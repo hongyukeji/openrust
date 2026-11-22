@@ -352,3 +352,33 @@ Rust 1.94.0，所有临时源码、参考、日志、测试文件和浏览器材
 首次复验先后暴露最小配置和父配置替换500、默认识别改变精确配置语言、CORS新增Vary预期及缺少MySQL验收环境。前两项修实现，精确语言夹具只显式关闭浏览器识别且保留断言，CORS按新默认头增加断言；缺服务明确记未验。早期公开API夹具另有编译错误，不能作为有效行为失败；完整尝试退出码见本批 `results.jsonl`。本轮补充的配置、视图、Kernel、页面和生命周期回归已通过，不凭关键词消失关闭问题。
 
 本轮没有改变共享数据库、缓存或队列引擎，未操作开发／生产数据及卷；未复验PostgreSQL／MySQL、Redis及Cluster专项、官方Precognition前端、Windows、Docker镜像、独立发布部署或完整上游PHPUnit，不将它们计为通过。默认语言接入只在HTTP Kernel，Console／Worker不自动装配HTTP中间件；SQLite实际Worker及既有语言作用域测试继续通过。最终源码与快照对账见本批 `closure.json`，仅内部验收记录在结果补录后同步；验收结束时HEAD为 `8e2810911`，索引为空。2026-11-22 用户随后授权本轮代码、测试、三语文档及项目记录暂存和本地提交，不包含推送或发布；提交前再次核对3,738项验收输入一致，仅补录本段及当前交接的Git授权。协作者的todo与framework-parity计划保留，不纳入本轮提交。
+
+
+## 仓库元信息与欢迎页链接调整（2026-11-22）
+
+本节按用户最新决定覆盖此前“URL 通过语言资源逐键回退”的欢迎页约定；历史记录保留其当时语义。`Application::REPOSITORY` 为 OpenRust 扩展，紧邻 VERSION，直接使用框架 crate 的 `env!("CARGO_PKG_REPOSITORY")`。框架清单已有仓库字段，无新增访问方法、依赖或重复地址。控制器只增加 repository 数据，复用现有 currentLocale；模板用默认转义拼接文档、部署、源码及更新日志链接，页面路径仍归模板。
+
+调研：联网核对 Cargo 官方 environment-variables.html 的 CARGO_PKG_REPOSITORY（值来自当前包清单），固定 Laravel 1449bf241017087fbd38c118ecaabef3f6797fdc 的 Foundation/Application.php 仅有 VERSION/version 对应职责，不声称存在同名仓库常量。沿用现有 Blade 转义与 HTTP Kernel 消费者，不引入管理器。旧版 welcome_controller 路径未提供可复用实现，本次复用当前页面调用链。
+
+三语 welcome.json 仅保留显示文案，删除 URL 词条；应用、视图、资源、测试及开发者正文中无 documentation_url／deployment_url／documentation_path／deployment_path 剩余消费者。三语 localization 正文和项目规范同步。两处真实模板 console 夹具补 repository，保留原有 language。其他协作者的 MessageBag API 调整原样保留。
+
+验收使用 Rust 1.94.0；临时文件、日志在 `target/tmp/welcome-repository-20261122/`，复用本流程空闲独占 `target/tmp/framework-version-20261122/cargo-target/`，设置项目内 TMPDIR，保留增量和正常并发。详细命令与退出码见 results.jsonl：
+
+| 验证 | 实际结果 |
+| --- | --- |
+| 最新工作区隔离快照：`cargo +1.94.0 test --locked --test welcome --test console --test startup --test framework_version` | 48 项通过；welcome 12项含完整四链接、现有路径、文案缺键回退、转义、并发与非三语边界 |
+| 同一最新快照：`cargo +1.94.0 test --locked -p openrust-framework --test application_version --test application_locale --test set_locale_middleware` | 29 项通过，含框架清单仓库来源／无尾斜线、现有回调、实例隔离和路由组顺序 |
+| 真实 HTTP Kernel + Chromium | 44组合通过，三语／地区别名及关闭识别 × 桌面手机 × 明暗；四链接、HTML／HTTP语言、翻译、布局和无页面异常通过。默认三语路径存在，fr 路径不存在按预期单列；人工检查简中手机截图 |
+| 范围隔离快照：`cargo +1.94.0 fmt --all --check`、`cargo +1.94.0 clippy --workspace --all-targets --locked -- -D warnings` | 最终通过。排除其他未交付 WIP；不能扩展为全部协作者代码质量已通过。当前实际修改 Rust 文件另行 rustfmt --check 通过 |
+| 三语文档 | 内容检查、npm --prefix docs run build、check_browser.mjs（12组合）、check_scope.mjs（根路径和/docs/三语全导航）通过 |
+| 最终源码一致性 | 本轮12个交付源码／测试／正文文件与最新工作区验收快照逐字节一致；closure.json 记录范围。内部记录不参与运行时编译 |
+
+初次文档构建因隔离快照未连接已安装 node_modules 失败，复用项目依赖后重跑通过。首次质量检查与一次性浏览器夹具写入碰撞，夹具包含未格式化/type_complexity代码；浏览器验收结束删除夹具后重跑 fmt／严格 Clippy 通过，不改生产实现掩盖失败。范围隔离旧 MessageBag 夹具临时适配旧 API，仅用于排除其他 WIP；随后最新工作区原样快照的77项测试通过，最终代码未恢复旧API。
+
+边界：默认候选 en、zh-Hans、zh-Hant 对应真实文档目录。关闭识别并配置 APP_LOCALE=fr、自定义候选含fr或下游主动切换fr，均可使当前语言为fr；译文可按配置回退，但链接仍为docs/fr（目录不存在）。按本次要求不改变语言选择、不做链接语言回退；应用需要自行提供对应文档或定制模板。未操作开发数据，未重新验收Docker／Windows／release发布；本轮未授权暂存、提交或推送。
+
+
+收尾磁盘检查触及32 GB停线；同时进行的 framework-parity 工作流已在无Cargo进程、取得排他锁并保留inode后完成本轮项目编译产物清理，包含本流程framework-version缓存及文档dist/cache。已核对并复用该清理结果，不重复删除IDE恢复后新建缓存；本轮净释放63.52 GB（59.15 GiB），清理证据见本批cleanup-observed.json及其引用的disk-cleanup-content.json，源码／日志／截图保留。随后复查可用空间超过90 GB。本轮全部测试和页面验收在清理前完成，产物清理不改交付源码。
+
+
+2026-11-22 用户随后授权本轮本地提交，不包含推送。提交按文件片段隔离欢迎页仓库元信息改动；VERSION／version、SetLocale回调及其他协作者在途功能不纳入本次提交。仓库元信息回归只暂存对应测试函数，其余版本测试原样保留在工作区；MessageBag新API调整也保留未提交。上述77项属于当时完整源码组合的关联验证，不表述为其他在途功能已提交。

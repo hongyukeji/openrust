@@ -6,7 +6,5 @@
   "explore": "查看",
   "source": "專案原始碼",
   "deployment": "部署指南",
-  "changelog": "查看更新日誌",
-  "documentation_url": "https://github.com/hongyukeji/openrust/blob/master/docs/zh-Hant/README.md",
-  "deployment_url": "https://github.com/hongyukeji/openrust/blob/master/docs/zh-Hant/getting-started/deployment.md"
+  "changelog": "查看更新日誌"
 }

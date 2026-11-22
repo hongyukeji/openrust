@@ -96,6 +96,9 @@ const FAILED: u8 = 1;
 const BOOTED: u8 = 2;
 
 impl Application {
+    /// 框架源码仓库。
+    pub const REPOSITORY: &'static str = env!("CARGO_PKG_REPOSITORY");
+
     fn run_lifecycle(&self, phase: usize) -> Result<(), BootstrapError> {
         let callbacks =
             std::mem::take(&mut self.shared.lifecycle.lock().expect("应用生命周期锁中毒")[phase]);
