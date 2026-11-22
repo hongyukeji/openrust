@@ -103,6 +103,16 @@ C21已实现 `withGlobalScope`、`withoutGlobalScopesExcept`、`removedScopes`�
 
 来源为固定Framework v13.40.0 Builder.php/SoftDeletingScope.php；本地旧版v0.x的Model元数据与Query使用不同SeaQuery装配，查阅后未直接搬入。联网raw读取仍为空，采用既有固定源码与真实PHP oracle，不宣称新增联网验证。`getQuery`/`applyScopes`用消费所有权代替PHP共享对象/隐式克隆，工厂返回框架typed Builder而非任意运行期派生类；应用额外方法用Rust trait/wrapper，文档已明确。动态Model静态scope注册/宏等全域不据此冒称完成。C20分类bindings独立未实现，此批未依赖其公开API，未把依赖状态改成已交付。
 
+## 严格属性与关联更新时间（2026-11-23）
+
+C23补 shouldBeStrict、三项prevent策略、丢弃/缺失处理钩子及 withoutTouching/withoutTouchingOn/isIgnoringTouch，沿用应用容器、现有属性转换、模型水合与关联touch路径。严格配置按应用和模型类型隔离，显式传入app；类型化钩子替代PHP共享静态回调。原生/枚举缺失读取、访问器、SQL NULL、新建/最近创建实例及处理器返回值按固定源码执行。getAttribute/getRawOriginal保留原始Option低层接口；严格读取使用getAttributeValue/getEnum，这些签名与静态配置差异不称为字面1:1。多模型水合在Retrieved之后记录lazy策略快照，单模型不自动设置，已水合实例保留原策略。
+
+真实PHP8.5.12/PDO SQLite生成51项参考，50项对应一致行为，1项记录有意差异：同类型嵌套withoutTouching的固定上游结果为[true,true,false,false]，Rust恢复外层作用域为[true,true,true,false]。任务局部上下文在Future轮询时继承，并在成功、Err、panic、取消后恢复；并发任务不串扰。抑制的是目标模型关联时间戳，仍保存子模型并派发owner Saved及遍历后续关联。此项修复式适配已明确保留，不能把C23记成全部行为相同。
+
+批量fill按字段顺序执行；后续setter失败保留前面成功赋值，四份旧模型/强制填充/哈希/加密测试原有整次回滚断言已按真实PHP参考纠正，单个setter失败原子性仍验。最终5目标13项通过，其中无变量的MySQL专项目标早退不计真实库；此前其余事件/factory/主键181参考/多态/关系默认线程栈/路由/作用域/写入回归已通过。SQLite、隔离PostgreSQL18.7、MySQL8.4.13各实际执行严格策略与touch集成；MySQL另实际通过模型完整持久化、哈希、加密及HTTP forceFill四项。fmt、workspace/all-targets严格Clippy、三语build/browser/scope通过；第三方imgalifier-avif既有cfg警告不等于依赖安全审计通过。首轮旧断言失败已保留日志，未冒称通过。
+
+来源：固定Framework13.40.0 Model.php/HasAttributes.php/Builder.php、既有转换与事件实现；旧版v0.x元数据/SeaQuery装配不同未直接搬入。联网raw依然无内容，采用现有固定源码与真实PHP oracle，不宣称新增联网验证。源码/参考见tests/eloquent_strictness.rs与tests/reference/eloquent-strictness.php/json；证据位于target/tmp/framework-parity-20261122/strict-{eighth,sixth,postgres,mysql,mysql-models}.log、strict-reference-final.json、fmt-strict.log、clippy-strict.log及docs-*-strict.log。C20及更广泛公开API裁决仍未完成。
+
 ## 目标与依据
 
 按固定上游逐项补齐可实现的目录、命名、公开接口、默认值、装配顺序、生命周期和错误行为。Rust 必要适配与用户确认的额外功能单独登记，保留可追溯的差异；不能把这些差异删除后称为完成，也不能将其算作字面 1:1。

@@ -206,7 +206,7 @@ async fn verify(config: Json) {
     ));
     wrong_key.setVisible(&["id"]);
     assert_eq!(wrong_key.toJson().unwrap(), r#"{"id":1}"#);
-    let before = wrong_key.state().getAttributes().clone();
+    let mut before = wrong_key.state().getAttributes().clone();
     assert!(matches!(
         wrong_key.fill(Attributes::from([
             ("plain->a".into(), 1.into()),
@@ -214,6 +214,20 @@ async fn verify(config: Json) {
         ])),
         Err(DatabaseError::AttributeDecryption(_))
     ));
+    // 后续加密字段失败不会撤销已经完成的JSON路径赋值。
+    let reference: Json =
+        serde_json::from_str(include_str!("reference/eloquent-strictness.json")).unwrap();
+    before.insert(
+        "plain".into(),
+        Value::Json(
+            serde_json::from_str(
+                reference["fill_json_setter_failure"]["plain"]
+                    .as_str()
+                    .unwrap(),
+            )
+            .unwrap(),
+        ),
+    );
     assert_eq!(wrong_key.state().getAttributes(), &before);
     verify_json_edits(&mut rotating);
     rotating

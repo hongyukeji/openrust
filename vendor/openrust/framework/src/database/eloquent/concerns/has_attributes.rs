@@ -26,6 +26,7 @@ pub struct ModelState {
         Option<super::super::relations::custom_pivot::PivotIdentity>,
     pub(in crate::database::eloquent) exists: bool,
     pub(in crate::database::eloquent) was_recently_created: bool,
+    pub(in crate::database::eloquent) prevent_lazy_loading: bool,
 }
 
 #[allow(non_snake_case, reason = "Matches Laravel's model attribute API")]

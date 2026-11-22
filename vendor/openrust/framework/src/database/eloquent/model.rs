@@ -298,7 +298,78 @@ pub trait Model: Sized + Send + Sync + 'static {
 
     /// Prevents implicit single-model relationship queries during access.
     fn preventsLazyLoading(&self) -> bool {
-        false
+        self.state().prevent_lazy_loading
+    }
+
+    /// 配置当前应用中本模型类型的严格策略，适合在应用启动时设置。
+    fn shouldBeStrict(
+        app: &crate::foundation::Application,
+        shouldBeStrict: bool,
+    ) -> DatabaseResult<()> {
+        super::strictness::configure::<Self>(app, |policy| {
+            policy.lazy_loading = shouldBeStrict;
+            policy.discarded_attributes = shouldBeStrict;
+            policy.missing_attributes = shouldBeStrict;
+        })
+    }
+
+    fn preventLazyLoading(app: &crate::foundation::Application, value: bool) -> DatabaseResult<()> {
+        super::strictness::configure::<Self>(app, |policy| policy.lazy_loading = value)
+    }
+
+    fn preventSilentlyDiscardingAttributes(
+        app: &crate::foundation::Application,
+        value: bool,
+    ) -> DatabaseResult<()> {
+        super::strictness::configure::<Self>(app, |policy| policy.discarded_attributes = value)
+    }
+
+    fn preventAccessingMissingAttributes(
+        app: &crate::foundation::Application,
+        value: bool,
+    ) -> DatabaseResult<()> {
+        super::strictness::configure::<Self>(app, |policy| policy.missing_attributes = value)
+    }
+
+    fn preventsSilentlyDiscardingAttributes(&self) -> bool {
+        super::strictness::policy(self).discarded_attributes
+    }
+
+    fn preventsAccessingMissingAttributes(&self) -> bool {
+        super::strictness::policy(self).missing_attributes
+    }
+
+    /// 可覆盖此钩子记录被丢弃的字段；返回成功会允许本次丢弃。
+    fn handleDiscardedAttributeViolationUsing(
+        &mut self,
+        _keys: &[String],
+        violation: DatabaseError,
+    ) -> DatabaseResult<()> {
+        Err(violation)
+    }
+
+    /// 可覆盖此钩子为缺失属性提供值或记录诊断。
+    fn handleMissingAttributeViolationUsing(
+        &self,
+        _key: &str,
+        violation: DatabaseError,
+    ) -> DatabaseResult<Option<Value>> {
+        Err(violation)
+    }
+
+    fn withoutTouching<F: Future>(work: F) -> impl Future<Output = F::Output> {
+        super::touches::without_touching(&[std::any::TypeId::of::<Self>()], work)
+    }
+
+    fn withoutTouchingOn<F: Future>(
+        models: &[std::any::TypeId],
+        work: F,
+    ) -> impl Future<Output = F::Output> + use<F, Self> {
+        super::touches::without_touching(models, work)
+    }
+
+    fn isIgnoringTouch() -> bool {
+        Self::metadata().updated_at.is_none() || super::touches::is_ignoring::<Self>()
     }
 
     /// Handles a prohibited lazy access. Returning success permits the query.
@@ -536,21 +607,33 @@ pub trait Model: Sized + Send + Sync + 'static {
     }
 
     fn fill(&mut self, attributes: Attributes) -> DatabaseResult<&mut Self> {
-        let incoming = concerns::guards_attributes::fill(attributes, Self::metadata())?;
-        if incoming.is_empty() {
-            return Ok(self);
+        let mut discarded = Vec::new();
+        for (name, value) in attributes {
+            if concerns::guards_attributes::is_fillable(&name, Self::metadata()) {
+                self.setAttributeValue(&name, value)?;
+            } else if Self::metadata().fillable.is_empty() {
+                if concerns::guards_attributes::totally_guarded(Self::metadata())
+                    || self.preventsSilentlyDiscardingAttributes()
+                {
+                    self.handleDiscardedAttributeViolationUsing(
+                        std::slice::from_ref(&name),
+                        DatabaseError::MassAssignment(name.clone()),
+                    )?;
+                }
+            } else {
+                discarded.push(name);
+            }
         }
-        let state = self.state();
-        let mut attributes = state.attributes.clone();
-        let connection = state.connection.as_ref();
-        for (name, value) in incoming {
-            casts::write::<Self>(&mut attributes, name, value, connection, &state.casts)?;
+        if self.preventsSilentlyDiscardingAttributes() && !discarded.is_empty() {
+            self.handleDiscardedAttributeViolationUsing(
+                &discarded,
+                DatabaseError::MassAssignment(discarded.join(", ")),
+            )?;
         }
-        self.state_mut().replace_attributes(attributes);
         Ok(self)
     }
 
-    /// Mass-assigns attributes, including plaintext values for hashed casts.
+    /// 批量赋值保留异步转换器，并按字段赋值顺序处理保护策略。
     fn fillAsync(
         &mut self,
         attributes: Attributes,
@@ -562,18 +645,29 @@ pub trait Model: Sized + Send + Sync + 'static {
             {
                 return self.fill(attributes);
             }
-            let incoming = concerns::guards_attributes::fill(attributes, Self::metadata())?;
-            if incoming.is_empty() {
-                return Ok(self);
+            let mut discarded = Vec::new();
+            for (name, value) in attributes {
+                if concerns::guards_attributes::is_fillable(&name, Self::metadata()) {
+                    self.setAttributeValueAsync(&name, value).await?;
+                } else if Self::metadata().fillable.is_empty() {
+                    if concerns::guards_attributes::totally_guarded(Self::metadata())
+                        || self.preventsSilentlyDiscardingAttributes()
+                    {
+                        self.handleDiscardedAttributeViolationUsing(
+                            std::slice::from_ref(&name),
+                            DatabaseError::MassAssignment(name.clone()),
+                        )?;
+                    }
+                } else {
+                    discarded.push(name);
+                }
             }
-            let state = self.state();
-            let mut attributes = state.attributes.clone();
-            let connection = state.connection.as_ref();
-            for (name, value) in incoming {
-                casts::write_async::<Self>(&mut attributes, name, value, connection, &state.casts)
-                    .await?;
+            if self.preventsSilentlyDiscardingAttributes() && !discarded.is_empty() {
+                self.handleDiscardedAttributeViolationUsing(
+                    &discarded,
+                    DatabaseError::MassAssignment(discarded.join(", ")),
+                )?;
             }
-            self.state_mut().replace_attributes(attributes);
             Ok(self)
         }
     }
@@ -597,12 +691,44 @@ pub trait Model: Sized + Send + Sync + 'static {
 
     /// Reads through the model accessor or cast.
     fn getAttributeValue(&self, column: &str) -> DatabaseResult<Option<Value>> {
-        casts::read::<Self>(self.state(), column)
+        let state = self.state();
+        if state.exists
+            && !state.was_recently_created
+            && self.preventsAccessingMissingAttributes()
+            && !state.attributes.contains_key(column)
+            && casts::guards_missing::<Self>(state, column)
+        {
+            let fallback = self.handleMissingAttributeViolationUsing(
+                column,
+                DatabaseError::MissingAttribute {
+                    model: std::any::type_name::<Self>(),
+                    attribute: column.into(),
+                },
+            )?;
+            if casts::cast_for::<Self>(column, &state.casts).is_none() {
+                return Ok(fallback);
+            }
+        }
+        casts::read::<Self>(state, column)
     }
 
     /// Reads the Rust case of an attribute declared with an enum cast.
     fn getEnum<E: CastableEnum>(&self, column: &str) -> DatabaseResult<Option<E>> {
         let state = self.state();
+        casts::check_enum::<Self, E>(column, &state.casts)?;
+        if state.exists
+            && !state.was_recently_created
+            && self.preventsAccessingMissingAttributes()
+            && !state.attributes.contains_key(column)
+        {
+            self.handleMissingAttributeViolationUsing(
+                column,
+                DatabaseError::MissingAttribute {
+                    model: std::any::type_name::<Self>(),
+                    attribute: column.into(),
+                },
+            )?;
+        }
         casts::read_enum::<Self, E>(&state.attributes, column, &state.casts)
     }
 

@@ -652,7 +652,18 @@ async fn verify_casts(db: &Connection, mysql: bool) {
             .fill(attrs([("active", "0".into()), ("label", 1.into())]))
             .is_err()
     );
-    assert!(!loaded.state().isDirty());
+    assert!(loaded.state().isDirty());
+    let reference: Json =
+        serde_json::from_str(include_str!("reference/eloquent-strictness.json")).unwrap();
+    assert_eq!(
+        loaded.getAttribute("active"),
+        Some(
+            &reference["fill_cast_setter_failure"]["active"]
+                .as_str()
+                .unwrap()
+                .into()
+        )
+    );
     loaded.setAttributeValue("label", " World ").unwrap();
     loaded.setAttributeValue("options", "text").unwrap();
     loaded
@@ -1361,7 +1372,8 @@ async fn verify_enum_and_class_casts(db: &Connection) {
         Some("world".into())
     );
 
-    let snapshot = loaded.state().getAttributes().clone();
+    let mut snapshot = loaded.state().getAttributes().clone();
+    snapshot.insert("code".into(), "changed".into());
     assert!(
         loaded
             .fill(attrs([

@@ -1,8 +1,6 @@
 use std::future::Future;
 
-use crate::database::{DatabaseError, DatabaseResult};
-
-use super::super::{Attributes, ModelMetadata};
+use super::super::ModelMetadata;
 
 tokio::task_local! {
     static UNGUARDED: ();
@@ -20,32 +18,19 @@ pub(in crate::database::eloquent) fn unguarded_sync<T>(work: impl FnOnce() -> T)
     UNGUARDED.sync_scope((), work)
 }
 
-pub(in crate::database::eloquent) fn fill(
-    incoming: Attributes,
-    metadata: &ModelMetadata,
-) -> DatabaseResult<Attributes> {
-    if is_unguarded() {
-        return Ok(incoming);
+pub(in crate::database::eloquent) fn totally_guarded(metadata: &ModelMetadata) -> bool {
+    metadata.fillable.is_empty() && metadata.guarded == ["*"]
+}
+
+pub(in crate::database::eloquent) fn is_fillable(key: &str, metadata: &ModelMetadata) -> bool {
+    if is_unguarded() || metadata.fillable.contains(&key) {
+        return true;
     }
-    if metadata.fillable.is_empty() && metadata.guarded == ["*"] {
-        if let Some(key) = incoming.keys().next() {
-            return Err(DatabaseError::MassAssignment(key.clone()));
-        }
-        return Ok(incoming);
-    }
-    Ok(incoming
-        .into_iter()
-        .filter(|(key, _)| {
-            if !metadata.fillable.is_empty() {
-                return metadata.fillable.contains(&key.as_str());
-            }
-            let column = key
-                .split_once("->")
-                .map_or(key.as_str(), |(column, _)| column);
-            !metadata.guarded.contains(&key.as_str())
-                && !metadata.guarded.contains(&column)
-                && !key.contains('.')
-                && !key.starts_with('_')
-        })
-        .collect())
+    let column = key.split_once("->").map_or(key, |(column, _)| column);
+    metadata.fillable.is_empty()
+        && !totally_guarded(metadata)
+        && !metadata.guarded.contains(&key)
+        && !metadata.guarded.contains(&column)
+        && !key.contains('.')
+        && !key.starts_with('_')
 }

@@ -164,6 +164,18 @@ async fn copy_without_secret<M: Model>(source: &M) -> DatabaseResult<M> {
 }
 ```
 
+### Strict Attribute Policies
+
+Configure a model's policies for an application at startup with `Flight::shouldBeStrict(&app, true)?`. Use `preventLazyLoading(&app, enabled)`, `preventSilentlyDiscardingAttributes(&app, enabled)`, and `preventAccessingMissingAttributes(&app, enabled)` to configure them individually. Defaults are disabled. Policies belong to an application and model type; a detached model requires an application connection from `newInstanceOn` or an active application context to use them.
+
+Strict mass assignment returns `DatabaseError::MassAssignment` when an attribute is discarded. Fields already assigned remain on the instance. `forceFill`, `forceFillAsync`, and `unguarded` retain their bypass behavior. Override `handleDiscardedAttributeViolationUsing` to handle the discarded names; returning success permits discarding them.
+
+Use `getAttributeValue` for checked attribute reads. A missing attribute on a retrieved model returns `DatabaseError::MissingAttribute` when enabled; an explicitly loaded SQL NULL, an accessor, an unsaved model, or a recently created model follows its normal behavior. Override `handleMissingAttributeViolationUsing` to supply a value for an unknown attribute. For a primitive or enum cast, a successful handler permits the normal null cast. `getAttribute` and `getRawOriginal` remain raw `Option` reads. The lazy loading policy is captured when hydrating a result containing multiple models and is checked by implicit relationship access. Changing the default affects subsequent hydration; explicit model overrides of `preventsLazyLoading` still apply.
+
+### Temporarily Disabling Relationship Touches
+
+`Owner::withoutTouching(work).await` suppresses updates to owners of that model type during the future. To select multiple types, use `Owner::withoutTouchingOn(&[TypeId::of::<Owner>(), TypeId::of::<Team>()], work).await` after importing `std::any::TypeId`. `isIgnoringTouch()` reports whether the model's relationship timestamp updates are disabled, including models without an update timestamp. Saving the child still writes its own attributes and dispatches model events; related Saved events and further owner traversal keep their normal behavior. Nested scopes restore the previous setting after success, errors, panics, or cancellation and are isolated from other tasks.
+
 ## Query Scopes
 
 Implement `Scope<Model>` to reuse a query constraint. Apply it with `withScope`, or register it in the model’s `globalScopes`. Remove a named global scope with `withoutGlobalScope`. This example uses the `Flight` model above and a table with the declared columns and timestamps.

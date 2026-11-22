@@ -83,6 +83,10 @@ pub enum DatabaseError {
     InvalidScalar,
     Pagination(crate::pagination::PaginationError),
     MassAssignment(String),
+    MissingAttribute {
+        model: &'static str,
+        attribute: String,
+    },
     ModelNotFound(&'static str),
     MultipleModelsFound {
         table: &'static str,
@@ -197,7 +201,10 @@ impl std::fmt::Display for DatabaseError {
             Self::MigrationFailed { migration, source } => {
                 write!(formatter, "{migration}: {source}")
             }
-            Self::MassAssignment(name) => write!(formatter, "attribute {name:?} is guarded"),
+            Self::MassAssignment(name) => write!(formatter, "字段 {name:?} 不允许批量赋值"),
+            Self::MissingAttribute { model, attribute } => {
+                write!(formatter, "模型 {model} 未加载属性 {attribute:?}")
+            }
             Self::ModelNotFound(table) => {
                 write!(formatter, "model for table {table:?} was not found")
             }

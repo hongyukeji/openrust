@@ -112,7 +112,7 @@ async fn verify(config: Json, id: &str) {
             .is_err()
     );
     let too_costly = php_bcrypt("reject", 6);
-    let snapshot = account.state().getAttributes().clone();
+    let mut snapshot = account.state().getAttributes().clone();
     assert!(matches!(
         account
             .fillAsync(Attributes::from([
@@ -122,6 +122,16 @@ async fn verify(config: Json, id: &str) {
             .await,
         Err(DatabaseError::AttributeHashing(HashError::InvalidOptions))
     ));
+    // 后续字段转换失败不撤销先前已完成的赋值。
+    let reference: Json =
+        serde_json::from_str(include_str!("reference/eloquent-strictness.json")).unwrap();
+    snapshot.insert(
+        "name".into(),
+        reference["fill_plain_setter_failure"]["name"]
+            .as_str()
+            .unwrap()
+            .into(),
+    );
     assert_eq!(account.state().getAttributes(), &snapshot);
     account.update(password("rotated")).await.unwrap();
     let reloaded = query().findOrFail(key).await.unwrap();

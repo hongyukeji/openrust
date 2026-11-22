@@ -52,6 +52,9 @@ impl ServiceProvider for DatabaseServiceProvider {
             container.singleton::<super::eloquent::ModelEvents, _>(|_| {
                 Ok(Arc::new(super::eloquent::ModelEvents::default()))
             })?;
+            container.singleton::<super::eloquent::ModelPolicies, _>(|_| {
+                Ok(Arc::new(super::eloquent::ModelPolicies::default()))
+            })?;
             container.singleton::<super::eloquent::RelationResolvers, _>(|_| {
                 Ok(Arc::new(super::eloquent::RelationResolvers::default()))
             })?;

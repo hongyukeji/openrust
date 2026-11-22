@@ -547,13 +547,13 @@
         "vendor/openrust/framework/src/database/eloquent/model.rs:33",
         "Illuminate\\Database\\Eloquent\\Model.shouldBeStrict;Illuminate\\Database\\Eloquent\\Model.preventSilentlyDiscardingAttributes;Illuminate\\Database\\Eloquent\\Model.preventAccessingMissingAttributes;Illuminate\\Database\\Eloquent\\Model.withoutTouching;Illuminate\\Database\\Eloquent\\Model.withoutTouchingOn;Illuminate\\Database\\Eloquent\\Model.isIgnoringTouch",
         "vendor/openrust/framework/tests/eloquent_models.rs;vendor/openrust/framework/tests/eloquent_events.rs",
-        "历史发现待当前契约复核；复核仍成立后实施",
-        "",
+        "严格属性/lazy策略与关联touch作用域已实现并定向验收；保留静态配置/原始读取及嵌套行为差异",
+        "tests/eloquent_strictness.rs；reference/eloquent-strictness.php/json；target/tmp/framework-parity-20261122/strict-*、fmt-strict、clippy-strict、docs-*-strict日志",
         "Q01;C21",
-        "本轮未执行框架验收",
-        "历史差异待当前契约裁决",
-        "先复核已有实现后补缺口；本计划未执行",
-        "本轮未运行功能验收，历史结果仅限对应提交和环境"
+        "51项真实固定PHP参考（50项一致，1项同类型嵌套touch显式差异）；最终5目标13项通过。SQLite/PG18/MySQL8.4严格集成实际执行；MySQL另4项模型/哈希/加密/HTTP通过。既有事件/factory/主键/关系默认栈/路由/作用域/写入回归通过；缺变量早退不计真实库。fmt/严格Clippy/三语站点通过。",
+        "使用应用及模型类型策略注册表、typed钩子与任务局部Future；raw Option接口不隐式抛缺失错误。保留赋值前缀，不回滚整次fill。同类型嵌套Rust恢复外层而上游提前移除，已明确登记。",
+        "shouldBeStrict/preventLazyLoading/preventSilentlyDiscardingAttributes/preventAccessingMissingAttributes/处理钩子/withoutTouching/withoutTouchingOn/isIgnoringTouch及多模型lazy快照已实现；更广泛动态静态API继续裁决",
+        "2026-11-23受支持三库与HTTP路径通过；应用/type隔离、lazy水合快照、NULL/访问器/枚举、嵌套/取消/panic/并发恢复已验。非字面1:1，不关闭全框架"
       ],
       [
         "main",
@@ -293299,6 +293299,15 @@
       ],
       "note": "23真实固定PHP参考，三库实际验证作用域覆盖/重注册/移除历史顺序/OR分组/软删除/底层查询替换及预加载。typed工厂、extend时机、关系模型隔离和并发查询隔离通过。登记表堆存放避免放大async栈，关系6项默认栈通过。fmt/严格Clippy/三语站点通过。所有权及派生Builder动态域边界保留，C20未实现。",
       "evidence": "target/tmp/framework-parity-20261122/scopes-*、clippy/fmt/docs-scopes日志"
+    },
+    {
+      "date": "2026-11-23",
+      "kind": "eloquent_strictness_touch_verified",
+      "tasks": [
+        "C23"
+      ],
+      "note": "51真实PHP参考；50项一致行为与1项嵌套同类型touch差异明示。三库实际严格策略/touch和MySQL模型/哈希/加密/HTTP通过；修正四份旧测试的整次fill回滚预期。fmt/严格Clippy/三语站点通过；typed/app/rawOption与lazy水合快照规则保留。C20及全API仍开放。",
+      "evidence": "target/tmp/framework-parity-20261122/strict-*、fmt-strict、clippy-strict、docs-*-strict日志"
     }
   ]
 }

@@ -10,6 +10,28 @@ use super::{
     },
 };
 
+tokio::task_local! {
+    static IGNORING: Vec<TypeId>;
+}
+
+pub(super) fn is_ignoring<M: Model>() -> bool {
+    IGNORING
+        .try_with(|models| models.contains(&TypeId::of::<M>()))
+        .unwrap_or(false)
+}
+
+pub(super) fn without_touching<F: std::future::Future>(
+    models: &[TypeId],
+    work: F,
+) -> impl std::future::Future<Output = F::Output> + use<F> {
+    let models = models.to_vec();
+    async move {
+        let mut ignored = IGNORING.try_with(Clone::clone).unwrap_or_default();
+        ignored.extend(models);
+        IGNORING.scope(ignored, work).await
+    }
+}
+
 trait Touch<M: Model>: Send + Sync {
     fn pivot_identity(&self) -> Option<PivotTouchIdentity<'_>> {
         None

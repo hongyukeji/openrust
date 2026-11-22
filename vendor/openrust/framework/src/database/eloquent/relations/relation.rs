@@ -385,7 +385,9 @@ impl<P: Model, R: Model> RelationKeys<P, R> {
         if !visited.visit::<R>(&connection, Some(&key))? {
             return Ok(());
         }
-        if let Some(column) = metadata.updated_at {
+        if let Some(column) = metadata.updated_at
+            && !R::isIgnoringTouch()
+        {
             let time = timestamp(&connection, metadata.date_format)?;
             let query = self
                 .configure(R::queryOn(&connection))?

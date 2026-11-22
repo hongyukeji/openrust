@@ -331,7 +331,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
 
     /// Refreshes the timestamps of the models linked through this relation.
     pub async fn touch(&self, parent: &P) -> DatabaseResult<()> {
-        if R::metadata().updated_at.is_none() {
+        if R::isIgnoringTouch() {
             return Ok(());
         }
         let connection = self.keys.connection(parent)?;
@@ -428,7 +428,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
     }
 
     fn touches_related_on(&self, connection: &Connection) -> DatabaseResult<bool> {
-        Ok(R::metadata().updated_at.is_some()
+        Ok(!R::isIgnoringTouch()
             && (self.touch_related
                 || P::touches().contains_pivot(&self.touch_identity(), connection)?))
     }
@@ -457,6 +457,9 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
     }
 
     fn related_touch(&self, owner: &Value) -> Option<RelatedTouch> {
+        if R::isIgnoringTouch() {
+            return None;
+        }
         Some(RelatedTouch {
             pivot: self.pivot,
             constraints: self.pivot_constraints.clone(),

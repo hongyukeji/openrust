@@ -164,7 +164,7 @@ async fn force_fill_hashes_secrets_and_keeps_other_tasks_and_error_paths_guarded
     let hash = hash.clone();
     model.forceFill(attrs("secret", hash.clone())).unwrap();
     assert_eq!(model.getAttribute("secret"), Some(&Value::Text(hash)));
-    let snapshot = model.state().getAttributes().clone();
+    let mut snapshot = model.state().getAttributes().clone();
     let invalid = bcrypt::hash_with_result("invalid cost", 5)
         .unwrap()
         .format_for_version(bcrypt::Version::TwoY);
@@ -176,6 +176,16 @@ async fn force_fill_hashes_secrets_and_keeps_other_tasks_and_error_paths_guarded
             ]))
             .await
             .is_err()
+    );
+    // 后一个转换器失败时，保留先前已经完成的字段赋值。
+    let reference: serde_json::Value =
+        serde_json::from_str(include_str!("reference/eloquent-strictness.json")).unwrap();
+    snapshot.insert(
+        "label".into(),
+        reference["fill_setter_failure"]["label"]
+            .as_str()
+            .unwrap()
+            .into(),
     );
     assert_eq!(model.state().getAttributes(), &snapshot);
     assert!(matches!(

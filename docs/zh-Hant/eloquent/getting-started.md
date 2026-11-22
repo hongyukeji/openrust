@@ -164,6 +164,18 @@ async fn copy_without_secret<M: Model>(source: &M) -> DatabaseResult<M> {
 }
 ```
 
+### 嚴格屬性策略
+
+在應用啟動時透過 `Flight::shouldBeStrict(&app, true)?` 為模型開啟嚴格策略，也可分別呼叫 `preventLazyLoading(&app, enabled)`、`preventSilentlyDiscardingAttributes(&app, enabled)`、`preventAccessingMissingAttributes(&app, enabled)`。預設關閉，設定屬於目前應用和模型型別；脫離應用的模型需要透過 `newInstanceOn` 關聯應用連線，或在目前應用上下文中使用策略。
+
+嚴格批量賦值遇到被丟棄欄位時回傳 `DatabaseError::MassAssignment`，此前已賦值的欄位保留在實例上。`forceFill`、`forceFillAsync` 和 `unguarded` 繼續繞過保護。可覆寫 `handleDiscardedAttributeViolationUsing` 處理被丟棄欄位，回傳成功表示允許丟棄。
+
+使用 `getAttributeValue` 讀取需要檢查的屬性。開啟防護後，已檢索模型缺少屬性時回傳 `DatabaseError::MissingAttribute`；明確讀取到的 SQL NULL、存取器、未儲存模型和剛建立模型仍依其正常行為處理。可覆寫 `handleMissingAttributeViolationUsing` 為未知屬性提供值；原生或列舉轉換器在處理鉤子成功後繼續依空值轉換。`getAttribute` 和 `getRawOriginal` 保留底層 `Option` 讀取。延遲載入策略在水合多模型結果時儲存到實例，由隱式關係讀取檢查；切換預設值影響後續水合，模型明確覆寫的 `preventsLazyLoading` 仍然生效。
+
+### 暫時停用關聯時間戳記更新
+
+`Owner::withoutTouching(work).await` 在 Future 執行期間抑制該模型型別作為關聯目標的時間戳記更新。匯入 `std::any::TypeId` 後，可用 `Owner::withoutTouchingOn(&[TypeId::of::<Owner>(), TypeId::of::<Team>()], work).await` 指定多個型別。`isIgnoringTouch()` 查詢是否停用關聯時間戳記更新；沒有更新時間戳記的模型也回傳 true。儲存子模型仍寫入其自身屬性並派發模型事件，關聯 Saved 事件和後續關聯遍歷保持正常行為。巢狀作用域在成功、錯誤、恐慌或取消後恢復此前設定，不影響其他任務。
+
 ## 查詢作用域
 
 實作 `Scope<Model>` 可重複使用查詢條件。用 `withScope` 套用它，或在模型的 `globalScopes` 註冊全域作用域。使用 `withoutGlobalScope` 移除指定作用域。以下範例使用上面的 `Flight` 模型，資料表需包含已宣告欄位和時間戳記。

@@ -87,7 +87,7 @@ pub(super) fn cast_pivot_key<M: Model>(name: &str, value: Value) -> DatabaseResu
     }
 }
 
-fn cast_for<M: Model>(name: &str, overrides: &CastOverrides) -> Option<AttributeCast> {
+pub(super) fn cast_for<M: Model>(name: &str, overrides: &CastOverrides) -> Option<AttributeCast> {
     let metadata = M::metadata();
     overrides
         .get(name)
@@ -261,6 +261,26 @@ pub(super) fn write_json_collection<M: Model, T: serde::Serialize>(
     let value = values.toArray().map_err(|_| collection_cast::invalid())?;
     model.setAttributeValue(name, Value::Json(value))?;
     Ok(())
+}
+
+pub(super) fn guards_missing<M: Model>(state: &ModelState, name: &str) -> bool {
+    if M::attribute(name)
+        .and_then(|attribute| attribute.get)
+        .is_some()
+    {
+        return false;
+    }
+    !matches!(
+        cast_for::<M>(name, &state.casts),
+        Some(
+            AttributeCast::Object(_)
+                | AttributeCast::Custom(_)
+                | AttributeCast::Class(_)
+                | AttributeCast::Inbound(_)
+                | AttributeCast::JsonCollection(_)
+                | AttributeCast::EnumCollection(_)
+        )
+    )
 }
 
 pub(super) fn read<M: Model>(state: &ModelState, name: &str) -> DatabaseResult<Option<Value>> {

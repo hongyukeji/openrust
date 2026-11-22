@@ -313,6 +313,7 @@ pub(in crate::database::eloquent) async fn retrieved_with_transaction<M: Model>(
     connection: &Connection,
     mut transaction: Option<&mut Transaction>,
 ) -> DatabaseResult<()> {
+    let many = models.len() > 1;
     for model in models {
         fire_with_transaction(
             model,
@@ -322,6 +323,10 @@ pub(in crate::database::eloquent) async fn retrieved_with_transaction<M: Model>(
             transaction.as_deref_mut(),
         )
         .await?;
+        if many {
+            model.state_mut().prevent_lazy_loading =
+                super::super::strictness::policy(model).lazy_loading;
+        }
     }
     Ok(())
 }
