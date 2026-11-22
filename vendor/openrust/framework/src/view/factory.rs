@@ -419,7 +419,10 @@ impl Factory {
         let mut view = View {
             name,
             data,
-            binding: None,
+            binding: Some(Box::new(ViewBinding {
+                factory: self.clone(),
+                file: None,
+            })),
             created: false,
             creation_error: None,
             options: None,

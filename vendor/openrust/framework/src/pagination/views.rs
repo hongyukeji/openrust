@@ -4,7 +4,7 @@ use serde_json::{Value, json};
 
 use crate::{
     container::ServiceKey,
-    support::facades::{Facade, Lang, View as ViewFacade},
+    support::facades::{Facade, Lang},
     view::{View, ViewData, ViewError, ViewResult},
 };
 
@@ -142,5 +142,5 @@ pub(super) fn make(
     if let Some(elements) = elements {
         data.insert("elements".into(), elements.into());
     }
-    ViewFacade::make(name.to_owned(), data)
+    super::Paginator::viewFactory()?.make(name.to_owned(), data)
 }

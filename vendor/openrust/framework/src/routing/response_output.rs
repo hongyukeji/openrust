@@ -40,6 +40,7 @@ impl<T: Serialize + Send> DirectOutput for Collection<T> {}
 impl DirectOutput for Fluent {}
 impl DirectOutput for RedirectResponse {}
 impl DirectOutput for crate::image::Image {}
+impl DirectOutput for crate::view::View {}
 
 trait Output {
     fn respond(

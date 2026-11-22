@@ -1,0 +1,15 @@
+{
+    "path_default": "\/fallback",
+    "page_default": 7,
+    "query_default": {
+        "a": "b"
+    },
+    "cursor_default": null,
+    "resolved_page": 2,
+    "first_url": "\/configured?filter=resolved&entries=1",
+    "cursor_id": 1,
+    "cursor_null": null,
+    "version_one": "\/configured?filter=resolved&version=1&entries=1",
+    "version_two": "\/configured?filter=resolved&version=2&entries=1",
+    "shared_view_factory": true
+}

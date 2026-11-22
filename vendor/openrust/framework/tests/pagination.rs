@@ -293,6 +293,8 @@ fn routes() -> Result<(), RoutingError> {
     Route::get("/singular-pages", singular_relation_pages)?;
     Route::get("/page-defaults", page_defaults)?;
     Route::get("/page-resolvers", page_resolvers)?;
+    Route::get("/state-resolvers", state_resolvers)?;
+    Route::get("/resolver-view", resolver_view)?;
     Route::get("/links", pagination_links)?;
     Route::get("/manual", manual_length)?;
     Route::get("/manual-simple", manual_simple)?;
@@ -2689,6 +2691,10 @@ async fn verify(config: Json) -> DatabaseResult<()> {
     app.boot().await.unwrap();
     StreamedComment::registerModelEvent(&app, ModelEvent::Retrieved, RejectThirdComment)?;
     let repository = app.container().get::<dyn Repository>("config").unwrap();
+    // 此夹具用 locale 参数独立验证翻译器回退，不让 HTTP 语言候选校验提前接管。
+    repository
+        .set("app.locale_query_parameter", Json::Null)
+        .unwrap();
     repository
         .set("database.default", json!("pagination_test"))
         .unwrap();
@@ -3445,6 +3451,13 @@ impl ServiceProvider for StyleProvider {
 async fn styled_server(
     style: fn() -> ViewResult<()>,
 ) -> (tempfile::TempDir, SocketAddr, JoinHandle<()>) {
+    styled_server_with_config(style, json!({"driver":"sqlite", "database":":memory:"})).await
+}
+
+async fn styled_server_with_config(
+    style: fn() -> ViewResult<()>,
+    config: Json,
+) -> (tempfile::TempDir, SocketAddr, JoinHandle<()>) {
     let base = tempfile::tempdir().unwrap();
     let views = base.path().join("resources/views");
     std::fs::create_dir_all(&views).unwrap();
@@ -3469,12 +3482,7 @@ async fn styled_server(
         .set("database.default", json!("pagination"))
         .unwrap();
     repository
-        .set(
-            "database.connections.pagination",
-            json!({
-                "driver": "sqlite", "database": ":memory:"
-            }),
-        )
+        .set("database.connections.pagination", config)
         .unwrap();
     let connection = app
         .make::<DatabaseManager>()
@@ -3484,7 +3492,7 @@ async fn styled_server(
         .unwrap();
     connection
         .statement(
-            "CREATE TABLE pagination_articles (id INTEGER PRIMARY KEY)",
+            "CREATE TABLE pagination_articles (id BIGINT PRIMARY KEY)",
             &[],
         )
         .await
@@ -3724,4 +3732,290 @@ fn manual_paginators_serialize_and_keep_link_boundaries() {
     assert!(empty.nextPageUrl().unwrap().is_none());
     assert!(empty.previousPageUrl().unwrap().is_none());
     assert!(empty.isEmpty() && empty.onFirstPage());
+}
+
+fn custom_pagination_resolvers() -> ViewResult<()> {
+    use openrust::view::{Factory, FileViewFinder};
+    // 解析回调中重新登记其他回调，验证未持有状态锁执行应用代码。
+    LengthAwarePaginator::currentPageResolver(|name| if name == "entries" { 2 } else { 3 })?;
+    LengthAwarePaginator::currentPathResolver(|| "/configured".to_owned())?;
+    Paginator::queryStringResolver(|| {
+        Paginator::currentPathResolver(|| "/configured".to_owned()).unwrap();
+        vec![
+            ("filter".into(), "resolved".into()),
+            ("entries".into(), "99".into()),
+        ]
+    })?;
+    CursorPaginator::currentCursorResolver(|name| {
+        (name == "position").then(|| Cursor::new([("id", Value::Integer(1))], true).unwrap())
+    })?;
+    let root = Arc::new(tempfile::tempdir().unwrap());
+    std::fs::write(
+        root.path().join("numbered.blade.html"),
+        "resolved {{ $paginator->total }}",
+    )
+    .unwrap();
+    let factory = Arc::new(Factory::new(
+        FileViewFinder::new([root.path().to_owned()]),
+        root.path().join("compiled"),
+    ));
+    Paginator::defaultView("numbered")?;
+    LengthAwarePaginator::viewFactoryResolver(move || {
+        let _keep_root = &root;
+        // 游标和偏移分页必须取得同一工厂，不能分别保存一份解析器。
+        Ok(factory.clone())
+    })
+}
+
+fn resolver_view(_: &mut Request) -> HttpFuture<'_, Result<openrust::view::View, HttpError>> {
+    Box::pin(async {
+        LengthAwarePaginator::new(vec![1], 3, 1, Some(1), PaginatorOptions::default())
+            .map_err(manual_error)?
+            .links()
+            .map_err(view_error)
+    })
+}
+
+fn state_resolvers(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        let connection = DB::connection(None).map_err(internal)?;
+        let mut numbered = connection
+            .table("pagination_articles")
+            .orderBy("id", "asc")
+            .paginateWith(PageOptions {
+                perPage: Some(1),
+                pageName: "entries",
+                ..Default::default()
+            })
+            .await
+            .map_err(internal)?;
+        numbered
+            .appends(&[("filter".into(), "manual".into())])
+            .withQueryString();
+        let simple = connection
+            .table("pagination_articles")
+            .orderBy("id", "asc")
+            .simplePaginateWith(PageOptions {
+                perPage: Some(1),
+                pageName: "entries",
+                ..Default::default()
+            })
+            .await
+            .map_err(internal)?;
+        let cursor = connection
+            .table("pagination_articles")
+            .orderBy("id", "asc")
+            .cursorPaginateWith(CursorOptions {
+                perPage: Some(1),
+                cursorName: "position",
+                ..Default::default()
+            })
+            .await
+            .map_err(internal)?;
+        let explicit = Paginator::new(
+            vec![1, 2],
+            1,
+            Some(1),
+            PaginatorOptions {
+                path: Some("/explicit"),
+                ..Default::default()
+            },
+        )
+        .map_err(manual_error)?;
+        let manual = LengthAwarePaginator::new(
+            vec![1],
+            3,
+            1,
+            None,
+            PaginatorOptions {
+                pageName: Some("entries"),
+                ..Default::default()
+            },
+        )
+        .map_err(manual_error)?;
+        let versions = if Paginator::resolveCurrentPath("/") == "/configured" {
+            use std::sync::atomic::{AtomicUsize, Ordering};
+            let mut dynamic = Paginator::new(
+                vec![1],
+                1,
+                Some(1),
+                PaginatorOptions {
+                    pageName: Some("entries"),
+                    ..Default::default()
+                },
+            )
+            .map_err(manual_error)?;
+            dynamic.appends(&[("filter".into(), "resolved".into())]);
+            let counter = AtomicUsize::new(0);
+            LengthAwarePaginator::queryStringResolver(move || {
+                vec![(
+                    "version".into(),
+                    (counter.fetch_add(1, Ordering::SeqCst) + 1).to_string(),
+                )]
+            })
+            .map_err(view_error)?;
+            dynamic.withQueryString();
+            let first = dynamic.url(1);
+            dynamic.withQueryString();
+            Some((first, dynamic.url(1)))
+        } else {
+            None
+        };
+        let factory_shared = Arc::ptr_eq(
+            &Paginator::viewFactory().map_err(view_error)?,
+            &CursorPaginator::viewFactory().map_err(view_error)?,
+        );
+        let mut view = numbered.links().map_err(view_error)?;
+        let html = view.render().map_err(view_error)?;
+        Response::json(
+            StatusCode::OK,
+            json!({
+                "numbered": numbered.map(|row| id(row.get("id"))),
+                "simple": simple.map(|row| id(row.get("id"))),
+                "cursor": cursor.map(|row| id(row.get("id"))),
+                "manual_page": manual.currentPage(),
+                "explicit_page": explicit.currentPage(), "explicit_url": explicit.url(2),
+                "factory_shared": factory_shared, "html": html, "versions": versions,
+                "resolved_page": LengthAwarePaginator::resolveCurrentPage("entries", 7),
+            }),
+        )
+    })
+}
+
+async fn verify_pagination_resolvers(config: Json) {
+    let (_custom_root, custom, custom_server) =
+        styled_server_with_config(custom_pagination_resolvers, config).await;
+    let (_default_root, default, default_server) =
+        styled_server(|| Paginator::defaultView("numbered")).await;
+    let (configured, ordinary) = tokio::join!(
+        request(custom, "/api/state-resolvers?entries=1&filter=incoming"),
+        request(default, "/api/state-resolvers?entries=1&filter=incoming")
+    );
+    let reference: Json =
+        serde_json::from_str(include_str!("reference/pagination-resolvers.json")).unwrap();
+    assert_eq!(configured["resolved_page"], reference["resolved_page"]);
+    assert_eq!(
+        configured["numbered"]["first_page_url"],
+        reference["first_url"]
+    );
+    assert_eq!(configured["versions"][0], reference["version_one"]);
+    assert_eq!(configured["versions"][1], reference["version_two"]);
+    assert_eq!(
+        configured["factory_shared"],
+        reference["shared_view_factory"]
+    );
+    assert_eq!(configured["numbered"]["current_page"], 2);
+    assert_eq!(configured["numbered"]["data"], json!([2]));
+    assert_eq!(configured["simple"]["data"], json!([2]));
+    assert_eq!(configured["cursor"]["data"], json!([2]));
+    assert_eq!(configured["manual_page"], 2);
+    assert_eq!(configured["resolved_page"], 2);
+    assert_eq!(configured["explicit_page"], 1);
+    assert_eq!(configured["explicit_url"], "/explicit?page=2");
+    assert_eq!(
+        configured["numbered"]["first_page_url"],
+        "/configured?filter=resolved&entries=1"
+    );
+    assert_eq!(configured["html"], "resolved 3");
+    assert_eq!(configured["factory_shared"], true);
+    assert_eq!(ordinary["numbered"]["data"], json!([1]));
+    assert_eq!(ordinary["cursor"]["data"], json!([1]));
+    assert_eq!(ordinary["html"], "numbered 3");
+    assert!(
+        ordinary["numbered"]["first_page_url"]
+            .as_str()
+            .unwrap()
+            .starts_with("/api/state-resolvers?filter=incoming")
+    );
+    assert_eq!(
+        request_body(custom, "/api/resolver-view").await,
+        "resolved 3"
+    );
+    assert_eq!(
+        request_body(default, "/api/resolver-view").await,
+        "numbered 3"
+    );
+    custom_server.abort();
+    default_server.abort();
+}
+
+#[tokio::test]
+async fn pagination_resolvers_drive_sqlite_queries_and_isolate_applications() {
+    verify_pagination_resolvers(json!({"driver":"sqlite", "database":":memory:"})).await;
+}
+
+#[tokio::test]
+async fn pagination_resolvers_drive_postgres_queries() {
+    let url = std::env::var("OPENRUST_TEST_PAGINATION_POSTGRES_URL").ok();
+    assert!(url.is_some() || std::env::var_os("OPENRUST_REQUIRE_PAGINATION_POSTGRES").is_none());
+    if let Some(url) = url {
+        verify_pagination_resolvers(json!({"url":url})).await;
+    }
+}
+
+#[tokio::test]
+async fn pagination_resolvers_drive_mysql_queries() {
+    let url = std::env::var("OPENRUST_TEST_PAGINATION_MYSQL_URL").ok();
+    assert!(url.is_some() || std::env::var_os("OPENRUST_REQUIRE_PAGINATION_MYSQL").is_none());
+    if let Some(url) = url {
+        verify_pagination_resolvers(json!({"url":url})).await;
+    }
+}
+
+#[test]
+fn pagination_resolvers_preserve_unscoped_defaults() {
+    assert_eq!(Paginator::resolveCurrentPath("/fallback"), "/fallback");
+    assert_eq!(LengthAwarePaginator::resolveCurrentPage("page", 7), 7);
+    assert_eq!(
+        Paginator::resolveQueryString(Some(vec![("a".into(), "b".into())])),
+        Some(vec![("a".into(), "b".into())])
+    );
+    let cursor = Cursor::new([("id", Value::Integer(8))], true).unwrap();
+    assert_eq!(
+        CursorPaginator::resolveCurrentCursor("position", Some(cursor.clone())),
+        Some(cursor)
+    );
+    assert!(Paginator::currentPageResolver(|_| 2).is_err());
+}
+
+#[tokio::test]
+async fn pagination_view_factory_errors_reach_the_http_response() {
+    let (_root, address, server) =
+        styled_server(|| Paginator::viewFactoryResolver(|| Err(ViewError::NotFound))).await;
+    request_with_status(address, "/api/resolver-view", 500).await;
+    server.abort();
+}
+
+#[tokio::test]
+async fn explicit_paginator_options_do_not_invoke_position_or_path_resolvers() {
+    let (_root, _, server) = styled_server(|| {
+        Paginator::currentPathResolver(|| panic!("显式路径不应调用解析器"))?;
+        Paginator::currentPageResolver(|_| panic!("显式页码不应调用解析器"))?;
+        CursorPaginator::currentCursorResolver(|_| panic!("显式游标不应调用解析器"))?;
+        let options = PaginatorOptions {
+            path: Some("/explicit"),
+            ..Default::default()
+        };
+        assert_eq!(
+            Paginator::new(vec![1], 1, Some(2), options)
+                .unwrap()
+                .currentPage(),
+            2
+        );
+        assert_eq!(
+            LengthAwarePaginator::new(vec![1], 3, 1, Some(2), options)
+                .unwrap()
+                .url(3),
+            "/explicit?page=3"
+        );
+        let cursor = Cursor::new([("id", Value::Integer(1))], true).unwrap();
+        let page = CursorPaginator::new(vec![2_i64], 1, Some(&cursor), options, |item| {
+            [("id", Value::Integer(*item))]
+        })
+        .unwrap();
+        assert_eq!(page.cursor(), Some(&cursor));
+        Ok(())
+    })
+    .await;
+    server.abort();
 }

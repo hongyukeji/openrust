@@ -16,6 +16,8 @@ impl ServiceProvider for PaginationServiceProvider {
         Box::pin(async move {
             app.container()
                 .instance(Arc::new(DefaultViews::default()))?;
+            app.container()
+                .instance(Arc::new(super::pagination_state::PaginationState::default()))?;
             Ok(())
         })
     }

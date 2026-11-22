@@ -116,6 +116,18 @@ C35在既有原生Driver/Pipeline上实现transformUsing，不另引图片引擎
 
 尚未关闭：公开直接构造/任意惰性Closure来源，Manager惰性creator/rebind/getContainer/setContainer/forgetDrivers，存储任意options，Conditionable完整重载；fromStream仍构造时读取借用流。类型/方法逐项裁决已追加同一JSON的本批method_review：未完全复验的方法保持待核对，不能据新增方法或32项通过宣称Image模块或全框架1:1。Rust默认image后端、typed尺寸/颜色/格式、名称/JSON替代转换类、逐帧回调以及async/Result/无隐式字符串IO均是需保留登记的差异。
 
+### 分页解析器与视图工厂（2026-11-23）
+
+C39按固定AbstractPaginator、AbstractCursorPaginator及PaginationState核对，实际联网比较六个固定分页源码与本地参考逐字一致；v0.x只有第三方sea-orm分页器，无可复用的当前框架入口。应用容器登记PaginationState保存路径、页码、查询、游标和视图工厂回调，Paginator与LengthAwarePaginator共享偏移分页解析状态，CursorPaginator共享视图工厂并持独立游标回调。回调取Arc后释放锁再执行，支持重入；不使用进程级可变全局。
+
+Links实际接入resolveCurrentPath/resolveCurrentPage/resolveCurrentCursor；查询构建器、模型、关联和手工分页共用现有Links，无新增查询引擎。显式页码、游标和路径优先。withQueryString在调用时求值，按上游覆盖既有同名appends并排除分页位置参数，不再读取构造时冻结的URI副本。
+
+视图替换验收发现Factory::make返回的View未绑定创建它的Factory，导致最终重新使用默认工厂；本批在创建时保留原工厂，并使HTTP响应渲染同样优先使用该绑定。同步视图契约渲染、实际HTTP返回、工厂错误传播及应用隔离均纳入回归。实际Route::get返回Result<View,HttpError>暴露缺失响应适配，已让View接入既有Responsable链，移除重复的专用闭包适配，直接/异步/可失败视图统一消费；不借此新增平行错误转换。没有通过把测试改成直接factory.render来绕过公开View/分页入口。
+
+PHP8.5.12实际执行固定分页类的默认值、跨子类共享回调、同名覆盖、两次动态查询求值、游标和共享视图工厂，保存pagination-resolvers-reference.json。视图工厂PHP对照为对象身份桩，没有执行PHP模板渲染；Rust另外以不同目录同名模板及实际HTTP响应核对替换生效。脚本只保留target/tmp，普通Rust回归读取跟踪的reference/pagination-resolvers.json。
+
+PostgreSQL18.7、MySQL8.4.13在隔离容器中开启必需连接校验，实际分页各1项通过，容器已回收。SQLite及分页/Blade/视图原有回归34项通过；随后补充显式页码/游标/路径不调用解析器的实际入口回归，分页最终9项通过。旧分页夹具使用locale参数专门验证翻译器区域回退，现行HTTP候选校验会提前拒绝未配置的zh-TW；在该夹具显式设置app.locale_query_parameter=null隔离职责，保留原有回退断言。根应用HTTP16项、欢迎页34项通过；严格workspace/all-targets Clippy、fmt、三语站点构建及根路径/子路径浏览器与导航检查通过。不能关闭完整Pagination类型。保留具体差异：页码为u64且回调静态Fn；查询为字符串键值对，未支持PHP动态string/array/null回调返回与嵌套值；默认页码/游标来源仍为URI查询，不读取POST/JSON输入；整数字符串校验未完全等价FILTER_VALIDATE_INT；默认路径仍为相对路径；Abstract类型继承入口和其他公开方法须继续逐项裁决。临时验收快照先暴露新旧View依赖组合错误，已按47e48890e06a08026f28405310b23180eeb1acca全部已提交源码统一并覆盖本批文件，未混入协作者WIP；失败日志保留。共享view/mod.rs、factory.rs、pagination/views.rs与pagination_state.rs使用本批验收内容按差异暂存，工作区中的并行错误转换及ViewObject扩展改动保留。证据为pagination-resolvers-{reference.json,postgres.log,mysql.log}、pagination-source-verification.json、pagination-view-accepted.log、pagination-options-final.log、pagination-http-welcome-final.log、clippy-pagination-options-final.log、fmt-pagination-options-final.log与docs-{build,browser,scope}-pagination-final.log。
+
 ## 当前实施与验收（2026-11-22）
 
 本节记录正在实施的事实，不能将清单登记或API出现当作全部完成。源码基线为b214e46be及实时WIP；协作者SetLocale实例回调与其三语正文、规范和验收记录保留。本批未操作开发数据或Git索引。

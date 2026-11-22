@@ -290,3 +290,19 @@ async fn article_ids(table: &str) -> DatabaseResult<impl serde::Serialize> {
     }))
 }
 ```
+
+## 自訂分頁解析器 {#customizing-pagination-resolvers}
+
+在服務提供者的 `boot` 中登記 `Paginator::currentPageResolver`、`currentPathResolver` 和 `queryStringResolver`。`LengthAwarePaginator` 共用這些設定。游標分頁使用 `CursorPaginator::currentCursorResolver`。頁碼和游標回呼接收所設定的參數名；游標回呼傳回 `None` 時從第一頁開始。
+
+```rust
+Paginator::currentPageResolver(|name| if name == "entries" { 2 } else { 1 })?;
+Paginator::currentPathResolver(|| "/articles".to_owned())?;
+Paginator::queryStringResolver(|| vec![("category".into(), "rust".into())])?;
+```
+
+解析器作用於目前應用中的手工分頁、查詢建構器、模型及關聯分頁。明確傳入的頁碼、游標和路徑優先。`withQueryString()` 在呼叫時讀取查詢解析器，同名值覆蓋先前 `appends` 的參數，排除分頁位置參數。查詢回呼傳回字串鍵值對，巢狀值由應用編碼。
+
+`resolveCurrentPage(name, default)`、`resolveCurrentPath(default)`、`resolveQueryString(default)` 及 `CursorPaginator::resolveCurrentCursor(name, default)` 提供相同的解析入口。應用請求之外沒有對應回呼時傳回傳入的預設值；預設請求來源中缺少或無效頁碼使用一，缺少或無效游標從頭開始。預設連結路徑仍為請求相對路徑。
+
+`Paginator::viewFactoryResolver` 接收傳回 `ViewResult<Arc<openrust::view::Factory>>` 的回呼。`Paginator::viewFactory`、`LengthAwarePaginator::viewFactory` 及 `CursorPaginator::viewFactory` 傳回共用工廠，分頁視圖渲染也使用該工廠。回呼要求 `Send + Sync + 'static`，在目前應用作用域中登記；沒有可用應用容器時登記傳回錯誤。

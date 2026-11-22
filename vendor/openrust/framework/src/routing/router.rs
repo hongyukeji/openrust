@@ -13,7 +13,6 @@ use serde::Serialize;
 use crate::{
     contracts::routing::{Handler, Registrar, UrlRoutable},
     http::{ApiResponse, HttpError, HttpFuture, Method, Next, Request, Response, StatusCode},
-    view::View,
 };
 
 use super::{
@@ -51,26 +50,6 @@ pub trait IntoRouteHandler<Arguments> {
 impl<H: Handler + 'static> IntoRouteHandler<(Request,)> for H {
     fn into_route_handler(self) -> Arc<dyn Handler> {
         Arc::new(self)
-    }
-}
-
-impl<F> IntoRouteHandler<()> for F
-where
-    F: Fn() -> View + Send + Sync + 'static,
-{
-    fn into_route_handler(self) -> Arc<dyn Handler> {
-        Arc::new(ViewHandler(self))
-    }
-}
-
-struct ViewHandler<F>(F);
-
-impl<F: Fn() -> View + Send + Sync> Handler for ViewHandler<F> {
-    fn handle<'a>(
-        &'a self,
-        request: &'a mut Request,
-    ) -> HttpFuture<'a, Result<Response, HttpError>> {
-        (self.0)().render(request)
     }
 }
 

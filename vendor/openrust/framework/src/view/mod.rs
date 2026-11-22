@@ -261,11 +261,11 @@ impl View {
         request: &mut Request,
     ) -> HttpFuture<'_, Result<Response, HttpError>> {
         Box::pin(async move {
-            let factory = request
-                .parts()
-                .extensions
-                .get::<Arc<Factory>>()
-                .cloned()
+            let factory = self
+                .binding
+                .as_ref()
+                .map(|binding| Arc::new(binding.factory.clone()))
+                .or_else(|| request.parts().extensions.get::<Arc<Factory>>().cloned())
                 .ok_or_else(|| HttpError::Internal {
                     source: io::Error::other("No view factory is available for this request.")
                         .into(),
@@ -305,5 +305,12 @@ impl View {
             );
             Ok(response)
         })
+    }
+}
+
+#[allow(non_snake_case)]
+impl crate::contracts::support::Responsable for View {
+    async fn toResponse(self, request: &mut Request) -> Result<Response, HttpError> {
+        self.render(request).await
     }
 }

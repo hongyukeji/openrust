@@ -4,6 +4,7 @@ mod cursor;
 mod cursor_paginator;
 mod length_aware_paginator;
 mod pagination_service_provider;
+mod pagination_state;
 mod paginator;
 mod url_window;
 mod views;
@@ -18,7 +19,7 @@ pub use paginator::Paginator;
 pub use url_window::{UrlWindow, UrlWindowLinks};
 pub(crate) use views::VIEWS;
 
-use crate::{database::DatabaseResult, http::request_context};
+use crate::database::DatabaseResult;
 
 const FRAGMENT_ENCODE: &percent_encoding::AsciiSet =
     &percent_encoding::CONTROLS.add(b' ').add(b'#').add(b'%');
@@ -223,54 +224,46 @@ impl std::error::Error for PaginationError {}
 pub(crate) struct Links {
     pub(super) path: String,
     pub(super) name: String,
-    incoming: Vec<(String, String)>,
     query: Vec<(String, String)>,
     fragment: Option<String>,
 }
 
 impl Links {
     pub(crate) fn current(name: &str) -> Self {
-        request_context::with_uri(|uri| Self {
-            // Use only the path from the request target. Avoid trusting its authority.
-            path: format!("/{}", uri.path().trim_matches('/')),
-            name: name.to_owned(),
-            incoming: url::form_urlencoded::parse(uri.query().unwrap_or_default().as_bytes())
-                .into_owned()
-                .collect(),
-            query: Vec::new(),
-            fragment: None,
-        })
-        .unwrap_or_else(|| Self {
-            path: "/".into(),
+        Self {
+            path: Paginator::resolveCurrentPath("/"),
             name: name.into(),
-            incoming: Vec::new(),
             query: Vec::new(),
             fragment: None,
-        })
+        }
     }
 
     fn manual(name: &str, options: PaginatorOptions<'_>) -> Self {
-        let mut links = Self::current(name);
-        if let Some(path) = options.path {
+        let mut links = if let Some(path) = options.path {
             let path = path.trim_end_matches('/');
-            links.path = if path.is_empty() { "/" } else { path }.into();
-        }
+            Self {
+                path: if path.is_empty() { "/" } else { path }.into(),
+                name: name.into(),
+                query: Vec::new(),
+                fragment: None,
+            }
+        } else {
+            Self::current(name)
+        };
         links.appends(options.query);
         links.fragment = options.fragment.map(str::to_owned);
         links
     }
 
     pub(crate) fn current_page(&self, page: Option<u64>) -> u64 {
-        page.or_else(|| self.incoming().and_then(|value| value.parse().ok()))
-            .unwrap_or(1)
+        page.unwrap_or_else(|| Paginator::resolveCurrentPage(&self.name, 1))
             .max(1)
     }
 
     pub(crate) fn current_cursor(&self, cursor: Option<&Cursor>) -> Option<Cursor> {
-        cursor.cloned().or_else(|| {
-            self.incoming()
-                .and_then(|value| Cursor::fromEncoded(value).ok())
-        })
+        cursor
+            .cloned()
+            .or_else(|| CursorPaginator::resolveCurrentCursor(&self.name, None))
     }
 
     fn options(&self, cursor: bool) -> PaginatorOptions<'_> {
@@ -281,14 +274,6 @@ impl Links {
             pageName: (!cursor).then_some(self.name.as_str()),
             cursorName: cursor.then_some(self.name.as_str()),
         }
-    }
-
-    pub(crate) fn incoming(&self) -> Option<&str> {
-        self.incoming
-            .iter()
-            .rev()
-            .find(|(key, _)| key == &self.name)
-            .map(|(_, value)| value.as_str())
     }
 
     fn url(&self, position: Option<&str>) -> String {
@@ -320,15 +305,8 @@ impl Links {
     }
 
     fn with_query_string(&mut self) {
-        let mut query: Vec<_> = self
-            .incoming
-            .iter()
-            .filter(|(key, _)| {
-                key != &self.name && !self.query.iter().any(|(other, _)| key == other)
-            })
-            .cloned()
-            .collect();
-        query.append(&mut self.query);
-        self.query = query;
+        if let Some(query) = Paginator::resolveQueryString(None) {
+            self.appends(&query);
+        }
     }
 }

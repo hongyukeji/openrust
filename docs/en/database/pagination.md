@@ -290,3 +290,19 @@ async fn article_ids(table: &str) -> DatabaseResult<impl serde::Serialize> {
     }))
 }
 ```
+
+## Customizing pagination resolvers {#customizing-pagination-resolvers}
+
+Register `Paginator::currentPageResolver`, `currentPathResolver`, and `queryStringResolver` in your provider's `boot` method. `LengthAwarePaginator` shares these settings. Use `CursorPaginator::currentCursorResolver` for cursor pagination. Each callback receives the configured parameter name where applicable; return `None` from a cursor resolver to start at the first page.
+
+```rust
+Paginator::currentPageResolver(|name| if name == "entries" { 2 } else { 1 })?;
+Paginator::currentPathResolver(|| "/articles".to_owned())?;
+Paginator::queryStringResolver(|| vec![("category".into(), "rust".into())])?;
+```
+
+The resolvers affect manual paginators, query builders, models, and relationship pagination in the current application. Explicit page, cursor, and path options take precedence. `withQueryString()` invokes the query resolver when called, replaces previously appended values with matching keys, and excludes the paginator's position parameter. The query callback returns string pairs; nested query values must be encoded by the application.
+
+`resolveCurrentPage(name, default)`, `resolveCurrentPath(default)`, `resolveQueryString(default)`, and `CursorPaginator::resolveCurrentCursor(name, default)` expose the same resolution. Outside an application request, missing callbacks return the supplied defaults. With the default request source, invalid or missing pages start at one and invalid cursors start at the beginning. The default path remains relative to the request.
+
+`Paginator::viewFactoryResolver` accepts a callback returning `ViewResult<Arc<openrust::view::Factory>>`. `Paginator::viewFactory`, `LengthAwarePaginator::viewFactory`, and `CursorPaginator::viewFactory` return the shared factory; pagination view rendering uses it. Callbacks must be `Send + Sync + 'static`; register them in the active application's scope. Registration returns an error when no application container is available.
