@@ -313,3 +313,18 @@ Provider 通过所属应用的 ConsoleKernel 注册命令，沿用捕获的 test
 ## 读取已解析通道
 
 `LogManager::getChannels()` 与 `Log::getChannels()` 返回已解析通道名称到 `Arc<Logger>` 句柄的快照，不创建尚未使用的通道。`forgetChannel` 移除通道后，影响后续解析；先前返回的快照和日志句柄仍可使用。
+
+## 访问原生日志器
+
+`Logger::getLogger()` 返回通道实际使用的 `Arc<NativeLogger>` 句柄。`LogManager::getLogger()` 与 `Log::getLogger()` 解析默认通道，通过 `Result` 返回同一个原生实例。读取已解析句柄不会创建其他通道；`forgetChannel` 后，已持有的句柄仍可使用。
+
+```rust
+use openrust::{log::LogContext, support::facades::Log};
+
+let channel = Log::channel(None)?;
+let native = channel.getLogger();
+native.info("Worker started", &LogContext::new())?;
+let default_native = Log::getLogger()?;
+```
+
+原生写入复用配置的级别过滤、处理器、格式器和输出目标，只接收调用时传入的上下文，跳过应用频道上下文、Context 元数据、MessageLogged 监听器及 Pail 捕获。原生写入或处理器失败会直接返回错误。需要应用上下文、事件和应急恢复时，使用通道或 Log Facade 的级别写入方法。原生句柄实现现有 Rust 日志契约；共享通道的处理器和格式器继续通过既有注册与 tap 接口配置。

@@ -313,3 +313,18 @@ Use `withContext` and `withoutContext` for channel context. `shareContext` merge
 ## Inspecting resolved channels
 
 `LogManager::getChannels()` and `Log::getChannels()` return a snapshot mapping resolved channel names to their `Arc<Logger>` handles. Reading the map does not create unused channels. Removing a channel with `forgetChannel` affects subsequent resolutions; previously returned snapshots and logger handles remain usable.
+
+## Accessing the Native Logger
+
+`Logger::getLogger()` returns the channel's actual `Arc<NativeLogger>` handle. `LogManager::getLogger()` and `Log::getLogger()` resolve the default channel and return the same native instance through `Result`. Reading an already resolved handle does not create other channels, and retained handles remain usable after `forgetChannel`.
+
+```rust
+use openrust::{log::LogContext, support::facades::Log};
+
+let channel = Log::channel(None)?;
+let native = channel.getLogger();
+native.info("Worker started", &LogContext::new())?;
+let default_native = Log::getLogger()?;
+```
+
+Native writes use the configured severity filters, processors, formatters and output handlers. They receive only the supplied context and bypass application channel context, Context metadata, MessageLogged observers and Pail capture. Native write or processor failures return an error directly. Use the channel or Log facade's level methods for application logging with context, events and emergency recovery. The native handle implements the existing Rust log contract; configure shared channel processors and formatters through the usual registration and tap interfaces.

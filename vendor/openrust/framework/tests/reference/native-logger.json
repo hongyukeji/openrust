@@ -1,0 +1,38 @@
+{
+    "same": true,
+    "records": [
+        {
+            "level": "info",
+            "message": "wrapped",
+            "context": {
+                "shared": "application",
+                "call": "one"
+            },
+            "extra": {
+                "processed": true
+            },
+            "channel": "native"
+        },
+        {
+            "level": "info",
+            "message": "native",
+            "context": {
+                "call": "two"
+            },
+            "extra": {
+                "processed": true
+            },
+            "channel": "native"
+        }
+    ],
+    "events": [
+        {
+            "level": "info",
+            "message": "wrapped",
+            "context": {
+                "shared": "application",
+                "call": "one"
+            }
+        }
+    ]
+}

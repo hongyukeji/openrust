@@ -48,6 +48,18 @@ C11–C15追加真实Session默认/login命名错误袋的返回上一页断言�
 
 保留差异：整数raw集合仅Vec<i64>而非PHP动态转换；existsOr返回类型化Satisfied/Callback(T)；空HAVING回调在Rust不添加条件，而固定PHP对应完全空闭包抛TypeError；binary只提供MySQL语法；PostgreSQL无类型投影可能为Value::Text。完整API、动态参数及所有方言行为尚未关闭，不把本轮通过扩展为全框架完成。
 
+## 原生日志访问验收（2026-11-23）
+
+C49在已有通道解析器、sink、格式器和处理器上拆出真实 `NativeLogger`。`Logger::getLogger` 返回实际使用的 `Arc<NativeLogger>`，`LogManager::getLogger` 与 `Log::getLogger` 解析默认通道并返回同一实例；forget后已持有句柄继续写入，新解析使用新实例。原生写入只用调用上下文，不合并频道上下文或Context元数据，不派发MessageLogged/Pail；真实输出和处理器失败直接返回，框架写入继续保留原有恢复职责。发布前tap沿用现有配置入口，不另建日志引擎或增加Rust依赖。
+
+固定Framework v13.40.0 Logger.php和LogManager.php、Monolog3.9.0与psr/log3.0.2为参考。真实PHP8.5.12/Monolog输出与事件JSON对照通过。官方固定raw文件经curl核对，与已有固定源码9401字节及SHA256 `b7382fcab927960291e1c6b595cb0755b46e4fe6d7d94f91e7372a268a61fdd1` 一致；来源 https://raw.githubusercontent.com/laravel/framework/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Log/Logger.php 。实际PHP确认低于级别的框架日志不派事件，现有实现正确，未提交临时错误判断产生的改动。旧版v0.x的logging.rs及logging/manager.rs使用不同async LogSink组织，未搬入不兼容架构。
+
+`native-log-final.log`中新增3项和既有logging15、context3、listeners7项全部通过（共28项）；真实应用booted生命周期分别调用Facade、manager、channel验证同实例，缺失Facade作用域的首次失败已修复，未绕过公开入口。覆盖级别过滤、处理器、格式器、真实文件、错误返回、应急恢复、懒解析、缓存、withName及上下文/事件隔离。`fmt-native-log.log`、`clippy-native-log-final.log`通过，后者为隔离快照workspace/all-targets严格Clippy；三语build/browser/scope通过，证据`docs-build-native-log-final.log`、`docs-browser-native-log.log`、`docs-scope-native-log-final.log`。PHP参考安装记录在`native-log-composer.log`，未将参考依赖声明为通过安全审计。
+
+构建触及32GB停线后中断的Clippy和scope未计通过；协作守卫持14个Cargo profile锁清理编译/文档产物，保留锁inode、源码、WIP、日志、下载和数据。`target/tmp/build-guard-events.jsonl`记录可用31,805,612,032至133,673,054,208字节，净释放101,867,442,176字节；恢复后重新构建并执行最终检查。原中断及ENOENT日志保留。
+
+Rust适配：返回拥有型Arc及Result，原生类型为Rust执行器而非PHP Monolog对象；共享通道运行期可变Monolog对象接口和全部Monolog动态API未伪造。getLogger/getChannels本批职责已实现并验收，不据此关闭Log全部接口、真实HTTP sink或整个框架。以上日志除全局清理事件外均在`target/tmp/framework-parity-20261122/`。
+
 ## 当前实施与验收（2026-11-22）
 
 本节记录正在实施的事实，不能将清单登记或API出现当作全部完成。源码基线为b214e46be及实时WIP；协作者SetLocale实例回调与其三语正文、规范和验收记录保留。本批未操作开发数据或Git索引。

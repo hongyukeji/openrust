@@ -262,6 +262,11 @@ impl LogManager {
             .set("logging.default", Value::String(name.to_owned()))
     }
 
+    /// 解析默认通道并返回其实际原生日志器句柄。
+    pub fn getLogger(&self) -> LogResult<Arc<super::NativeLogger>> {
+        Ok(self.channel(None)?.getLogger())
+    }
+
     /// 返回已解析通道的快照，不触发尚未使用通道的解析。
     pub fn getChannels(&self) -> HashMap<String, Arc<Logger>> {
         self.channels
@@ -339,11 +344,13 @@ impl LogManager {
         self.resolve(|resolution| {
             let (handlers, replace_placeholders, processors) = resolution.stack(channels, false)?;
             Ok(Arc::new(Logger {
-                name: name.unwrap_or(&resolution.settings.environment).to_owned(),
-                handlers: Some(handlers),
-                replace_placeholders,
-                processors,
-                emergency: resolution.settings.emergency.clone(),
+                native: Arc::new(super::NativeLogger {
+                    name: name.unwrap_or(&resolution.settings.environment).to_owned(),
+                    handlers: Some(handlers),
+                    replace_placeholders,
+                    processors,
+                    emergency: resolution.settings.emergency.clone(),
+                }),
                 context_owner: resolution.settings.context_owner.clone(),
                 context_fallback: self.context_fallback.clone(),
                 context_identity: Arc::new(()),
@@ -530,11 +537,13 @@ struct Settings<'a> {
 impl Settings<'_> {
     fn fallback(&self) -> Arc<Logger> {
         Arc::new(Logger {
-            name: "openrust".to_owned(),
-            handlers: None,
-            replace_placeholders: false,
-            processors: Vec::new(),
-            emergency: self.emergency.clone(),
+            native: Arc::new(super::NativeLogger {
+                name: "openrust".to_owned(),
+                handlers: None,
+                replace_placeholders: false,
+                processors: Vec::new(),
+                emergency: self.emergency.clone(),
+            }),
             context_owner: self.context_owner.clone(),
             context_fallback: self.context_fallback.clone(),
             context_identity: Arc::new(()),
@@ -622,13 +631,15 @@ impl Resolution<'_, '_> {
             .collect::<LogResult<Vec<_>>>()?;
         processors.extend(stack_processors);
         let mut logger = Logger {
-            name: options
-                .name
-                .unwrap_or_else(|| self.settings.environment.clone()),
-            handlers: Some(handlers),
-            replace_placeholders,
-            processors,
-            emergency: self.settings.emergency.clone(),
+            native: Arc::new(super::NativeLogger {
+                name: options
+                    .name
+                    .unwrap_or_else(|| self.settings.environment.clone()),
+                handlers: Some(handlers),
+                replace_placeholders,
+                processors,
+                emergency: self.settings.emergency.clone(),
+            }),
             context_owner: self.settings.context_owner.clone(),
             context_fallback: self.manager.context_fallback.clone(),
             context_identity: Arc::new(()),
@@ -866,14 +877,15 @@ impl Resolution<'_, '_> {
             };
             handlers.extend(
                 logger
+                    .native
                     .handlers
                     .as_deref()
-                    .unwrap_or(&logger.emergency.handlers)
+                    .unwrap_or(&logger.native.emergency.handlers)
                     .iter()
                     .cloned(),
             );
-            replace_placeholders |= logger.replace_placeholders;
-            processors.extend(logger.processors.iter().cloned());
+            replace_placeholders |= logger.native.replace_placeholders;
+            processors.extend(logger.native.processors.iter().cloned());
         }
         let handlers = if ignore {
             [Arc::new(Handler::IgnoreFailures(handlers.into()))].into()
