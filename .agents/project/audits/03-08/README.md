@@ -149,3 +149,8 @@
 - Rust 让 `@class`、`@style`、组件与插槽的 `class()`、`style()` 共用集合转换。真实 HTTP 验证各入口、已有 class/style 合并、筛选链、子组件传递、标签语法和属性值转义。CSS 文本条目使用标量，嵌套值报视图错误。PHP 运行时类型转换和闭包回调由 Rust 的类型化数据和注册回调表达。
 - 共享工作区的并行 SQLx 连接代码类型冲突会阻止构建。用已提交基线和本批改动建立隔离副本，Rust 1.94.0 的 `view_finder`、`csrf`、`request_input`、`routing_groups`、`route_metadata` 共 11 项通过。定向严格 Clippy、改动文件格式检查通过。实际 Artisan 缓存三语示例，启动应用通过回环 HTTP 验证缓存模板，再执行 `view:clear`。三语 VitePress 构建和 12 项浏览器检查通过。
 - 复核固定 Blade 文档各节与本对照表，运行时 CSS 集合缺口已关闭。在 03-07／03-08 的交付范围内，剩余差异为 PHP 运行时和对象语义、Rust 的显式类型和转义规则，以及 Vite、Livewire 和包发布等独立单元。Blade 本体据此定稿。
+
+
+## 原生 Rust 代码块（2026-11-23）
+
+[专项记录](native-rust-blocks-2026-11-23.md)保存方案、实现、固定来源、真实消费者及验收边界；这是 OpenRust 扩展，不扩张此前 PHP 对齐结论。

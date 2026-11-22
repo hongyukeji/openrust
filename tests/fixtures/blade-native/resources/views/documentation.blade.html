@@ -1,0 +1,5 @@
+@rust
+let name = context.get::<String>("name")?;
+context.set("title", format!("<{}>", name.to_uppercase()));
+@endrust
+{{ $title }}

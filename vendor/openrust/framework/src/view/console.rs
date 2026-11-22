@@ -47,7 +47,13 @@ impl Command for ViewCacheCommand {
             })
             .await
             .map_err(console_error)?
-            .map_err(console_error)?;
+            .map_err(|error| {
+                use std::error::Error as _;
+                console_error(match error.source() {
+                    Some(source) => format!("{error} {source}"),
+                    None => error.to_string(),
+                })
+            })?;
             output.info(if self.precompile {
                 "Blade templates cached successfully."
             } else {

@@ -25,6 +25,7 @@ impl ServiceProvider for ViewServiceProvider {
             let container = app.container();
             container.scoped::<super::factory::SharedViewData, _>(|_| Ok(Arc::default()))?;
             let owner = Arc::downgrade(&app.container_handle());
+            let native_views = app.packageManifest().native_views();
             container.singletonNamed("view", move |container| {
                 let config = container.get::<dyn Repository>("config")?;
                 configured_factory(
@@ -35,6 +36,7 @@ impl ServiceProvider for ViewServiceProvider {
                     config.as_ref(),
                 )
                 .map(|mut factory| {
+                    factory.compiler().nativeViews(native_views);
                     factory.public_path = Some(public.clone());
                     Arc::new(factory.with_owner(owner.clone()))
                 })

@@ -52,6 +52,7 @@ enum Declaration {
 
 #[derive(Serialize, Deserialize)]
 enum Node {
+    Native(String),
     Text(String),
     Echo(Expression, bool),
     TranslationBlock(Option<Expression>, Vec<Node>),
@@ -190,8 +191,15 @@ impl Template {
         identity: &str,
         extensions: &BladeExtensions,
     ) -> ViewResult<Self> {
-        let prepared = preparation::PreparedSource::new(source);
-        let mut parser = Parser::new(&prepared.text, identity, extensions, &prepared.raw);
+        if source.contains("@__native_block_") {
+            return Err(invalid("原生 Rust 块占位符为保留语法。"));
+        }
+        let native = openrust_blade_compiler::blocks(source)
+            .map_err(|e| ViewError::CompileFailed(e.into()))?;
+        let masked = openrust_blade_compiler::mask(source, &native);
+        let native: Vec<_> = native.iter().map(|block| block.body.to_owned()).collect();
+        let prepared = preparation::PreparedSource::new(&masked);
+        let mut parser = Parser::new(&prepared.text, identity, extensions, &prepared.raw, &native);
         let mut declarations = Vec::new();
         let mut whitespace = String::new();
         loop {
@@ -312,6 +320,7 @@ enum Stop<'a> {
 }
 
 struct Parser<'a> {
+    native: &'a [String],
     source: &'a str,
     arguments_available: bool,
     raw: &'a [String],
@@ -328,8 +337,10 @@ impl<'a> Parser<'a> {
         identity: &'a str,
         extensions: &'a BladeExtensions,
         raw: &'a [String],
+        native: &'a [String],
     ) -> Self {
         Self {
+            native,
             source,
             arguments_available: false,
             raw,
@@ -418,6 +429,14 @@ impl<'a> Parser<'a> {
                     self.delimited(3, "!!}")?
                 };
                 nodes.push(parse_echo(&expression, escaped)?);
+            } else if let Some(rest) = self.remaining.strip_prefix("@__native_block_")
+                && let Some((index, tail)) = rest.split_once("__@")
+                && let Ok(index) = index.parse::<usize>()
+                && let Some(body) = self.native.get(index)
+            {
+                push_text(&mut nodes, &mut text);
+                nodes.push(Node::Native(body.clone()));
+                self.remaining = tail;
             } else if let Some(rest) = self.remaining.strip_prefix("@__raw_block_")
                 && let Some((index, tail)) = rest.split_once("__@")
                 && let Ok(index) = index.parse::<usize>()
@@ -1574,15 +1593,36 @@ macro_rules! render_block {
     };
 }
 
-fn render_nodes<'a>(
-    nodes: &'a [Node],
-    data: &'a ViewData,
-    bindings: &[(&'a str, &'a ViewValue)],
+fn render_nodes(
+    nodes: &[Node],
+    data: &ViewData,
+    bindings: &[(&str, &ViewValue)],
     output: &mut String,
     context: &mut RenderContext<'_>,
 ) -> ViewResult<Option<Jump>> {
+    // 仅包含原生节点的当前指令块需要可写快照；递归边界自然恢复循环、分支和组件数据。
+    let mut scope = Cow::Borrowed(data);
+    let bindings = if nodes.iter().any(|node| matches!(node, Node::Native(_))) {
+        for (name, value) in bindings {
+            scope.to_mut().insert((*name).to_owned(), (*value).clone());
+        }
+        &[][..]
+    } else {
+        bindings
+    };
     for node in nodes {
+        if let Node::Native(source) = node {
+            context
+                .extensions
+                .native_views
+                .iter()
+                .find_map(|template| template.execute(source, scope.to_mut()))
+                .ok_or_else(|| render_error("原生 Rust 代码块未构建，请重新构建应用。"))??;
+            continue;
+        }
+        let data = scope.as_ref();
         match node {
+            Node::Native(_) => unreachable!(),
             Node::Text(text) => output.push_str(text),
             Node::TranslationBlock(replacements, nodes) => {
                 let replacements = replacements

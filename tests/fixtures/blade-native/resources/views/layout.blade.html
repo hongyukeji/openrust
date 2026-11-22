@@ -1,0 +1,1 @@
+@rust let title=context.get::<String>("title")?; context.set("title",format!("{title}-layout")); @endrust{{ $title }}|@yield('body')

@@ -1,0 +1,8 @@
+{{-- @rust panic!("ignored"); @endrust --}}@verbatim@rust verbatim @endrust@endverbatim|@@rust|@rust
+let text=r###"@endrust {{-- preserved --}} @verbatim"###;
+/* @endrust /* nested */ */
+fn borrow<'a>(v:&'a str, other:&str)->&'a str { let _=other; v }
+macro_rules! tag { (@endrust) => { 42 }; }
+let _ = tag!(@endrust);
+context.set("text",borrow(text, "other"));
+@endrust{{ $text }}

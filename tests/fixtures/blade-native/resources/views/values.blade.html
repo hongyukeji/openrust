@@ -1,0 +1,1 @@
+@rust let null=context.get::<Option<String>>("null")?; let number=context.get::<f64>("number")?; let flag=context.get::<bool>("flag")?; context.set("out",format!("{null:?}:{number}:{flag}")); @endrust{{ $out }}

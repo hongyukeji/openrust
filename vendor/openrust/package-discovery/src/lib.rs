@@ -43,6 +43,7 @@ pub fn generate() -> io::Result<()> {
         ],
         &active,
     )?;
+    let native = native_views(&graph, &manifest, &output)?;
     let workspace = graph["workspace_root"]
         .as_str()
         .ok_or_else(|| invalid("Cargo metadata has no workspace root"))?;
@@ -52,8 +53,58 @@ pub fn generate() -> io::Result<()> {
     );
     fs::write(
         output.join("packages.rs"),
-        render(&graph, &manifest, &active)?,
+        format!("{}\n{native}", render(&graph, &manifest, &active)?),
     )
+}
+
+// 只遍历目标应用实际依赖的 normal 图，不扫描不相关 workspace 包或启动应用。
+fn native_views(graph: &Value, manifest: &Path, output: &Path) -> io::Result<String> {
+    let host = host_package(graph, manifest)?;
+    let nodes = array(&graph["resolve"]["nodes"], "resolve.nodes")?;
+    let packages = array(&graph["packages"], "packages")?;
+    let mut pending = vec![string(&host["id"], "host ID")?];
+    let mut seen = BTreeSet::new();
+    let mut roots = Vec::new();
+    while let Some(id) = pending.pop() {
+        if !seen.insert(id) {
+            continue;
+        }
+        let package = packages
+            .iter()
+            .find(|p| p["id"].as_str() == Some(id))
+            .ok_or_else(|| invalid("缺少模板所属包"))?;
+        let root = Path::new(string(&package["manifest_path"], "manifest_path")?)
+            .parent()
+            .ok_or_else(|| invalid("包目录无效"))?;
+        roots.push(root.join("resources/views"));
+        let paths = &package["metadata"]["openrust"]["blade"]["paths"];
+        if !paths.is_null() {
+            for path in array(paths, "openrust.blade.paths")? {
+                let path = Path::new(string(path, "模板目录")?);
+                if path.is_absolute()
+                    || path
+                        .components()
+                        .any(|p| !matches!(p, std::path::Component::Normal(_)))
+                {
+                    return Err(invalid("原生模板目录须为包内相对路径"));
+                }
+                roots.push(root.join(path));
+            }
+        }
+        if let Some(node) = nodes.iter().find(|n| n["id"].as_str() == Some(id)) {
+            for dep in array(&node["deps"], "node.deps")? {
+                if array(&dep["dep_kinds"], "dep_kinds")?
+                    .iter()
+                    .any(|kind| kind["kind"].is_null())
+                {
+                    pending.push(string(&dep["pkg"], "dependency ID")?);
+                }
+            }
+        }
+    }
+    roots.sort();
+    roots.dedup();
+    openrust_blade_compiler::build::generate(output, &roots)
 }
 
 fn directory(key: &str) -> io::Result<PathBuf> {
@@ -258,7 +309,9 @@ fn render(graph: &Value, manifest: &Path, active: &[&str]) -> io::Result<String>
         }
         writeln!(generated, "], {factory}),").unwrap();
     }
-    generated.push_str("]);\n#[allow(unused_imports)]\npub mod package_aliases {\n");
+    generated.push_str(
+        "]).withNativeViews(NATIVE_VIEWS);\n#[allow(unused_imports)]\npub mod package_aliases {\n",
+    );
     for (alias, target) in aliases {
         writeln!(generated, "pub use {target} as {alias};").unwrap();
     }

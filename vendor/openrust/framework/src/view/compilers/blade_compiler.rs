@@ -24,7 +24,7 @@ use crate::view::{
 
 const PREFIX: &str = "blade-v1-";
 const SUFFIX: &str = ".json";
-const COMPILER_VERSION: u32 = 39;
+const COMPILER_VERSION: u32 = 40;
 
 type Directive = Arc<dyn Fn(&[ViewValue]) -> ViewResult<DirectiveOutput> + Send + Sync>;
 type Condition = Arc<dyn Fn(&[ViewValue]) -> ViewResult<bool> + Send + Sync>;
@@ -34,6 +34,7 @@ type AttributeFilter = Arc<dyn Fn(&str, &ViewValue) -> bool + Send + Sync>;
 
 #[derive(Clone, Default)]
 pub(in crate::view) struct BladeExtensions {
+    pub(in crate::view) native_views: &'static [crate::view::NativeTemplate],
     pub(in crate::view) directives: BTreeMap<String, Directive>,
     pub(in crate::view) conditions: BTreeMap<String, Condition>,
     pub(in crate::view) preserve_html_entities: bool,
@@ -74,6 +75,38 @@ impl Compiled {
 }
 
 impl BladeCompiler {
+    /// 装配构建期生成的不可变函数表；不启动编译器或执行模板业务。
+    #[doc(hidden)]
+    pub fn nativeViews(&self, templates: &'static [crate::view::NativeTemplate]) {
+        Arc::make_mut(&mut self.extensions.write().unwrap()).native_views = templates;
+    }
+
+    fn validate_native(
+        &self,
+        path: &Path,
+        source: &str,
+        extensions: &BladeExtensions,
+    ) -> ViewResult<()> {
+        let blocks = openrust_blade_compiler::blocks(source).map_err(|error| {
+            compile_error(io::Error::other(format!("{}: {error}", path.display())))
+        })?;
+        if blocks.is_empty() {
+            return Ok(());
+        }
+        let sources: Vec<_> = blocks.iter().map(|b| b.body.to_owned()).collect();
+        if !extensions
+            .native_views
+            .iter()
+            .any(|template| template.matches(&sources))
+        {
+            return Err(compile_error(io::Error::other(format!(
+                "{}:{} 原生 Rust 代码块未构建或与当前模板不一致，请重新构建应用",
+                path.display(),
+                blocks[0].line
+            ))));
+        }
+        Ok(())
+    }
     pub fn new(directory: PathBuf) -> Self {
         Self {
             directory,
@@ -227,6 +260,7 @@ impl BladeCompiler {
     ) -> ViewResult<String> {
         let identity = format!("inline-{component}-{}", digest(source.as_bytes()));
         let extensions = self.extensions.read().unwrap().clone();
+        self.validate_native(Path::new(&identity), source, &extensions)?;
         let template = Template::compile(source, &identity, &extensions)?;
         context.extensions = extensions;
         template.render(data, context).map(trim_php_output)
@@ -265,6 +299,8 @@ impl BladeCompiler {
         source: &str,
         extensions: &BladeExtensions,
     ) -> ViewResult<Template> {
+        // 即使命中磁盘缓存也重新核对当前模板与本二进制的完整原生块顺序。
+        self.validate_native(path, source, extensions)?;
         let name = artifact_name(path);
         let fingerprint = digest(source.as_bytes());
         if let Some(compiled) = self.read_artifact(&name)?

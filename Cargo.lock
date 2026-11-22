@@ -4182,6 +4182,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "openrust-blade-compiler"
+version = "0.0.0"
+dependencies = [
+ "syn 2.0.119",
+]
+
+[[package]]
 name = "openrust-cashier"
 version = "0.0.0"
 dependencies = [
@@ -4279,6 +4286,7 @@ dependencies = [
  "memory-stats",
  "mime_guess",
  "multer",
+ "openrust-blade-compiler",
  "oxideav-heif",
  "oxideav-jpegxl",
  "oxideav-webp",
@@ -4359,6 +4367,7 @@ dependencies = [
 name = "openrust-package-discovery"
 version = "0.0.0"
 dependencies = [
+ "openrust-blade-compiler",
  "serde_json",
 ]
 

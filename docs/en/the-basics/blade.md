@@ -590,6 +590,41 @@ fn configure_conditions(compiler: &BladeCompiler, current_zone: String) -> ViewR
 @endzone
 ```
 
+## Native Rust Blocks (Extension) {#native-rust-blocks}
+
+Use `@rust … @endrust` for synchronous Rust statements compiled into your application. Rendering executes the built function at that node; it never starts Cargo or rustc. Templates are trusted application source with the same permissions as your Rust code.
+
+```blade
+@rust
+let name = context.get::<String>("name")?;
+context.set("title", format!("<{}>", name.to_uppercase()));
+@endrust
+{{ $title }}
+```
+
+With `name = "Alice"`, this displays `&lt;ALICE&gt;` in the HTML source. `set` writes an ordinary view value; escaped echoes keep escaping, and `{!! $title !!}` remains the explicit trusted HTML form. A Rust `let` variable is local to that function and is not exported to Blade.
+
+`context.get::<T>(key)` returns an owned value or a rendering error. Supported conversions are `String`, `bool`, `i64`, `u64`, `f64`, `ViewValue`, `ViewData`, `Vec<T>` and `Option<T>`; `Option<T>` accepts a present null value, while a missing key still fails. Strings are not coerced to numbers. Integer reads enforce the requested signed or unsigned range and reject floats. Floating reads use the existing numeric accessor, so large integers may be rounded to `f64`. Implement `FromViewValue` for explicit application conversions. Dynamic keys and types are checked at rendering time, rather than giving the whole template compile-time type safety.
+
+Writes are visible to the remaining nodes of the current instruction block and inherited by views rendered from there. Branches, each loop iteration, includes, components and nested renders use local copies and restore the caller's values on return. A write inside a loop does not change the next iteration or an outer `@while` condition. Loop variables and `$loop` metadata, component properties, include overrides and view data can be read by key. Rust locals and imports do not cross native block boundaries. No request or task values are stored in the compiled function table.
+
+A block is a function body returning `NativeResult`. Use `?` for errors implementing `Error + Send + Sync`; errors abort the render with template origin and block information. `return Ok(())` ends only the current native function. Use `context.set` for output values; returning a string is a type error. The block has no async context: prepare asynchronous I/O in a controller, service or composer. Rust code is generated in the application crate; use `crate::…` for application symbols and a dependency's public crate path for package functions. Package-private symbols are unavailable. Relative `include!` paths and `file!`/`line!` refer to generated Rust files, not the template's original source location.
+
+The default application build already calls `openrust_package_discovery::generate()` and installs its generated `PackageManifest`. That build scans `.blade.html` files under the application and active normal dependencies' `resources/views`, including published templates under `resources/views/vendor`. Runtime namespace registration and override priority continue to use the view finder. Additional package-relative directories can be included in that package's Cargo manifest:
+
+```toml
+[package.metadata.openrust.blade]
+paths = ["templates"]
+```
+
+Register such directories with the existing view APIs as needed; build discovery does not register runtime namespaces or change `view.paths`. Discovery rejects symlink entries and paths outside the package. It does not boot the application to discover templates.
+
+Build after adding, editing, removing or reordering native blocks. Cargo tracks template directories, including newly created files. Deploy the rebuilt binary together with the matching application and package views; the deployed system does not need Rust tools. All native block bodies and their order must match a sequence compiled into that binary, even on cache hits and in unentered branches. A mismatch fails with a rebuild instruction before executing the template. Identical built source sequences may be reused; runtime inline templates cannot introduce new Rust code. Changes only to ordinary HTML can keep using the existing functions.
+
+`./artisan view:cache` checks native availability and caches the instruction tree without executing native business code; `./artisan view:clear` removes that cache, retaining the compiled functions. Neither command rebuilds the application. Existing instruction caches are regenerated automatically. Syntax diagnostics identify the template and block start; rustc diagnostics refer to the generated file with its template filename, block number and original starting line, without exact original line/column remapping.
+
+Literal `@rust` / `@endrust` text must use `@@rust` / `@@endrust` or `@verbatim`. Existing literal occurrences of these newly reserved directives require that migration.
+
 ## PHP and Rust Templates {#php-and-rust-templates}
 
 ### Expression Runtime and Compilation {#expression-runtime}
@@ -602,10 +637,10 @@ PHP templates can call arbitrary PHP functions and objects. OpenRust compiles a 
 | References and by-reference iteration | Perform mutation and alias-sensitive work in Rust, then supply `ViewData`. ViewValue arrays contain owned values and do not create PHP aliases. |
 | Array unpacking and Traversable | Use `...` with native arrays or ordered objects. Materialize an iterator in Rust; `withIterator` supplies foreach iteration and is not an array-unpacking source. |
 | ArrayAccess, magic properties and arbitrary object methods | Project fields to ViewValue arrays or objects, use `Factory::registerViewService` with `@inject`, or expose computed component values through `Component::data`. Typed text output uses `stringable` and `View::withStringable`. |
-| PHP statements and imports | Use Rust code and module imports. Unregistered `@php`, `@endphp` and `@use` fail compilation. Escape them with `@@` or place them in `@verbatim` when literal output is intended. |
+| PHP statements and imports | Use [native Rust blocks](#native-rust-blocks) for synchronous statements and imports, or prepare data in application Rust code. Unregistered `@php`, `@endphp` and `@use` fail compilation. Escape them with `@@` or place them in `@verbatim` when literal output is intended. |
 
 `view:cache` parses every branch and publishes the instruction tree without running view creators, composers, directive callbacks or component factories. Unsupported syntax therefore fails compilation even in an unselected branch. Valid array expressions evaluate their inputs when rendered: a scalar unpacking source fails only if that branch runs. A failed render does not change the cached tree or subsequent data. Registrations belong to the application compiler; replacing a callback keeps cached templates using the current callback. Register directive and condition names before precompilation.
 
-Prepare values that require PHP function calls or `@php` blocks in a Rust handler, view creator, or composer, then pass them to the view. For PHP class components and dynamic class discovery, register the corresponding Rust `Component` factory with `Factory::component`. Anonymous components resolve through the view finder.
+Prepare values that require PHP function calls or `@php` blocks in a Rust handler, view creator, or composer, then pass them to the view. For synchronous computation during rendering, use the explicit context in [native Rust blocks](#native-rust-blocks). For PHP class components and dynamic class discovery, register the corresponding Rust `Component` factory with `Factory::component`. Anonymous components resolve through the view finder.
 
 Use `@once` for content that should render only once per view tree. `@pushOnce` and `@prependOnce` also accept an optional ID shared across templates.

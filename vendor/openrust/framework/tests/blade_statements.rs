@@ -115,7 +115,7 @@ fn cached_statement_schema_invalidates_previous_compiler_artifacts() {
     let compiler = engine.getCompiler();
     let artifact = compiler.getCompiledPath(&path).unwrap();
     let mut contents: Value = serde_json::from_slice(&fs::read(&artifact).unwrap()).unwrap();
-    assert_eq!(contents["compiler_version"], 39);
+    assert_eq!(contents["compiler_version"], 40);
     contents["compiler_version"] = json!(36);
     fs::write(&artifact, contents.to_string()).unwrap();
     assert!(compiler.isExpired(&path).unwrap());

@@ -8,3 +8,4 @@ publish = false
 
 [dependencies]
 serde_json = "1"
+openrust-blade-compiler = { path = "../blade-compiler", features = ["build"] }

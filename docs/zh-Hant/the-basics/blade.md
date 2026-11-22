@@ -590,6 +590,41 @@ fn configure_conditions(compiler: &BladeCompiler, current_zone: String) -> ViewR
 @endzone
 ```
 
+## 原生 Rust 程式碼區塊（擴充） {#native-rust-blocks}
+
+使用 `@rust … @endrust` 撰寫隨應用程式建置編譯的同步 Rust 陳述式。渲染到對應節點時執行已建置函式，不啟動 Cargo 或 rustc。範本是受信任的應用程式原始碼，擁有應用程式 Rust 程式碼的權限。
+
+```blade
+@rust
+let name = context.get::<String>("name")?;
+context.set("title", format!("<{}>", name.to_uppercase()));
+@endrust
+{{ $title }}
+```
+
+傳入 `name = "Alice"` 時，HTML 原始碼輸出 `&lt;ALICE&gt;`。`set` 寫回一般視圖值，雙括號繼續跳脫；`{!! $title !!}` 仍是明確的受信任 HTML 輸出。Rust 的 `let` 變數僅在目前函式內可見，不會自動匯出為 Blade 變數。
+
+`context.get::<T>(key)` 傳回擁有的值，缺鍵或型別不符則渲染失敗。支援 `String`、`bool`、`i64`、`u64`、`f64`、`ViewValue`、`ViewData`、`Vec<T>` 和 `Option<T>`；`Option<T>` 接受已有的 null 值，缺鍵仍回報錯誤。字串不會強制轉成數字。整數讀取檢查有號／無號範圍並拒絕浮點值；浮點讀取沿用既有數值存取器，大整數轉為 `f64` 時可能捨入。應用程式可實作 `FromViewValue` 進行明確轉換。動態鍵與型別在渲染期檢查，並非整份範本的編譯期型別安全。
+
+寫回值對目前指令區塊後續節點可見，並傳給從該位置渲染的子視圖。分支、每次迴圈、include、元件與巢狀渲染使用區域副本，返回後還原呼叫端資料；迴圈內寫回不改變下一輪或外層 `@while` 條件。可以按鍵讀取迴圈變數與 `$loop` 中繼資料、元件屬性、include 覆寫值及視圖資料。Rust 區域變數和匯入不跨區塊。編譯後的函式表不保存請求或任務資料。
+
+每塊是傳回 `NativeResult` 的函式本體。實作 `Error + Send + Sync` 的錯誤可用 `?` 傳播，失敗會中止渲染並附帶範本來源和區塊資訊。`return Ok(())` 只結束目前原生函式；輸出值透過 `context.set` 寫回，直接傳回字串會編譯失敗。區塊沒有非同步上下文，需要非同步 I/O 時在控制器、服務或組合器準備。產生的程式碼屬於應用程式 crate；應用程式符號使用 `crate::…`，套件函式使用相依套件的公開 crate 路徑，不能存取套件私有符號。相對 `include!` 路徑及 `file!`／`line!` 對應產生的 Rust 檔案，不是原範本位置。
+
+預設應用程式建置已呼叫 `openrust_package_discovery::generate()` 並裝配產生的 `PackageManifest`。建置掃描應用程式及實際啟用的一般相依套件中 `resources/views` 下的 `.blade.html`，包含 `resources/views/vendor` 的已發佈範本。執行期繼續使用既有視圖查找器的命名空間及覆寫優先順序。額外目錄可在所屬套件的 Cargo 設定宣告：
+
+```toml
+[package.metadata.openrust.blade]
+paths = ["templates"]
+```
+
+需要時仍透過既有視圖 API 註冊目錄；建置發現不會註冊執行期命名空間或改變 `view.paths`。發現階段拒絕符號連結項目與套件外路徑，不透過啟動應用程式發現範本。
+
+新增、修改、刪除或重排原生區塊後重新建置。Cargo 追蹤範本目錄，包含新增檔案。部署時同步更新二進位檔、應用程式及套件視圖，執行環境無需 Rust 工具鏈。即使命中快取或程式碼位於未進入分支，全部原生塊的原文與順序也必須符合目前二進位檔內已建置的序列；不一致會在執行範本前明確要求重建。相同的已建置原始碼序列可以重用，執行期內嵌範本不能引入新的 Rust 程式碼。僅修改一般 HTML 時可繼續使用原有函式。
+
+`./artisan view:cache` 檢查原生函式可用性並快取指令樹，不執行原生業務程式碼；`./artisan view:clear` 清除指令快取，保留已編譯函式。兩者都不重新建置應用程式；舊版指令快取自動失效。語法診斷提供範本與區塊起始位置；rustc 診斷指向帶範本檔名、塊號及原起始行的產生檔案，不提供原範本任意行列的精確重新映射。
+
+需要原樣顯示 `@rust`／`@endrust` 時使用 `@@rust`／`@@endrust` 或 `@verbatim`；既有範本中的這些字面標記需要依此遷移。
+
 ## PHP 與 Rust 範本 {#php-and-rust-templates}
 
 ### 表達式執行期與編譯 {#expression-runtime}
@@ -602,10 +637,10 @@ PHP 模板可以呼叫任意 PHP 函式和物件。OpenRust 編譯 Rust 指令�
 | 參照和依參照迭代 | 先在 Rust 中完成修改和依賴別名的操作，再傳入 `ViewData`。ViewValue 陣列擁有其值，不建立 PHP 參照別名。 |
 | 陣列展開與 Traversable | 原生陣列或有序物件使用 `...`。迭代器先在 Rust 中物化；`withIterator` 提供 foreach 迭代，不作為陣列展開來源。 |
 | ArrayAccess、魔術屬性和任意物件方法 | 將欄位投影為 ViewValue 陣列或物件，使用 `Factory::registerViewService` 配合 `@inject`，或透過 `Component::data` 暴露元件計算值。型別化文字輸出使用 `stringable` 和 `View::withStringable`。 |
-| PHP 陳述式和匯入 | 使用 Rust 程式碼和模組匯入。未註冊替代回呼的 `@php`、`@endphp` 和 `@use` 編譯失敗。需要字面量輸出時，用 `@@` 跳脫或放進 `@verbatim`。 |
+| PHP 陳述式和匯入 | 使用[原生 Rust 程式區塊](#native-rust-blocks)編寫同步陳述式和匯入，或在應用程式 Rust 程式碼中準備資料。未註冊替代回呼的 `@php`、`@endphp` 和 `@use` 編譯失敗。需要字面量輸出時，用 `@@` 跳脫或放進 `@verbatim`。 |
 
 `view:cache` 解析所有分支並發布指令樹，不執行視圖建立器、組合器、指令回呼和元件工廠。因此，不支援的語法即使位於未選取的分支也會編譯失敗。有效陣列表達式的輸入在渲染時求值：只有執行到該分支，純量展開來源才會失敗。渲染失敗不改變快取樹和後續資料。註冊屬於應用程式的編譯器，替換回呼後快取模板使用目前的回呼。預編譯前須註冊指令和條件名稱。
 
-PHP 函式呼叫或 `@php` 程式區塊需要的值，可以在 Rust 處理器、視圖建立器或組合器中準備，再傳入視圖。PHP 類別元件及其動態類別探索對應 `Factory::component` 明確註冊的 Rust `Component` 工廠。匿名元件由視圖尋找器解析。
+PHP 函式呼叫或 `@php` 程式區塊需要的值，可以在 Rust 處理器、視圖建立器或組合器中準備，再傳入視圖。需要渲染期同步運算時，使用[原生 Rust 程式區塊](#native-rust-blocks)的明確上下文。PHP 類別元件及其動態類別探索對應 `Factory::component` 明確註冊的 Rust `Component` 工廠。匿名元件由視圖尋找器解析。
 
 用 `@once` 在同一呈現樹中只輸出一次內容。`@pushOnce` 和 `@prependOnce` 也接受可跨範本共用的選用識別碼。

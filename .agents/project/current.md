@@ -1,5 +1,9 @@
 # 当前交接
 
+## Blade 原生 Rust 代码块（2026-11-23）
+
+按[计划](plans/blade-native-rust-blocks.md)完成构建期原生函数与渲染节点，复用既有包发现及作用域；NativeContext 显式读写、完整有序正文校验、缓存格式40，默认应用入口保持简洁。隔离基线292418a39加本次41文件通过44项测试、29阶段真实消费者、24组无工具链standalone并发HTTP、workspace及消费者严格Clippy、fmt、三语构建／浏览器／导航。任务隔离实际使用SyncQueue；动态类型、同步函数、局部写回及生成诊断边界详见[验收记录](audits/03-08/native-rust-blocks-2026-11-23.md)。初始混合快照的其他WIP格式／路由lint失败单列保留，不计入通过。Windows／release／Docker／性能／持久化异步队列未验；无本计划内剩余实现阻塞。材料在target/tmp/blade-native-20261123；用户随后授权本次本地提交，不含推送或发布；保留并行改动。
+
 ## 欢迎页仓库元信息与链接（2026-11-22）
 
 Application::REPOSITORY 来自框架 Cargo repository；欢迎页模板按当前应用语言拼接文档路径，源码／更新日志同用该仓库。三语资源已移除URL键，三语正文及规范同步。最新工作区隔离源码77项关联测试、真实Kernel浏览器44组合、三语文档构建／浏览器／导航通过；范围隔离fmt及workspace严格Clippy通过，不代表其他WIP质量完成。12个交付源码／测试／正文文件与最新验收快照一致。关闭识别或自定义得到fr仍生成不存在的docs/fr，按用户要求保留语言行为并明确边界。详见[验收记录](audits/03-07/welcome-language-2026-11-22.md#仓库元信息与欢迎页链接调整2026-11-22)，材料位于target/tmp/welcome-repository-20261122/。用户已授权本轮本地提交，不包含推送；其他在途改动保留。

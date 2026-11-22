@@ -1,0 +1,10 @@
+@rust
+use std::collections::BTreeSet;
+let input = context.get::<Vec<i64>>("numbers")?;
+let total: i64 = input.into_iter().collect::<BTreeSet<_>>().iter().sum();
+context.set("result", format!("<{}:{total}>", crate::suffix()));
+if let Ok(marker) = std::env::var("NATIVE_SIDE_EFFECT") {
+    use std::io::Write;
+    writeln!(std::fs::OpenOptions::new().create(true).append(true).open(marker)?, "render")?;
+}
+@endrust{{ $result }}|{!! $result !!}

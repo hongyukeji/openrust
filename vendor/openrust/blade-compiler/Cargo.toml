@@ -1,0 +1,13 @@
+[package]
+name = "openrust-blade-compiler"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.94"
+license = "MIT"
+publish = false
+
+[features]
+build = ["dep:syn"]
+
+[dependencies]
+syn = { version = "=2.0.119", default-features = false, features = ["full", "parsing"], optional = true }
