@@ -49,7 +49,7 @@ The `App` facade currently exposes these locale methods; other Laravel App metho
 
 ### Browser Language {#welcome-page-language}
 
-This is application configuration enabled for this project’s browser-language welcome page. The default Laravel skeleton does not include browser-language selection. To follow the tutorial using only the configured default or an explicit route switch, remove the `SetLocale` registration from `bootstrap/app.rs`; translation remains available.
+This is application configuration enabled for this project’s browser-language welcome page. The default Laravel skeleton does not include browser-language selection. To follow the tutorial using only the configured default or an explicit route switch, remove the `SetLocale` registration from `bootstrap/app.rs`; translation remains available. The middleware uses `Request::getLanguages()` for header parsing and priority order; its three-language mapping remains an application policy.
 
 The application registers `app/http/middleware/set_locale.rs` in `bootstrap/app.rs`. This middleware selects a language for the entire request from `Accept-Language`; controllers, validation, and Blade templates use the same current language. It respects quality weights, skips `q=0`, and keeps browser order for equal weights. Without a match, it uses a supported `APP_LOCALE`, then English.
 

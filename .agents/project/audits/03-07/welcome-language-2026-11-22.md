@@ -240,7 +240,7 @@ Docker runtime 增加 COPY lang/，三语部署命令增加复制 lang；避免�
 | 编号 | 优先级与状态 | 证据、影响及建议 |
 | --- | --- | --- |
 | W01 | P2，已复现，未修复 | `resources/views/welcome.blade.html` 的 .wordmark 没有长词换行，父 .artwork 使用 overflow:hidden。隔离真实 Kernel 将 app.name 设为 InternationalizationDemonstrationApplication，390px Chromium 手机视口测得 clientWidth=335、scrollWidth=1210，名称右侧被裁切；页面本身没有横向滚动不能证明文字完整。使用现有 CSS 允许长名称换行，维持名称／版本 16px 间距，并补长英文／中文名称、窄屏及桌面回归；不需要文字测量脚本或布局库。见 long-name-result.json、long-name-mobile.png |
-| W02 | P3，已复现，未修复 | `app/http/middleware/set_locale.rs` 第112行仅凭长度4查找 script，将框架当前接受的 zh-1901／zh-CN-1901 的四位数字变体当成未知文字体系，最终选为 en。这里确认的是当前 ICU 入口接受的良构标签，不声称该变体组合经过 IANA Prefix 有效性验证。对照 zh-pinyin／zh-CN 正常选择 zh-Hans；新的期望回归实际失败，见 numeric-variant-red.log 和 policy-observations.json。最小修正是在已有规范化结果上按 script 的字母语法识别，或复用可用的语义组件，不重新实现完整标签解析，不改中文别名策略 |
+| W02 | P3，后续已修复，见下节 Request 拆分验收 | `app/http/middleware/set_locale.rs` 第112行仅凭长度4查找 script，将框架当前接受的 zh-1901／zh-CN-1901 的四位数字变体当成未知文字体系，最终选为 en。这里确认的是当前 ICU 入口接受的良构标签，不声称该变体组合经过 IANA Prefix 有效性验证。对照 zh-pinyin／zh-CN 正常选择 zh-Hans；新的期望回归实际失败，见 numeric-variant-red.log 和 policy-observations.json。最小修正是在已有规范化结果上按 script 的字母语法识别，或复用可用的语义组件，不重新实现完整标签解析，不改中文别名策略 |
 | W03 | P3，规范改进，未修改 | 三语 lang/*/welcome.json 的 description 仍主动用 Laravel 介绍默认产品，与当前“以 OpenRust 为主体”的规范不一致；translation/mod.rs 的 InvalidKey／InvalidCount／Unavailable 等未国际化人类错误提示也仍为英文。普通介绍和人类提示可按既有规范同步三语／简体中文；原 MIT 许可、上游来源及协议／机器契约必须保留，不做全局品牌替换 |
 | W04 | P3，简化建议，未修改 | welcome.blade.html 第31–33行用三个 http-equiv meta 声明禁缓存，真实响应未包含 Cache-Control；这些页面内容不能代替 HTTP 缓存头，也不是固定欢迎页必需内容。建议删除遗留 meta；只有明确需要 HTTP 缓存策略时，才通过现有 Response 设置响应头。保留按语言变化响应已有的 Vary，不新增缓存中间件。见 policy-observations.json |
 
@@ -265,3 +265,51 @@ Docker runtime 增加 COPY lang/，三语部署命令增加复制 lang；避免�
 收尾曾观察到磁盘低于32 GB；同期 API throttle 工作流已执行项目停线清理，记录在 `target/tmp/api-throttle-20261122/disk-cleanup.json`，实际净释放约61.40 GB。本轮核对登记的源码／日志仍保留、编译目录被清空及锁 inode 保留；恢复后有工作流重新持锁构建，保持其占用，不重复删除。资源复查见 disk-cleanup-confirmation.json；本轮额外删除0，未因审计清理开发数据或独立交付物。
 
 2026-11-22 用户随后授权将本轮审计记录暂存并本地提交；不包含上述问题修复、协作者在途实现或推送。
+
+
+## Request 语言协商与应用策略拆分（2026-11-22）
+
+用户授权补齐通用请求语言能力，并让应用中间件复用。验收基线 `8277bdb4a`；开始时保留了欢迎页审计、API throttle、三语说明及全量审计计划的并行改动。期间协作者提交了 `8c5e5de40`／`3c91d93b7`，本轮未暂存、提交、推送或转发其他任务。下述结果覆盖前节“通用Request接口未实现”和W02未修复的旧结论，不关闭W01／W03／W04。
+
+### 实现与边界
+
+- 框架在 `http/request/languages.rs` 提供 `getLanguages()` 与 `getPreferredLanguage(Option<&[&str]>)`；按完整标签、语言／文字／地区组合、基础语言匹配。候选为空时返回首选范围，无匹配时返回首个候选；匹配不读取或修改应用语言。每个Request持有独立OnceLock，`parts_mut()`使语言缓存失效。
+- `getLanguages()` 接管原应用的严格请求头解析与整数权重排序；应用 `SetLocale` 删除重复解析及quality函数，只保留三语资源映射、默认语言、App设置与响应头。注册继续位于 `bootstrap/app.rs`，不向框架 `foundation/configuration/middleware.rs` 内置三语或自动装配应用中间件，不新增管理器或依赖。
+- W02：文字体系识别要求四位字母，数字变体不再误判。`zh-1901`／`zh-CN-1901`选择简体，`zh-TW-1901`选择繁体，显式未知文字体系仍不按地区猜测。原 `numeric-variant-red.log` 失败证据保留，本轮welcome测试及44组浏览器验收覆盖修复。
+- 六份三语请求／本地化正文说明公开调用、候选错误、通配符／缺失回退及应用职责；项目规范增加框架解析／应用策略的边界。保留Symfony MIT声明及发行notices。
+
+### 固定参考与明确差异
+
+联网实际读取固定Laravel Framework `1449bf241017087fbd38c118ecaabef3f6797fdc` 的 [Request](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/Request.php) 与 [composer.json](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/composer.json)，确认继承Symfony Request及允许7.4／8.0依赖；读取HttpFoundation [v7.4.0 Request及测试](https://github.com/symfony/http-foundation/tree/v7.4.0)、[v8.0.0 Request](https://github.com/symfony/http-foundation/tree/v8.0.0)、AcceptHeader／Item／HeaderUtils及MIT许可。来源、SHA-256和完整源码在本批 `research/`；参考既有mcamara及Fluent调研，当前没有语言路由、持久化偏好或新增协商依赖的需要。检查同级 `openrust-v0.x` HTTP源码及本地v0.x分支，未找到可直接复用的这两个Request接口；复用当前应用已有qvalue规则和框架ICU规范化。
+
+本轮不是Symfony语言API逐字节等价移植。以下是为了遵守既有BCP47规范及保留应用已验行为作出的明确适配，不称为Rust无法表达PHP行为：
+
+| 范围 | 本项目行为及原因 |
+| --- | --- |
+| 语言标签 | 复用ICU输出BCP47，保留支持的变体及扩展；不输出下划线、不静默截断非法标签。非法请求条目忽略，非法候选返回TranslationError；Rust返回Result<Option<String>>及借用的语言切片 |
+| 请求权重 | 保留既有浏览器策略：只接受0～1且最多三位小数，跳过非法／重复参数和q=0。上游会保留q=0并宽松转数值；实际PHP差异探针已保存，不能称为完全等价 |
+| 多值及重复项 | 合并所有Accept-Language头，稳定排序，规范化后去重保留最高有效权重；上游HeaderBag默认读取首个头，重复原值由AcceptHeader覆盖。保留已有应用的多值／最高权重行为 |
+| 通配符与回退 | `*`选择首个候选，应用仍以当前默认语言解释通配符；q=0不是永久排除清单，无匹配仍有默认值，不自动返回406。保留原策略，未偷偷增加新的排除语义 |
+| 通用匹配 | 使用完整子标签边界，不混同文字与地区、不内置中文地区推断；中文资源映射留在应用。完整合法标签优先于组件组合，公开标签保留扩展 |
+
+### 实际验收
+
+证据在 `target/tmp/request-languages-20261122/`；源码隔离在本批 `source/`，复用空闲独占 `target/tmp/welcome-locale-20261122/cargo-target/`。Rust1.94.0，正常并发、增量保留，所有子进程TMPDIR在本批项目内目录；未触及32GB停线。
+
+| 验收 | 结果与证据 |
+| --- | --- |
+| 框架定向 | `framework-final.log`：request_languages11、locale_bcp476、application_locale7、laravel_alignment_http7、request_query3，共34项通过；包括真实Kernel消费者、非法输入、候选校验、缓存失效与应用语言不变 |
+| 应用消费 | `root-final.log`：welcome11、startup28、localization13，共52项通过；合计86项，0失败／0 ignored。原同权、多头、非法输入、中文策略、并发隔离及下游切换继续通过 |
+| 上游运行对照 | 已有php:8.5.12-cli-alpine容器，无网络／只读挂载执行实际HttpFoundation组件；7.4与8.0各21个原始preferred-language用例通过，见php-golden*.json。Rust运行21个经BCP47标识适配的消费者场景：20个匹配原结果，1个上游含超长Unicode子标签的条目按现有校验整体跳过；差异明确记录而非宣称等价，见rust-upstream-results.json／rust-upstream.log |
+| 实际浏览器 | 实际Kernel经回环HTTP接入Chromium，11场景×桌面手机×明暗=44组合通过；新增数字变体场景，核对文案、HTML／HTTP语言、Vary、文档链接、名称版本间距、无脚本错误／横向溢出。人工检查数字变体简体手机浅色截图。browser-results.json／browser.log；服务正常退出，临时夹具移除 |
+| 质量 | 全workspace／all-targets／locked严格Clippy、fmt --all --check通过；clippy.log／fmt.log。依赖仍输出既有cfg／弃用诊断，不宣称全依赖零诊断 |
+| 三语文档 | 内容检查、静态构建、根与/docs/全部导航及三语桌面手机12组合通过；docs-build／docs-browser／docs-scope.log |
+
+运行材料、可复用缓存保留；没有操作开发数据库、Redis或数据卷。未更改共享数据库／缓存／队列引擎，未执行无关三库／三缓存矩阵；没有重建Docker应用镜像、执行Windows／正式部署或完整PHPUnit。这些不计本轮通过。最终输入对账与空间记录见本批closure.json；用户随后授权本轮代码与文档本地提交，并向主对话框发送实现、验收及后续建议；不推送。
+
+
+### 框架中间件建议与主对话交接
+
+2026-11-22 用户要求参考 [Laravel 13 中间件文章](https://learnku.com/docs/laravel/13.x/middleware/17061)，希望语言中间件纳入框架提供的能力。实际读取文章及固定 Framework `1449bf241017087fbd38c118ecaabef3f6797fdc` 的 `Foundation/Configuration/Middleware.php`：文章区分内置中间件、应用自定义中间件和全局注册；文章与固定源码的默认全局／web／api 栈均未提供自动语言选择，不能把此建议描述为 Laravel 默认行为。参考源码保存在本批 `research/learnku-middleware.html` 与 `research/laravel-middleware.php`。
+
+建议主对话后续评估由框架提供通用、可选的语言中间件，复用本轮 Request API 与既有请求语言作用域，允许应用明确给出资源候选及映射策略；三语及中文地区映射不能硬编码进框架。中间件实现放在框架 HTTP 中间件模块，`foundation/configuration/middleware.rs` 只负责装配，应用在 `bootstrap/app.rs` 显式启用。新增可选能力与默认自动启用必须分开决策，记录相对固定 Laravel 的扩展边界。本轮仅完成 Request 能力与应用复用，尚未实现框架 SetLocale，不能将该建议计为已完成。

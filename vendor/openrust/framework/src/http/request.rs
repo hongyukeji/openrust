@@ -20,6 +20,7 @@ mod cookies;
 mod flash_data;
 mod input;
 mod input_value;
+mod languages;
 mod native;
 mod precognition;
 pub(crate) mod query;
@@ -39,6 +40,7 @@ pub struct Request {
     query_cache: OnceLock<serde_json::Value>,
     query_input: Option<serde_json::Value>,
     acceptable_content_types: OnceLock<Vec<String>>,
+    languages: OnceLock<Vec<String>>,
     cookie_cache: OnceLock<serde_json::Value>,
     decrypted_cookies: Option<serde_json::Value>,
     pub(crate) cookie_encryption: Option<crate::cookie::CookieEncryption>,
@@ -76,6 +78,7 @@ impl Request {
             query_cache: OnceLock::new(),
             query_input: None,
             acceptable_content_types: OnceLock::new(),
+            languages: OnceLock::new(),
             cookie_cache: OnceLock::new(),
             decrypted_cookies: None,
             cookie_encryption: None,
@@ -102,6 +105,7 @@ impl Request {
     pub fn parts_mut(&mut self) -> &mut RequestParts {
         self.query_cache.take();
         self.acceptable_content_types.take();
+        self.languages.take();
         self.cookie_cache.take();
         self.payload_input.take();
         &mut self.parts

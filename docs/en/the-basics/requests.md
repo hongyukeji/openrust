@@ -4,6 +4,19 @@
 
 Use `request.header("X-Trace")?` to read the first text value or `None` if the header is absent. Invalid names or non-UTF-8 values return HTTP 400 when the error is rendered by the kernel. Use `hasHeader` for presence, `headers()` for the complete header map and `bearerToken()?` to extract a bearer token from Authorization.
 
+### Browser Language Preferences {#language-preferences}
+
+`request.getLanguages()` returns valid `Accept-Language` ranges in descending quality order, preserving input order for equal weights. Tags use BCP 47, such as `en-US` and `zh-Hant`; `*` remains a wildcard. Repeated header fields are combined, and repeated tags keep their highest valid weight. Invalid tags, malformed or duplicate quality parameters, and `q=0` entries are ignored. A quality must be between 0 and 1 with at most three decimal places. With no valid ranges, the list is empty.
+
+```rust,ignore
+let languages = request.getLanguages();
+let preferred = request.getPreferredLanguage(Some(&["en", "fr-FR"]))?;
+```
+
+`getPreferredLanguage` checks each preference against ordered candidates, starting with the full tag, then language/script/region combinations and the base language. A wildcard or no match selects the first candidate. With `None` or an empty candidate list, it returns the first request range, or `None` when absent. Candidates use the same BCP 47 validation as other locale APIs; an invalid candidate returns a translation error, even if an earlier candidate matches. The returned value is an owned `Option<String>` inside a `Result`. This is a preference helper, not a 406 rejection mechanism: ignored `q=0` ranges do not form a persistent exclusion list, and the ordered fallback still applies.
+
+These methods do not change the application locale or infer Chinese script from region. Choosing supported resources and calling `App::setLocale` belong in application middleware; see [Browser language](../digging-deeper/localization.md#welcome-page-language). Parsed ranges are cached per request; changing headers through `parts_mut()` invalidates that cache.
+
 ## Request Path, Host and URL {#request-path-host-and-method}
 
 `path()` strips surrounding slashes. `decodedPath()` also percent-decodes the path. Use `segments()` or the one-based `segment(index)` to read its components. `is(pattern)` checks the decoded path, `routeIs(&["reports.*"])` checks the matched route name, and `isMethod("GET")` checks the effective HTTP method.

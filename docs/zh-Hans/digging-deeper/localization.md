@@ -49,7 +49,7 @@ fn greeting(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
 
 ### 浏览器语言 {#welcome-page-language}
 
-这是本项目为欢迎页三语自动识别启用的应用配置，Laravel 默认骨架不预置浏览器语言自动识别。遵循教程只使用默认语言或路由手动切换时，可移除 `bootstrap/app.rs` 中的 `SetLocale` 注册；翻译功能仍然可用。
+这是本项目为欢迎页三语自动识别启用的应用配置，Laravel 默认骨架不预置浏览器语言自动识别。遵循教程只使用默认语言或路由手动切换时，可移除 `bootstrap/app.rs` 中的 `SetLocale` 注册；翻译功能仍然可用。 中间件通过 `Request::getLanguages()` 复用请求头解析与偏好排序，三语资源映射仍由应用决定。
 
 应用在 `bootstrap/app.rs` 注册 `app/http/middleware/set_locale.rs`，根据 `Accept-Language` 为整个请求选择语言。控制器、校验和 Blade 模板共用当前语言，按权重选择，跳过 `q=0`，同权重保持浏览器顺序。没有匹配项时，使用受支持的 `APP_LOCALE`，否则使用英文。
 

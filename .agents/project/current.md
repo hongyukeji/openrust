@@ -1,6 +1,12 @@
 # 当前交接
 
-## 当前任务：欢迎页复用译器回退（2026-11-22）
+## 当前任务：Request语言协商与应用策略拆分（2026-11-22）
+
+用户授权实施。框架Request新增getLanguages／getPreferredLanguage，复用既有ICU和严格qvalue规则，按请求缓存并在parts_mut后失效；应用SetLocale删除头解析／权重计算，保留三语映射和请求语言设置。修复数字变体误认文字体系（欢迎页审计W02）。注册仍在bootstrap/app.rs，不将三语策略放进框架Middleware配置类，不新增管理器、依赖或配置键。
+
+86项定向测试、真实Kernel／Chromium44组合、全workspace/all-targets严格Clippy、fmt及三语站点构建／两前缀导航／桌面手机通过。Symfony7.4／8.0各21个原始PHP用例通过，Rust21个适配场景中20个结果一致、1个非法扩展按既有ICU校验跳过；BCP47、严格权重／q=0、多头及候选Result等差异已明确记录，不称完全等价。六份三语正文、项目规范、MIT声明同步。详见[验收记录](audits/03-07/welcome-language-2026-11-22.md#request-语言协商与应用策略拆分2026-11-22)。证据与隔离源码在target/tmp/request-languages-20261122/，复用已空闲独占缓存；未操作开发数据，未重验Docker／Windows／正式部署。用户随后授权本轮本地提交并向主对话框发送交接；保留其他协作者的审计、API限流及计划改动，不推送。验收期间其提交未改变本轮输入。
+
+## 历史任务：欢迎页复用译器回退（2026-11-22）
 
 基线 `02fdc4ce8`，用户授权处理欢迎页控制器中重复的语言判断。本轮移除标题探测、手工选择文档语言及硬编码英文兜底；HTML `lang`／`Content-Language` 使用应用当前语言，文案与文档链接在 Blade 中逐键翻译。三语 `welcome.json` 提供 `documentation_url`／`deployment_url`；新增语言只需提供资源，不修改控制器或框架。该结论覆盖下方历史任务中的“标题语言决定页面语言／手工选择文档语言”规则。
 

@@ -49,7 +49,7 @@ fn greeting(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
 
 ### 瀏覽器語言 {#welcome-page-language}
 
-這是本專案為歡迎頁三語自動辨識啟用的應用程式設定，Laravel 預設骨架不預置瀏覽器語言自動辨識。依照教學僅使用預設語言或路由手動切換時，可移除 `bootstrap/app.rs` 中的 `SetLocale` 註冊；翻譯功能仍然可用。
+這是本專案為歡迎頁三語自動辨識啟用的應用程式設定，Laravel 預設骨架不預置瀏覽器語言自動辨識。依照教學僅使用預設語言或路由手動切換時，可移除 `bootstrap/app.rs` 中的 `SetLocale` 註冊；翻譯功能仍然可用。 中介軟體透過 `Request::getLanguages()` 共用請求標頭解析與偏好排序，三語資源對應仍由應用程式決定。
 
 應用程式在 `bootstrap/app.rs` 註冊 `app/http/middleware/set_locale.rs`，根據 `Accept-Language` 為整個請求選擇語言。控制器、驗證和 Blade 模板共用目前語言，按權重選擇，略過 `q=0`，同權重保持瀏覽器順序。沒有符合項目時，使用支援的 `APP_LOCALE`，否則使用英文。
 

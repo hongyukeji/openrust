@@ -4,6 +4,19 @@
 
 用 `request.header("X-Trace")?` 讀取首個文字值，請求標頭缺少時回傳 `None`。核心會將無效名稱或非 UTF-8 值產生的錯誤轉為 HTTP 400。用 `hasHeader` 檢查是否存在，`headers()` 讀取完整的請求標頭對應，`bearerToken()?` 從 Authorization 中擷取 Bearer 權杖。
 
+### 瀏覽器語言偏好 {#language-preferences}
+
+`request.getLanguages()` 依權重由高到低傳回有效的 `Accept-Language` 範圍，同權保留輸入順序。標籤使用 BCP 47，例如 `en-US`、`zh-Hant`；`*` 保留為萬用字元。多個同名請求標頭合併處理，重複標籤保留最高有效權重。無效標籤、非法或重複的權重參數、`q=0` 項目會被忽略；權重必須介於 0 到 1，最多三位小數。沒有有效範圍時傳回空清單。
+
+```rust,ignore
+let languages = request.getLanguages();
+let preferred = request.getPreferredLanguage(Some(&["en", "fr-FR"]))?;
+```
+
+`getPreferredLanguage` 依請求偏好逐一比對有序候選：先完整標籤，再語言／文字體系／地區組合及基礎語言。萬用字元或沒有相符項目時選擇首個候選。傳入 `None` 或空候選時，傳回請求的首選範圍，沒有則為 `None`。候選使用其他語言介面相同的 BCP 47 驗證；任意候選無效都會傳回翻譯錯誤，即使前面的候選已相符。傳回值是 `Result` 包裝的獨立 `Option<String>`。 這是偏好選擇助手，不會自動傳回 406；忽略的 `q=0` 項目不形成永久排除清單，沒有相符項目時仍使用有序候選的首項。
+
+這兩個方法不改變應用程式語言，也不依中文地區推斷文字體系。支援哪些資源、何時呼叫 `App::setLocale` 仍由應用程式中介軟體決定，見[瀏覽器語言](../digging-deeper/localization.md#welcome-page-language)。解析結果依請求快取，透過 `parts_mut()` 修改請求標頭時快取失效。
+
 ## 請求路徑、主機和 URL {#request-path-host-and-method}
 
 `path()` 移除路徑兩端的斜線，`decodedPath()` 再進行百分號解碼。用 `segments()` 或從 1 開始的 `segment(index)` 讀取路徑區段。`is(pattern)` 比對解碼後的路徑，`routeIs(&["reports.*"])` 比對目前的路由名稱，`isMethod("GET")` 檢查生效的 HTTP 方法。

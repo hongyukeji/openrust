@@ -58,45 +58,17 @@ fn internal(source: impl std::error::Error + Send + Sync + 'static) -> HttpError
 }
 
 fn preferred_locale(request: &Request, default: &str, supported: &[String]) -> String {
-    let mut selected = None;
-    let mut highest = 0;
-    for header in request.headers().get_all("accept-language") {
-        let Ok(header) = header.to_str() else {
-            continue;
-        };
-        for item in header.split(',') {
-            let mut segments = item.split(';');
-            let language = segments.next().unwrap_or_default().trim();
-            let mut weight = Some(1000);
-            let mut has_weight = false;
-            for parameter in segments {
-                let Some((key, value)) = parameter.trim().split_once('=') else {
-                    weight = None;
-                    break;
-                };
-                if !key.trim().eq_ignore_ascii_case("q") || has_weight {
-                    weight = None;
-                    break;
-                }
-                has_weight = true;
-                weight = quality(value.trim());
-            }
-            let Some(weight) = weight.filter(|weight| *weight > highest) else {
-                continue;
-            };
-            let locale = if language == "*" {
+    request
+        .getLanguages()
+        .iter()
+        .find_map(|language| {
+            if language == "*" {
                 supported_locale(default, supported)
                     .or_else(|| supported.first().map(String::as_str))
             } else {
                 supported_locale(language, supported)
-            };
-            if let Some(locale) = locale {
-                selected = Some(locale);
-                highest = weight;
             }
-        }
-    }
-    selected
+        })
         .or_else(|| supported_locale(default, supported))
         .unwrap_or_else(|| supported.first().map_or("en", String::as_str))
         .to_owned()
@@ -109,7 +81,10 @@ fn supported_locale<'a>(locale: &str, supported: &'a [String]) -> Option<&'a str
         .take_while(|part| part.len() != 1)
         .collect::<Vec<_>>();
     let language = *base.first()?;
-    let script = base.iter().skip(1).find(|part| part.len() == 4);
+    let script = base
+        .iter()
+        .skip(1)
+        .find(|part| part.len() == 4 && part.bytes().all(|byte| byte.is_ascii_alphabetic()));
     // 显式文字体系优先；未知文字体系不再通过地区推断中文资源。
     let chinese = if language == "zh" {
         match script.copied() {
@@ -129,21 +104,4 @@ fn supported_locale<'a>(locale: &str, supported: &'a [String]) -> Option<&'a str
         .or_else(|| supported.iter().find(|item| **item == locale))
         .or_else(|| supported.iter().find(|item| item.as_str() == language))
         .map(String::as_str)
-}
-
-// HTTP qvalue 最多三位小数，使用整数比较，避免浮点误差和 NaN。
-fn quality(value: &str) -> Option<u16> {
-    let (whole, fraction) = value.split_once('.').unwrap_or((value, ""));
-    if !matches!(whole, "0" | "1")
-        || fraction.len() > 3
-        || !fraction.bytes().all(|byte| byte.is_ascii_digit())
-        || (whole == "1" && fraction.bytes().any(|byte| byte != b'0'))
-    {
-        return None;
-    }
-    let mut weight = whole.parse::<u16>().ok()? * 1000;
-    for (digit, scale) in fraction.bytes().zip([100, 10, 1]) {
-        weight += u16::from(digit - b'0') * scale;
-    }
-    Some(weight)
 }
