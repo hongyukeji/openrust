@@ -40,6 +40,8 @@ pub fn application_name() -> String {
 
 Use `Config::set` to change a value in the current application. The `string`, `integer`, `float`, `boolean`, `array`, and `collection` methods check the value type. `array` accepts JSON lists and objects, and `collection` preserves their keys.
 
+Use the [App locale methods](../digging-deeper/localization.md#configuring-the-locale) to update configuration, the translator, and locale-change events together. Within a request or queue task, changes to `app.locale` and `app.fallback_locale` affect only that scope. Replacing the entire `app` group also stays in that scope and clears earlier child-key overrides. Writing `Config` directly does not update the translator.
+
 Use `Config::stringOr("app.name", "App")` to get a `String` directly. It returns the default if the key is absent, the value is null or another type, or the repository is unavailable. Use `Config::string("app.name")?` for strict reads. Raw `Config::getOr("app.name", Value::from("App"))?` defaults only when the key is absent and preserves an explicit null. `Config::getMany([("app.name", Value::from("App")), ("app.debug", Value::Bool(false))])?` reads keys with individual defaults in input order. To read an entire section as a struct, derive `serde::Deserialize` and use `Config::deserialize::<MailOptions>("mail")?`.
 
 ## Configuration Caching {#configuration-caching}

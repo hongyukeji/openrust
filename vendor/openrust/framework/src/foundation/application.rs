@@ -566,6 +566,20 @@ impl Application {
             exceptions,
             routes: Mutex::new(None),
         });
+        let owner = Arc::downgrade(&shared);
+        shared
+            .container
+            .bindNamed("app", move |_| {
+                owner
+                    .upgrade()
+                    .map(|shared| Arc::new(Application { shared }))
+                    .ok_or(crate::contracts::container::BindingResolutionError::FacadeNotSet)
+            })
+            .expect("应用入口尚未绑定");
+        shared
+            .container
+            .alias("app", ServiceKey::typed::<Application>())
+            .expect("应用类型别名尚未绑定");
         let deferred =
             super::provider_repository::ProviderRepository::new(Arc::downgrade(&shared), deferred);
         super::console::bind_application(&shared);
@@ -906,7 +920,13 @@ impl Application {
             .container
             .instanceNamed("config_loaded_from_cache", Arc::new(cached.is_some()))
             .map_err(|source| BootstrapError::ContainerFailed { source })?;
-        let config = Arc::new(Repository::new(Default::default()));
+        self.shared
+            .container
+            .scoped::<crate::config::LocaleOverrides, _>(|_| Ok(Arc::default()))
+            .map_err(|source| BootstrapError::ContainerFailed { source })?;
+        let config = Arc::new(
+            Repository::new(Default::default()).with_owner(Arc::downgrade(&self.shared.container)),
+        );
         self.shared
             .container
             .instanceNamed::<dyn config::Repository>("config", config.clone())

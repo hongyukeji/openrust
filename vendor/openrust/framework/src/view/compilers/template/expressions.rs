@@ -11,6 +11,7 @@ use super::{
 #[derive(Serialize, Deserialize)]
 pub(super) enum Expression {
     Value(ViewValue),
+    Translation(Box<super::translations::Translation>),
     Variable(Vec<String>),
     Not(Box<Expression>),
     Numeric(super::arithmetic::Literal),
@@ -53,7 +54,7 @@ pub(super) fn expression_value(expression: &str) -> ViewResult<Expression> {
     parse_expression(expression, 0)
 }
 
-fn parse_expression(expression: &str, depth: usize) -> ViewResult<Expression> {
+pub(super) fn parse_expression(expression: &str, depth: usize) -> ViewResult<Expression> {
     if depth > 48 {
         return Err(invalid("Blade expressions are nested too deeply."));
     }
@@ -190,6 +191,9 @@ fn parse_expression(expression: &str, depth: usize) -> ViewResult<Expression> {
         && !literal.contains(['\'', '\\'])
     {
         return Ok(Expression::Value(ViewValue::String(literal.to_owned())));
+    }
+    if let Some(translation) = super::translations::Translation::parse(expression, depth)? {
+        return Ok(Expression::Translation(Box::new(translation)));
     }
     if let Some(path) = expression.strip_prefix('$') {
         let path: Vec<_> = path.split("->").map(str::trim).collect();
@@ -476,6 +480,9 @@ fn evaluate_with<'a>(
             } else {
                 Evaluated::Number(left.number()?.operation(*operator, right.number()?)?)
             }
+        }
+        Expression::Translation(translation) => {
+            Evaluated::Json(Cow::Owned(translation.evaluate(data, bindings)?))
         }
         Expression::Value(v) => Evaluated::Json(Cow::Borrowed(v)),
         Expression::Array(entries) => {

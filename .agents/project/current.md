@@ -1,10 +1,14 @@
 # 当前交接
 
-## 当前任务：欢迎页浏览器语言识别（2026-11-22）
+## 当前任务：统一请求与模板国际化（2026-11-22）
 
-已完成欢迎页三语自动识别、同语言文案与文档链接、html lang 和 Content-Language／Vary 响应头；复用 Lang 显式 locale，不修改其他请求或应用默认语言。补齐 Docker 镜像和三语独立部署命令的 lang/ 文件携带。保持布局、名称与版本，未引入新依赖或全站语言中间件。
+在已提交欢迎页三语识别 `443f40af4` 上继续改造：语言选择从 WelcomeController 移入应用 SetLocale 中间件，经 bootstrap/app.rs 全局注册，候选语言直接定义在应用中间件中，为 en／zh_CN／zh_TW，不新增 app.supported_locales。中间件通过 App::setLocale 设置当前请求语言，控制器、校验及模板共用请求语言，保留其他请求、任务与应用默认值隔离；已有 Content-Language／Vary 保留。
 
-四项欢迎页行为测试、原入口回归、严格 Clippy／fmt、三语文档构建与导航检查通过；standalone 独立目录真实服务的三语桌面／手机明暗 12 浏览器组合通过。详见 [验收记录](audits/03-07/welcome-language-2026-11-22.md)，证据 target/tmp/welcome-locale-20261122/。未重建 Docker 镜像、未验 Windows／优化 release；此前改动保留。2026-11-22 用户授权修正文档细节、检查后将欢迎页代码、测试、部署说明和验收记录本地提交；不包含推送。
+Blade 已接入 __／trans／trans_choice 以及 @lang 区块和带参数 @lang／@choice，直接复用 Lang；新增语言快照传入既有阻塞渲染线程，缓存版本 36。欢迎页直接翻译，控制器仅准备页面数据和显示元信息。三语国际化／Blade 正文及项目规范同步更新。支持边界与完整证据见 [验收记录](audits/03-07/welcome-language-2026-11-22.md#统一请求与模板国际化)。
+
+按固定 Laravel 教程重新复审：补齐 Application／App 的语言入口和 LocaleUpdated 事件，配置、译器和事件在当前请求／任务内同步；修复别名判断和 Config 父组覆盖一致性，移除新增 supported_locales 默认配置。三语正文以 APP_LOCALE／APP_FALLBACK_LOCALE→App::setLocale／currentLocale／isLocale→模板翻译为主线，明确浏览器识别是应用策略及 Rust 的 JSON／await／Result 边界。
+
+最终 70 项定向回归（含三语原始路由示例实际编译运行）、工作区全部目标严格 Clippy、fmt、三语文档构建和导航／桌面手机检查通过；精确别名设置场景追加后 application_locale 4 项及 Clippy／fmt 补跑通过。固定 Laravel 翻译 Trait 在隔离 PHP 8.5.12 中 4 项对照、独立部署实际服务三语×桌面手机×明暗 12 组合通过。复用 target/tmp/welcome-locale-20261122/，Rust 1.94.0；曾触及磁盘停线，持锁清理净释放约 38 GB 后重新完成最终验证，日志与源码保留。未重建 Docker 镜像、未验 Windows／优化 release，未访问开发数据库。最终证据和限制见上述报告末节与 tutorial-closure.json。2026-11-22 用户授权将本次国际化实现、测试、三语文档及验收记录本地提交；本记录随该提交保存，不包含推送。
 
 ## 当前任务：清理后全面测试与运行（2026-11-22）
 

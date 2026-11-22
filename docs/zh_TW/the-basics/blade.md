@@ -18,6 +18,8 @@ Blade 範本使用 `.blade.html` 副檔名。一般 `.html` 視圖以 UTF-8 HTML
 {{-- comment --}}
 ```
 
+使用 <code v-pre>{{ __('messages.title') }}</code> 在模板中翻譯文字。替換參數、複數和語言選擇見[在 Blade 中翻譯](../digging-deeper/localization.md#blade-translations)。
+
 ### 算術運算式 {#arithmetic-expressions}
 
 輸出、條件、陣列元素、引入視圖與元件屬性可使用 `+`、`-`、`*`、`/`、`%` 和 `**`。乘法優先於加法；冪運算由右向左結合，優先於一元負號。

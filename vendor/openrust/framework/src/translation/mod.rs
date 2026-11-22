@@ -107,3 +107,5 @@ pub(crate) fn language_path(root: &std::path::Path) -> std::path::PathBuf {
         root.join("lang")
     }
 }
+
+pub(crate) use translator::LocaleSnapshot;

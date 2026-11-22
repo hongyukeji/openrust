@@ -18,6 +18,8 @@ Double braces escape HTML entities. The following examples emit trusted HTML, pr
 {{-- comment --}}
 ```
 
+Use <code v-pre>{{ __('messages.title') }}</code> to translate text in a template. See [Translating in Blade](../digging-deeper/localization.md#blade-translations) for replacements, plurals, and locale selection.
+
 ### Arithmetic Expressions {#arithmetic-expressions}
 
 Use `+`, `-`, `*`, `/`, `%` and `**` in echoes, conditions, array entries, includes and component attributes. Multiplication precedes addition; powers associate to the right and precede unary minus.

@@ -40,6 +40,8 @@ pub fn application_name() -> String {
 
 以 `Config::set` 更新目前應用程式的設定。`string`、`integer`、`float`、`boolean`、`array` 和 `collection` 檢查值的型別。`array` 接受 JSON 清單和物件，`collection` 保留集合鍵。
 
+語言切換使用 [App 語言方法](../digging-deeper/localization.md#配置語言)，同步設定、譯器和切換事件。在請求或佇列工作中，`app.locale`、`app.fallback_locale` 的修改僅影響目前作用域；整組替換 `app` 設定也僅影響目前作用域，並清除原有子鍵覆寫。直接修改 `Config` 不會自動更新譯器。
+
 用 `Config::stringOr("app.name", "App")` 直接取得字串。缺少鍵、值為 `null` 或型別不符、設定儲存庫無法使用時，均使用傳入的預設值。需要嚴格讀取並處理錯誤時，用 `Config::string("app.name")?`。原始值讀取 `Config::getOr("app.name", Value::from("App"))?` 僅在缺少鍵時使用預設值，並保留顯式空值。`Config::getMany([("app.name", Value::from("App")), ("app.debug", Value::Bool(false))])?` 按輸入順序讀取多個鍵，各自套用預設值。讀取整組設定時，為結構體衍生 `serde::Deserialize`，再用 `Config::deserialize::<MailOptions>("mail")?`。
 
 ## 設定快取 {#configuration-caching}

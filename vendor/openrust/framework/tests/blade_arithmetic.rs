@@ -113,8 +113,8 @@ fn cached_numeric_nodes_preserve_special_values_and_invalidate_old_compiler_sche
     let compiler = engine.getCompiler();
     let artifact = compiler.getCompiledPath(&path).unwrap();
     let mut contents: Value = serde_json::from_slice(&fs::read(&artifact).unwrap()).unwrap();
-    assert_eq!(contents["compiler_version"], 34);
-    contents["compiler_version"] = json!(33);
+    assert_eq!(contents["compiler_version"], 36);
+    contents["compiler_version"] = json!(35);
     fs::write(&artifact, contents.to_string()).unwrap();
     assert!(compiler.isExpired(&path).unwrap());
     assert_eq!(

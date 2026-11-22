@@ -13,6 +13,7 @@ pub mod events;
 pub mod exceptions;
 pub mod http;
 mod inspiring;
+mod locale;
 pub mod maintenance;
 mod package_manifest;
 pub(crate) mod paths;

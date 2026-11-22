@@ -50,6 +50,23 @@ tokio::task_local! {
     static ACTIVE_LOCALES: std::cell::RefCell<HashMap<usize, String>>;
 }
 
+/// 将临时语言作用域传入阻塞模板渲染，不写入应用默认值或请求容器状态。
+pub(crate) struct LocaleSnapshot(HashMap<usize, String>);
+
+impl LocaleSnapshot {
+    pub(crate) fn capture() -> Self {
+        Self(
+            ACTIVE_LOCALES
+                .try_with(|locales| locales.borrow().clone())
+                .unwrap_or_default(),
+        )
+    }
+
+    pub(crate) fn run<R>(self, operation: impl FnOnce() -> R) -> R {
+        ACTIVE_LOCALES.sync_scope(std::cell::RefCell::new(self.0), operation)
+    }
+}
+
 #[derive(Clone)]
 struct Locales {
     locale: String,

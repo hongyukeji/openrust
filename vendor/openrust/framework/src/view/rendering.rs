@@ -47,6 +47,7 @@ pub(super) struct RenderSlot {
 #[derive(Default)]
 struct RenderState {
     loop_iterations: usize,
+    translation_replacements: ViewValue,
     stacks: HashMap<String, Stack>,
     once: HashSet<(bool, String)>,
     fragments: Vec<(String, String)>,
@@ -60,6 +61,14 @@ struct Stack {
 }
 
 impl<'a> RenderContext<'a> {
+    pub(super) fn start_translation(&self, replacements: ViewValue) {
+        self.shared.borrow_mut().translation_replacements = replacements;
+    }
+
+    pub(super) fn translation_replacements(&self) -> ViewValue {
+        self.shared.borrow().translation_replacements.clone()
+    }
+
     pub(super) fn tick_loop(&self) -> ViewResult<()> {
         let mut state = self.shared.borrow_mut();
         if state.loop_iterations == 100_000 {

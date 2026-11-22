@@ -1763,6 +1763,9 @@ async fn welcome_route_reads_the_named_view_from_the_application_root() {
             config.get_mut("view").unwrap()["paths"] = json!(["custom-views", "resources/views"]);
             Ok(config)
         })
+        .withMiddleware(|middleware| {
+            middleware.append(Arc::new(http::middleware::SetLocale));
+        })
         .withRouting(Routing::default().web(web::register))
         .create()
         .unwrap();

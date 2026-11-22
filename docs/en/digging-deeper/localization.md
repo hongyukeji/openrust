@@ -2,13 +2,76 @@
 
 ## Configuring the Locale
 
-Set `APP_LOCALE` for the application default and `APP_FALLBACK_LOCALE` for missing group translations. Use `Lang::withLocale` around a request or task operation to select another locale. The previous locale is restored when the operation ends.
+Configure `locale` and `fallback_locale` in `config/app.rs` through the root `.env`:
 
-### Welcome Page Language {#welcome-page-language}
+```dotenv
+APP_LOCALE=en
+APP_FALLBACK_LOCALE=en
+```
 
-The welcome page selects English, Simplified Chinese, or Traditional Chinese from the browser's `Accept-Language` header, respecting quality weights and skipping `q=0` entries. `zh-Hans`, `zh-CN`, and `zh-SG` select Simplified Chinese; `zh-Hant`, `zh-TW`, `zh-HK`, and `zh-MO` select Traditional Chinese. An explicit script takes precedence over the region; bare `zh` selects Simplified Chinese. Missing, invalid, or unmatched preferences use a supported `APP_LOCALE`, then English. The selection applies only to the welcome page.
+Following the Laravel tutorial, use `App::setLocale` to change the locale for an HTTP request, `App::currentLocale` to read it, and `App::isLocale("en")?` to check it. For example:
 
-Edit `lang/en/welcome.json`, `lang/zh_CN/welcome.json`, and `lang/zh_TW/welcome.json` to customize its text. Documentation links follow the selected language. The response includes `Content-Language` and `Vary: Accept-Language`; no cookie or global locale is changed.
+```rust
+use openrust::{
+    http::{HttpError, HttpFuture, Request, Response, StatusCode, abort},
+    routing::RoutingError,
+    support::facades::{App, Route},
+};
+
+pub fn register() -> Result<(), RoutingError> {
+    Route::get("/greeting/{locale}", greeting)
+}
+
+fn greeting(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    let locale = request.route("locale").unwrap_or("en").to_owned();
+    Box::pin(async move {
+        if !["en", "zh_CN", "zh_TW"].contains(&locale.as_str()) {
+            return Err(abort(StatusCode::BAD_REQUEST, "", Default::default()));
+        }
+        App::setLocale(&locale).await.map_err(|source| HttpError::Internal {
+            source: Box::new(source),
+        })?;
+        let current = App::currentLocale().map_err(|source| HttpError::Internal {
+            source: Box::new(source),
+        })?;
+        Ok(Response::from(current))
+    })
+}
+```
+
+`App::getLocale` is an alias for `currentLocale`; `getFallbackLocale` and `setFallbackLocale` read and update the fallback locale. `setLocale` updates both `app.locale` and the translator, then dispatches `foundation::events::LocaleUpdated` with `locale` and `previousLocale`. Rust event listeners may be asynchronous, so this method requires `.await` and returns failures through `Result`. Request and queue-task changes are isolated; changes during startup become that application's defaults.
+
+Locale identifiers use the shared underscore format. Both `setLocale` and `isLocale` canonicalize input, so `zh-CN` and `zh_CN` identify the same locale; invalid identifiers return an error.
+
+The `App` facade currently exposes these locale methods; other Laravel App methods are not exposed through this facade. Templates use the translation helpers below. `Lang::withLocale` provides a temporary translator-only locale scope without changing application locale configuration.
+
+### Browser Language {#welcome-page-language}
+
+This is application configuration enabled for this project’s browser-language welcome page. The default Laravel skeleton does not include browser-language selection. To follow the tutorial using only the configured default or an explicit route switch, remove the `SetLocale` registration from `bootstrap/app.rs`; translation remains available.
+
+The application registers `app/http/middleware/set_locale.rs` in `bootstrap/app.rs`. This middleware selects a language for the entire request from `Accept-Language`; controllers, validation, and Blade templates use the same current language. It respects quality weights, skips `q=0`, and keeps browser order for equal weights. Without a match, it uses a supported `APP_LOCALE`, then English.
+
+The three candidates `["en", "zh_CN", "zh_TW"]` are defined in the application middleware, without adding a Laravel application configuration key. Chinese `zh-Hans`, `zh-CN`, `zh-SG`, and bare `zh` select Simplified Chinese; `zh-Hant`, `zh-TW`, `zh-HK`, and `zh-MO` select Traditional Chinese. An explicit script takes precedence over the region. Other languages match an exact supported locale or its base language.
+
+The middleware calls `App::setLocale` before downstream processing, including view rendering and exception responses. It adds `Content-Language` when absent and merges `Accept-Language` into `Vary`, preserving existing values. It does not write cookies or change other requests, jobs, or the application default. Remove its registration to use only the configured default, or adapt this application middleware for your own language-selection policy.
+
+The welcome page uses this shared language. Edit `lang/en/welcome.json`, `lang/zh_CN/welcome.json`, and `lang/zh_TW/welcome.json` to customize its text; its documentation links follow the selected language.
+
+### Translating in Blade {#blade-translations}
+
+Read translations directly in templates. The controller only supplies page data:
+
+```blade
+<h1>{{ __('welcome.heading') }}</h1>
+<p>{{ trans('messages.greeting', ['name' => $name]) }}</p>
+<p>{{ trans_choice('messages.items', $count) }}</p>
+```
+
+`__` and `trans` accept a string key, an optional replacement array, and an optional locale. `trans_choice` adds a numeric or array count after the key. Omitting the locale or passing `null` uses the current request language; an explicit locale affects only that call. Replacement values may be strings, numbers, booleans, or `null`. Missing keys and fallback languages follow the same rules as `Lang`.
+
+<code v-pre>{{ ... }}</code> escapes HTML. `@lang('messages.title')` and `@choice('messages.items', $count)` output raw text, as does `{!! __('messages.title') !!}`; use these only with trusted HTML and replacement values. Includes and components inherit the rendering language, and compiled templates resolve translations at render time. The helpers require an active application translation service. Template translation calls return text; use `Lang::array` in Rust for translation groups or lists.
+
+`@lang ... @endlang` renders a translation block, trims surrounding whitespace, and translates the resulting key. Use `@lang(['name' => $name]) ... @endlang` for replacements; output is raw text. Nested blocks follow Laravel's shared replacement behavior: starting an inner block replaces the outer replacement array. Helpers and blocks support text only. Parameterless translator access, arbitrary PHP functions, facade method calls, and named arguments are not supported.
 
 ## Publishing Language Files {#publishing-the-language-files}
 

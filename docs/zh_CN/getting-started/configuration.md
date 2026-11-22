@@ -40,6 +40,8 @@ pub fn application_name() -> String {
 
 用 `Config::set` 更新当前应用的配置。`string`、`integer`、`float`、`boolean`、`array` 和 `collection` 检查值的类型。`array` 接受 JSON 列表和对象，`collection` 保留集合键。
 
+语言切换使用 [App 语言方法](../digging-deeper/localization.md#配置语言)，以同步配置、译器和切换事件。在请求或队列任务中，`app.locale`、`app.fallback_locale` 的修改仅影响当前作用域；整体替换 `app` 配置组也仅影响当前作用域，并清除原有子键覆盖。直接修改 `Config` 不会自动更新译器。
+
 用 `Config::stringOr("app.name", "App")` 直接取得字符串。键缺失、值为 `null` 或类型不符、配置仓储不可用时，均使用传入的默认值。需要严格读取并处理错误时，用 `Config::string("app.name")?`。原始值读取 `Config::getOr("app.name", Value::from("App"))?` 仅在缺键时使用默认值，并保留显式空值。`Config::getMany([("app.name", Value::from("App")), ("app.debug", Value::Bool(false))])?` 按输入顺序读取多个键，各自使用默认值。读取整组配置时，为结构体派生 `serde::Deserialize`，再用 `Config::deserialize::<MailOptions>("mail")?`。
 
 ## 配置缓存 {#configuration-caching}

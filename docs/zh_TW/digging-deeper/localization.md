@@ -2,13 +2,76 @@
 
 ## 設定語言
 
-透過 `APP_LOCALE` 設定應用程式的預設語言，透過 `APP_FALLBACK_LOCALE` 設定群組翻譯的備援語言。使用 `Lang::withLocale` 為一次請求或工作操作指定語言，操作結束後恢復先前的語言。
+透過 `config/app.rs` 的 `locale`、`fallback_locale` 設定預設語言及缺少群組詞條時的備援語言，對應根 `.env`：
 
-### 歡迎頁語言 {#welcome-page-language}
+```dotenv
+APP_LOCALE=en
+APP_FALLBACK_LOCALE=en
+```
 
-歡迎頁按瀏覽器 `Accept-Language` 的權重選擇英文、簡體中文或繁體中文，略過 `q=0` 項目。`zh-Hans`、`zh-CN`、`zh-SG` 對應簡體；`zh-Hant`、`zh-TW`、`zh-HK`、`zh-MO` 對應繁體。明確的文字體系優先於地區，僅 `zh` 時使用簡體。缺少、無效或沒有符合項目時，使用支援的 `APP_LOCALE`，否則回退英文。自動識別僅作用於歡迎頁。
+依照 Laravel 教學，使用 `App::setLocale` 切換一次 HTTP 請求的語言，使用 `App::currentLocale` 讀取語言，使用 `App::isLocale("en")?` 判斷語言。路由範例：
 
-修改 `lang/en/welcome.json`、`lang/zh_CN/welcome.json` 和 `lang/zh_TW/welcome.json` 可自訂文字，文件連結隨頁面語言切換。回應包含 `Content-Language` 和 `Vary: Accept-Language`，不寫入 Cookie，也不改變全域語言。
+```rust
+use openrust::{
+    http::{HttpError, HttpFuture, Request, Response, StatusCode, abort},
+    routing::RoutingError,
+    support::facades::{App, Route},
+};
+
+pub fn register() -> Result<(), RoutingError> {
+    Route::get("/greeting/{locale}", greeting)
+}
+
+fn greeting(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    let locale = request.route("locale").unwrap_or("en").to_owned();
+    Box::pin(async move {
+        if !["en", "zh_CN", "zh_TW"].contains(&locale.as_str()) {
+            return Err(abort(StatusCode::BAD_REQUEST, "", Default::default()));
+        }
+        App::setLocale(&locale).await.map_err(|source| HttpError::Internal {
+            source: Box::new(source),
+        })?;
+        let current = App::currentLocale().map_err(|source| HttpError::Internal {
+            source: Box::new(source),
+        })?;
+        Ok(Response::from(current))
+    })
+}
+```
+
+`App::getLocale` 是 `currentLocale` 的同義入口；`getFallbackLocale`、`setFallbackLocale` 讀寫備援語言。`setLocale` 同步更新 `app.locale` 與譯器，再發送 `foundation::events::LocaleUpdated`；事件包含 `locale` 和 `previousLocale`。Rust 事件監聽器可以非同步執行，因此此方法需要 `.await`，失敗透過 `Result` 傳回。請求和佇列工作內的修改互相隔離；啟動階段設定則作為該應用程式的預設值。
+
+語言標識沿用統一的底線格式；`setLocale` 與 `isLocale` 都會正規化輸入，因此 `zh-CN` 與 `zh_CN` 代表同一語言，無效標識會傳回錯誤。
+
+`App` Facade 目前提供上述語言方法；其他 Laravel App 方法尚未透過此 Facade 提供。範本繼續使用下文的翻譯助手。`Lang::withLocale` 僅用於暫時的譯器語言作用域，不修改應用程式語言設定。
+
+### 瀏覽器語言 {#welcome-page-language}
+
+這是本專案為歡迎頁三語自動辨識啟用的應用程式設定，Laravel 預設骨架不預置瀏覽器語言自動辨識。依照教學僅使用預設語言或路由手動切換時，可移除 `bootstrap/app.rs` 中的 `SetLocale` 註冊；翻譯功能仍然可用。
+
+應用程式在 `bootstrap/app.rs` 註冊 `app/http/middleware/set_locale.rs`，根據 `Accept-Language` 為整個請求選擇語言。控制器、驗證和 Blade 模板共用目前語言，按權重選擇，略過 `q=0`，同權重保持瀏覽器順序。沒有符合項目時，使用支援的 `APP_LOCALE`，否則使用英文。
+
+三語候選 `["en", "zh_CN", "zh_TW"]` 直接定義在應用程式中介軟體中，不增加 Laravel 應用程式設定鍵。`zh-Hans`、`zh-CN`、`zh-SG` 和僅 `zh` 對應簡體；`zh-Hant`、`zh-TW`、`zh-HK`、`zh-MO` 對應繁體，明確的文字體系優先於地區。其他語言符合完整識別碼或基礎語言。
+
+中介軟體先呼叫 `App::setLocale` 設定目前請求語言，再執行後續處理，包括視圖渲染和例外回應。在缺少時加入 `Content-Language`，將 `Accept-Language` 合併至 `Vary` 並保留既有值。不寫入 Cookie，不改變其他請求、佇列工作或應用程式預設語言。移除該中介軟體註冊即可僅使用設定的預設語言，也可以在此應用程式中介軟體中調整自己的語言選擇策略。
+
+歡迎頁使用目前請求語言。修改 `lang/en/welcome.json`、`lang/zh_CN/welcome.json` 和 `lang/zh_TW/welcome.json` 可自訂文案，文件連結隨頁面語言切換。
+
+### 在 Blade 中翻譯 {#blade-translations}
+
+模板可以直接讀取翻譯，控制器只需提供頁面資料：
+
+```blade
+<h1>{{ __('welcome.heading') }}</h1>
+<p>{{ trans('messages.greeting', ['name' => $name]) }}</p>
+<p>{{ trans_choice('messages.items', $count) }}</p>
+```
+
+`__` 和 `trans` 接受字串鍵、可選替換陣列和可選語言；`trans_choice` 在鍵後增加數字或陣列計數。省略語言或傳入 `null` 時使用目前請求語言，明確指定語言只影響該次呼叫。替換值支援字串、數字、布林值和 `null`。缺鍵和備援語言遵循 `Lang` 的規則。
+
+<code v-pre>{{ ... }}</code> 跳脫 HTML。`@lang('messages.title')`、`@choice('messages.items', $count)` 和 `{!! __('messages.title') !!}` 輸出原始文字，僅用於可信 HTML 和替換值。子模板和元件繼承渲染語言，編譯快取中的模板在每次渲染時讀取翻譯。翻譯輔助函式需要有效的應用程式翻譯服務。模板翻譯呼叫回傳文字；群組或清單使用 Rust 的 `Lang::array`。
+
+`@lang ... @endlang` 支援翻譯區塊：先渲染並去除首尾空白，再將內容作為翻譯鍵。`@lang(['name' => $name]) ... @endlang` 可傳入替換陣列，輸出原始文字。巢狀區塊沿用 Laravel 的共用替換參數行為，內層開始時會取代外層的替換陣列。翻譯助手與區塊僅支援文字；不支援無參數取得譯器、任意 PHP 函式、Facade 方法呼叫及具名參數。
 
 ## 發佈語言檔案 {#publishing-the-language-files}
 

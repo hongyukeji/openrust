@@ -20,6 +20,7 @@ mod includes;
 mod javascript;
 mod loops;
 mod preparation;
+mod translations;
 
 use attributes::{
     AttributeChain, ComponentQuery, Props, apply_aware, apply_props, array_entries, attribute_name,
@@ -52,6 +53,7 @@ enum Declaration {
 enum Node {
     Text(String),
     Echo(Expression, bool),
+    TranslationBlock(Option<Expression>, Vec<Node>),
     EscapedSectionValue(Expression),
     Attributes(AttributeChain),
     ComponentValue(ComponentQuery, bool),
@@ -292,6 +294,7 @@ enum Stop<'a> {
     EndPushIf,
     EndError,
     EndFragment,
+    EndLang,
     EndEnvironment,
     EndAuth,
     EndGuest,
@@ -711,6 +714,39 @@ impl<'a> Parser<'a> {
             self.capture_once(depth, true)?
         } else if self.directive("csrf") {
             Node::Csrf
+        } else if self.directive("lang") {
+            if self
+                .remaining
+                .trim_start_matches([' ', '\t'])
+                .starts_with('(')
+            {
+                let arguments = self.arguments()?;
+                if arguments.trim_start().starts_with('[') {
+                    let replacements = expression_value(&arguments)?;
+                    Node::TranslationBlock(
+                        Some(replacements),
+                        self.block_ending(depth, Stop::EndLang)?,
+                    )
+                } else {
+                    Node::Echo(
+                        Expression::Translation(Box::new(translations::Translation::arguments(
+                            &arguments, false, 0,
+                        )?)),
+                        false,
+                    )
+                }
+            } else {
+                self.consume_close_newline();
+                Node::TranslationBlock(None, self.block_ending(depth, Stop::EndLang)?)
+            }
+        } else if self.directive("choice") {
+            let arguments = self.arguments()?;
+            Node::Echo(
+                Expression::Translation(Box::new(translations::Translation::arguments(
+                    &arguments, true, 0,
+                )?)),
+                false,
+            )
         } else if self.directive("method") {
             Node::Method(expression_value(&self.arguments()?)?)
         } else if self.directive("error") {
@@ -1215,6 +1251,7 @@ impl<'a> Parser<'a> {
             ("endPushIf", Stop::EndPushIf),
             ("enderror", Stop::EndError),
             ("endfragment", Stop::EndFragment),
+            ("endlang", Stop::EndLang),
             ("endenv", Stop::EndEnvironment),
             ("endproduction", Stop::EndProduction),
             ("endsession", Stop::EndSession),
@@ -1546,6 +1583,23 @@ fn render_nodes<'a>(
     for node in nodes {
         match node {
             Node::Text(text) => output.push_str(text),
+            Node::TranslationBlock(replacements, nodes) => {
+                let replacements = replacements
+                    .as_ref()
+                    .map(|expression| {
+                        value(expression, data, bindings).map(|value| value.into_owned())
+                    })
+                    .transpose()?
+                    .unwrap_or_else(|| ViewValue::Array(Vec::new()));
+                translations::replacements(&replacements)?;
+                context.start_translation(replacements);
+                let mut content = String::new();
+                render_block!(nodes, data, bindings, &mut content, context);
+                output.push_str(&translations::block(
+                    &content,
+                    &context.translation_replacements(),
+                )?);
+            }
             Node::Echo(expression, escape) => {
                 if let Expression::Variable(path) = expression
                     && let Some(name) = path.first()

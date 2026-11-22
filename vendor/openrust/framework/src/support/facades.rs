@@ -1,5 +1,7 @@
 //! Static entry points for application services, routes and commands.
 
+mod app;
+pub use app::App;
 mod config;
 mod event;
 mod facade;
