@@ -27,6 +27,7 @@ impl App {
     pub fn getLocale() -> TranslationResult<String> {
         Self::application()?.getLocale()
     }
+    /// 当前作用域实际使用的应用语言；不重新读取请求偏好或执行协商。
     pub fn currentLocale() -> TranslationResult<String> {
         Self::application()?.currentLocale()
     }
