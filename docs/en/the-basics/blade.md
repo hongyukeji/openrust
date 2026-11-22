@@ -71,9 +71,11 @@ Request reads use the live request during HTTP response rendering. Includes, com
 
 Blade can read `App::currentLocale()` and `App::getLocale()` directly; both return the current application locale, including downstream changes. `Application::VERSION` and `Application::REPOSITORY` expose framework package metadata. The OpenRust request extension `request()->localeSelection()` (also `Request::localeSelection()`) returns the middleware's selection state, or `null` when it did not run. Its `supported`, `preference`, `from_query`, `query_parameter` and `can_store` fields describe switching capabilities rather than the final locale. These values need no controller parameters:
 
+`Config::string(key)` requires an existing string value; missing keys, null and other types are errors.
+
 ```blade
 <html lang="{{ App::currentLocale() }}">
-<input name="{{ config('app.locale_form_field', 'locale') }}">
+<input name="{{ Config::string('app.locale_form_field') }}">
 <a href="{{ Application::REPOSITORY }}/blob/master/docs/{{ App::currentLocale() }}/README.md">Docs</a>
 ```
 

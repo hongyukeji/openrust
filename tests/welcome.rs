@@ -1731,7 +1731,7 @@ async fn configured_locale_form_field_reaches_the_view_save_and_clear_flow() {
 }
 
 #[tokio::test]
-async fn locale_form_field_uses_config_cache_and_defaults_only_when_missing() {
+async fn locale_form_field_uses_config_cache_and_requires_a_string() {
     let root = Root::new("en");
     fs::write(
         root.0.join(".env"),
@@ -1769,10 +1769,17 @@ async fn locale_form_field_uses_config_cache_and_defaults_only_when_missing() {
         .remove("locale_form_field");
     fs::write(&cache, serde_json::to_vec(&values).unwrap()).unwrap();
     let missing = root.kernel().await;
-    let (_, headers, html) = preference_request(&missing, "GET", "/", "en", "", "").await;
-    assert!(html.contains("name=\"locale\" value=\"zh-Hans\""));
+    let (status, _, error) = preference_request(&missing, "GET", "/", "en", "", "").await;
+    assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
+    assert!(error.contains("app.locale_form_field"));
+    fs::write(
+        root.0.join("resources/views/form-token.blade.html"),
+        "@csrf",
+    )
+    .unwrap();
+    let (_, headers, html) = preference_request(&missing, "GET", "/form-token", "en", "", "").await;
     let body = format!("_token={}&locale=zh-Hant", csrf_token(&html));
-    let (status, _, _) = preference_request(
+    let (status, headers, _) = preference_request(
         &missing,
         "POST",
         "/locale",
@@ -1781,11 +1788,17 @@ async fn locale_form_field_uses_config_cache_and_defaults_only_when_missing() {
         &body,
     )
     .await;
-    assert_eq!(status, StatusCode::SEE_OTHER);
+    assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
+    assert!(
+        !headers
+            .get_all("set-cookie")
+            .iter()
+            .any(|v| v.to_str().unwrap().starts_with("locale="))
+    );
 }
 
 #[tokio::test]
-async fn invalid_locale_form_field_configuration_errors_before_writing_preferences() {
+async fn locale_form_field_strict_types_and_unmatched_names_preserve_safe_writes() {
     let root = Root::new("en");
     fs::write(
         root.0.join("resources/views/form-token.blade.html"),
@@ -1813,10 +1826,15 @@ async fn invalid_locale_form_field_configuration_errors_before_writing_preferenc
         .unwrap();
         let kernel = root.kernel().await;
         let (status, _, error) = preference_request(&kernel, "GET", "/", "en", "", "").await;
-        // 模板直接读取配置；配置名称的写入安全校验由保存入口负责。
-        if value.is_string() || value.is_null() || value.is_boolean() || value.is_number() {
-            assert_eq!(status, StatusCode::OK, "{value}: {error}");
-        }
+        assert_eq!(
+            status,
+            if value.is_string() {
+                StatusCode::OK
+            } else {
+                StatusCode::INTERNAL_SERVER_ERROR
+            },
+            "{value}: {error}"
+        );
         let (status, headers, html) =
             preference_request(&kernel, "GET", "/form-token", "en", "", "").await;
         assert_eq!(status, StatusCode::OK);
@@ -1830,7 +1848,15 @@ async fn invalid_locale_form_field_configuration_errors_before_writing_preferenc
             &body,
         )
         .await;
-        assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR, "{value}");
+        assert_eq!(
+            status,
+            if value.is_string() {
+                StatusCode::BAD_REQUEST
+            } else {
+                StatusCode::INTERNAL_SERVER_ERROR
+            },
+            "{value}"
+        );
         assert!(
             !failed
                 .get_all("set-cookie")

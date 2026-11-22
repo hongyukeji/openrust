@@ -938,3 +938,12 @@ Rust1.94.0，隔离源码 `target/tmp/locale-save-20261123/source/`；所有命�
 - 14个实现／测试／三语正文文件与最终验收快照逐字节一致，source-match.json记录SHA256。材料统一target/tmp/blade-welcome-direct-20261123/，未操作开发数据。未运行完整workspace测试、其他浏览器引擎／实机、Windows、Docker或发布流程；不据本批声明Blade支持任意PHP方法。
 
 用户随后授权本轮本地提交，不包含推送；其他协作改动保留。
+
+
+## 表单配置严格读取（2026-11-23）
+
+用户最终要求使用Config::string("app.locale_form_field")，不再为消费端提供默认值，覆盖本批尚未提交的stringOr方案。默认locale仅由现有config/app.rs及APP_LOCALE_FORM_FIELD定义。控制器删除getOr／ConfigError／字段名校验，严格读取Result映射现有HttpError::Internal；模板直接调用同一Config::string，无专用包装方法或额外全局错误转换。缺键、null、非字符串报错；字符串原样保留。安全返回目标在偏好写入前核验，请求体必填／类型、语言候选、Cookie及CSRF约束不变。
+
+Blade新增只读Config::string，复用现有Config Facade及错误传播、默认转义；编译缓存43。三语正文、规范及计划22同步。Laravel固定配置仓储源码已在前一批research/config-repository.txt核对，严格字符串入口沿用项目已有API，不重建配置仓储。
+
+Rust1.94.0隔离源码、项目TMPDIR及独占复用locale-save缓存，经build_guard的checks.py框架55项＋应用37项，共92项通过，0失败／忽略；含真实Kernel配置缓存、缺键／null／非字符串时GET与合法CSRF POST报500且不写Cookie、自定义字段／清除、无匹配字段400、模板Config::string转义与类型错误。quality.py受影响fmt、框架库及测试／应用测试严格Clippy通过；三语check_content和git diff --check通过。14处交付源码／测试／正文与快照逐字节一致，材料在target/tmp/locale-form-strict-20261123/。未重跑浏览器视觉、文档站构建或完整workspace测试，不把此前浏览器结果计为本批执行。未操作开发数据。用户已授权本轮本地提交，不推送；保留其他协作改动。

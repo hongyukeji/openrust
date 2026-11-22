@@ -295,3 +295,21 @@ async fn application_locale_and_metadata_are_read_in_the_render_scope() {
         );
     }
 }
+
+#[tokio::test]
+async fn string_config_helper_preserves_strings_and_errors_for_missing_or_other_types() {
+    let root = Root::new();
+    root.write("main", "{{ Config::string('app.name') }}");
+    let kernel = root.kernel("<App>").await;
+    assert_eq!(
+        send(&kernel, "GET", "/view", &[], "").await,
+        (StatusCode::OK, "&lt;App&gt;".into())
+    );
+    for key in ["app.nullable", "app.zero", "app.disabled", "app.missing"] {
+        root.write("main", &format!("{{{{ Config::string('{key}') }}}}"));
+        assert_eq!(
+            send(&kernel, "GET", "/view", &[], "").await.0,
+            StatusCode::INTERNAL_SERVER_ERROR
+        );
+    }
+}

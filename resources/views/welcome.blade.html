@@ -391,9 +391,9 @@ THE SOFTWARE.
                             @csrf
                             <input type="hidden" name="redirect" value="{{ request()->getPathInfo() }}">
                             @foreach(request()->localeSelection()['supported'] as $choice)
-                            <button type="submit" name="{{ config('app.locale_form_field', 'locale') }}" value="{{ $choice }}" @if((request()->localeSelection()['preference'] ?? null) === $choice)aria-current="true"@endif @if(App::currentLocale() === $choice)data-current-language="true"@endif lang="{{ $choice }}" dir="auto">@if(Lang::hasForLocale('languages.name', $choice)){{ __('languages.name', [], $choice) }}@else{{ $choice }}@endif</button>
+                            <button type="submit" name="{{ Config::string('app.locale_form_field') }}" value="{{ $choice }}" @if((request()->localeSelection()['preference'] ?? null) === $choice)aria-current="true"@endif @if(App::currentLocale() === $choice)data-current-language="true"@endif lang="{{ $choice }}" dir="auto">@if(Lang::hasForLocale('languages.name', $choice)){{ __('languages.name', [], $choice) }}@else{{ $choice }}@endif</button>
                             @endforeach
-                            <button type="submit" name="{{ config('app.locale_form_field', 'locale') }}" value="" @if(!(request()->localeSelection()['preference'] ?? null))aria-current="true"@endif lang="{{ App::currentLocale() }}">{{ __('welcome.follow_browser') }}</button>
+                            <button type="submit" name="{{ Config::string('app.locale_form_field') }}" value="" @if(!(request()->localeSelection()['preference'] ?? null))aria-current="true"@endif lang="{{ App::currentLocale() }}">{{ __('welcome.follow_browser') }}</button>
                         </form>
                         @else
                         @foreach(request()->localeSelection()['supported'] as $choice)

@@ -16,6 +16,7 @@ enum Operation {
     HasTranslationForLocale,
     Config,
     HasConfig,
+    StringConfig,
     Request(RequestOperation),
 }
 
@@ -63,6 +64,7 @@ impl Helper {
             ("config", Operation::Config, 1, 2),
             ("Config::get", Operation::Config, 1, 2),
             ("Config::has", Operation::HasConfig, 1, 1),
+            ("Config::string", Operation::StringConfig, 1, 1),
             (
                 "Lang::hasForLocale",
                 Operation::HasTranslationForLocale,
@@ -165,6 +167,15 @@ impl Helper {
                 .map_err(|source| super::ViewError::RenderFailed(Box::new(source))),
             Operation::Repository => Ok(crate::foundation::Application::REPOSITORY.into()),
             Operation::FrameworkVersion => Ok(crate::foundation::Application::VERSION.into()),
+            Operation::StringConfig => {
+                let key = arguments[0]
+                    .as_ref()
+                    .as_str()
+                    .ok_or_else(|| render_error("配置键必须是字符串。"))?;
+                crate::support::facades::Config::string(key)
+                    .map(ViewValue::String)
+                    .map_err(|source| super::ViewError::RenderFailed(Box::new(source)))
+            }
             Operation::Config | Operation::HasConfig => {
                 let key = arguments[0]
                     .as_ref()

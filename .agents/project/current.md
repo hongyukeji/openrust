@@ -1,3 +1,9 @@
+## 表单字段严格读取（2026-11-23）
+
+按用户最终要求，欢迎页及保存入口直接使用Config::string(app.locale_form_field)，无消费端兜底；默认locale由应用配置定义。删除重复字段名配置校验，缺键／null／非字符串沿用既有Config错误；保留输入、语言候选、Cookie管线、CSRF与安全返回地址。
+
+Rust1.94.0隔离92项定向测试、fmt、严格Clippy、三语内容和差异检查通过；14处交付文件与快照一致。见[主题记录](audits/03-07/welcome-language-2026-11-22.md#表单配置严格读取2026-11-23)。未重跑浏览器／文档构建／完整workspace；用户授权本轮本地提交，不推送，其他协作改动保留。
+
 ## 欢迎页直接读取视图上下文（2026-11-23）
 
 欢迎页不再通过控制器.with注入语言、仓库、选择状态或表单字段；Blade使用App::currentLocale、Application包常量、request()->localeSelection和config。删除locale_form_field包装方法，保存入口直接读配置并在写入前保留安全校验；GET不再执行保存入口配置验证。保留HTTP头、CSRF、偏好及303职责。

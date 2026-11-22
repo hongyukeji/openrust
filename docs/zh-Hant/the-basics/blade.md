@@ -71,9 +71,11 @@ HTTP 視圖可直接讀取目前請求與已載入的設定，不必由控制器
 
 Blade 可直接呼叫 `App::currentLocale()` 和 `App::getLocale()`，讀取目前應用程式語言，也能看到下游主動切換的結果。`Application::VERSION`、`Application::REPOSITORY` 讀取框架套件中繼資料。OpenRust 請求擴充 `request()->localeSelection()`（也支援 `Request::localeSelection()`）讀取中介軟體選擇狀態，未執行時回傳 `null`；其中 `supported`、`preference`、`from_query`、`query_parameter`、`can_store` 描述切換能力，不代替目前實際語言。這些值無需控制器傳參：
 
+`Config::string(key)` 要求設定存在且為字串；缺鍵、null 或其他型別報錯。
+
 ```blade
 <html lang="{{ App::currentLocale() }}">
-<input name="{{ config('app.locale_form_field', 'locale') }}">
+<input name="{{ Config::string('app.locale_form_field') }}">
 <a href="{{ Application::REPOSITORY }}/blob/master/docs/{{ App::currentLocale() }}/README.md">文件</a>
 ```
 
