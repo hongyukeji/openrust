@@ -474,6 +474,8 @@ pub fn subject_including_deleted<M: Model, P: Model, A: Model>() -> MorphTo<M> {
 
 用 `loadMorph` 重载指定目标组的类型化关系，或用 `loadMorphPaths::<Post>("subject", &subjects, "post", &["comments.post"])` 重载已登记路径。父模型关系和 JSON 输出均可读取新结果，已持有的目标引用继续指向旧快照。模型和集合均支持这两个方法。用 `loadMorphCount`、`loadMorphAggregate` 或 `loadMorphAggregates` 将延后查询的聚合值写回已缓存的多态目标，随后可从父模型关系和 JSON 输出读取。每次调用选择一个别名，同一别名的多个聚合按主键批量合并查询，其他别名保留各自的值。单模型也支持 `loadMorphAggregate` 和 `loadMorphAggregates`。
 
+单模型还提供 `loadMorphMax`、`loadMorphMin`、`loadMorphSum`、`loadMorphAvg`，依次传入 `(name, morph, alias, related_name, relation, column)`。四个方法复用 `loadMorphAggregate` 的类型化目标与聚合机制，保留关联模型全局作用域；无关联行返回 SQL NULL，空目标或其他目标分组保持原状。`"comments as total"` 可指定结果属性名。数值类型由驱动决定，查询失败时保留原缓存目标快照。
+
 ```rust
 use openrust::database::{
     DatabaseResult, Value,

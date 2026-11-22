@@ -22,6 +22,12 @@
 
 Q03补充：原临时守卫只在运行中检查、未自动清理且漏掉退出瞬间；新tests/build_guard.py覆盖上述边界，并将真实清理事件写入target/tmp/build-guard-events.jsonl。绕过入口的raw Cargo仍不能自动拦截，须执行规范中的阶段检查。第四次实际安全清理见disk-cleanup-query.json：12个profile，锁inode保留，清理前28,469,579,776字节可用，之后94,545,403,904，实测净释放66,075,824,128字节。此为此前阶段检查触发的实际清理，不冒称由新守卫执行；本次守卫测试只清隔离假项目。仍保留正常增量与并发。当前其他协作者构建继续保留，不触线不清理热缓存。
 
+## 多态聚合入口（2026-11-23）
+
+C25补Model::loadMorphMax/loadMorphMin/loadMorphSum/loadMorphAvg，四个方法直接委托既有loadMorphAggregate及RelationAggregateQuery，不引入另一套聚合引擎。固定Framework13.40.0 Model.php:1063–1104为同样四个委托入口；v0.x对应model无这些接口，沿用当前已验多态目标/聚合/快照回写。公开参数仍是既有Rust类型化relation/alias而非PHP动态关系映射，返回Result<()>，这项语言适配不能记成签名1:1。
+
+真实PHP8.5.12 PDO SQLite生成16组四种聚合×有数据/空关系/其他目标/空目标参考，Rust1项集成用例全部核对通过，另覆盖全局scope过滤、自定义属性别名、original同步、SQL错误和错误目标类型不改缓存。PostgreSQL18.7与MySQL8.4.13隔离库各实际执行同一用例并通过；数值按驱动返回可能为文本/整数/浮点，不伪装类型一致。fmt、workspace/all-targets严格Clippy、三语build、12组合浏览器和双前缀全导航通过。证据：target/tmp/framework-parity-20261122/eloquent-morph-reference.log / morph-{postgres,mysql}.log / clippy-morph.log / fmt-morph.log / docs-{build,browser,scope}-morph.log；参考生成脚本和JSON纳入tests/reference。C20/C21/C23/C24及更广泛ORM审计继续，未全量关闭。
+
 ## ORM 主键与单值（2026-11-23）
 
 C22补whereKey列表、whereKeyNot/orWhereKey/orWhereKeyNot、value/sole/soleValue/valueOrFail；复用原Conditions整数/集合/分组、scoped水合及关系查询既有sole_match基数错误检查。主键带表限定，OR不越过全局scope；单值读取经过真实模型访问器/转换/检索生命周期，不直接取底层SQL标量。原有投影保留，SQL NULL和无行分别按对应方法职责处理。公开Key枚举是PHP单值/数组参数的Rust表达，已有Into<Value>标量仍可调用，Vec和数组直接支持；模型参数显式取getKey。PHP Expression与动态模型/Arrayable输入全集仍需后续签名裁决。

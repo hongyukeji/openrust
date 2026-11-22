@@ -1307,6 +1307,78 @@ pub trait Model: Sized + Send + Sync + 'static {
         )
     }
 
+    /// 为指定多态目标加载关系最大值，复用既有聚合查询与缓存回写。
+    fn loadMorphMax<'a, T: Model>(
+        &'a mut self,
+        name: &'a str,
+        morph: &'a super::relations::MorphTo<Self>,
+        alias: &'a str,
+        related_name: &'a str,
+        relation: &'a impl ExistenceRelation<Parent = T>,
+        column: &'a str,
+    ) -> impl Future<Output = DatabaseResult<()>> + Send + 'a {
+        self.loadMorphAggregate(
+            name,
+            morph,
+            alias,
+            RelationAggregateQuery::new(related_name, relation, RelationAggregate::Max(column)),
+        )
+    }
+
+    /// 为指定多态目标加载关系最小值，复用既有聚合查询与缓存回写。
+    fn loadMorphMin<'a, T: Model>(
+        &'a mut self,
+        name: &'a str,
+        morph: &'a super::relations::MorphTo<Self>,
+        alias: &'a str,
+        related_name: &'a str,
+        relation: &'a impl ExistenceRelation<Parent = T>,
+        column: &'a str,
+    ) -> impl Future<Output = DatabaseResult<()>> + Send + 'a {
+        self.loadMorphAggregate(
+            name,
+            morph,
+            alias,
+            RelationAggregateQuery::new(related_name, relation, RelationAggregate::Min(column)),
+        )
+    }
+
+    /// 为指定多态目标加载关系合计，复用既有聚合查询与缓存回写。
+    fn loadMorphSum<'a, T: Model>(
+        &'a mut self,
+        name: &'a str,
+        morph: &'a super::relations::MorphTo<Self>,
+        alias: &'a str,
+        related_name: &'a str,
+        relation: &'a impl ExistenceRelation<Parent = T>,
+        column: &'a str,
+    ) -> impl Future<Output = DatabaseResult<()>> + Send + 'a {
+        self.loadMorphAggregate(
+            name,
+            morph,
+            alias,
+            RelationAggregateQuery::new(related_name, relation, RelationAggregate::Sum(column)),
+        )
+    }
+
+    /// 为指定多态目标加载关系平均值，复用既有聚合查询与缓存回写。
+    fn loadMorphAvg<'a, T: Model>(
+        &'a mut self,
+        name: &'a str,
+        morph: &'a super::relations::MorphTo<Self>,
+        alias: &'a str,
+        related_name: &'a str,
+        relation: &'a impl ExistenceRelation<Parent = T>,
+        column: &'a str,
+    ) -> impl Future<Output = DatabaseResult<()>> + Send + 'a {
+        self.loadMorphAggregate(
+            name,
+            morph,
+            alias,
+            RelationAggregateQuery::new(related_name, relation, RelationAggregate::Avg(column)),
+        )
+    }
+
     /// Loads an aggregate onto this model's cached polymorphic target.
     fn loadMorphAggregate<'a, T: Model>(
         &'a mut self,

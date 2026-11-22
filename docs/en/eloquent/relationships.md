@@ -474,6 +474,8 @@ pub fn subject_including_deleted<M: Model, P: Model, A: Model>() -> MorphTo<M> {
 
 Use `loadMorph` to reload a typed relationship on one target group, or `loadMorphPaths::<Post>("subject", &subjects, "post", &["comments.post"])` to reload registered paths. Loaded values are available through the parent relation and its JSON projection. A previously held target reference still points to its earlier snapshot. Both methods are available on models and collections. Use `loadMorphCount`, `loadMorphAggregate`, or `loadMorphAggregates` to write deferred aggregates onto the cached targets, where they are available through the parent relation and its JSON projection. Choose an alias for each call. Aggregates for one alias share a query per key batch, and other aliases keep their own values. Single models also support `loadMorphAggregate` and `loadMorphAggregates`.
 
+Single models also provide `loadMorphMax`, `loadMorphMin`, `loadMorphSum` and `loadMorphAvg`. Pass `(name, morph, alias, related_name, relation, column)`; each method uses the same typed target and aggregate engine as `loadMorphAggregate`. Related-model global scopes remain active, an empty related set yields SQL NULL, and null or other target groups are left unchanged. Use `"comments as total"` for a custom result attribute. Driver-specific numeric result types are preserved; failures leave the cached target snapshot intact.
+
 ```rust
 use openrust::database::{
     DatabaseResult, Value,

@@ -474,6 +474,8 @@ pub fn subject_including_deleted<M: Model, P: Model, A: Model>() -> MorphTo<M> {
 
 用 `loadMorph` 重新載入指定目標群組的型別化關聯，或用 `loadMorphPaths::<Post>("subject", &subjects, "post", &["comments.post"])` 重新載入已登記的路徑。父模型關聯和 JSON 輸出均可讀取新結果，已持有的目標參照仍指向舊快照。模型與集合均支援這兩個方法。用 `loadMorphCount`、`loadMorphAggregate` 或 `loadMorphAggregates` 將延後查詢的彙總值寫回已快取的多型目標，之後可從父模型關聯和 JSON 輸出讀取。每次呼叫選擇一個別名，同一別名的多個彙總依主鍵批次合併查詢，其他別名保留各自的值。單一模型也支援 `loadMorphAggregate` 和 `loadMorphAggregates`。
 
+單模型還提供 `loadMorphMax`、`loadMorphMin`、`loadMorphSum`、`loadMorphAvg`，依序傳入 `(name, morph, alias, related_name, relation, column)`。四個方法復用 `loadMorphAggregate` 的型別化目標與聚合機制，保留關聯模型全域作用域；無關聯列回傳 SQL NULL，空目標或其他目標分組維持原狀。`"comments as total"` 可指定結果屬性名。數值型別由驅動決定，查詢失敗時保留原快取目標快照。
+
 ```rust
 use openrust::database::{
     DatabaseResult, Value,

@@ -593,13 +593,13 @@
         "vendor/openrust/framework/src/database/eloquent/model.rs:33",
         "Illuminate\\Database\\Eloquent\\Model.loadMorphMax;Illuminate\\Database\\Eloquent\\Model.loadMorphMin;Illuminate\\Database\\Eloquent\\Model.loadMorphSum;Illuminate\\Database\\Eloquent\\Model.loadMorphAvg",
         "vendor/openrust/framework/tests/eloquent_relationships.rs",
-        "历史发现待当前契约复核；复核仍成立后实施",
-        "",
+        "四个入口已实现并通过受支持范围验收；动态映射签名差异保留",
+        "16组真实固定PHP/PDO SQLite；SQLite/隔离PG/MySQL同一集成用例通过；fmt/严格Clippy/三语站点通过",
         "Q01;C21",
-        "本轮未执行框架验收",
-        "历史差异待当前契约裁决",
-        "先复核已有实现后补缺口；本计划未执行",
-        "本轮未运行功能验收，历史结果仅限对应提交和环境"
+        "2026-11-23；target/tmp/framework-parity-20261122/eloquent-morph-reference.log、morph-postgres.log、morph-mysql.log及clippy/docs-morph日志",
+        "固定Model.php1063–1104；与既有typed loadMorphAggregate同机制，未新增Collection上游不存在的四个快捷方法",
+        "Model四个loadMorph聚合原名委托既有引擎",
+        "四种聚合、空/其他目标、scope、别名、original、失败缓存保护实际通过；typed关系/alias和Result<()>适配保留"
       ],
       [
         "main",
@@ -293263,6 +293263,15 @@
       ],
       "note": "136主键+45单值=181真实固定PHP/PDO SQLite参考，Rust4项通过；隔离PG3/MySQL3并发不同表实际通过。原eloquent_models MySQL默认早退不计实际验收。fmt/严格workspace Clippy/三语站点通过。typed Key及模型/Expression动态输入边界保留。",
       "evidence": "target/tmp/framework-parity-20261122/eloquent与docs-eloquent-key相关日志"
+    },
+    {
+      "date": "2026-11-23",
+      "kind": "morph_aggregate_helpers_verified",
+      "tasks": [
+        "C25"
+      ],
+      "note": "16真实PHP/PDO SQLite参考，SQLite/隔离PG/MySQL各1集成用例通过；原有聚合引擎及缓存保护复用，fmt/严格Clippy/三语站点通过。typed关系映射与返回类型差异保留，不将整个ORM记为完成。",
+      "evidence": "target/tmp/framework-parity-20261122/eloquent-morph-reference.log、morph-数据库、clippy及docs-morph日志"
     }
   ]
 }

@@ -1,0 +1,114 @@
+[
+    {
+        "method": "max",
+        "id": 1,
+        "attribute": "ratings_max_score",
+        "present": true,
+        "value": 20
+    },
+    {
+        "method": "max",
+        "id": 2,
+        "attribute": "ratings_max_score",
+        "present": true,
+        "value": null
+    },
+    {
+        "method": "max",
+        "id": 3,
+        "attribute": "ratings_max_score",
+        "present": false,
+        "value": null
+    },
+    {
+        "method": "max",
+        "id": 4,
+        "attribute": "ratings_max_score",
+        "present": false,
+        "value": null
+    },
+    {
+        "method": "min",
+        "id": 1,
+        "attribute": "ratings_min_score",
+        "present": true,
+        "value": 10
+    },
+    {
+        "method": "min",
+        "id": 2,
+        "attribute": "ratings_min_score",
+        "present": true,
+        "value": null
+    },
+    {
+        "method": "min",
+        "id": 3,
+        "attribute": "ratings_min_score",
+        "present": false,
+        "value": null
+    },
+    {
+        "method": "min",
+        "id": 4,
+        "attribute": "ratings_min_score",
+        "present": false,
+        "value": null
+    },
+    {
+        "method": "sum",
+        "id": 1,
+        "attribute": "ratings_sum_score",
+        "present": true,
+        "value": 30
+    },
+    {
+        "method": "sum",
+        "id": 2,
+        "attribute": "ratings_sum_score",
+        "present": true,
+        "value": null
+    },
+    {
+        "method": "sum",
+        "id": 3,
+        "attribute": "ratings_sum_score",
+        "present": false,
+        "value": null
+    },
+    {
+        "method": "sum",
+        "id": 4,
+        "attribute": "ratings_sum_score",
+        "present": false,
+        "value": null
+    },
+    {
+        "method": "avg",
+        "id": 1,
+        "attribute": "ratings_avg_score",
+        "present": true,
+        "value": 15
+    },
+    {
+        "method": "avg",
+        "id": 2,
+        "attribute": "ratings_avg_score",
+        "present": true,
+        "value": null
+    },
+    {
+        "method": "avg",
+        "id": 3,
+        "attribute": "ratings_avg_score",
+        "present": false,
+        "value": null
+    },
+    {
+        "method": "avg",
+        "id": 4,
+        "attribute": "ratings_avg_score",
+        "present": false,
+        "value": null
+    }
+]
