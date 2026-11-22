@@ -1052,14 +1052,14 @@
         "target/tmp/laravel-code-audit-20261121/laravel-framework/src/Illuminate/Auth/Access/Gate.php:653",
         "vendor/openrust/framework/src/auth/access/gate.rs:160",
         "Illuminate\\Auth\\Access\\Gate.getPolicyFor;Illuminate\\Auth\\Access\\Gate.guessPolicyNamesUsing;Illuminate\\Auth\\Access\\Gate.resolvePolicy;Illuminate\\Auth\\Access\\Response.withStatus;Illuminate\\Auth\\Access\\Response.asNotFound",
-        "vendor/openrust/framework/tests/authorization.rs;vendor/openrust/framework/tests/auth_configured_extensions.rs",
-        "部分实现，未关闭",
-        "Response.withStatus/asNotFound已补，authorization4项通过；Gate策略发现/resolvePolicy/getPolicyFor仍需实现及验收。",
+        "vendor/openrust/framework/tests/authorization.rs;vendor/openrust/framework/tests/auth_configured_extensions.rs;vendor/openrust/framework/tests/gate_policy_discovery.rs;vendor/openrust/framework/tests/reference/gate-policy-discovery.php",
+        "策略查询/猜测/容器解析及映射入口与Response状态Builder已实现并验收；属性/父类/动态输入及完整Gate接口继续裁决",
+        "target/tmp/framework-parity-20261122/ [gate-policy-third.log;gate-policy-reference.json;gate-policy-postgres.log;gate-policy-mysql.log;fmt-gate-policy.log;clippy-gate-policy.log;docs-{build,browser,scope}-gate-policy.log]",
         "Q01;R03",
-        "target/tmp/framework-parity-20261122/：focused-current.log / regression-current.log / translation-selectors.log / clippy-third.log；按current_evidence区分已验与待验。",
-        "历史差异待当前契约裁决",
-        "先复核已有实现后补缺口；本计划未执行",
-        "本轮未运行功能验收，历史结果仅限对应提交和环境"
+        "固定PHP11项对照通过；新增4项通过，含Facade/registry/forUser/契约入口、真实容器依赖及瞬态/共享、错误/重入、两应用HTTP允许/403隔离。既有SQLite鉴权/事件/Response及原生日志回归通过；独立PG18.7/MySQL8.4.13各真实HTTP鉴权1项显式通过，默认缺变量早退未计驱动通过。fmt/严格workspace-all-targets Clippy/三语站点全部通过。",
+        "固定Gate.php653–769；显式优先、默认/自定义候选与容器make职责复用。Rust需discoverPolicy登记已编译类型；resolvePolicy泛型、Vec<String>候选、Arc PolicyHandle/Result、TypeId HashMap映射及显式policy共享实例适配；UsePolicy属性/父类/任意动态类尚未实现。",
+        "C45命名入口及受支持发现职责完成；现有状态Builder保留；完整Gate契约/属性/继承域未关闭",
+        "11项真实PHP参考、新增4项、SQLite和实际PG/MySQL鉴权、严格Clippy/fmt及三语站点通过；完整PHP输入/属性/继承域未验"
       ],
       [
         "main",
@@ -293331,6 +293331,19 @@
         "Monolog 3.9.0; psr/log 3.0.2; PHP 8.5.12"
       ],
       "disk_cleanup": "target/tmp/build-guard-events.jsonl: 31805612032 -> 133673054208 bytes; released 101867442176; 14 profiles; lock inodes preserved"
+    },
+    {
+      "date": "2026-11-23",
+      "kind": "gate_policy_discovery_verified",
+      "tasks": [
+        "C45"
+      ],
+      "note": "固定PHP11项对照通过；新增4项通过，含Facade/registry/forUser/契约入口、真实容器依赖及瞬态/共享、错误/重入、两应用HTTP允许/403隔离。既有SQLite鉴权/事件/Response及原生日志回归通过；独立PG18.7/MySQL8.4.13各真实HTTP鉴权1项显式通过，默认缺变量早退未计驱动通过。fmt/严格workspace-all-targets Clippy/三语站点全部通过。 固定Gate.php653–769；显式优先、默认/自定义候选与容器make职责复用。Rust需discoverPolicy登记已编译类型；resolvePolicy泛型、Vec<String>候选、Arc PolicyHandle/Result、TypeId HashMap映射及显式policy共享实例适配；UsePolicy属性/父类/任意动态类尚未实现。",
+      "evidence": "target/tmp/framework-parity-20261122/ [gate-policy-third.log;gate-policy-reference.json;gate-policy-postgres.log;gate-policy-mysql.log;fmt-gate-policy.log;clippy-gate-policy.log;docs-{build,browser,scope}-gate-policy.log]",
+      "references": [
+        "https://raw.githubusercontent.com/laravel/framework/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Auth/Access/Gate.php; SHA256 5e3fde80482ba0142c684355e3b17292da7b58a8303a1e1bfd0c6446aa6ec571",
+        "v0.x auth/policy.rs: role-permission database service; not reused"
+      ]
     }
   ]
 }

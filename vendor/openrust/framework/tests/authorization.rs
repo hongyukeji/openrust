@@ -382,6 +382,15 @@ async fn authorization_over_http_with_mysql() {
 }
 
 #[tokio::test]
+async fn authorization_over_http_with_postgres() {
+    let url = std::env::var("OPENRUST_TEST_AUTHORIZATION_POSTGRES_URL").ok();
+    assert!(url.is_some() || std::env::var_os("OPENRUST_REQUIRE_AUTHORIZATION_POSTGRES").is_none());
+    if let Some(url) = url {
+        verify(json!({"url":url})).await;
+    }
+}
+
+#[tokio::test]
 async fn gate_evaluated_delivers_original_arguments_and_raw_result_over_http() {
     use std::{any::TypeId, sync::Mutex};
 

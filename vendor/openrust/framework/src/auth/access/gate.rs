@@ -1,5 +1,5 @@
 use std::{
-    any::TypeId,
+    any::{Any, TypeId},
     collections::HashMap,
     sync::{Arc, RwLock, Weak},
 };
@@ -16,6 +16,10 @@ use crate::{
 };
 
 use super::{Argument, AuthorizationError, Policy, PolicyTarget, Response, events::GateEvaluated};
+
+mod policies;
+
+pub use policies::PolicyHandle;
 
 type Decision = Option<Response>;
 type Ability = dyn for<'a> Fn(
@@ -42,6 +46,8 @@ type After = dyn for<'a> Fn(
 
 trait RegisteredPolicy: Send + Sync {
     fn has_ability(&self, ability: &str) -> bool;
+    fn instance(&self) -> Arc<dyn Any + Send + Sync>;
+    fn name(&self) -> &'static str;
     fn evaluate<'a>(
         &'a self,
         user: Option<&'a dyn Authenticatable>,
@@ -50,9 +56,15 @@ trait RegisteredPolicy: Send + Sync {
     ) -> AuthFuture<'a, AuthResult<Decision>>;
 }
 
-struct TypedPolicy<T, P>(P, std::marker::PhantomData<fn() -> T>);
+struct TypedPolicy<T, P>(Arc<P>, std::marker::PhantomData<fn() -> T>);
 
-impl<T: Send + Sync + 'static, P: Policy<T>> RegisteredPolicy for TypedPolicy<T, P> {
+impl<T: Send + Sync + 'static, P: Policy<T> + 'static> RegisteredPolicy for TypedPolicy<T, P> {
+    fn instance(&self) -> Arc<dyn Any + Send + Sync> {
+        self.0.clone()
+    }
+    fn name(&self) -> &'static str {
+        std::any::type_name::<P>()
+    }
     fn has_ability(&self, ability: &str) -> bool {
         self.0.has_ability(ability)
     }
@@ -85,6 +97,9 @@ struct Definitions {
     before: Vec<Arc<Before>>,
     after: Vec<Arc<After>>,
     default_denial: Option<Response>,
+    policy_types: HashMap<(String, TypeId), Arc<policies::PolicyFactory>>,
+    model_names: HashMap<TypeId, &'static str>,
+    guess_policy_names: Option<Arc<policies::GuessPolicyNames>>,
 }
 
 /// Application-owned ability, policy, and interception registrations.
@@ -164,7 +179,10 @@ impl GateRegistry {
             .policies
             .insert(
                 TypeId::of::<T>(),
-                Arc::new(TypedPolicy(policy, std::marker::PhantomData::<fn() -> T>)),
+                Arc::new(TypedPolicy(
+                    Arc::new(policy),
+                    std::marker::PhantomData::<fn() -> T>,
+                )),
             );
     }
 
@@ -235,23 +253,36 @@ impl Gate {
             .contains_key(ability)
     }
 
+    pub fn policies(&self) -> HashMap<TypeId, &'static str> {
+        self.registry.policies()
+    }
+
+    pub fn resolvePolicy<P: Send + Sync + 'static>(&self) -> AuthResult<Arc<P>> {
+        self.registry.resolvePolicy::<P>()
+    }
+
+    pub fn guessPolicyNamesUsing(
+        &self,
+        callback: impl Fn(&str) -> Vec<String> + Send + Sync + 'static,
+    ) -> &Self {
+        self.registry.guessPolicyNamesUsing(callback);
+        self
+    }
+
+    pub fn getPolicyFor(&self, target: &Argument) -> AuthResult<Option<PolicyHandle>> {
+        self.registry.getPolicyFor(target)
+    }
+
     pub async fn inspect(&self, ability: &str, args: &[&Argument]) -> AuthResult<Response> {
-        let (before, after, policy, defined, default_denial) = {
+        let (before, after, defined, default_denial) = {
             let definitions = self
                 .registry
                 .definitions
                 .read()
                 .expect("gate registry lock");
-            let policy = args.first().and_then(|value| {
-                let id = value
-                    .downcast_ref::<PolicyTarget>()
-                    .map_or_else(|| (*value).type_id(), |target| target.0);
-                definitions.policies.get(&id).cloned()
-            });
             (
                 definitions.before.clone(),
                 definitions.after.clone(),
-                policy,
                 definitions.abilities.get(ability).cloned(),
                 definitions.default_denial.clone(),
             )
@@ -265,8 +296,13 @@ impl Gate {
             }
         }
         if result.is_none() {
-            if let Some(policy) = policy.filter(|policy| policy.has_ability(ability)) {
-                result = policy.evaluate(user, ability, args).await?;
+            let policy = args
+                .first()
+                .map(|value| self.getPolicyFor(*value))
+                .transpose()?
+                .flatten();
+            if let Some(policy) = policy.filter(|policy| policy.0.has_ability(ability)) {
+                result = policy.0.evaluate(user, ability, args).await?;
             } else if let Some(defined) = defined {
                 result = defined(user, args).await?;
             }
@@ -385,6 +421,9 @@ fn decision(response: Response) -> Result<Response, AuthorizationError> {
 }
 
 impl GateContract for Gate {
+    fn getPolicyFor(&self, target: &Argument) -> AuthResult<Option<PolicyHandle>> {
+        Gate::getPolicyFor(self, target)
+    }
     fn has(&self, ability: &str) -> bool {
         Gate::has(self, ability)
     }

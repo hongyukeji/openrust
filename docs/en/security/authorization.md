@@ -22,6 +22,38 @@ fn register_settings_gate(gate: &GateRegistry) {
 
 Generate a policy with `./artisan make:policy AccountPolicy --model=User`. Add the generated module to the application and register the policy with `gate.policy::<User>(AccountPolicy)` in a service provider. Policies select the model by its Rust type. For an ability without a model instance, pass `PolicyTarget::of::<User>()`.
 
+## Policy discovery and lookup
+
+`getPolicyFor` accepts a model instance or `PolicyTarget::of::<User>()` and returns `Result<Option<PolicyHandle>>`. The handle retains the actual policy instance: `downcast::<AccountPolicy>()` retrieves its `Arc<AccountPolicy>`, and `name()` returns its full Rust type name. Explicit `policy` mappings take precedence. `policies()` returns an independent snapshot keyed by model `TypeId`, with policy type names as values.
+
+To discover policies, register their construction factories with the application container, then register compiled types with `discoverPolicy::<User, AccountPolicy>()`. This does not construct policies or add explicit mappings. Default lookup searches progressively enclosing model modules for `policies::<ModelName>Policy`; nested `models` modules prefer the corresponding `models::policies` and `policies` paths. For separate file modules or another layout, return actual full type names from `guessPolicyNamesUsing`. The first registered candidate wins; an empty list disables default discovery.
+
+```rust
+use std::{any::type_name, sync::Arc};
+use openrust::{
+    auth::access::PolicyTarget,
+    contracts::container::Container as _,
+    support::facades::Gate,
+};
+
+container.bind::<AccountPolicy, _>(|_| Ok(Arc::new(AccountPolicy)))?;
+Gate::discoverPolicy::<User, AccountPolicy>()?;
+Gate::guessPolicyNamesUsing(|model| {
+    if model == type_name::<User>() {
+        vec![type_name::<AccountPolicy>().into()]
+    } else {
+        Vec::new()
+    }
+})?;
+let selected = Gate::getPolicyFor(&PolicyTarget::of::<User>())?;
+let concrete = selected.and_then(|policy| policy.downcast::<AccountPolicy>());
+let resolved = Gate::resolvePolicy::<AccountPolicy>()?;
+```
+
+Use these calls inside a provider or another application Facade scope. `container` is that application's container, and `User` and `AccountPolicy` are application types. Resolve constructor dependencies inside the container factory. `resolvePolicy::<AccountPolicy>()` uses existing container bindings directly; discovery respects the same transient, shared and failure behavior. Construction failures propagate without trying later candidates. A decision from `before` skips policy construction.
+
+`GateRegistry` provides the same methods. The Gate returned by `forUser` exposes policy lookup, resolution, mappings and the guessing callback; the Gate contract exposes `getPolicyFor`. Explicit `policy` registration continues to share the supplied instance. Discovery only handles registered compiled types: PHP class autoloading, attribute reflection and parent-class lookup are unavailable. Results use owned handles and `Result`; mapping snapshots do not guarantee iteration order.
+
 ## Authorizing requests
 
 Use `Gate::authorize(request, "edit-settings", &[]).await?` in a handler or attach `.can("edit-settings", &[])` to the route. For model policies, `.can("update", &["user"])` receives the route-bound `user`. Middleware runs authorization after authentication and model binding.

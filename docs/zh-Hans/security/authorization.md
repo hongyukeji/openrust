@@ -22,6 +22,38 @@ fn register_settings_gate(gate: &GateRegistry) {
 
 运行 `./artisan make:policy AccountPolicy --model=User` 生成策略。将生成的模块接入应用，在服务提供者中用 `gate.policy::<User>(AccountPolicy)` 注册。策略按 Rust 模型类型匹配。没有模型实例的权限可以传入 `PolicyTarget::of::<User>()`。
 
+## 策略发现与查询
+
+`getPolicyFor` 接收模型实例或 `PolicyTarget::of::<User>()`，返回 `Result<Option<PolicyHandle>>`。句柄保留真实策略实例，可用 `downcast::<AccountPolicy>()` 取得 `Arc<AccountPolicy>`；`name()` 返回完整 Rust 类型名。显式 `policy` 映射优先，`policies()` 返回这些映射的独立快照，键为模型 `TypeId`，值为策略类型名。
+
+需要发现策略时，先向应用容器登记构造工厂，再调用 `discoverPolicy::<User, AccountPolicy>()` 登记已编译类型。它不会提前构造策略或添加显式映射。默认名称按模型模块逐级查找 `policies::<模型名>Policy`；嵌套 `models` 模块会优先查找对应的 `models::policies` 和 `policies` 路径。策略位于单独的文件模块或采用其他布局时，使用 `guessPolicyNamesUsing` 返回实际完整类型名；按顺序选取第一个已登记候选，空列表停用默认发现。
+
+```rust
+use std::{any::type_name, sync::Arc};
+use openrust::{
+    auth::access::PolicyTarget,
+    contracts::container::Container as _,
+    support::facades::Gate,
+};
+
+container.bind::<AccountPolicy, _>(|_| Ok(Arc::new(AccountPolicy)))?;
+Gate::discoverPolicy::<User, AccountPolicy>()?;
+Gate::guessPolicyNamesUsing(|model| {
+    if model == type_name::<User>() {
+        vec![type_name::<AccountPolicy>().into()]
+    } else {
+        Vec::new()
+    }
+})?;
+let selected = Gate::getPolicyFor(&PolicyTarget::of::<User>())?;
+let concrete = selected.and_then(|policy| policy.downcast::<AccountPolicy>());
+let resolved = Gate::resolvePolicy::<AccountPolicy>()?;
+```
+
+在 Provider 或其他应用 Facade 作用域内使用上述入口；`container` 是该应用的容器，`User` 和 `AccountPolicy` 是应用自身类型。需要构造依赖时，在容器工厂中解析。`resolvePolicy::<AccountPolicy>()` 直接使用已有容器绑定，发现路径也遵循其瞬态、共享及错误语义；构造失败返回错误，不继续尝试后面的候选。策略发现不会在 `before` 已给出结果时构造策略。
+
+`GateRegistry` 提供同名入口，`forUser` 返回的 Gate 提供策略查询、解析、映射及候选回调入口；Gate 契约提供 `getPolicyFor`。显式 `policy` 仍使用传入的共享实例。Rust 发现只处理已登记类型，不执行 PHP 类自动加载、属性反射或父类查找；查询结果使用拥有型句柄和 `Result`，映射快照不保证迭代顺序。
+
 ## 请求授权
 
 在处理函数中使用 `Gate::authorize(request, "edit-settings", &[]).await?`，或在路由上挂载 `.can("edit-settings", &[])`。模型策略可用 `.can("update", &["user"])` 接收路由绑定后的 `user`。中间件在认证和模型绑定之后执行授权。

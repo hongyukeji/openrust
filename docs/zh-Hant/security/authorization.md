@@ -22,6 +22,38 @@ fn register_settings_gate(gate: &GateRegistry) {
 
 執行 `./artisan make:policy AccountPolicy --model=User` 產生策略。將產生的模組接入應用程式，在服務提供者中使用 `gate.policy::<User>(AccountPolicy)` 註冊。策略依 Rust 模型型別比對。沒有模型實例的權限可以傳入 `PolicyTarget::of::<User>()`。
 
+## 策略發現與查詢
+
+`getPolicyFor` 接收模型實例或 `PolicyTarget::of::<User>()`，傳回 `Result<Option<PolicyHandle>>`。控制代碼保留真實策略實例，可用 `downcast::<AccountPolicy>()` 取得 `Arc<AccountPolicy>`；`name()` 傳回完整 Rust 型別名稱。顯式 `policy` 對應優先，`policies()` 傳回這些對應的獨立快照，鍵為模型 `TypeId`，值為策略型別名稱。
+
+需要發現策略時，先向應用容器登記建構工廠，再呼叫 `discoverPolicy::<User, AccountPolicy>()` 登記已編譯型別。它不會提前建構策略或新增顯式對應。預設名稱按模型模組逐級尋找 `policies::<模型名>Policy`；巢狀 `models` 模組會優先尋找對應的 `models::policies` 和 `policies` 路徑。策略位於單獨的檔案模組或採用其他配置時，使用 `guessPolicyNamesUsing` 傳回實際完整型別名稱；按順序選取第一個已登記候選，空清單停用預設發現。
+
+```rust
+use std::{any::type_name, sync::Arc};
+use openrust::{
+    auth::access::PolicyTarget,
+    contracts::container::Container as _,
+    support::facades::Gate,
+};
+
+container.bind::<AccountPolicy, _>(|_| Ok(Arc::new(AccountPolicy)))?;
+Gate::discoverPolicy::<User, AccountPolicy>()?;
+Gate::guessPolicyNamesUsing(|model| {
+    if model == type_name::<User>() {
+        vec![type_name::<AccountPolicy>().into()]
+    } else {
+        Vec::new()
+    }
+})?;
+let selected = Gate::getPolicyFor(&PolicyTarget::of::<User>())?;
+let concrete = selected.and_then(|policy| policy.downcast::<AccountPolicy>());
+let resolved = Gate::resolvePolicy::<AccountPolicy>()?;
+```
+
+在 Provider 或其他應用 Facade 作用域內使用上述入口；`container` 是該應用的容器，`User` 和 `AccountPolicy` 是應用自身型別。需要建構相依項目時，在容器工廠中解析。`resolvePolicy::<AccountPolicy>()` 直接使用既有容器綁定，發現路徑也遵循其瞬態、共享及錯誤語義；建構失敗傳回錯誤，不繼續嘗試後面的候選。策略發現不會在 `before` 已給出結果時建構策略。
+
+`GateRegistry` 提供同名入口，`forUser` 傳回的 Gate 提供策略查詢、解析、對應及候選回呼入口；Gate 契約提供 `getPolicyFor`。顯式 `policy` 仍使用傳入的共享實例。Rust 發現只處理已登記型別，不執行 PHP 類別自動載入、屬性反射或父類別查詢；查詢結果使用擁有型控制代碼和 `Result`，對應快照不保證迭代順序。
+
 ## 請求授權
 
 在處理函式中使用 `Gate::authorize(request, "edit-settings", &[]).await?`，或在路由上掛載 `.can("edit-settings", &[])`。模型策略可使用 `.can("update", &["user"])` 接收路由繫結後的 `user`。中介軟體在驗證和模型繫結之後執行授權。

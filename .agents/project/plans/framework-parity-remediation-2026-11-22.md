@@ -60,6 +60,16 @@ C49在已有通道解析器、sink、格式器和处理器上拆出真实 `Nativ
 
 Rust适配：返回拥有型Arc及Result，原生类型为Rust执行器而非PHP Monolog对象；共享通道运行期可变Monolog对象接口和全部Monolog动态API未伪造。getLogger/getChannels本批职责已实现并验收，不据此关闭Log全部接口、真实HTTP sink或整个框架。以上日志除全局清理事件外均在`target/tmp/framework-parity-20261122/`。
 
+## 授权策略发现验收（2026-11-23）
+
+C45在已有GateRegistry、Policy<T>和应用容器上补 `getPolicyFor`、`guessPolicyNamesUsing`、`resolvePolicy`、`policies`，Facade及forUser Gate提供对应入口，Gate契约补getPolicyFor。`PolicyHandle`保留真实策略Arc，按具体策略类型downcast，不复制策略对象。显式映射优先；已编译候选由 `discoverPolicy<T,P>` 登记，按默认模块约定或应用回调的顺序选第一个已登记候选，空列表关闭默认发现。实例/PolicyTarget两类目标共用查询；发现目录不进入显式映射快照。注册后不提前构造，实际解析复用容器make，保留依赖、瞬态/共享及原始失败；失败不尝试后续候选。before给出结果时不构造策略。回调和工厂在释放注册锁后执行，可安全重入。
+
+采用固定Framework v13.40.0 Gate.php 653–769及Contracts/Auth/Access/Gate.php；联网curl的官方固定raw与已有源码SHA256同为 `5e3fde80482ba0142c684355e3b17292da7b58a8303a1e1bfd0c6446aa6ec571`，来源 https://raw.githubusercontent.com/laravel/framework/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Auth/Access/Gate.php 。旧版v0.x auth/policy.rs是SeaORM角色权限查询，没有当前Gate发现职责，不复制其业务数据库结构。没有新增Rust依赖、反射模拟器或独立容器。
+
+真实PHP8.5.12固定源码11项对照覆盖默认/嵌套优先、未映射/非类、空回调、首个存在候选、允许拒绝、显式覆盖、映射及快照/应用隔离。`gate-policy-third.log`新增4项通过，含真实应用booted生命周期Facade、registry/forUser/契约入口、容器依赖和瞬态/共享、错误/重入、两独立应用HTTP允许与403拒绝。已有SQLite鉴权、事件及Response状态3项和原生日志3项通过；未提供MySQL/PG专属变量时的早退不计驱动通过。随后独立PostgreSQL18.7和MySQL8.4.13各真实HTTP鉴权1项显式通过（gate-policy-postgres.log、gate-policy-mysql.log）。第一次HTTP用例遗漏默认/api前缀返回404，已修正请求地址，失败保留在gate-policy-second.log。`fmt-gate-policy.log`、`clippy-gate-policy.log`严格workspace/all-targets及三语docs-{build,browser,scope}-gate-policy.log通过。全部证据在target/tmp/framework-parity-20261122/。
+
+必要Rust表达及剩余：resolvePolicy使用泛型类型而非PHP动态类名；候选回调接收完整Rust模型类型名并返回Vec<String>；发现只处理显式登记的已编译策略，分文件模块使用实际类型名回调；显式policy继续共享传入实例，policies快照为TypeId到类型名的HashMap且不保证迭代顺序。PHP UsePolicy属性/父类查找与任意动态类输入没有伪造实现，仍属后续裁决，不把本批三个入口与Response既有状态Builder通过扩展成完整Gate/Auth模块关闭。
+
 ## 当前实施与验收（2026-11-22）
 
 本节记录正在实施的事实，不能将清单登记或API出现当作全部完成。源码基线为b214e46be及实时WIP；协作者SetLocale实例回调与其三语正文、规范和验收记录保留。本批未操作开发数据或Git索引。

@@ -8,7 +8,7 @@ mod response;
 
 #[doc(hidden)]
 pub use facade::Gate as GateFacade;
-pub use gate::{Gate, GateRegistry};
+pub use gate::{Gate, GateRegistry, PolicyHandle};
 pub use policy::{Policy, PolicyTarget};
 pub use response::Response;
 

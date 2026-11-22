@@ -9,11 +9,11 @@ use super::{Argument, Response};
 
 /// Selects a policy for an ability without a model instance, such as create.
 #[derive(Clone, Copy)]
-pub struct PolicyTarget(pub(super) TypeId);
+pub struct PolicyTarget(pub(super) TypeId, pub(super) &'static str);
 
 impl PolicyTarget {
     pub fn of<T: Send + Sync + 'static>() -> Self {
-        Self(TypeId::of::<T>())
+        Self(TypeId::of::<T>(), std::any::type_name::<T>())
     }
 }
 

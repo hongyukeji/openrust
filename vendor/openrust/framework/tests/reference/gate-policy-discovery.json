@@ -1,0 +1,13 @@
+{
+    "default": true,
+    "nested": true,
+    "unmapped": true,
+    "nonclass": true,
+    "empty_callback": true,
+    "first_existing": true,
+    "callback_decision": true,
+    "explicit": true,
+    "mapping": true,
+    "snapshot": true,
+    "other_app": true
+}
