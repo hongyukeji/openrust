@@ -160,9 +160,11 @@ impl From<&reqwest::Request> for RecordedRequest {
     }
 }
 
-pub(super) fn build_client(connect_timeout: Duration) -> Result<reqwest::Client> {
+pub(super) fn build_client(connect_timeout: Duration, verify_tls: bool) -> Result<reqwest::Client> {
     reqwest::Client::builder()
         .connect_timeout(connect_timeout)
+        .tls_danger_accept_invalid_certs(!verify_tls)
+        .tls_danger_accept_invalid_hostnames(!verify_tls)
         .redirect(reqwest::redirect::Policy::none())
         .no_proxy()
         .retry(reqwest::retry::never())
@@ -174,7 +176,7 @@ pub(super) fn build_client(connect_timeout: Duration) -> Result<reqwest::Client>
 impl Factory {
     pub fn new() -> Result<Self> {
         Ok(Self {
-            client: build_client(CONNECT_TIMEOUT)?,
+            client: build_client(CONNECT_TIMEOUT, true)?,
             testing: Arc::default(),
             middleware: Arc::default(),
             events: None,
@@ -256,6 +258,14 @@ impl Factory {
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .clone()
+    }
+
+    pub fn withUserAgent(&self, user_agent: &str) -> PendingRequest {
+        self.pendingRequest().withUserAgent(user_agent)
+    }
+
+    pub fn withoutVerifying(&self) -> PendingRequest {
+        self.pendingRequest().withoutVerifying()
     }
 
     pub fn pendingRequest(&self) -> PendingRequest {

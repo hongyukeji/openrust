@@ -180,6 +180,16 @@ Http::globalMiddleware(|request, next| Box::pin(async move {
 ## 請求選項
 
 `replaceHeaders` 僅取代傳入的同名請求標頭，保留其他標頭與多值。`withHeader`、`contentType`、`asMultipart`、`maxRedirects` 沿用原請求建構鏈。`sink(path)` 將成功讀取的回應本文寫入檔案，寫入錯誤回傳 `Error::Sink`；目前仍緩衝本文並受 `body_limit` 限制，不適合無限串流或超大檔案下載。
+
+`withUserAgent("OpenRust/1.0")` 設定 `User-Agent`，取代既有的同名標頭，並移除首尾 ASCII 空格、定位、換行、歸位、NUL 和垂直定位字元；Unicode 空格保留。參數為 Rust 字串，無效標頭值會在送出請求前傳回 `InvalidRequest`。PendingRequest、Factory 和 Http Facade 都提供這個入口。
+
+```rust
+let response = Http::withUserAgent("OpenRust/1.0")?.get(url).await?;
+let response = Http::withoutVerifying()?.get(test_https_url).await?;
+```
+
+TLS 驗證預設開啟。`withoutVerifying()` 僅為目前建構的請求關閉憑證鏈與主機名稱驗證，不變更共享 Factory 或之後的預設請求；也可與 `connectTimeout` 組合。此入口用於明確接受不受信任憑證的受控端點。目前傳輸未整合 NTLM 驗證交握，尚未提供 `withNtlmAuth`；不能以 Basic、Digest 或直接組合 Authorization 標頭取代。
+
 ## Multipart 欄位值
 
 `asMultipart().post(data)` 接受由純量欄位組成的物件。布林值按 PHP 方式編碼為 `1` 或空字串，null 編碼為空字串。巢狀物件或陣列傳回 `InvalidRequest`；檔案使用 `attach`。該入口不接收 Guzzle 全部 multipart 選項。

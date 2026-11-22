@@ -615,14 +615,14 @@
         "target/tmp/laravel-code-audit-20261121/laravel-framework/src/Illuminate/Http/Client/PendingRequest.php:551",
         "vendor/openrust/framework/src/http/client/pending_request.rs:79",
         "Illuminate\\Http\\Client\\PendingRequest.withUserAgent;Illuminate\\Http\\Client\\PendingRequest.withNtlmAuth;Illuminate\\Http\\Client\\PendingRequest.withoutVerifying",
-        "vendor/openrust/framework/tests/http_client.rs",
-        "历史发现待当前契约复核；复核仍成立后实施",
-        "",
+        "vendor/openrust/framework/tests/http_client.rs;vendor/openrust/framework/tests/http_client_options.rs",
+        "withUserAgent/withoutVerifying三层入口已实现并真实HTTP/TLS验收；NTLM握手仍未集成，C26未关闭",
+        "target/tmp/framework-parity-20261122/ [http-options-third.log;http-client-options-reference.json;fmt-http-options.log;clippy-http-options.log;docs-{build,browser,scope}-http-options.log]",
         "Q01",
-        "本轮未执行框架验收",
-        "历史差异待当前契约裁决",
-        "先复核已有实现后补缺口；本计划未执行",
-        "本轮未运行功能验收，历史结果仅限对应提交和环境"
+        "9项真实固定PHP头选项对照；新Rust2项及既有HTTP20项通过。实际HTTP头值与三层入口；自签名且主机名不符TLS服务3次默认拒绝/3次显式关闭成功，含自定义超时及共享Factory隔离。严格Clippy/fmt/三语站点通过；NTLM未实现/未验。",
+        "固定PendingRequest.php withUserAgent/withoutVerifying，使用reqwest0.13.5真实TLS选项；Rust字符串输入/Result/拥有型Builder适配。reqwest未集成NTLM，sspi-rs已调研但未采用或验证握手，不伪造支持。",
+        "两个请求选项入口完成；withNtlmAuth实际握手仍缺",
+        "真实HTTP/TLS、9项PHP头对照、22项Rust/严格Clippy/fmt/三语站点通过；NTLM未验"
       ],
       [
         "main",
@@ -639,8 +639,8 @@
         "vendor/openrust/framework/src/http/client/pending_request.rs:542",
         "",
         "vendor/openrust/framework/tests/http_client.rs",
-        "当前静态复核sink仍接受路径；完整传输及语义待复核",
-        "vendor/openrust/framework/src/http/client/pending_request.rs:179",
+        "当前源码确认先缓冲完整正文再写路径；真实流式sink/资源输入/失败文件语义未实现",
+        "vendor/openrust/framework/src/http/client/response.rs::from_transport;pending_request.rs::execute；target/tmp/framework-parity-20261122/http-options-third.log仅既有路径sink回归，不代表流式验收",
         "Q01",
         "本轮未执行框架验收",
         "历史差异待当前契约裁决",
@@ -293344,6 +293344,22 @@
         "https://raw.githubusercontent.com/laravel/framework/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Auth/Access/Gate.php; SHA256 5e3fde80482ba0142c684355e3b17292da7b58a8303a1e1bfd0c6446aa6ec571",
         "v0.x auth/policy.rs: role-permission database service; not reused"
       ]
+    },
+    {
+      "date": "2026-11-23",
+      "kind": "http_user_agent_tls_options_verified",
+      "tasks": [
+        "C26",
+        "C27"
+      ],
+      "note": "9项真实固定PHP头选项对照；新Rust2项及既有HTTP20项通过。实际HTTP头值与三层入口；自签名且主机名不符TLS服务3次默认拒绝/3次显式关闭成功，含自定义超时及共享Factory隔离。严格Clippy/fmt/三语站点通过；NTLM未实现/未验。 C27仅静态确认全量缓冲缺口，未关闭。",
+      "evidence": "target/tmp/framework-parity-20261122/ [http-options-third.log;http-client-options-reference.json;fmt-http-options.log;clippy-http-options.log;docs-{build,browser,scope}-http-options.log]",
+      "references": [
+        "https://raw.githubusercontent.com/laravel/framework/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/Client/PendingRequest.php",
+        "https://raw.githubusercontent.com/seanmonstar/reqwest/v0.13.5/src/async_impl/client.rs",
+        "https://github.com/Devolutions/sspi-rs/tree/2f447436fe6ff696aab9284bd18ab5f6410de5c1"
+      ],
+      "local_reference_script": "target/tmp/framework-parity-20261122/reference/http-client-options.php; local-only; fresh upstream replay requires this script plus pinned source/dependencies"
     }
   ]
 }

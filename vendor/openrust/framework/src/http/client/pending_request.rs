@@ -89,6 +89,7 @@ pub struct PendingRequest {
     redact_payload: bool,
     redact_response: bool,
     connect_timeout: Duration,
+    verify_tls: bool,
     timeout: Duration,
     redirects: Option<usize>,
     sink: Option<std::path::PathBuf>,
@@ -117,6 +118,7 @@ impl PendingRequest {
             redact_payload: false,
             redact_response: false,
             connect_timeout: CONNECT_TIMEOUT,
+            verify_tls: true,
             timeout: TIMEOUT,
             redirects: Some(5),
             sink: None,
@@ -192,6 +194,24 @@ impl PendingRequest {
 
     pub fn withToken(self, token: &str) -> Self {
         self.authorization(format!("Bearer {token}"))
+    }
+
+    /// 设置请求标识，按协议约定去除首尾 ASCII 空白。
+    pub fn withUserAgent(mut self, user_agent: &str) -> Self {
+        let value = user_agent.trim_matches([' ', '\t', '\n', '\r', '\0', '\x0b']);
+        match HeaderValue::from_str(value) {
+            Ok(value) => {
+                self.headers.insert(header::USER_AGENT, value);
+            }
+            Err(_) => self.invalid_header = true,
+        }
+        self
+    }
+
+    /// 只对当前请求关闭 TLS 证书及主机名校验。
+    pub fn withoutVerifying(mut self) -> Self {
+        self.verify_tls = false;
+        self
     }
 
     pub fn withBasicAuth(self, username: &str, password: &str) -> Self {
@@ -463,10 +483,10 @@ impl PendingRequest {
         if self.timeout.is_zero() || self.connect_timeout.is_zero() {
             return Err(Error::Configuration);
         }
-        let client = if self.connect_timeout == CONNECT_TIMEOUT {
+        let client = if self.connect_timeout == CONNECT_TIMEOUT && self.verify_tls {
             self.factory.client.clone()
         } else {
-            build_client(self.connect_timeout)?
+            build_client(self.connect_timeout, self.verify_tls)?
         };
         let target = uri_template::expand(self.base_url.as_deref(), url, &self.uri_parameters)?;
         let base = self.base_url.as_deref().map(uri_template::escape_braces);

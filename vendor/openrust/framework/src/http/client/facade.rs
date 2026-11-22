@@ -105,6 +105,14 @@ impl Http {
         Ok(Self::pendingRequest()?.withToken(token))
     }
 
+    pub fn withUserAgent(user_agent: &str) -> Result<PendingRequest> {
+        Ok(Self::pendingRequest()?.withUserAgent(user_agent))
+    }
+
+    pub fn withoutVerifying() -> Result<PendingRequest> {
+        Ok(Self::pendingRequest()?.withoutVerifying())
+    }
+
     pub fn withBasicAuth(username: &str, password: &str) -> Result<PendingRequest> {
         Ok(Self::pendingRequest()?.withBasicAuth(username, password))
     }

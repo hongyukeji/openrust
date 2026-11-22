@@ -70,6 +70,18 @@ C45在已有GateRegistry、Policy<T>和应用容器上补 `getPolicyFor`、`gues
 
 必要Rust表达及剩余：resolvePolicy使用泛型类型而非PHP动态类名；候选回调接收完整Rust模型类型名并返回Vec<String>；发现只处理显式登记的已编译策略，分文件模块使用实际类型名回调；显式policy继续共享传入实例，policies快照为TypeId到类型名的HashMap且不保证迭代顺序。PHP UsePolicy属性/父类查找与任意动态类输入没有伪造实现，仍属后续裁决，不把本批三个入口与Response既有状态Builder通过扩展成完整Gate/Auth模块关闭。
 
+## HTTP请求标识与TLS开关验收（2026-11-23）
+
+C26补PendingRequest、Factory和Http Facade的 `withUserAgent` 与 `withoutVerifying`，使用现有请求头/reqwest客户端构造链，无新增依赖。User-Agent按固定PHP trim的六种ASCII边界字符处理，Unicode空格不裁剪；显式设置覆盖已有同名头，非法内部换行在发请求前报InvalidRequest。withoutVerifying只为当前PendingRequest设置证书链/主机名校验关闭，默认共享客户端仍验证；自定义connectTimeout路径保留同一开关。
+
+真实固定PHP8.5.12生成7组trim及2组覆盖/追加对照，新Rust2项通过并在真实HTTP捕获UTF8/空值/内部制表等头值；既有HTTP客户端20项回归全部通过。受控TLS服务使用OpenSSL3.6.4生成自签名证书，SAN为untrusted.example，通过127.0.0.1请求同时验证证书不受信任及主机名不匹配：默认、关闭后默认、自定义超时的默认共3次拒绝，PendingRequest/Factory/Facade显式关闭共3次成功，未用fake替代TLS。原测试误用未启用的axum Json夹具以及将withHeader追加误判为覆盖，分别在http-options-first/second.log失败；已按真实上游纠正夹具/断言，未错误修改withHeader。最终http-options-third.log通过；fmt-http-options.log、clippy-http-options.log严格workspace/all-targets及三语docs-{build,browser,scope}-http-options.log全部通过。
+
+参考固定PendingRequest.php 524/551/617与reqwest0.13.5官方ClientBuilder，运行期rustls0.23.46/tokio1.54.1。官方固定raw SHA256 `2e9119d425ddfc683ab4b23b4210623d12af3198b2fbe7ed34460c591b4abf9e` 与已有源码一致，来源 https://raw.githubusercontent.com/laravel/framework/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/Client/PendingRequest.php 及 https://raw.githubusercontent.com/seanmonstar/reqwest/v0.13.5/src/async_impl/client.rs 。旧版v0.x http/client.rs使用共享HttpClientConfig/目标约束接口，不直接搬入不同契约。Rust的User-Agent输入是字符串而非PHP string|bool域，Result和所有权Builder保留为适配。
+
+C26未关闭：当前reqwest没有集成NTLM握手，withNtlmAuth未伪造入口。已调研Devolutions/sspi-rs（master当时提交2f447436fe6ff696aab9284bd18ab5f6410de5c1）官方README，存在跨平台NTLM实现，但尚未集成并验证连接绑定、多轮握手、凭据/重试/重定向；不能以Basic、Digest或拼头冒充。C27静态核对确认Response::from_transport先全量缓冲，PendingRequest::execute之后写sink路径；分块写入、内存上界、资源输入和中断文件语义仍未实现。
+
+全部证据在target/tmp/framework-parity-20261122/。遵循并行更新的PHP工具规范，新的PHP脚本移至该批次reference/http-client-options.php，仅作本地工具，不提交；普通Rust回归只消费保存的JSON。重新执行上游需要准备此本地脚本、固定源码与PHP依赖，不把新克隆缺少脚本时的Rust回归说成重新跑过PHP。
+
 ## 当前实施与验收（2026-11-22）
 
 本节记录正在实施的事实，不能将清单登记或API出现当作全部完成。源码基线为b214e46be及实时WIP；协作者SetLocale实例回调与其三语正文、规范和验收记录保留。本批未操作开发数据或Git索引。

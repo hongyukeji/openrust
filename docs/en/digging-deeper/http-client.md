@@ -180,6 +180,16 @@ Http::globalMiddleware(|request, next| Box::pin(async move {
 ## Request options
 
 `replaceHeaders` replaces only the supplied header names, preserving other headers and multiple values. `withHeader`, `contentType`, `asMultipart`, and `maxRedirects` use the existing request builder. `sink(path)` writes the successfully read response body to a file and reports write failures as `Error::Sink`. It currently buffers the body and respects `body_limit`; it is not an unbounded streaming download.
+
+`withUserAgent("OpenRust/1.0")` sets `User-Agent`, replaces an existing value, and trims leading and trailing ASCII space, tab, newline, carriage return, NUL and vertical tab. Unicode spaces remain unchanged. The argument is a Rust string; invalid header values return `InvalidRequest` before transmission. PendingRequest, Factory and the Http Facade all provide this method.
+
+```rust
+let response = Http::withUserAgent("OpenRust/1.0")?.get(url).await?;
+let response = Http::withoutVerifying()?.get(test_https_url).await?;
+```
+
+TLS verification is enabled by default. `withoutVerifying()` disables certificate-chain and hostname checks only for the request being built; it does not change the shared Factory or later default requests. It also works with `connectTimeout`. Use it for controlled endpoints whose untrusted certificates you explicitly accept. The transport does not implement an NTLM authentication handshake and does not provide `withNtlmAuth`; Basic, Digest or a manually assembled Authorization header cannot substitute for that handshake.
+
 ## Multipart Field Values
 
 `asMultipart().post(data)` accepts an object of scalar fields. Booleans use PHP-style `1`/empty-string encoding and null becomes an empty string. Nested objects and arrays return `InvalidRequest`; use `attach` for files. This entry does not accept every Guzzle multipart option.

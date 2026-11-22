@@ -1,0 +1,37 @@
+{
+    "trim": [
+        {
+            "input": "OpenRust\/1.0",
+            "expected": "OpenRust\/1.0"
+        },
+        {
+            "input": " \tOpenRust SDK\r\n",
+            "expected": "OpenRust SDK"
+        },
+        {
+            "input": " \u0000\u000bÄgent\/1.0\t",
+            "expected": "Ägent\/1.0"
+        },
+        {
+            "input": "　agent　",
+            "expected": "　agent　"
+        },
+        {
+            "input": "",
+            "expected": ""
+        },
+        {
+            "input": "0",
+            "expected": "0"
+        },
+        {
+            "input": "a\tb",
+            "expected": "a\tb"
+        }
+    ],
+    "override": "new",
+    "append": [
+        "old",
+        "new"
+    ]
+}
