@@ -78,6 +78,9 @@ enum Boolean {
 enum Predicate {
     Value(String, String, Value),
     ExactText(String, String),
+    Binary(String, Value, bool),
+    IntegerInRaw(String, Vec<i64>, bool),
+    RowValues(Vec<String>, String, Vec<Value>),
     Column(String, String, String),
     Null(String, bool),
     In(String, Vec<Value>, bool),
@@ -118,6 +121,8 @@ impl Conditions {
             match predicate {
                 Predicate::Value(column, ..)
                 | Predicate::ExactText(column, ..)
+                | Predicate::Binary(column, ..)
+                | Predicate::IntegerInRaw(column, ..)
                 | Predicate::Null(column, ..)
                 | Predicate::In(column, ..)
                 | Predicate::Between(column, ..)
@@ -127,6 +132,7 @@ impl Conditions {
                 | Predicate::JsonOverlaps(column, ..)
                 | Predicate::JsonContainsKey(column, ..)
                 | Predicate::JsonLength(column, ..) => qualify(column),
+                Predicate::RowValues(columns, ..) => columns.iter_mut().for_each(qualify),
                 Predicate::Column(first, _, second) => {
                     qualify(first);
                     qualify(second);
@@ -404,6 +410,75 @@ macro_rules! predicate_methods {
             self
         }
 
+        pub fn whereBinary(mut self, column: &str, value: impl Into<Value>) -> Self {
+            self.conditions().binary(false, column, value.into(), false);
+            self
+        }
+
+        pub fn orWhereBinary(mut self, column: &str, value: impl Into<Value>) -> Self {
+            self.conditions().binary(true, column, value.into(), false);
+            self
+        }
+
+        pub fn whereNotBinary(mut self, column: &str, value: impl Into<Value>) -> Self {
+            self.conditions().binary(false, column, value.into(), true);
+            self
+        }
+
+        pub fn orWhereNotBinary(mut self, column: &str, value: impl Into<Value>) -> Self {
+            self.conditions().binary(true, column, value.into(), true);
+            self
+        }
+
+        pub fn whereIntegerInRaw(mut self, column: &str, values: Vec<i64>) -> Self {
+            self.conditions().integer_in_raw(false, column, values, false);
+            self
+        }
+
+        pub fn orWhereIntegerInRaw(mut self, column: &str, values: Vec<i64>) -> Self {
+            self.conditions().integer_in_raw(true, column, values, false);
+            self
+        }
+
+        pub fn whereIntegerNotInRaw(mut self, column: &str, values: Vec<i64>) -> Self {
+            self.conditions().integer_in_raw(false, column, values, true);
+            self
+        }
+
+        pub fn orWhereIntegerNotInRaw(mut self, column: &str, values: Vec<i64>) -> Self {
+            self.conditions().integer_in_raw(true, column, values, true);
+            self
+        }
+
+        pub fn whereRowValues(mut self, columns: &[&str], operator: &str, values: Vec<Value>) -> $crate::database::DatabaseResult<Self> {
+            if columns.len() != values.len() { return Err($crate::database::DatabaseError::InvalidQuery("row value count")); }
+            if !super::conditions::valid_operator(operator) { return Err($crate::database::DatabaseError::InvalidQuery("comparison operator")); }
+            self.conditions().row_values(false, columns, operator, values);
+            Ok(self)
+        }
+
+        pub fn orWhereRowValues(mut self, columns: &[&str], operator: &str, values: Vec<Value>) -> $crate::database::DatabaseResult<Self> {
+            if columns.len() != values.len() { return Err($crate::database::DatabaseError::InvalidQuery("row value count")); }
+            if !super::conditions::valid_operator(operator) { return Err($crate::database::DatabaseError::InvalidQuery("comparison operator")); }
+            self.conditions().row_values(true, columns, operator, values);
+            Ok(self)
+        }
+
+        pub fn orWhereAny(self, columns: &[&str], operator: &str, value: impl Into<Value>) -> Self {
+            let value = value.into();
+            self.orWhereNested(|group| columns.iter().fold(group, |group, column| group.orWhere(column, operator, value.clone())))
+        }
+
+        pub fn orWhereAll(self, columns: &[&str], operator: &str, value: impl Into<Value>) -> Self {
+            let value = value.into();
+            self.orWhereNested(|group| columns.iter().fold(group, |group, column| group.r#where(column, operator, value.clone())))
+        }
+
+        pub fn orWhereNone(self, columns: &[&str], operator: &str, value: impl Into<Value>) -> Self {
+            let value = value.into();
+            self.orWhereNot(|group| columns.iter().fold(group, |group, column| group.orWhere(column, operator, value.clone())))
+        }
+
         pub fn whereAny(self, columns: &[&str], operator: &str, value: impl Into<Value>) -> Self {
             let value = value.into();
             self.whereNested(|group| {
@@ -578,6 +653,37 @@ impl Conditions {
         self.push(false, Predicate::ExactText(column.into(), text.into()));
     }
 
+    pub(super) fn binary(&mut self, or: bool, column: &str, value: Value, negated: bool) {
+        self.push(or, Predicate::Binary(column.into(), value, negated));
+    }
+
+    pub(super) fn integer_in_raw(
+        &mut self,
+        or: bool,
+        column: &str,
+        values: Vec<i64>,
+        negated: bool,
+    ) {
+        self.push(or, Predicate::IntegerInRaw(column.into(), values, negated));
+    }
+
+    pub(super) fn row_values(
+        &mut self,
+        or: bool,
+        columns: &[&str],
+        operator: &str,
+        values: Vec<Value>,
+    ) {
+        self.push(
+            or,
+            Predicate::RowValues(
+                columns.iter().map(|column| (*column).into()).collect(),
+                operator.into(),
+                values,
+            ),
+        );
+    }
+
     fn push(&mut self, or: bool, predicate: Predicate) {
         let boolean = if or { Boolean::Or } else { Boolean::And };
         self.0.push((boolean, predicate));
@@ -717,6 +823,30 @@ impl Conditions {
     }
 }
 
+pub(super) fn valid_operator(value: &str) -> bool {
+    matches!(
+        value.to_ascii_lowercase().as_str(),
+        "<=>"
+            | "="
+            | "!="
+            | "<>"
+            | "<"
+            | ">"
+            | "<="
+            | ">="
+            | "like"
+            | "not like"
+            | "is"
+            | "is not"
+            | "&"
+            | "|"
+            | "<<"
+            | ">>"
+            | "regexp"
+            | "not regexp"
+    )
+}
+
 pub(super) fn operator(value: &str, grammar: &Grammar) -> DatabaseResult<String> {
     let value = value.to_ascii_lowercase();
     match value.as_str() {
@@ -756,6 +886,49 @@ impl Predicate {
                 }
                 sql.push_str(&format!("{} {operator} ?", grammar.column(column)?));
                 bindings.push(value.clone());
+            }
+            Self::Binary(column, value, negated) => {
+                if !grammar.is_mysql() {
+                    return Err(DatabaseError::UnsupportedOperation("binary comparison"));
+                }
+                sql.push_str(&format!(
+                    "{} {} binary ?",
+                    grammar.column(column)?,
+                    if *negated { "!=" } else { "=" }
+                ));
+                bindings.push(value.clone());
+            }
+            Self::IntegerInRaw(column, values, negated) => {
+                if values.is_empty() {
+                    sql.push_str(if *negated { "1 = 1" } else { "0 = 1" });
+                } else {
+                    sql.push_str(&grammar.column(column)?);
+                    sql.push_str(if *negated { " not in (" } else { " in (" });
+                    sql.push_str(
+                        &values
+                            .iter()
+                            .map(i64::to_string)
+                            .collect::<Vec<_>>()
+                            .join(", "),
+                    );
+                    sql.push(')');
+                }
+            }
+            Self::RowValues(columns, comparison, values) => {
+                let operator = operator(comparison, grammar)?;
+                sql.push('(');
+                for (index, column) in columns.iter().enumerate() {
+                    if index > 0 {
+                        sql.push_str(", ");
+                    }
+                    sql.push_str(&grammar.column(column)?);
+                }
+                sql.push_str(&format!(
+                    ") {operator} ({})",
+                    vec!["?"; values.len()].join(", ")
+                ));
+                // 元组中的 null 保留为绑定值，不改写成 IS NULL。
+                bindings.extend_from_slice(values);
             }
             Self::ExactText(column, value) => {
                 grammar.exact_text(column, value, sql, bindings)?;

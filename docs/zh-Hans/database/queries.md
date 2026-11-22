@@ -611,3 +611,17 @@ let mut query = connection.table("users")
 let sql = query.toRawSql()?;
 let rows = query.afterQuery(|rows| Ok(rows)).get().await?;
 ```
+
+## 补充查询条件 {#additional-query-conditions}
+
+`fromRaw(sql, bindings)` 设置可信 SQL 来源。`joinWhere`、`leftJoinWhere`、`rightJoinWhere` 将连接列与绑定值比较。原始 SQL 由应用代码提供，用户输入通过绑定传入。
+
+`whereBinary`、`whereNotBinary` 及其 `or` 变体使用 MySQL 二进制比较，其他驱动返回不支持错误。四种 `whereIntegerInRaw` / `whereIntegerNotInRaw` 变体接收 `Vec<i64>`；正向空集不匹配任何行，反向空集匹配全部行。`whereRowValues` 和 `orWhereRowValues` 返回 `Result`，列和值数量不一致或运算符非法时立即报错，所有值均通过绑定传入。
+
+`havingNull` / `havingNotNull` 及其 `or` 变体接收列切片。`havingBetween` / `havingNotBetween` 及其 `or` 变体接收两个边界值。`havingNested` 和 `orHavingNested` 的回调接收查询构造器，返回的 HAVING 条件合并为一组；空回调不添加条件。
+
+`inRandomOrder(None)` 使用驱动的随机函数，`Some(seed)` 为 MySQL 指定种子。`reorder()` 同时清除 union 排序，`reorderDesc(column)` 重新按指定列降序。`forPageBeforeId(perPage, lastId, column)` 与 `forPageAfterId` 替换该列的排序并保留其他排序；`lastId` 传 `None` 时只过滤空 ID，不添加 ID 边界。
+
+`rawValue(expression, bindings)` 追加原始投影，取首行首列；没有结果返回 `Value::Null`，既有投影仍优先。PostgreSQL 可将无类型的参数投影推断为文本，因此 `select ?` 可能返回 `Value::Text`；需要指定结果类型时显式使用 SQL 类型转换。
+
+`existsOr` 和 `doesntExistOr` 接收返回 `DatabaseResult<T>` 的惰性异步回调。条件成立返回 `query::ExistsOr::Satisfied`，否则执行回调并返回 `Callback(T)`。查询失败不调用回调，回调错误继续向上传播。

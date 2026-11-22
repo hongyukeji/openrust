@@ -386,13 +386,13 @@
         "vendor/openrust/framework/src/database/query/builder.rs:1",
         "Illuminate\\Database\\Query\\Builder.fromRaw;Illuminate\\Database\\Query\\Builder.joinWhere;Illuminate\\Database\\Query\\Builder.leftJoinWhere;Illuminate\\Database\\Query\\Builder.rightJoinWhere",
         "vendor/openrust/framework/tests/database_query.rs;vendor/openrust/framework/tests/database_query_writes.rs;vendor/openrust/framework/tests/laravel_alignment_database.rs",
-        "历史发现待当前契约复核；复核仍成立后实施",
-        "",
+        "受支持核心已实现并通过本轮差分与三库验收，完整动态签名/方言裁决继续",
+        "query-current-guard.log：22+18+4通过/1明确ignored；PG隔离3+1实际通过，MySQL隔离3通过；156组固定PHP SQL/绑定golden；严格Clippy/fmt/三语站点通过",
         "Q01;C20",
-        "本轮未执行框架验收",
-        "历史差异待当前契约裁决",
-        "先复核已有实现后补缺口；本计划未执行",
-        "本轮未运行功能验收，历史结果仅限对应提交和环境"
+        "2026-11-23：见主计划Query与重定向补验；root target/tmp/framework-parity-20261122/对应query/redirect/clippy/docs日志",
+        "固定Framework13.40.0；复用原AST/Conditions/Grammar/Executor，不拼接不可信值",
+        "核心API已实现；不含C20分类绑定",
+        "受支持范围通过；Vec<i64>/typed ExistsOr、空HAVING、binary驱动范围及PG文本结果等差异保留"
       ],
       [
         "main",
@@ -409,13 +409,13 @@
         "vendor/openrust/framework/src/database/query/builder.rs:1",
         "Illuminate\\Database\\Query\\Builder.whereBinary;Illuminate\\Database\\Query\\Builder.orWhereBinary;Illuminate\\Database\\Query\\Builder.whereIntegerInRaw;Illuminate\\Database\\Query\\Builder.whereIntegerNotInRaw;Illuminate\\Database\\Query\\Builder.whereRowValues;Illuminate\\Database\\Query\\Builder.orWhereRowValues;Illuminate\\Database\\Query\\Builder.orWhereAll;Illuminate\\Database\\Query\\Builder.orWhereAny;Illuminate\\Database\\Query\\Builder.orWhereNone",
         "vendor/openrust/framework/tests/database_query.rs;vendor/openrust/framework/tests/laravel_alignment_database.rs",
-        "历史发现待当前契约复核；复核仍成立后实施",
-        "",
+        "受支持核心已实现并通过本轮差分与三库验收，完整动态签名/方言裁决继续",
+        "query-current-guard.log：22+18+4通过/1明确ignored；PG隔离3+1实际通过，MySQL隔离3通过；156组固定PHP SQL/绑定golden；严格Clippy/fmt/三语站点通过",
         "Q01;C20",
-        "本轮未执行框架验收",
-        "历史差异待当前契约裁决",
-        "先复核已有实现后补缺口；本计划未执行",
-        "本轮未运行功能验收，历史结果仅限对应提交和环境"
+        "2026-11-23：见主计划Query与重定向补验；root target/tmp/framework-parity-20261122/对应query/redirect/clippy/docs日志",
+        "固定Framework13.40.0；复用原AST/Conditions/Grammar/Executor，不拼接不可信值",
+        "核心API已实现；不含C20分类绑定",
+        "受支持范围通过；Vec<i64>/typed ExistsOr、空HAVING、binary驱动范围及PG文本结果等差异保留"
       ],
       [
         "main",
@@ -432,13 +432,13 @@
         "vendor/openrust/framework/src/database/query/builder.rs:1",
         "Illuminate\\Database\\Query\\Builder.havingNested;Illuminate\\Database\\Query\\Builder.havingNull;Illuminate\\Database\\Query\\Builder.orHavingNull;Illuminate\\Database\\Query\\Builder.havingNotNull;Illuminate\\Database\\Query\\Builder.havingNotBetween;Illuminate\\Database\\Query\\Builder.orHavingBetween;Illuminate\\Database\\Query\\Builder.orHavingNotBetween",
         "vendor/openrust/framework/tests/database_query.rs;vendor/openrust/framework/tests/laravel_alignment_database.rs",
-        "历史发现待当前契约复核；复核仍成立后实施",
-        "",
+        "受支持核心已实现并通过本轮差分与三库验收，完整动态签名/方言裁决继续",
+        "query-current-guard.log：22+18+4通过/1明确ignored；PG隔离3+1实际通过，MySQL隔离3通过；156组固定PHP SQL/绑定golden；严格Clippy/fmt/三语站点通过",
         "Q01;C20",
-        "本轮未执行框架验收",
-        "历史差异待当前契约裁决",
-        "先复核已有实现后补缺口；本计划未执行",
-        "本轮未运行功能验收，历史结果仅限对应提交和环境"
+        "2026-11-23：见主计划Query与重定向补验；root target/tmp/framework-parity-20261122/对应query/redirect/clippy/docs日志",
+        "固定Framework13.40.0；复用原AST/Conditions/Grammar/Executor，不拼接不可信值",
+        "核心API已实现；不含C20分类绑定",
+        "受支持范围通过；Vec<i64>/typed ExistsOr、空HAVING、binary驱动范围及PG文本结果等差异保留"
       ],
       [
         "main",
@@ -455,13 +455,13 @@
         "vendor/openrust/framework/src/database/query/builder.rs:1",
         "Illuminate\\Database\\Query\\Builder.inRandomOrder;Illuminate\\Database\\Query\\Builder.forPageBeforeId;Illuminate\\Database\\Query\\Builder.forPageAfterId;Illuminate\\Database\\Query\\Builder.reorderDesc;Illuminate\\Database\\Query\\Builder.rawValue;Illuminate\\Database\\Query\\Builder.existsOr;Illuminate\\Database\\Query\\Builder.doesntExistOr",
         "vendor/openrust/framework/tests/database_query.rs;vendor/openrust/framework/tests/database_query_writes.rs;vendor/openrust/framework/tests/pagination.rs",
-        "历史发现待当前契约复核；复核仍成立后实施",
-        "",
+        "受支持核心已实现并通过本轮差分与三库验收，完整动态签名/方言裁决继续",
+        "query-current-guard.log：22+18+4通过/1明确ignored；PG隔离3+1实际通过，MySQL隔离3通过；156组固定PHP SQL/绑定golden；严格Clippy/fmt/三语站点通过",
         "Q01;C20",
-        "本轮未执行框架验收",
-        "历史差异待当前契约裁决",
-        "先复核已有实现后补缺口；本计划未执行",
-        "本轮未运行功能验收，历史结果仅限对应提交和环境"
+        "2026-11-23：见主计划Query与重定向补验；root target/tmp/framework-parity-20261122/对应query/redirect/clippy/docs日志",
+        "固定Framework13.40.0；复用原AST/Conditions/Grammar/Executor，不拼接不可信值",
+        "核心API已实现；不含C20分类绑定",
+        "受支持范围通过；Vec<i64>/typed ExistsOr、空HAVING、binary驱动范围及PG文本结果等差异保留"
       ],
       [
         "main",
@@ -293239,6 +293239,21 @@
       ],
       "note": "用户追加授权及时本地提交已验收依赖闭合批次；未推送。既有日志对应此前源码范围，不把Query与协作者新模板改动记为已验。误纳入的并行新增模板测试已移回WIP并保留文件。",
       "evidence": "target/tmp/framework-parity-20261122/；主计划本地分批提交节"
+    },
+    {
+      "date": "2026-11-23",
+      "kind": "query_c16_c19_verified",
+      "tasks": [
+        "C16",
+        "C17",
+        "C18",
+        "C19",
+        "C11",
+        "C13",
+        "C15"
+      ],
+      "note": "156组真实固定PHP参考；44项本地查询+16项响应通过，PG专项明确ignored后在隔离PG显式执行通过，PG3+1/MySQL3实际通过；fmt、严格Clippy、三语build/12浏览器/双前缀全导航通过。空HAVING闭包和typed集合/回调/PG文本结果差异保留，C20未实现。",
+      "evidence": "target/tmp/framework-parity-20261122/当前query/redirect-errors/clippy/docs日志"
     }
   ]
 }

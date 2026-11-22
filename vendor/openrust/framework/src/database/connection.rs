@@ -306,6 +306,24 @@ fn bind_postgres<'a, 'b: 'a>(
     let mut query = statement.query();
     for (position, value) in values.enumerate() {
         let kind = types.get(position).map(sqlx::TypeInfo::name);
+        if matches!(kind, Some("TEXT" | "VARCHAR" | "BPCHAR" | "NAME")) {
+            // 按服务端推断的参数类型编码；整数的二进制字节不能直接作为 UTF-8 文本发送。
+            let text = match value {
+                Value::Null => None,
+                Value::Text(value) => Some(value.clone()),
+                Value::Integer(value) => Some(value.to_string()),
+                Value::Unsigned(value) => Some(value.to_string()),
+                Value::Real(value) => Some(value.to_string()),
+                Value::Bool(value) => Some(u8::from(*value).to_string()),
+                Value::Json(value) => Some(value.to_string()),
+                Value::Bytes(value) => Some(
+                    String::from_utf8(value.clone())
+                        .map_err(|_| DatabaseError::InvalidQuery("PostgreSQL text parameter"))?,
+                ),
+            };
+            query = query.bind(text);
+            continue;
+        }
         if kind == Some("NUMERIC") {
             let decimal = match value {
                 Value::Null => None,
@@ -348,11 +366,6 @@ fn bind_postgres<'a, 'b: 'a>(
                 Some("INT4") => query.bind(integer_binding::<i32>(value)?),
                 _ => query.bind(value),
             };
-        } else if let (Value::Json(value), Some("TEXT" | "VARCHAR" | "BPCHAR" | "NAME")) =
-            (value, kind)
-        {
-            // SQLx Json uses the JSONB binary format; text columns need plain JSON bytes.
-            query = query.bind(value.to_string());
         } else if let (Value::Text(value), Some("TIMESTAMP")) = (value, kind) {
             let format = if value.contains('.') {
                 time::macros::format_description!(

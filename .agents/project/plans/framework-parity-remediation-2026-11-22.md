@@ -22,6 +22,18 @@
 
 Q03补充：原临时守卫只在运行中检查、未自动清理且漏掉退出瞬间；新tests/build_guard.py覆盖上述边界，并将真实清理事件写入target/tmp/build-guard-events.jsonl。绕过入口的raw Cargo仍不能自动拦截，须执行规范中的阶段检查。第四次实际安全清理见disk-cleanup-query.json：12个profile，锁inode保留，清理前28,469,579,776字节可用，之后94,545,403,904，实测净释放66,075,824,128字节。此为此前阶段检查触发的实际清理，不冒称由新守卫执行；本次守卫测试只清隔离假项目。仍保留正常增量与并发。当前其他协作者构建继续保留，不触线不清理热缓存。
 
+## Query 与重定向补验（2026-11-23）
+
+C16–C19新增来源、值连接、二进制/整数集合/行值/组合OR条件、HAVING组合、随机排序、ID翻页、rawValue与惰性存在回调，沿用既有AST/绑定/方言。参考固定上游Builder/Grammar与现有查询实现，真实PHP固定源码156组SQL/绑定对照。Composer使用真实symfony/polyfill-php86 v1.36.0补齐SortDirection，未编造枚举；联网页面读取未返回内容，不能称新增联网结论。
+
+本轮新守卫入口验收：database_query22、database_query_writes18、query_parity4项通过，另1项PG专项明确ignored，非空跑通过。隔离PostgreSQL18.7显式执行3项查询及1项PG编码专项通过；MySQL8.4.13实际3项通过。非法rowValues运算符在添加时立即拒绝并覆盖and/or。PG服务端将无类型参数推断为文本时按TEXT/VARCHAR/BPCHAR/NAME文本编码，覆盖标量/null/JSON/bytes/非法UTF8及强类型bigint恢复；不通过强制SQL cast掩盖原问题。查询失败不调用存在回调，回调错误传播。C20分类绑定尚未实现。
+
+C11–C15追加真实Session默认/login命名错误袋的返回上一页断言，正反例、缺key/错误bag/无错误反例通过；本轮test_response_assertions9项与metadata7项全部通过。
+
+本轮完整快照fmt --all --check、workspace/all-targets严格Clippy通过。Query三语正文补使用方式与当前typed/driver边界，三语构建、12页面组合浏览器、根及/docs/双前缀全部导航通过。证据：target/tmp/framework-parity-20261122/{query-current-guard,query-postgres-explicit,query-mysql-explicit,redirect-errors-current,fmt-query-current,clippy-query-current,docs-build-query,docs-browser-query,docs-scope-query}.log。只提交这些明确文件，协作者新模板与版本/欢迎页不计通过。
+
+保留差异：整数raw集合仅Vec<i64>而非PHP动态转换；existsOr返回类型化Satisfied/Callback(T)；空HAVING回调在Rust不添加条件，而固定PHP对应完全空闭包抛TypeError；binary只提供MySQL语法；PostgreSQL无类型投影可能为Value::Text。完整API、动态参数及所有方言行为尚未关闭，不把本轮通过扩展为全框架完成。
+
 ## 当前实施与验收（2026-11-22）
 
 本节记录正在实施的事实，不能将清单登记或API出现当作全部完成。源码基线为b214e46be及实时WIP；协作者SetLocale实例回调与其三语正文、规范和验收记录保留。本批未操作开发数据或Git索引。

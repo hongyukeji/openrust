@@ -77,3 +77,5 @@ C08追加：命名扩展/隐式/依赖/replacer/resolver、Factory trait/Facade�
 最新接续：C11–C15受支持范围已通过89项回归、追加metadata7项与TestApp地址专项，2128组Session参考及捕获取消/恢复已验。严格Clippy与三语build/browser/scope通过（testing日志）；随后正在补Query来源/join/HAVING与条件，查看query最新日志，不将旧快照验收当新源码结论。完整差异与Q02仍开放。
 
 最新Git接续：已分批提交c84c4a9fb、ba651bbbd、8ff569d77、3de36e733、244683407；b74bfa561移出误纳入的协作者模板测试，文件仍在工作区。Query C16–C19补验中，不能混同此前Clippy验收。第四次安全清理见disk-cleanup-query.json；后续构建使用tests/build_guard.py入口，保留既有独占target与项目内TMPDIR，不清空热缓存。8项守卫回归本次重跑通过。
+
+2026-11-23接续：C16–C19受支持核心156组固定PHP、44项本地及隔离PG3+1/MySQL3实际通过，新增真实Session重定向错误袋16项通过；fmt、严格workspace Clippy及三语站点全流程通过。详主计划Query补验节，保留typed/driver/空HAVING差异；C20分类绑定未实施。

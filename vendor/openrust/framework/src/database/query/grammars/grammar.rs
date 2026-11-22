@@ -42,6 +42,14 @@ pub(crate) struct Grammar {
 }
 
 impl Grammar {
+    pub(in crate::database::query) fn random(&self, seed: Option<i64>) -> String {
+        match self.dialect {
+            Dialect::MySql => seed.map_or_else(|| "RAND()".into(), |seed| format!("RAND({seed})")),
+            Dialect::SqlServer => "NEWID()".into(),
+            Dialect::Sqlite | Dialect::Postgres => "RANDOM()".into(),
+        }
+    }
+
     pub(crate) fn mysql(prefix: &str, upsert_alias: bool) -> Self {
         Self {
             dialect: Dialect::MySql,

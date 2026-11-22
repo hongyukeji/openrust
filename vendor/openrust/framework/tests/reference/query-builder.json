@@ -1,0 +1,4188 @@
+{
+    "framework": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+    "cases": [
+        {
+            "driver": "sqlite",
+            "operations": [
+                [
+                    "fromRaw",
+                    [
+                        "(select ? as id) as items",
+                        [
+                            7
+                        ]
+                    ]
+                ]
+            ],
+            "sql": "select * from (select ? as id) as items",
+            "bindings": [
+                7
+            ]
+        },
+        {
+            "driver": "sqlite",
+            "operations": [
+                [
+                    "selectRaw",
+                    [
+                        "? as marker",
+                        [
+                            11
+                        ]
+                    ]
+                ],
+                [
+                    "fromRaw",
+                    [
+                        "(select ? as id) as items",
+                        [
+                            7
+                        ]
+                    ]
+                ],
+                [
+                    "joinWhere",
+                    [
+                        "other",
+                        "other.id",
+                        "=",
+                        2
+                    ]
+                ],
+                [
+                    "where",
+                    [
+                        "items.id",
+                        ">",
+                        3
+                    ]
+                ]
+            ],
+            "sql": "select ? as marker from (select ? as id) as items inner join \"other\" on \"other\".\"id\" = ? where \"items\".\"id\" > ?",
+            "bindings": [
+                11,
+                7,
+                2,
+                3
+            ]
+        },
+        {
+            "driver": "sqlite",
+            "operations": [
+                [
+                    "joinWhere",
+                    [
+                        "other",
+                        "other.label",
+                        "=",
+                        "x' OR 1=1 --"
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" inner join \"other\" on \"other\".\"label\" = ?",
+            "bindings": [
+                "x' OR 1=1 --"
+            ]
+        },
+        {
+            "driver": "sqlite",
+            "operations": [
+                [
+                    "leftJoinWhere",
+                    [
+                        "other",
+                        "other.id",
+                        "=",
+                        null
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" left join \"other\" on \"other\".\"id\" is null",
+            "bindings": []
+        },
+        {
+            "driver": "sqlite",
+            "operations": [
+                [
+                    "rightJoinWhere",
+                    [
+                        "other",
+                        "other.id",
+                        "=",
+                        4
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" right join \"other\" on \"other\".\"id\" = ?",
+            "bindings": [
+                4
+            ]
+        },
+        {
+            "driver": "sqlite",
+            "operations": [
+                [
+                    "groupBy",
+                    [
+                        "id"
+                    ]
+                ],
+                [
+                    "havingNull",
+                    [
+                        [
+                            "id",
+                            "label"
+                        ]
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" group by \"id\" having \"id\" is null and \"label\" is null",
+            "bindings": []
+        },
+        {
+            "driver": "sqlite",
+            "operations": [
+                [
+                    "groupBy",
+                    [
+                        "id"
+                    ]
+                ],
+                [
+                    "havingNotNull",
+                    [
+                        [
+                            "id",
+                            "label"
+                        ]
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" group by \"id\" having \"id\" is not null and \"label\" is not null",
+            "bindings": []
+        },
+        {
+            "driver": "sqlite",
+            "operations": [
+                [
+                    "groupBy",
+                    [
+                        "id"
+                    ]
+                ],
+                [
+                    "havingNotBetween",
+                    [
+                        "id",
+                        [
+                            2,
+                            4
+                        ]
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" group by \"id\" having \"id\" not between ? and ?",
+            "bindings": [
+                2,
+                4
+            ]
+        },
+        {
+            "driver": "sqlite",
+            "operations": [
+                [
+                    "groupBy",
+                    [
+                        "id"
+                    ]
+                ],
+                [
+                    "having",
+                    [
+                        "id",
+                        ">",
+                        1
+                    ]
+                ],
+                [
+                    "orHavingNull",
+                    [
+                        "id"
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" group by \"id\" having \"id\" > ? or \"id\" is null",
+            "bindings": [
+                1
+            ]
+        },
+        {
+            "driver": "sqlite",
+            "operations": [
+                [
+                    "groupBy",
+                    [
+                        "id"
+                    ]
+                ],
+                [
+                    "having",
+                    [
+                        "id",
+                        ">",
+                        1
+                    ]
+                ],
+                [
+                    "orHavingNotNull",
+                    [
+                        "label"
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" group by \"id\" having \"id\" > ? or \"label\" is not null",
+            "bindings": [
+                1
+            ]
+        },
+        {
+            "driver": "sqlite",
+            "operations": [
+                [
+                    "groupBy",
+                    [
+                        "id"
+                    ]
+                ],
+                [
+                    "having",
+                    [
+                        "id",
+                        ">",
+                        1
+                    ]
+                ],
+                [
+                    "orHavingBetween",
+                    [
+                        "id",
+                        [
+                            2,
+                            4
+                        ]
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" group by \"id\" having \"id\" > ? or \"id\" between ? and ?",
+            "bindings": [
+                1,
+                2,
+                4
+            ]
+        },
+        {
+            "driver": "sqlite",
+            "operations": [
+                [
+                    "groupBy",
+                    [
+                        "id"
+                    ]
+                ],
+                [
+                    "having",
+                    [
+                        "id",
+                        ">",
+                        1
+                    ]
+                ],
+                [
+                    "orHavingNotBetween",
+                    [
+                        "id",
+                        [
+                            2,
+                            4
+                        ]
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" group by \"id\" having \"id\" > ? or \"id\" not between ? and ?",
+            "bindings": [
+                1,
+                2,
+                4
+            ]
+        },
+        {
+            "driver": "sqlite",
+            "operations": [
+                [
+                    "groupBy",
+                    [
+                        "id"
+                    ]
+                ],
+                [
+                    "havingNested",
+                    [
+                        [
+                            [
+                                "having",
+                                [
+                                    "id",
+                                    ">",
+                                    1
+                                ]
+                            ],
+                            [
+                                "orHaving",
+                                [
+                                    "id",
+                                    "<",
+                                    0
+                                ]
+                            ]
+                        ]
+                    ]
+                ],
+                [
+                    "havingNotNull",
+                    [
+                        "label"
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" group by \"id\" having (\"id\" > ? or \"id\" < ?) and \"label\" is not null",
+            "bindings": [
+                1,
+                0
+            ]
+        },
+        {
+            "driver": "sqlite",
+            "operations": [
+                [
+                    "groupBy",
+                    [
+                        "id"
+                    ]
+                ],
+                [
+                    "having",
+                    [
+                        "id",
+                        "=",
+                        7
+                    ]
+                ],
+                [
+                    "havingNested",
+                    [
+                        [],
+                        "or"
+                    ]
+                ]
+            ],
+            "error": "TypeError"
+        },
+        {
+            "driver": "sqlite",
+            "operations": [
+                [
+                    "groupBy",
+                    [
+                        "id"
+                    ]
+                ],
+                [
+                    "having",
+                    [
+                        "id",
+                        "=",
+                        7
+                    ]
+                ],
+                [
+                    "havingNested",
+                    [
+                        [
+                            [
+                                "having",
+                                [
+                                    "id",
+                                    ">",
+                                    1
+                                ]
+                            ],
+                            [
+                                "orHaving",
+                                [
+                                    "id",
+                                    "<",
+                                    0
+                                ]
+                            ]
+                        ],
+                        "or"
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" group by \"id\" having \"id\" = ? or (\"id\" > ? or \"id\" < ?)",
+            "bindings": [
+                7,
+                1,
+                0
+            ]
+        },
+        {
+            "driver": "sqlite",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "whereBinary",
+                    [
+                        "label",
+                        "x' OR 1=1 --"
+                    ]
+                ]
+            ],
+            "error": "RuntimeException"
+        },
+        {
+            "driver": "sqlite",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "orWhereBinary",
+                    [
+                        "label",
+                        "x' OR 1=1 --"
+                    ]
+                ]
+            ],
+            "error": "RuntimeException"
+        },
+        {
+            "driver": "sqlite",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "whereNotBinary",
+                    [
+                        "label",
+                        "x' OR 1=1 --"
+                    ]
+                ]
+            ],
+            "error": "RuntimeException"
+        },
+        {
+            "driver": "sqlite",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "orWhereNotBinary",
+                    [
+                        "label",
+                        "x' OR 1=1 --"
+                    ]
+                ]
+            ],
+            "error": "RuntimeException"
+        },
+        {
+            "driver": "sqlite",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "whereIntegerInRaw",
+                    [
+                        "id",
+                        []
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" where \"id\" = ? and 0 = 1",
+            "bindings": [
+                1
+            ]
+        },
+        {
+            "driver": "sqlite",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "whereIntegerInRaw",
+                    [
+                        "id",
+                        [
+                            0,
+                            -1,
+                            1,
+                            9223372036854775807
+                        ]
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" where \"id\" = ? and \"id\" in (0, -1, 1, 9223372036854775807)",
+            "bindings": [
+                1
+            ]
+        },
+        {
+            "driver": "sqlite",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "orWhereIntegerInRaw",
+                    [
+                        "id",
+                        []
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" where \"id\" = ? or 0 = 1",
+            "bindings": [
+                1
+            ]
+        },
+        {
+            "driver": "sqlite",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "orWhereIntegerInRaw",
+                    [
+                        "id",
+                        [
+                            0,
+                            -1,
+                            1,
+                            9223372036854775807
+                        ]
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" where \"id\" = ? or \"id\" in (0, -1, 1, 9223372036854775807)",
+            "bindings": [
+                1
+            ]
+        },
+        {
+            "driver": "sqlite",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "whereIntegerNotInRaw",
+                    [
+                        "id",
+                        []
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" where \"id\" = ? and 1 = 1",
+            "bindings": [
+                1
+            ]
+        },
+        {
+            "driver": "sqlite",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "whereIntegerNotInRaw",
+                    [
+                        "id",
+                        [
+                            0,
+                            -1,
+                            1,
+                            9223372036854775807
+                        ]
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" where \"id\" = ? and \"id\" not in (0, -1, 1, 9223372036854775807)",
+            "bindings": [
+                1
+            ]
+        },
+        {
+            "driver": "sqlite",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "orWhereIntegerNotInRaw",
+                    [
+                        "id",
+                        []
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" where \"id\" = ? or 1 = 1",
+            "bindings": [
+                1
+            ]
+        },
+        {
+            "driver": "sqlite",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "orWhereIntegerNotInRaw",
+                    [
+                        "id",
+                        [
+                            0,
+                            -1,
+                            1,
+                            9223372036854775807
+                        ]
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" where \"id\" = ? or \"id\" not in (0, -1, 1, 9223372036854775807)",
+            "bindings": [
+                1
+            ]
+        },
+        {
+            "driver": "sqlite",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "whereRowValues",
+                    [
+                        [
+                            "id",
+                            "group_id"
+                        ],
+                        ">=",
+                        [
+                            1,
+                            2
+                        ]
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" where \"id\" = ? and (\"id\", \"group_id\") >= (?, ?)",
+            "bindings": [
+                1,
+                1,
+                2
+            ]
+        },
+        {
+            "driver": "sqlite",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "whereRowValues",
+                    [
+                        [
+                            "id",
+                            "group_id"
+                        ],
+                        ">=",
+                        [
+                            null,
+                            2
+                        ]
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" where \"id\" = ? and (\"id\", \"group_id\") >= (?, ?)",
+            "bindings": [
+                1,
+                null,
+                2
+            ]
+        },
+        {
+            "driver": "sqlite",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "whereRowValues",
+                    [
+                        [
+                            "id",
+                            "group_id"
+                        ],
+                        ">=",
+                        []
+                    ]
+                ]
+            ],
+            "error": "InvalidArgumentException"
+        },
+        {
+            "driver": "sqlite",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "whereRowValues",
+                    [
+                        [
+                            "id",
+                            "group_id"
+                        ],
+                        ">=",
+                        [
+                            1
+                        ]
+                    ]
+                ]
+            ],
+            "error": "InvalidArgumentException"
+        },
+        {
+            "driver": "sqlite",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "orWhereRowValues",
+                    [
+                        [
+                            "id",
+                            "group_id"
+                        ],
+                        ">=",
+                        [
+                            1,
+                            2
+                        ]
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" where \"id\" = ? or (\"id\", \"group_id\") >= (?, ?)",
+            "bindings": [
+                1,
+                1,
+                2
+            ]
+        },
+        {
+            "driver": "sqlite",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "orWhereRowValues",
+                    [
+                        [
+                            "id",
+                            "group_id"
+                        ],
+                        ">=",
+                        [
+                            null,
+                            2
+                        ]
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" where \"id\" = ? or (\"id\", \"group_id\") >= (?, ?)",
+            "bindings": [
+                1,
+                null,
+                2
+            ]
+        },
+        {
+            "driver": "sqlite",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "orWhereRowValues",
+                    [
+                        [
+                            "id",
+                            "group_id"
+                        ],
+                        ">=",
+                        []
+                    ]
+                ]
+            ],
+            "error": "InvalidArgumentException"
+        },
+        {
+            "driver": "sqlite",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "orWhereRowValues",
+                    [
+                        [
+                            "id",
+                            "group_id"
+                        ],
+                        ">=",
+                        [
+                            1
+                        ]
+                    ]
+                ]
+            ],
+            "error": "InvalidArgumentException"
+        },
+        {
+            "driver": "sqlite",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "orWhereAll",
+                    [
+                        [],
+                        "=",
+                        2
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" where \"id\" = ?",
+            "bindings": [
+                1
+            ]
+        },
+        {
+            "driver": "sqlite",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "orWhereAll",
+                    [
+                        [
+                            "id",
+                            "group_id"
+                        ],
+                        "=",
+                        2
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" where \"id\" = ? or (\"id\" = ? and \"group_id\" = ?)",
+            "bindings": [
+                1,
+                2,
+                2
+            ]
+        },
+        {
+            "driver": "sqlite",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "orWhereAny",
+                    [
+                        [],
+                        "=",
+                        2
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" where \"id\" = ?",
+            "bindings": [
+                1
+            ]
+        },
+        {
+            "driver": "sqlite",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "orWhereAny",
+                    [
+                        [
+                            "id",
+                            "group_id"
+                        ],
+                        "=",
+                        2
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" where \"id\" = ? or (\"id\" = ? or \"group_id\" = ?)",
+            "bindings": [
+                1,
+                2,
+                2
+            ]
+        },
+        {
+            "driver": "sqlite",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "orWhereNone",
+                    [
+                        [],
+                        "=",
+                        2
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" where \"id\" = ?",
+            "bindings": [
+                1
+            ]
+        },
+        {
+            "driver": "sqlite",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "orWhereNone",
+                    [
+                        [
+                            "id",
+                            "group_id"
+                        ],
+                        "=",
+                        2
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" where \"id\" = ? or not (\"id\" = ? or \"group_id\" = ?)",
+            "bindings": [
+                1,
+                2,
+                2
+            ]
+        },
+        {
+            "driver": "sqlite",
+            "operations": [
+                [
+                    "orderBy",
+                    [
+                        "id",
+                        "desc"
+                    ]
+                ],
+                [
+                    "orderBy",
+                    [
+                        "label",
+                        "asc"
+                    ]
+                ],
+                [
+                    "forPageBeforeId",
+                    [
+                        3,
+                        null,
+                        "id"
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" where \"id\" is not null order by \"label\" asc, \"id\" desc limit 3",
+            "bindings": []
+        },
+        {
+            "driver": "sqlite",
+            "operations": [
+                [
+                    "orderBy",
+                    [
+                        "id",
+                        "desc"
+                    ]
+                ],
+                [
+                    "orderBy",
+                    [
+                        "label",
+                        "asc"
+                    ]
+                ],
+                [
+                    "forPageBeforeId",
+                    [
+                        3,
+                        0,
+                        "id"
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" where \"id\" < ? order by \"label\" asc, \"id\" desc limit 3",
+            "bindings": [
+                0
+            ]
+        },
+        {
+            "driver": "sqlite",
+            "operations": [
+                [
+                    "orderBy",
+                    [
+                        "id",
+                        "desc"
+                    ]
+                ],
+                [
+                    "orderBy",
+                    [
+                        "label",
+                        "asc"
+                    ]
+                ],
+                [
+                    "forPageBeforeId",
+                    [
+                        3,
+                        7,
+                        "id"
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" where \"id\" < ? order by \"label\" asc, \"id\" desc limit 3",
+            "bindings": [
+                7
+            ]
+        },
+        {
+            "driver": "sqlite",
+            "operations": [
+                [
+                    "orderBy",
+                    [
+                        "id",
+                        "desc"
+                    ]
+                ],
+                [
+                    "orderBy",
+                    [
+                        "label",
+                        "asc"
+                    ]
+                ],
+                [
+                    "forPageAfterId",
+                    [
+                        3,
+                        null,
+                        "id"
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" where \"id\" is not null order by \"label\" asc, \"id\" asc limit 3",
+            "bindings": []
+        },
+        {
+            "driver": "sqlite",
+            "operations": [
+                [
+                    "orderBy",
+                    [
+                        "id",
+                        "desc"
+                    ]
+                ],
+                [
+                    "orderBy",
+                    [
+                        "label",
+                        "asc"
+                    ]
+                ],
+                [
+                    "forPageAfterId",
+                    [
+                        3,
+                        0,
+                        "id"
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" where \"id\" > ? order by \"label\" asc, \"id\" asc limit 3",
+            "bindings": [
+                0
+            ]
+        },
+        {
+            "driver": "sqlite",
+            "operations": [
+                [
+                    "orderBy",
+                    [
+                        "id",
+                        "desc"
+                    ]
+                ],
+                [
+                    "orderBy",
+                    [
+                        "label",
+                        "asc"
+                    ]
+                ],
+                [
+                    "forPageAfterId",
+                    [
+                        3,
+                        7,
+                        "id"
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" where \"id\" > ? order by \"label\" asc, \"id\" asc limit 3",
+            "bindings": [
+                7
+            ]
+        },
+        {
+            "driver": "sqlite",
+            "operations": [
+                [
+                    "inRandomOrder",
+                    [
+                        null
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" order by RANDOM()",
+            "bindings": []
+        },
+        {
+            "driver": "sqlite",
+            "operations": [
+                [
+                    "inRandomOrder",
+                    [
+                        0
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" order by RANDOM()",
+            "bindings": []
+        },
+        {
+            "driver": "sqlite",
+            "operations": [
+                [
+                    "inRandomOrder",
+                    [
+                        -1
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" order by RANDOM()",
+            "bindings": []
+        },
+        {
+            "driver": "sqlite",
+            "operations": [
+                [
+                    "inRandomOrder",
+                    [
+                        42
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" order by RANDOM()",
+            "bindings": []
+        },
+        {
+            "driver": "sqlite",
+            "operations": [
+                [
+                    "orderByRaw",
+                    [
+                        "?",
+                        [
+                            8
+                        ]
+                    ]
+                ],
+                [
+                    "reorderDesc",
+                    [
+                        "id"
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" order by \"id\" desc",
+            "bindings": []
+        },
+        {
+            "driver": "mysql",
+            "operations": [
+                [
+                    "fromRaw",
+                    [
+                        "(select ? as id) as items",
+                        [
+                            7
+                        ]
+                    ]
+                ]
+            ],
+            "sql": "select * from (select ? as id) as items",
+            "bindings": [
+                7
+            ]
+        },
+        {
+            "driver": "mysql",
+            "operations": [
+                [
+                    "selectRaw",
+                    [
+                        "? as marker",
+                        [
+                            11
+                        ]
+                    ]
+                ],
+                [
+                    "fromRaw",
+                    [
+                        "(select ? as id) as items",
+                        [
+                            7
+                        ]
+                    ]
+                ],
+                [
+                    "joinWhere",
+                    [
+                        "other",
+                        "other.id",
+                        "=",
+                        2
+                    ]
+                ],
+                [
+                    "where",
+                    [
+                        "items.id",
+                        ">",
+                        3
+                    ]
+                ]
+            ],
+            "sql": "select ? as marker from (select ? as id) as items inner join `other` on `other`.`id` = ? where `items`.`id` > ?",
+            "bindings": [
+                11,
+                7,
+                2,
+                3
+            ]
+        },
+        {
+            "driver": "mysql",
+            "operations": [
+                [
+                    "joinWhere",
+                    [
+                        "other",
+                        "other.label",
+                        "=",
+                        "x' OR 1=1 --"
+                    ]
+                ]
+            ],
+            "sql": "select * from `items` inner join `other` on `other`.`label` = ?",
+            "bindings": [
+                "x' OR 1=1 --"
+            ]
+        },
+        {
+            "driver": "mysql",
+            "operations": [
+                [
+                    "leftJoinWhere",
+                    [
+                        "other",
+                        "other.id",
+                        "=",
+                        null
+                    ]
+                ]
+            ],
+            "sql": "select * from `items` left join `other` on `other`.`id` is null",
+            "bindings": []
+        },
+        {
+            "driver": "mysql",
+            "operations": [
+                [
+                    "rightJoinWhere",
+                    [
+                        "other",
+                        "other.id",
+                        "=",
+                        4
+                    ]
+                ]
+            ],
+            "sql": "select * from `items` right join `other` on `other`.`id` = ?",
+            "bindings": [
+                4
+            ]
+        },
+        {
+            "driver": "mysql",
+            "operations": [
+                [
+                    "groupBy",
+                    [
+                        "id"
+                    ]
+                ],
+                [
+                    "havingNull",
+                    [
+                        [
+                            "id",
+                            "label"
+                        ]
+                    ]
+                ]
+            ],
+            "sql": "select * from `items` group by `id` having `id` is null and `label` is null",
+            "bindings": []
+        },
+        {
+            "driver": "mysql",
+            "operations": [
+                [
+                    "groupBy",
+                    [
+                        "id"
+                    ]
+                ],
+                [
+                    "havingNotNull",
+                    [
+                        [
+                            "id",
+                            "label"
+                        ]
+                    ]
+                ]
+            ],
+            "sql": "select * from `items` group by `id` having `id` is not null and `label` is not null",
+            "bindings": []
+        },
+        {
+            "driver": "mysql",
+            "operations": [
+                [
+                    "groupBy",
+                    [
+                        "id"
+                    ]
+                ],
+                [
+                    "havingNotBetween",
+                    [
+                        "id",
+                        [
+                            2,
+                            4
+                        ]
+                    ]
+                ]
+            ],
+            "sql": "select * from `items` group by `id` having `id` not between ? and ?",
+            "bindings": [
+                2,
+                4
+            ]
+        },
+        {
+            "driver": "mysql",
+            "operations": [
+                [
+                    "groupBy",
+                    [
+                        "id"
+                    ]
+                ],
+                [
+                    "having",
+                    [
+                        "id",
+                        ">",
+                        1
+                    ]
+                ],
+                [
+                    "orHavingNull",
+                    [
+                        "id"
+                    ]
+                ]
+            ],
+            "sql": "select * from `items` group by `id` having `id` > ? or `id` is null",
+            "bindings": [
+                1
+            ]
+        },
+        {
+            "driver": "mysql",
+            "operations": [
+                [
+                    "groupBy",
+                    [
+                        "id"
+                    ]
+                ],
+                [
+                    "having",
+                    [
+                        "id",
+                        ">",
+                        1
+                    ]
+                ],
+                [
+                    "orHavingNotNull",
+                    [
+                        "label"
+                    ]
+                ]
+            ],
+            "sql": "select * from `items` group by `id` having `id` > ? or `label` is not null",
+            "bindings": [
+                1
+            ]
+        },
+        {
+            "driver": "mysql",
+            "operations": [
+                [
+                    "groupBy",
+                    [
+                        "id"
+                    ]
+                ],
+                [
+                    "having",
+                    [
+                        "id",
+                        ">",
+                        1
+                    ]
+                ],
+                [
+                    "orHavingBetween",
+                    [
+                        "id",
+                        [
+                            2,
+                            4
+                        ]
+                    ]
+                ]
+            ],
+            "sql": "select * from `items` group by `id` having `id` > ? or `id` between ? and ?",
+            "bindings": [
+                1,
+                2,
+                4
+            ]
+        },
+        {
+            "driver": "mysql",
+            "operations": [
+                [
+                    "groupBy",
+                    [
+                        "id"
+                    ]
+                ],
+                [
+                    "having",
+                    [
+                        "id",
+                        ">",
+                        1
+                    ]
+                ],
+                [
+                    "orHavingNotBetween",
+                    [
+                        "id",
+                        [
+                            2,
+                            4
+                        ]
+                    ]
+                ]
+            ],
+            "sql": "select * from `items` group by `id` having `id` > ? or `id` not between ? and ?",
+            "bindings": [
+                1,
+                2,
+                4
+            ]
+        },
+        {
+            "driver": "mysql",
+            "operations": [
+                [
+                    "groupBy",
+                    [
+                        "id"
+                    ]
+                ],
+                [
+                    "havingNested",
+                    [
+                        [
+                            [
+                                "having",
+                                [
+                                    "id",
+                                    ">",
+                                    1
+                                ]
+                            ],
+                            [
+                                "orHaving",
+                                [
+                                    "id",
+                                    "<",
+                                    0
+                                ]
+                            ]
+                        ]
+                    ]
+                ],
+                [
+                    "havingNotNull",
+                    [
+                        "label"
+                    ]
+                ]
+            ],
+            "sql": "select * from `items` group by `id` having (`id` > ? or `id` < ?) and `label` is not null",
+            "bindings": [
+                1,
+                0
+            ]
+        },
+        {
+            "driver": "mysql",
+            "operations": [
+                [
+                    "groupBy",
+                    [
+                        "id"
+                    ]
+                ],
+                [
+                    "having",
+                    [
+                        "id",
+                        "=",
+                        7
+                    ]
+                ],
+                [
+                    "havingNested",
+                    [
+                        [],
+                        "or"
+                    ]
+                ]
+            ],
+            "error": "TypeError"
+        },
+        {
+            "driver": "mysql",
+            "operations": [
+                [
+                    "groupBy",
+                    [
+                        "id"
+                    ]
+                ],
+                [
+                    "having",
+                    [
+                        "id",
+                        "=",
+                        7
+                    ]
+                ],
+                [
+                    "havingNested",
+                    [
+                        [
+                            [
+                                "having",
+                                [
+                                    "id",
+                                    ">",
+                                    1
+                                ]
+                            ],
+                            [
+                                "orHaving",
+                                [
+                                    "id",
+                                    "<",
+                                    0
+                                ]
+                            ]
+                        ],
+                        "or"
+                    ]
+                ]
+            ],
+            "sql": "select * from `items` group by `id` having `id` = ? or (`id` > ? or `id` < ?)",
+            "bindings": [
+                7,
+                1,
+                0
+            ]
+        },
+        {
+            "driver": "mysql",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "whereBinary",
+                    [
+                        "label",
+                        "x' OR 1=1 --"
+                    ]
+                ]
+            ],
+            "sql": "select * from `items` where `id` = ? and `label` = binary ?",
+            "bindings": [
+                1,
+                "x' OR 1=1 --"
+            ]
+        },
+        {
+            "driver": "mysql",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "orWhereBinary",
+                    [
+                        "label",
+                        "x' OR 1=1 --"
+                    ]
+                ]
+            ],
+            "sql": "select * from `items` where `id` = ? or `label` = binary ?",
+            "bindings": [
+                1,
+                "x' OR 1=1 --"
+            ]
+        },
+        {
+            "driver": "mysql",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "whereNotBinary",
+                    [
+                        "label",
+                        "x' OR 1=1 --"
+                    ]
+                ]
+            ],
+            "sql": "select * from `items` where `id` = ? and `label` != binary ?",
+            "bindings": [
+                1,
+                "x' OR 1=1 --"
+            ]
+        },
+        {
+            "driver": "mysql",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "orWhereNotBinary",
+                    [
+                        "label",
+                        "x' OR 1=1 --"
+                    ]
+                ]
+            ],
+            "sql": "select * from `items` where `id` = ? or `label` != binary ?",
+            "bindings": [
+                1,
+                "x' OR 1=1 --"
+            ]
+        },
+        {
+            "driver": "mysql",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "whereIntegerInRaw",
+                    [
+                        "id",
+                        []
+                    ]
+                ]
+            ],
+            "sql": "select * from `items` where `id` = ? and 0 = 1",
+            "bindings": [
+                1
+            ]
+        },
+        {
+            "driver": "mysql",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "whereIntegerInRaw",
+                    [
+                        "id",
+                        [
+                            0,
+                            -1,
+                            1,
+                            9223372036854775807
+                        ]
+                    ]
+                ]
+            ],
+            "sql": "select * from `items` where `id` = ? and `id` in (0, -1, 1, 9223372036854775807)",
+            "bindings": [
+                1
+            ]
+        },
+        {
+            "driver": "mysql",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "orWhereIntegerInRaw",
+                    [
+                        "id",
+                        []
+                    ]
+                ]
+            ],
+            "sql": "select * from `items` where `id` = ? or 0 = 1",
+            "bindings": [
+                1
+            ]
+        },
+        {
+            "driver": "mysql",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "orWhereIntegerInRaw",
+                    [
+                        "id",
+                        [
+                            0,
+                            -1,
+                            1,
+                            9223372036854775807
+                        ]
+                    ]
+                ]
+            ],
+            "sql": "select * from `items` where `id` = ? or `id` in (0, -1, 1, 9223372036854775807)",
+            "bindings": [
+                1
+            ]
+        },
+        {
+            "driver": "mysql",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "whereIntegerNotInRaw",
+                    [
+                        "id",
+                        []
+                    ]
+                ]
+            ],
+            "sql": "select * from `items` where `id` = ? and 1 = 1",
+            "bindings": [
+                1
+            ]
+        },
+        {
+            "driver": "mysql",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "whereIntegerNotInRaw",
+                    [
+                        "id",
+                        [
+                            0,
+                            -1,
+                            1,
+                            9223372036854775807
+                        ]
+                    ]
+                ]
+            ],
+            "sql": "select * from `items` where `id` = ? and `id` not in (0, -1, 1, 9223372036854775807)",
+            "bindings": [
+                1
+            ]
+        },
+        {
+            "driver": "mysql",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "orWhereIntegerNotInRaw",
+                    [
+                        "id",
+                        []
+                    ]
+                ]
+            ],
+            "sql": "select * from `items` where `id` = ? or 1 = 1",
+            "bindings": [
+                1
+            ]
+        },
+        {
+            "driver": "mysql",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "orWhereIntegerNotInRaw",
+                    [
+                        "id",
+                        [
+                            0,
+                            -1,
+                            1,
+                            9223372036854775807
+                        ]
+                    ]
+                ]
+            ],
+            "sql": "select * from `items` where `id` = ? or `id` not in (0, -1, 1, 9223372036854775807)",
+            "bindings": [
+                1
+            ]
+        },
+        {
+            "driver": "mysql",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "whereRowValues",
+                    [
+                        [
+                            "id",
+                            "group_id"
+                        ],
+                        ">=",
+                        [
+                            1,
+                            2
+                        ]
+                    ]
+                ]
+            ],
+            "sql": "select * from `items` where `id` = ? and (`id`, `group_id`) >= (?, ?)",
+            "bindings": [
+                1,
+                1,
+                2
+            ]
+        },
+        {
+            "driver": "mysql",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "whereRowValues",
+                    [
+                        [
+                            "id",
+                            "group_id"
+                        ],
+                        ">=",
+                        [
+                            null,
+                            2
+                        ]
+                    ]
+                ]
+            ],
+            "sql": "select * from `items` where `id` = ? and (`id`, `group_id`) >= (?, ?)",
+            "bindings": [
+                1,
+                null,
+                2
+            ]
+        },
+        {
+            "driver": "mysql",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "whereRowValues",
+                    [
+                        [
+                            "id",
+                            "group_id"
+                        ],
+                        ">=",
+                        []
+                    ]
+                ]
+            ],
+            "error": "InvalidArgumentException"
+        },
+        {
+            "driver": "mysql",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "whereRowValues",
+                    [
+                        [
+                            "id",
+                            "group_id"
+                        ],
+                        ">=",
+                        [
+                            1
+                        ]
+                    ]
+                ]
+            ],
+            "error": "InvalidArgumentException"
+        },
+        {
+            "driver": "mysql",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "orWhereRowValues",
+                    [
+                        [
+                            "id",
+                            "group_id"
+                        ],
+                        ">=",
+                        [
+                            1,
+                            2
+                        ]
+                    ]
+                ]
+            ],
+            "sql": "select * from `items` where `id` = ? or (`id`, `group_id`) >= (?, ?)",
+            "bindings": [
+                1,
+                1,
+                2
+            ]
+        },
+        {
+            "driver": "mysql",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "orWhereRowValues",
+                    [
+                        [
+                            "id",
+                            "group_id"
+                        ],
+                        ">=",
+                        [
+                            null,
+                            2
+                        ]
+                    ]
+                ]
+            ],
+            "sql": "select * from `items` where `id` = ? or (`id`, `group_id`) >= (?, ?)",
+            "bindings": [
+                1,
+                null,
+                2
+            ]
+        },
+        {
+            "driver": "mysql",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "orWhereRowValues",
+                    [
+                        [
+                            "id",
+                            "group_id"
+                        ],
+                        ">=",
+                        []
+                    ]
+                ]
+            ],
+            "error": "InvalidArgumentException"
+        },
+        {
+            "driver": "mysql",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "orWhereRowValues",
+                    [
+                        [
+                            "id",
+                            "group_id"
+                        ],
+                        ">=",
+                        [
+                            1
+                        ]
+                    ]
+                ]
+            ],
+            "error": "InvalidArgumentException"
+        },
+        {
+            "driver": "mysql",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "orWhereAll",
+                    [
+                        [],
+                        "=",
+                        2
+                    ]
+                ]
+            ],
+            "sql": "select * from `items` where `id` = ?",
+            "bindings": [
+                1
+            ]
+        },
+        {
+            "driver": "mysql",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "orWhereAll",
+                    [
+                        [
+                            "id",
+                            "group_id"
+                        ],
+                        "=",
+                        2
+                    ]
+                ]
+            ],
+            "sql": "select * from `items` where `id` = ? or (`id` = ? and `group_id` = ?)",
+            "bindings": [
+                1,
+                2,
+                2
+            ]
+        },
+        {
+            "driver": "mysql",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "orWhereAny",
+                    [
+                        [],
+                        "=",
+                        2
+                    ]
+                ]
+            ],
+            "sql": "select * from `items` where `id` = ?",
+            "bindings": [
+                1
+            ]
+        },
+        {
+            "driver": "mysql",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "orWhereAny",
+                    [
+                        [
+                            "id",
+                            "group_id"
+                        ],
+                        "=",
+                        2
+                    ]
+                ]
+            ],
+            "sql": "select * from `items` where `id` = ? or (`id` = ? or `group_id` = ?)",
+            "bindings": [
+                1,
+                2,
+                2
+            ]
+        },
+        {
+            "driver": "mysql",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "orWhereNone",
+                    [
+                        [],
+                        "=",
+                        2
+                    ]
+                ]
+            ],
+            "sql": "select * from `items` where `id` = ?",
+            "bindings": [
+                1
+            ]
+        },
+        {
+            "driver": "mysql",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "orWhereNone",
+                    [
+                        [
+                            "id",
+                            "group_id"
+                        ],
+                        "=",
+                        2
+                    ]
+                ]
+            ],
+            "sql": "select * from `items` where `id` = ? or not (`id` = ? or `group_id` = ?)",
+            "bindings": [
+                1,
+                2,
+                2
+            ]
+        },
+        {
+            "driver": "mysql",
+            "operations": [
+                [
+                    "orderBy",
+                    [
+                        "id",
+                        "desc"
+                    ]
+                ],
+                [
+                    "orderBy",
+                    [
+                        "label",
+                        "asc"
+                    ]
+                ],
+                [
+                    "forPageBeforeId",
+                    [
+                        3,
+                        null,
+                        "id"
+                    ]
+                ]
+            ],
+            "sql": "select * from `items` where `id` is not null order by `label` asc, `id` desc limit 3",
+            "bindings": []
+        },
+        {
+            "driver": "mysql",
+            "operations": [
+                [
+                    "orderBy",
+                    [
+                        "id",
+                        "desc"
+                    ]
+                ],
+                [
+                    "orderBy",
+                    [
+                        "label",
+                        "asc"
+                    ]
+                ],
+                [
+                    "forPageBeforeId",
+                    [
+                        3,
+                        0,
+                        "id"
+                    ]
+                ]
+            ],
+            "sql": "select * from `items` where `id` < ? order by `label` asc, `id` desc limit 3",
+            "bindings": [
+                0
+            ]
+        },
+        {
+            "driver": "mysql",
+            "operations": [
+                [
+                    "orderBy",
+                    [
+                        "id",
+                        "desc"
+                    ]
+                ],
+                [
+                    "orderBy",
+                    [
+                        "label",
+                        "asc"
+                    ]
+                ],
+                [
+                    "forPageBeforeId",
+                    [
+                        3,
+                        7,
+                        "id"
+                    ]
+                ]
+            ],
+            "sql": "select * from `items` where `id` < ? order by `label` asc, `id` desc limit 3",
+            "bindings": [
+                7
+            ]
+        },
+        {
+            "driver": "mysql",
+            "operations": [
+                [
+                    "orderBy",
+                    [
+                        "id",
+                        "desc"
+                    ]
+                ],
+                [
+                    "orderBy",
+                    [
+                        "label",
+                        "asc"
+                    ]
+                ],
+                [
+                    "forPageAfterId",
+                    [
+                        3,
+                        null,
+                        "id"
+                    ]
+                ]
+            ],
+            "sql": "select * from `items` where `id` is not null order by `label` asc, `id` asc limit 3",
+            "bindings": []
+        },
+        {
+            "driver": "mysql",
+            "operations": [
+                [
+                    "orderBy",
+                    [
+                        "id",
+                        "desc"
+                    ]
+                ],
+                [
+                    "orderBy",
+                    [
+                        "label",
+                        "asc"
+                    ]
+                ],
+                [
+                    "forPageAfterId",
+                    [
+                        3,
+                        0,
+                        "id"
+                    ]
+                ]
+            ],
+            "sql": "select * from `items` where `id` > ? order by `label` asc, `id` asc limit 3",
+            "bindings": [
+                0
+            ]
+        },
+        {
+            "driver": "mysql",
+            "operations": [
+                [
+                    "orderBy",
+                    [
+                        "id",
+                        "desc"
+                    ]
+                ],
+                [
+                    "orderBy",
+                    [
+                        "label",
+                        "asc"
+                    ]
+                ],
+                [
+                    "forPageAfterId",
+                    [
+                        3,
+                        7,
+                        "id"
+                    ]
+                ]
+            ],
+            "sql": "select * from `items` where `id` > ? order by `label` asc, `id` asc limit 3",
+            "bindings": [
+                7
+            ]
+        },
+        {
+            "driver": "mysql",
+            "operations": [
+                [
+                    "inRandomOrder",
+                    [
+                        null
+                    ]
+                ]
+            ],
+            "sql": "select * from `items` order by RAND()",
+            "bindings": []
+        },
+        {
+            "driver": "mysql",
+            "operations": [
+                [
+                    "inRandomOrder",
+                    [
+                        0
+                    ]
+                ]
+            ],
+            "sql": "select * from `items` order by RAND(0)",
+            "bindings": []
+        },
+        {
+            "driver": "mysql",
+            "operations": [
+                [
+                    "inRandomOrder",
+                    [
+                        -1
+                    ]
+                ]
+            ],
+            "sql": "select * from `items` order by RAND(-1)",
+            "bindings": []
+        },
+        {
+            "driver": "mysql",
+            "operations": [
+                [
+                    "inRandomOrder",
+                    [
+                        42
+                    ]
+                ]
+            ],
+            "sql": "select * from `items` order by RAND(42)",
+            "bindings": []
+        },
+        {
+            "driver": "mysql",
+            "operations": [
+                [
+                    "orderByRaw",
+                    [
+                        "?",
+                        [
+                            8
+                        ]
+                    ]
+                ],
+                [
+                    "reorderDesc",
+                    [
+                        "id"
+                    ]
+                ]
+            ],
+            "sql": "select * from `items` order by `id` desc",
+            "bindings": []
+        },
+        {
+            "driver": "pgsql",
+            "operations": [
+                [
+                    "fromRaw",
+                    [
+                        "(select ? as id) as items",
+                        [
+                            7
+                        ]
+                    ]
+                ]
+            ],
+            "sql": "select * from (select ? as id) as items",
+            "bindings": [
+                7
+            ]
+        },
+        {
+            "driver": "pgsql",
+            "operations": [
+                [
+                    "selectRaw",
+                    [
+                        "? as marker",
+                        [
+                            11
+                        ]
+                    ]
+                ],
+                [
+                    "fromRaw",
+                    [
+                        "(select ? as id) as items",
+                        [
+                            7
+                        ]
+                    ]
+                ],
+                [
+                    "joinWhere",
+                    [
+                        "other",
+                        "other.id",
+                        "=",
+                        2
+                    ]
+                ],
+                [
+                    "where",
+                    [
+                        "items.id",
+                        ">",
+                        3
+                    ]
+                ]
+            ],
+            "sql": "select ? as marker from (select ? as id) as items inner join \"other\" on \"other\".\"id\" = ? where \"items\".\"id\" > ?",
+            "bindings": [
+                11,
+                7,
+                2,
+                3
+            ]
+        },
+        {
+            "driver": "pgsql",
+            "operations": [
+                [
+                    "joinWhere",
+                    [
+                        "other",
+                        "other.label",
+                        "=",
+                        "x' OR 1=1 --"
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" inner join \"other\" on \"other\".\"label\" = ?",
+            "bindings": [
+                "x' OR 1=1 --"
+            ]
+        },
+        {
+            "driver": "pgsql",
+            "operations": [
+                [
+                    "leftJoinWhere",
+                    [
+                        "other",
+                        "other.id",
+                        "=",
+                        null
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" left join \"other\" on \"other\".\"id\" is null",
+            "bindings": []
+        },
+        {
+            "driver": "pgsql",
+            "operations": [
+                [
+                    "rightJoinWhere",
+                    [
+                        "other",
+                        "other.id",
+                        "=",
+                        4
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" right join \"other\" on \"other\".\"id\" = ?",
+            "bindings": [
+                4
+            ]
+        },
+        {
+            "driver": "pgsql",
+            "operations": [
+                [
+                    "groupBy",
+                    [
+                        "id"
+                    ]
+                ],
+                [
+                    "havingNull",
+                    [
+                        [
+                            "id",
+                            "label"
+                        ]
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" group by \"id\" having \"id\" is null and \"label\" is null",
+            "bindings": []
+        },
+        {
+            "driver": "pgsql",
+            "operations": [
+                [
+                    "groupBy",
+                    [
+                        "id"
+                    ]
+                ],
+                [
+                    "havingNotNull",
+                    [
+                        [
+                            "id",
+                            "label"
+                        ]
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" group by \"id\" having \"id\" is not null and \"label\" is not null",
+            "bindings": []
+        },
+        {
+            "driver": "pgsql",
+            "operations": [
+                [
+                    "groupBy",
+                    [
+                        "id"
+                    ]
+                ],
+                [
+                    "havingNotBetween",
+                    [
+                        "id",
+                        [
+                            2,
+                            4
+                        ]
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" group by \"id\" having \"id\" not between ? and ?",
+            "bindings": [
+                2,
+                4
+            ]
+        },
+        {
+            "driver": "pgsql",
+            "operations": [
+                [
+                    "groupBy",
+                    [
+                        "id"
+                    ]
+                ],
+                [
+                    "having",
+                    [
+                        "id",
+                        ">",
+                        1
+                    ]
+                ],
+                [
+                    "orHavingNull",
+                    [
+                        "id"
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" group by \"id\" having \"id\" > ? or \"id\" is null",
+            "bindings": [
+                1
+            ]
+        },
+        {
+            "driver": "pgsql",
+            "operations": [
+                [
+                    "groupBy",
+                    [
+                        "id"
+                    ]
+                ],
+                [
+                    "having",
+                    [
+                        "id",
+                        ">",
+                        1
+                    ]
+                ],
+                [
+                    "orHavingNotNull",
+                    [
+                        "label"
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" group by \"id\" having \"id\" > ? or \"label\" is not null",
+            "bindings": [
+                1
+            ]
+        },
+        {
+            "driver": "pgsql",
+            "operations": [
+                [
+                    "groupBy",
+                    [
+                        "id"
+                    ]
+                ],
+                [
+                    "having",
+                    [
+                        "id",
+                        ">",
+                        1
+                    ]
+                ],
+                [
+                    "orHavingBetween",
+                    [
+                        "id",
+                        [
+                            2,
+                            4
+                        ]
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" group by \"id\" having \"id\" > ? or \"id\" between ? and ?",
+            "bindings": [
+                1,
+                2,
+                4
+            ]
+        },
+        {
+            "driver": "pgsql",
+            "operations": [
+                [
+                    "groupBy",
+                    [
+                        "id"
+                    ]
+                ],
+                [
+                    "having",
+                    [
+                        "id",
+                        ">",
+                        1
+                    ]
+                ],
+                [
+                    "orHavingNotBetween",
+                    [
+                        "id",
+                        [
+                            2,
+                            4
+                        ]
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" group by \"id\" having \"id\" > ? or \"id\" not between ? and ?",
+            "bindings": [
+                1,
+                2,
+                4
+            ]
+        },
+        {
+            "driver": "pgsql",
+            "operations": [
+                [
+                    "groupBy",
+                    [
+                        "id"
+                    ]
+                ],
+                [
+                    "havingNested",
+                    [
+                        [
+                            [
+                                "having",
+                                [
+                                    "id",
+                                    ">",
+                                    1
+                                ]
+                            ],
+                            [
+                                "orHaving",
+                                [
+                                    "id",
+                                    "<",
+                                    0
+                                ]
+                            ]
+                        ]
+                    ]
+                ],
+                [
+                    "havingNotNull",
+                    [
+                        "label"
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" group by \"id\" having (\"id\" > ? or \"id\" < ?) and \"label\" is not null",
+            "bindings": [
+                1,
+                0
+            ]
+        },
+        {
+            "driver": "pgsql",
+            "operations": [
+                [
+                    "groupBy",
+                    [
+                        "id"
+                    ]
+                ],
+                [
+                    "having",
+                    [
+                        "id",
+                        "=",
+                        7
+                    ]
+                ],
+                [
+                    "havingNested",
+                    [
+                        [],
+                        "or"
+                    ]
+                ]
+            ],
+            "error": "TypeError"
+        },
+        {
+            "driver": "pgsql",
+            "operations": [
+                [
+                    "groupBy",
+                    [
+                        "id"
+                    ]
+                ],
+                [
+                    "having",
+                    [
+                        "id",
+                        "=",
+                        7
+                    ]
+                ],
+                [
+                    "havingNested",
+                    [
+                        [
+                            [
+                                "having",
+                                [
+                                    "id",
+                                    ">",
+                                    1
+                                ]
+                            ],
+                            [
+                                "orHaving",
+                                [
+                                    "id",
+                                    "<",
+                                    0
+                                ]
+                            ]
+                        ],
+                        "or"
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" group by \"id\" having \"id\" = ? or (\"id\" > ? or \"id\" < ?)",
+            "bindings": [
+                7,
+                1,
+                0
+            ]
+        },
+        {
+            "driver": "pgsql",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "whereBinary",
+                    [
+                        "label",
+                        "x' OR 1=1 --"
+                    ]
+                ]
+            ],
+            "error": "RuntimeException"
+        },
+        {
+            "driver": "pgsql",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "orWhereBinary",
+                    [
+                        "label",
+                        "x' OR 1=1 --"
+                    ]
+                ]
+            ],
+            "error": "RuntimeException"
+        },
+        {
+            "driver": "pgsql",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "whereNotBinary",
+                    [
+                        "label",
+                        "x' OR 1=1 --"
+                    ]
+                ]
+            ],
+            "error": "RuntimeException"
+        },
+        {
+            "driver": "pgsql",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "orWhereNotBinary",
+                    [
+                        "label",
+                        "x' OR 1=1 --"
+                    ]
+                ]
+            ],
+            "error": "RuntimeException"
+        },
+        {
+            "driver": "pgsql",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "whereIntegerInRaw",
+                    [
+                        "id",
+                        []
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" where \"id\" = ? and 0 = 1",
+            "bindings": [
+                1
+            ]
+        },
+        {
+            "driver": "pgsql",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "whereIntegerInRaw",
+                    [
+                        "id",
+                        [
+                            0,
+                            -1,
+                            1,
+                            9223372036854775807
+                        ]
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" where \"id\" = ? and \"id\" in (0, -1, 1, 9223372036854775807)",
+            "bindings": [
+                1
+            ]
+        },
+        {
+            "driver": "pgsql",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "orWhereIntegerInRaw",
+                    [
+                        "id",
+                        []
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" where \"id\" = ? or 0 = 1",
+            "bindings": [
+                1
+            ]
+        },
+        {
+            "driver": "pgsql",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "orWhereIntegerInRaw",
+                    [
+                        "id",
+                        [
+                            0,
+                            -1,
+                            1,
+                            9223372036854775807
+                        ]
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" where \"id\" = ? or \"id\" in (0, -1, 1, 9223372036854775807)",
+            "bindings": [
+                1
+            ]
+        },
+        {
+            "driver": "pgsql",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "whereIntegerNotInRaw",
+                    [
+                        "id",
+                        []
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" where \"id\" = ? and 1 = 1",
+            "bindings": [
+                1
+            ]
+        },
+        {
+            "driver": "pgsql",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "whereIntegerNotInRaw",
+                    [
+                        "id",
+                        [
+                            0,
+                            -1,
+                            1,
+                            9223372036854775807
+                        ]
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" where \"id\" = ? and \"id\" not in (0, -1, 1, 9223372036854775807)",
+            "bindings": [
+                1
+            ]
+        },
+        {
+            "driver": "pgsql",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "orWhereIntegerNotInRaw",
+                    [
+                        "id",
+                        []
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" where \"id\" = ? or 1 = 1",
+            "bindings": [
+                1
+            ]
+        },
+        {
+            "driver": "pgsql",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "orWhereIntegerNotInRaw",
+                    [
+                        "id",
+                        [
+                            0,
+                            -1,
+                            1,
+                            9223372036854775807
+                        ]
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" where \"id\" = ? or \"id\" not in (0, -1, 1, 9223372036854775807)",
+            "bindings": [
+                1
+            ]
+        },
+        {
+            "driver": "pgsql",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "whereRowValues",
+                    [
+                        [
+                            "id",
+                            "group_id"
+                        ],
+                        ">=",
+                        [
+                            1,
+                            2
+                        ]
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" where \"id\" = ? and (\"id\", \"group_id\") >= (?, ?)",
+            "bindings": [
+                1,
+                1,
+                2
+            ]
+        },
+        {
+            "driver": "pgsql",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "whereRowValues",
+                    [
+                        [
+                            "id",
+                            "group_id"
+                        ],
+                        ">=",
+                        [
+                            null,
+                            2
+                        ]
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" where \"id\" = ? and (\"id\", \"group_id\") >= (?, ?)",
+            "bindings": [
+                1,
+                null,
+                2
+            ]
+        },
+        {
+            "driver": "pgsql",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "whereRowValues",
+                    [
+                        [
+                            "id",
+                            "group_id"
+                        ],
+                        ">=",
+                        []
+                    ]
+                ]
+            ],
+            "error": "InvalidArgumentException"
+        },
+        {
+            "driver": "pgsql",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "whereRowValues",
+                    [
+                        [
+                            "id",
+                            "group_id"
+                        ],
+                        ">=",
+                        [
+                            1
+                        ]
+                    ]
+                ]
+            ],
+            "error": "InvalidArgumentException"
+        },
+        {
+            "driver": "pgsql",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "orWhereRowValues",
+                    [
+                        [
+                            "id",
+                            "group_id"
+                        ],
+                        ">=",
+                        [
+                            1,
+                            2
+                        ]
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" where \"id\" = ? or (\"id\", \"group_id\") >= (?, ?)",
+            "bindings": [
+                1,
+                1,
+                2
+            ]
+        },
+        {
+            "driver": "pgsql",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "orWhereRowValues",
+                    [
+                        [
+                            "id",
+                            "group_id"
+                        ],
+                        ">=",
+                        [
+                            null,
+                            2
+                        ]
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" where \"id\" = ? or (\"id\", \"group_id\") >= (?, ?)",
+            "bindings": [
+                1,
+                null,
+                2
+            ]
+        },
+        {
+            "driver": "pgsql",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "orWhereRowValues",
+                    [
+                        [
+                            "id",
+                            "group_id"
+                        ],
+                        ">=",
+                        []
+                    ]
+                ]
+            ],
+            "error": "InvalidArgumentException"
+        },
+        {
+            "driver": "pgsql",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "orWhereRowValues",
+                    [
+                        [
+                            "id",
+                            "group_id"
+                        ],
+                        ">=",
+                        [
+                            1
+                        ]
+                    ]
+                ]
+            ],
+            "error": "InvalidArgumentException"
+        },
+        {
+            "driver": "pgsql",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "orWhereAll",
+                    [
+                        [],
+                        "=",
+                        2
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" where \"id\" = ?",
+            "bindings": [
+                1
+            ]
+        },
+        {
+            "driver": "pgsql",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "orWhereAll",
+                    [
+                        [
+                            "id",
+                            "group_id"
+                        ],
+                        "=",
+                        2
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" where \"id\" = ? or (\"id\" = ? and \"group_id\" = ?)",
+            "bindings": [
+                1,
+                2,
+                2
+            ]
+        },
+        {
+            "driver": "pgsql",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "orWhereAny",
+                    [
+                        [],
+                        "=",
+                        2
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" where \"id\" = ?",
+            "bindings": [
+                1
+            ]
+        },
+        {
+            "driver": "pgsql",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "orWhereAny",
+                    [
+                        [
+                            "id",
+                            "group_id"
+                        ],
+                        "=",
+                        2
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" where \"id\" = ? or (\"id\" = ? or \"group_id\" = ?)",
+            "bindings": [
+                1,
+                2,
+                2
+            ]
+        },
+        {
+            "driver": "pgsql",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "orWhereNone",
+                    [
+                        [],
+                        "=",
+                        2
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" where \"id\" = ?",
+            "bindings": [
+                1
+            ]
+        },
+        {
+            "driver": "pgsql",
+            "operations": [
+                [
+                    "where",
+                    [
+                        "id",
+                        "=",
+                        1
+                    ]
+                ],
+                [
+                    "orWhereNone",
+                    [
+                        [
+                            "id",
+                            "group_id"
+                        ],
+                        "=",
+                        2
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" where \"id\" = ? or not (\"id\" = ? or \"group_id\" = ?)",
+            "bindings": [
+                1,
+                2,
+                2
+            ]
+        },
+        {
+            "driver": "pgsql",
+            "operations": [
+                [
+                    "orderBy",
+                    [
+                        "id",
+                        "desc"
+                    ]
+                ],
+                [
+                    "orderBy",
+                    [
+                        "label",
+                        "asc"
+                    ]
+                ],
+                [
+                    "forPageBeforeId",
+                    [
+                        3,
+                        null,
+                        "id"
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" where \"id\" is not null order by \"label\" asc, \"id\" desc limit 3",
+            "bindings": []
+        },
+        {
+            "driver": "pgsql",
+            "operations": [
+                [
+                    "orderBy",
+                    [
+                        "id",
+                        "desc"
+                    ]
+                ],
+                [
+                    "orderBy",
+                    [
+                        "label",
+                        "asc"
+                    ]
+                ],
+                [
+                    "forPageBeforeId",
+                    [
+                        3,
+                        0,
+                        "id"
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" where \"id\" < ? order by \"label\" asc, \"id\" desc limit 3",
+            "bindings": [
+                0
+            ]
+        },
+        {
+            "driver": "pgsql",
+            "operations": [
+                [
+                    "orderBy",
+                    [
+                        "id",
+                        "desc"
+                    ]
+                ],
+                [
+                    "orderBy",
+                    [
+                        "label",
+                        "asc"
+                    ]
+                ],
+                [
+                    "forPageBeforeId",
+                    [
+                        3,
+                        7,
+                        "id"
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" where \"id\" < ? order by \"label\" asc, \"id\" desc limit 3",
+            "bindings": [
+                7
+            ]
+        },
+        {
+            "driver": "pgsql",
+            "operations": [
+                [
+                    "orderBy",
+                    [
+                        "id",
+                        "desc"
+                    ]
+                ],
+                [
+                    "orderBy",
+                    [
+                        "label",
+                        "asc"
+                    ]
+                ],
+                [
+                    "forPageAfterId",
+                    [
+                        3,
+                        null,
+                        "id"
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" where \"id\" is not null order by \"label\" asc, \"id\" asc limit 3",
+            "bindings": []
+        },
+        {
+            "driver": "pgsql",
+            "operations": [
+                [
+                    "orderBy",
+                    [
+                        "id",
+                        "desc"
+                    ]
+                ],
+                [
+                    "orderBy",
+                    [
+                        "label",
+                        "asc"
+                    ]
+                ],
+                [
+                    "forPageAfterId",
+                    [
+                        3,
+                        0,
+                        "id"
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" where \"id\" > ? order by \"label\" asc, \"id\" asc limit 3",
+            "bindings": [
+                0
+            ]
+        },
+        {
+            "driver": "pgsql",
+            "operations": [
+                [
+                    "orderBy",
+                    [
+                        "id",
+                        "desc"
+                    ]
+                ],
+                [
+                    "orderBy",
+                    [
+                        "label",
+                        "asc"
+                    ]
+                ],
+                [
+                    "forPageAfterId",
+                    [
+                        3,
+                        7,
+                        "id"
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" where \"id\" > ? order by \"label\" asc, \"id\" asc limit 3",
+            "bindings": [
+                7
+            ]
+        },
+        {
+            "driver": "pgsql",
+            "operations": [
+                [
+                    "inRandomOrder",
+                    [
+                        null
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" order by RANDOM()",
+            "bindings": []
+        },
+        {
+            "driver": "pgsql",
+            "operations": [
+                [
+                    "inRandomOrder",
+                    [
+                        0
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" order by RANDOM()",
+            "bindings": []
+        },
+        {
+            "driver": "pgsql",
+            "operations": [
+                [
+                    "inRandomOrder",
+                    [
+                        -1
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" order by RANDOM()",
+            "bindings": []
+        },
+        {
+            "driver": "pgsql",
+            "operations": [
+                [
+                    "inRandomOrder",
+                    [
+                        42
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" order by RANDOM()",
+            "bindings": []
+        },
+        {
+            "driver": "pgsql",
+            "operations": [
+                [
+                    "orderByRaw",
+                    [
+                        "?",
+                        [
+                            8
+                        ]
+                    ]
+                ],
+                [
+                    "reorderDesc",
+                    [
+                        "id"
+                    ]
+                ]
+            ],
+            "sql": "select * from \"items\" order by \"id\" desc",
+            "bindings": []
+        }
+    ]
+}

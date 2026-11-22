@@ -611,3 +611,17 @@ let mut query = connection.table("users")
 let sql = query.toRawSql()?;
 let rows = query.afterQuery(|rows| Ok(rows)).get().await?;
 ```
+
+## 補充查詢條件 {#additional-query-conditions}
+
+`fromRaw(sql, bindings)` 設定可信 SQL 來源。`joinWhere`、`leftJoinWhere`、`rightJoinWhere` 將連接欄位與綁定值比較。原始 SQL 由應用程式碼提供，使用者輸入透過綁定傳入。
+
+`whereBinary`、`whereNotBinary` 及其 `or` 變體使用 MySQL 二進位比較，其他驅動回傳不支援錯誤。四種 `whereIntegerInRaw` / `whereIntegerNotInRaw` 變體接收 `Vec<i64>`；正向空集合不符合任何列，反向空集合符合全部列。`whereRowValues` 和 `orWhereRowValues` 回傳 `Result`，欄位和值數量不一致或運算子非法時立即報錯，所有值均透過綁定傳入。
+
+`havingNull` / `havingNotNull` 及其 `or` 變體接收欄位切片。`havingBetween` / `havingNotBetween` 及其 `or` 變體接收兩個邊界值。`havingNested` 和 `orHavingNested` 的回呼接收查詢建構器，回傳的 HAVING 條件合併為一組；空回呼不新增條件。
+
+`inRandomOrder(None)` 使用驅動的隨機函數，`Some(seed)` 為 MySQL 指定種子。`reorder()` 同時清除 union 排序，`reorderDesc(column)` 重新依指定欄位降冪。`forPageBeforeId(perPage, lastId, column)` 與 `forPageAfterId` 替換該欄位的排序並保留其他排序；`lastId` 傳 `None` 時只過濾空 ID，不新增 ID 邊界。
+
+`rawValue(expression, bindings)` 追加原始投影，取首列首欄；沒有結果回傳 `Value::Null`，既有投影仍優先。PostgreSQL 可將無型別的參數投影推斷為文字，因此 `select ?` 可能回傳 `Value::Text`；需要指定結果型別時明確使用 SQL 型別轉換。
+
+`existsOr` 和 `doesntExistOr` 接收回傳 `DatabaseResult<T>` 的惰性非同步回呼。條件成立回傳 `query::ExistsOr::Satisfied`，否則執行回呼並回傳 `Callback(T)`。查詢失敗不呼叫回呼，回呼錯誤繼續向上傳播。

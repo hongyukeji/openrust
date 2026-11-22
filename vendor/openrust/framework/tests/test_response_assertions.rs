@@ -48,6 +48,7 @@ fn app() -> TestApp {
                 fixture_response,
             )?;
             Route::get("/flash", flash_session)?;
+            Route::get("/redirect-errors/{bag}", redirect_errors)?;
             Route::get("/old-input", read_old_input)?;
             Route::get("/{status}", response)?;
             Route::get("/{status}/{body}", response)
@@ -591,4 +592,48 @@ async fn assertions_do_not_consume_flashed_input_and_named_errors_across_real_se
         .unwrap()
         .assertJsonPath("email", &serde_json::Value::Null)
         .assertSessionMissingInput("email");
+}
+
+fn redirect_errors(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    use openrust::contracts::session::Session as _;
+    Box::pin(async move {
+        let bag_name = request.route("bag").unwrap().to_owned();
+        let previous = openrust::support::facades::URL::previous(request, None)?;
+        let mut errors = openrust::support::ViewErrorBag::new();
+        let mut bag = openrust::support::MessageBag::default();
+        bag.add("email", "邮箱无效");
+        errors.put(&bag_name, bag);
+        request
+            .session_mut()?
+            .flash("errors", serde_json::to_value(errors).unwrap())?;
+        Ok(Response::new(StatusCode::FOUND, axum::body::Body::empty())
+            .header(http::header::LOCATION, previous.parse().unwrap()))
+    })
+}
+
+#[tokio::test]
+async fn redirect_back_with_errors_uses_real_session_and_named_bags() {
+    let mut app = app();
+    for bag in ["default", "login"] {
+        let response = app
+            .call(
+                http::Request::get(format!("/redirect-errors/{bag}"))
+                    .header("referer", "http://localhost/from?step=2")
+                    .body(axum::body::Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        response.assertRedirectBackWithErrors(&serde_json::json!({"email":"邮箱无效"}), None, bag);
+        fails(&response, |r| {
+            r.assertRedirectBackWithErrors(&serde_json::json!(["missing"]), None, bag);
+        });
+        fails(&response, |r| {
+            r.assertRedirectBackWithErrors(&serde_json::json!(["email"]), None, "other");
+        });
+        fails(&response, |r| {
+            r.assertRedirectBackWithoutErrors();
+        });
+        response.assertSessionHasErrors(&serde_json::json!(["email"]), None, bag);
+    }
 }

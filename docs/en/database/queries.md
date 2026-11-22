@@ -611,3 +611,17 @@ let mut query = connection.table("users")
 let sql = query.toRawSql()?;
 let rows = query.afterQuery(|rows| Ok(rows)).get().await?;
 ```
+
+## Additional Query Conditions {#additional-query-conditions}
+
+`fromRaw(sql, bindings)` sets a trusted SQL source. `joinWhere`, `leftJoinWhere` and `rightJoinWhere` compare a join column with a bound value. Raw SQL must come from application code; pass user values through bindings.
+
+`whereBinary`, `whereNotBinary` and their `or` variants use MySQL binary comparisons. Other drivers return an unsupported-operation error. The four `whereIntegerInRaw` / `whereIntegerNotInRaw` variants accept `Vec<i64>`; empty positive sets match nothing and empty negative sets match everything. `whereRowValues` and `orWhereRowValues` return `Result`, reject unequal column/value counts and invalid operators, and bind every value.
+
+`havingNull` / `havingNotNull` and their `or` variants accept a column slice. `havingBetween` / `havingNotBetween` and their `or` variants accept two bounds. `havingNested` and `orHavingNested` receive a query builder and group its HAVING conditions; an empty callback adds no condition.
+
+`inRandomOrder(None)` uses the driver's random function; `Some(seed)` supplies a MySQL seed. `reorder()` also clears union ordering, and `reorderDesc(column)` starts a new descending order. `forPageBeforeId(perPage, lastId, column)` and `forPageAfterId` replace ordering for that column while keeping other sorts. Pass `None` for `lastId` to select non-null IDs without an ID boundary.
+
+`rawValue(expression, bindings)` appends a raw projection and returns the first column of the first row, or `Value::Null` for no row. Existing projections retain priority. PostgreSQL can infer an untyped parameter projection as text, so `select ?` may return `Value::Text`; use an explicit SQL cast when the result needs a particular type.
+
+`existsOr` and `doesntExistOr` accept a lazy async callback returning `DatabaseResult<T>`. They return `query::ExistsOr::Satisfied` when the condition holds, or `Callback(T)` after running the callback. Query errors skip the callback; callback errors propagate.

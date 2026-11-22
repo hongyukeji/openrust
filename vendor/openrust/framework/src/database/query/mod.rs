@@ -73,3 +73,10 @@ pub enum UpsertUpdate<'a> {
     /// Evaluate a trusted SQL expression for this column.
     Expression(&'a str, Expression),
 }
+
+/// 存在性条件已满足，或条件不满足时执行回调取得的结果。
+#[derive(Debug, PartialEq, Eq)]
+pub enum ExistsOr<T> {
+    Satisfied,
+    Callback(T),
+}

@@ -246,6 +246,71 @@ impl<'connection> Builder<'connection> {
         self
     }
 
+    pub fn havingNull(mut self, columns: &[&str]) -> Self {
+        for column in columns {
+            self.havings.null(false, column, false);
+        }
+        self
+    }
+
+    pub fn orHavingNull(mut self, columns: &[&str]) -> Self {
+        for column in columns {
+            self.havings.null(true, column, false);
+        }
+        self
+    }
+
+    pub fn havingNotNull(mut self, columns: &[&str]) -> Self {
+        for column in columns {
+            self.havings.null(false, column, true);
+        }
+        self
+    }
+
+    pub fn orHavingNotNull(mut self, columns: &[&str]) -> Self {
+        for column in columns {
+            self.havings.null(true, column, true);
+        }
+        self
+    }
+
+    pub fn havingNotBetween(mut self, column: &str, bounds: [Value; 2]) -> Self {
+        self.havings.between(false, column, bounds, true);
+        self
+    }
+
+    pub fn orHavingBetween(mut self, column: &str, bounds: [Value; 2]) -> Self {
+        self.havings.between(true, column, bounds, false);
+        self
+    }
+
+    pub fn orHavingNotBetween(mut self, column: &str, bounds: [Value; 2]) -> Self {
+        self.havings.between(true, column, bounds, true);
+        self
+    }
+
+    pub fn havingNested(
+        mut self,
+        configure: impl FnOnce(Builder<'static>) -> Builder<'static>,
+    ) -> Self {
+        let mut query = self.subquery("");
+        query.source = self.source.clone();
+        let query = configure(query);
+        self.havings.nested(false, |_| query.havings, false);
+        self
+    }
+
+    pub fn orHavingNested(
+        mut self,
+        configure: impl FnOnce(Builder<'static>) -> Builder<'static>,
+    ) -> Self {
+        let mut query = self.subquery("");
+        query.source = self.source.clone();
+        let query = configure(query);
+        self.havings.nested(true, |_| query.havings, false);
+        self
+    }
+
     pub fn havingRaw(mut self, sql: &str, bindings: Vec<Value>) -> Self {
         self.havings
             .raw(false, Expression::new(sql).with_bindings(bindings));
@@ -295,8 +360,38 @@ impl<'connection> Builder<'connection> {
     }
 
     pub fn reorder(mut self) -> Self {
-        self.active_orders().clear();
+        self.orders.clear();
+        self.union_orders.clear();
         self
+    }
+
+    pub fn reorderDesc(self, column: &str) -> Self {
+        self.reorder().orderByDesc(column)
+    }
+
+    pub fn inRandomOrder(self, seed: Option<i64>) -> Self {
+        let sql = self.grammar.random(seed);
+        self.orderByRaw(&sql, Vec::new())
+    }
+
+    pub fn forPageBeforeId(mut self, perPage: u64, lastId: Option<Value>, column: &str) -> Self {
+        self.orders
+            .retain(|order| !matches!(order, Order::Column(name, _) if name == column));
+        let query = match lastId.filter(|value| !matches!(value, Value::Null)) {
+            Some(id) => self.r#where(column, "<", id),
+            None => self.whereNotNull(column),
+        };
+        query.orderByDesc(column).limit(perPage)
+    }
+
+    pub fn forPageAfterId(mut self, perPage: u64, lastId: Option<Value>, column: &str) -> Self {
+        self.orders
+            .retain(|order| !matches!(order, Order::Column(name, _) if name == column));
+        let query = match lastId.filter(|value| !matches!(value, Value::Null)) {
+            Some(id) => self.r#where(column, ">", id),
+            None => self.whereNotNull(column),
+        };
+        query.orderBy(column, "asc").limit(perPage)
     }
 
     pub fn latest(self, column: &str) -> Self {
@@ -647,6 +742,43 @@ impl<'connection> Builder<'connection> {
             .first()
             .await?
             .map_or(Ok(Value::Null), Row::scalar)
+    }
+
+    pub async fn rawValue(self, expression: &str, bindings: Vec<Value>) -> DatabaseResult<Value> {
+        Ok(self
+            .selectRaw(expression, bindings)
+            .first()
+            .await?
+            .and_then(|row| row.get_at(0).cloned())
+            .unwrap_or(Value::Null))
+    }
+
+    pub async fn existsOr<T, Fut>(
+        self,
+        callback: impl FnOnce() -> Fut,
+    ) -> DatabaseResult<super::ExistsOr<T>>
+    where
+        Fut: Future<Output = DatabaseResult<T>>,
+    {
+        if self.exists().await? {
+            Ok(super::ExistsOr::Satisfied)
+        } else {
+            callback().await.map(super::ExistsOr::Callback)
+        }
+    }
+
+    pub async fn doesntExistOr<T, Fut>(
+        self,
+        callback: impl FnOnce() -> Fut,
+    ) -> DatabaseResult<super::ExistsOr<T>>
+    where
+        Fut: Future<Output = DatabaseResult<T>>,
+    {
+        if self.doesntExist().await? {
+            Ok(super::ExistsOr::Satisfied)
+        } else {
+            callback().await.map(super::ExistsOr::Callback)
+        }
     }
 
     pub async fn pluck(self, column: &str) -> DatabaseResult<Vec<Value>> {

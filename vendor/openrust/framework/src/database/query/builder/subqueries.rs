@@ -7,6 +7,7 @@ use crate::database::query::{Expression, JoinClause, grammars::Grammar};
 pub(super) enum Source {
     Table(String),
     Query(Expression, String),
+    Raw(Expression),
 }
 
 impl Source {
@@ -21,6 +22,10 @@ impl Source {
                 Some(database) => grammar.table_in_database(table, database),
                 None => grammar.table(table),
             },
+            Self::Raw(expression) => {
+                bindings.extend_from_slice(&expression.bindings);
+                Ok(expression.sql.clone())
+            }
             Self::Query(query, alias) => {
                 bindings.extend_from_slice(&query.bindings);
                 Ok(format!("({}) as {}", query.sql, grammar.table(alias)?))
@@ -31,7 +36,7 @@ impl Source {
     pub(super) fn table_name(&self) -> DatabaseResult<&str> {
         match self {
             Self::Table(table) => Ok(table),
-            Self::Query(_, _) => Err(DatabaseError::InvalidQuery("write target")),
+            Self::Query(_, _) | Self::Raw(_) => Err(DatabaseError::InvalidQuery("write target")),
         }
     }
 }
@@ -100,6 +105,7 @@ impl Builder<'_> {
         match &self.source {
             Source::Table(table) => table.rsplit_once(" as ").map_or(table, |(_, alias)| alias),
             Source::Query(_, alias) => alias,
+            Source::Raw(expression) => &expression.sql,
         }
     }
 
@@ -179,6 +185,46 @@ impl Builder<'_> {
     pub fn fromSub(mut self, query: &mut Builder<'_>, alias: &str) -> DatabaseResult<Self> {
         self.source = Source::Query(self.subquery_expression(query)?, alias.into());
         Ok(self)
+    }
+
+    /// 原始来源片段只用于可信 SQL；外部输入必须通过 bindings 传递。
+    pub fn fromRaw(mut self, expression: &str, bindings: Vec<Value>) -> Self {
+        self.source = Source::Raw(Expression::new(expression).with_bindings(bindings));
+        self
+    }
+
+    pub fn joinWhere(
+        self,
+        table: &str,
+        first: &str,
+        operator: &str,
+        second: impl Into<Value>,
+    ) -> Self {
+        self.joinWith(table, |join| join.r#where(first, operator, second))
+    }
+
+    pub fn leftJoinWhere(
+        self,
+        table: &str,
+        first: &str,
+        operator: &str,
+        second: impl Into<Value>,
+    ) -> Self {
+        self.leftJoinWith(table, |join| join.r#where(first, operator, second))
+    }
+
+    pub fn rightJoinWhere(
+        self,
+        table: &str,
+        first: &str,
+        operator: &str,
+        second: impl Into<Value>,
+    ) -> Self {
+        self.add_join(
+            Source::Table(table.into()),
+            JoinType::Right,
+            JoinClause::default().r#where(first, operator, second),
+        )
     }
 
     pub fn join(self, table: &str, column: &str, operator: &str, other: &str) -> Self {
