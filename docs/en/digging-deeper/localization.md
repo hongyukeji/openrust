@@ -102,7 +102,7 @@ In the language section of `config/app.rs`:
 
 Set `APP_LOCALE_QUERY_PARAMETER=language` to read only `?language=...`. A missing configuration key defaults to `locale`; JSON `null` disables only URL selection. Names must be nonempty top-level query keys without whitespace, control characters, dots or brackets; incorrect configuration types are errors. Environment values remain strings. Rebuild the configuration cache after changes; requests use the loaded repository without rereading `.env`.
 
-The default query and Cookie names are now `locale` (`?locale=zh-Hans`, `locale=zh-Hans` before Cookie encryption). Old `lang` Cookies are no longer read by default: select a language again and update old bookmarks. To retain the previous names, explicitly set `APP_LOCALE_COOKIE=lang` and/or `APP_LOCALE_QUERY_PARAMETER=lang`. Rebuild the configuration cache after upgrading; cached explicit names remain authoritative. The save endpoint remains `POST /locale` with form field `locale`.
+The default query and Cookie names are now `locale` (`?locale=zh-Hans`, `locale=zh-Hans` before Cookie encryption). Old `lang` Cookies are no longer read by default: select a language again and update old bookmarks. To retain the previous names, explicitly set `APP_LOCALE_COOKIE=lang` and/or `APP_LOCALE_QUERY_PARAMETER=lang`. Rebuild the configuration cache after upgrading; cached explicit names remain authoritative. The save endpoint remains `POST /locale` with default form field `locale`.
 
 ### Automatic and Fixed Language {#locale-preference}
 
@@ -113,6 +113,14 @@ The OpenRust extension `app.locale_cookie` defaults to `"locale"`, including whe
 The preference uses `Cookie::forever` (400 days), encryption, HttpOnly, and the existing CookieJar defaults from `session.path`, `domain`, `secure` and `same_site` (normally `/`, current host, HTTPS-dependent Secure, and Lax). Deletion uses the same path and domain. Set `session.secure=true` on HTTPS-only deployments. Expiration, clearing Cookies, or changing browsers loses the local preference; it is not permanent or synchronized across devices. Invalid, damaged or no-longer-supported saved values are ignored and automatic selection resumes. Explicit invalid submissions return HTTP 400. Browser expiry is enforced by the client; a replayed Cookie header carries no expiry metadata.
 
 For a protected Web write endpoint, the OpenRust extension reads only the specified top-level body field and leaves the response to the controller:
+
+The welcome form field is configured separately from the Cookie and query parameter names in `config/app.rs`:
+
+```rust
+"locale_form_field": get(env, "APP_LOCALE_FORM_FIELD", "locale")?,
+```
+
+Set `APP_LOCALE_FORM_FIELD=preferred_locale` to change both the welcome form and its save handler. A missing key defaults to `locale`; rebuild the configuration cache after changes. The field must be a nonempty top-level name without whitespace, control characters, dots or brackets, and cannot be `redirect`, `_token` or `_method`. Invalid types and JSON `null` are configuration errors, not a disable switch. The generic saver below still accepts the field selected by its caller; pass the configured name when using a custom form. This application setting does not rename Cookie or URL inputs.
 
 ```rust
 let redirect = match request.post(Some("redirect")).await? {

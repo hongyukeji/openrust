@@ -85,6 +85,8 @@ pub(super) fn load(env: &Environment) -> Result<Loaded<'_>, ConfigError> {
         "faker_locale": locale(env, "APP_FAKER_LOCALE", "en-US")?,
         // null 自动发现语言；数组限制候选，空数组关闭识别。
         "supported_locales": supported_locales(env)?,
+        // 保存语言偏好的表单字段名。
+        "locale_form_field": get(env, "APP_LOCALE_FORM_FIELD", "locale")?,
         // 浏览器手动语言偏好 Cookie；JSON null 表示关闭。
         "locale_cookie": get(env, "APP_LOCALE_COOKIE", "locale")?,
         // 应用语言协商请求头；JSON null 表示关闭。

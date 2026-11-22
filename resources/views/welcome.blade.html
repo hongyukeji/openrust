@@ -391,9 +391,9 @@ THE SOFTWARE.
                             @csrf
                             <input type="hidden" name="redirect" value="{{ $path }}">
                             @foreach($locale_selection['supported'] as $choice)
-                            <button type="submit" name="locale" value="{{ $choice }}" @if(($locale_selection['preference'] ?? null) === $choice)aria-current="true"@endif @if($language === $choice)data-current-language="true"@endif lang="{{ $choice }}" dir="auto">@if(Lang::hasForLocale('languages.name', $choice)){{ __('languages.name', [], $choice) }}@else{{ $choice }}@endif</button>
+                            <button type="submit" name="{{ $locale_form_field }}" value="{{ $choice }}" @if(($locale_selection['preference'] ?? null) === $choice)aria-current="true"@endif @if($language === $choice)data-current-language="true"@endif lang="{{ $choice }}" dir="auto">@if(Lang::hasForLocale('languages.name', $choice)){{ __('languages.name', [], $choice) }}@else{{ $choice }}@endif</button>
                             @endforeach
-                            <button type="submit" name="locale" value="" @if(!($locale_selection['preference'] ?? null))aria-current="true"@endif lang="{{ $language }}">{{ __('welcome.follow_browser') }}</button>
+                            <button type="submit" name="{{ $locale_form_field }}" value="" @if(!($locale_selection['preference'] ?? null))aria-current="true"@endif lang="{{ $language }}">{{ __('welcome.follow_browser') }}</button>
                         </form>
                         @else
                         @foreach($locale_selection['supported'] as $choice)

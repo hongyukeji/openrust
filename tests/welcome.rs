@@ -128,6 +128,10 @@ impl Root {
                     values.get_mut("app").unwrap()["locale_cookie"] =
                         serde_json::from_slice(&bytes).unwrap();
                 }
+                if let Ok(bytes) = fs::read(base.join("locale-form-field.json")) {
+                    values.get_mut("app").unwrap()["locale_form_field"] =
+                        serde_json::from_slice(&bytes).unwrap();
+                }
                 if let Ok(bytes) = fs::read(base.join("locale-header.json")) {
                     values.get_mut("app").unwrap()["locale_header"] =
                         serde_json::from_slice(&bytes).unwrap();
@@ -156,6 +160,7 @@ impl Root {
                         .with("repository", "https://example.test/a?x=1&y=\"two\"")
                 })?;
                 Route::get("/other", || openrust::view::view("other"))?;
+                Route::get("/form-token", || openrust::view::view("form-token"))?;
                 Route::get("/validation", validate)?;
                 Route::get("/metadata", || {
                     let mut response = Response::from("metadata");
@@ -998,11 +1003,16 @@ fn locale_cookie(headers: &openrust::http::HeaderMap) -> &str {
         .unwrap_or_else(|| panic!("未写入语言 Cookie：{headers:?}"))
 }
 fn assert_mode(html: &str, mode: &str, choice: &str) {
+    assert_mode_field(html, mode, choice, "locale");
+}
+fn assert_mode_field(html: &str, mode: &str, choice: &str, field: &str) {
     assert!(html.contains(&format!("data-mode=\"{mode}\"")));
     let selected = html
         .split("<button ")
         .map(|part| part.split('>').next().unwrap())
-        .find(|part| part.contains("name=\"locale\"") && part.contains("aria-current=\"true\""))
+        .find(|part| {
+            part.contains(&format!("name=\"{field}\"")) && part.contains("aria-current=\"true\"")
+        })
         .expect("一个偏好模式被选中");
     assert!(
         selected.contains(&format!("value=\"{choice}\"")),
@@ -1664,4 +1674,166 @@ async fn preference_redirect_uses_a_body_local_target_before_saving() {
     .await;
     assert_eq!(status, StatusCode::SEE_OTHER);
     assert_eq!(headers["location"], "http://localhost?redirect=%2Faccount");
+}
+
+#[tokio::test]
+async fn configured_locale_form_field_reaches_the_view_save_and_clear_flow() {
+    let root = Root::new("en");
+    fs::write(
+        root.0.join(".env"),
+        "APP_LOCALE=en\nAPP_LOCALE_FORM_FIELD=preferred_locale\n",
+    )
+    .unwrap();
+    let kernel = root.kernel().await;
+    let (_, headers, html) = preference_request(&kernel, "GET", "/", "en", "", "").await;
+    assert!(html.contains("name=\"preferred_locale\" value=\"zh-Hans\""));
+    assert!(!html.contains("name=\"locale\" value="));
+    let body = format!("_token={}&locale=zh-Hant", csrf_token(&html));
+    let (status, failed, _) = preference_request(
+        &kernel,
+        "POST",
+        "/locale?preferred_locale=zh-Hans",
+        "en",
+        &response_cookies(&headers),
+        &body,
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert!(
+        !failed
+            .get_all("set-cookie")
+            .iter()
+            .any(|v| v.to_str().unwrap().starts_with("locale="))
+    );
+    let mut cookies = response_cookies(&headers);
+    for (value, language, mode) in [
+        ("zh-Hans", "zh-Hans", "fixed"),
+        ("zh-Hant", "zh-Hant", "fixed"),
+        ("", "en", "auto"),
+    ] {
+        let body = format!(
+            "_token={}&preferred_locale={value}&locale=zh-Hant",
+            csrf_token(&html)
+        );
+        let (status, saved, _) =
+            preference_request(&kernel, "POST", "/locale", "en", &cookies, &body).await;
+        assert_eq!(status, StatusCode::SEE_OTHER);
+        cookies = response_cookies(&saved);
+        let (_, next, page) = preference_request(&kernel, "GET", "/", "en", &cookies, "").await;
+        assert_page(&next, &page, language);
+        assert_mode_field(&page, mode, value, "preferred_locale");
+    }
+    // 另一应用仍使用默认字段，不继承前一应用的名称。
+    let other = Root::new("en");
+    let (_, _, html) = preference_request(&other.kernel().await, "GET", "/", "en", "", "").await;
+    assert!(html.contains("name=\"locale\" value=\"zh-Hans\""));
+    assert!(!html.contains("name=\"preferred_locale\""));
+}
+
+#[tokio::test]
+async fn locale_form_field_uses_config_cache_and_defaults_only_when_missing() {
+    let root = Root::new("en");
+    fs::write(
+        root.0.join(".env"),
+        "APP_LOCALE=en\nAPP_LOCALE_FORM_FIELD=live_field\n",
+    )
+    .unwrap();
+    let live = root.kernel().await;
+    let mut values = serde_json::to_value(live.get_application().config().unwrap().all()).unwrap();
+    let cache = root.0.join("storage/framework/config.json");
+    fs::create_dir_all(cache.parent().unwrap()).unwrap();
+    values["app"]["locale_form_field"] = "cached_field".into();
+    fs::write(&cache, serde_json::to_vec(&values).unwrap()).unwrap();
+    let cached = root.kernel().await;
+    let (_, headers, html) = preference_request(&cached, "GET", "/", "en", "", "").await;
+    assert!(html.contains("name=\"cached_field\" value=\"zh-Hans\""));
+    let body = format!("_token={}&cached_field=zh-Hans", csrf_token(&html));
+    let (status, saved, _) = preference_request(
+        &cached,
+        "POST",
+        "/locale",
+        "en",
+        &response_cookies(&headers),
+        &body,
+    )
+    .await;
+    assert_eq!(status, StatusCode::SEE_OTHER);
+    let (_, headers, html) =
+        preference_request(&cached, "GET", "/", "en", &response_cookies(&saved), "").await;
+    assert_page(&headers, &html, "zh-Hans");
+    let (_, _, html) = preference_request(&live, "GET", "/", "en", "", "").await;
+    assert!(html.contains("name=\"live_field\" value=\"zh-Hans\""));
+    values["app"]
+        .as_object_mut()
+        .unwrap()
+        .remove("locale_form_field");
+    fs::write(&cache, serde_json::to_vec(&values).unwrap()).unwrap();
+    let missing = root.kernel().await;
+    let (_, headers, html) = preference_request(&missing, "GET", "/", "en", "", "").await;
+    assert!(html.contains("name=\"locale\" value=\"zh-Hans\""));
+    let body = format!("_token={}&locale=zh-Hant", csrf_token(&html));
+    let (status, _, _) = preference_request(
+        &missing,
+        "POST",
+        "/locale",
+        "en",
+        &response_cookies(&headers),
+        &body,
+    )
+    .await;
+    assert_eq!(status, StatusCode::SEE_OTHER);
+}
+
+#[tokio::test]
+async fn invalid_locale_form_field_configuration_errors_before_writing_preferences() {
+    let root = Root::new("en");
+    fs::write(
+        root.0.join("resources/views/form-token.blade.html"),
+        "@csrf",
+    )
+    .unwrap();
+    for value in [
+        serde_json::Value::Null,
+        serde_json::json!(true),
+        serde_json::json!(1),
+        serde_json::json!([]),
+        serde_json::json!({}),
+        serde_json::json!(""),
+        serde_json::json!(" "),
+        serde_json::json!("locale.field"),
+        serde_json::json!("locale[]"),
+        serde_json::json!("_token"),
+        serde_json::json!("_method"),
+        serde_json::json!("redirect"),
+    ] {
+        fs::write(
+            root.0.join("locale-form-field.json"),
+            serde_json::to_vec(&value).unwrap(),
+        )
+        .unwrap();
+        let kernel = root.kernel().await;
+        let (status, _, error) = preference_request(&kernel, "GET", "/", "en", "", "").await;
+        assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR, "{value}");
+        assert!(error.contains("app.locale_form_field"), "{value}");
+        let (status, headers, html) =
+            preference_request(&kernel, "GET", "/form-token", "en", "", "").await;
+        assert_eq!(status, StatusCode::OK);
+        let body = format!("_token={}&locale=zh-Hans", csrf_token(&html));
+        let (status, failed, _) = preference_request(
+            &kernel,
+            "POST",
+            "/locale",
+            "en",
+            &response_cookies(&headers),
+            &body,
+        )
+        .await;
+        assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR, "{value}");
+        assert!(
+            !failed
+                .get_all("set-cookie")
+                .iter()
+                .any(|v| v.to_str().unwrap().starts_with("locale="))
+        );
+    }
 }

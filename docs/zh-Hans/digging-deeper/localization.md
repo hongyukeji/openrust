@@ -102,7 +102,7 @@ APP_SUPPORTED_LOCALES=en,zh-Hans,zh-Hant,ja
 
 设置 `APP_LOCALE_QUERY_PARAMETER=language` 后只读 `?language=...`。缺键默认 `locale`，JSON `null` 只关闭 URL 选择。参数名须为非空顶层键，不含空白、控制字符、点或方括号，错误配置类型明确报错。环境值仍是字符串。修改后重建配置缓存；请求使用已加载的仓储，不重新读取 `.env`。
 
-查询参数和 Cookie 默认名称现统一为 `locale`（`?locale=zh-Hans`，Cookie 加密前为 `locale=zh-Hans`）。默认不再读取旧 `lang` Cookie，请重新选择语言并更新旧书签。需保留旧名称时，显式设置 `APP_LOCALE_COOKIE=lang` 和／或 `APP_LOCALE_QUERY_PARAMETER=lang`。升级后重建配置缓存；缓存中显式保存的名称仍会生效。保存入口保持 `POST /locale`，表单字段为 `locale`。
+查询参数和 Cookie 默认名称现统一为 `locale`（`?locale=zh-Hans`，Cookie 加密前为 `locale=zh-Hans`）。默认不再读取旧 `lang` Cookie，请重新选择语言并更新旧书签。需保留旧名称时，显式设置 `APP_LOCALE_COOKIE=lang` 和／或 `APP_LOCALE_QUERY_PARAMETER=lang`。升级后重建配置缓存；缓存中显式保存的名称仍会生效。保存入口保持 `POST /locale`，表单字段默认为 `locale`。
 
 ### 自动跟随与固定语言 {#locale-preference}
 
@@ -113,6 +113,14 @@ OpenRust 扩展 `app.locale_cookie` 默认 `"locale"`，缺键相同，应用保
 偏好复用 `Cookie::forever`（400 天）、加密、HttpOnly，以及现有 CookieJar 的 `session.path`、`domain`、`secure`、`same_site` 默认值（通常为 `/`、当前主机、HTTPS 时 Secure、Lax）。删除使用相同路径与域名。仅提供 HTTPS 的部署应设 `session.secure=true`。过期、清除 Cookie 或更换浏览器都会丢失本地选择，不承诺永久或跨设备同步。损坏、非法或已不属于候选的已保存值被忽略并恢复自动；显式非法提交返回 HTTP 400。过期由客户端执行，重放的 Cookie 请求头本身不携带过期信息。
 
 受保护的 Web 写入入口可使用以下 OpenRust 扩展，只读取指定顶层请求体字段，由控制器决定响应：
+
+欢迎页表单字段在 `config/app.rs` 中独立配置：
+
+```rust
+"locale_form_field": get(env, "APP_LOCALE_FORM_FIELD", "locale")?,
+```
+
+设置 `APP_LOCALE_FORM_FIELD=preferred_locale` 后，欢迎页表单与保存入口同步使用该名称。缺键默认 `locale`，修改后需重建配置缓存。字段须为非空顶层名称，不含空白、控制字符、点或方括号，且不能使用 `redirect`、`_token`、`_method`。错误类型及 JSON `null` 属于配置错误，不表示关闭。下方通用保存方法仍由调用者指定字段；自定义表单应传入其配置名称。此应用配置不改变 Cookie 或 URL 参数名称。
 
 ```rust
 let redirect = match request.post(Some("redirect")).await? {

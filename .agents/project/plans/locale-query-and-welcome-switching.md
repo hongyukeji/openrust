@@ -304,3 +304,8 @@ LocaleSelection分别提供最终选择来源、有效持久偏好及可写能�
 普通自定义请求头复用既有 APP_LOCALE_HEADER，位置仍在URL和受保护Cookie之后；localeUsing保留最高优先级业务回调，不把配置头描述为回调的等价替换。自定义头缺失时使用默认候选，不额外尝试Accept-Language。配置在HTTP启动时捕获，修改后须重启，并按现有机制重建配置缓存。未改动bootstrap/app.rs。
 
 调研复核固定应用配置与 mcamara/laravel-localization 的 supportedLocales 配置；借鉴候选与菜单共用及配置优先的成熟模式，本配置仍标为OpenRust扩展，不声称上游核心自带自动发现。旧v0.x仅有既有语言配置，没有可直接复用的候选配置实现。实际验收与边界见[主题记录](../audits/03-07/welcome-language-2026-11-22.md#语言候选配置2026-11-23)。用户随后授权本轮本地提交，不包含推送。
+
+
+## 19. 语言偏好表单字段配置（2026-11-23）
+
+用户确认名称采用 `app.locale_form_field`，并明确支持环境变量 `APP_LOCALE_FORM_FIELD`；默认 `locale`，覆盖此前对该字段不增加配置／环境入口的限制，其他语言来源与优先级不变。欢迎页显示和保存使用同一加载后配置，通用 SetLocale 请求体保存接口继续由调用方指定字段。缺键默认，null／错误类型／空名／不支持的顶层名及与redirect、_token、_method冲突的名称报配置错误，不写偏好。配置缓存优先，修改后重建。验收见同主题记录，本次不授权Git提交。

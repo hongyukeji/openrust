@@ -858,3 +858,30 @@ Rust1.94.0，隔离源码 `target/tmp/locale-save-20261123/source/`；所有命�
 追加验收期间磁盘触线，build_guard安全停止本轮等待构建（exit75，不计通过），协作清理释放约100GB后保留日志／源码／Cargo锁inode。本轮改用target/tmp/locale-save-20261123/cargo-target独占目录重新编译，未继续与其他任务共用缓存。实际最终结果在本节收尾补记。
 
 返回页面增量最终验收：独占target冷编译后的`cargo +1.94.0 test --locked --test welcome`31项通过、0失败／忽略（redirect-welcome.log）；两处变动Rust的rustfmt与`cargo +1.94.0 clippy --locked -p openrust --test welcome -- -D warnings`通过（redirect-fmt.log／redirect-clippy.log）。三语最终正文的内容、构建、12组双前缀浏览器及6组全导航全部重跑通过（docs-final-*.log）。上一阶段框架请求体／URL回归51项、有状态feature16项保持其当时验收边界，本次没有新增底层修改。真实欢迎页API流程以HTTP消费者为依据，未将文档浏览器当作欢迎页浏览器视觉验收。提交前核对源码与最终快照及Git范围，仅纳入本轮偏好保存／返回页面相关改动，保留其他协作者已暂存和未暂存的工作，不推送。
+
+
+## 语言偏好表单字段及环境变量（2026-11-23）
+
+用户确认使用 `locale_form_field`，并要求支持环境变量。应用配置增加 `"locale_form_field": get(env, "APP_LOCALE_FORM_FIELD", "locale")?`，根环境模板补可选示例。WelcomeController统一读取并校验已加载配置，模板的固定／自动按钮与保存处理器共用字段；SetLocale::storePreferenceFromRequest继续接受调用方指定的字段，不新增框架管理器、Builder或配置文件。此项是OpenRust应用约定，不虚构固定上游同名配置。
+
+重新查阅固定Framework v13.40.0（1449bf241017087fbd38c118ecaabef3f6797fdc）的Illuminate/Config/Repository.php，以及既有项目Config::getOr／配置缓存行为，沿用缺键兜底、显式null不兜底的现有仓储。仅缺键默认locale；错误类型、空名、空白／控制字符／点／方括号及redirect、_token、_method冲突报500配置错误，不写偏好。Cookie／query／header名字和来源优先级不变。环境值通过现有启动加载，修改后须重建缓存，不按请求重读.env。
+
+### 本轮实际验收
+
+基于既有119716378范围快照增量同步本轮源码，Rust1.94.0，独占target/tmp/locale-save-20261123/cargo-target，源码位于同工作流source；通过tests/build_guard.py运行，临时目录、日志均在项目target/tmp内。当前其他协作者的HTTP client、配置和扩展WIP未混入本轮通过结论；保留原文件。新增3项HTTP Kernel消费者覆盖环境改名、表单输出、实际保存／更新／恢复自动、旧字段及query不能替代body、多应用隔离、缓存优先、缺键兜底、12种非法配置及不写Cookie。初轮两项失败来自测试硬编码字段名及跨应用复用array Session的CSRF，不改安全管线；改为按实际字段断言，并在同一实例通过独立测试表单获取token后，完整重跑通过。
+
+| 命令／范围 | 实际结果 |
+| --- | --- |
+| cargo +1.94.0 test --locked -p openrust --test welcome --test configuration | 34＋3＝37项通过，0失败／忽略；tests.log |
+| rustfmt +1.94.0 --edition 2024 --check（config/app.rs、WelcomeController、两处测试） | 通过；fmt.log |
+| cargo +1.94.0 clippy --locked -p openrust --test welcome --test configuration -- -D warnings | 通过；clippy.log；依赖既有警告另存，不宣称所有依赖零警告 |
+| node docs/tests/check_content.mjs、npm --prefix docs run build | 最终正文重跑通过；docs-final-content.log／docs-final-build.log；构建保留既有大chunk提示 |
+| node docs/tests/check_browser.mjs、node docs/tests/check_scope.mjs | 双前缀三语桌面／手机12组合、全导航6组通过；docs-final-browser.log／docs-final-scope.log |
+
+上述日志位于target/tmp/locale-form-field-20261123/。8处本轮实现／测试／三语正文与最终快照逐字节一致，source-match.json记录sha256。环境模板另行人工核对。未重跑全workspace、其他平台或欢迎页新浏览器视觉验收；本轮未改布局，功能以真实HTTP Kernel的CSRF／加密Cookie／303／后续请求为依据，文档浏览器不替代欢迎页验收。未修改共享数据库或缓存驱动，不启动无关服务、不操作开发数据。本轮未暂存／提交／推送。
+
+### 后续视图读取能力核对
+
+用户随后询问视图能否直接读取Request和Config。当前普通Blade表达式helpers仅提供既有数组／翻译入口；尚无通用request()／request()->…／config()／Config::get()。已有ViewRequestData承担CSRF、Session、授权及URL上下文，可作为后续复用基础。记录为模板公开读取能力缺口，未将它计入本轮表单字段配置已实现范围，也未声称任意Request方法可在视图使用。
+
+用户随后明确授权本轮本地提交，不含推送；仅纳入本次表单字段配置及相应记录，保留其他在途改动。
