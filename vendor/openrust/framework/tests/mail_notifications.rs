@@ -1508,11 +1508,7 @@ fn app_builder(root: &Path) -> ApplicationBuilder {
             Route::get("/notify", notify_from_http)?;
             Route::get("/guarded-notify", guarded_from_http)?;
             Route::get("/attachment-mail", attachment_mail_from_http)?;
-            Route::r#match(
-                &[http::Method::POST],
-                "/attachment-upload",
-                uploaded_mail_from_http,
-            )?;
+            Route::post("/attachment-upload", uploaded_mail_from_http)?;
             Route::get("/mail-assertions", mail_assertions_from_http)?;
             Route::get("/notification-format", notification_format_from_http)?;
             Route::get("/notification-envelope", notification_envelope_from_http)?;

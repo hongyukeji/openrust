@@ -56,7 +56,7 @@ fn account_rules() -> ValidationResult<RuleSet> {
 ```rust
 use openrust::{
     foundation::http::{FormRequest, ValidatedFormRequest},
-    http::{HttpError, Method, Response, StatusCode},
+    http::{HttpError, Response, StatusCode},
     routing::RoutingError,
     support::facades::Route,
     validation::{RuleSet, ValidationResult},
@@ -76,7 +76,7 @@ async fn store(form: ValidatedFormRequest<StoreUser>) -> Result<Response, HttpEr
 }
 
 fn register() -> Result<(), RoutingError> {
-    Route::r#match(&[Method::POST], "/users", store)
+    Route::post("/users", store)
 }
 ```
 

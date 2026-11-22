@@ -42,9 +42,7 @@ fn app() -> TestApp {
             ("app".into(),serde_json::json!({"env":"testing","debug":true,"key":"12345678901234567890123456789012","cipher":"AES-256-CBC"})),
             ("session".into(),serde_json::json!({"driver":"array","cookie":"assertion-session","lifetime":120}))
         ].into())).withMiddleware(|middleware| { middleware.preventRequestForgery(["fixture"], false, false); }).withRouting(Routing::default().web(|| {
-            Route::r#match(
-                &[openrust::http::Method::POST],
-                "/fixture",
+            Route::post("/fixture",
                 fixture_response,
             )?;
             Route::get("/flash", flash_session)?;

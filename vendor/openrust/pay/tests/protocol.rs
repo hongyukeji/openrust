@@ -306,11 +306,7 @@ fn independent_php_openssl_signatures_and_gcm_ciphertext_match_the_rust_clients(
 }
 
 fn payment_routes() -> Result<(), openrust::routing::RoutingError> {
-    openrust::support::facades::Route::r#match(
-        &[http::Method::POST],
-        "/payment-verify",
-        verify_handler,
-    )?;
+    openrust::support::facades::Route::post("/payment-verify", verify_handler)?;
     Ok(())
 }
 fn verify_handler(

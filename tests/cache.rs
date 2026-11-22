@@ -690,7 +690,7 @@ async fn cache_tags_facade_writes_reads_and_flushes_over_http() {
     use openrust::{
         contracts::http::Kernel as _,
         foundation::{configuration::Routing, http::Kernel},
-        http::{HttpError, HttpFuture, Method, Request, Response, StatusCode},
+        http::{HttpError, HttpFuture, Request, Response, StatusCode},
         routing::{Router, RoutingError},
         support::facades::Cache,
     };
@@ -734,9 +734,9 @@ async fn cache_tags_facade_writes_reads_and_flushes_over_http() {
 
     fn routes(_: &Application) -> Result<Router, RoutingError> {
         let mut router = Router::new();
-        router.r#match(&[Method::POST], "/write", endpoint)?;
+        router.post("/write", endpoint)?;
         router.get("/read", endpoint)?;
-        router.r#match(&[Method::POST], "/flush", endpoint)?;
+        router.post("/flush", endpoint)?;
         Ok(router)
     }
 

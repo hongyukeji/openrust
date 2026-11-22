@@ -15,8 +15,8 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
     openrust::support::facades::Route::get("/logs", log_handler)?;
     openrust::support::facades::Route::get("/jobs", job_handler)?;
     openrust::support::facades::Route::group(openrust::routing::RouteGroup::new(), |router| {
-        router.r#match(&[openrust::http::Method::POST], "/input", input_handler)?;
-        router.r#match(&[openrust::http::Method::POST], "/unread", handler)?;
+        router.post("/input", input_handler)?;
+        router.post("/unread", handler)?;
         Ok(())
     })?;
     openrust::support::facades::Route::get("/mail", mail_handler)?;

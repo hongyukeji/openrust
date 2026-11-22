@@ -317,11 +317,11 @@ Password 和 Implicit 默认关闭，创建对应客户端记录不会启用协�
 通过 `passport.path` 设置多级 OAuth 前缀，通过 `passport.middleware` 添加共同中间件。需要替换包路由时，在应用装配阶段、载入路由前调用 `passport.ignoreRoutes()`，然后注册公开控制器。例如仅提供令牌端点：
 
 ```rust
-use openrust::{http::Method, routing::{RouteGroup, RoutingError}, support::facades::Route};
+use openrust::{routing::{RouteGroup, RoutingError}, support::facades::Route};
 
 pub fn oauth_routes() -> Result<(), RoutingError> {
     Route::group(RouteGroup::new().prefix("integrations"), |router| {
-        router.r#match(&[Method::POST], "/token",
+        router.post("/token",
             openrust_passport::http::controllers::AccessTokenController::issueToken)?
             .name("passport.token")
             .withoutMiddleware("web")

@@ -22,7 +22,7 @@ use openrust::{
         configuration::Routing,
         http::{FormRequest, Kernel, ValidatedFormRequest},
     },
-    http::{HttpError, HttpFuture, Method, Request, Response, StatusCode},
+    http::{HttpError, HttpFuture, Request, Response, StatusCode},
     routing::{ControllerDispatcher, ResourceAction, ResourceController, RoutingError},
     support::facades::{Lang, Route, Validator},
     support::{ProviderResult, ServiceProvider},
@@ -601,9 +601,8 @@ impl ServiceProvider for InjectionProvider {
 }
 
 fn inject_routes() -> Result<(), RoutingError> {
-    Route::r#match(&[Method::POST], "/injected", injected)?;
-    Route::r#match(
-        &[Method::POST],
+    Route::post("/injected", injected)?;
+    Route::post(
         "/injected/{workspace}",
         ControllerDispatcher::withFormRequest(InjectionController::store),
     )?;
@@ -643,11 +642,11 @@ fn custom_rejection(request: &mut Request) -> HttpFuture<'_, Result<Response, Ht
 }
 
 fn register() -> Result<(), RoutingError> {
-    Route::r#match(&[Method::POST], "/custom-rejection", custom_rejection)?;
-    Route::r#match(&[Method::POST], "/submit/{locale}", form)?;
-    Route::r#match(&[Method::POST], "/manual", manual)?;
-    Route::r#match(&[Method::POST], "/presence/{mode}", presence)?;
-    Route::r#match(&[Method::POST], "/upload/{mode}", upload)?;
+    Route::post("/custom-rejection", custom_rejection)?;
+    Route::post("/submit/{locale}", form)?;
+    Route::post("/manual", manual)?;
+    Route::post("/presence/{mode}", presence)?;
+    Route::post("/upload/{mode}", upload)?;
     Ok(())
 }
 
@@ -2415,7 +2414,7 @@ fn registered_extension(request: &mut Request) -> HttpFuture<'_, Result<Response
 }
 
 fn extension_routes() -> Result<(), RoutingError> {
-    Route::r#match(&[Method::POST], "/extension", registered_extension)?;
+    Route::post("/extension", registered_extension)?;
     Ok(())
 }
 

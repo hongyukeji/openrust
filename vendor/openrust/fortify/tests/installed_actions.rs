@@ -50,7 +50,7 @@ fn update(
 }
 fn routes() -> Result<(), openrust::routing::RoutingError> {
     openrust::support::facades::Route::group(openrust::routing::RouteGroup::new(), |router| {
-        router.r#match(&[openrust::http::Method::POST], "/update", update)?;
+        router.post("/update", update)?;
         Ok(())
     })
 }

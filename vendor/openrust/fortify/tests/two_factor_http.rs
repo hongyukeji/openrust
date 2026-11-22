@@ -3,7 +3,7 @@ use openrust::{
     cache::{ArrayStore, Repository},
     contracts::{container::Container as _, foundation::Application as _, http::Kernel as _},
     foundation::{Application, configuration::Routing, http::Kernel},
-    http::{HttpError, HttpFuture, Method, Request, Response, StatusCode},
+    http::{HttpError, HttpFuture, Request, Response, StatusCode},
     routing::RoutingError,
     support::{
         ProviderResult, ServiceProvider,
@@ -70,7 +70,7 @@ fn verify(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
     })
 }
 fn routes() -> Result<(), RoutingError> {
-    Route::r#match(&[Method::GET], "/verify", verify)?;
+    Route::get("/verify", verify)?;
     Ok(())
 }
 async fn transport(

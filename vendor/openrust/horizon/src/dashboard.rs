@@ -208,13 +208,9 @@ impl Horizon {
                 "continue",
                 "terminate",
             ] {
-                router.r#match(&[http::Method::POST], &format!("{path}/api/{suffix}"), api)?;
+                router.post(&format!("{path}/api/{suffix}"), api)?;
             }
-            router.r#match(
-                &[http::Method::DELETE],
-                &format!("{path}/api/monitoring/{{tag}}"),
-                api,
-            )?;
+            router.delete(&format!("{path}/api/monitoring/{{tag}}"), api)?;
             Ok(())
         })?;
         dashboard.routesRegistered.store(true, Ordering::SeqCst);

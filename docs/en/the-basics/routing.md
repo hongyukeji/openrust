@@ -14,6 +14,28 @@ Matching uses the UTF-8 percent-decoded path and ignores the query string. Inval
 
 `Router::get` registers both GET and HEAD. HEAD preserves the response status and headers and sends an empty body. An unknown path returns 404. A known path with an unsupported method returns 405 with an `Allow` header. When a matching path has no explicit OPTIONS route, the router returns 200 with the allowed methods. Among overlapping routes for the same method, the first registered match wins.
 
+## HTTP Methods
+
+Use `get`, `post`, `put`, `patch`, `delete`, `options`, or `query` for a single method. Both `Route` and `Router` provide these methods; `get` also accepts HEAD. `Router` returns a mutable route for naming, middleware, constraints and defaults, while facade declarations return `Result<(), RoutingError>`.
+
+```rust
+use openrust::{http::Method, support::facades::Route};
+
+Route::get("/users", UserController::index)?;
+Route::post("/users", UserController::store)?;
+Route::put("/users/{id}", UserController::replace)?;
+Route::patch("/users/{id}", UserController::update)?;
+Route::delete("/users/{id}", UserController::destroy)?;
+Route::options("/users", UserController::options)?;
+Route::query("/users/search", UserController::search)?;
+Route::r#match(&[Method::PUT, Method::PATCH], "/profile", ProfileController::update)?;
+Route::any("/callback", CallbackController::handle)?;
+```
+
+Use `r#match` to share a handler across an explicit set of methods. GET in that set also adds HEAD. An empty set returns `RoutingError::MissingMethods`. Use `any` only when the same endpoint should accept all supported methods: GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS and QUERY, in that order. It does not include TRACE or CONNECT.
+
+For the same method, domain and registered path, a later declaration replaces the earlier handler. This also applies to `any` and `r#match`: they have no separate priority. For different overlapping patterns, the first matching declaration wins. Declare specific paths before broader patterns.
+
 ## Mounting a static directory
 
 The application skeleton mounts the website directory first and the public storage disk second. See [public file configuration](../getting-started/configuration.md#public-files) for the directories and URL prefixes.

@@ -18,7 +18,7 @@ use openrust::{
         configuration::Routing,
         http::{FormRequest, Kernel, ValidatedFormRequest},
     },
-    http::{HttpError, HttpFuture, Method, Request, Response, StatusCode},
+    http::{HttpError, HttpFuture, Request, Response, StatusCode},
     routing::RoutingError,
     support::facades::{Route, Validator},
     validation::{Data, RuleSet, ValidationException, ValidationResult},
@@ -34,10 +34,10 @@ use tokio::{
 fn web() -> Result<(), RoutingError> {
     Route::get("/edit", inspect)?;
     Route::get("/display", || view("errors-probe"))?;
-    Route::r#match(&[Method::POST], "/submit", submit)?;
-    Route::r#match(&[Method::POST], "/explicit", explicit)?;
-    Route::r#match(&[Method::POST], "/manual", manual)?;
-    Route::r#match(&[Method::POST], "/custom", explicit)?;
+    Route::post("/submit", submit)?;
+    Route::post("/explicit", explicit)?;
+    Route::post("/manual", manual)?;
+    Route::post("/custom", explicit)?;
     Ok(())
 }
 

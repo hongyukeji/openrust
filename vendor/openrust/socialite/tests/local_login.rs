@@ -95,7 +95,7 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
     Route::get("/callback/github", callback_github)?;
     Route::get("/callback/work", callback_work)?;
     Route::get("/who", who)?;
-    Route::r#match(&[http::Method::POST], "/logout", logout)?;
+    Route::post("/logout", logout)?;
     Ok(())
 }
 fn login_github(r: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {

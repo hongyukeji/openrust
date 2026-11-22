@@ -276,7 +276,7 @@ fn action(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
     })
 }
 fn routes() -> Result<(), RoutingError> {
-    Route::r#match(&[openrust::http::Method::POST], "/factors", action)?;
+    Route::post("/factors", action)?;
     Ok(())
 }
 async fn transport(

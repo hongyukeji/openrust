@@ -16,7 +16,7 @@ use openrust::{
         eloquent::{Attributes, Model, ModelMetadata, ModelState},
     },
     foundation::{Application, configuration::Routing, http::Kernel},
-    http::{ApiResponse, HttpFuture, Method, PageMeta, Request, StatusCode},
+    http::{ApiResponse, HttpFuture, PageMeta, Request, StatusCode},
     support::{Collection, facades::Route},
 };
 use serde::{Serialize, Serializer};
@@ -133,7 +133,7 @@ async fn routes_return_models_and_collections_as_json_over_http() {
                 record.setAttribute("bad", DbValue::Bytes(vec![0xff]));
                 record
             })?;
-            Route::r#match(&[Method::POST], "/model", || {
+            Route::post("/model", || {
                 RouteRecord::create(Attributes::from([
                     ("name".into(), "example".into()),
                     ("private".into(), "private-serialization-sentinel".into()),

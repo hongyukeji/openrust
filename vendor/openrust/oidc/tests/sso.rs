@@ -349,8 +349,8 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
     Route::get("/callback", callback)?;
     Route::get("/who", who)?;
     Route::get("/signed-out", signed_out)?;
-    Route::r#match(&[http::Method::POST], "/logout/local", local_logout)?;
-    Route::r#match(&[http::Method::POST], "/logout/federated", federated_logout)?;
+    Route::post("/logout/local", local_logout)?;
+    Route::post("/logout/federated", federated_logout)?;
     Ok(())
 }
 fn login(r: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {

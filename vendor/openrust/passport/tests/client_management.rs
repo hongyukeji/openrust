@@ -164,19 +164,11 @@ async fn cleanup(manager: &DatabaseManager) {
 fn routes(_: &Application) -> Result<openrust::routing::Router, openrust::routing::RoutingError> {
     let mut router = openrust::routing::Router::new();
     router.get("/exercise", exercise)?;
-    router.r#match(&[openrust::http::Method::POST], "/manage", manage)?;
+    router.post("/manage", manage)?;
     router.get("/manage/{client}", manage)?;
-    router.r#match(&[openrust::http::Method::PATCH], "/manage/{client}", manage)?;
-    router.r#match(
-        &[openrust::http::Method::DELETE],
-        "/manage/{client}",
-        manage,
-    )?;
-    router.r#match(
-        &[openrust::http::Method::POST],
-        "/manage/{client}/secret",
-        manage,
-    )?;
+    router.patch("/manage/{client}", manage)?;
+    router.delete("/manage/{client}", manage)?;
+    router.post("/manage/{client}/secret", manage)?;
     Ok(router)
 }
 fn exercise(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {

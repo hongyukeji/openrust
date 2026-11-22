@@ -56,16 +56,14 @@ pub(crate) fn register() -> Result<(), RoutingError> {
     Route::group(group, |router| {
         if views {
             router
-                .r#match(
-                    &[Method::GET],
+                .get(
                     &path("login", "/login"),
                     ControllerDispatcher::new(AuthenticatedSessionController::create),
                 )?
                 .middleware_name(guest.clone())
                 .name("login");
         }
-        let route = router.r#match(
-            &[Method::POST],
+        let route = router.post(
             &path("login", "/login"),
             ControllerDispatcher::withFormRequest::<LoginRequest>(
                 AuthenticatedSessionController::store,
@@ -79,8 +77,7 @@ pub(crate) fn register() -> Result<(), RoutingError> {
             ));
         }
         router
-            .r#match(
-                &[Method::POST],
+            .post(
                 &path("logout", "/logout"),
                 ControllerDispatcher::new(AuthenticatedSessionController::destroy),
             )?
@@ -88,8 +85,7 @@ pub(crate) fn register() -> Result<(), RoutingError> {
             .name("logout");
         if views {
             router
-                .r#match(
-                    &[Method::GET],
+                .get(
                     &path("password.confirm", "/user/confirm-password"),
                     ControllerDispatcher::new(ConfirmablePasswordController::show),
                 )?
@@ -97,16 +93,14 @@ pub(crate) fn register() -> Result<(), RoutingError> {
                 .name("password.confirm");
         }
         router
-            .r#match(
-                &[Method::GET],
+            .get(
                 &path("password.confirmation", "/user/confirmed-password-status"),
                 ControllerDispatcher::new(ConfirmedPasswordStatusController::show),
             )?
             .middleware_name(auth.clone())
             .name("password.confirmation");
         router
-            .r#match(
-                &[Method::POST],
+            .post(
                 &path("password.confirm", "/user/confirm-password"),
                 ControllerDispatcher::new(ConfirmablePasswordController::store),
             )?
@@ -119,16 +113,14 @@ pub(crate) fn register() -> Result<(), RoutingError> {
         {
             if views {
                 router
-                    .r#match(
-                        &[Method::GET],
+                    .get(
                         &path("password.request", "/forgot-password"),
                         ControllerDispatcher::new(PasswordResetLinkController::create),
                     )?
                     .middleware_name(guest.clone())
                     .name("password.request");
                 router
-                    .r#match(
-                        &[Method::GET],
+                    .get(
                         &path("password.reset", "/reset-password/{token}"),
                         ControllerDispatcher::new(NewPasswordController::create),
                     )?
@@ -136,8 +128,7 @@ pub(crate) fn register() -> Result<(), RoutingError> {
                     .name("password.reset");
             }
             router
-                .r#match(
-                    &[Method::POST],
+                .post(
                     &path("password.email", "/forgot-password"),
                     ControllerDispatcher::withFormRequest::<SendPasswordResetLinkRequest>(
                         PasswordResetLinkController::store,
@@ -146,8 +137,7 @@ pub(crate) fn register() -> Result<(), RoutingError> {
                 .middleware_name(guest.clone())
                 .name("password.email");
             router
-                .r#match(
-                    &[Method::POST],
+                .post(
                     &path("password.update", "/reset-password"),
                     ControllerDispatcher::new(NewPasswordController::store),
                 )?
@@ -160,8 +150,7 @@ pub(crate) fn register() -> Result<(), RoutingError> {
         {
             if views {
                 router
-                    .r#match(
-                        &[Method::GET],
+                    .get(
                         &path("verification.notice", "/email/verify"),
                         ControllerDispatcher::new(EmailVerificationPromptController::show),
                     )?
@@ -170,8 +159,7 @@ pub(crate) fn register() -> Result<(), RoutingError> {
             }
             let limiter = fortify.string("fortify.limiters.verification", "6,1");
             router
-                .r#match(
-                    &[Method::GET],
+                .get(
                     &path("verification.verify", "/email/verify/{id}/{hash}"),
                     ControllerDispatcher::withFormRequest::<
                         crate::http::requests::VerifyEmailRequest,
@@ -182,8 +170,7 @@ pub(crate) fn register() -> Result<(), RoutingError> {
                 .middleware_name(format!("throttle:{limiter}"))
                 .name("verification.verify");
             router
-                .r#match(
-                    &[Method::POST],
+                .post(
                     &path("verification.send", "/email/verification-notification"),
                     ControllerDispatcher::new(EmailVerificationNotificationController::store),
                 )?
@@ -197,8 +184,7 @@ pub(crate) fn register() -> Result<(), RoutingError> {
         {
             if views {
                 router
-                    .r#match(
-                        &[Method::GET],
+                    .get(
                         &path("register", "/register"),
                         ControllerDispatcher::new(RegisteredUserController::create),
                     )?
@@ -206,8 +192,7 @@ pub(crate) fn register() -> Result<(), RoutingError> {
                     .name("register");
             }
             router
-                .r#match(
-                    &[Method::POST],
+                .post(
                     &path("register", "/register"),
                     ControllerDispatcher::new(RegisteredUserController::store),
                 )?
@@ -219,8 +204,7 @@ pub(crate) fn register() -> Result<(), RoutingError> {
             .map_err(|_| RoutingError::InvalidAction)?
         {
             router
-                .r#match(
-                    &[Method::PUT],
+                .put(
                     &path(
                         "user-profile-information.update",
                         "/user/profile-information",
@@ -235,8 +219,7 @@ pub(crate) fn register() -> Result<(), RoutingError> {
             .map_err(|_| RoutingError::InvalidAction)?
         {
             router
-                .r#match(
-                    &[Method::PUT],
+                .put(
                     &path("user-password.update", "/user/password"),
                     ControllerDispatcher::new(PasswordController::update),
                 )?
@@ -347,16 +330,14 @@ pub(crate) fn register() -> Result<(), RoutingError> {
         {
             if views {
                 router
-                    .r#match(
-                        &[Method::GET],
+                    .get(
                         &path("two-factor.login", "/two-factor-challenge"),
                         ControllerDispatcher::new(TwoFactorAuthenticatedSessionController::create),
                     )?
                     .middleware_name(guest.clone())
                     .name("two-factor.login");
             }
-            let route = router.r#match(
-                &[Method::POST],
+            let route = router.post(
                 &path("two-factor.login", "/two-factor-challenge"),
                 ControllerDispatcher::withFormRequest::<TwoFactorLoginRequest>(
                     TwoFactorAuthenticatedSessionController::store,

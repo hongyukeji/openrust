@@ -18,7 +18,7 @@ use openrust::{
         migrations::{MigrationEntry, Migrator, RunOptions},
     },
     foundation::{Application, configuration::Routing, http::Kernel},
-    http::{HttpError, HttpFuture, Method, Request, Response, StatusCode},
+    http::{HttpError, HttpFuture, Request, Response, StatusCode},
     support::facades::{Auth, Hash, Route},
 };
 use openrust_passport::{
@@ -139,8 +139,7 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
     Route::get("/session", session)?;
     Route::group(openrust::routing::RouteGroup::new(), |router| {
         router
-            .r#match(
-                &[Method::POST],
+            .post(
                 "/custom-token",
                 openrust_passport::http::controllers::AccessTokenController::issueToken,
             )?
@@ -152,7 +151,7 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
         openrust::routing::RouteGroup::new().middleware_name("auth:api"),
         |router| {
             router.get("/resource", resource)?;
-            router.r#match(&[Method::DELETE], "/resource", revoke_resource)?;
+            router.delete("/resource", revoke_resource)?;
             Ok(())
         },
     )?;
@@ -163,7 +162,7 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
             Ok(())
         },
     )?;
-    Route::r#match(&[Method::POST], "/login", login)
+    Route::post("/login", login)
 }
 fn session(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {

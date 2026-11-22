@@ -1,5 +1,16 @@
 # 当前交接
 
+## 基础 HTTP 路由方法（2026-11-23）
+
+Router 与 Route Facade 已补齐 post／put／patch／delete／options／query／any，复用现有注册、IntoRouteHandler、可配置路由和调用位置；match 方法名规范为大写，GET 保留 HEAD。固定基线的 any 恰含八种方法；同身份逐方法覆盖和重叠模式首次匹配的顺序均经缓存前后 HTTP 验证。欢迎页改用 Route::post，相关业务消费者、三语路由与控制器／验证／认证／Passport 示例同步；保留动态方法宏与专测 match 的声明。
+
+Rust1.94.0 隔离快照核心5项、框架消费者120项、应用45项及 Fortify／Horizon／Telescope／Sanctum 定向消费者通过；最新 workspace/all-targets 严格 Clippy、fmt、三语内容／构建／浏览器／双前缀全导航通过。欢迎页实际 TCP 覆盖419、合法303、Session／CSRF、加密偏好写入／读取／清除与重定向。63个交付源码／测试／正文文件与验收源码一致。磁盘停线后安全停止并复用协作持锁清理结果，恢复后改用本批独占缓存完成复验，已知锁inode保留。证据在 target/tmp/http-route-methods-20261123/，详见[验收记录](audits/04-01/README.md#基础-http-方法入口补齐2026-11-23)。
+
+保留既有空方法集合 MissingMethods 错误，与上游可构造不参与分发的空集合路由有明确差异；不据此宣称路由模块完全对齐。MySQL／Redis筛除项、Horizon Redis ignored、未选择的供应商集成、完整上游PHPUnit、Windows／Docker／发布不计通过。本次未执行暂存、提交、推送或发布；其他协作者改动保留，当前任务授权覆盖历史Git授权。
+
+用户随后授权本地提交：独立路由实现、回归、扩展消费者与三语示例纳入本次提交；依赖其他语言任务的欢迎页声明、TCP 消费者和 lint 修复保留工作区。共享 Router 仅提交本次方法入口与规范化，不包含语言管线；不推送或发布。
+
+
 ## Blade 原生 Rust 代码块（2026-11-23）
 
 按[计划](plans/blade-native-rust-blocks.md)完成构建期原生函数与渲染节点，复用既有包发现及作用域；NativeContext 显式读写、完整有序正文校验、缓存格式40，默认应用入口保持简洁。隔离基线292418a39加本次41文件通过44项测试、29阶段真实消费者、24组无工具链standalone并发HTTP、workspace及消费者严格Clippy、fmt、三语构建／浏览器／导航。任务隔离实际使用SyncQueue；动态类型、同步函数、局部写回及生成诊断边界详见[验收记录](audits/03-08/native-rust-blocks-2026-11-23.md)。初始混合快照的其他WIP格式／路由lint失败单列保留，不计入通过。Windows／release／Docker／性能／持久化异步队列未验；无本计划内剩余实现阻塞。材料在target/tmp/blade-native-20261123；用户随后授权本次本地提交，不含推送或发布；保留并行改动。

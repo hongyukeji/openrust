@@ -18,7 +18,7 @@ use openrust::{
     },
     foundation::{Application, configuration::Routing, http::Kernel},
     http::{
-        HttpError, HttpFuture, Method, Request, Response,
+        HttpError, HttpFuture, Request, Response,
         resources::{
             json::{
                 Conditional, JsonOptions, JsonResource, ModelResource, ResourceCollection,
@@ -450,7 +450,7 @@ fn routes() -> Result<(), RoutingError> {
     Route::get("/failed", || -> ResourceResult<Plain> {
         Err(HttpError::InvalidRequest)
     })?;
-    Route::r#match(&[Method::POST], "/new", || async {
+    Route::post("/new", || async {
         let new = Account::create(Attributes::from([
             ("name".into(), "New".into()),
             ("password".into(), "hidden".into()),

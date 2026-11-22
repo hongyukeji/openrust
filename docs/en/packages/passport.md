@@ -317,11 +317,11 @@ An explicit model connection takes precedence over `passport.connection`, then t
 Set `passport.path` for a nested OAuth prefix and `passport.middleware` for common middleware. To replace package routes, call `passport.ignoreRoutes()` in application setup before routes load, then register the public controllers yourself. For example, a token-only integration can register:
 
 ```rust
-use openrust::{http::Method, routing::{RouteGroup, RoutingError}, support::facades::Route};
+use openrust::{routing::{RouteGroup, RoutingError}, support::facades::Route};
 
 pub fn oauth_routes() -> Result<(), RoutingError> {
     Route::group(RouteGroup::new().prefix("integrations"), |router| {
-        router.r#match(&[Method::POST], "/token",
+        router.post("/token",
             openrust_passport::http::controllers::AccessTokenController::issueToken)?
             .name("passport.token")
             .withoutMiddleware("web")

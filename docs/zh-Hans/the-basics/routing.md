@@ -14,6 +14,28 @@
 
 `Router::get` 同时注册 GET 和 HEAD。HEAD 保留响应状态和响应头，发送空响应体。未知路径返回 404。路径存在但方法不受支持时返回 405，并附带 `Allow` 响应头。路径存在且未显式注册 OPTIONS 时，路由器返回 200 并列出允许的方法。同一方法有多条路由可匹配时，使用最先注册的匹配项。
 
+## HTTP 方法
+
+单一方法使用 `get`、`post`、`put`、`patch`、`delete`、`options` 或 `query`。`Route` 和 `Router` 均提供这些入口；`get` 同时接受 HEAD。`Router` 返回可变路由对象，可继续配置名称、中间件、约束和默认值；Facade 声明返回 `Result<(), RoutingError>`。
+
+```rust
+use openrust::{http::Method, support::facades::Route};
+
+Route::get("/users", UserController::index)?;
+Route::post("/users", UserController::store)?;
+Route::put("/users/{id}", UserController::replace)?;
+Route::patch("/users/{id}", UserController::update)?;
+Route::delete("/users/{id}", UserController::destroy)?;
+Route::options("/users", UserController::options)?;
+Route::query("/users/search", UserController::search)?;
+Route::r#match(&[Method::PUT, Method::PATCH], "/profile", ProfileController::update)?;
+Route::any("/callback", CallbackController::handle)?;
+```
+
+多个指定方法共用处理器时使用 `r#match`，集合包含 GET 时自动补充 HEAD。空集合返回 `RoutingError::MissingMethods`。只有端点确实需要接受全部支持的方法时才使用 `any`，集合依次为 GET、HEAD、POST、PUT、PATCH、DELETE、OPTIONS、QUERY，不包含 TRACE 或 CONNECT。
+
+对于相同方法、域名和注册路径，后声明覆盖先声明的处理器；`any` 和 `r#match` 也遵循此规则，没有独立优先级。不同但重叠的路径模式按声明顺序首次匹配，因此应将具体路径放在较宽泛的模式之前。
+
 ## 挂载静态目录
 
 应用骨架先挂载网站公共目录，再挂载公共存储磁盘。目录和 URL 前缀见[公共文件配置](../getting-started/configuration.md#public-files)。

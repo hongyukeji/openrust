@@ -240,7 +240,7 @@ async fn application_scope_and_public_mount_work_over_http() {
         config::{ConfigError, Environment, Value},
         contracts::http::Kernel as _,
         foundation::{Application, configuration::Routing, http::Kernel},
-        http::{HeaderMap, HttpError, HttpFuture, Method, Request, Response, StatusCode},
+        http::{HeaderMap, HttpError, HttpFuture, Request, Response, StatusCode},
         support::facades::{Route, Storage},
     };
 
@@ -406,7 +406,7 @@ async fn application_scope_and_public_mount_work_over_http() {
             .withRouting(Routing::default().web(|| {
                 Route::staticDisk("public")?;
                 Route::get("/write", write)?;
-                Route::r#match(&[Method::POST], "/upload", upload)?;
+                Route::post("/upload", upload)?;
                 Route::get("/download/{file}", download)
             }))
             .create()

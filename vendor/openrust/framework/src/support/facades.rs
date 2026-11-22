@@ -418,6 +418,73 @@ impl Route {
         )
     }
 
+    /// 在当前应用作用域注册 POST 路由。
+    #[track_caller]
+    pub fn post<Arguments>(
+        uri: &str,
+        handler: impl IntoRouteHandler<Arguments>,
+    ) -> Result<(), RoutingError> {
+        Self::r#match(&[crate::http::Method::POST], uri, handler)
+    }
+
+    /// 在当前应用作用域注册 PUT 路由。
+    #[track_caller]
+    pub fn put<Arguments>(
+        uri: &str,
+        handler: impl IntoRouteHandler<Arguments>,
+    ) -> Result<(), RoutingError> {
+        Self::r#match(&[crate::http::Method::PUT], uri, handler)
+    }
+
+    /// 在当前应用作用域注册 PATCH 路由。
+    #[track_caller]
+    pub fn patch<Arguments>(
+        uri: &str,
+        handler: impl IntoRouteHandler<Arguments>,
+    ) -> Result<(), RoutingError> {
+        Self::r#match(&[crate::http::Method::PATCH], uri, handler)
+    }
+
+    /// 在当前应用作用域注册 DELETE 路由。
+    #[track_caller]
+    pub fn delete<Arguments>(
+        uri: &str,
+        handler: impl IntoRouteHandler<Arguments>,
+    ) -> Result<(), RoutingError> {
+        Self::r#match(&[crate::http::Method::DELETE], uri, handler)
+    }
+
+    /// 在当前应用作用域注册 OPTIONS 路由。
+    #[track_caller]
+    pub fn options<Arguments>(
+        uri: &str,
+        handler: impl IntoRouteHandler<Arguments>,
+    ) -> Result<(), RoutingError> {
+        Self::r#match(&[crate::http::Method::OPTIONS], uri, handler)
+    }
+
+    /// 在当前应用作用域注册 QUERY 路由。
+    #[track_caller]
+    pub fn query<Arguments>(
+        uri: &str,
+        handler: impl IntoRouteHandler<Arguments>,
+    ) -> Result<(), RoutingError> {
+        Self::r#match(
+            &[crate::http::Method::from_bytes(b"QUERY").expect("有效的 QUERY 方法")],
+            uri,
+            handler,
+        )
+    }
+
+    /// 在当前应用作用域注册全部受支持的 HTTP 方法。
+    #[track_caller]
+    pub fn any<Arguments>(
+        uri: &str,
+        handler: impl IntoRouteHandler<Arguments>,
+    ) -> Result<(), RoutingError> {
+        Self::r#match(&Router::all_methods(), uri, handler)
+    }
+
     /// Configures a GET/HEAD route while its registration scope is active.
     #[track_caller]
     #[allow(non_snake_case, reason = "Matches the application routing API")]

@@ -396,7 +396,7 @@ fn routes() -> Result<(), RoutingError> {
     Route::group(
         openrust::routing::RouteGroup::new().middleware_name("auth"),
         |router| {
-            router.r#match(&[openrust::http::Method::POST], "/seed-tokens", seed_tokens)?;
+            router.post("/seed-tokens", seed_tokens)?;
             Ok(())
         },
     )?;

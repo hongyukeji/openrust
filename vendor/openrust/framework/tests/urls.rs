@@ -996,11 +996,7 @@ async fn redirects_preserve_intended_and_flash_data_in_the_encrypted_http_sessio
             Route::get("/back", back)?;
             Route::get("/flash", read_flash)?;
             Route::get("/flash-token", flash_token)?;
-            Route::r#match(
-                &[openrust::http::Method::POST],
-                "/flash/{mode}",
-                flash_redirect,
-            )
+            Route::post("/flash/{mode}", flash_redirect)
         }))
         .create()
         .unwrap();

@@ -30,7 +30,7 @@ use openrust::{
     foundation::{
         Application, auth::EmailVerificationRequest, configuration::Routing, http::Kernel,
     },
-    http::{HttpError, HttpFuture, Method, Request, Response, StatusCode},
+    http::{HttpError, HttpFuture, Request, Response, StatusCode},
     mail::{
         MailResult, Mailable,
         mailables::{Content, Envelope},
@@ -257,11 +257,11 @@ fn backend(error: impl std::error::Error + Send + Sync + 'static) -> AuthError {
 
 fn routes(_: &Application) -> Result<Router, RoutingError> {
     let mut routes = Router::new();
-    routes.r#match(&[Method::POST], "/forgot-password", send_link)?;
+    routes.post("/forgot-password", send_link)?;
     routes
         .get("/reset-password/{token}", empty)?
         .name("password.reset");
-    routes.r#match(&[Method::POST], "/reset-password/{token}", reset)?;
+    routes.post("/reset-password/{token}", reset)?;
     routes
         .get("/verify-email", empty)?
         .name("verification.notice");
@@ -271,14 +271,10 @@ fn routes(_: &Application) -> Result<Router, RoutingError> {
         .middleware_name("auth")
         .middleware_name("signed");
     routes
-        .r#match(&[Method::POST], "/register-notification", send_verification)?
+        .post("/register-notification", send_verification)?
         .middleware_name("auth");
     routes
-        .r#match(
-            &[Method::POST],
-            "/email/verification-notification",
-            send_verification,
-        )?
+        .post("/email/verification-notification", send_verification)?
         .name("verification.send")
         .middleware_name("auth")
         .middleware_name("throttle:6,1");

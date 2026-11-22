@@ -71,41 +71,17 @@ pub(crate) fn register() -> Result<(), RoutingError> {
     }
     Route::group(group, |router| {
         for (path, _, _) in TYPES {
-            router.r#match(
-                &[openrust::http::Method::POST],
-                &format!("/telescope-api/{path}"),
-                api,
-            )?;
+            router.post(&format!("/telescope-api/{path}"), api)?;
             if *path != "dumps" {
                 router.get(&format!("/telescope-api/{path}/{{telescopeEntryId}}"), api)?;
             }
         }
-        router.r#match(
-            &[openrust::http::Method::PUT],
-            "/telescope-api/exceptions/{telescopeEntryId}",
-            api,
-        )?;
+        router.put("/telescope-api/exceptions/{telescopeEntryId}", api)?;
         router.get("/telescope-api/monitored-tags", api)?;
-        router.r#match(
-            &[openrust::http::Method::POST],
-            "/telescope-api/monitored-tags",
-            api,
-        )?;
-        router.r#match(
-            &[openrust::http::Method::POST],
-            "/telescope-api/monitored-tags/delete",
-            api,
-        )?;
-        router.r#match(
-            &[openrust::http::Method::POST],
-            "/telescope-api/toggle-recording",
-            api,
-        )?;
-        router.r#match(
-            &[openrust::http::Method::DELETE],
-            "/telescope-api/entries",
-            api,
-        )?;
+        router.post("/telescope-api/monitored-tags", api)?;
+        router.post("/telescope-api/monitored-tags/delete", api)?;
+        router.post("/telescope-api/toggle-recording", api)?;
+        router.delete("/telescope-api/entries", api)?;
         for action in ["preview", "download"] {
             router.get(
                 &format!("/telescope-api/mail/{{telescopeEntryId}}/{action}"),

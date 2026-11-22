@@ -33,7 +33,7 @@ fn web() -> Result<(), RoutingError> {
         "/update/{id}",
         spoofed_update,
     )?;
-    Route::r#match(&[Method::POST], "/hooks/inbound", update)?;
+    Route::post("/hooks/inbound", update)?;
     Ok(())
 }
 
@@ -48,7 +48,7 @@ fn binding(_: &Application) -> Result<Router, RoutingError> {
 }
 
 fn api() -> Result<(), RoutingError> {
-    Route::r#match(&[Method::POST], "/probe", api_probe)?;
+    Route::post("/probe", api_probe)?;
     Ok(())
 }
 
@@ -66,7 +66,7 @@ fn flash(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
         request.session_mut()?.flash(
             "errors",
-            json!({"default":{"name":"Required"},"profile":{"name":["<different>", "second"]}}),
+            json!({"default":{"name":["Required"]},"profile":{"name":["<different>", "second"]}}),
         )?;
         request
             .session_mut()?

@@ -340,7 +340,7 @@ async fn transforms_a_real_http_upload_and_reads_it_from_storage_and_url() {
         })
         .withRouting(Routing::default().web(|| {
             Route::staticDisk("public")?;
-            Route::r#match(&[Method::POST], "/upload", upload)
+            Route::post("/upload", upload)
         }))
         .create().unwrap();
     let mut kernel = Kernel::new(application);

@@ -403,9 +403,9 @@ async fn session_guard_emits_authentication_lifecycle_events() {
                 Ok(())
             })?;
             Route::get("/who", current)?;
-            Route::r#match(&[Method::POST], "/remember", remember)?;
-            Route::r#match(&[Method::POST], "/end-device", end_device)?;
-            Route::r#match(&[Method::POST], "/logout", logout)?;
+            Route::post("/remember", remember)?;
+            Route::post("/end-device", end_device)?;
+            Route::post("/logout", logout)?;
             Ok(())
         },
         || {
@@ -592,14 +592,14 @@ async fn other_device_logout_keeps_current_session_and_rejects_old_sessions_and_
     let capture = records.clone();
     let (address, server) = start(
         || {
-            Route::r#match(&[Method::POST], "/remember", remember)?;
+            Route::post("/remember", remember)?;
             Route::getWith("/secure", current, |route| {
                 route
                     .middleware_name("auth")
                     .middleware_name("auth.session");
                 Ok(())
             })?;
-            Route::r#match(&[Method::POST], "/revoke", revoke)?;
+            Route::post("/revoke", revoke)?;
             Ok(())
         },
         || Ok(()),
@@ -712,7 +712,7 @@ async fn throttled_login_reports_lockout_with_request_metadata() {
     let retry = Arc::new(AtomicU64::new(0));
     let recorded = retry.clone();
     let (address, server) = start(
-        || Route::r#match(&[Method::POST], "/throttled", attempt),
+        || Route::post("/throttled", attempt),
         || Ok(()),
         move |app| {
             app.container()

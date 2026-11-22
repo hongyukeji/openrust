@@ -23,7 +23,7 @@ pub(super) fn routes() -> Result<(), openrust::routing::RoutingError> {
             .middleware(Arc::new(CreateFreshApiToken::using(Some("web"))));
         r.get("/fresh-explicit", explicit_cookie)?
             .middleware(Arc::new(CreateFreshApiToken::using(Some("web"))));
-        r.r#match(&[Method::POST], "/logout", logout)?
+        r.post("/logout", logout)?
             .middleware(Arc::new(CreateFreshApiToken::using(Some("web"))));
         r.get("/cookie-resource", resource)?
             .withoutMiddleware("web")
@@ -50,7 +50,7 @@ pub(super) fn routes() -> Result<(), openrust::routing::RoutingError> {
         r.get("/scope-user", ok)?
             .middleware_name("auth:api")
             .middleware(CheckToken::shared(["read"]));
-        r.r#match(&[Method::POST], "/pat", pat)?;
+        r.post("/pat", pat)?;
         Ok(())
     })
 }

@@ -1,5 +1,6 @@
 use std::{
     any::type_name_of_val,
+    borrow::Cow,
     collections::{HashMap, HashSet},
     panic::Location,
     path::Path,
@@ -254,6 +255,84 @@ impl Router {
         self.r#match(&[Method::GET, Method::HEAD], uri, handler)
     }
 
+    /// 注册仅接受 POST 的路由，并返回可配置的路由对象。
+    #[track_caller]
+    pub fn post<Arguments>(
+        &mut self,
+        uri: &str,
+        handler: impl IntoRouteHandler<Arguments>,
+    ) -> Result<&mut Route, RoutingError> {
+        self.r#match(&[Method::POST], uri, handler)
+    }
+
+    /// 注册仅接受 PUT 的路由，并返回可配置的路由对象。
+    #[track_caller]
+    pub fn put<Arguments>(
+        &mut self,
+        uri: &str,
+        handler: impl IntoRouteHandler<Arguments>,
+    ) -> Result<&mut Route, RoutingError> {
+        self.r#match(&[Method::PUT], uri, handler)
+    }
+
+    /// 注册仅接受 PATCH 的路由，并返回可配置的路由对象。
+    #[track_caller]
+    pub fn patch<Arguments>(
+        &mut self,
+        uri: &str,
+        handler: impl IntoRouteHandler<Arguments>,
+    ) -> Result<&mut Route, RoutingError> {
+        self.r#match(&[Method::PATCH], uri, handler)
+    }
+
+    /// 注册仅接受 DELETE 的路由，并返回可配置的路由对象。
+    #[track_caller]
+    pub fn delete<Arguments>(
+        &mut self,
+        uri: &str,
+        handler: impl IntoRouteHandler<Arguments>,
+    ) -> Result<&mut Route, RoutingError> {
+        self.r#match(&[Method::DELETE], uri, handler)
+    }
+
+    /// 注册仅接受 OPTIONS 的路由，并返回可配置的路由对象。
+    #[track_caller]
+    pub fn options<Arguments>(
+        &mut self,
+        uri: &str,
+        handler: impl IntoRouteHandler<Arguments>,
+    ) -> Result<&mut Route, RoutingError> {
+        self.r#match(&[Method::OPTIONS], uri, handler)
+    }
+
+    /// 注册仅接受 QUERY 的路由，并返回可配置的路由对象。
+    #[track_caller]
+    pub fn query<Arguments>(
+        &mut self,
+        uri: &str,
+        handler: impl IntoRouteHandler<Arguments>,
+    ) -> Result<&mut Route, RoutingError> {
+        self.r#match(
+            &[Method::from_bytes(b"QUERY").expect("有效的 QUERY 方法")],
+            uri,
+            handler,
+        )
+    }
+
+    /// 注册框架支持的全部八种方法，不包含 TRACE 或 CONNECT。
+    #[track_caller]
+    pub fn any<Arguments>(
+        &mut self,
+        uri: &str,
+        handler: impl IntoRouteHandler<Arguments>,
+    ) -> Result<&mut Route, RoutingError> {
+        self.r#match(&Self::all_methods(), uri, handler)
+    }
+
+    pub(crate) fn all_methods() -> [Method; 8] {
+        VERBS.map(|verb| Method::from_bytes(verb.as_bytes()).expect("有效的 HTTP 方法"))
+    }
+
     #[track_caller]
     pub fn r#match<Arguments>(
         &mut self,
@@ -271,8 +350,27 @@ impl Router {
         handler: impl IntoRouteHandler<Arguments>,
         definition: &'static Location<'static>,
     ) -> Result<&mut Route, RoutingError> {
+        // match 将方法名统一为大写；标准方法直接借用原切片。
+        let methods = if methods.iter().any(|method| {
+            method
+                .as_str()
+                .bytes()
+                .any(|byte| byte.is_ascii_lowercase())
+        }) {
+            Cow::Owned(
+                methods
+                    .iter()
+                    .map(|method| {
+                        Method::from_bytes(method.as_str().to_ascii_uppercase().as_bytes())
+                            .expect("有效的 HTTP 方法转换为大写后仍然有效")
+                    })
+                    .collect::<Vec<_>>(),
+            )
+        } else {
+            Cow::Borrowed(methods)
+        };
         let action = type_name_of_val(&handler);
-        let route = self.add_route(methods, uri, handler.into_route_handler())?;
+        let route = self.add_route(&methods, uri, handler.into_route_handler())?;
         route.definition = definition;
         if !action.contains("{{closure}}") {
             route.action = action;

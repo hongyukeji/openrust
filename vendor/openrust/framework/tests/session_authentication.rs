@@ -93,9 +93,9 @@ fn web() -> Result<(), RoutingError> {
     Route::get("/session", session)?;
     Route::get("/quiet", quiet_session)?;
     Route::get("/selected", selected_session)?;
-    Route::r#match(&[Method::POST], "/login", login)?;
-    Route::r#match(&[Method::POST], "/logout", logout)?;
-    Route::r#match(&[Method::POST], "/logout-current", logout_current)?;
+    Route::post("/login", login)?;
+    Route::post("/logout", logout)?;
+    Route::post("/logout-current", logout_current)?;
     Route::group(openrust::routing::RouteGroup::new(), |router| {
         router.get("/private", session)?.middleware_name("auth");
         router

@@ -4,7 +4,7 @@ use axum::{extract::State, handler::Handler as _};
 use openrust::{
     contracts::http::Kernel as _,
     foundation::{Application, configuration::Routing, http::Kernel},
-    http::{Body, HttpError, HttpFuture, Method, Request, Response, StatusCode},
+    http::{Body, HttpError, HttpFuture, Request, Response, StatusCode},
     routing::{RouteGroup, RoutingError},
     support::facades::Route,
 };
@@ -38,9 +38,7 @@ fn register() -> Result<(), RoutingError> {
                     .get("/reports/{id?}", report)?
                     .name("show")
                     .defaults("id", "7");
-                router
-                    .r#match(&[Method::POST], "/reports/{id?}", report)?
-                    .name("update");
+                router.post("/reports/{id?}", report)?.name("update");
                 Ok(())
             })
         },

@@ -459,7 +459,7 @@ async fn database_explicit_provider_publishes_the_app_catalog_to_real_http() {
     use openrust::{
         contracts::http::Kernel as _,
         foundation::{Application, configuration::Routing, http::Kernel},
-        http::{HttpError, HttpFuture, Method, Request, Response, StatusCode},
+        http::{HttpError, HttpFuture, Request, Response, StatusCode},
         routing::RoutingError,
         support::{
             ProviderResult, ServiceProvider,
@@ -493,7 +493,7 @@ async fn database_explicit_provider_publishes_the_app_catalog_to_real_http() {
         })
     }
     fn routes() -> Result<(), RoutingError> {
-        Route::r#match(&[Method::GET], "/translations", response)?;
+        Route::get("/translations", response)?;
         Ok(())
     }
     async fn transport(

@@ -270,11 +270,7 @@ async fn mini_login(
     Ok(session.user())
 }
 fn login_routes() -> Result<(), openrust::routing::RoutingError> {
-    openrust::support::facades::Route::r#match(
-        &[http::Method::POST],
-        "/mini-login",
-        login_handler,
-    )?;
+    openrust::support::facades::Route::post("/mini-login", login_handler)?;
     Ok(())
 }
 fn login_handler(

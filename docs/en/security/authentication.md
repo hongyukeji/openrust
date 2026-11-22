@@ -113,7 +113,7 @@ Make the confirmation form a CSRF-protected POST. `Auth::confirmPassword` verifi
 ```rust
 use openrust::{
     auth::Auth,
-    http::{HttpError, HttpFuture, Method, Request, Response, StatusCode, abort},
+    http::{HttpError, HttpFuture, Request, Response, StatusCode, abort},
     routing::{RouteGroup, RoutingError},
     support::facades::{Redirect, Route},
     view::view,
@@ -139,7 +139,7 @@ fn register_password_routes() -> Result<(), RoutingError> {
     Route::group(
         RouteGroup::new().middleware_name("auth").middleware_name("throttle:6,1"),
         |router| {
-            router.r#match(&[Method::POST], "/confirm-password", confirm)?;
+            router.post("/confirm-password", confirm)?;
             Ok(())
         },
     )?;

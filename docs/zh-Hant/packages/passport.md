@@ -317,11 +317,11 @@ Password 與 Implicit 預設關閉，建立對應用戶端記錄不會啟用協�
 透過 `passport.path` 設定多級 OAuth 前綴，透過 `passport.middleware` 加入共同中介軟體。需要取代套件路由時，在應用程式裝配階段、載入路由前呼叫 `passport.ignoreRoutes()`，然後註冊公開控制器。例如僅提供權杖端點：
 
 ```rust
-use openrust::{http::Method, routing::{RouteGroup, RoutingError}, support::facades::Route};
+use openrust::{routing::{RouteGroup, RoutingError}, support::facades::Route};
 
 pub fn oauth_routes() -> Result<(), RoutingError> {
     Route::group(RouteGroup::new().prefix("integrations"), |router| {
-        router.r#match(&[Method::POST], "/token",
+        router.post("/token",
             openrust_passport::http::controllers::AccessTokenController::issueToken)?
             .name("passport.token")
             .withoutMiddleware("web")

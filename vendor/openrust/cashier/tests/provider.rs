@@ -58,11 +58,7 @@ async fn provider_discovery_is_lazy_preserves_custom_profiles_and_facade_uses_ap
 }
 
 fn routes() -> Result<(), openrust::routing::RoutingError> {
-    openrust::support::facades::Route::r#match(
-        &[http::Method::GET],
-        "/cashier-customer",
-        customer,
-    )?;
+    openrust::support::facades::Route::get("/cashier-customer", customer)?;
     Ok(())
 }
 fn customer(

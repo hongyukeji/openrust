@@ -12,7 +12,7 @@ use std::sync::Arc;
 use openrust::{
     contracts::{container::Container as _, foundation::Application as _},
     foundation::Application,
-    http::{HttpError, HttpFuture, Method, Request, Response, StatusCode},
+    http::{HttpError, HttpFuture, Request, Response, StatusCode},
     routing::{ControllerDispatcher, RoutingError},
     support::{ProviderResult, ServiceProvider, facades::Route},
 };
@@ -40,7 +40,7 @@ impl ServiceProvider for TeamProvider {
 }
 
 fn register() -> Result<(), RoutingError> {
-    Route::r#match(&[Method::POST], "/team", ControllerDispatcher::new(TeamController::show))
+    Route::post("/team", ControllerDispatcher::new(TeamController::show))
 }
 ```
 

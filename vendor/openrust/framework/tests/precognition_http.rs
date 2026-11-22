@@ -212,9 +212,8 @@ async fn rejected_after(_: ValidatedFormRequest<RejectAfter>) -> Result<Response
     panic!("after 验证失败不得调用控制器")
 }
 fn routes() -> Result<(), RoutingError> {
-    Route::r#match(&[http::Method::POST], "/after", rejected_after)?;
-    Route::r#match(
-        &[Method::POST],
+    Route::post("/after", rejected_after)?;
+    Route::post(
         "/raw",
         ControllerDispatcher::withFormRequest(Controller::store),
     )?;
@@ -222,21 +221,16 @@ fn routes() -> Result<(), RoutingError> {
         RouteGroup::new().middleware_name("precognitive"),
         |router| {
             router
-                .r#match(
-                    &[Method::POST],
+                .post(
                     "/form",
                     ControllerDispatcher::withFormRequest(Controller::store),
                 )?
                 .middleware(Arc::new(Early));
-            router.r#match(
-                &[Method::POST],
-                "/plain",
-                ControllerDispatcher::new(Controller::plain),
-            )?;
-            router.r#match(&[Method::POST], "/closure", plain)?;
-            router.r#match(&[Method::POST], "/injected", injected)?;
-            router.r#match(&[Method::POST], "/view", precognitive_view)?;
-            router.r#match(&[Method::POST], "/api-response", precognitive_api)?;
+            router.post("/plain", ControllerDispatcher::new(Controller::plain))?;
+            router.post("/closure", plain)?;
+            router.post("/injected", injected)?;
+            router.post("/view", precognitive_view)?;
+            router.post("/api-response", precognitive_api)?;
             Ok(())
         },
     )?;

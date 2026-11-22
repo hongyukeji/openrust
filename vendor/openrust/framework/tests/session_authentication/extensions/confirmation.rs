@@ -63,7 +63,7 @@ async fn password_confirmation_redirects_and_expires_over_http() {
                 route.name("password.alternate").middleware_name("auth");
                 Ok(())
             })?;
-            Route::r#match(&[Method::POST], "/confirmation", confirm)?;
+            Route::post("/confirmation", confirm)?;
             Route::getWith("/settings", current, |route| {
                 route
                     .middleware_name("auth")

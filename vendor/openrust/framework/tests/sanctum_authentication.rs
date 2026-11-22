@@ -290,14 +290,14 @@ fn api() -> Result<(), RoutingError> {
             router
                 .get("/scope", whoami)?
                 .middleware_name("scope:write,read");
-            router.r#match(&[Method::POST], "/user", whoami)?;
+            router.post("/user", whoami)?;
             Ok(())
         },
     )
 }
 
 fn web<const KEY: u8>() -> Result<(), RoutingError> {
-    Route::r#match(&[Method::POST], "/login", login::<KEY>)
+    Route::post("/login", login::<KEY>)
 }
 
 fn login<const KEY: u8>(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {

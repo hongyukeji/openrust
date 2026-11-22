@@ -68,17 +68,12 @@ pub(crate) fn routes() -> Result<(), openrust::routing::RoutingError> {
         .load(std::sync::atomic::Ordering::Relaxed);
     Route::group(group, |router| {
         router
-            .r#match(
-                &[openrust::http::Method::POST],
-                "/token",
-                controllers::AccessTokenController::issueToken,
-            )?
+            .post("/token", controllers::AccessTokenController::issueToken)?
             .name("token")
             .middleware_name("throttle");
         if device_enabled {
             router
-                .r#match(
-                    &[openrust::http::Method::POST],
+                .post(
                     "/device/code",
                     device_controllers::DeviceCodeController::issue,
                 )?
@@ -87,8 +82,7 @@ pub(crate) fn routes() -> Result<(), openrust::routing::RoutingError> {
         }
         router.group(RouteGroup::new().middleware_name("web"), |router| {
             router
-                .r#match(
-                    &[openrust::http::Method::POST],
+                .post(
                     "/token/refresh",
                     transient_token_controller::TransientTokenController::refresh,
                 )?
@@ -108,16 +102,14 @@ pub(crate) fn routes() -> Result<(), openrust::routing::RoutingError> {
                     .name("device.authorizations.authorize")
                     .block(10, 10);
                 router
-                    .r#match(
-                        &[openrust::http::Method::POST],
+                    .post(
                         "/device/authorize",
                         device_controllers::ApproveDeviceAuthorizationController::approve,
                     )?
                     .name("device.authorizations.approve")
                     .block(10, 10);
                 router
-                    .r#match(
-                        &[openrust::http::Method::DELETE],
+                    .delete(
                         "/device/authorize",
                         device_controllers::DenyDeviceAuthorizationController::deny,
                     )?
@@ -132,19 +124,14 @@ pub(crate) fn routes() -> Result<(), openrust::routing::RoutingError> {
                 .name("authorizations.authorize")
                 .block(10, 10);
             router
-                .r#match(
-                    &[openrust::http::Method::POST],
+                .post(
                     "/authorize",
                     controllers::ApproveAuthorizationController::approve,
                 )?
                 .name("authorizations.approve")
                 .block(10, 10);
             router
-                .r#match(
-                    &[openrust::http::Method::DELETE],
-                    "/authorize",
-                    controllers::DenyAuthorizationController::deny,
-                )?
+                .delete("/authorize", controllers::DenyAuthorizationController::deny)?
                 .name("authorizations.deny")
                 .block(10, 10);
             Ok(())

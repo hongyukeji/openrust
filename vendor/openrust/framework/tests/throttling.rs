@@ -237,7 +237,7 @@ fn routes() -> Result<(), RoutingError> {
             .middleware_name("throttle:multi");
         router.get("/manual", manual)?;
         router
-            .r#match(&[openrust::http::Method::POST], "/body", echo_body)?
+            .post("/body", echo_body)?
             .middleware_name("throttle:body");
         for (path, throttle) in [
             ("/defaults", "throttle"),

@@ -15,7 +15,7 @@ use openrust::{
         http::{FormRequest, Kernel},
     },
     hashing::HashOptions,
-    http::{HttpError, HttpFuture, Method, Request, Response, StatusCode},
+    http::{HttpError, HttpFuture, Request, Response, StatusCode},
     support::facades::{Route, Validator},
     validation::{Data, Factory, RuleSet},
 };
@@ -95,7 +95,7 @@ fn submit(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
     })
 }
 fn routes() -> Result<(), openrust::routing::RoutingError> {
-    Route::r#match(&[Method::POST], "/current-password", submit)?;
+    Route::post("/current-password", submit)?;
     Ok(())
 }
 async fn transport(

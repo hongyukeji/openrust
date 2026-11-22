@@ -90,7 +90,7 @@ fn submit(
 }
 
 fn routes() -> Result<(), openrust::routing::RoutingError> {
-    openrust::support::facades::Route::r#match(&[openrust::http::Method::POST], "/email", submit)?;
+    openrust::support::facades::Route::post("/email", submit)?;
     Ok(())
 }
 
