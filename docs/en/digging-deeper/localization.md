@@ -55,7 +55,7 @@ Default candidates are discovered once at HTTP startup from the application tran
 
 `zh-Hans`, `zh-CN`, `zh-SG`, and bare `zh` select Simplified Chinese; `zh-Hant`, `zh-TW`, `zh-HK`, and `zh-MO` select Traditional Chinese. An explicit script takes precedence over region; unknown scripts are not inferred from Chinese regions. Numeric variants are not scripts. Other languages match an exact tag or base language. This selection policy does not change public locale canonicalization.
 
-To restrict enabled languages, set their order, or use languages from non-file sources, override candidates inside `withMiddleware` in `bootstrap/app.rs`, without adding configuration keys:
+Use [`app.supported_locales`](#available-locales) to restrict or order languages and enable non-file sources through configuration. To override that list in code, use `withMiddleware` in `bootstrap/app.rs`:
 
 ```rust
 .withMiddleware(|middleware| {
@@ -73,9 +73,20 @@ The welcome page uses the current application locale for HTML `lang` and `Conten
 
 ### Available Languages {#available-locales}
 
+For ordinary applications, configure `app.supported_locales` through `.env`; no middleware callback is required:
+
+```dotenv
+APP_SUPPORTED_LOCALES=en,zh-Hans,zh-Hant,ja
+```
+
+An unset variable or `null` (also `(null)`, case-insensitive) uses resource discovery. `APP_SUPPORTED_LOCALES=` produces an empty list and disables locale selection and the welcome menu. A comma-separated list enables those languages in order, including database-only languages. Tags are canonicalized and deduplicated in their first occurrence order; malformed tags, empty list entries and invalid configuration types fail at startup. Direct configuration accepts a JSON array or `null`, not a comma-separated string.
+
+Candidate precedence is explicit `middleware.setLocale(...)` → `app.supported_locales` → resource discovery. An explicit empty list also takes precedence. Configured and explicit lists skip scanning. The default middleware captures candidates once at HTTP startup; changes require restarting the application and rebuilding configuration cache when used. This setting does not alter `app.locale`, `app.fallback_locale` or request-source priority.
+
+
 `FileLoader::availableLocales()` discovers `<locale>.json` files and locale directories containing grouped JSON resources, including nested groups. It uses the same selected application root as translation loading (`resources/lang` when present, otherwise `lang`), plus application paths registered with `addPath` and top-level JSON files registered with `addJsonPath`. Package namespaces, `vendor`, hidden entries, symbolic links and empty locale directories do not enable languages. Names must already match their canonical BCP 47 tag; for example, use `zh-Hans`, not `zh_CN` or `ZH-hans`. Results are deduplicated and sorted by tag. Discovery does not parse message contents or assess translation completeness.
 
-The default middleware captures this list after application Providers finish booting and before serving requests. It does not scan on each request; restart the application after adding or removing language files. This list is independent of the configuration cache. Explicit `setLocale` candidates, including an empty list, skip discovery and remain authoritative. An empty discovered list leaves the configured application locale in effect and hides the welcome switcher. Database-only languages require explicit candidates; discovery never queries the database or enables every package language.
+The default middleware captures this list after application Providers finish booting and before serving requests. It does not scan on each request; restart the application after adding or removing language files. This list is independent of the configuration cache. Explicit `setLocale` candidates override configuration; otherwise a non-null `app.supported_locales` list skips discovery. An empty discovered list leaves the configured application locale in effect and hides the welcome switcher. Database-only languages require explicit candidates; discovery never queries the database or enables every package language.
 
 For Japanese, add `lang/ja/welcome.json` and `lang/ja/languages.json` containing `{"name":"日本語"}`; no controller or menu changes are needed. Missing messages retain the normal translation fallback. Templates can use `Lang::hasForLocale('languages.name', $choice)` to test exact-locale presence. For right-to-left pages, set `"direction":"rtl"` in that locale's `languages.json`; the welcome page sets HTML `dir="rtl"`, and its scrollable menu supports a longer language list. Missing direction uses the document's default left-to-right layout. New UI translations do not create documentation directories; keep the welcome documentation links consistent with the actual documentation available.
 
@@ -140,11 +151,12 @@ Use `App::currentLocale()?` in business code, controllers and pages to read the 
 
 ### Custom Locale Selection {#custom-locale-selection}
 
+For a custom negotiation header, use the existing `APP_LOCALE_HEADER=X-Locale`; leave it unset to negotiate `Accept-Language`. The header is checked after URL and protected Cookie preferences. A configured custom header missing from a request falls back to the application default or first candidate, without retrying `Accept-Language`. This differs from a first-priority callback. Configure ordinary candidate lists above; reserve callbacks for business rules such as user or tenant preferences.
+
 `localeUsing` is an OpenRust extension. Use it to configure a synchronous callback on the current application's middleware instance. For example, prefer an explicit request header and continue with URL selection, the protected preference Cookie and header negotiation when it is absent:
 
 ```rust
 .withMiddleware(|middleware| {
-    middleware.setLocale(&["en", "zh-Hans", "zh-Hant"]).expect("语言标签有效");
     middleware.localeUsing(|request| {
         Ok(request.header("X-Locale")?.map(str::to_owned))
     });

@@ -1515,3 +1515,59 @@ async fn a_new_language_uses_existing_csrf_preference_and_explicit_candidate_con
     let (_, html) = send(&inactive, "/?locale[]=invalid", &["ja"]).await;
     assert!(!html.contains("class=\"language-switcher\""));
 }
+
+#[tokio::test]
+async fn environment_candidates_control_menu_and_preference_without_bootstrap_code() {
+    let root = Root::new("en");
+    fs::create_dir_all(root.0.join("lang/ja")).unwrap();
+    fs::write(
+        root.0.join("lang/ja/languages.json"),
+        r#"{"name":"日本語"}"#,
+    )
+    .unwrap();
+    fs::write(
+        root.0.join(".env"),
+        "APP_LOCALE=en\nAPP_SUPPORTED_LOCALES=ja,en\n",
+    )
+    .unwrap();
+    let configured = root.kernel().await;
+    let (_, headers, html) = preference_request(&configured, "GET", "/", "ja", "", "").await;
+    assert_eq!(headers["content-language"], "ja");
+    assert_eq!(html.matches("name=\"locale\" value=").count(), 3);
+    assert!(!html.contains("value=\"zh-Hans\""));
+    assert!(html.find("value=\"ja\"").unwrap() < html.find("value=\"en\"").unwrap());
+    let body = format!("_token={}&locale=en", csrf_token(&html));
+    let (status, saved, _) = preference_request(
+        &configured,
+        "POST",
+        "/locale",
+        "ja",
+        &response_cookies(&headers),
+        &body,
+    )
+    .await;
+    assert_eq!(status, StatusCode::SEE_OTHER);
+    let (_, headers, html) =
+        preference_request(&configured, "GET", "/", "ja", &response_cookies(&saved), "").await;
+    assert_eq!(headers["content-language"], "en");
+    assert_mode(&html, "fixed", "en");
+    let restricted = root.kernel_options(true, None, Some(vec!["en"])).await;
+    let (_, html) = send(&restricted, "/", &["ja"]).await;
+    assert!(!html.contains("value=\"ja\""));
+    fs::write(
+        root.0.join(".env"),
+        "APP_LOCALE=en\nAPP_SUPPORTED_LOCALES=\n",
+    )
+    .unwrap();
+    let disabled = root.kernel().await;
+    let (_, html) = send(&disabled, "/", &["ja"]).await;
+    assert!(!html.contains("class=\"language-switcher\""));
+    fs::write(
+        root.0.join(".env"),
+        "APP_LOCALE=en\nAPP_SUPPORTED_LOCALES=null\n",
+    )
+    .unwrap();
+    let automatic = root.kernel().await;
+    let (_, html) = send(&automatic, "/", &["ja"]).await;
+    assert_eq!(html.matches("name=\"locale\" value=").count(), 5);
+}

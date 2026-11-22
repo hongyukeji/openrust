@@ -770,3 +770,39 @@ Sanctum feature 的 locale_preference 10项通过，stateful.log；合计179次�
 用户随后授权本轮本地提交，不含推送。暂存期间其他任务已提交欢迎页视图数据合并（971d8fe94）；保留新契约，复验当前组合后提交语言发现增量。
 
 提交前组合复验：保留971d8fe94已提交的locale_selection整体视图变量，快照同步两处共享文件及控制器。precommit-welcome.log的28项测试、precommit-fmt.log及precommit-clippy.log（应用welcome消费者与框架库严格Clippy）均exit=0；17个暂存技术文件及HEAD控制器与本次快照逐字节一致。未重跑浏览器，不扩大原24组界面验收范围。
+
+
+## 语言候选配置（2026-11-23）
+
+### 决定与复用
+
+用户确认通过配置限制语言、无配置时自动发现。新增可选 `app.supported_locales`，根配置由 `APP_SUPPORTED_LOCALES` 生成：未设置／null／(null) 为自动发现，逗号列表按顺序启用，空值生成空数组并停用语言选择与菜单。直接配置只接受数组／null；标签规范化、首次顺序去重，非法标签、错误类型及列表空项阻止启动，不降级扫描。优先级为显式setLocale（含空列表）→配置→发现；后两种显式列表跳过文件来源。候选在HTTP引导时捕获，保留现有配置缓存和重启边界，不提供运行中动态刷新。
+
+复用现有config::env::get的null解析、canonical_locale、SetLocale::configure、FileLoader与LocaleSelection。未增加依赖、管理器、通用策略管线或应用启动入口改动。既有APP_LOCALE_HEADER用于普通自定义头，其URL／受保护Cookie之后的优先级不变；localeUsing保留最高优先级业务回调。缺少配置自定义头不重试Accept-Language；三语文档明确两种方式的区别。
+
+本轮实际在线读取固定应用配置06d016a364a37430eec9cbc52209adce3d7667ce的config/app.php（https://github.com/laravel/laravel/blob/06d016a364a37430eec9cbc52209adce3d7667ce/config/app.php）与mcamara/laravel-localization的src/config/config.php（https://github.com/mcamara/laravel-localization/blob/master/src/config/config.php，2026-11-23读取）。前者核对语言配置职责，后者借鉴supportedLocales配置及候选与界面共用，不引入其整套路由方案。app.supported_locales与资源发现仍为OpenRust扩展。旧v0.x配置已检查，没有可直接移入的候选配置；沿用当前实现。web检索接口未返回内容，实际来源以urllib成功保存的原始文件及research/sources.json为准，不将搜索失败当成完成验证。
+
+### 实际验收
+
+全部命令经tests/build_guard.py、Rust1.94.0在target/tmp/locale-config-20261123/source隔离源码执行；复用已确认空闲的target/tmp/locale-discovery-20261123/cargo-target，子进程使用项目内TMPDIR。
+
+| 范围 | 证据与结果 |
+| --- | --- |
+| 框架 | framework-verified.log：translation_locales 12、set_locale_middleware 31、locale_preference 15，共58项通过；覆盖顺序／规范化／去重、显式覆盖含空列表、空资源／读取错误跳过、错误配置失败及修正重试、启动快照、配置缓存和应用隔离 |
+| 应用 | application-final.log：configuration 3、welcome 30、startup 28、application_skeleton 2、http 16，共79项通过；通过.env限制／自动／关闭候选，真实欢迎页菜单顺序、CSRF保存及受保护偏好、显式覆盖均通过 |
+| 有状态API | sanctum.log：开启sanctum feature的locale_preference 16项通过；保留Cookie管线及请求隔离边界 |
+| 真实浏览器 | browser.log、browser/results.json：390／1280两视口共12组真实HTTP Chromium；自动／列表／空值／null／显式覆盖／配置头六种模式，菜单、保存／重置及请求头优先级均通过，临时服务器正常退出；临时Rust服务入口已移除 |
+| 三语正文 | docs-results-final.log：内容、VitePress构建、浏览器及根／docs双前缀全导航均exit=0；正文保留其他在途语言偏好便捷入口说明 |
+
+上述153项定向Rust回归均通过，0失败／忽略。首次测试夹具误将捕获闭包传入仅接受函数指针的withConfig，改用夹具文件和无捕获配置函数；第二次错误诊断断言只读到BootstrapError外层提示，改为沿Error::source核对底层ConfigError::InvalidType的app.supported_locales键，保留错误启动及修正重试断言。最终上述目标全部重新通过。
+
+
+收尾质量检查：fmt-closure.log的cargo +1.94.0 fmt --all -- --check，以及clippy-success.log的cargo +1.94.0 clippy --workspace --all-targets --locked -- -D warnings均通过。Clippy发现本轮断言的err().expect写法，已直接改用expect_err，无新增豁免。全workspace初跑另暴露快照内过期的Response::body调用；仅将工作区已有的5处消费者测试文件同步至隔离快照，未修改其活跃工作区代码。快照遗漏的本地忽略夹具tests/reference/json-schema.php也仅复制至项目内临时快照以恢复原有编译输入；不新增跟踪文件。原始失败日志保留于clippy-final.log、clippy-verified.log及clippy-closure.log，同步路径指纹见clippy-snapshot-sync.json。第三方sqlx-sqlite、rav1e、imgalifier-avif既有警告保留，不宣称依赖零诊断。
+
+本批未运行完整workspace测试、其他浏览器引擎／真实设备、Windows、Docker部署或性能压测；未改共享数据库与缓存驱动，不将本次候选配置计为三库／三缓存验收。没有添加18种正式译文或运行中配置热更新。其他协作者在途改动保留，不计为本任务独立完成的交付；本轮未暂存、提交或推送。
+
+断言收尾后translation_locales 12项再次通过，见candidates-closure.log。9个本轮技术交付文件与最终验收快照逐字节一致，SHA256及HEAD见closure.json；git diff --check通过。最终空间约33.0 GB／30.7 GiB，仍高于32 GB停线；保留源码、日志、依赖及可复用产物，未清理其他构建。本次配置功能范围无剩余实现或验收阻塞。
+
+用户随后授权本轮本地提交，不包含推送。提交前按任务差异分离共享文件，仅暂存候选配置、相关测试、三语正文和本主题记录，不包含请求体保存／返回URL及其他协作者改动。仅含本次暂存代码的commit-source隔离快照重新通过框架52项（9＋31＋12）、配置3项和欢迎页29项，共84项，0失败／忽略，见precommit-framework-retry.log及precommit-application-retry.log；fmt和三语内容检查通过，9个技术暂存文件与提交快照逐字节一致，见precommit-closure.json。此次未重新执行欢迎页浏览器或完整workspace严格Clippy，先前组合快照结果及范围保留原记录。
+
+提交前复验曾触及32 GB停线，两个守卫安全停止构建，退出75不计通过；按项目规则取得锁并清理编译产物，保留源码、改动、依赖和日志，释放约101.8 GB，清理后约133.5 GB可用，实际事件见target/tmp/build-guard-events.jsonl。上表提交前测试已在恢复空间后重新执行通过。

@@ -518,3 +518,41 @@ fn laravel_slug_defaults_keep_explicit_session_cache_and_redis_names() {
         "redis-chosen"
     );
 }
+
+#[test]
+fn supported_locale_environment_preserves_automatic_disabled_and_explicit_states() {
+    let root = std::env::temp_dir().join(format!(
+        "locale-config-{}",
+        openrust::support::Str::random(12)
+    ));
+    fs::create_dir_all(&root).unwrap();
+    for (text, expected) in [
+        ("", Value::Null),
+        ("APP_SUPPORTED_LOCALES=null\n", Value::Null),
+        ("APP_SUPPORTED_LOCALES=(NULL)\n", Value::Null),
+        ("APP_SUPPORTED_LOCALES=\n", json!([])),
+        (
+            "APP_SUPPORTED_LOCALES=JA,en,zh-Hans\n",
+            json!(["ja", "en", "zh-Hans"]),
+        ),
+    ] {
+        fs::write(root.join(".env"), text).unwrap();
+        let env = LoadEnvironmentVariables::bootstrap(&root, None).unwrap();
+        assert_eq!(
+            config::load(&root, &env).unwrap()["app"]["supported_locales"],
+            expected,
+            "{text}"
+        );
+    }
+    for text in ["zh_CN", "en,,ja", "en,", "[]"] {
+        fs::write(root.join(".env"), format!("APP_SUPPORTED_LOCALES={text}\n")).unwrap();
+        let env = LoadEnvironmentVariables::bootstrap(&root, None).unwrap();
+        assert!(
+            config::load(&root, &env)
+                .unwrap_err()
+                .to_string()
+                .contains("APP_SUPPORTED_LOCALES")
+        );
+    }
+    fs::remove_dir_all(root).unwrap();
+}

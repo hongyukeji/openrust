@@ -55,7 +55,7 @@ OpenRust 默认自动装配 `openrust::http::middleware::SetLocale`，应用无�
 
 `zh-Hans`、`zh-CN`、`zh-SG` 和仅 `zh` 对应简体；`zh-Hant`、`zh-TW`、`zh-HK`、`zh-MO` 对应繁体，明确的文字体系优先于地区，未知文字体系不按中文地区猜测。数字变体不作为文字体系。其他语言匹配完整标识或基础语言。此选择规则不改变公开语言标签的规范化语义。
 
-需要限制启用语言、指定顺序或使用非文件来源的语言时，在 `bootstrap/app.rs` 的 `withMiddleware` 中显式覆盖候选，不需要新增配置键：
+通过 [`app.supported_locales`](#available-locales) 配置即可限制语言、指定顺序或启用非文件来源。需要在代码中覆盖配置时，在 `bootstrap/app.rs` 的 `withMiddleware` 中显式指定候选：
 
 ```rust
 .withMiddleware(|middleware| {
@@ -73,9 +73,20 @@ OpenRust 默认自动装配 `openrust::http::middleware::SetLocale`，应用无�
 
 ### 可用语言 {#available-locales}
 
+普通应用可直接通过 `.env` 配置 `app.supported_locales`，无需编写中间件回调：
+
+```dotenv
+APP_SUPPORTED_LOCALES=en,zh-Hans,zh-Hant,ja
+```
+
+环境变量未设置或为 `null`（也支持 `(null)`，大小写不限）时自动发现资源。`APP_SUPPORTED_LOCALES=` 生成空列表，关闭语言选择和欢迎页菜单；逗号分隔的列表按指定顺序启用语言，也支持仅来自数据库的语言。标签规范化并按首次出现去重；非法标签、列表中的空项或错误配置类型在启动时报错。直接配置接受 JSON 数组或 `null`，不接受逗号分隔字符串。
+
+候选优先级为显式 `middleware.setLocale(...)` → `app.supported_locales` → 资源自动发现，显式空列表同样优先。配置列表和显式列表均跳过扫描。默认中间件在 HTTP 启动时保存一次候选；修改后重启应用，使用配置缓存时同时重建缓存。本配置不改变 `app.locale`、`app.fallback_locale` 或请求来源优先级。
+
+
 `FileLoader::availableLocales()` 发现 `<语言>.json` 和包含分组 JSON 资源的语言目录，也支持嵌套分组。扫描路径与翻译加载一致：存在 `resources/lang` 时使用该目录，否则使用 `lang`，并包含 `addPath` 登记的应用路径和 `addJsonPath` 登记的顶层 JSON 文件。包命名空间、`vendor`、隐藏项、符号链接和空语言目录不会启用语言。文件及目录名必须已是规范 BCP 47 标签，例如使用 `zh-Hans`，不用 `zh_CN` 或 `ZH-hans`。结果去重并按标签排序；发现过程不解析词条内容，也不判断翻译是否完整。
 
-默认中间件在应用 Provider 启动完成后、接收请求前保存这份候选。每个请求不再扫描；添加或移除语言资源后需重启应用。候选发现独立于配置缓存。显式调用 `setLocale` 时跳过扫描，包括空列表，仍以显式设置为准。未发现语言时保留应用配置的语言并隐藏欢迎页切换菜单。仅来自数据库的语言通过显式候选启用；发现过程不查询数据库，也不自动启用所有包的语言。
+默认中间件在应用 Provider 启动完成后、接收请求前保存这份候选。每个请求不再扫描；添加或移除语言资源后需重启应用。候选发现独立于配置缓存。显式 `setLocale` 优先于配置；未显式设置时，非 null 的 `app.supported_locales` 列表跳过扫描。未发现语言时保留应用配置的语言并隐藏欢迎页切换菜单。仅来自数据库的语言通过显式候选启用；发现过程不查询数据库，也不自动启用所有包的语言。
 
 例如增加 `lang/ja/welcome.json`，以及内容为 `{"name":"日本語"}` 的 `lang/ja/languages.json`，即可增加日语，无需修改控制器或菜单。缺少文案继续使用正常翻译回退。模板可通过 `Lang::hasForLocale('languages.name', $choice)` 判断该语言自身是否提供名称。右至左页面在该语言的 `languages.json` 中增加 `"direction":"rtl"`，欢迎页据此设置 HTML `dir="rtl"`；菜单支持长列表滚动。未提供方向时使用文档默认的左至右布局。新增界面翻译不会创建文档目录，欢迎页文档链接仍须对应实际提供的文档。
 
@@ -140,11 +151,12 @@ Accept-Language: zh-Hans
 
 ### 自定义语言选择 {#custom-locale-selection}
 
+普通自定义协商头直接设置既有 `APP_LOCALE_HEADER=X-Locale`，不设置时协商 `Accept-Language`。该头位于 URL 和受保护 Cookie 偏好之后；请求缺少配置的自定义头时，使用默认语言或首个候选，不再尝试 `Accept-Language`。这与优先于其他来源的回调不同。常规候选列表使用上方配置，用户或租户语言等业务规则再使用回调。
+
 `localeUsing` 是 OpenRust 扩展接口，可为当前应用的中间件实例设置同步回调。例如优先读取指定请求头，缺少时依次尝试 URL、受保护的偏好 Cookie 与请求头协商：
 
 ```rust
 .withMiddleware(|middleware| {
-    middleware.setLocale(&["en", "zh-Hans", "zh-Hant"]).expect("语言标签有效");
     middleware.localeUsing(|request| {
         Ok(request.header("X-Locale")?.map(str::to_owned))
     });

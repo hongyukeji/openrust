@@ -254,3 +254,180 @@ async fn failed_explicit_configuration_retains_automatic_discovery() {
         serde_json::json!(["ja"])
     );
 }
+
+fn configured_application(
+    root: &Path,
+    value: serde_json::Value,
+    explicit: Option<Vec<&'static str>>,
+) -> Application {
+    fs::write(root.join("supported.json"), value.to_string()).unwrap();
+    Application::configure(root.to_owned())
+        .withConfig(|base, _| {
+            let value: serde_json::Value = serde_json::from_slice(&fs::read(base.join("supported.json")).unwrap()).unwrap();
+            Ok(BTreeMap::from([("app".into(), serde_json::json!({"locale":"en", "fallback_locale":"en", "supported_locales":value}))]))
+        })
+        .withMiddleware(move |middleware| {
+            if let Some(candidates) = explicit { middleware.setLocale(&candidates).unwrap(); }
+        })
+        .withRouting(Routing::default().web(|| Route::get("/", inspect)))
+        .create().unwrap()
+}
+
+#[tokio::test]
+async fn configured_candidates_override_discovery_preserve_order_and_normalize_once() {
+    let root = tempfile::tempdir().unwrap();
+    write(root.path(), "lang/de/messages.json");
+    let mut selected = Kernel::new(configured_application(
+        root.path(),
+        serde_json::json!(["JA", "en", "ja"]),
+        None,
+    ));
+    selected.bootstrap().await.unwrap();
+    assert_eq!(
+        request(&selected, "/", "de").await,
+        serde_json::json!({"locale":"en", "supported":["ja","en"]})
+    );
+    assert_eq!(
+        request(&selected, "/?locale=ja", "en").await["locale"],
+        "ja"
+    );
+    selected
+        .get_application()
+        .config()
+        .unwrap()
+        .set("app.supported_locales", serde_json::json!(["de"]))
+        .unwrap();
+    selected.bootstrap().await.unwrap();
+    assert_eq!(
+        request(&selected, "/", "ja").await["supported"],
+        serde_json::json!(["ja", "en"])
+    );
+}
+
+#[tokio::test]
+async fn null_discovers_but_configured_lists_and_explicit_candidates_skip_sources() {
+    let root = tempfile::tempdir().unwrap();
+    write(root.path(), "lang/ja/messages.json");
+    let mut automatic = Kernel::new(configured_application(
+        root.path(),
+        serde_json::Value::Null,
+        None,
+    ));
+    automatic.bootstrap().await.unwrap();
+    assert_eq!(
+        request(&automatic, "/", "ja").await["supported"],
+        serde_json::json!(["ja"])
+    );
+    fs::remove_dir_all(root.path().join("lang")).unwrap();
+    fs::write(root.path().join("lang"), "not a directory").unwrap();
+    for (value, explicit, expected) in [
+        (
+            serde_json::json!(["fr", "en"]),
+            None,
+            serde_json::json!(["fr", "en"]),
+        ),
+        (serde_json::json!([]), None, serde_json::Value::Null),
+        (
+            serde_json::json!(["fr"]),
+            Some(vec!["ja"]),
+            serde_json::json!(["ja"]),
+        ),
+        (
+            serde_json::json!(["fr"]),
+            Some(vec![]),
+            serde_json::Value::Null,
+        ),
+        (
+            serde_json::json!(false),
+            Some(vec!["en"]),
+            serde_json::json!(["en"]),
+        ),
+    ] {
+        let mut selected = Kernel::new(configured_application(root.path(), value, explicit));
+        selected.bootstrap().await.unwrap();
+        assert_eq!(request(&selected, "/", "fr").await["supported"], expected);
+    }
+}
+
+#[tokio::test]
+async fn malformed_candidate_configuration_fails_at_startup_and_can_be_retried() {
+    let root = tempfile::tempdir().unwrap();
+    for value in [
+        serde_json::json!("en,ja"),
+        serde_json::json!(false),
+        serde_json::json!({"en":true}),
+        serde_json::json!(["en", 42]),
+        serde_json::json!([""]),
+        serde_json::json!(["zh_CN"]),
+    ] {
+        let mut selected = Kernel::new(configured_application(root.path(), value.clone(), None));
+        let error = selected
+            .bootstrap()
+            .await
+            .expect_err("错误配置必须阻止启动");
+        let mut source: Option<&(dyn std::error::Error + 'static)> = Some(&error);
+        let mut invalid_candidates = false;
+        while let Some(error) = source {
+            if let Some(openrust::config::ConfigError::InvalidType { key, .. }) =
+                error.downcast_ref::<openrust::config::ConfigError>()
+            {
+                invalid_candidates = key == "app.supported_locales";
+                break;
+            }
+            source = error.source();
+        }
+        assert!(invalid_candidates, "{value}: {error:?}");
+        selected
+            .get_application()
+            .config()
+            .unwrap()
+            .set("app.supported_locales", serde_json::json!(["ja"]))
+            .unwrap();
+        selected.bootstrap().await.unwrap();
+        assert_eq!(
+            request(&selected, "/", "ja").await["supported"],
+            serde_json::json!(["ja"])
+        );
+    }
+}
+
+#[tokio::test]
+async fn cached_candidates_win_over_live_configuration_and_keep_applications_isolated() {
+    let root = tempfile::tempdir().unwrap();
+    let mut first = Kernel::new(configured_application(
+        root.path(),
+        serde_json::json!(["ja", "en"]),
+        None,
+    ));
+    first.bootstrap().await.unwrap();
+    let cache = serde_json::to_value(first.get_application().config().unwrap().all()).unwrap();
+    fs::create_dir_all(root.path().join("storage/framework")).unwrap();
+    fs::write(
+        root.path().join("storage/framework/config.json"),
+        cache.to_string(),
+    )
+    .unwrap();
+    let mut cached = Kernel::new(configured_application(
+        root.path(),
+        serde_json::json!(["fr"]),
+        None,
+    ));
+    cached.bootstrap().await.unwrap();
+    assert_eq!(
+        request(&cached, "/", "ja").await["supported"],
+        serde_json::json!(["ja", "en"])
+    );
+    let independent_root = tempfile::tempdir().unwrap();
+    let mut independent = Kernel::new(configured_application(
+        independent_root.path(),
+        serde_json::json!(["fr"]),
+        None,
+    ));
+    independent.bootstrap().await.unwrap();
+    let (cached, other) = tokio::join!(
+        request(&cached, "/", "fr"),
+        request(&independent, "/", "fr")
+    );
+    assert_eq!(cached["locale"], "en");
+    assert_eq!(other["locale"], "fr");
+}

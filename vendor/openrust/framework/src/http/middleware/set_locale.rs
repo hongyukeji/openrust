@@ -71,13 +71,39 @@ impl SetLocale {
         Ok(self)
     }
 
-    /// 默认实例在 HTTP 引导完成后读取一次来源；显式候选（含空列表）不扫描。
+    /// 默认实例在 HTTP 引导后优先读取配置，否则发现资源；显式候选跳过两者。
     pub(crate) async fn configure(
         &mut self,
         app: &crate::foundation::Application,
     ) -> TranslationResult<()> {
         use crate::contracts::{container::Container as _, foundation::Application as _};
         if self.discover {
+            let config = app
+                .config()
+                .map_err(crate::translation::TranslationError::Unavailable)?;
+            let invalid = || {
+                crate::translation::TranslationError::Source(Box::new(ConfigError::InvalidType {
+                    key: "app.supported_locales".into(),
+                    expected: "BCP 47 语言标签数组或 null",
+                }))
+            };
+            match config.get("app.supported_locales") {
+                None | Some(serde_json::Value::Null) => {}
+                Some(serde_json::Value::Array(locales)) => {
+                    let mut supported = Vec::new();
+                    for locale in locales {
+                        let locale = canonical_locale(locale.as_str().ok_or_else(invalid)?)
+                            .map_err(|_| invalid())?;
+                        if !supported.contains(&locale) {
+                            supported.push(locale);
+                        }
+                    }
+                    self.supported = supported;
+                    self.discover = false;
+                    return Ok(());
+                }
+                Some(_) => return Err(invalid()),
+            }
             let loader = app
                 .container()
                 .get::<crate::translation::FileLoader>("translation.loader")

@@ -83,6 +83,8 @@ pub(super) fn load(env: &Environment) -> Result<Loaded<'_>, ConfigError> {
         "locale": locale(env, "APP_LOCALE", "en")?,
         "fallback_locale": locale(env, "APP_FALLBACK_LOCALE", "en")?,
         "faker_locale": locale(env, "APP_FAKER_LOCALE", "en-US")?,
+        // null 自动发现语言；数组限制候选，空数组关闭识别。
+        "supported_locales": supported_locales(env)?,
         // 浏览器手动语言偏好 Cookie；JSON null 表示关闭。
         "locale_cookie": get(env, "APP_LOCALE_COOKIE", "locale")?,
         // 应用语言协商请求头；JSON null 表示关闭。
@@ -178,4 +180,24 @@ fn locale(env: &Environment, key: &str, default: &str) -> Result<String, ConfigE
         key: key.into(),
         expected: "BCP 47 语言标签（如 en、zh-Hans、zh-Hant）",
     })
+}
+
+fn supported_locales(env: &Environment) -> Result<Value, ConfigError> {
+    let value = get(env, "APP_SUPPORTED_LOCALES", Value::Null)?;
+    let Some(value) = value.as_str() else {
+        return Ok(Value::Null);
+    };
+    if value.trim().is_empty() {
+        return Ok(json!([]));
+    }
+    value
+        .split(',')
+        .map(|value| {
+            canonical_locale(value.trim()).map_err(|_| ConfigError::InvalidType {
+                key: "APP_SUPPORTED_LOCALES".into(),
+                expected: "逗号分隔的 BCP 47 语言标签，空值关闭，null 自动发现",
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .map(|locales| json!(locales))
 }

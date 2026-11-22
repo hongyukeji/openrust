@@ -73,3 +73,6 @@ L01–L22本批实现和实际验收见[审计修复节](audits/laravel-code-aud
 - [x] **06-08 Artisan 交互本地化**。命令列表、帮助、参数错误与生产确认复用应用翻译器。默认使用 `APP_LOCALE`，应用翻译缺失时按 `APP_FALLBACK_LOCALE` 回退。命令名、选项、退出码与机器可读输出结构沿用现有契约。 [基础验收](audits/06-08/README.md) · [生产确认验收](audits/06-08/production-confirmation.md)
 
 - [x] **欢迎页页头与Blade语言链接（2026-11-23）**：移除language_links控制器函数，候选／编码链接／母语名称及状态全部由模板处理；语言名称独立JSON，页头主题默认跟随系统。96项定向回归、fmt、严格Clippy、36组真实HTTP浏览器及三语文档构建／浏览器／导航通过，交付文件与快照一致；边界及证据见[主题记录](audits/03-07/welcome-language-2026-11-22.md#欢迎页页头母语名称与-blade-链接生成2026-11-23)。用户已授权本轮本地提交，不包含推送或发布。
+
+
+- [x] **语言候选配置（2026-11-23）**：通过app.supported_locales／APP_SUPPORTED_LOCALES控制候选，缺省／null自动发现，空列表停用，显式代码优先；复用启动快照与配置缓存，三语文档同步。验收与范围见[主题记录](audits/03-07/welcome-language-2026-11-22.md#语言候选配置2026-11-23)。用户已授权本轮本地提交，不包含推送。
