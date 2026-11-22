@@ -8,6 +8,8 @@ use crate::support::Arr;
 #[derive(Serialize, Deserialize)]
 enum Operation {
     CurrentLocale,
+    ApplicationVersion,
+    IsLocale,
     Repository,
     FrameworkVersion,
     Query,
@@ -76,7 +78,18 @@ impl Helper {
             .strip_prefix("request()")
             .and_then(|rest| rest.trim_start().strip_prefix("->"))
             .or_else(|| source.strip_prefix("Request::"));
-        let source = if let Some(source) = request {
+        let application = source
+            .strip_prefix("app()")
+            .and_then(|rest| rest.trim_start().strip_prefix("->"));
+        let source = if let Some(source) = application {
+            calls = vec![
+                ("currentLocale", Operation::CurrentLocale, 0, 0),
+                ("getLocale", Operation::CurrentLocale, 0, 0),
+                ("isLocale", Operation::IsLocale, 1, 1),
+                ("version", Operation::ApplicationVersion, 0, 0),
+            ];
+            source.trim_start()
+        } else if let Some(source) = request {
             calls = vec![
                 ("query", Operation::Request(RequestOperation::Query), 0, 2),
                 ("input", Operation::Request(RequestOperation::Input), 0, 2),
@@ -165,6 +178,18 @@ impl Helper {
             Operation::CurrentLocale => crate::support::facades::App::currentLocale()
                 .map(ViewValue::String)
                 .map_err(|source| super::ViewError::RenderFailed(Box::new(source))),
+            Operation::ApplicationVersion => crate::support::facades::App::version()
+                .map(ViewValue::from)
+                .map_err(|source| super::ViewError::RenderFailed(Box::new(source))),
+            Operation::IsLocale => {
+                let locale = arguments[0]
+                    .as_ref()
+                    .as_str()
+                    .ok_or_else(|| render_error("语言标识必须是字符串。"))?;
+                crate::support::facades::App::isLocale(locale)
+                    .map(ViewValue::Bool)
+                    .map_err(|source| super::ViewError::RenderFailed(Box::new(source)))
+            }
             Operation::Repository => Ok(crate::foundation::Application::REPOSITORY.into()),
             Operation::FrameworkVersion => Ok(crate::foundation::Application::VERSION.into()),
             Operation::StringConfig => {

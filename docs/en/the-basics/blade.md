@@ -67,16 +67,18 @@ HTTP views can read the current request and loaded configuration directly, witho
 
 `request()->` and `Request::` support `query`, `input`, `header`, `path`, `getPathInfo`, `getBaseUrl`, `url`, `fullUrl`, `method` and `secure`. `query()` returns all query parameters; a single key reads the top-level query bag. `input()` combines body and query input, supports dotted paths and gives body keys precedence. Both accept a key and missing-value default. `header` requires a name and accepts a missing-value default. `path()` trims surrounding slashes (the root remains `/`); `getPathInfo()` preserves the leading slash and encoding. `getBaseUrl()` returns the deployment prefix separately. Other methods take no arguments. Default HTML escaping still applies.
 
-Request reads use the live request during HTTP response rendering. Includes, components and cached templates share that request, while separate requests and applications remain isolated. Offline rendering cannot read Request; configuration reads also require an application scope. Templates expose only these read calls: they do not return arbitrary mutable `request()` or `config()` objects, write configuration, mutate requests or execute arbitrary PHP methods. Use `App::currentLocale()` for the actual application locale; request headers do not represent the final selection.
+Request reads use the live request during HTTP response rendering. Includes, components and cached templates share that request, while separate requests and applications remain isolated. Offline rendering cannot read Request; configuration reads also require an application scope. Templates expose only these read calls: they do not return arbitrary mutable `request()` or `config()` objects, write configuration, mutate requests or execute arbitrary PHP methods. Use `app()->currentLocale()` for the actual application locale; request headers do not represent the final selection.
 
-Blade can read `App::currentLocale()` and `App::getLocale()` directly; both return the current application locale, including downstream changes. `Application::VERSION` and `Application::REPOSITORY` expose framework package metadata. The OpenRust request extension `request()->localeSelection()` (also `Request::localeSelection()`) returns the middleware's selection state, or `null` when it did not run. Its `supported`, `preference`, `from_query`, `query_parameter` and `can_store` fields describe switching capabilities rather than the final locale. These values need no controller parameters:
+Blade can read `app()->currentLocale()` and `app()->getLocale()` directly; both return the current application locale, including downstream changes. `Application::VERSION` and `Application::REPOSITORY` expose framework package metadata. The OpenRust request extension `request()->localeSelection()` (also `Request::localeSelection()`) returns the middleware's selection state, or `null` when it did not run. Its `supported`, `preference`, `from_query`, `query_parameter` and `can_store` fields describe switching capabilities rather than the final locale. These values need no controller parameters:
+
+`app()->currentLocale()` and `app()->getLocale()` read the current application locale; `app()->isLocale('zh-Hans')` checks it and `app()->version()` returns the framework version. The application version remains `config('app.version')`. These calls use the current application and locale scope in includes, components and cached templates. Existing App Facade calls remain available. Template `app()` supports these read calls, not arbitrary container resolution such as `app('service')`, returning the application object, or mutation methods.
 
 `Config::string(key)` requires an existing string value; missing keys, null and other types are errors.
 
 ```blade
-<html lang="{{ App::currentLocale() }}">
-<input name="{{ Config::string('app.locale_form_field') }}">
-<a href="{{ Application::REPOSITORY }}/blob/master/docs/{{ App::currentLocale() }}/README.md">Docs</a>
+<html lang="{{ app()->currentLocale() }}">
+<input name="{{ config('app.locale_form_field') }}">
+<a href="{{ Application::REPOSITORY }}/blob/master/docs/{{ app()->currentLocale() }}/README.md">Docs</a>
 ```
 
 ### HTML Entity Encoding {#html-entity-encoding}

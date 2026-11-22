@@ -1,3 +1,17 @@
+## Blade app 助手（2026-11-23）
+
+欢迎页优先使用config、request及app()->currentLocale；补齐模板app()->getLocale／isLocale／version，复用App Facade与当前应用语言作用域，不支持任意app(service)解析、裸对象返回或修改。配置读取无默认值；保存入口仍严格Config::string。仓库元信息保留Application::REPOSITORY。三语正文、规范和计划23同步。
+
+Rust1.94.0隔离93项定向测试、fmt、严格Clippy、欢迎页25组HTTP Chromium及三语内容／构建／12组浏览器／6组导航通过，14处交付与快照一致。见[主题记录](audits/03-07/welcome-language-2026-11-22.md#blade-app-助手与欢迎页助手风格2026-11-23)，材料target/tmp/blade-app-helper-20261123/。完整workspace、其他平台及发布未验；未提交，保留其他协作改动。
+
+## 欢迎页配置默认值集中定义（2026-11-23）
+
+欢迎页移除app.name五处及app.version两处读取默认值，调用改为config(app.name)与Config::get(app.version)；表单字段已有无默认的Config::string。默认值统一保留在应用配置，不增加新的严格读取或改变控件空状态逻辑。
+
+Rust1.94.0隔离欢迎页34项真实Kernel／模板测试通过，交付与快照一致；本次仅模板改动，未重跑Clippy、浏览器视觉或文档构建。材料target/tmp/welcome-config-no-default-20261123/，本次未提交，其他协作改动保留。
+
+用户随后授权本轮本地提交，不包含推送或发布；仅提交本主题改动，保留其他协作者在途修改。
+
 ## 表单字段严格读取（2026-11-23）
 
 按用户最终要求，欢迎页及保存入口直接使用Config::string(app.locale_form_field)，无消费端兜底；默认locale由应用配置定义。删除重复字段名配置校验，缺键／null／非字符串沿用既有Config错误；保留输入、语言候选、Cookie管线、CSRF与安全返回地址。

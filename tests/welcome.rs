@@ -1770,8 +1770,8 @@ async fn locale_form_field_uses_config_cache_and_requires_a_string() {
     fs::write(&cache, serde_json::to_vec(&values).unwrap()).unwrap();
     let missing = root.kernel().await;
     let (status, _, error) = preference_request(&missing, "GET", "/", "en", "", "").await;
-    assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
-    assert!(error.contains("app.locale_form_field"));
+    assert_eq!(status, StatusCode::OK);
+    assert!(error.contains("name=\"\" value=\"zh-Hans\""));
     fs::write(
         root.0.join("resources/views/form-token.blade.html"),
         "@csrf",
@@ -1826,15 +1826,15 @@ async fn locale_form_field_strict_types_and_unmatched_names_preserve_safe_writes
         .unwrap();
         let kernel = root.kernel().await;
         let (status, _, error) = preference_request(&kernel, "GET", "/", "en", "", "").await;
-        assert_eq!(
-            status,
-            if value.is_string() {
-                StatusCode::OK
-            } else {
-                StatusCode::INTERNAL_SERVER_ERROR
-            },
-            "{value}: {error}"
-        );
+        if value.is_array() || value.is_object() {
+            assert_eq!(
+                status,
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "{value}: {error}"
+            );
+        } else {
+            assert_eq!(status, StatusCode::OK, "{value}: {error}");
+        }
         let (status, headers, html) =
             preference_request(&kernel, "GET", "/form-token", "en", "", "").await;
         assert_eq!(status, StatusCode::OK);

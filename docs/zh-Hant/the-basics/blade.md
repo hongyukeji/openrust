@@ -67,16 +67,18 @@ HTTP 視圖可直接讀取目前請求與已載入的設定，不必由控制器
 
 `request()->` 與 `Request::` 支援 `query`、`input`、`header`、`path`、`getPathInfo`、`getBaseUrl`、`url`、`fullUrl`、`method`、`secure`。`query()` 傳回完整查詢參數，單鍵查詢讀取頂層鍵；`input()` 合併請求本文與查詢參數，支援點路徑，同名時本文優先；兩者均可傳入鍵與缺失預設值。`header` 需要標頭名稱，可傳缺失預設值。`path()` 不含兩端斜杠（根路徑為 `/`）；`getPathInfo()` 保留開頭斜杠及編碼；部署前綴由 `getBaseUrl()` 單獨傳回。其他方法不接受參數。預設跳脫同樣適用。
 
-請求讀取透過 HTTP 回應渲染取得真實請求，子視圖、元件與快取模板共用本次請求，獨立請求及應用保持隔離。離線渲染不能讀取 Request；設定讀取也需要有效應用作用域。模板僅開放上述讀取呼叫，不支援將 `request()`／`config()` 傳回為任意可變物件，也不執行設定寫入、請求修改或任意 PHP 方法。業務目前語言仍使用 `App::currentLocale()`，請求標頭不代表最終應用語言。
+請求讀取透過 HTTP 回應渲染取得真實請求，子視圖、元件與快取模板共用本次請求，獨立請求及應用保持隔離。離線渲染不能讀取 Request；設定讀取也需要有效應用作用域。模板僅開放上述讀取呼叫，不支援將 `request()`／`config()` 傳回為任意可變物件，也不執行設定寫入、請求修改或任意 PHP 方法。業務目前語言仍使用 `app()->currentLocale()`，請求標頭不代表最終應用語言。
 
-Blade 可直接呼叫 `App::currentLocale()` 和 `App::getLocale()`，讀取目前應用程式語言，也能看到下游主動切換的結果。`Application::VERSION`、`Application::REPOSITORY` 讀取框架套件中繼資料。OpenRust 請求擴充 `request()->localeSelection()`（也支援 `Request::localeSelection()`）讀取中介軟體選擇狀態，未執行時回傳 `null`；其中 `supported`、`preference`、`from_query`、`query_parameter`、`can_store` 描述切換能力，不代替目前實際語言。這些值無需控制器傳參：
+Blade 可直接呼叫 `app()->currentLocale()` 和 `app()->getLocale()`，讀取目前應用程式語言，也能看到下游主動切換的結果。`Application::VERSION`、`Application::REPOSITORY` 讀取框架套件中繼資料。OpenRust 請求擴充 `request()->localeSelection()`（也支援 `Request::localeSelection()`）讀取中介軟體選擇狀態，未執行時回傳 `null`；其中 `supported`、`preference`、`from_query`、`query_parameter`、`can_store` 描述切換能力，不代替目前實際語言。這些值無需控制器傳參：
+
+`app()->currentLocale()` 和 `app()->getLocale()` 讀取目前應用程式語言；`app()->isLocale('zh-Hans')` 判斷目前語言，`app()->version()` 回傳框架版本。應用程式版本仍使用 `config('app.version')`。這些呼叫在子檢視、元件和快取範本中復用目前應用程式及語言作用域，原有 App Facade 呼叫繼續可用。範本中的 `app()` 支援這些唯讀呼叫，不支援 `app('service')` 等任意容器解析、回傳應用程式物件或修改方法。
 
 `Config::string(key)` 要求設定存在且為字串；缺鍵、null 或其他型別報錯。
 
 ```blade
-<html lang="{{ App::currentLocale() }}">
-<input name="{{ Config::string('app.locale_form_field') }}">
-<a href="{{ Application::REPOSITORY }}/blob/master/docs/{{ App::currentLocale() }}/README.md">文件</a>
+<html lang="{{ app()->currentLocale() }}">
+<input name="{{ config('app.locale_form_field') }}">
+<a href="{{ Application::REPOSITORY }}/blob/master/docs/{{ app()->currentLocale() }}/README.md">文件</a>
 ```
 
 ### HTML 實體編碼 {#html-entity-encoding}

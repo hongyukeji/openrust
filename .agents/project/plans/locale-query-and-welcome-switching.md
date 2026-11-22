@@ -324,3 +324,8 @@ LocaleSelection分别提供最终选择来源、有效持久偏好及可写能�
 ## 22. 简化表单配置读取（2026-11-23）
 
 按用户最终要求，欢迎页与保存入口统一直接使用Config::string(app.locale_form_field)，不另设兜底；默认locale只在应用配置定义。缺键／null／非字符串遵循已有string错误，字符串原样保留。删除此前新增的重复字段名配置校验，保留请求体必填／类型与语言校验、Cookie安全管线、CSRF和本地重定向。Rust的Result按现有HTTP异常机制传播，不新增配置包装方法。用户已授权本轮本地提交，不含推送。
+
+
+## 23. 模板优先使用函数助手（2026-11-23）
+
+用户要求视图尽量使用config／request／app风格。欢迎页配置统一config且无默认参数，当前语言使用app()->currentLocale；补齐app()->getLocale／isLocale／version的只读模板调用，复用现有App Facade与请求语言作用域。Application::REPOSITORY保留既有包常量，不为风格新增repository访问方法。控制器仍严格读取表单字段；模板config沿用缺键null与默认转义契约，非法保存配置不写偏好。Facade与常量旧语法保留，不支持任意app对象或app(service)容器解析，不在模板修改状态。最终验收见主题记录；用户随后授权本轮本地提交，不含推送或发布。

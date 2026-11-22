@@ -120,7 +120,7 @@ OpenRust 擴充 `app.locale_cookie` 預設 `"locale"`，缺鍵相同，應用保
 "locale_form_field": get(env, "APP_LOCALE_FORM_FIELD", "locale")?,
 ```
 
-設定 `APP_LOCALE_FORM_FIELD=preferred_locale` 可同時修改歡迎頁表單與儲存入口。兩者直接使用 `Config::string("app.locale_form_field")`，不另設備援；預設值 `locale` 由應用程式設定定義。缺鍵、JSON `null` 或非字串報錯。請使用非空頂層欄位名稱，避免與 `redirect`、`_token`、`_method` 衝突。修改後重建設定快取。此設定不修改 Cookie 或 URL 參數名稱；通用儲存方法仍接受呼叫方指定的欄位。
+設定 `APP_LOCALE_FORM_FIELD=preferred_locale` 可同時修改歡迎頁表單與儲存入口。範本使用 `config('app.locale_form_field')`，儲存入口嚴格使用 `Config::string("app.locale_form_field")`，均不另設備援；預設值 `locale` 由應用程式設定定義。缺鍵、JSON `null` 或非字串會使儲存入口報錯且不寫入偏好。請使用非空頂層欄位名稱，避免與 `redirect`、`_token`、`_method` 衝突。修改後重建設定快取。此設定不修改 Cookie 或 URL 參數名稱；通用儲存方法仍接受呼叫方指定的欄位。
 
 ```rust
 let redirect = match request.post(Some("redirect")).await? {

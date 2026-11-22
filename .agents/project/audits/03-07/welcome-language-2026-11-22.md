@@ -947,3 +947,25 @@ Rust1.94.0，隔离源码 `target/tmp/locale-save-20261123/source/`；所有命�
 Blade新增只读Config::string，复用现有Config Facade及错误传播、默认转义；编译缓存43。三语正文、规范及计划22同步。Laravel固定配置仓储源码已在前一批research/config-repository.txt核对，严格字符串入口沿用项目已有API，不重建配置仓储。
 
 Rust1.94.0隔离源码、项目TMPDIR及独占复用locale-save缓存，经build_guard的checks.py框架55项＋应用37项，共92项通过，0失败／忽略；含真实Kernel配置缓存、缺键／null／非字符串时GET与合法CSRF POST报500且不写Cookie、自定义字段／清除、无匹配字段400、模板Config::string转义与类型错误。quality.py受影响fmt、框架库及测试／应用测试严格Clippy通过；三语check_content和git diff --check通过。14处交付源码／测试／正文与快照逐字节一致，材料在target/tmp/locale-form-strict-20261123/。未重跑浏览器视觉、文档站构建或完整workspace测试，不把此前浏览器结果计为本批执行。未操作开发数据。用户已授权本轮本地提交，不推送；保留其他协作改动。
+
+
+## 欢迎页移除配置读取默认值（2026-11-23）
+
+按用户要求，仅移除欢迎页调用处默认参数：app.name的config五处、app.version的Config::get两处，共七处；表单字段已经使用无默认的Config::string。应用配置仍定义名称、版本、表单字段默认值，不变更缺键读取契约或语言控件在中间件停用时的空状态处理。规范同步“默认值由配置文件定义”。
+
+Rust1.94.0、隔离源码及独占复用locale-save构建目录，经build_guard执行cargo test --locked -p openrust --test welcome，34项全部通过，0失败／忽略，包含真实HTTP Kernel与模板的名称版本、三语、偏好写入／清除、缓存配置、链接及响应头。14处本主题交付文件与快照逐字节一致；本次技术差异仅模板。材料在target/tmp/welcome-config-no-default-20261123/。未改Rust实现，未重跑fmt／Clippy、浏览器视觉、文档构建或完整workspace；没有用旧验收替代本次重跑结果。未暂存、提交或推送，保留其他协作改动。
+
+
+## Blade app 助手与欢迎页助手风格（2026-11-23）
+
+按用户要求优先使用config／request／app。核对发现当前模板仅支持App Facade，尚无app()->调用；在现有Helper解析与运行分派中补齐app()->currentLocale／getLocale／isLocale／version，委托现有App Facade与应用作用域，未增加App对象快照、管理器或共享可变全局状态。缓存版本44，旧Facade和常量语法保留。欢迎页语言改用app()->currentLocale，版本和表单字段改用config；所有配置读取无调用处默认值。仓库元信息继续Application::REPOSITORY，不为风格另造repository方法。
+
+固定Laravel1449bf241017087fbd38c118ecaabef3f6797fdc的Foundation/helpers.php已联网核对：app无abstract返回当前容器实例，有abstract调用make；结合此前固定Application语言与version源码，复用本地作用域绑定。原文在本批research/helpers.txt。当前模板只开放四个只读app方法，app(service)、裸对象返回及状态修改未实现，不宣称完整容器助手或任意PHP执行等价。旧v0.x视图结构不同，没有可复用的本批只读分派；复用当前helpers.rs机制。
+
+模板config按既有契约缺键返回null、标量正常输出、数组／对象不能直接回显；保存入口仍严格Config::string，缺键／null／非法类型报500且不写偏好，GET不再代替POST类型检查。现有正反测试按这一可观察区别同步，未删除POST安全校验断言。三语Blade／本地化正文、规范和计划23已同步。
+
+以HEAD85f919a61归档更新本批隔离源码，再叠加本任务14处交付文件；保留其他在途pagination等改动，不纳入通过结论。Rust1.94.0、独占复用locale-save构建目录、项目内TMPDIR，经build_guard执行checks.py：blade_request_config8、blade_translations7、request_input30、urls6、view_finder5及configuration3、welcome34，共93项通过，0失败／忽略。新增实际Kernel消费者覆盖四个app方法、框架与应用版本不同、语言与原始请求头不同、嵌套调用、缓存模板／子视图／组件、12个跨应用并发、错误参数及修改调用拒绝和失败恢复。
+
+quality.py受影响fmt、框架库／相关测试及应用测试严格Clippy通过（第三方既有警告保留）；docs.py三语内容／构建／12组浏览器／6组双前缀全导航通过；browser-checks.py真实HTTP Kernel＋Chromium25组欢迎页三语、桌面手机、明暗、自动／固定／清除、无JS和自定义来源交互通过。14处交付与最终快照逐字节一致，source-match.json记录SHA256，材料在target/tmp/blade-app-helper-20261123/。未验完整workspace、其他引擎／实机、Windows、Docker和发布；未操作开发数据，未暂存／提交／推送。
+
+用户随后授权本轮本地提交，不包含推送或发布；仅提交本主题改动，保留其他协作者在途修改。

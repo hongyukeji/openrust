@@ -120,7 +120,7 @@ The welcome form field is configured separately from the Cookie and query parame
 "locale_form_field": get(env, "APP_LOCALE_FORM_FIELD", "locale")?,
 ```
 
-Set `APP_LOCALE_FORM_FIELD=preferred_locale` to change the welcome form and save handler together. Both read `Config::string("app.locale_form_field")` without a fallback; the application configuration defines the default `locale`. Missing keys, JSON `null` and non-string values are errors. Use a nonempty top-level name distinct from `redirect`, `_token` and `_method`. Rebuild the configuration cache after changes. This setting does not rename Cookie or URL inputs; the generic saver still accepts a caller-selected field.
+Set `APP_LOCALE_FORM_FIELD=preferred_locale` to change the welcome form and save handler together. The template reads `config('app.locale_form_field')`; the save handler strictly reads `Config::string("app.locale_form_field")`. Neither supplies a fallback; the application configuration defines the default `locale`. Missing keys, JSON `null` and non-string values cause the save handler to fail without writing a preference. Use a nonempty top-level name distinct from `redirect`, `_token` and `_method`. Rebuild the configuration cache after changes. This setting does not rename Cookie or URL inputs; the generic saver still accepts a caller-selected field.
 
 ```rust
 let redirect = match request.post(Some("redirect")).await? {

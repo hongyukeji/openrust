@@ -29,7 +29,7 @@ impl Root {
             .withConfig(|base, _| {
                 let name = fs::read_to_string(base.join("app-name")).unwrap();
                 Ok(BTreeMap::from([
-                ("app".into(), serde_json::json!({"name": name,"debug":true,"env":"testing", "locale":"en", "nullable":null, "zero":0,"disabled":false})),
+                ("app".into(), serde_json::json!({"name": name,"debug":true,"env":"testing", "locale":"en", "version":"application-version", "nullable":null, "zero":0,"disabled":false})),
                 ("view".into(),serde_json::json!({"paths":[base.join("views")],"compiled":base.join("cache")})),
             ]))
             })
@@ -152,7 +152,7 @@ async fn cached_templates_children_components_and_concurrent_apps_keep_their_con
         root.write("layout", "{{ config('app.name') }}:@yield('content')");
         root.write(
             "part",
-            "{{ Request::query('id') }}:{{ App::currentLocale() }}:",
+            "{{ Request::query('id') }}:{{ app()->currentLocale() }}:",
         );
         root.write(
             "components/read",
@@ -312,4 +312,54 @@ async fn string_config_helper_preserves_strings_and_errors_for_missing_or_other_
             StatusCode::INTERNAL_SERVER_ERROR
         );
     }
+}
+
+#[tokio::test]
+async fn app_helper_reads_the_current_application_and_rejects_mutation_or_bad_arguments() {
+    let root = Root::new();
+    root.write("main", "{{ app()->currentLocale() }}|{{ app()->getLocale() }}|{{ app()->isLocale(app()->currentLocale()) }}|{{ app()->isLocale('de') }}|{{ app()->version() }}|{{ config('app.version') }}|@include('application-part')|<x-application />");
+    root.write("application-part", "{{ app()->getLocale() }}");
+    root.write("components/application", "{{ app()->currentLocale() }}");
+    let kernel = root.kernel("App").await;
+    for locale in ["en", "zh-Hant", "fr", "en"] {
+        let (status, body) = send(
+            &kernel,
+            "GET",
+            "/view",
+            &[("x-config-locale", locale), ("accept-language", "de")],
+            "",
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        assert_eq!(
+            body,
+            format!(
+                "{locale}|{locale}|1||{}|application-version|{locale}|{locale}",
+                Application::VERSION
+            )
+        );
+    }
+    for source in [
+        "{{ app() }}",
+        "{{ app('config') }}",
+        "{{ app()->currentLocale('fr') }}",
+        "{{ app()->getLocale(null) }}",
+        "{{ app()->version('bad') }}",
+        "{{ app()->isLocale() }}",
+        "{{ app()->isLocale(false) }}",
+        "{{ app()->isLocale('en', 'fr') }}",
+        "{{ app()->setLocale('fr') }}",
+    ] {
+        root.write("main", source);
+        assert_eq!(
+            send(&kernel, "GET", "/view", &[], "").await.0,
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "{source}"
+        );
+    }
+    root.write("main", "{{ app()->currentLocale() }}");
+    assert_eq!(
+        send(&kernel, "GET", "/view", &[], "").await,
+        (StatusCode::OK, "en".into())
+    );
 }
