@@ -192,3 +192,24 @@ let _ = defer(async move {
 默认仅在 HTTP 状态小于400、命令退出码为0或任务尝试成功时执行。将 `always` 设为 `true`，或对返回句柄调用 `.always()`，可包含失败情况。回调错误交给应用异常处理器报告，其余回调继续执行；回调中新注册的回调也会执行。
 
 注册时捕获作用域服务的 `Arc`；结束后重新解析可能得到新实例。HTTP 传输释放响应正文时执行回调，流式响应断连也会进入该边界。嵌套 Artisan 调用和同步任务共用外层生命周期。硬超时任务的进程内回调在子进程返回结果前执行，仍受该任务超时限制。完成前取消、进程终止或硬超时无法保证执行；必须跨故障保留的工作应使用持久队列。在活跃生命周期外注册会返回 `concurrency::Error::OutsideRequest`。
+
+## JSON Schema {#json-schema}
+
+OpenRust 提供 `JsonSchema` 静态构造入口和实例工厂 `JsonSchemaTypeFactory`。字符串、整数、数值、布尔、对象、数组、联合与 anyOf 类型通过 `Type` 组合。使用 Builder 设置约束，`required`、`nullable`、`unique` 显式传入布尔值；不同属性类型用 `.into()` 转换。
+
+```rust
+use openrust::json_schema::{JsonSchema, JsonSchemaTypeFactory};
+use serde_json::json;
+
+let factory = JsonSchemaTypeFactory;
+let schema = factory.object([
+    ("name", factory.string().min(1).required(true).into()),
+    ("active", factory.boolean().default(true).into()),
+]).withoutAdditionalProperties();
+let encoded = schema.toArray()?;
+let restored = JsonSchema::fromArray(encoded.clone())?;
+assert_eq!(restored.toArray()?, encoded);
+assert!(JsonSchema::fromArray(json!({"type": "unknown"})).is_err());
+```
+
+序列化返回 `Result`，非有限数值明确失败。`fromArray` 支持本地 `$ref`、必填属性、可空联合及 anyOf 组合；远程或循环引用、布尔模式、元组 items、无法推断的类型、多类型联合上的专有约束及 null 默认值会失败。支持子集以外的未知元数据不保留；该接口用于构造模式，不负责校验业务数据。展开最多20,000个片段，嵌套或引用链最多128层。

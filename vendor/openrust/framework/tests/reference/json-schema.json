@@ -1,0 +1,531 @@
+{
+    "source": "laravel/framework@1449bf241017087fbd38c118ecaabef3f6797fdc",
+    "cases": [
+        {
+            "schema": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 12,
+                "format": "email",
+                "default": "a",
+                "title": "邮箱"
+            },
+            "expected": {
+                "title": "邮箱",
+                "default": "a",
+                "minLength": 1,
+                "maxLength": 12,
+                "format": "email",
+                "type": "string"
+            }
+        },
+        {
+            "schema": {
+                "type": "integer",
+                "minimum": "-2",
+                "maximum": "10.0",
+                "multipleOf": "2",
+                "default": 3
+            },
+            "expected": {
+                "default": 3,
+                "minimum": -2,
+                "maximum": 10,
+                "multipleOf": 2,
+                "type": "integer"
+            }
+        },
+        {
+            "schema": {
+                "type": "number",
+                "minimum": 0.25,
+                "maximum": 3,
+                "multipleOf": "0.25"
+            },
+            "expected": {
+                "minimum": 0.25,
+                "maximum": 3,
+                "multipleOf": 0.25,
+                "type": "number"
+            }
+        },
+        {
+            "schema": {
+                "type": "boolean",
+                "default": false
+            },
+            "expected": {
+                "default": false,
+                "type": "boolean"
+            }
+        },
+        {
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "b": {
+                        "type": "string"
+                    },
+                    "a": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ]
+                    }
+                },
+                "required": [
+                    "a"
+                ],
+                "additionalProperties": false
+            },
+            "expected": {
+                "additionalProperties": false,
+                "properties": {
+                    "b": {
+                        "type": "string"
+                    },
+                    "a": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ]
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "a"
+                ]
+            }
+        },
+        {
+            "schema": {
+                "type": "object",
+                "properties": []
+            },
+            "expected": {
+                "type": "object"
+            }
+        },
+        {
+            "schema": {
+                "type": "array",
+                "items": {
+                    "type": "string"
+                },
+                "minItems": 0,
+                "maxItems": 2,
+                "uniqueItems": true,
+                "default": []
+            },
+            "expected": {
+                "default": [],
+                "minItems": 0,
+                "maxItems": 2,
+                "items": {
+                    "type": "string"
+                },
+                "uniqueItems": true,
+                "type": "array"
+            }
+        },
+        {
+            "schema": {
+                "type": "array",
+                "items": [],
+                "uniqueItems": false
+            },
+            "expected": {
+                "type": "array"
+            }
+        },
+        {
+            "schema": {
+                "type": [
+                    "integer",
+                    "string",
+                    "integer",
+                    "null"
+                ],
+                "description": "union",
+                "enum": [
+                    1,
+                    "a",
+                    1
+                ]
+            },
+            "expected": {
+                "description": "union",
+                "enum": [
+                    1,
+                    "a",
+                    1
+                ],
+                "type": [
+                    "integer",
+                    "string",
+                    "null"
+                ]
+            }
+        },
+        {
+            "schema": {
+                "anyOf": [
+                    {
+                        "type": "string"
+                    },
+                    {
+                        "type": "integer"
+                    },
+                    {
+                        "type": "null"
+                    }
+                ],
+                "title": "组合"
+            },
+            "expected": {
+                "title": "组合",
+                "anyOf": [
+                    {
+                        "type": "string"
+                    },
+                    {
+                        "type": "integer"
+                    },
+                    {
+                        "type": "null"
+                    }
+                ]
+            }
+        },
+        {
+            "schema": {
+                "anyOf": [
+                    {
+                        "type": "string"
+                    },
+                    {
+                        "type": "null"
+                    }
+                ],
+                "title": "nullable"
+            },
+            "expected": {
+                "title": "nullable",
+                "type": [
+                    "string",
+                    "null"
+                ]
+            }
+        },
+        {
+            "schema": {
+                "oneOf": [
+                    {
+                        "type": "null"
+                    },
+                    {
+                        "type": "integer",
+                        "minimum": 1
+                    }
+                ],
+                "title": "one"
+            },
+            "expected": {
+                "title": "one",
+                "minimum": 1,
+                "type": [
+                    "integer",
+                    "null"
+                ]
+            }
+        },
+        {
+            "schema": {
+                "$defs": {
+                    "a/b~c": {
+                        "type": "string",
+                        "minLength": 2
+                    }
+                },
+                "$ref": "#/$defs/a~1b~0c",
+                "maxLength": 5
+            },
+            "expected": {
+                "minLength": 2,
+                "maxLength": 5,
+                "type": "string"
+            }
+        },
+        {
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "a": {
+                        "$ref": "#/$defs/name"
+                    },
+                    "b": {
+                        "$ref": "#/$defs/name"
+                    }
+                },
+                "$defs": {
+                    "name": {
+                        "type": "string"
+                    }
+                }
+            },
+            "expected": {
+                "properties": {
+                    "a": {
+                        "type": "string"
+                    },
+                    "b": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            }
+        },
+        {
+            "schema": {
+                "enum": [
+                    1,
+                    1.5
+                ]
+            },
+            "expected": {
+                "enum": [
+                    1,
+                    1.5
+                ],
+                "type": "number"
+            }
+        },
+        {
+            "schema": {
+                "enum": [
+                    true,
+                    false
+                ]
+            },
+            "expected": {
+                "enum": [
+                    true,
+                    false
+                ],
+                "type": "boolean"
+            }
+        },
+        {
+            "schema": {
+                "minLength": "2"
+            },
+            "expected": {
+                "minLength": 2,
+                "type": "string"
+            }
+        },
+        {
+            "schema": {
+                "minimum": "1.5"
+            },
+            "expected": {
+                "minimum": 1.5,
+                "type": "number"
+            }
+        },
+        {
+            "schema": {
+                "additionalProperties": true
+            },
+            "expected": {
+                "type": "object"
+            }
+        },
+        {
+            "schema": {
+                "type": [
+                    "null"
+                ],
+                "properties": []
+            },
+            "expected": {
+                "type": [
+                    "object",
+                    "null"
+                ]
+            }
+        },
+        {
+            "schema": {
+                "anyOf": [
+                    {
+                        "type": "null"
+                    },
+                    {
+                        "type": [
+                            "null"
+                        ]
+                    }
+                ]
+            },
+            "expected": {
+                "anyOf": [
+                    {
+                        "type": "null"
+                    }
+                ]
+            }
+        },
+        {
+            "schema": {
+                "anyOf": []
+            },
+            "expected": {
+                "anyOf": []
+            }
+        },
+        {
+            "schema": {
+                "type": "integer",
+                "minimum": 1.5
+            },
+            "error": true
+        },
+        {
+            "schema": {
+                "type": "number",
+                "maximum": "broken"
+            },
+            "error": true
+        },
+        {
+            "schema": {
+                "type": [
+                    "integer",
+                    "string"
+                ],
+                "minimum": 0
+            },
+            "error": true
+        },
+        {
+            "schema": {
+                "type": "null"
+            },
+            "error": true
+        },
+        {
+            "schema": {
+                "type": "unsupported"
+            },
+            "error": true
+        },
+        {
+            "schema": {
+                "type": "array",
+                "items": true
+            },
+            "error": true
+        },
+        {
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "a": false
+                }
+            },
+            "error": true
+        },
+        {
+            "schema": {
+                "$ref": "#/missing"
+            },
+            "error": true
+        },
+        {
+            "schema": {
+                "$ref": "https://invalid.example/schema"
+            },
+            "error": true
+        },
+        {
+            "schema": {
+                "$ref": "#"
+            },
+            "error": true
+        },
+        {
+            "schema": {
+                "$defs": {
+                    "a": {
+                        "$ref": "#/$defs/b"
+                    },
+                    "b": {
+                        "$ref": "#/$defs/a"
+                    }
+                },
+                "$ref": "#/$defs/a"
+            },
+            "error": true
+        },
+        {
+            "schema": {
+                "type": "string",
+                "default": null
+            },
+            "error": true
+        },
+        {
+            "schema": {
+                "oneOf": [
+                    {
+                        "type": "string"
+                    },
+                    {
+                        "type": "integer"
+                    }
+                ]
+            },
+            "error": true
+        },
+        {
+            "schema": {
+                "oneOf": [
+                    {
+                        "type": "string",
+                        "title": "a"
+                    },
+                    {
+                        "type": "null"
+                    }
+                ],
+                "title": "conflict"
+            },
+            "error": true
+        },
+        {
+            "schema": {
+                "anyOf": [
+                    true,
+                    {
+                        "type": "string"
+                    }
+                ]
+            },
+            "error": true
+        },
+        {
+            "schema": {
+                "enum": [
+                    1,
+                    "a"
+                ]
+            },
+            "error": true
+        },
+        {
+            "schema": {},
+            "error": true
+        }
+    ]
+}

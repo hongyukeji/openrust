@@ -19,6 +19,7 @@ pub mod grpc;
 pub mod hashing;
 pub mod http;
 pub mod image;
+pub mod json_schema;
 pub mod log;
 pub mod mail;
 pub mod notifications;

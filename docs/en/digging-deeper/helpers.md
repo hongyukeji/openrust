@@ -192,3 +192,24 @@ let _ = defer(async move {
 By default, callbacks run for HTTP statuses below 400, commands exiting with zero and successful job attempts. Set `always` to `true`, or call `.always()` on the returned handle, to include failures. Errors are reported through the application exception handler and later callbacks continue. Callbacks registered while callbacks run are also drained.
 
 Capture an `Arc` of a scoped service when registering; resolving it again after completion may produce a new instance. HTTP callbacks run when the transport releases the response body, including a disconnected stream. Nested Artisan calls and synchronous jobs share the enclosing lifecycle. Local callbacks in a hard-timeout job run in that job process before its outcome returns, within its timeout budget. Cancellation before completion, process termination or a hard timeout cannot guarantee execution. Use a durable queue for work that must survive these failures. Registering outside an active lifecycle returns `concurrency::Error::OutsideRequest`.
+
+## JSON Schema {#json-schema}
+
+OpenRust provides `JsonSchema` static constructors and the instance-based `JsonSchemaTypeFactory`. String, integer, number, boolean, object, array, union and anyOf types compose through `Type`. Constraints use builder methods; explicitly pass booleans to `required`, `nullable` and `unique`. Convert heterogeneous properties with `.into()`.
+
+```rust
+use openrust::json_schema::{JsonSchema, JsonSchemaTypeFactory};
+use serde_json::json;
+
+let factory = JsonSchemaTypeFactory;
+let schema = factory.object([
+    ("name", factory.string().min(1).required(true).into()),
+    ("active", factory.boolean().default(true).into()),
+]).withoutAdditionalProperties();
+let encoded = schema.toArray()?;
+let restored = JsonSchema::fromArray(encoded.clone())?;
+assert_eq!(restored.toArray()?, encoded);
+assert!(JsonSchema::fromArray(json!({"type": "unknown"})).is_err());
+```
+
+Serialization returns a `Result`: non-finite numbers fail. `fromArray` supports local `$ref` pointers, required properties, nullable unions and anyOf compositions. Remote and circular references, boolean schemas, tuple items, ambiguous types, type-specific constraints on multi-type unions and null defaults fail. Unknown metadata outside the supported subset is omitted; this API constructs schemas and does not validate application data. Expansion is limited to 20,000 fragments and 128 nesting or reference levels.

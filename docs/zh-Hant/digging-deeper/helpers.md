@@ -192,3 +192,24 @@ let _ = defer(async move {
 預設僅在 HTTP 狀態小於400、命令結束碼為0或任務嘗試成功時執行。將 `always` 設為 `true`，或對回傳控制代碼呼叫 `.always()`，可包含失敗情況。回呼錯誤交給應用程式例外處理器回報，其餘回呼繼續執行；回呼中新註冊的回呼也會執行。
 
 註冊時擷取作用域服務的 `Arc`；結束後重新解析可能取得新實例。HTTP 傳輸釋放回應本文時執行回呼，串流回應斷線也會進入此邊界。巢狀 Artisan 呼叫和同步任務共用外層生命週期。硬逾時任務的程序內回呼在子程序回傳結果前執行，仍受該任務逾時限制。完成前取消、程序終止或硬逾時無法保證執行；必須跨故障保留的工作應使用持久佇列。在活躍生命週期外註冊會回傳 `concurrency::Error::OutsideRequest`。
+
+## JSON Schema {#json-schema}
+
+OpenRust 提供 `JsonSchema` 靜態建構入口與實例工廠 `JsonSchemaTypeFactory`。字串、整數、數值、布林、物件、陣列、聯合與 anyOf 型別透過 `Type` 組合。使用 Builder 設定約束，`required`、`nullable`、`unique` 明確傳入布林值；不同屬性型別用 `.into()` 轉換。
+
+```rust
+use openrust::json_schema::{JsonSchema, JsonSchemaTypeFactory};
+use serde_json::json;
+
+let factory = JsonSchemaTypeFactory;
+let schema = factory.object([
+    ("name", factory.string().min(1).required(true).into()),
+    ("active", factory.boolean().default(true).into()),
+]).withoutAdditionalProperties();
+let encoded = schema.toArray()?;
+let restored = JsonSchema::fromArray(encoded.clone())?;
+assert_eq!(restored.toArray()?, encoded);
+assert!(JsonSchema::fromArray(json!({"type": "unknown"})).is_err());
+```
+
+序列化傳回 `Result`，非有限數值明確失敗。`fromArray` 支援本地 `$ref`、必填屬性、可空聯合與 anyOf 組合；遠端或循環引用、布林模式、元組 items、無法推斷的型別、多型別聯合上的專有約束及 null 預設值會失敗。支援子集以外的未知中繼資料不保留；此介面用於建構模式，不負責驗證業務資料。展開最多20,000個片段，巢狀或引用鏈最多128層。

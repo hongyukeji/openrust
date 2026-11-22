@@ -5417,3 +5417,46 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
+
+
+## Framework source adaptations
+
+The JSON Schema implementation and selected support, validation, manager and process contracts in
+`vendor/openrust/framework/` are adapted from Laravel Framework v13.40.0
+(commit `1449bf241017087fbd38c118ecaabef3f6797fdc`).
+Source: https://github.com/laravel/framework/tree/1449bf241017087fbd38c118ecaabef3f6797fdc
+
+The MIT License (MIT)
+
+Copyright (c) Taylor Otwell
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
+The validation URL host splitter adapts the component-selection behavior of
+PHP 8.5.0 `ext/standard/url.c` (Copyright The PHP Group, author Jim Winstead),
+under the PHP License 3.01 reproduced above. Timezone identifier metadata is
+extracted from the already licensed PHP 8.5.0 / IANA 2025b Calendar baseline.
+Hickory Resolver and Proto 0.25.2 are used under MIT OR Apache-2.0; their
+upstream notices are available in the dependency distribution.
+
+The tag-removal state machine in
+`vendor/openrust/framework/src/support/strings/tags.rs` is adapted from PHP 8.5.0
+`ext/standard/string.c` (`php_strip_tags_ex` and `php_tag_find`), under the PHP
+License 3.01 reproduced above. The HTML401 entity-name set is generated from
+PHP's standard translation table; named character values reuse web_atoms.
