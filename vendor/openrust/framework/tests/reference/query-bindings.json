@@ -1,0 +1,2267 @@
+{
+    "sqlite_empty": {
+        "sql": "select * from \"binding_items\"",
+        "raw": {
+            "select": [],
+            "from": [],
+            "join": [],
+            "where": [],
+            "groupBy": [],
+            "having": [],
+            "order": [],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": []
+    },
+    "sqlite_set_select": {
+        "sql": "select * from \"binding_items\"",
+        "raw": {
+            "select": [
+                11,
+                12
+            ],
+            "from": [],
+            "join": [],
+            "where": [],
+            "groupBy": [],
+            "having": [],
+            "order": [],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            11,
+            12
+        ]
+    },
+    "sqlite_add_select": {
+        "sql": "select * from \"binding_items\"",
+        "raw": {
+            "select": [
+                11,
+                12,
+                13
+            ],
+            "from": [],
+            "join": [],
+            "where": [],
+            "groupBy": [],
+            "having": [],
+            "order": [],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            11,
+            12,
+            13
+        ]
+    },
+    "sqlite_set_from": {
+        "sql": "select * from \"binding_items\"",
+        "raw": {
+            "select": [],
+            "from": [
+                11,
+                12
+            ],
+            "join": [],
+            "where": [],
+            "groupBy": [],
+            "having": [],
+            "order": [],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            11,
+            12
+        ]
+    },
+    "sqlite_add_from": {
+        "sql": "select * from \"binding_items\"",
+        "raw": {
+            "select": [],
+            "from": [
+                11,
+                12,
+                13
+            ],
+            "join": [],
+            "where": [],
+            "groupBy": [],
+            "having": [],
+            "order": [],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            11,
+            12,
+            13
+        ]
+    },
+    "sqlite_set_join": {
+        "sql": "select * from \"binding_items\"",
+        "raw": {
+            "select": [],
+            "from": [],
+            "join": [
+                11,
+                12
+            ],
+            "where": [],
+            "groupBy": [],
+            "having": [],
+            "order": [],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            11,
+            12
+        ]
+    },
+    "sqlite_add_join": {
+        "sql": "select * from \"binding_items\"",
+        "raw": {
+            "select": [],
+            "from": [],
+            "join": [
+                11,
+                12,
+                13
+            ],
+            "where": [],
+            "groupBy": [],
+            "having": [],
+            "order": [],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            11,
+            12,
+            13
+        ]
+    },
+    "sqlite_set_where": {
+        "sql": "select * from \"binding_items\"",
+        "raw": {
+            "select": [],
+            "from": [],
+            "join": [],
+            "where": [
+                11,
+                12
+            ],
+            "groupBy": [],
+            "having": [],
+            "order": [],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            11,
+            12
+        ]
+    },
+    "sqlite_add_where": {
+        "sql": "select * from \"binding_items\"",
+        "raw": {
+            "select": [],
+            "from": [],
+            "join": [],
+            "where": [
+                11,
+                12,
+                13
+            ],
+            "groupBy": [],
+            "having": [],
+            "order": [],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            11,
+            12,
+            13
+        ]
+    },
+    "sqlite_set_groupBy": {
+        "sql": "select * from \"binding_items\"",
+        "raw": {
+            "select": [],
+            "from": [],
+            "join": [],
+            "where": [],
+            "groupBy": [
+                11,
+                12
+            ],
+            "having": [],
+            "order": [],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            11,
+            12
+        ]
+    },
+    "sqlite_add_groupBy": {
+        "sql": "select * from \"binding_items\"",
+        "raw": {
+            "select": [],
+            "from": [],
+            "join": [],
+            "where": [],
+            "groupBy": [
+                11,
+                12,
+                13
+            ],
+            "having": [],
+            "order": [],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            11,
+            12,
+            13
+        ]
+    },
+    "sqlite_set_having": {
+        "sql": "select * from \"binding_items\"",
+        "raw": {
+            "select": [],
+            "from": [],
+            "join": [],
+            "where": [],
+            "groupBy": [],
+            "having": [
+                11,
+                12
+            ],
+            "order": [],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            11,
+            12
+        ]
+    },
+    "sqlite_add_having": {
+        "sql": "select * from \"binding_items\"",
+        "raw": {
+            "select": [],
+            "from": [],
+            "join": [],
+            "where": [],
+            "groupBy": [],
+            "having": [
+                11,
+                12,
+                13
+            ],
+            "order": [],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            11,
+            12,
+            13
+        ]
+    },
+    "sqlite_set_order": {
+        "sql": "select * from \"binding_items\"",
+        "raw": {
+            "select": [],
+            "from": [],
+            "join": [],
+            "where": [],
+            "groupBy": [],
+            "having": [],
+            "order": [
+                11,
+                12
+            ],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            11,
+            12
+        ]
+    },
+    "sqlite_add_order": {
+        "sql": "select * from \"binding_items\"",
+        "raw": {
+            "select": [],
+            "from": [],
+            "join": [],
+            "where": [],
+            "groupBy": [],
+            "having": [],
+            "order": [
+                11,
+                12,
+                13
+            ],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            11,
+            12,
+            13
+        ]
+    },
+    "sqlite_set_union": {
+        "sql": "select * from \"binding_items\"",
+        "raw": {
+            "select": [],
+            "from": [],
+            "join": [],
+            "where": [],
+            "groupBy": [],
+            "having": [],
+            "order": [],
+            "union": [
+                11,
+                12
+            ],
+            "unionOrder": []
+        },
+        "flat": [
+            11,
+            12
+        ]
+    },
+    "sqlite_add_union": {
+        "sql": "select * from \"binding_items\"",
+        "raw": {
+            "select": [],
+            "from": [],
+            "join": [],
+            "where": [],
+            "groupBy": [],
+            "having": [],
+            "order": [],
+            "union": [
+                11,
+                12,
+                13
+            ],
+            "unionOrder": []
+        },
+        "flat": [
+            11,
+            12,
+            13
+        ]
+    },
+    "sqlite_set_unionOrder": {
+        "sql": "select * from \"binding_items\"",
+        "raw": {
+            "select": [],
+            "from": [],
+            "join": [],
+            "where": [],
+            "groupBy": [],
+            "having": [],
+            "order": [],
+            "union": [],
+            "unionOrder": [
+                11,
+                12
+            ]
+        },
+        "flat": [
+            11,
+            12
+        ]
+    },
+    "sqlite_add_unionOrder": {
+        "sql": "select * from \"binding_items\"",
+        "raw": {
+            "select": [],
+            "from": [],
+            "join": [],
+            "where": [],
+            "groupBy": [],
+            "having": [],
+            "order": [],
+            "union": [],
+            "unionOrder": [
+                11,
+                12,
+                13
+            ]
+        },
+        "flat": [
+            11,
+            12,
+            13
+        ]
+    },
+    "sqlite_nested_having": {
+        "sql": "select * from \"binding_items\" group by \"id\" having \"id\" > ? and (\"id\" < ?)",
+        "raw": {
+            "select": [],
+            "from": [],
+            "join": [],
+            "where": [],
+            "groupBy": [],
+            "having": [
+                1,
+                9
+            ],
+            "order": [],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            1,
+            9
+        ]
+    },
+    "sqlite_append": {
+        "sql": "select * from \"binding_items\" where \"id\" > ? and \"id\" < ?",
+        "raw": {
+            "select": [],
+            "from": [],
+            "join": [],
+            "where": [
+                2,
+                9
+            ],
+            "groupBy": [],
+            "having": [],
+            "order": [],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            2,
+            9
+        ]
+    },
+    "sqlite_add_append": {
+        "sql": "select * from \"binding_items\" where id > ? and \"id\" < ?",
+        "raw": {
+            "select": [],
+            "from": [],
+            "join": [],
+            "where": [
+                1,
+                9
+            ],
+            "groupBy": [],
+            "having": [],
+            "order": [],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            1,
+            9
+        ]
+    },
+    "sqlite_clear_select": {
+        "sql": "select \"id\", ? as marker from \"binding_items\"",
+        "raw": {
+            "select": [
+                3
+            ],
+            "from": [],
+            "join": [],
+            "where": [],
+            "groupBy": [],
+            "having": [],
+            "order": [],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            3
+        ]
+    },
+    "sqlite_clear_order": {
+        "sql": "select * from \"binding_items\" order by ?",
+        "raw": {
+            "select": [],
+            "from": [],
+            "join": [],
+            "where": [],
+            "groupBy": [],
+            "having": [],
+            "order": [
+                3
+            ],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            3
+        ]
+    },
+    "sqlite_source_replace": {
+        "sql": "select * from \"binding_items\"",
+        "raw": {
+            "select": [],
+            "from": [
+                1,
+                2
+            ],
+            "join": [],
+            "where": [],
+            "groupBy": [],
+            "having": [],
+            "order": [],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            1,
+            2
+        ]
+    },
+    "sqlite_merge": {
+        "sql": "select * from \"binding_items\" where id > ? and id < ? order by ?",
+        "raw": {
+            "select": [],
+            "from": [],
+            "join": [],
+            "where": [
+                1,
+                9
+            ],
+            "groupBy": [],
+            "having": [
+                4
+            ],
+            "order": [
+                5
+            ],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            1,
+            9,
+            4,
+            5
+        ]
+    },
+    "sqlite_all": {
+        "sql": "select * from (select ? as marker from (select ? as id) as source inner join \"other\" on \"other\".\"id\" = ? where \"source\".\"id\" > ? group by ? having ? = 1 order by ?) union all select * from (select ? as marker from \"binding_items\" where \"id\" < ?) order by ?",
+        "raw": {
+            "select": [
+                1
+            ],
+            "from": [
+                2
+            ],
+            "join": [
+                3
+            ],
+            "where": [
+                4
+            ],
+            "groupBy": [
+                5
+            ],
+            "having": [
+                6
+            ],
+            "order": [
+                7
+            ],
+            "union": [
+                8,
+                9
+            ],
+            "unionOrder": [
+                10
+            ]
+        },
+        "flat": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10
+        ]
+    },
+    "sqlite_all_changed": {
+        "sql": "select * from (select ? as marker, ? as extra from (select ? as id) as source inner join \"other\" on \"other\".\"id\" = ? where \"source\".\"id\" > ? and \"source\".\"id\" < ? group by ? having ? = 1 order by ?) union all select * from (select ? as marker from \"binding_items\" where \"id\" < ?) order by ?, ?",
+        "raw": {
+            "select": [
+                101,
+                201
+            ],
+            "from": [
+                102
+            ],
+            "join": [
+                103
+            ],
+            "where": [
+                104,
+                200
+            ],
+            "groupBy": [
+                105
+            ],
+            "having": [
+                106
+            ],
+            "order": [
+                107
+            ],
+            "union": [
+                108
+            ],
+            "unionOrder": [
+                109,
+                202
+            ]
+        },
+        "flat": [
+            101,
+            201,
+            102,
+            103,
+            104,
+            200,
+            105,
+            106,
+            107,
+            108,
+            109,
+            202
+        ]
+    },
+    "sqlite_copy": {
+        "sql": "select * from (select ? as marker, ? as extra from (select ? as id) as source inner join \"other\" on \"other\".\"id\" = ? where \"source\".\"id\" > ? and \"source\".\"id\" < ? group by ? having ? = 1 order by ?) union all select * from (select ? as marker from \"binding_items\" where \"id\" < ?) order by ?, ?",
+        "raw": {
+            "select": [
+                101,
+                201
+            ],
+            "from": [
+                102
+            ],
+            "join": [
+                103
+            ],
+            "where": [
+                104,
+                200,
+                303
+            ],
+            "groupBy": [
+                105
+            ],
+            "having": [
+                106
+            ],
+            "order": [
+                107
+            ],
+            "union": [
+                108
+            ],
+            "unionOrder": [
+                109,
+                202
+            ]
+        },
+        "flat": [
+            101,
+            201,
+            102,
+            103,
+            104,
+            200,
+            303,
+            105,
+            106,
+            107,
+            108,
+            109,
+            202
+        ]
+    },
+    "sqlite_original": {
+        "sql": "select * from (select ? as marker, ? as extra from (select ? as id) as source inner join \"other\" on \"other\".\"id\" = ? where \"source\".\"id\" > ? and \"source\".\"id\" < ? group by ? having ? = 1 order by ?) union all select * from (select ? as marker from \"binding_items\" where \"id\" < ?) order by ?, ?",
+        "raw": {
+            "select": [
+                101,
+                201
+            ],
+            "from": [
+                102
+            ],
+            "join": [
+                103
+            ],
+            "where": [
+                104,
+                200
+            ],
+            "groupBy": [
+                105
+            ],
+            "having": [
+                106
+            ],
+            "order": [
+                107
+            ],
+            "union": [
+                108
+            ],
+            "unionOrder": [
+                109,
+                202
+            ]
+        },
+        "flat": [
+            101,
+            201,
+            102,
+            103,
+            104,
+            200,
+            105,
+            106,
+            107,
+            108,
+            109,
+            202
+        ]
+    },
+    "sqlite_invalid": true,
+    "pgsql_empty": {
+        "sql": "select * from \"binding_items\"",
+        "raw": {
+            "select": [],
+            "from": [],
+            "join": [],
+            "where": [],
+            "groupBy": [],
+            "having": [],
+            "order": [],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": []
+    },
+    "pgsql_set_select": {
+        "sql": "select * from \"binding_items\"",
+        "raw": {
+            "select": [
+                11,
+                12
+            ],
+            "from": [],
+            "join": [],
+            "where": [],
+            "groupBy": [],
+            "having": [],
+            "order": [],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            11,
+            12
+        ]
+    },
+    "pgsql_add_select": {
+        "sql": "select * from \"binding_items\"",
+        "raw": {
+            "select": [
+                11,
+                12,
+                13
+            ],
+            "from": [],
+            "join": [],
+            "where": [],
+            "groupBy": [],
+            "having": [],
+            "order": [],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            11,
+            12,
+            13
+        ]
+    },
+    "pgsql_set_from": {
+        "sql": "select * from \"binding_items\"",
+        "raw": {
+            "select": [],
+            "from": [
+                11,
+                12
+            ],
+            "join": [],
+            "where": [],
+            "groupBy": [],
+            "having": [],
+            "order": [],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            11,
+            12
+        ]
+    },
+    "pgsql_add_from": {
+        "sql": "select * from \"binding_items\"",
+        "raw": {
+            "select": [],
+            "from": [
+                11,
+                12,
+                13
+            ],
+            "join": [],
+            "where": [],
+            "groupBy": [],
+            "having": [],
+            "order": [],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            11,
+            12,
+            13
+        ]
+    },
+    "pgsql_set_join": {
+        "sql": "select * from \"binding_items\"",
+        "raw": {
+            "select": [],
+            "from": [],
+            "join": [
+                11,
+                12
+            ],
+            "where": [],
+            "groupBy": [],
+            "having": [],
+            "order": [],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            11,
+            12
+        ]
+    },
+    "pgsql_add_join": {
+        "sql": "select * from \"binding_items\"",
+        "raw": {
+            "select": [],
+            "from": [],
+            "join": [
+                11,
+                12,
+                13
+            ],
+            "where": [],
+            "groupBy": [],
+            "having": [],
+            "order": [],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            11,
+            12,
+            13
+        ]
+    },
+    "pgsql_set_where": {
+        "sql": "select * from \"binding_items\"",
+        "raw": {
+            "select": [],
+            "from": [],
+            "join": [],
+            "where": [
+                11,
+                12
+            ],
+            "groupBy": [],
+            "having": [],
+            "order": [],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            11,
+            12
+        ]
+    },
+    "pgsql_add_where": {
+        "sql": "select * from \"binding_items\"",
+        "raw": {
+            "select": [],
+            "from": [],
+            "join": [],
+            "where": [
+                11,
+                12,
+                13
+            ],
+            "groupBy": [],
+            "having": [],
+            "order": [],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            11,
+            12,
+            13
+        ]
+    },
+    "pgsql_set_groupBy": {
+        "sql": "select * from \"binding_items\"",
+        "raw": {
+            "select": [],
+            "from": [],
+            "join": [],
+            "where": [],
+            "groupBy": [
+                11,
+                12
+            ],
+            "having": [],
+            "order": [],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            11,
+            12
+        ]
+    },
+    "pgsql_add_groupBy": {
+        "sql": "select * from \"binding_items\"",
+        "raw": {
+            "select": [],
+            "from": [],
+            "join": [],
+            "where": [],
+            "groupBy": [
+                11,
+                12,
+                13
+            ],
+            "having": [],
+            "order": [],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            11,
+            12,
+            13
+        ]
+    },
+    "pgsql_set_having": {
+        "sql": "select * from \"binding_items\"",
+        "raw": {
+            "select": [],
+            "from": [],
+            "join": [],
+            "where": [],
+            "groupBy": [],
+            "having": [
+                11,
+                12
+            ],
+            "order": [],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            11,
+            12
+        ]
+    },
+    "pgsql_add_having": {
+        "sql": "select * from \"binding_items\"",
+        "raw": {
+            "select": [],
+            "from": [],
+            "join": [],
+            "where": [],
+            "groupBy": [],
+            "having": [
+                11,
+                12,
+                13
+            ],
+            "order": [],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            11,
+            12,
+            13
+        ]
+    },
+    "pgsql_set_order": {
+        "sql": "select * from \"binding_items\"",
+        "raw": {
+            "select": [],
+            "from": [],
+            "join": [],
+            "where": [],
+            "groupBy": [],
+            "having": [],
+            "order": [
+                11,
+                12
+            ],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            11,
+            12
+        ]
+    },
+    "pgsql_add_order": {
+        "sql": "select * from \"binding_items\"",
+        "raw": {
+            "select": [],
+            "from": [],
+            "join": [],
+            "where": [],
+            "groupBy": [],
+            "having": [],
+            "order": [
+                11,
+                12,
+                13
+            ],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            11,
+            12,
+            13
+        ]
+    },
+    "pgsql_set_union": {
+        "sql": "select * from \"binding_items\"",
+        "raw": {
+            "select": [],
+            "from": [],
+            "join": [],
+            "where": [],
+            "groupBy": [],
+            "having": [],
+            "order": [],
+            "union": [
+                11,
+                12
+            ],
+            "unionOrder": []
+        },
+        "flat": [
+            11,
+            12
+        ]
+    },
+    "pgsql_add_union": {
+        "sql": "select * from \"binding_items\"",
+        "raw": {
+            "select": [],
+            "from": [],
+            "join": [],
+            "where": [],
+            "groupBy": [],
+            "having": [],
+            "order": [],
+            "union": [
+                11,
+                12,
+                13
+            ],
+            "unionOrder": []
+        },
+        "flat": [
+            11,
+            12,
+            13
+        ]
+    },
+    "pgsql_set_unionOrder": {
+        "sql": "select * from \"binding_items\"",
+        "raw": {
+            "select": [],
+            "from": [],
+            "join": [],
+            "where": [],
+            "groupBy": [],
+            "having": [],
+            "order": [],
+            "union": [],
+            "unionOrder": [
+                11,
+                12
+            ]
+        },
+        "flat": [
+            11,
+            12
+        ]
+    },
+    "pgsql_add_unionOrder": {
+        "sql": "select * from \"binding_items\"",
+        "raw": {
+            "select": [],
+            "from": [],
+            "join": [],
+            "where": [],
+            "groupBy": [],
+            "having": [],
+            "order": [],
+            "union": [],
+            "unionOrder": [
+                11,
+                12,
+                13
+            ]
+        },
+        "flat": [
+            11,
+            12,
+            13
+        ]
+    },
+    "pgsql_nested_having": {
+        "sql": "select * from \"binding_items\" group by \"id\" having \"id\" > ? and (\"id\" < ?)",
+        "raw": {
+            "select": [],
+            "from": [],
+            "join": [],
+            "where": [],
+            "groupBy": [],
+            "having": [
+                1,
+                9
+            ],
+            "order": [],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            1,
+            9
+        ]
+    },
+    "pgsql_append": {
+        "sql": "select * from \"binding_items\" where \"id\" > ? and \"id\" < ?",
+        "raw": {
+            "select": [],
+            "from": [],
+            "join": [],
+            "where": [
+                2,
+                9
+            ],
+            "groupBy": [],
+            "having": [],
+            "order": [],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            2,
+            9
+        ]
+    },
+    "pgsql_add_append": {
+        "sql": "select * from \"binding_items\" where id > ? and \"id\" < ?",
+        "raw": {
+            "select": [],
+            "from": [],
+            "join": [],
+            "where": [
+                1,
+                9
+            ],
+            "groupBy": [],
+            "having": [],
+            "order": [],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            1,
+            9
+        ]
+    },
+    "pgsql_clear_select": {
+        "sql": "select \"id\", ? as marker from \"binding_items\"",
+        "raw": {
+            "select": [
+                3
+            ],
+            "from": [],
+            "join": [],
+            "where": [],
+            "groupBy": [],
+            "having": [],
+            "order": [],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            3
+        ]
+    },
+    "pgsql_clear_order": {
+        "sql": "select * from \"binding_items\" order by ?",
+        "raw": {
+            "select": [],
+            "from": [],
+            "join": [],
+            "where": [],
+            "groupBy": [],
+            "having": [],
+            "order": [
+                3
+            ],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            3
+        ]
+    },
+    "pgsql_source_replace": {
+        "sql": "select * from \"binding_items\"",
+        "raw": {
+            "select": [],
+            "from": [
+                1,
+                2
+            ],
+            "join": [],
+            "where": [],
+            "groupBy": [],
+            "having": [],
+            "order": [],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            1,
+            2
+        ]
+    },
+    "pgsql_merge": {
+        "sql": "select * from \"binding_items\" where id > ? and id < ? order by ?",
+        "raw": {
+            "select": [],
+            "from": [],
+            "join": [],
+            "where": [
+                1,
+                9
+            ],
+            "groupBy": [],
+            "having": [
+                4
+            ],
+            "order": [
+                5
+            ],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            1,
+            9,
+            4,
+            5
+        ]
+    },
+    "pgsql_all": {
+        "sql": "(select ? as marker from (select ? as id) as source inner join \"other\" on \"other\".\"id\" = ? where \"source\".\"id\" > ? group by ? having ? = 1 order by ?) union all (select ? as marker from \"binding_items\" where \"id\" < ?) order by ?",
+        "raw": {
+            "select": [
+                1
+            ],
+            "from": [
+                2
+            ],
+            "join": [
+                3
+            ],
+            "where": [
+                4
+            ],
+            "groupBy": [
+                5
+            ],
+            "having": [
+                6
+            ],
+            "order": [
+                7
+            ],
+            "union": [
+                8,
+                9
+            ],
+            "unionOrder": [
+                10
+            ]
+        },
+        "flat": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10
+        ]
+    },
+    "pgsql_all_changed": {
+        "sql": "(select ? as marker, ? as extra from (select ? as id) as source inner join \"other\" on \"other\".\"id\" = ? where \"source\".\"id\" > ? and \"source\".\"id\" < ? group by ? having ? = 1 order by ?) union all (select ? as marker from \"binding_items\" where \"id\" < ?) order by ?, ?",
+        "raw": {
+            "select": [
+                101,
+                201
+            ],
+            "from": [
+                102
+            ],
+            "join": [
+                103
+            ],
+            "where": [
+                104,
+                200
+            ],
+            "groupBy": [
+                105
+            ],
+            "having": [
+                106
+            ],
+            "order": [
+                107
+            ],
+            "union": [
+                108
+            ],
+            "unionOrder": [
+                109,
+                202
+            ]
+        },
+        "flat": [
+            101,
+            201,
+            102,
+            103,
+            104,
+            200,
+            105,
+            106,
+            107,
+            108,
+            109,
+            202
+        ]
+    },
+    "pgsql_copy": {
+        "sql": "(select ? as marker, ? as extra from (select ? as id) as source inner join \"other\" on \"other\".\"id\" = ? where \"source\".\"id\" > ? and \"source\".\"id\" < ? group by ? having ? = 1 order by ?) union all (select ? as marker from \"binding_items\" where \"id\" < ?) order by ?, ?",
+        "raw": {
+            "select": [
+                101,
+                201
+            ],
+            "from": [
+                102
+            ],
+            "join": [
+                103
+            ],
+            "where": [
+                104,
+                200,
+                303
+            ],
+            "groupBy": [
+                105
+            ],
+            "having": [
+                106
+            ],
+            "order": [
+                107
+            ],
+            "union": [
+                108
+            ],
+            "unionOrder": [
+                109,
+                202
+            ]
+        },
+        "flat": [
+            101,
+            201,
+            102,
+            103,
+            104,
+            200,
+            303,
+            105,
+            106,
+            107,
+            108,
+            109,
+            202
+        ]
+    },
+    "pgsql_original": {
+        "sql": "(select ? as marker, ? as extra from (select ? as id) as source inner join \"other\" on \"other\".\"id\" = ? where \"source\".\"id\" > ? and \"source\".\"id\" < ? group by ? having ? = 1 order by ?) union all (select ? as marker from \"binding_items\" where \"id\" < ?) order by ?, ?",
+        "raw": {
+            "select": [
+                101,
+                201
+            ],
+            "from": [
+                102
+            ],
+            "join": [
+                103
+            ],
+            "where": [
+                104,
+                200
+            ],
+            "groupBy": [
+                105
+            ],
+            "having": [
+                106
+            ],
+            "order": [
+                107
+            ],
+            "union": [
+                108
+            ],
+            "unionOrder": [
+                109,
+                202
+            ]
+        },
+        "flat": [
+            101,
+            201,
+            102,
+            103,
+            104,
+            200,
+            105,
+            106,
+            107,
+            108,
+            109,
+            202
+        ]
+    },
+    "pgsql_invalid": true,
+    "mysql_empty": {
+        "sql": "select * from `binding_items`",
+        "raw": {
+            "select": [],
+            "from": [],
+            "join": [],
+            "where": [],
+            "groupBy": [],
+            "having": [],
+            "order": [],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": []
+    },
+    "mysql_set_select": {
+        "sql": "select * from `binding_items`",
+        "raw": {
+            "select": [
+                11,
+                12
+            ],
+            "from": [],
+            "join": [],
+            "where": [],
+            "groupBy": [],
+            "having": [],
+            "order": [],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            11,
+            12
+        ]
+    },
+    "mysql_add_select": {
+        "sql": "select * from `binding_items`",
+        "raw": {
+            "select": [
+                11,
+                12,
+                13
+            ],
+            "from": [],
+            "join": [],
+            "where": [],
+            "groupBy": [],
+            "having": [],
+            "order": [],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            11,
+            12,
+            13
+        ]
+    },
+    "mysql_set_from": {
+        "sql": "select * from `binding_items`",
+        "raw": {
+            "select": [],
+            "from": [
+                11,
+                12
+            ],
+            "join": [],
+            "where": [],
+            "groupBy": [],
+            "having": [],
+            "order": [],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            11,
+            12
+        ]
+    },
+    "mysql_add_from": {
+        "sql": "select * from `binding_items`",
+        "raw": {
+            "select": [],
+            "from": [
+                11,
+                12,
+                13
+            ],
+            "join": [],
+            "where": [],
+            "groupBy": [],
+            "having": [],
+            "order": [],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            11,
+            12,
+            13
+        ]
+    },
+    "mysql_set_join": {
+        "sql": "select * from `binding_items`",
+        "raw": {
+            "select": [],
+            "from": [],
+            "join": [
+                11,
+                12
+            ],
+            "where": [],
+            "groupBy": [],
+            "having": [],
+            "order": [],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            11,
+            12
+        ]
+    },
+    "mysql_add_join": {
+        "sql": "select * from `binding_items`",
+        "raw": {
+            "select": [],
+            "from": [],
+            "join": [
+                11,
+                12,
+                13
+            ],
+            "where": [],
+            "groupBy": [],
+            "having": [],
+            "order": [],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            11,
+            12,
+            13
+        ]
+    },
+    "mysql_set_where": {
+        "sql": "select * from `binding_items`",
+        "raw": {
+            "select": [],
+            "from": [],
+            "join": [],
+            "where": [
+                11,
+                12
+            ],
+            "groupBy": [],
+            "having": [],
+            "order": [],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            11,
+            12
+        ]
+    },
+    "mysql_add_where": {
+        "sql": "select * from `binding_items`",
+        "raw": {
+            "select": [],
+            "from": [],
+            "join": [],
+            "where": [
+                11,
+                12,
+                13
+            ],
+            "groupBy": [],
+            "having": [],
+            "order": [],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            11,
+            12,
+            13
+        ]
+    },
+    "mysql_set_groupBy": {
+        "sql": "select * from `binding_items`",
+        "raw": {
+            "select": [],
+            "from": [],
+            "join": [],
+            "where": [],
+            "groupBy": [
+                11,
+                12
+            ],
+            "having": [],
+            "order": [],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            11,
+            12
+        ]
+    },
+    "mysql_add_groupBy": {
+        "sql": "select * from `binding_items`",
+        "raw": {
+            "select": [],
+            "from": [],
+            "join": [],
+            "where": [],
+            "groupBy": [
+                11,
+                12,
+                13
+            ],
+            "having": [],
+            "order": [],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            11,
+            12,
+            13
+        ]
+    },
+    "mysql_set_having": {
+        "sql": "select * from `binding_items`",
+        "raw": {
+            "select": [],
+            "from": [],
+            "join": [],
+            "where": [],
+            "groupBy": [],
+            "having": [
+                11,
+                12
+            ],
+            "order": [],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            11,
+            12
+        ]
+    },
+    "mysql_add_having": {
+        "sql": "select * from `binding_items`",
+        "raw": {
+            "select": [],
+            "from": [],
+            "join": [],
+            "where": [],
+            "groupBy": [],
+            "having": [
+                11,
+                12,
+                13
+            ],
+            "order": [],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            11,
+            12,
+            13
+        ]
+    },
+    "mysql_set_order": {
+        "sql": "select * from `binding_items`",
+        "raw": {
+            "select": [],
+            "from": [],
+            "join": [],
+            "where": [],
+            "groupBy": [],
+            "having": [],
+            "order": [
+                11,
+                12
+            ],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            11,
+            12
+        ]
+    },
+    "mysql_add_order": {
+        "sql": "select * from `binding_items`",
+        "raw": {
+            "select": [],
+            "from": [],
+            "join": [],
+            "where": [],
+            "groupBy": [],
+            "having": [],
+            "order": [
+                11,
+                12,
+                13
+            ],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            11,
+            12,
+            13
+        ]
+    },
+    "mysql_set_union": {
+        "sql": "select * from `binding_items`",
+        "raw": {
+            "select": [],
+            "from": [],
+            "join": [],
+            "where": [],
+            "groupBy": [],
+            "having": [],
+            "order": [],
+            "union": [
+                11,
+                12
+            ],
+            "unionOrder": []
+        },
+        "flat": [
+            11,
+            12
+        ]
+    },
+    "mysql_add_union": {
+        "sql": "select * from `binding_items`",
+        "raw": {
+            "select": [],
+            "from": [],
+            "join": [],
+            "where": [],
+            "groupBy": [],
+            "having": [],
+            "order": [],
+            "union": [
+                11,
+                12,
+                13
+            ],
+            "unionOrder": []
+        },
+        "flat": [
+            11,
+            12,
+            13
+        ]
+    },
+    "mysql_set_unionOrder": {
+        "sql": "select * from `binding_items`",
+        "raw": {
+            "select": [],
+            "from": [],
+            "join": [],
+            "where": [],
+            "groupBy": [],
+            "having": [],
+            "order": [],
+            "union": [],
+            "unionOrder": [
+                11,
+                12
+            ]
+        },
+        "flat": [
+            11,
+            12
+        ]
+    },
+    "mysql_add_unionOrder": {
+        "sql": "select * from `binding_items`",
+        "raw": {
+            "select": [],
+            "from": [],
+            "join": [],
+            "where": [],
+            "groupBy": [],
+            "having": [],
+            "order": [],
+            "union": [],
+            "unionOrder": [
+                11,
+                12,
+                13
+            ]
+        },
+        "flat": [
+            11,
+            12,
+            13
+        ]
+    },
+    "mysql_nested_having": {
+        "sql": "select * from `binding_items` group by `id` having `id` > ? and (`id` < ?)",
+        "raw": {
+            "select": [],
+            "from": [],
+            "join": [],
+            "where": [],
+            "groupBy": [],
+            "having": [
+                1,
+                9
+            ],
+            "order": [],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            1,
+            9
+        ]
+    },
+    "mysql_append": {
+        "sql": "select * from `binding_items` where `id` > ? and `id` < ?",
+        "raw": {
+            "select": [],
+            "from": [],
+            "join": [],
+            "where": [
+                2,
+                9
+            ],
+            "groupBy": [],
+            "having": [],
+            "order": [],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            2,
+            9
+        ]
+    },
+    "mysql_add_append": {
+        "sql": "select * from `binding_items` where id > ? and `id` < ?",
+        "raw": {
+            "select": [],
+            "from": [],
+            "join": [],
+            "where": [
+                1,
+                9
+            ],
+            "groupBy": [],
+            "having": [],
+            "order": [],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            1,
+            9
+        ]
+    },
+    "mysql_clear_select": {
+        "sql": "select `id`, ? as marker from `binding_items`",
+        "raw": {
+            "select": [
+                3
+            ],
+            "from": [],
+            "join": [],
+            "where": [],
+            "groupBy": [],
+            "having": [],
+            "order": [],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            3
+        ]
+    },
+    "mysql_clear_order": {
+        "sql": "select * from `binding_items` order by ?",
+        "raw": {
+            "select": [],
+            "from": [],
+            "join": [],
+            "where": [],
+            "groupBy": [],
+            "having": [],
+            "order": [
+                3
+            ],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            3
+        ]
+    },
+    "mysql_source_replace": {
+        "sql": "select * from `binding_items`",
+        "raw": {
+            "select": [],
+            "from": [
+                1,
+                2
+            ],
+            "join": [],
+            "where": [],
+            "groupBy": [],
+            "having": [],
+            "order": [],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            1,
+            2
+        ]
+    },
+    "mysql_merge": {
+        "sql": "select * from `binding_items` where id > ? and id < ? order by ?",
+        "raw": {
+            "select": [],
+            "from": [],
+            "join": [],
+            "where": [
+                1,
+                9
+            ],
+            "groupBy": [],
+            "having": [
+                4
+            ],
+            "order": [
+                5
+            ],
+            "union": [],
+            "unionOrder": []
+        },
+        "flat": [
+            1,
+            9,
+            4,
+            5
+        ]
+    },
+    "mysql_all": {
+        "sql": "(select ? as marker from (select ? as id) as source inner join `other` on `other`.`id` = ? where `source`.`id` > ? group by ? having ? = 1 order by ?) union all (select ? as marker from `binding_items` where `id` < ?) order by ?",
+        "raw": {
+            "select": [
+                1
+            ],
+            "from": [
+                2
+            ],
+            "join": [
+                3
+            ],
+            "where": [
+                4
+            ],
+            "groupBy": [
+                5
+            ],
+            "having": [
+                6
+            ],
+            "order": [
+                7
+            ],
+            "union": [
+                8,
+                9
+            ],
+            "unionOrder": [
+                10
+            ]
+        },
+        "flat": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10
+        ]
+    },
+    "mysql_all_changed": {
+        "sql": "(select ? as marker, ? as extra from (select ? as id) as source inner join `other` on `other`.`id` = ? where `source`.`id` > ? and `source`.`id` < ? group by ? having ? = 1 order by ?) union all (select ? as marker from `binding_items` where `id` < ?) order by ?, ?",
+        "raw": {
+            "select": [
+                101,
+                201
+            ],
+            "from": [
+                102
+            ],
+            "join": [
+                103
+            ],
+            "where": [
+                104,
+                200
+            ],
+            "groupBy": [
+                105
+            ],
+            "having": [
+                106
+            ],
+            "order": [
+                107
+            ],
+            "union": [
+                108
+            ],
+            "unionOrder": [
+                109,
+                202
+            ]
+        },
+        "flat": [
+            101,
+            201,
+            102,
+            103,
+            104,
+            200,
+            105,
+            106,
+            107,
+            108,
+            109,
+            202
+        ]
+    },
+    "mysql_copy": {
+        "sql": "(select ? as marker, ? as extra from (select ? as id) as source inner join `other` on `other`.`id` = ? where `source`.`id` > ? and `source`.`id` < ? group by ? having ? = 1 order by ?) union all (select ? as marker from `binding_items` where `id` < ?) order by ?, ?",
+        "raw": {
+            "select": [
+                101,
+                201
+            ],
+            "from": [
+                102
+            ],
+            "join": [
+                103
+            ],
+            "where": [
+                104,
+                200,
+                303
+            ],
+            "groupBy": [
+                105
+            ],
+            "having": [
+                106
+            ],
+            "order": [
+                107
+            ],
+            "union": [
+                108
+            ],
+            "unionOrder": [
+                109,
+                202
+            ]
+        },
+        "flat": [
+            101,
+            201,
+            102,
+            103,
+            104,
+            200,
+            303,
+            105,
+            106,
+            107,
+            108,
+            109,
+            202
+        ]
+    },
+    "mysql_original": {
+        "sql": "(select ? as marker, ? as extra from (select ? as id) as source inner join `other` on `other`.`id` = ? where `source`.`id` > ? and `source`.`id` < ? group by ? having ? = 1 order by ?) union all (select ? as marker from `binding_items` where `id` < ?) order by ?, ?",
+        "raw": {
+            "select": [
+                101,
+                201
+            ],
+            "from": [
+                102
+            ],
+            "join": [
+                103
+            ],
+            "where": [
+                104,
+                200
+            ],
+            "groupBy": [
+                105
+            ],
+            "having": [
+                106
+            ],
+            "order": [
+                107
+            ],
+            "union": [
+                108
+            ],
+            "unionOrder": [
+                109,
+                202
+            ]
+        },
+        "flat": [
+            101,
+            201,
+            102,
+            103,
+            104,
+            200,
+            105,
+            106,
+            107,
+            108,
+            109,
+            202
+        ]
+    },
+    "mysql_invalid": true
+}

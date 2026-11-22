@@ -113,6 +113,18 @@ C23补 shouldBeStrict、三项prevent策略、丢弃/缺失处理钩子及 witho
 
 来源：固定Framework13.40.0 Model.php/HasAttributes.php/Builder.php、既有转换与事件实现；旧版v0.x元数据/SeaQuery装配不同未直接搬入。联网raw依然无内容，采用现有固定源码与真实PHP oracle，不宣称新增联网验证。源码/参考见tests/eloquent_strictness.rs与tests/reference/eloquent-strictness.php/json；证据位于target/tmp/framework-parity-20261122/strict-{eighth,sixth,postgres,mysql,mysql-models}.log、strict-reference-final.json、fmt-strict.log、clippy-strict.log及docs-*-strict.log。C20及更广泛公开API裁决仍未完成。
 
+## Query 分类绑定（2026-11-23）
+
+C20补 getRawBindings/setBindings/addBinding/mergeBindings，保留九类顺序，复用现有AST、Grammar和参数执行器。手动变更记录已有自动绑定前缀，后续条件继续追加，select/reorder清空对应类别；来源替换保留已有from绑定。HAVING嵌套将手动绑定带入条件组，子查询在嵌入时保留最终绑定，快照深拷贝变更；分页计数暂时移除排序绑定后恢复。普通update/delete与PostgreSQL updateFrom按实际SQL位置取绑定；updateFrom拆分来源与连接条件，覆盖含参数子查询及原WHERE。没有拼接不可信值或建立第二套查询器。
+
+真实PHP8.5.12按固定v13.40.0编译SQLite/PG/MySQL共93组SQL、九类原始绑定、展平绑定及错误参考，全量对照通过。SQLite实际验证投影/where/having/union、注入文本、聚合、计数排序恢复、groupLimit、update/delete及beforeQuery快照；PG18.7/MySQL8.4.13独立库实际执行同一用例，PG另覆盖updateFrom。三库各3项既有查询实际回归通过，PG无类型编码专项显式执行通过；主机原22查询/18写入/4查询对照通过，1项PG专项ignored不冒称主机执行。原MySQL专项无连接早退不计实际库。关系6项默认线程栈、scope/strict各1项及新绑定2项通过。新增状态最初触发关系栈溢出，改为按需堆存放groupLimit状态后默认栈全部恢复，没有调大线程栈；失败日志保留。最终fmt、workspace/all-targets严格Clippy、三语build/12页面组合/双前缀全部导航通过。
+
+明确差异：接口用消费所有权与Result、Option类别和BindingValues/Value表达，非PHP任意动态输入；类别读取会校验相关SQL结构。getRawBindings保留原逻辑类别，现有groupLimit不会像上游toSql那样改写类别/offset，getBindings返回实际窗口排序及绑定数值限额。数值限额占位而非上游直接内联，以及PG updateFrom参数按真实SQL位置重排均保留为已有执行适配，不称字面1:1。无占位符的手动绑定属于调用方错误；未覆盖全部无效查询组合、其他数据库版本/SQLServer实际驱动与所有公开API，不据此关闭全Query或全框架。
+
+来源为固定Builder.php:4695–4810、Grammar/PostgresGrammar、现有AST/写入/分页。旧版v0.x同路径builder使用SeaQuery/共享QueryState/get_bindings，无这四项分类API，未搬入旧锁与状态架构。联网raw仍无内容，采用本地固定源码与真正PHP oracle。参考tests/reference/query-bindings.php/json；证据target/tmp/framework-parity-20261122/bindings-{second,sixth,eighth,postgres-final,mysql-final}.log、clippy-bindings-final.log、fmt-bindings-final.log及docs-*-bindings.log。C23已本地提交7aba9cc19；其他剩余继续，未推送。
+
+本批再次触及32GB停线，通知相关开发对话暂停新增构建后，核对无Cargo/rustc进程并持13个profile排他锁清理全部项目编译与docs dist，保留锁inode、源码/WIP/日志/依赖下载/数据。实测可用31,797,075,968→135,643,385,856字节，净释放103,846,309,888字节；证据disk-cleanup-bindings.json。清理后通知恢复并沿用正常增量/并发，未关闭用户应用。
+
 ## 目标与依据
 
 按固定上游逐项补齐可实现的目录、命名、公开接口、默认值、装配顺序、生命周期和错误行为。Rust 必要适配与用户确认的额外功能单独登记，保留可追溯的差异；不能把这些差异删除后称为完成，也不能将其算作字面 1:1。

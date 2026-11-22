@@ -12,12 +12,14 @@ use super::{
     grammars::{DatePart, Grammar, IndexHintKind},
 };
 
+pub(super) mod bindings;
 mod chunks;
 mod pagination;
 mod subqueries;
 mod vectors;
 mod writes;
 
+pub use bindings::BindingValues;
 pub(in crate::database) use chunks::{
     ChunkKey, collection_chunk_index, flatten_batches, map_chunk_rows, visit_batches,
 };
@@ -120,10 +122,11 @@ pub struct Builder<'connection> {
     orders: Vec<Order>,
     limit: Option<u64>,
     offset: Option<u64>,
-    group_limit: Option<GroupLimit>,
+    group_limit: Option<Box<GroupLimit>>,
     use_write: bool,
     before_query: Vec<Arc<BeforeQuery>>,
     after_query: Vec<Arc<AfterQuery>>,
+    binding_changes: Option<Box<bindings::Changes>>,
 }
 
 #[allow(non_snake_case, reason = "Matches Laravel's Query Builder API")]
@@ -183,6 +186,7 @@ impl<'connection> Builder<'connection> {
             use_write: false,
             before_query: Vec::new(),
             after_query: Vec::new(),
+            binding_changes: None,
         }
     }
 
@@ -202,6 +206,7 @@ impl<'connection> Builder<'connection> {
     }
 
     pub fn from(mut self, table: &str) -> Self {
+        self.retain_source_bindings();
         self.source = Source::Table(table.into());
         self
     }
@@ -212,6 +217,7 @@ impl<'connection> Builder<'connection> {
 
     pub fn select<C: Into<Column>>(mut self, columns: impl IntoIterator<Item = C>) -> Self {
         self.columns.clear();
+        self.clear_binding_changes(0);
         self.addSelect(columns)
     }
 
@@ -308,8 +314,13 @@ impl<'connection> Builder<'connection> {
     ) -> Self {
         let mut query = self.subquery("");
         query.source = self.source.clone();
-        let query = configure(query);
-        self.havings.nested(false, |_| query.havings, false);
+        let mut query = configure(query);
+        let change = query
+            .binding_changes
+            .as_mut()
+            .and_then(|changes| changes[5].take());
+        self.havings
+            .nested(false, |_| query.havings.with_binding_change(change), false);
         self
     }
 
@@ -319,8 +330,13 @@ impl<'connection> Builder<'connection> {
     ) -> Self {
         let mut query = self.subquery("");
         query.source = self.source.clone();
-        let query = configure(query);
-        self.havings.nested(true, |_| query.havings, false);
+        let mut query = configure(query);
+        let change = query
+            .binding_changes
+            .as_mut()
+            .and_then(|changes| changes[5].take());
+        self.havings
+            .nested(true, |_| query.havings.with_binding_change(change), false);
         self
     }
 
@@ -375,6 +391,8 @@ impl<'connection> Builder<'connection> {
     pub fn reorder(mut self) -> Self {
         self.orders.clear();
         self.union_orders.clear();
+        self.clear_binding_changes(6);
+        self.clear_binding_changes(8);
         self
     }
 
@@ -417,19 +435,19 @@ impl<'connection> Builder<'connection> {
 
     /// Limits the rows returned for each value of the partition column.
     pub fn groupLimit(mut self, limit: u64, column: &str) -> Self {
-        self.group_limit = Some(GroupLimit {
+        self.group_limit = Some(Box::new(GroupLimit {
             partition: column.into(),
             limit: Some(limit),
-        });
+        }));
         self
     }
 
     pub(in crate::database) fn group_limit(mut self, partition: &str) -> Self {
         if self.group_limit.is_none() && (self.limit.is_some() || self.offset.is_some()) {
-            self.group_limit = Some(GroupLimit {
+            self.group_limit = Some(Box::new(GroupLimit {
                 partition: partition.into(),
                 limit: self.limit.take(),
-            });
+            }));
         }
         self
     }
@@ -553,6 +571,7 @@ impl<'connection> Builder<'connection> {
             use_write: self.use_write,
             before_query: self.before_query.clone(),
             after_query: self.after_query.clone(),
+            binding_changes: self.binding_changes.clone(),
         }
     }
     pub fn applyBeforeQueryCallbacks(&mut self) -> DatabaseResult<()> {
@@ -704,6 +723,7 @@ impl<'connection> Builder<'connection> {
         let mut window = format!("row_number() over (partition by {partition}");
         let mut window_bindings = Vec::new();
         self.compile_orders(&self.orders, &mut window, &mut window_bindings)?;
+        self.change_bindings(6, &mut window_bindings, 0);
         write!(window, ") as {rank}").expect("writing to String");
         let rank_projection = Expression::new(window).with_bindings(window_bindings);
         let (sql, mut bindings) =
@@ -951,32 +971,42 @@ impl<'connection> Builder<'connection> {
             }
         }
 
+        if aggregate.is_none() {
+            self.change_bindings(0, &mut bindings, 0);
+        }
         if let Some(rank) = rank {
             sql.push_str(", ");
             sql.push_str(&rank.sql);
             bindings.extend_from_slice(&rank.bindings);
         }
         sql.push_str(" from ");
+        let source_start = bindings.len();
         sql.push_str(
             &self
                 .source
                 .compile(&self.grammar, database, &mut bindings)?,
         );
+        self.change_bindings(1, &mut bindings, source_start);
         self.compile_table_hints(&mut sql, self.lock.as_ref())?;
         self.compile_joins(&mut sql, &mut bindings)?;
 
         self.compile_predicates(&mut sql, &mut bindings)?;
+        let group_start = bindings.len();
         if !self.groups.is_empty() {
             sql.push_str(" group by ");
             self.compile_columns(&self.groups, &mut sql, &mut bindings, false)?;
         }
 
+        self.change_bindings(4, &mut bindings, group_start);
+        let having_start = bindings.len();
         if !self.havings.is_empty() {
             sql.push_str(" having ");
             self.havings
                 .compile(&self.grammar, &mut sql, &mut bindings)?;
         }
 
+        self.change_bindings(5, &mut bindings, having_start);
+        let order_start = bindings.len();
         let ordered = rank.is_none()
             && !self.orders.is_empty()
             && (aggregate.is_none() || !self.groups.is_empty());
@@ -984,6 +1014,9 @@ impl<'connection> Builder<'connection> {
             self.compile_orders(&self.orders, &mut sql, &mut bindings)?;
         }
 
+        if rank.is_none() && (aggregate.is_none() || !self.groups.is_empty()) {
+            self.change_bindings(6, &mut bindings, order_start);
+        }
         let offset = if rank.is_some() { None } else { self.offset };
         if sql_server {
             if self.limit != Some(0) && (self.limit.is_some() || offset.is_some()) {
@@ -1004,14 +1037,21 @@ impl<'connection> Builder<'connection> {
         }
         if !self.unions.is_empty() {
             sql = self.compile_unions(sql, &mut bindings)?;
+        } else {
+            let start = bindings.len();
+            self.change_bindings(7, &mut bindings, start);
+            let start = bindings.len();
+            self.change_bindings(8, &mut bindings, start);
         }
         Ok((sql, bindings))
     }
 
     fn compile_joins(&self, sql: &mut String, bindings: &mut Vec<Value>) -> DatabaseResult<()> {
+        let start = bindings.len();
         for join in &self.joins {
             join.compile(&self.grammar, sql, bindings)?;
         }
+        self.change_bindings(2, bindings, start);
         Ok(())
     }
 
@@ -1020,10 +1060,12 @@ impl<'connection> Builder<'connection> {
         sql: &mut String,
         bindings: &mut Vec<Value>,
     ) -> DatabaseResult<()> {
+        let start = bindings.len();
         if !self.predicates.is_empty() {
             sql.push_str(" where ");
             self.predicates.compile(&self.grammar, sql, bindings)?;
         }
+        self.change_bindings(3, bindings, start);
         Ok(())
     }
 

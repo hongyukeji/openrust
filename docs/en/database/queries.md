@@ -612,6 +612,22 @@ let sql = query.toRawSql()?;
 let rows = query.afterQuery(|rows| Ok(rows)).get().await?;
 ```
 
+## Binding Categories {#binding-categories}
+
+`getRawBindings()` returns the ordered categories `select`, `from`, `join`, `where`, `groupBy`, `having`, `order`, `union`, and `unionOrder`. `setBindings(values, kind)` replaces a category; `addBinding(value_or_values, kind)` appends to it. Use `None` for the default `where` category or `Some("join")` for an explicit category. Unknown categories return an error. These methods consume and return the builder through `Result`.
+
+```rust
+let query = connection.table("users")
+    .whereRaw("id > ? and id < ?", Vec::new())
+    .addBinding([1_i64, 10], None)?
+    .setBindings(vec![2.into(), 9.into()], None)?
+    .r#where("active", "=", true);
+let bindings = query.getRawBindings()?;
+assert_eq!(bindings["where"], vec![2.into(), 9.into(), true.into()]);
+```
+
+Later conditions append their values after a manual replacement. `select` clears projection bindings, and `reorder` clears both regular and union order bindings. `mergeBindings(&other)` appends each category without copying SQL; ensure the SQL contains the matching placeholders. The typed values remain bound parameters, including values that contain SQL text. `getBindings()` reports the parameters used by the compiled query; grouped limits move ordering parameters into the window projection and add bound numeric limits. `getRawBindings()` reports the original logical categories.
+
 ## Additional Query Conditions {#additional-query-conditions}
 
 `fromRaw(sql, bindings)` sets a trusted SQL source. `joinWhere`, `leftJoinWhere` and `rightJoinWhere` compare a join column with a bound value. Raw SQL must come from application code; pass user values through bindings.

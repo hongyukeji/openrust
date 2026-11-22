@@ -170,6 +170,10 @@ impl Builder<'_> {
             self.union_offset.take(),
         );
         let lock = self.lock.take();
+        let order_changes = self
+            .binding_changes
+            .as_mut()
+            .map(|changes| (changes[6].take(), changes[8].take()));
         let compiled = if self.groups.is_empty()
             && self.havings.is_empty()
             && self.unions.is_empty()
@@ -188,6 +192,11 @@ impl Builder<'_> {
         self.union_orders = union_orders;
         (self.limit, self.offset, self.union_limit, self.union_offset) = limits;
         self.lock = lock;
+        if let Some((order, union_order)) = order_changes {
+            let changes = self.binding_changes.as_mut().expect("绑定更改仍存在");
+            changes[6] = order;
+            changes[8] = union_order;
+        }
         let (sql, bindings) = compiled?;
         match super::first_value(self.execute(&sql, &bindings).await?)? {
             Value::Unsigned(value) => Ok(value),

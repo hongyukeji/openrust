@@ -9,7 +9,7 @@ mod join_clause;
 pub mod processors;
 pub(super) mod vector;
 
-pub use builder::{Builder, Column};
+pub use builder::{BindingValues, Builder, Column};
 pub(super) use builder::{
     ChunkKey, collection_chunk_index, flatten_batches, map_chunk_rows, visit_batches,
 };

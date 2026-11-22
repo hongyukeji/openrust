@@ -478,13 +478,13 @@
         "vendor/openrust/framework/src/database/query/builder.rs:1",
         "Illuminate\\Database\\Query\\Builder.getRawBindings;Illuminate\\Database\\Query\\Builder.setBindings;Illuminate\\Database\\Query\\Builder.addBinding;Illuminate\\Database\\Query\\Builder.mergeBindings",
         "vendor/openrust/framework/tests/database_query.rs;vendor/openrust/framework/tests/database_query_writes.rs",
-        "历史发现待当前契约复核；复核仍成立后实施",
-        "",
+        "四项九类绑定API已实现并三库验收；分组限量元数据/typed输入等适配差异保留",
+        "tests/query_bindings.rs；reference/query-bindings.php/json；target/tmp/framework-parity-20261122/bindings-*、clippy/fmt-bindings-final、docs-*-bindings日志",
         "Q01",
-        "本轮未执行框架验收",
-        "历史差异待当前契约裁决",
-        "先复核已有实现后补缺口；本计划未执行",
-        "本轮未运行功能验收，历史结果仅限对应提交和环境"
+        "93组真实固定PHP三方言SQL/九类/展平绑定与错误对照通过。SQLite/PG18/MySQL8.4实际执行投影/where/having/union/聚合/分页/groupLimit/读写，PG另updateFrom参数子查询。三库各3旧查询及PG编码专项通过。主机22查询/18写入/4对照通过，PG专项另执行；关系6默认栈及scope/strict通过。fmt/严格Clippy/三语站点通过。",
+        "沿用AST/Grammar，手动前缀变更与后追加参数合并；快照/嵌套HAVING/来源保留与清空职责已验。所有权/Result/Option类别/typed值适配明确；groupLimit逻辑类别不被toSql改写，实际参数含绑定限额；PG updateFrom按SQL位置重排。",
+        "getRawBindings/setBindings/addBinding/mergeBindings及九类执行接入已实现；groupLimit按需堆存放修复默认栈回归，未调大线程栈；未宣称覆盖全部无效查询/动态输入域与全Query API",
+        "2026-11-23所列三库、93真实参考、严格Clippy与三语站点通过；groupLimit元数据/限额占位和动态输入等差异未作为字面1:1关闭，其他引擎未实测"
       ],
       [
         "main",
@@ -506,7 +506,7 @@
         "Q01;C20;R06",
         "23组真实固定PHP/PDO SQLite参考；SQLite/PG18/MySQL8.4各1项作用域集成通过。现有事件/主键181参考/模型/聚合/写入12项、关系6项默认栈、factory/force-fill/路由9项通过；旧MySQL早退不计真实驱动。fmt、严格workspace/all-targets Clippy、三语build/12页面组合/双前缀全部导航通过。",
         "注册表按固定Builder顺序与覆盖/移除职责实现，软删除同表；Rust使用Scope/闭包及Model::newEloquentBuilder工厂",
-        "withGlobalScope/withoutGlobalScopesExcept/removedScopes/applyScopes/getQuery/setQuery/getEagerLoads/setEagerLoads及Scope::extend、新模型查询工厂已实现；C20分类binding仍未实现，不冒称由这些入口补齐",
+        "withGlobalScope/withoutGlobalScopesExcept/removedScopes/applyScopes/getQuery/setQuery/getEagerLoads/setEagerLoads及Scope::extend、新模型查询工厂已实现；C20分类绑定已在独立批次补齐并验收，详见C20状态",
         "2026-11-23受支持作用域/工厂核心三库及真实参考通过；getQuery/applyScopes消费所有权而非PHP共享对象/克隆，工厂返回框架typed Builder，运行期派生类与宏仍为语言适配边界"
       ],
       [
@@ -293308,6 +293308,15 @@
       ],
       "note": "51真实PHP参考；50项一致行为与1项嵌套同类型touch差异明示。三库实际严格策略/touch和MySQL模型/哈希/加密/HTTP通过；修正四份旧测试的整次fill回滚预期。fmt/严格Clippy/三语站点通过；typed/app/rawOption与lazy水合快照规则保留。C20及全API仍开放。",
       "evidence": "target/tmp/framework-parity-20261122/strict-*、fmt-strict、clippy-strict、docs-*-strict日志"
+    },
+    {
+      "date": "2026-11-23",
+      "kind": "query_binding_categories_verified",
+      "tasks": [
+        "C20"
+      ],
+      "note": "93组真正固定PHP三方言参考与三库执行通过，含嵌套HAVING/快照/来源替换/清空/聚合/分页/groupLimit及PG参数化updateFrom。首轮关系默认栈溢出经groupLimit堆存放修复，默认栈6项通过。fmt/严格Clippy/三语站点通过。typed值、groupLimit逻辑类别不改写/绑定限额与PG按SQL位置重排差异明示，不作为全Query/API关闭。",
+      "evidence": "target/tmp/framework-parity-20261122/bindings-*、clippy/fmt-bindings-final、docs-*-bindings、disk-cleanup-bindings.json"
     }
   ]
 }

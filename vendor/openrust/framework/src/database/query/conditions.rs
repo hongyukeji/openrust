@@ -101,9 +101,20 @@ enum Predicate {
 
 /// Predicates for a parenthesized where group.
 #[derive(Clone, Default)]
-pub struct Conditions(Vec<(Boolean, Predicate)>);
+pub struct Conditions(
+    Vec<(Boolean, Predicate)>,
+    Option<Box<super::builder::bindings::Change>>,
+);
 
 impl Conditions {
+    pub(super) fn with_binding_change(
+        mut self,
+        change: Option<super::builder::bindings::Change>,
+    ) -> Self {
+        self.1 = change.map(Box::new);
+        self
+    }
+
     pub(super) fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
@@ -176,6 +187,7 @@ impl Conditions {
         bindings: &mut Vec<Value>,
         has_predicates: bool,
     ) -> DatabaseResult<()> {
+        let start = bindings.len();
         for (index, (boolean, predicate)) in self.0.iter().enumerate() {
             if has_predicates || index > 0 {
                 sql.push_str(match boolean {
@@ -184,6 +196,9 @@ impl Conditions {
                 });
             }
             predicate.compile(grammar, sql, bindings)?;
+        }
+        if let Some(change) = &self.1 {
+            change.apply(bindings, start);
         }
         Ok(())
     }

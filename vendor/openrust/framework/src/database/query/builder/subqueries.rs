@@ -183,12 +183,15 @@ impl Builder<'_> {
     }
 
     pub fn fromSub(mut self, query: &mut Builder<'_>, alias: &str) -> DatabaseResult<Self> {
-        self.source = Source::Query(self.subquery_expression(query)?, alias.into());
+        let source = self.subquery_expression(query)?;
+        self.retain_source_bindings();
+        self.source = Source::Query(source, alias.into());
         Ok(self)
     }
 
     /// 原始来源片段只用于可信 SQL；外部输入必须通过 bindings 传递。
     pub fn fromRaw(mut self, expression: &str, bindings: Vec<Value>) -> Self {
+        self.retain_source_bindings();
         self.source = Source::Raw(Expression::new(expression).with_bindings(bindings));
         self
     }
@@ -557,12 +560,16 @@ impl Builder<'_> {
         bindings: &mut Vec<Value>,
     ) -> DatabaseResult<String> {
         let mut sql = self.grammar.wrap_union(&sql);
+        let start = bindings.len();
         for (all, query) in &self.unions {
             sql.push_str(if *all { " union all " } else { " union " });
             sql.push_str(&self.grammar.wrap_union(&query.sql));
             bindings.extend_from_slice(&query.bindings);
         }
+        self.change_bindings(7, bindings, start);
+        let order_start = bindings.len();
         self.compile_orders(&self.union_orders, &mut sql, bindings)?;
+        self.change_bindings(8, bindings, order_start);
         Grammar::pagination(&mut sql, self.union_limit, self.union_offset);
         Ok(sql)
     }

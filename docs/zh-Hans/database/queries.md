@@ -612,6 +612,22 @@ let sql = query.toRawSql()?;
 let rows = query.afterQuery(|rows| Ok(rows)).get().await?;
 ```
 
+## 绑定类别 {#binding-categories}
+
+`getRawBindings()` 按顺序返回 `select`、`from`、`join`、`where`、`groupBy`、`having`、`order`、`union`、`unionOrder` 九类绑定。`setBindings(values, kind)` 替换一类，`addBinding(value_or_values, kind)` 追加单值或一组值。类别传 `None` 默认使用 `where`，也可传 `Some("join")`；未知类别返回错误。这些方法通过 `Result` 消费并返回查询构建器。
+
+```rust
+let query = connection.table("users")
+    .whereRaw("id > ? and id < ?", Vec::new())
+    .addBinding([1_i64, 10], None)?
+    .setBindings(vec![2.into(), 9.into()], None)?
+    .r#where("active", "=", true);
+let bindings = query.getRawBindings()?;
+assert_eq!(bindings["where"], vec![2.into(), 9.into(), true.into()]);
+```
+
+手动替换后，新条件仍在已有绑定后追加参数。`select` 清空投影绑定，`reorder` 同时清空普通与联合排序绑定。`mergeBindings(&other)` 按类别追加绑定，不复制 SQL，须确保 SQL 中有对应占位符。所有类型化值始终使用参数绑定，包括包含 SQL 文本的值。`getBindings()` 返回编译后实际执行的参数；分组限量查询会将排序参数移至窗口投影，并追加绑定的数值限额。`getRawBindings()` 则保留原始逻辑类别。
+
 ## 补充查询条件 {#additional-query-conditions}
 
 `fromRaw(sql, bindings)` 设置可信 SQL 来源。`joinWhere`、`leftJoinWhere`、`rightJoinWhere` 将连接列与绑定值比较。原始 SQL 由应用代码提供，用户输入通过绑定传入。

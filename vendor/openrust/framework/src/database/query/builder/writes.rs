@@ -364,16 +364,25 @@ impl Builder<'_> {
             return Err(DatabaseError::InvalidQuery("update assignments"));
         }
         let mut sql = format!("update {table} set {}", assignments.join(", "));
+        let assignments_end = bindings.len();
+        let mut source_lengths = Vec::new();
         for (index, join) in self.joins.iter().enumerate() {
             sql.push_str(if index == 0 { " from " } else { ", " });
+            let start = bindings.len();
             sql.push_str(&join.source.compile(&self.grammar, None, &mut bindings)?);
+            source_lengths.push(bindings.len() - start);
         }
+        let sources_end = bindings.len();
         self.compile_predicates(&mut sql, &mut bindings)?;
+        let where_end = bindings.len();
+        let mut clause_lengths = Vec::new();
         let mut has_predicates = !self.predicates.is_empty();
         for join in &self.joins {
             if join.clause.0.is_empty() {
+                clause_lengths.push(0);
                 continue;
             }
+            let start = bindings.len();
             if !has_predicates {
                 sql.push_str(" where ");
             }
@@ -383,7 +392,30 @@ impl Builder<'_> {
                 &mut bindings,
                 has_predicates,
             )?;
+            clause_lengths.push(bindings.len() - start);
             has_predicates = true;
+        }
+        if self
+            .binding_changes
+            .as_ref()
+            .is_some_and(|changes| changes[2].is_some())
+        {
+            // UPDATE FROM把来源放在WHERE前、连接条件放在WHERE后，按SQL位置分配join类别。
+            let mut changed = self.natural_bindings(2)?;
+            self.change_bindings(2, &mut changed, 0);
+            let mut changed = changed.into_iter();
+            let mut sources = Vec::new();
+            let mut clauses = Vec::new();
+            for (source, clause) in source_lengths.into_iter().zip(clause_lengths) {
+                sources.extend(changed.by_ref().take(source));
+                clauses.extend(changed.by_ref().take(clause));
+            }
+            clauses.extend(changed);
+            let wheres = bindings[sources_end..where_end].to_vec();
+            bindings.truncate(assignments_end);
+            bindings.extend(sources);
+            bindings.extend(wheres);
+            bindings.extend(clauses);
         }
         self.affect(&sql, &bindings).await
     }
@@ -608,7 +640,7 @@ impl Builder<'_> {
         if let Some(limit) = ordered_top {
             sql.push_str(&format!(" from (select top ({limit}) * from {table_sql}"));
             self.compile_predicates(&mut sql, bindings)?;
-            self.compile_orders(&self.orders, &mut sql, bindings)?;
+            self.compile_bound_orders(&mut sql, bindings)?;
             sql.push_str(") as ");
             sql.push_str(target);
         } else {
@@ -643,13 +675,13 @@ impl Builder<'_> {
             self.compile_table_hints(sql, None)?;
             self.compile_joins(sql, bindings)?;
             self.compile_predicates(sql, bindings)?;
-            self.compile_orders(&self.orders, sql, bindings)?;
+            self.compile_bound_orders(sql, bindings)?;
             Grammar::pagination(sql, self.limit, self.offset);
             sql.push(')');
         } else {
             self.compile_predicates(sql, bindings)?;
             if self.grammar.is_mysql() && self.joins.is_empty() {
-                self.compile_orders(&self.orders, sql, bindings)?;
+                self.compile_bound_orders(sql, bindings)?;
                 Grammar::pagination(sql, self.limit, None);
             }
         }
