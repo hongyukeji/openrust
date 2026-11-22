@@ -2,6 +2,8 @@
 
 ## 讀取影像 {#reading-images}
 
+`file()` 在轉譯、複製、繼續變換、切換格式或驅動後仍保留原始上傳檔案。
+
 在應用程式中從 `openrust::support::facades` 匯入 `Image`。用 `request.image("avatar").await?` 從 multipart 欄位建立影像，或用 `Image::fromUpload` 讀取既有上傳。`Image::fromStorage` 和 `Storage::disk(Some("public"))?.image(path)` 使用設定的磁碟。也可使用位元組、Base64、路徑、HTTP URL 和非同步串流。串流在建構時讀取，其餘來源在轉譯或檢查影像時載入。
 
 ## 轉換與編碼 {#manipulating-images}

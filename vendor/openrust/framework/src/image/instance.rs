@@ -34,6 +34,7 @@ pub(super) enum Source {
 #[derive(Clone)]
 pub struct Image {
     source: Source,
+    file: Option<UploadedFile>,
     manager: ImageManager,
     pipeline: ImagePipeline,
     driver: Option<String>,
@@ -46,8 +47,13 @@ pub struct Image {
 #[allow(non_snake_case, reason = "Matches Laravel's Image API")]
 impl Image {
     pub(super) fn new(manager: ImageManager, source: Source) -> Self {
+        let file = match &source {
+            Source::Upload(file) => Some(file.clone()),
+            _ => None,
+        };
         Self {
             source,
+            file,
             manager,
             pipeline: ImagePipeline::default(),
             driver: None,
@@ -59,10 +65,7 @@ impl Image {
     }
 
     pub fn file(&self) -> Option<&UploadedFile> {
-        match &self.source {
-            Source::Upload(file) => Some(file),
-            _ => None,
-        }
+        self.file.as_ref()
     }
 
     pub fn using(mut self, driver: impl Into<String>) -> Self {

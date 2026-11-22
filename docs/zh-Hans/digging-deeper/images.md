@@ -2,6 +2,8 @@
 
 ## 读取图像 {#reading-images}
 
+`file()` 在渲染、克隆、继续变换、切换格式或驱动后仍保留原始上传文件。
+
 在应用中从 `openrust::support::facades` 导入 `Image`。用 `request.image("avatar").await?` 从 multipart 字段创建图像，或用 `Image::fromUpload` 读取已有上传。`Image::fromStorage` 和 `Storage::disk(Some("public"))?.image(path)` 使用配置磁盘。还可以使用字节、Base64、路径、HTTP URL 和异步流。流在构造时读取，其余来源在渲染或检查图像时加载。
 
 ## 变换和编码 {#manipulating-images}

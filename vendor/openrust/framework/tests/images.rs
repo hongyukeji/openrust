@@ -333,6 +333,25 @@ async fn transforms_a_real_http_upload_and_reads_it_from_storage_and_url() {
                 .await
                 .map_err(|_| HttpError::InvalidRequest)?
                 .unwrap();
+            let reference = image_reference();
+            let transformed = image.clone().cover(3, 3);
+            let encoded = image.clone().toPng();
+            let selected = image.clone().using("image");
+            for branch in [&image, &transformed, &encoded, &selected] {
+                assert_eq!(
+                    branch.file().map(|file| file.getClientOriginalName()),
+                    reference["upload_original_name"].as_str(),
+                );
+                assert_eq!(
+                    branch.file().is_some(),
+                    reference["upload_file_preserved"].as_bool().unwrap(),
+                );
+            }
+            assert_eq!(transformed.dimensions().await.unwrap(), (3, 3));
+            assert_eq!(encoded.mimeType().await.unwrap(), "image/png");
+            assert_eq!(selected.dimensions().await.unwrap(), (5, 5));
+            assert_eq!(image.dimensions().await.unwrap(), (5, 5));
+            assert!(Image::fromBytes(sample()).unwrap().file().is_none());
             let restored = Storage::disk(Some("public"))?.image(&path).unwrap();
             assert_eq!(restored.dimensions().await.unwrap(), (5, 5));
             let restored = Image::fromStorage(&path, Some("public")).unwrap();

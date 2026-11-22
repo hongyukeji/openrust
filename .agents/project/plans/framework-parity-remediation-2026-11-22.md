@@ -116,6 +116,12 @@ C35在既有原生Driver/Pipeline上实现transformUsing，不另引图片引擎
 
 尚未关闭：公开直接构造/任意惰性Closure来源，Manager惰性creator/rebind/getContainer/setContainer/forgetDrivers，存储任意options，Conditionable完整重载；fromStream仍构造时读取借用流。类型/方法逐项裁决已追加同一JSON的本批method_review：未完全复验的方法保持待核对，不能据新增方法或32项通过宣称Image模块或全框架1:1。Rust默认image后端、typed尺寸/颜色/格式、名称/JSON替代转换类、逐帧回调以及async/Result/无隐式字符串IO均是需保留登记的差异。
 
+### 图片上传文件信息生命周期（2026-11-23）
+
+继续核对C35发现Image::file从当前Source读取上传文件；渲染后再变换、转码或选择驱动会把Source换成Bytes，导致原上传信息丢失。按固定Image的独立file属性保留UploadedFile，克隆和处理分支不再依赖当前来源；非上传来源仍为None。没有改变图片缓存、像素处理或来源读取时机。
+
+联网逐字核对固定Image.php与ImageManager.php；v0.x未找到对应图片实现。PHP8.5.12使用真实UploadedFile和固定Image/ImageManager，验证渲染后四种分支保留同一文件对象及原始名称。Driver与Storage仍是职责测试桩，不属于PHP原生像素验收。Rust真实multipart上传后执行存储、再次cover、toPng及using，逐分支检查上传名称，并实际核对新旧尺寸与格式；非上传图像确认None。普通测试读取更新的reference/image-lifecycle.json。完整图片22项、fmt、严格workspace/all-targets Clippy及三语站点构建、根路径/子路径页面和导航检查全部通过。证据为target/tmp/framework-parity-20261122/下image-upload-{reference.json,reference.log,source.json}、images-upload.log、fmt-image-upload.log、clippy-image-upload.log及docs-{build,browser,scope}-image-upload.log。C35其余公开接口与适配差异保持未完成。
+
 ### 分页解析器与视图工厂（2026-11-23）
 
 C39按固定AbstractPaginator、AbstractCursorPaginator及PaginationState核对，实际联网比较六个固定分页源码与本地参考逐字一致；v0.x只有第三方sea-orm分页器，无可复用的当前框架入口。应用容器登记PaginationState保存路径、页码、查询、游标和视图工厂回调，Paginator与LengthAwarePaginator共享偏移分页解析状态，CursorPaginator共享视图工厂并持独立游标回调。回调取Arc后释放锁再执行，支持重入；不使用进程级可变全局。

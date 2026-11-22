@@ -823,8 +823,8 @@
         "vendor/openrust/framework/src/image/instance.rs:116",
         "",
         "vendor/openrust/framework/tests/images.rs",
-        "翻转别名、真实驱动/Manager/Facade transformUsing、来源缓存及处理后分支生命周期已实现；公开继承接口和结构差异仍未关闭",
-        "target/tmp/framework-parity-20261122/ [images-filesystem-release-final.log;image-lifecycle-reference.json;flysystem-paths-reference.json;image-source-verification.json]",
+        "翻转别名、真实驱动/Manager/Facade transformUsing、来源缓存及处理后分支生命周期已实现；公开继承接口和结构差异仍未关闭；已修复渲染后变换/转码/切换驱动丢失上传文件信息",
+        "target/tmp/framework-parity-20261122/ [images-filesystem-release-final.log;image-lifecycle-reference.json;flysystem-paths-reference.json;image-source-verification.json]；image-upload-{reference.json,source.json}及images-upload.log",
         "Q01",
         "图片22项及文件系统本地10项通过；固定PHP实际执行Image/ImageManager生命周期及文件系统桩，非PHP原生像素对照；Flysystem3.30.2真实7组路径输出；严格workspace/all-targets Clippy、fmt、三语站点构建及根路径/子路径浏览器与导航全部通过",
         "固定Image/ImageManager/Driver/InterventionDriver原名职责；Rust Any可变回调、枚举变体名称/JSON自定义参数、逐帧原生处理、Result/async/typed整数、原生image默认后端均保留差异；未声称提供实际GD/Imagick",
@@ -293946,6 +293946,30 @@
         "u64和Send+Sync回调及默认相对路径等适配"
       ],
       "shared_file": "pagination_state.rs中的错误转换WIP保留在工作区，提交仅包含本批内容"
+    },
+    {
+      "date": "2026-11-23",
+      "kind": "image_uploaded_file_lifecycle",
+      "tasks": [
+        "C35"
+      ],
+      "note": "独立保留原始UploadedFile，避免已处理Source换成Bytes后file()丢失；图片22项、fmt、严格workspace/all-targets Clippy及三语构建/浏览器/导航全部通过",
+      "source": "固定1449bf241017087fbd38c118ecaabef3f6797fdc Image/ImageManager，PHP8.5.12真实UploadedFile；Driver/Storage为桩，无PHP原生像素处理",
+      "methods": [
+        "Image.file",
+        "Image.newClone",
+        "Image.using",
+        "Image.transform",
+        "Image.encode",
+        "ImageManager.fromUpload",
+        "Request.image"
+      ],
+      "evidence": "target/tmp/framework-parity-20261122/ [image-upload-{reference.json,reference.log,source.json};images-upload.log;fmt-image-upload.log;clippy-image-upload.log;docs-{build,browser,scope}-image-upload.log]",
+      "remaining": [
+        "C35公开构造/任意惰性Closure",
+        "Manager惰性creator/rebind/getContainer/setContainer/forgetDrivers",
+        "任意存储options/Conditionable重载及后端全集"
+      ]
     }
   ]
 }

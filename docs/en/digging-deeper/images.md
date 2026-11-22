@@ -2,6 +2,8 @@
 
 ## Reading images {#reading-images}
 
+`file()` retains the original uploaded file after rendering, cloning, further transformations, format changes, and driver selection.
+
 In an application, import `Image` from `openrust::support::facades`. Use `request.image("avatar").await?` to create an image from a multipart field, or call `Image::fromUpload` with an existing upload. `Image::fromStorage` and `Storage::disk(Some("public"))?.image(path)` use configured disks. Other inputs include bytes, Base64, paths, HTTP URLs, and asynchronous streams. Streams are read at construction. Other sources are loaded when rendering or inspecting the image.
 
 ## Manipulating and encoding images {#manipulating-images}
