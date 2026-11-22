@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::{
-    auth::{AuthError, AuthResult, Credentials},
+    auth::{AuthResult, Credentials},
     container::ServiceKey,
     contracts::auth::{ResetCallback, ResetLinkCallback},
     support::facades::Facade,
@@ -23,9 +23,7 @@ impl Facade for Password {
 #[allow(non_snake_case, reason = "Matches Laravel's Password facade")]
 impl Password {
     pub fn broker(name: Option<&str>) -> AuthResult<Arc<PasswordBroker>> {
-        Self::getFacadeRoot()
-            .map_err(AuthError::backend)?
-            .broker(name)
+        Self::getFacadeRoot()?.broker(name)
     }
 
     pub async fn sendResetLink(

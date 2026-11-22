@@ -69,9 +69,7 @@ impl DatabaseManager {
 
     pub(super) fn translator(&self) -> DatabaseResult<Arc<crate::translation::Translator>> {
         if let Some(container) = self.container.upgrade() {
-            return container
-                .get("translator")
-                .map_err(DatabaseError::Unavailable);
+            return container.get("translator").map_err(Into::into);
         }
         let locale = |key| match self.config.get(key) {
             None => Ok("en".to_owned()),
@@ -111,9 +109,7 @@ impl DatabaseManager {
         let Some(owner) = self.container.upgrade() else {
             return Ok(());
         };
-        let dispatcher = owner
-            .get::<Dispatcher>("events")
-            .map_err(DatabaseError::Unavailable)?;
+        let dispatcher = owner.get::<Dispatcher>("events")?;
         let mut context = transaction.map_or_else(EventContext::new, EventContext::in_transaction);
         application_scope(owner, dispatcher.dispatch(Arc::new(event), &mut context))
             .await

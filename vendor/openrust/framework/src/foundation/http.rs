@@ -61,16 +61,10 @@ impl Kernel {
         let dispatcher = self
             .application
             .container()
-            .make::<crate::events::Dispatcher>()
-            .map_err(|source| crate::http::HttpError::Internal {
-                source: Box::new(source),
-            })?;
+            .make::<crate::events::Dispatcher>()?;
         dispatcher
             .dispatch(Arc::new(event), &mut crate::events::EventContext::new())
-            .await
-            .map_err(|source| crate::http::HttpError::Internal {
-                source: Box::new(source),
-            })?;
+            .await?;
         Ok(())
     }
 
@@ -99,9 +93,7 @@ impl Kernel {
                 dispatcher
                     .dispatch(event, &mut crate::events::EventContext::new())
                     .await
-                    .map_err(|source| crate::http::HttpError::Internal {
-                        source: Box::new(source),
-                    })
+                    .map_err(Into::into)
             }
             Err(source) => Err(crate::http::HttpError::Internal {
                 source: Box::new(source),
@@ -181,48 +173,30 @@ impl Kernel {
                     .map_err(|source| BootstrapError::LifecycleFailed {
                         source: Box::new(source),
                     })?;
-                let config = self
-                    .application
-                    .config()
-                    .map_err(|source| BootstrapError::ContainerFailed { source })?;
+                let config = self.application.config()?;
                 if self.middleware.trusted_proxies.is_none() {
-                    self.middleware.trusted_proxies = Some(
-                        crate::http::ProxyPolicy::from_config(config.as_ref())
-                            .map_err(|source| BootstrapError::ConfigurationFailed { source })?,
-                    );
+                    self.middleware.trusted_proxies =
+                        Some(crate::http::ProxyPolicy::from_config(config.as_ref())?);
                 }
                 if let Some(hosts) = &mut self.middleware.trusted_hosts {
-                    let environment = self
-                        .application
-                        .container()
-                        .get::<str>("env")
-                        .map_err(|source| BootstrapError::ContainerFailed { source })?;
+                    let environment = self.application.container().get::<str>("env")?;
                     if matches!(environment.as_ref(), "local" | "testing") {
                         self.middleware.trusted_hosts = None;
                     } else {
-                        hosts
-                            .configure(config.as_ref())
-                            .map_err(|source| BootstrapError::ConfigurationFailed { source })?;
+                        hosts.configure(config.as_ref())?;
                     }
                 }
-                self.middleware
-                    .configure_web(config.as_ref())
-                    .map_err(|source| BootstrapError::ConfigurationFailed { source })?;
+                self.middleware.configure_web(config.as_ref())?;
                 let cors = crate::http::middleware::HandleCors::from_config(
                     config.get("cors"),
                     &self.middleware.cors_skip_callbacks,
-                )
-                .map_err(|source| BootstrapError::ConfigurationFailed { source })?;
+                )?;
                 self.views = Some(
                     self.application
                         .container()
-                        .get::<Factory>(crate::container::ServiceKey::typed::<Factory>())
-                        .map_err(|source| BootstrapError::ContainerFailed { source })?,
+                        .get::<Factory>(crate::container::ServiceKey::typed::<Factory>())?,
                 );
-                let maintenance = self
-                    .application
-                    .maintenanceMode()
-                    .map_err(|source| BootstrapError::ContainerFailed { source })?;
+                let maintenance = self.application.maintenanceMode()?;
                 if self.routes.is_none() {
                     self.routes = self
                         .application
@@ -235,8 +209,7 @@ impl Kernel {
                 self.routes
                     .as_mut()
                     .expect("boot assembled the application routes")
-                    .configure_middleware(&self.middleware.registry, &self.middleware.set_locale)
-                    .map_err(|source| BootstrapError::RoutingFailed { source })?;
+                    .configure_middleware(&self.middleware.registry, &self.middleware.set_locale)?;
                 let maintenance_index = self.middleware.prepended + usize::from(cors.is_some());
                 if let Some(cors) = cors {
                     self.middleware

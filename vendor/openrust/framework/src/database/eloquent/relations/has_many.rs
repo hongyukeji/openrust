@@ -262,7 +262,7 @@ impl<P: Model, R: Model> HasMany<P, R> {
         parent: &P,
         binding: BindingContext<'_>,
     ) -> Result<Option<R>, HttpError> {
-        use super::super::route_binding::{http_error, lookup};
+        use super::super::route_binding::lookup;
 
         let Some(key) = parent
             .getAttribute(self.0.parent)
@@ -270,15 +270,12 @@ impl<P: Model, R: Model> HasMany<P, R> {
         else {
             return Ok(None);
         };
-        let connection = self.0.connection(parent).map_err(http_error)?;
-        let query = self
-            .0
-            .configure(R::queryOn(&connection))
-            .map_err(http_error)?;
+        let connection = self.0.connection(parent)?;
+        let query = self.0.configure(R::queryOn(&connection))?;
         let column = query.qualifyColumn(self.0.related);
         lookup(query.require_relation_value(&column, key.clone()), binding)
             .await
-            .map_err(http_error)
+            .map_err(Into::into)
     }
 
     /// Finds the related primary key or prepares an unsaved child for this parent.

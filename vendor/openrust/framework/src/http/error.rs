@@ -183,3 +183,123 @@ impl From<crate::support::CollectionError> for HttpError {
         }
     }
 }
+
+impl From<crate::config::ConfigError> for HttpError {
+    fn from(source: crate::config::ConfigError) -> Self {
+        Self::Internal {
+            source: Box::new(source),
+        }
+    }
+}
+
+impl From<crate::contracts::container::BindingResolutionError> for HttpError {
+    fn from(source: crate::contracts::container::BindingResolutionError) -> Self {
+        Self::Internal {
+            source: Box::new(source),
+        }
+    }
+}
+
+impl From<crate::translation::TranslationError> for HttpError {
+    fn from(source: crate::translation::TranslationError) -> Self {
+        Self::Internal {
+            source: Box::new(source),
+        }
+    }
+}
+
+impl From<crate::view::ViewError> for HttpError {
+    fn from(source: crate::view::ViewError) -> Self {
+        Self::Internal {
+            source: Box::new(source),
+        }
+    }
+}
+
+impl From<crate::database::DatabaseError> for HttpError {
+    fn from(source: crate::database::DatabaseError) -> Self {
+        Self::Internal {
+            source: Box::new(source),
+        }
+    }
+}
+
+impl From<serde_json::Error> for HttpError {
+    fn from(source: serde_json::Error) -> Self {
+        Self::Internal {
+            source: Box::new(source),
+        }
+    }
+}
+
+impl From<tokio::task::JoinError> for HttpError {
+    fn from(source: tokio::task::JoinError) -> Self {
+        Self::Internal {
+            source: Box::new(source),
+        }
+    }
+}
+
+impl From<crate::log::LogError> for HttpError {
+    fn from(source: crate::log::LogError) -> Self {
+        Self::Internal {
+            source: Box::new(source),
+        }
+    }
+}
+
+impl From<crate::redis::RedisError> for HttpError {
+    fn from(source: crate::redis::RedisError) -> Self {
+        Self::Internal {
+            source: Box::new(source),
+        }
+    }
+}
+
+impl From<http::header::InvalidHeaderValue> for HttpError {
+    fn from(source: http::header::InvalidHeaderValue) -> Self {
+        Self::Internal {
+            source: Box::new(source),
+        }
+    }
+}
+
+impl From<std::io::Error> for HttpError {
+    fn from(source: std::io::Error) -> Self {
+        Self::Internal {
+            source: Box::new(source),
+        }
+    }
+}
+
+impl From<crate::mail::MailError> for HttpError {
+    fn from(source: crate::mail::MailError) -> Self {
+        Self::Internal {
+            source: Box::new(source),
+        }
+    }
+}
+
+impl From<crate::notifications::NotificationError> for HttpError {
+    fn from(source: crate::notifications::NotificationError) -> Self {
+        Self::Internal {
+            source: Box::new(source),
+        }
+    }
+}
+
+impl From<crate::hashing::HashError> for HttpError {
+    fn from(source: crate::hashing::HashError) -> Self {
+        Self::Internal {
+            source: Box::new(source),
+        }
+    }
+}
+
+impl From<crate::image::Error> for HttpError {
+    fn from(source: crate::image::Error) -> Self {
+        Self::Internal {
+            source: Box::new(source),
+        }
+    }
+}

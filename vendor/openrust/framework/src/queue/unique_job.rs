@@ -6,7 +6,7 @@ use crate::{
     contracts::{cache::LockProvider, container::Container as _},
 };
 
-use super::{Payload, QueueError, QueueResult, backend};
+use super::{Payload, QueueResult, backend};
 
 /// Cache-lock policy returned by a registered job handler.
 #[derive(Clone, Debug, Default)]
@@ -76,5 +76,5 @@ pub(super) async fn release(app: &Container, payload: &Payload) -> QueueResult<(
 }
 
 fn cache_manager(app: &Container) -> QueueResult<Arc<CacheManager>> {
-    app.make::<CacheManager>().map_err(QueueError::Unavailable)
+    app.make::<CacheManager>().map_err(Into::into)
 }

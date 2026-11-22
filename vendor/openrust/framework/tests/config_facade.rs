@@ -83,9 +83,7 @@ async fn config_is_available_in_http_route_handlers() {
 
     fn handler(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         Box::pin(async {
-            let value = Config::get("app.name").map_err(|source| HttpError::Internal {
-                source: Box::new(source),
-            })?;
+            let value = Config::get("app.name")?;
             Response::json(StatusCode::OK, value)
         })
     }

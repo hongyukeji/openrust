@@ -1,5 +1,4 @@
 use std::{
-    error::Error,
     io,
     sync::{Arc, Weak},
 };
@@ -41,18 +40,15 @@ impl Handler for HealthCheck {
         request: &'a mut Request,
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
-            let container = self
-                .container
-                .upgrade()
-                .ok_or_else(|| internal(io::Error::other("application container unavailable")))?;
-            let config = container
-                .get::<dyn Repository>("config")
-                .map_err(internal)?;
+            let container = self.container.upgrade().ok_or_else(|| {
+                HttpError::from(io::Error::other("application container unavailable"))
+            })?;
+            let config = container.get::<dyn Repository>("config")?;
             let healthy = match Event::dispatch(DiagnosingHealth).await {
                 Ok(_) => true,
                 Err(error) => {
                     if config.get("app.debug").and_then(|value| value.as_bool()) == Some(true) {
-                        return Err(internal(error));
+                        return Err(error.into());
                     }
                     if let Ok(handler) = container
                         .get::<dyn ExceptionHandler>(ServiceKey::typed::<dyn ExceptionHandler>())
@@ -107,11 +103,5 @@ impl Handler for HealthCheck {
             };
             Ok(response.header(CACHE_CONTROL, HeaderValue::from_static("no-cache, private")))
         })
-    }
-}
-
-fn internal(source: impl Error + Send + Sync + 'static) -> HttpError {
-    HttpError::Internal {
-        source: Box::new(source),
     }
 }

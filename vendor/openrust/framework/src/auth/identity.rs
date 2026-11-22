@@ -169,3 +169,63 @@ impl From<AuthError> for HttpError {
         }
     }
 }
+
+impl From<crate::contracts::container::BindingResolutionError> for AuthError {
+    fn from(source: crate::contracts::container::BindingResolutionError) -> Self {
+        Self::backend(source)
+    }
+}
+
+impl From<crate::database::DatabaseError> for AuthError {
+    fn from(source: crate::database::DatabaseError) -> Self {
+        Self::backend(source)
+    }
+}
+
+impl From<crate::cache::CacheError> for AuthError {
+    fn from(source: crate::cache::CacheError) -> Self {
+        Self::backend(source)
+    }
+}
+
+impl From<crate::hashing::HashError> for AuthError {
+    fn from(source: crate::hashing::HashError) -> Self {
+        Self::backend(source)
+    }
+}
+
+impl From<crate::session::SessionError> for AuthError {
+    fn from(source: crate::session::SessionError) -> Self {
+        Self::backend(source)
+    }
+}
+
+impl From<crate::config::ConfigError> for AuthError {
+    fn from(source: crate::config::ConfigError) -> Self {
+        Self::backend(source)
+    }
+}
+
+impl From<crate::events::EventError> for AuthError {
+    fn from(source: crate::events::EventError) -> Self {
+        Self::backend(source)
+    }
+}
+
+impl From<crate::cookie::CookieError> for AuthError {
+    fn from(source: crate::cookie::CookieError) -> Self {
+        Self::backend(source)
+    }
+}
+
+impl From<serde_json::Error> for AuthError {
+    fn from(source: serde_json::Error) -> Self {
+        Self::backend(source)
+    }
+}
+
+impl From<crate::routing::UrlError> for AuthError {
+    fn from(source: crate::routing::UrlError) -> Self {
+        Self::backend(source)
+    }
+}

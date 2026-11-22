@@ -7,8 +7,8 @@ use crate::{
 };
 
 use super::{
-    FilesystemAdapter, FilesystemError, FilesystemManager, FilesystemResult, LocalDiskConfig,
-    LocalPermissions, S3DiskConfig, WriteOptions,
+    FilesystemAdapter, FilesystemManager, FilesystemResult, LocalDiskConfig, LocalPermissions,
+    S3DiskConfig, WriteOptions,
 };
 
 /// Resolves storage disks in the current application scope.
@@ -37,9 +37,7 @@ impl Storage {
 
     #[allow(non_snake_case, reason = "Matches Laravel's Storage facade API")]
     pub fn getDefaultCloudDriver() -> FilesystemResult<String> {
-        Self::getFacadeRoot()
-            .map_err(FilesystemError::Unavailable)?
-            .getDefaultCloudDriver()
+        Self::getFacadeRoot()?.getDefaultCloudDriver()
     }
 
     pub async fn copy(from: &str, to: &str) -> FilesystemResult<bool> {
@@ -59,15 +57,11 @@ impl Storage {
     }
 
     pub fn disk(name: Option<&str>) -> FilesystemResult<Arc<FilesystemAdapter>> {
-        Self::getFacadeRoot()
-            .map_err(FilesystemError::Unavailable)?
-            .disk(name)
+        Self::getFacadeRoot()?.disk(name)
     }
 
     pub fn build(config: LocalDiskConfig) -> FilesystemResult<Arc<FilesystemAdapter>> {
-        Self::getFacadeRoot()
-            .map_err(FilesystemError::Unavailable)?
-            .build(config)
+        Self::getFacadeRoot()?.build(config)
     }
 
     #[allow(
@@ -78,9 +72,7 @@ impl Storage {
         config: LocalDiskConfig,
         permissions: LocalPermissions,
     ) -> FilesystemResult<Arc<FilesystemAdapter>> {
-        Self::getFacadeRoot()
-            .map_err(FilesystemError::Unavailable)?
-            .buildWithPermissions(config, permissions)
+        Self::getFacadeRoot()?.buildWithPermissions(config, permissions)
     }
 
     #[allow(
@@ -88,9 +80,7 @@ impl Storage {
         reason = "Typed counterpart of Laravel's Storage::build"
     )]
     pub fn buildS3(config: S3DiskConfig) -> FilesystemResult<Arc<FilesystemAdapter>> {
-        Self::getFacadeRoot()
-            .map_err(FilesystemError::Unavailable)?
-            .buildS3(config)
+        Self::getFacadeRoot()?.buildS3(config)
     }
 
     pub async fn put(path: &str, contents: impl AsRef<[u8]>) -> FilesystemResult<bool> {

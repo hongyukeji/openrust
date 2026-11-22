@@ -722,12 +722,7 @@ async fn cache_tags_facade_writes_reads_and_flushes_over_http() {
         }
 
         Box::pin(async move {
-            let value =
-                action(request.uri().path())
-                    .await
-                    .map_err(|source| HttpError::Internal {
-                        source: Box::new(source),
-                    })?;
+            let value = action(request.uri().path()).await?;
             Response::json(StatusCode::OK, value)
         })
     }

@@ -114,9 +114,7 @@ fn web() -> Result<(), RoutingError> {
 }
 fn request(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let text = result().map_err(|source| HttpError::Internal {
-            source: Box::new(source),
-        })?;
+        let text = result()?;
         Ok(Response::new(StatusCode::OK, Body::from(text)))
     })
 }

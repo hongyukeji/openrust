@@ -19,9 +19,7 @@ use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
 
 fn proxy_info(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
-        let current = URL::current().map_err(|source| HttpError::Internal {
-            source: Box::new(source),
-        })?;
+        let current = URL::current()?;
         Response::json(
             StatusCode::OK,
             json!({

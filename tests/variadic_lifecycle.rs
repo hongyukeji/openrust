@@ -154,16 +154,8 @@ impl ServiceProvider for Deferred {
 }
 fn read(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let a = Groups::getFacadeRootAsync()
-            .await
-            .map_err(|source| HttpError::Internal {
-                source: source.into(),
-            })?;
-        let b = Groups::getFacadeRootAsync()
-            .await
-            .map_err(|source| HttpError::Internal {
-                source: source.into(),
-            })?;
+        let a = Groups::getFacadeRootAsync().await?;
+        let b = Groups::getFacadeRootAsync().await?;
         assert!(Arc::ptr_eq(&a, &b));
         Ok(Response::new(
             StatusCode::OK,
@@ -173,11 +165,7 @@ fn read(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 }
 fn missing(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let group = MissingGroups::getFacadeRootAsync()
-            .await
-            .map_err(|source| HttpError::Internal {
-                source: source.into(),
-            })?;
+        let group = MissingGroups::getFacadeRootAsync().await?;
         Ok(Response::new(
             StatusCode::OK,
             Body::from(format!("empty:{}", group.0.len())),

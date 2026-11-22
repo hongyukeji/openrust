@@ -61,18 +61,13 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
 }
 fn counter(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
-        let one = Feature::value("counter").await.map_err(internal)?;
-        let two = Feature::value("counter").await.map_err(internal)?;
+        let one = Feature::value("counter").await?;
+        let two = Feature::value("counter").await?;
         Ok(Response::new(
             StatusCode::OK,
             Body::from(json!([one, two]).to_string()),
         ))
     })
-}
-fn internal(source: impl std::error::Error + Send + Sync + 'static) -> HttpError {
-    HttpError::Internal {
-        source: Box::new(source),
-    }
 }
 fn application() -> TestApp {
     TestApp::create(|builder| builder.withConfig(|_, _| Ok(std::collections::BTreeMap::from([

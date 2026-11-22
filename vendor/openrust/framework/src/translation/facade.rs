@@ -5,8 +5,8 @@ use std::{any::Any, collections::BTreeMap, future::Future, path::PathBuf};
 use crate::{container::ServiceKey, contracts::translation::Loader, support::facades::Facade};
 
 use super::{
-    Line, Lines, MissingTranslation, PluralCount, Replacement, TranslationError,
-    TranslationResource, TranslationResult, Translator,
+    Line, Lines, MissingTranslation, PluralCount, Replacement, TranslationResource,
+    TranslationResult, Translator,
 };
 
 /// Accesses the translator for the current application.
@@ -26,9 +26,7 @@ impl Lang {
         replacements: &BTreeMap<String, String>,
         locale: Option<&str>,
     ) -> TranslationResult<String> {
-        Self::getFacadeRoot()
-            .map_err(TranslationError::Unavailable)?
-            .string(key, replacements, locale)
+        Self::getFacadeRoot()?.string(key, replacements, locale)
     }
 
     pub fn choice(
@@ -37,9 +35,7 @@ impl Lang {
         replacements: &BTreeMap<String, String>,
         locale: Option<&str>,
     ) -> TranslationResult<String> {
-        Self::getFacadeRoot()
-            .map_err(TranslationError::Unavailable)?
-            .choose(key, count, replacements, locale)
+        Self::getFacadeRoot()?.choose(key, count, replacements, locale)
     }
 
     pub fn array(
@@ -47,9 +43,7 @@ impl Lang {
         replacements: &BTreeMap<String, String>,
         locale: Option<&str>,
     ) -> TranslationResult<Lines> {
-        Self::getFacadeRoot()
-            .map_err(TranslationError::Unavailable)?
-            .array(key, replacements, locale)
+        Self::getFacadeRoot()?.array(key, replacements, locale)
     }
 
     pub fn getWith(
@@ -57,9 +51,7 @@ impl Lang {
         args: &[(&str, Replacement<'_>)],
         locale: Option<&str>,
     ) -> TranslationResult<String> {
-        Self::getFacadeRoot()
-            .map_err(TranslationError::Unavailable)?
-            .stringWith(key, args, locale)
+        Self::getFacadeRoot()?.stringWith(key, args, locale)
     }
 
     pub fn arrayWith(
@@ -67,9 +59,7 @@ impl Lang {
         args: &[(&str, Replacement<'_>)],
         locale: Option<&str>,
     ) -> TranslationResult<Lines> {
-        Self::getFacadeRoot()
-            .map_err(TranslationError::Unavailable)?
-            .arrayWith(key, args, locale)
+        Self::getFacadeRoot()?.arrayWith(key, args, locale)
     }
 
     pub fn choiceWith(
@@ -78,98 +68,71 @@ impl Lang {
         args: &[(&str, Replacement<'_>)],
         locale: Option<&str>,
     ) -> TranslationResult<String> {
-        Self::getFacadeRoot()
-            .map_err(TranslationError::Unavailable)?
-            .choiceWith(key, count, args, locale)
+        Self::getFacadeRoot()?.choiceWith(key, count, args, locale)
     }
 
     pub fn stringable<T: Any>(
         formatter: impl Fn(&T) -> String + Send + Sync + 'static,
     ) -> TranslationResult<()> {
-        Self::getFacadeRoot()
-            .map_err(TranslationError::Unavailable)?
-            .stringable(formatter);
+        Self::getFacadeRoot()?.stringable(formatter);
         Ok(())
     }
 
     pub fn has(key: &str, locale: Option<&str>, fallback: bool) -> TranslationResult<bool> {
-        Self::getFacadeRoot()
-            .map_err(TranslationError::Unavailable)?
-            .has(key, locale, fallback)
+        Self::getFacadeRoot()?.has(key, locale, fallback)
     }
 
     pub fn hasForLocale(key: &str, locale: Option<&str>) -> TranslationResult<bool> {
-        Self::getFacadeRoot()
-            .map_err(TranslationError::Unavailable)?
-            .hasForLocale(key, locale)
+        Self::getFacadeRoot()?.hasForLocale(key, locale)
     }
 
     pub fn handleMissingKeysUsing(
         handler: impl Fn(MissingTranslation<'_>) -> Option<String> + Send + Sync + 'static,
     ) -> TranslationResult<()> {
-        Self::getFacadeRoot()
-            .map_err(TranslationError::Unavailable)?
-            .handleMissingKeysUsing(handler);
+        Self::getFacadeRoot()?.handleMissingKeysUsing(handler);
         Ok(())
     }
 
     pub fn clearMissingKeyHandler() -> TranslationResult<()> {
-        Self::getFacadeRoot()
-            .map_err(TranslationError::Unavailable)?
-            .clearMissingKeyHandler();
+        Self::getFacadeRoot()?.clearMissingKeyHandler();
         Ok(())
     }
 
     pub fn determineLocalesUsing(
         resolver: impl Fn(&[String]) -> Vec<String> + Send + Sync + 'static,
     ) -> TranslationResult<()> {
-        Self::getFacadeRoot()
-            .map_err(TranslationError::Unavailable)?
-            .determineLocalesUsing(resolver);
+        Self::getFacadeRoot()?.determineLocalesUsing(resolver);
         Ok(())
     }
 
     pub fn clearLocaleResolver() -> TranslationResult<()> {
-        Self::getFacadeRoot()
-            .map_err(TranslationError::Unavailable)?
-            .clearLocaleResolver();
+        Self::getFacadeRoot()?.clearLocaleResolver();
         Ok(())
     }
 
     pub fn addPath(path: impl Into<PathBuf>) -> TranslationResult<()> {
-        Self::getFacadeRoot()
-            .map_err(TranslationError::Unavailable)?
-            .addPath(path.into());
+        Self::getFacadeRoot()?.addPath(path.into());
         Ok(())
     }
 
     pub fn addJsonPath(path: impl Into<PathBuf>) -> TranslationResult<()> {
-        Self::getFacadeRoot()
-            .map_err(TranslationError::Unavailable)?
-            .addJsonPath(path.into());
+        Self::getFacadeRoot()?.addJsonPath(path.into());
         Ok(())
     }
 
     pub fn addNamespace(namespace: &str, path: impl Into<PathBuf>) -> TranslationResult<()> {
-        Self::getFacadeRoot()
-            .map_err(TranslationError::Unavailable)?
-            .addNamespace(namespace, path.into())
+        Self::getFacadeRoot()?.addNamespace(namespace, path.into())
     }
 
     pub fn load(namespace: Option<&str>, group: &str, locale: &str) -> TranslationResult<()> {
-        Self::getFacadeRoot()
-            .map_err(TranslationError::Unavailable)?
-            .load(namespace, group, locale)
+        Self::getFacadeRoot()?.load(namespace, group, locale)
     }
 
     pub async fn loadFrom(
         loader: &dyn Loader,
         resources: &[TranslationResource<'_>],
     ) -> TranslationResult<()> {
-        Self::getFacadeRoot()
-            .map_err(TranslationError::Unavailable)?
-            .loadFrom(loader, resources)
-            .await
+        Self::getFacadeRoot()?.loadFrom(loader, resources).await
     }
 
     pub fn addLines(
@@ -177,41 +140,28 @@ impl Lang {
         locale: &str,
         namespace: Option<&str>,
     ) -> TranslationResult<()> {
-        Self::getFacadeRoot()
-            .map_err(TranslationError::Unavailable)?
-            .addLines(lines, locale, namespace)
+        Self::getFacadeRoot()?.addLines(lines, locale, namespace)
     }
 
     pub fn getLocale() -> TranslationResult<String> {
-        Ok(Self::getFacadeRoot()
-            .map_err(TranslationError::Unavailable)?
-            .locale())
+        Ok(Self::getFacadeRoot()?.locale())
     }
 
     pub fn setLocale(locale: &str) -> TranslationResult<()> {
-        Self::getFacadeRoot()
-            .map_err(TranslationError::Unavailable)?
-            .setLocale(locale)
+        Self::getFacadeRoot()?.setLocale(locale)
     }
     pub fn getFallback() -> TranslationResult<String> {
-        Ok(Self::getFacadeRoot()
-            .map_err(TranslationError::Unavailable)?
-            .getFallback())
+        Ok(Self::getFacadeRoot()?.getFallback())
     }
     pub fn setFallback(fallback: &str) -> TranslationResult<()> {
-        Self::getFacadeRoot()
-            .map_err(TranslationError::Unavailable)?
-            .setFallback(fallback)
+        Self::getFacadeRoot()?.setFallback(fallback)
     }
 
     pub async fn withLocale<T>(
         locale: &str,
         operation: impl Future<Output = T>,
     ) -> TranslationResult<T> {
-        Self::getFacadeRoot()
-            .map_err(TranslationError::Unavailable)?
-            .withLocale(locale, operation)
-            .await
+        Self::getFacadeRoot()?.withLocale(locale, operation).await
     }
 }
 

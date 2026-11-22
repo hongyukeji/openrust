@@ -369,3 +369,21 @@ impl std::error::Error for CollectionError {
         }
     }
 }
+
+impl From<serde_json::Error> for CollectionError {
+    fn from(source: serde_json::Error) -> Self {
+        Self::Serialization(source)
+    }
+}
+
+impl From<crate::support::ArrValueError> for CollectionError {
+    fn from(source: crate::support::ArrValueError) -> Self {
+        Self::Source(Box::new(source))
+    }
+}
+
+impl From<crate::support::DataPathError> for CollectionError {
+    fn from(source: crate::support::DataPathError) -> Self {
+        Self::Source(Box::new(source))
+    }
+}

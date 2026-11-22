@@ -27,7 +27,7 @@ fn prepare(value: Value, connection: Option<&Connection>) -> DatabaseResult<Inpu
             service: "hash".into(),
         })
         .and_then(|container| container.make::<dyn Hasher>())
-        .map_err(HashError::Unavailable)
+        .map_err(Into::into)
         .map_err(DatabaseError::AttributeHashing)?;
     if hasher
         .info(&text)

@@ -285,14 +285,10 @@ impl ApplicationBuilder {
         let _ = application.shared.package_manifest.set(self.packages);
         let container = &application.shared.container;
         if let Some(entries) = self.migrations {
-            container
-                .instance(Arc::new(MigrationRegistry(entries)))
-                .map_err(|source| BootstrapError::ContainerFailed { source })?;
+            container.instance(Arc::new(MigrationRegistry(entries)))?;
         }
         if let Some(entries) = self.seeders {
-            container
-                .instance(Arc::new(SeederRegistry(entries)))
-                .map_err(|source| BootstrapError::ContainerFailed { source })?;
+            container.instance(Arc::new(SeederRegistry(entries)))?;
         }
         *application
             .shared

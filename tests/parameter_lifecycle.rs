@@ -150,10 +150,7 @@ fn read(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
             BadReports::getFacadeRootAsync().await
         } else {
             Reports::getFacadeRootAsync().await
-        }
-        .map_err(|source| HttpError::Internal {
-            source: source.into(),
-        })?;
+        }?;
         Ok(Response::new(StatusCode::OK, Body::from(report.0.clone())))
     })
 }

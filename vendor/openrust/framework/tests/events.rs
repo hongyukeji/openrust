@@ -124,12 +124,6 @@ impl Subscriber for Extra {
     }
 }
 
-fn internal(source: impl std::error::Error + Send + Sync + 'static) -> HttpError {
-    HttpError::Internal {
-        source: Box::new(source),
-    }
-}
-
 fn run(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
         let observed = Arc::new(Mutex::new(Vec::new()));
@@ -144,35 +138,34 @@ fn run(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         };
         assert_eq!(answer.downcast_ref::<u32>(), Some(&42));
 
-        let db = DB::connection(None).map_err(internal)?;
-        let mut transaction = db.beginTransaction().await.map_err(internal)?;
+        let db = DB::connection(None)?;
+        let mut transaction = db.beginTransaction().await?;
         transaction
             .insert("insert into event_records (id) values (1)", &[])
-            .await
-            .map_err(internal)?;
+            .await?;
         Event::dispatchInTransaction(
             Notice::new("order.completed", "outer", &observed),
             &mut transaction,
         )
         .await?;
-        transaction.beginTransaction().await.map_err(internal)?;
+        transaction.beginTransaction().await?;
         let result = Event::dispatchAfterCommit(
             Notice::new("order.whole", "kept", &observed),
             &mut transaction,
         )
         .await?;
         assert!(matches!(result, DispatchResult::Deferred));
-        transaction.commit().await.map_err(internal)?;
+        transaction.commit().await?;
 
-        transaction.beginTransaction().await.map_err(internal)?;
-        transaction.beginTransaction().await.map_err(internal)?;
+        transaction.beginTransaction().await?;
+        transaction.beginTransaction().await?;
         Event::dispatchAfterCommit(
             Notice::new("order.whole", "discarded", &observed),
             &mut transaction,
         )
         .await?;
-        transaction.commit().await.map_err(internal)?;
-        transaction.rollBack(Some(1)).await.map_err(internal)?;
+        transaction.commit().await?;
+        transaction.rollBack(Some(1)).await?;
         assert_eq!(
             &*observed.lock().unwrap(),
             &[
@@ -183,27 +176,24 @@ fn run(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
                 "wild:outer"
             ]
         );
-        transaction.commit().await.map_err(internal)?;
+        transaction.commit().await?;
 
-        let mut rolled_back = db.beginTransaction().await.map_err(internal)?;
+        let mut rolled_back = db.beginTransaction().await?;
         rolled_back
             .insert("insert into event_records (id) values (3)", &[])
-            .await
-            .map_err(internal)?;
+            .await?;
         Event::dispatchAfterCommit(
             Notice::new("order.whole", "rolled back", &observed),
             &mut rolled_back,
         )
         .await?;
-        rolled_back.rollBack(None).await.map_err(internal)?;
+        rolled_back.rollBack(None).await?;
         assert_eq!(
-            db.scalar("select count(*) from event_records", &[])
-                .await
-                .map_err(internal)?,
+            db.scalar("select count(*) from event_records", &[]).await?,
             Value::Integer(1),
         );
 
-        let mut discarded = db.beginTransaction().await.map_err(internal)?;
+        let mut discarded = db.beginTransaction().await?;
         Event::dispatchAfterCommit(
             Notice::new("order.whole", "dropped", &observed),
             &mut discarded,
@@ -297,22 +287,22 @@ fn class_listeners(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError
         ] {
             Event::dispatch(Notice::new(name, note, &observed)).await?;
         }
-        let db = DB::connection(None).map_err(internal)?;
-        let mut transaction = db.beginTransaction().await.map_err(internal)?;
+        let db = DB::connection(None)?;
+        let mut transaction = db.beginTransaction().await?;
         Event::dispatchInTransaction(
             Notice::new("class.committed", "committed", &observed),
             &mut transaction,
         )
         .await?;
         assert_eq!(observed.lock().unwrap().len(), 3);
-        transaction.commit().await.map_err(internal)?;
-        let mut transaction = db.beginTransaction().await.map_err(internal)?;
+        transaction.commit().await?;
+        let mut transaction = db.beginTransaction().await?;
         Event::dispatchInTransaction(
             Notice::new("class.committed", "rolled back", &observed),
             &mut transaction,
         )
         .await?;
-        transaction.rollBack(None).await.map_err(internal)?;
+        transaction.rollBack(None).await?;
         let result = observed.lock().unwrap().clone();
         Response::json(StatusCode::OK, result)
     })

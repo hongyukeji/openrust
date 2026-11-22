@@ -217,14 +217,9 @@ impl Horizon {
         Ok(())
     }
 }
-fn failure(error: Error) -> HttpError {
-    HttpError::Internal {
-        source: Box::new(error),
-    }
-}
 fn page(request: &mut Request) -> HttpFuture<'_, std::result::Result<Response, HttpError>> {
     Box::pin(async move {
-        let dashboard = Horizon::manager().map_err(|_| failure(Error::Unavailable))?;
+        let dashboard = Horizon::manager().map_err(|_| HttpError::from(Error::Unavailable))?;
         if !dashboard.allowed(request).await? {
             return Ok(Response::empty(StatusCode::FORBIDDEN));
         }
@@ -238,21 +233,19 @@ fn page(request: &mut Request) -> HttpFuture<'_, std::result::Result<Response, H
 }
 fn stats(request: &mut Request) -> HttpFuture<'_, std::result::Result<Response, HttpError>> {
     Box::pin(async move {
-        let dashboard = Horizon::manager().map_err(|_| failure(Error::Unavailable))?;
+        let dashboard = Horizon::manager().map_err(|_| HttpError::from(Error::Unavailable))?;
         if !dashboard.allowed(request).await? {
             return Ok(Response::empty(StatusCode::FORBIDDEN));
         }
-        Ok(
-            Response::json(StatusCode::OK, dashboard.stats().await.map_err(failure)?)?
-                .header(CACHE_CONTROL, HeaderValue::from_static("no-store")),
-        )
+        Ok(Response::json(StatusCode::OK, dashboard.stats().await?)?
+            .header(CACHE_CONTROL, HeaderValue::from_static("no-store")))
     })
 }
 
 fn api(request: &mut Request) -> HttpFuture<'_, std::result::Result<Response, HttpError>> {
     Box::pin(async move {
         use serde_json::json;
-        let dashboard = Horizon::manager().map_err(|_| failure(Error::Unavailable))?;
+        let dashboard = Horizon::manager().map_err(|_| HttpError::from(Error::Unavailable))?;
         if !dashboard.allowed(request).await? {
             return Ok(Response::empty(StatusCode::FORBIDDEN));
         }
@@ -271,7 +264,7 @@ fn api(request: &mut Request) -> HttpFuture<'_, std::result::Result<Response, Ht
             .ok_or(HttpError::NotFound)?
             .to_owned();
         let id = request.route("id").map(str::to_owned);
-        let repository = dashboard.repository().map_err(failure)?;
+        let repository = dashboard.repository()?;
         let jobs = repository.jobs();
         let metrics = repository.metricsRepository();
         let tags = repository.tags();
@@ -280,18 +273,12 @@ fn api(request: &mut Request) -> HttpFuture<'_, std::result::Result<Response, Ht
             .and_then(|value| value.as_u64().or_else(|| value.as_str()?.parse().ok()))
             .map(|value| value as usize);
         let value = match (request.method().as_str(), path.as_str()) {
-            ("GET", "workload") => json!(repository.workload().get().await.map_err(failure)?),
-            ("GET", "masters") => json!(
-                repository
-                    .masterSupervisors()
-                    .all()
-                    .await
-                    .map_err(failure)?
-            ),
+            ("GET", "workload") => json!(repository.workload().get().await?),
+            ("GET", "masters") => json!(repository.masterSupervisors().all().await?),
             ("GET", "monitoring") => {
                 let mut result = Vec::new();
-                for tag in tags.monitoring().await.map_err(failure)? {
-                    result.push(json!({"tag":tag,"count":tags.count(&tag).await.map_err(failure)?+tags.count(&format!("failed:{tag}")).await.map_err(failure)?}));
+                for tag in tags.monitoring().await? {
+                    result.push(json!({"tag":tag,"count":tags.count(&tag).await?+tags.count(&format!("failed:{tag}")).await?}));
                 }
                 json!(result)
             }
@@ -309,11 +296,8 @@ fn api(request: &mut Request) -> HttpFuture<'_, std::result::Result<Response, Ht
                 if limit == 0 {
                     return Err(HttpError::InvalidRequest);
                 }
-                let ids = tags
-                    .paginate(&tag, starting.unwrap_or(0), limit)
-                    .await
-                    .map_err(failure)?;
-                json!({"jobs":jobs.getJobs(&ids,0).await.map_err(failure)?,"total":tags.count(&tag).await.map_err(failure)?})
+                let ids = tags.paginate(&tag, starting.unwrap_or(0), limit).await?;
+                json!({"jobs":jobs.getJobs(&ids,0).await?,"total":tags.count(&tag).await?})
             }
             ("POST", "monitoring") => {
                 let tag = request
@@ -321,76 +305,70 @@ fn api(request: &mut Request) -> HttpFuture<'_, std::result::Result<Response, Ht
                     .await?
                     .and_then(|value| value.as_str().map(str::to_owned))
                     .ok_or(HttpError::InvalidRequest)?;
-                tags.monitor(&tag).await.map_err(failure)?;
+                tags.monitor(&tag).await?;
                 json!({"tag":tag})
             }
             ("DELETE", _) if path.starts_with("monitoring/") => {
                 let tag = request.route("tag").ok_or(HttpError::InvalidRequest)?;
-                tags.stopMonitoring(tag).await.map_err(failure)?;
-                jobs.deleteMonitored(&tags.jobs(tag).await.map_err(failure)?)
-                    .await
-                    .map_err(failure)?;
-                tags.forget(tag).await.map_err(failure)?;
+                tags.stopMonitoring(tag).await?;
+                jobs.deleteMonitored(&tags.jobs(tag).await?).await?;
+                tags.forget(tag).await?;
                 json!({"deleted":true})
             }
-            ("GET", "metrics/jobs") => json!(metrics.measuredJobs().await.map_err(failure)?),
-            ("GET", "metrics/queues") => json!(metrics.measuredQueues().await.map_err(failure)?),
+            ("GET", "metrics/jobs") => json!(metrics.measuredJobs().await?),
+            ("GET", "metrics/queues") => json!(metrics.measuredQueues().await?),
             ("GET", _) if path.starts_with("metrics/jobs/") => snapshotResponse(
                 metrics
                     .snapshotsForJob(id.as_deref().ok_or(HttpError::InvalidRequest)?)
-                    .await
-                    .map_err(failure)?,
+                    .await?,
             ),
             ("GET", _) if path.starts_with("metrics/queues/") => snapshotResponse(
                 metrics
                     .snapshotsForQueue(id.as_deref().ok_or(HttpError::InvalidRequest)?)
-                    .await
-                    .map_err(failure)?,
+                    .await?,
             ),
             ("GET", "jobs/pending") => {
-                json!({"jobs":jobs.getPending(starting).await.map_err(failure)?,"total":jobs.countPending().await.map_err(failure)?})
+                json!({"jobs":jobs.getPending(starting).await?,"total":jobs.countPending().await?})
             }
             ("GET", "jobs/completed") => {
-                json!({"jobs":jobs.getCompleted(starting).await.map_err(failure)?,"total":jobs.countCompleted().await.map_err(failure)?})
+                json!({"jobs":jobs.getCompleted(starting).await?,"total":jobs.countCompleted().await?})
             }
             ("GET", "jobs/silenced") => {
-                json!({"jobs":jobs.getSilenced(starting).await.map_err(failure)?,"total":jobs.countSilenced().await.map_err(failure)?})
+                json!({"jobs":jobs.getSilenced(starting).await?,"total":jobs.countSilenced().await?})
             }
             ("GET", "jobs/failed") => {
-                json!({"jobs":jobs.getFailed(starting).await.map_err(failure)?,"total":jobs.countFailed().await.map_err(failure)?})
+                json!({"jobs":jobs.getFailed(starting).await?,"total":jobs.countFailed().await?})
             }
             ("GET", _) if path.starts_with("jobs/failed/") => serde_json::to_value(
                 jobs.findFailed(id.as_deref().ok_or(HttpError::InvalidRequest)?)
-                    .await
-                    .map_err(failure)?
+                    .await?
                     .ok_or(HttpError::NotFound)?,
             )
             .map_err(|_| HttpError::InvalidRequest)?,
             ("GET", _) if path.starts_with("jobs/") => serde_json::to_value(
                 jobs.find(id.as_deref().ok_or(HttpError::InvalidRequest)?)
-                    .await
-                    .map_err(failure)?
+                    .await?
                     .ok_or(HttpError::NotFound)?,
             )
             .map_err(|_| HttpError::InvalidRequest)?,
             ("GET", "batches") => {
                 let manager = openrust::queue::QueueFacade::manager()
-                    .map_err(|_| failure(Error::Unavailable))?;
+                    .map_err(|_| HttpError::from(Error::Unavailable))?;
                 let before = request
                     .query(Some("before_id"))?
                     .and_then(|value| value.as_str().map(str::to_owned));
-                json!({"batches":manager.batch_repository().map_err(|_|failure(Error::Queue))?.get(50,before.as_deref()).await.map_err(|_|failure(Error::Queue))?})
+                json!({"batches":manager.batch_repository().map_err(|_|HttpError::from(Error::Queue))?.get(50,before.as_deref()).await.map_err(|_|HttpError::from(Error::Queue))?})
             }
             ("GET", _) if path.starts_with("batches/") => {
                 let manager = openrust::queue::QueueFacade::manager()
-                    .map_err(|_| failure(Error::Unavailable))?;
+                    .map_err(|_| HttpError::from(Error::Unavailable))?;
                 json!(
                     manager
                         .batch_repository()
-                        .map_err(|_| failure(Error::Queue))?
+                        .map_err(|_| HttpError::from(Error::Queue))?
                         .find(id.as_deref().ok_or(HttpError::InvalidRequest)?)
                         .await
-                        .map_err(|_| failure(Error::Queue))?
+                        .map_err(|_| HttpError::from(Error::Queue))?
                         .ok_or(HttpError::NotFound)?
                 )
             }
@@ -398,17 +376,17 @@ fn api(request: &mut Request) -> HttpFuture<'_, std::result::Result<Response, Ht
                 if path.starts_with("jobs/retry/") || path.starts_with("batches/retry/") =>
             {
                 let manager = openrust::queue::QueueFacade::manager()
-                    .map_err(|_| failure(Error::Unavailable))?;
+                    .map_err(|_| HttpError::from(Error::Unavailable))?;
                 let failures =
-                    FailedJobs::getFacadeRoot().map_err(|_| failure(Error::Unavailable))?;
+                    FailedJobs::getFacadeRoot().map_err(|_| HttpError::from(Error::Unavailable))?;
                 let id = id.as_deref().ok_or(HttpError::InvalidRequest)?;
                 let ids = if path.starts_with("batches/") {
                     manager
                         .batch_repository()
-                        .map_err(|_| failure(Error::Queue))?
+                        .map_err(|_| HttpError::from(Error::Queue))?
                         .find(id)
                         .await
-                        .map_err(|_| failure(Error::Queue))?
+                        .map_err(|_| HttpError::from(Error::Queue))?
                         .ok_or(HttpError::NotFound)?
                         .failed_job_ids
                 } else {
@@ -422,20 +400,19 @@ fn api(request: &mut Request) -> HttpFuture<'_, std::result::Result<Response, Ht
                 let mut retried = 0;
                 for id in ids {
                     let monitored = if expectedBatch.is_some() {
-                        jobs.findFailedByUuid(&id).await.map_err(failure)?
+                        jobs.findFailedByUuid(&id).await?
                     } else {
-                        jobs.findFailed(&id).await.map_err(failure)?
+                        jobs.findFailed(&id).await?
                     };
                     let Some(monitored) = monitored else {
                         continue;
                     };
-                    let uuid = monitored.payloadUuid().map_err(failure)?;
+                    let uuid = monitored.payloadUuid()?;
                     // A later retry can fail with the same payload UUID. Only its
                     // current transport identity may claim the native failure.
                     if jobs
                         .findFailedByUuid(uuid)
-                        .await
-                        .map_err(failure)?
+                        .await?
                         .is_none_or(|current| current.record.id != monitored.record.id)
                     {
                         continue;
@@ -443,12 +420,12 @@ fn api(request: &mut Request) -> HttpFuture<'_, std::result::Result<Response, Ht
                     if let Some(job) = failures
                         .find(uuid)
                         .await
-                        .map_err(|_| failure(Error::Queue))?
+                        .map_err(|_| HttpError::from(Error::Queue))?
                     {
                         if job.connection != monitored.record.connection
                             || job.queue != monitored.record.queue
                             || serde_json::to_value(&job.payload)
-                                .map_err(|_| failure(Error::Queue))?
+                                .map_err(|_| HttpError::from(Error::Queue))?
                                 != monitored.payload
                         {
                             continue;
@@ -462,11 +439,10 @@ fn api(request: &mut Request) -> HttpFuture<'_, std::result::Result<Response, Ht
                         if let Some(retryId) = manager
                             .retry_failed_with_id(failures.as_ref(), uuid, &job)
                             .await
-                            .map_err(|_| failure(Error::Queue))?
+                            .map_err(|_| HttpError::from(Error::Queue))?
                         {
                             jobs.storeRetryReference(&monitored.record.id, &retryId)
-                                .await
-                                .map_err(failure)?;
+                                .await?;
                             retried += 1;
                         }
                     }
@@ -474,15 +450,15 @@ fn api(request: &mut Request) -> HttpFuture<'_, std::result::Result<Response, Ht
                 json!({"retried":retried})
             }
             ("POST", "pause") => {
-                repository.pause().await.map_err(failure)?;
+                repository.pause().await?;
                 json!({"paused":true})
             }
             ("POST", "continue") => {
-                repository.r#continue().await.map_err(failure)?;
+                repository.r#continue().await?;
                 json!({"paused":false})
             }
             ("POST", "terminate") => {
-                repository.terminate().await.map_err(failure)?;
+                repository.terminate().await?;
                 json!({"terminated":true})
             }
             _ => return Err(HttpError::NotFound),
@@ -533,5 +509,13 @@ pub(crate) fn configuredRoutes() -> std::result::Result<(), openrust::routing::R
         Some(value) => Err(openrust::routing::RoutingError::InvalidUri {
             uri: value.to_string(),
         }),
+    }
+}
+
+impl From<crate::Error> for HttpError {
+    fn from(source: crate::Error) -> Self {
+        Self::Internal {
+            source: Box::new(source),
+        }
     }
 }

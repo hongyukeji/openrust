@@ -19,17 +19,12 @@ use openrust::{
     validation::{Data, RuleSet, Validator as NativeValidator},
 };
 
-fn internal(error: impl std::error::Error + Send + Sync + 'static) -> HttpError {
-    HttpError::Internal {
-        source: Box::new(error),
-    }
-}
 fn user(user: &dyn Authenticatable) -> Result<User, HttpError> {
     (user as &dyn std::any::Any)
         .downcast_ref::<User>()
         .cloned()
         .ok_or_else(|| {
-            internal(std::io::Error::other(
+            HttpError::from(std::io::Error::other(
                 "Fortify actions require app::models::User",
             ))
         })
@@ -45,7 +40,7 @@ fn validator(
     rules: RuleSet,
     messages: std::collections::BTreeMap<String, String>,
 ) -> Result<NativeValidator, HttpError> {
-    Ok(Validator::getFacadeRoot().map_err(internal)?.make(
+    Ok(Validator::getFacadeRoot()?.make(
         Data::fromRequestValue(input)?,
         rules,
         messages,
@@ -53,13 +48,9 @@ fn validator(
     )?)
 }
 async fn save_password(user: &mut User, input: &RequestValue) -> Result<(), HttpError> {
-    let password = Hash::make(text(input, "password")?, &HashOptions::new())
-        .await
-        .map_err(internal)?;
-    user.forceFill([("password".into(), password.into())].into())
-        .map_err(internal)?
+    let password = Hash::make(text(input, "password")?, &HashOptions::new()).await?;
+    user.forceFill([("password".into(), password.into())].into())?
         .save()
-        .await
-        .map_err(internal)?;
+        .await?;
     Ok(())
 }

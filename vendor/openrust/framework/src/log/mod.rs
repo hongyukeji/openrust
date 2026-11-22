@@ -129,3 +129,15 @@ impl std::error::Error for LogError {
 }
 
 mod channel_context;
+
+impl From<crate::contracts::container::BindingResolutionError> for LogError {
+    fn from(source: crate::contracts::container::BindingResolutionError) -> Self {
+        Self::Unavailable(source)
+    }
+}
+
+impl From<std::io::Error> for LogError {
+    fn from(source: std::io::Error) -> Self {
+        Self::write(source)
+    }
+}

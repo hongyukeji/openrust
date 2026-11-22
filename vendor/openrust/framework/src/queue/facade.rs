@@ -10,9 +10,7 @@ use crate::{
     support::facades::Facade,
 };
 
-use super::{
-    DispatchOptions, DispatchResult, JobPopCallback, Payload, QueueError, QueueManager, QueueResult,
-};
+use super::{DispatchOptions, DispatchResult, JobPopCallback, Payload, QueueManager, QueueResult};
 
 /// Resolves the current application's queue manager.
 pub struct QueueFacade;
@@ -27,7 +25,7 @@ impl Facade for QueueFacade {
 
 impl QueueFacade {
     pub fn manager() -> QueueResult<Arc<QueueManager>> {
-        Self::getFacadeRoot().map_err(QueueError::Unavailable)
+        Self::getFacadeRoot().map_err(Into::into)
     }
 
     pub fn register(name: &str, handler: Arc<dyn JobHandler>) -> QueueResult<()> {

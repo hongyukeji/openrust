@@ -172,11 +172,7 @@ impl ServiceProvider for Deferred {
 }
 fn read(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let report = Reports::getFacadeRootAsync()
-            .await
-            .map_err(|source| HttpError::Internal {
-                source: source.into(),
-            })?;
+        let report = Reports::getFacadeRootAsync().await?;
         Ok(Response::new(StatusCode::OK, Body::from(report.0.clone())))
     })
 }

@@ -5,7 +5,7 @@ use serde_json::{Value, json};
 use crate::{
     container::ServiceKey,
     support::facades::{Facade, Lang},
-    view::{View, ViewData, ViewError, ViewResult},
+    view::{View, ViewData, ViewResult},
 };
 
 pub(crate) const VIEWS: &[(&str, &str)] = &[
@@ -63,7 +63,7 @@ impl Default for DefaultViews {
 
 impl DefaultViews {
     pub(super) fn get(simple: bool) -> ViewResult<String> {
-        let settings = ViewDefaults::getFacadeRoot().map_err(ViewError::Unavailable)?;
+        let settings = ViewDefaults::getFacadeRoot()?;
         let views = settings.0.read().expect("pagination view defaults lock");
         Ok(if simple {
             views.1.clone()
@@ -73,7 +73,7 @@ impl DefaultViews {
     }
 
     pub(super) fn configure(view: Option<String>, simple: Option<String>) -> ViewResult<()> {
-        let settings = ViewDefaults::getFacadeRoot().map_err(ViewError::Unavailable)?;
+        let settings = ViewDefaults::getFacadeRoot()?;
         let mut views = settings.0.write().expect("pagination view defaults lock");
         if let Some(view) = view {
             views.0 = view;

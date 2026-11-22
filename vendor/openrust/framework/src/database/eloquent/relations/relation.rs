@@ -277,8 +277,7 @@ impl<P: Model, R: Model> RelationKeys<P, R> {
                     if let Some(container) = Connection::model_container(Some(connection)) {
                         use crate::contracts::container::Container as _;
                         return container
-                            .get::<crate::database::DatabaseManager>("db")
-                            .map_err(DatabaseError::Unavailable)?
+                            .get::<crate::database::DatabaseManager>("db")?
                             .connection(Some(&name));
                     }
                 }

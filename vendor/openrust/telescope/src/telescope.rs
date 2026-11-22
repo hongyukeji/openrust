@@ -119,13 +119,7 @@ impl Telescope {
             .unwrap_or_else(|error| error.into_inner());
         match callback {
             Some(callback) => callback(request).await,
-            None => Ok(
-                openrust::support::facades::Config::get("app.env").map_err(|source| {
-                    openrust::http::HttpError::Internal {
-                        source: Box::new(source),
-                    }
-                })? == Some("local".into()),
-            ),
+            None => Ok(openrust::support::facades::Config::get("app.env")? == Some("local".into())),
         }
     }
     pub fn hideRequestHeaders(&self, headers: &[&str]) {

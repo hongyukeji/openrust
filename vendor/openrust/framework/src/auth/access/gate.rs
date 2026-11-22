@@ -334,9 +334,7 @@ impl Gate {
         else {
             return Ok(());
         };
-        let dispatcher = owner
-            .get::<Dispatcher>("events")
-            .map_err(AuthError::backend)?;
+        let dispatcher = owner.get::<Dispatcher>("events")?;
         let event = Arc::new(GateEvaluated {
             user: self.user.clone(),
             ability: ability.to_owned(),
@@ -344,10 +342,7 @@ impl Gate {
             argument_types: args.iter().map(|argument| (*argument).type_id()).collect(),
         });
         let mut context = EventContext::with_arguments(event.as_ref(), args);
-        dispatcher
-            .dispatch(event.clone(), &mut context)
-            .await
-            .map_err(AuthError::backend)?;
+        dispatcher.dispatch(event.clone(), &mut context).await?;
         Ok(())
     }
 

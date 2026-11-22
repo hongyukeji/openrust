@@ -178,9 +178,7 @@ fn uploaded_mail_from_http(request: &mut Request) -> HttpFuture<'_, Result<Respo
         } else {
             mail.sendNow(&receipt).await.map(|_| ())
         };
-        result.map_err(|error| HttpError::Internal {
-            source: Box::new(error),
-        })?;
+        result?;
         Response::json(http::StatusCode::OK, json!({"accepted":true}))
     })
 }
@@ -194,10 +192,7 @@ fn attachment_mail_from_http(_: &mut Request) -> HttpFuture<'_, Result<Response,
                 path: file.into(),
                 subject: "Source attachments HTTP",
             })
-            .await
-            .map_err(|error| HttpError::Internal {
-                source: Box::new(error),
-            })?;
+            .await?;
         Response::json(http::StatusCode::OK, json!({"accepted":true}))
     })
 }
@@ -426,12 +421,7 @@ fn notify_from_http(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpErro
             })]),
         )
         .unwrap();
-        target
-            .notifyNow(&RoutedNotice, None)
-            .await
-            .map_err(|error| HttpError::Internal {
-                source: Box::new(error),
-            })?;
+        target.notifyNow(&RoutedNotice, None).await?;
         Response::json(http::StatusCode::OK, json!({"accepted":true}))
     })
 }
@@ -505,10 +495,7 @@ fn guarded_from_http(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpErr
                     flag: root.join(file),
                     id,
                 })
-                .await
-                .map_err(|error| HttpError::Internal {
-                    source: Box::new(error),
-                })?;
+                .await?;
         }
         Response::json(http::StatusCode::ACCEPTED, json!({"queued":true}))
     })
@@ -692,9 +679,6 @@ fn mail_events_from_http(_: &mut Request) -> HttpFuture<'_, Result<Response, Htt
                 .unwrap()
                 .send(&NamedReceipt("fixture", false))
                 .await
-                .map_err(|error| HttpError::Internal {
-                    source: Box::new(error),
-                })
         };
         let delivered = send("http@example.test").await?.is_some();
         let blocked = send("blocked@example.test").await?.is_none();
@@ -886,10 +870,7 @@ fn notification_envelope_from_http(_: &mut Request) -> HttpFuture<'_, Result<Res
         )
         .unwrap()
         .notifyNow(&DeliveryNotice(None), None)
-        .await
-        .map_err(|error| HttpError::Internal {
-            source: Box::new(error),
-        })?;
+        .await?;
         Response::json(http::StatusCode::OK, json!({"sent":true}))
     })
 }
@@ -1119,9 +1100,7 @@ fn slack_from_http(request: &mut Request) -> HttpFuture<'_, Result<Response, Htt
             )
             .await
         };
-        result.map_err(|error| HttpError::Internal {
-            source: Box::new(error),
-        })?;
+        result?;
         Response::json(http::StatusCode::OK, json!({"processed":true}))
     })
 }

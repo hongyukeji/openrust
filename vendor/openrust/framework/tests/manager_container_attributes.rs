@@ -119,8 +119,8 @@ fn probe(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
                 ..
             })
         ));
-        let sync = container.make::<Probe>().map_err(internal)?;
-        let resolved = container.makeAsync::<Probe>().await.map_err(internal)?;
+        let sync = container.make::<Probe>()?;
+        let resolved = container.makeAsync::<Probe>().await?;
         assert!(Arc::ptr_eq(&sync.memo, &resolved.memo));
         assert!(Arc::ptr_eq(&sync.storage, &resolved.storage));
         assert_eq!(resolved.logger.name(), "audit");
@@ -130,8 +130,7 @@ fn probe(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
             resolved
                 .named_db
                 .select("SELECT 23 AS probe", &[])
-                .await
-                .map_err(internal)?
+                .await?
                 .len(),
             1
         );
@@ -142,16 +141,11 @@ fn probe(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
             .map_err(internal)?;
         resolved
             .renamed
-            .info("attribute probe", &LogContext::new())
-            .map_err(internal)?;
-        assert_eq!(resolved.memo.get("probe").await.map_err(internal)?, None);
-        resolved
-            .cache
-            .put("probe", &value.into(), None)
-            .await
-            .map_err(internal)?;
+            .info("attribute probe", &LogContext::new())?;
+        assert_eq!(resolved.memo.get("probe").await?, None);
+        resolved.cache.put("probe", &value.into(), None).await?;
         // The memoized miss remains local to this request.
-        assert_eq!(resolved.memo.get("probe").await.map_err(internal)?, None);
+        assert_eq!(resolved.memo.get("probe").await?, None);
         Response::json(
             StatusCode::OK,
             json!({
@@ -164,11 +158,8 @@ fn probe(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 
 fn memo(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let service = Container::getInstance()
-            .makeAsync::<Probe>()
-            .await
-            .map_err(internal)?;
-        let value = service.memo.get("probe").await.map_err(internal)?;
+        let service = Container::getInstance().makeAsync::<Probe>().await?;
+        let value = service.memo.get("probe").await?;
         Response::json(
             StatusCode::OK,
             value.as_ref().and_then(openrust::cache::Value::as_str),

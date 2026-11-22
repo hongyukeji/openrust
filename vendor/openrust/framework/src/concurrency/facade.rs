@@ -166,9 +166,7 @@ impl Driver {
 
     pub(crate) fn launch_detached(&self, task: Task, context: &DehydratedContext) -> Result<()> {
         let owner = self.owner.upgrade().ok_or(Error::OutsideRequest)?;
-        let environment = owner
-            .get::<PathBuf>("env.file")
-            .map_err(Error::Unavailable)?;
+        let environment = owner.get::<PathBuf>("env.file")?;
         self.process
             .launch_detached(task, context, environment_name(&environment))
     }
@@ -254,9 +252,7 @@ impl Facade for Concurrency {
 #[allow(non_snake_case, reason = "Matches Laravel's Concurrency facade")]
 impl Concurrency {
     pub fn driver(name: Option<&str>) -> Result<Driver> {
-        Self::getFacadeRoot()
-            .map_err(Error::Unavailable)?
-            .driver(name)
+        Self::getFacadeRoot()?.driver(name)
     }
 
     pub async fn run(

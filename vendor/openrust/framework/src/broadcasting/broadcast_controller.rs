@@ -33,9 +33,7 @@ impl BroadcastController {
         channels.use_route_bindings(router.parameter_bindings());
         let channels = Arc::new(channels);
         let container = app.container();
-        container
-            .instance(channels.clone())
-            .map_err(|source| RoutingError::ContainerFailed { source })?;
+        container.instance(channels.clone())?;
         let factory = if container.bound::<dyn Factory>() {
             Some(container.make::<dyn Factory>().map_err(|error| {
                 RoutingError::BroadcastRegistration {

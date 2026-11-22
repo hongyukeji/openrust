@@ -54,18 +54,18 @@ impl FileBackend {
         key: &str,
         edit: impl FnOnce(Option<Record>) -> CacheResult<(Change, T)>,
     ) -> CacheResult<T> {
-        let (root, _gate) = self.lock_root().map_err(backend)?;
+        let (root, _gate) = self.lock_root()?;
         let name = format!("{}.record", key_digest(key));
         let entry = match root.open_with(&name, private_options().read(true)) {
             Ok(mut file) => {
-                if !file.metadata().map_err(backend)?.is_file() {
+                if !file.metadata()?.is_file() {
                     return Err(backend(io::Error::other("invalid cache entry")));
                 }
                 let mut bytes = Vec::new();
-                file.read_to_end(&mut bytes).map_err(backend)?;
+                file.read_to_end(&mut bytes)?;
                 let record: Record = serde_json::from_slice(&bytes).map_err(backend)?;
                 if record.expires <= now()? {
-                    root.remove_file(&name).map_err(backend)?;
+                    root.remove_file(&name)?;
                     None
                 } else {
                     Some(record)
@@ -78,7 +78,7 @@ impl FileBackend {
         let (change, result) = edit(entry)?;
         match change {
             Change::Keep => {}
-            Change::Remove if present => root.remove_file(&name).map_err(backend)?,
+            Change::Remove if present => root.remove_file(&name)?,
             Change::Remove => {}
             Change::Write(record) => {
                 let temporary = format!(".write-{:032x}", fastrand::u128(..));
@@ -86,11 +86,10 @@ impl FileBackend {
                 options.write(true).create_new(true);
                 let mut file = root
                     .open_with(&temporary, &options)
-                    .map_err(io_context("create cache entry"))
-                    .map_err(backend)?;
+                    .map_err(io_context("create cache entry"))?;
                 let written = (|| {
                     serde_json::to_writer(&mut file, &record).map_err(backend)?;
-                    file.flush().map_err(backend)?;
+                    file.flush()?;
                     drop(file);
                     root.rename(&temporary, &root, name)
                         .map_err(io_context("publish cache entry"))
@@ -106,14 +105,14 @@ impl FileBackend {
     }
 
     pub(super) fn flush(&self) -> CacheResult<()> {
-        let (root, _gate) = self.lock_root().map_err(backend)?;
+        let (root, _gate) = self.lock_root()?;
         Self::flush_records(&root)
     }
 
     pub(super) fn flush_distinct(&self, other: &Self) -> CacheResult<()> {
-        let (root, _gate) = self.lock_root().map_err(backend)?;
+        let (root, _gate) = self.lock_root()?;
         match std::fs::canonicalize(&other.0) {
-            Ok(path) if path == std::fs::canonicalize(&self.0).map_err(backend)? => {
+            Ok(path) if path == std::fs::canonicalize(&self.0)? => {
                 return Err(CacheError::LockStoreNotSeparate);
             }
             Ok(_) => {}
@@ -124,8 +123,8 @@ impl FileBackend {
     }
 
     fn flush_records(root: &Dir) -> CacheResult<()> {
-        for entry in root.entries().map_err(backend)? {
-            let entry = entry.map_err(backend)?;
+        for entry in root.entries()? {
+            let entry = entry?;
             let name = entry.file_name();
             if name
                 .to_str()
@@ -133,9 +132,9 @@ impl FileBackend {
                 .is_some_and(|name| {
                     name.len() == 64 && name.bytes().all(|byte| byte.is_ascii_hexdigit())
                 })
-                && entry.file_type().map_err(backend)?.is_file()
+                && entry.file_type()?.is_file()
             {
-                root.remove_file(name).map_err(backend)?;
+                root.remove_file(name)?;
             }
         }
         Ok(())
@@ -189,5 +188,24 @@ fn private_options() -> OpenOptions {
 }
 
 fn io_context(operation: &'static str) -> impl FnOnce(io::Error) -> io::Error {
-    move |error| io::Error::new(error.kind(), format!("{operation}: {error}"))
+    move |source| io::Error::new(source.kind(), CacheIoError { operation, source })
+}
+
+// 为缓存 I/O 补充操作说明，同时保留原始错误对象与种类。
+#[derive(Debug)]
+struct CacheIoError {
+    operation: &'static str,
+    source: io::Error,
+}
+
+impl std::fmt::Display for CacheIoError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(formatter, "{}: {}", self.operation, self.source)
+    }
+}
+
+impl std::error::Error for CacheIoError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&self.source)
+    }
 }

@@ -57,7 +57,9 @@ impl Middleware for PreventRequestsDuringMaintenance {
                     if matches!(self.mode.active().await, Ok(false)) {
                         return Ok(next.run(request).await);
                     }
-                    return Err(internal(error));
+                    return Err(HttpError::Internal {
+                        source: Box::new(error),
+                    });
                 }
             };
             let path = request.uri().path().trim_matches('/');
@@ -84,7 +86,7 @@ impl Middleware for PreventRequestsDuringMaintenance {
                     if path != target_path {
                         return Redirect::to(target, Default::default())
                             .map(Into::into)
-                            .map_err(internal);
+                            .map_err(Into::into);
                     }
                 }
                 if let Some(template) = data.get("template").and_then(Value::as_str) {
@@ -180,13 +182,10 @@ fn maintenance_headers(data: &MaintenancePayload) -> Result<HeaderMap, HttpError
     ] {
         match data.get(key) {
             Some(Value::String(value)) => {
-                headers.insert(header, HeaderValue::from_str(value).map_err(internal)?);
+                headers.insert(header, HeaderValue::from_str(value)?);
             }
             Some(Value::Number(value)) => {
-                headers.insert(
-                    header,
-                    HeaderValue::from_str(&value.to_string()).map_err(internal)?,
-                );
+                headers.insert(header, HeaderValue::from_str(&value.to_string())?);
             }
             _ => {}
         }
@@ -241,27 +240,19 @@ fn bypass_response(request: &mut Request, secret: &str) -> Result<Response, Http
         expires_at,
         mac: signature(secret, expires_at),
     };
-    let encoded = STANDARD.encode(serde_json::to_vec(&payload).map_err(internal)?);
+    let encoded = STANDARD.encode(serde_json::to_vec(&payload)?);
     let cookie = Cookie::make(
         BYPASS_COOKIE,
         &encoded,
         BYPASS_MINUTES,
         &CookieOptions::default(),
-    )
-    .map_err(internal)?;
+    )?;
     let response = if request.session().is_ok() {
         Redirect::intended(request, "/", Default::default())
     } else {
         Redirect::to("/", Default::default())
-    }
-    .map_err(internal)?;
+    }?;
     Response::from(response)
         .header(CACHE_CONTROL, HeaderValue::from_static("no-store, private"))
         .cookie(&cookie, request)
-}
-
-fn internal(source: impl std::error::Error + Send + Sync + 'static) -> HttpError {
-    HttpError::Internal {
-        source: Box::new(source),
-    }
 }

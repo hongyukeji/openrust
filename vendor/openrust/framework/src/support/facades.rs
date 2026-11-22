@@ -80,9 +80,7 @@ impl RateLimiter {
     where
         R: Into<crate::cache::rate_limiting::LimiterResponse>,
     {
-        Self::getFacadeRoot()
-            .map_err(crate::cache::CacheError::Unavailable)?
-            .r#for(name, callback);
+        Self::getFacadeRoot()?.r#for(name, callback);
         Ok(())
     }
 
@@ -101,9 +99,7 @@ impl RateLimiter {
         + Sync
         + 'static,
     ) -> crate::cache::CacheResult<()> {
-        Self::getFacadeRoot()
-            .map_err(crate::cache::CacheError::Unavailable)?
-            .forAsync(name, callback);
+        Self::getFacadeRoot()?.forAsync(name, callback);
         Ok(())
     }
 
@@ -111,9 +107,7 @@ impl RateLimiter {
     pub fn asyncLimiter(
         name: &str,
     ) -> crate::cache::CacheResult<Option<Arc<crate::cache::rate_limiting::AsyncLimiter>>> {
-        Ok(Self::getFacadeRoot()
-            .map_err(crate::cache::CacheError::Unavailable)?
-            .asyncLimiter(name))
+        Ok(Self::getFacadeRoot()?.asyncLimiter(name))
     }
 
     #[allow(
@@ -127,9 +121,7 @@ impl RateLimiter {
     where
         R: Into<crate::cache::rate_limiting::JobLimiterResponse>,
     {
-        Self::getFacadeRoot()
-            .map_err(crate::cache::CacheError::Unavailable)?
-            .forJob(name, callback);
+        Self::getFacadeRoot()?.forJob(name, callback);
         Ok(())
     }
 
@@ -139,62 +131,43 @@ impl RateLimiter {
         action: impl std::future::Future<Output = crate::cache::CacheResult<T>>,
         decay_seconds: u64,
     ) -> crate::cache::CacheResult<crate::cache::rate_limiting::Attempt<T>> {
-        Self::getFacadeRoot()
-            .map_err(crate::cache::CacheError::Unavailable)?
+        Self::getFacadeRoot()?
             .attempt(key, max_attempts, action, decay_seconds)
             .await
     }
 
     pub async fn hit(key: &str, decay_seconds: u64) -> crate::cache::CacheResult<u64> {
-        Self::getFacadeRoot()
-            .map_err(crate::cache::CacheError::Unavailable)?
-            .hit(key, decay_seconds)
-            .await
+        Self::getFacadeRoot()?.hit(key, decay_seconds).await
     }
 
     pub async fn attempts(key: &str) -> crate::cache::CacheResult<u64> {
-        Self::getFacadeRoot()
-            .map_err(crate::cache::CacheError::Unavailable)?
-            .attempts(key)
-            .await
+        Self::getFacadeRoot()?.attempts(key).await
     }
 
     #[allow(non_snake_case, reason = "Matches Laravel's RateLimiter API")]
     pub async fn tooManyAttempts(key: &str, max_attempts: u64) -> crate::cache::CacheResult<bool> {
-        Self::getFacadeRoot()
-            .map_err(crate::cache::CacheError::Unavailable)?
+        Self::getFacadeRoot()?
             .tooManyAttempts(key, max_attempts)
             .await
     }
 
     pub async fn remaining(key: &str, max_attempts: u64) -> crate::cache::CacheResult<u64> {
-        Self::getFacadeRoot()
-            .map_err(crate::cache::CacheError::Unavailable)?
-            .remaining(key, max_attempts)
-            .await
+        Self::getFacadeRoot()?.remaining(key, max_attempts).await
     }
 
     #[allow(non_snake_case, reason = "Matches Laravel's RateLimiter API")]
     pub async fn availableIn(key: &str) -> crate::cache::CacheResult<u64> {
-        Self::getFacadeRoot()
-            .map_err(crate::cache::CacheError::Unavailable)?
-            .availableIn(key)
-            .await
+        Self::getFacadeRoot()?.availableIn(key).await
     }
 
     pub async fn clear(key: &str) -> crate::cache::CacheResult<()> {
-        Self::getFacadeRoot()
-            .map_err(crate::cache::CacheError::Unavailable)?
-            .clear(key)
-            .await
+        Self::getFacadeRoot()?.clear(key).await
     }
 
     pub fn limiter(
         name: &str,
     ) -> crate::cache::CacheResult<Option<Arc<crate::cache::rate_limiting::Limiter>>> {
-        Ok(Self::getFacadeRoot()
-            .map_err(crate::cache::CacheError::Unavailable)?
-            .limiter(name))
+        Ok(Self::getFacadeRoot()?.limiter(name))
     }
 }
 
@@ -216,9 +189,7 @@ impl View {
         view: &str,
         data: &crate::view::ViewData,
     ) -> crate::view::ViewResult<String> {
-        Self::getFacadeRoot()
-            .map_err(crate::view::ViewError::Unavailable)?
-            .renderWhen(condition, view, data)
+        Self::getFacadeRoot()?.renderWhen(condition, view, data)
     }
     #[allow(non_snake_case, reason = "遵循 Laravel View 原名")]
     pub fn renderUnless(
@@ -226,9 +197,7 @@ impl View {
         view: &str,
         data: &crate::view::ViewData,
     ) -> crate::view::ViewResult<String> {
-        Self::getFacadeRoot()
-            .map_err(crate::view::ViewError::Unavailable)?
-            .renderUnless(condition, view, data)
+        Self::getFacadeRoot()?.renderUnless(condition, view, data)
     }
     #[allow(non_snake_case, reason = "遵循 Laravel View 原名")]
     pub fn renderEach(
@@ -237,20 +206,16 @@ impl View {
         iterator: &str,
         empty: &str,
     ) -> crate::view::ViewResult<String> {
-        Self::getFacadeRoot()
-            .map_err(crate::view::ViewError::Unavailable)?
-            .renderEach(view, data, iterator, empty)
+        Self::getFacadeRoot()?.renderEach(view, data, iterator, empty)
     }
     #[allow(non_snake_case, reason = "遵循 Laravel View 原名")]
     pub fn getShared() -> crate::view::ViewResult<crate::view::ViewData> {
-        Ok(Self::getFacadeRoot()
-            .map_err(crate::view::ViewError::Unavailable)?
-            .getShared())
+        Ok(Self::getFacadeRoot()?.getShared())
     }
 
     /// Resolves the application view factory through its public contract.
     pub fn contract() -> crate::view::ViewResult<Arc<dyn crate::contracts::view::Factory>> {
-        let factory = Self::getFacadeRoot().map_err(crate::view::ViewError::Unavailable)?;
+        let factory = Self::getFacadeRoot()?;
         Ok(factory)
     }
 
@@ -258,27 +223,21 @@ impl View {
         name: impl Into<std::borrow::Cow<'static, str>>,
         data: crate::view::ViewData,
     ) -> crate::view::ViewResult<crate::view::View> {
-        Self::getFacadeRoot()
-            .map_err(crate::view::ViewError::Unavailable)?
-            .make(name, data)
+        Self::getFacadeRoot()?.make(name, data)
     }
 
     pub fn first(
         names: &[&str],
         data: crate::view::ViewData,
     ) -> crate::view::ViewResult<crate::view::View> {
-        Self::getFacadeRoot()
-            .map_err(crate::view::ViewError::Unavailable)?
-            .first(names, data)
+        Self::getFacadeRoot()?.first(names, data)
     }
 
     pub fn share(
         key: impl Into<String>,
         value: impl Into<crate::view::ViewValue>,
     ) -> crate::view::ViewResult<()> {
-        Self::getFacadeRoot()
-            .map_err(crate::view::ViewError::Unavailable)?
-            .share(key, value);
+        Self::getFacadeRoot()?.share(key, value);
         Ok(())
     }
 
@@ -286,9 +245,7 @@ impl View {
         name: impl Into<String>,
         callback: impl Fn(&mut crate::view::View) -> crate::view::ViewResult<()> + Send + Sync + 'static,
     ) -> crate::view::ViewResult<()> {
-        Self::getFacadeRoot()
-            .map_err(crate::view::ViewError::Unavailable)?
-            .composer(name, callback);
+        Self::getFacadeRoot()?.composer(name, callback);
         Ok(())
     }
 
@@ -296,16 +253,12 @@ impl View {
         name: impl Into<String>,
         callback: impl Fn(&mut crate::view::View) -> crate::view::ViewResult<()> + Send + Sync + 'static,
     ) -> crate::view::ViewResult<()> {
-        Self::getFacadeRoot()
-            .map_err(crate::view::ViewError::Unavailable)?
-            .creator(name, callback);
+        Self::getFacadeRoot()?.creator(name, callback);
         Ok(())
     }
 
     pub fn exists(name: &str) -> crate::view::ViewResult<bool> {
-        Ok(Self::getFacadeRoot()
-            .map_err(crate::view::ViewError::Unavailable)?
-            .exists(name))
+        Ok(Self::getFacadeRoot()?.exists(name))
     }
 }
 

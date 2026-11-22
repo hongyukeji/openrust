@@ -173,9 +173,7 @@ pub(in crate::database::eloquent) async fn fire_with_transaction<M: Model>(
         return Ok(true);
     };
     if let Some(mapped) = model.dispatchesEvents(event) {
-        let dispatcher = container
-            .make::<Dispatcher>()
-            .map_err(DatabaseError::Unavailable)?;
+        let dispatcher = container.make::<Dispatcher>()?;
         let mut context = match transaction.as_deref_mut() {
             Some(transaction) => EventContext::in_transaction(transaction),
             None => EventContext::new(),
@@ -214,9 +212,7 @@ pub(in crate::database::eloquent) async fn fire_with_transaction<M: Model>(
             ModelEventResponse::Continue => {}
         }
     }
-    let events = container
-        .make::<ModelEvents>()
-        .map_err(DatabaseError::Unavailable)?;
+    let events = container.make::<ModelEvents>()?;
     for listener in events.listeners::<M>(event) {
         let listener = listener
             .downcast_ref::<Arc<dyn ModelEventListener<M>>>()
@@ -235,9 +231,7 @@ pub(in crate::database::eloquent) async fn fire_with_transaction<M: Model>(
             _ => {}
         }
     }
-    let dispatcher = container
-        .make::<Dispatcher>()
-        .map_err(DatabaseError::Unavailable)?;
+    let dispatcher = container.make::<Dispatcher>()?;
     let name = format!(
         "eloquent.{}: {}",
         event.as_str(),

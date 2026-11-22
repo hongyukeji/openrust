@@ -50,13 +50,10 @@ impl CacheTokenRepository {
         key: &str,
         operation: impl Future<Output = AuthResult<T>>,
     ) -> AuthResult<T> {
-        let mut lock = self
-            .store
-            .lock(&format!("{key}:lock"), Some(Duration::from_secs(30)), None)
-            .map_err(AuthError::backend)?;
-        lock.block(Duration::from_secs(3))
-            .await
-            .map_err(AuthError::backend)?;
+        let mut lock =
+            self.store
+                .lock(&format!("{key}:lock"), Some(Duration::from_secs(30)), None)?;
+        lock.block(Duration::from_secs(3)).await?;
         let result = operation.await;
         let released = lock.release().await.map_err(AuthError::backend);
         let value = result?;
@@ -66,12 +63,11 @@ impl CacheTokenRepository {
 
     async fn put(&self, key: &str, record: Record) -> AuthResult<()> {
         let expiry = record.created + jiff::SignedDuration::from_secs(self.policy.lifetime());
-        let value = serde_json::to_value(record).map_err(AuthError::backend)?;
+        let value = serde_json::to_value(record)?;
         let stored = self
             .store
             .put(key, &Value::Json(value), Some(Ttl::Until(expiry.into())))
-            .await
-            .map_err(AuthError::backend)?;
+            .await?;
         if !stored {
             return Err(AuthError::Configuration("auth.passwords.cache"));
         }
@@ -79,7 +75,7 @@ impl CacheTokenRepository {
     }
 
     async fn record(&self, key: &str) -> AuthResult<Option<Record>> {
-        match self.store.get(key).await.map_err(AuthError::backend)? {
+        match self.store.get(key).await? {
             Some(Value::Json(value)) => serde_json::from_value(value)
                 .map(Some)
                 .map_err(AuthError::backend),
@@ -191,7 +187,7 @@ impl TokenRepository for CacheTokenRepository {
                     return Ok(());
                 }
                 if success || record.created <= self.policy.expiry_cutoff(now()) {
-                    self.store.forget(&key).await.map_err(AuthError::backend)?;
+                    self.store.forget(&key).await?;
                 } else {
                     self.put(
                         &key,
@@ -243,7 +239,7 @@ impl TokenRepository for CacheTokenRepository {
         Box::pin(async move {
             let key = cache_key(user);
             self.locked(&key, async {
-                self.store.forget(&key).await.map_err(AuthError::backend)?;
+                self.store.forget(&key).await?;
                 Ok(())
             })
             .await

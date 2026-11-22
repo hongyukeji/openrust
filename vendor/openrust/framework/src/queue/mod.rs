@@ -441,3 +441,9 @@ pub(super) fn new_id() -> QueueResult<String> {
         .into_uuid()
         .to_string())
 }
+
+impl From<crate::contracts::container::BindingResolutionError> for QueueError {
+    fn from(source: crate::contracts::container::BindingResolutionError) -> Self {
+        Self::Unavailable(source)
+    }
+}

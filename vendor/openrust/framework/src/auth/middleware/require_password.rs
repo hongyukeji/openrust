@@ -53,8 +53,7 @@ impl Middleware for RequirePassword {
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
             let confirmed = request
-                .session()
-                .map_err(AuthError::backend)?
+                .session()?
                 .get(PASSWORD_CONFIRMED_AT)
                 .and_then(serde_json::Value::as_i64);
             let timeout = self.timeout()?;

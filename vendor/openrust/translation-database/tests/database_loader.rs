@@ -484,11 +484,7 @@ async fn database_explicit_provider_publishes_the_app_catalog_to_real_http() {
     }
     fn response(_request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         Box::pin(async {
-            let value = Lang::get("messages.title", &BTreeMap::new(), None).map_err(|source| {
-                HttpError::Internal {
-                    source: Box::new(source),
-                }
-            })?;
+            let value = Lang::get("messages.title", &BTreeMap::new(), None)?;
             Response::json(StatusCode::OK, json!({"title":value}))
         })
     }

@@ -219,10 +219,7 @@ fn invalid_guard(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpE
                     variadic: false,
                 },
             ))
-            .await
-            .map_err(|source| HttpError::Internal {
-                source: source.into(),
-            })?;
+            .await?;
         Ok(Response::empty(http::StatusCode::OK))
     })
 }
@@ -245,10 +242,7 @@ fn resolve_auth(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
         }
         let probe = request
             .withContainer(container.makeAsync::<AuthProbe>())
-            .await
-            .map_err(|source| HttpError::Internal {
-                source: source.into(),
-            })?;
+            .await?;
         probe.show(request).await
     })
 }
@@ -256,18 +250,8 @@ fn resolve_auth(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
 fn probe(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
         let current = Container::getInstance();
-        let sync = current
-            .make::<Probe>()
-            .map_err(|source| HttpError::Internal {
-                source: source.into(),
-            })?;
-        let injected =
-            current
-                .makeAsync::<Probe>()
-                .await
-                .map_err(|source| HttpError::Internal {
-                    source: source.into(),
-                })?;
+        let sync = current.make::<Probe>()?;
+        let injected = current.makeAsync::<Probe>().await?;
         assert!(Arc::ptr_eq(&sync.0, &injected.0));
         assert!(std::ptr::eq(
             injected.0.as_ref(),

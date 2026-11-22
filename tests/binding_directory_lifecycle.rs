@@ -121,38 +121,25 @@ impl ServiceProvider for Provider {
 }
 fn read(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let directory = Directories::getFacadeRootAsync().await.map_err(internal)?;
+        let directory = Directories::getFacadeRootAsync().await?;
         let raw = directory
             .original
             .callAsync::<u32>(&directory.container, ParameterOverrides::new())
-            .await
-            .map_err(internal)?;
-        let normal = directory
-            .container
-            .makeAsync::<u32>()
-            .await
-            .map_err(internal)?;
+            .await?;
+        let normal = directory.container.makeAsync::<u32>().await?;
         Ok(Response::new(
             StatusCode::OK,
             Body::from(format!("{}:{raw}:{normal}", directory.name)),
         ))
     })
 }
-fn internal(source: BindingResolutionError) -> HttpError {
-    HttpError::Internal {
-        source: source.into(),
-    }
-}
 fn reset(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let directory = Directories::getFacadeRootAsync().await.map_err(internal)?;
+        let directory = Directories::getFacadeRootAsync().await?;
         directory
             .container
             .scope(async {
-                directory
-                    .container
-                    .make::<ScopeCleanup>()
-                    .map_err(internal)?;
+                directory.container.make::<ScopeCleanup>()?;
                 directory.container.flush();
                 Ok::<(), HttpError>(())
             })
@@ -161,8 +148,7 @@ fn reset(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         assert!(directory.container.getBindings().is_empty());
         directory
             .container
-            .singleton::<u32, _>(|_| Ok(Arc::new(42)))
-            .map_err(internal)?;
+            .singleton::<u32, _>(|_| Ok(Arc::new(42)))?;
         Ok(Response::new(StatusCode::OK, Body::from("reset")))
     })
 }

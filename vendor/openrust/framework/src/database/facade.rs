@@ -3,8 +3,8 @@ use std::future::Future;
 use crate::{container::ServiceKey, support::facades::Facade};
 
 use super::{
-    Bindings, Connection, DatabaseError, DatabaseFuture, DatabaseManager, DatabaseResult,
-    QueryLogEntry, RawQueryLogEntry, Row, Transaction, Value,
+    Bindings, Connection, DatabaseFuture, DatabaseManager, DatabaseResult, QueryLogEntry,
+    RawQueryLogEntry, Row, Transaction, Value,
 };
 
 /// Executes queries on the current application's database connections.
@@ -37,16 +37,12 @@ impl DB {
     }
 
     pub fn connection(name: Option<&str>) -> DatabaseResult<Connection> {
-        Self::getFacadeRoot()
-            .map_err(DatabaseError::Unavailable)?
-            .connection(name)
+        Self::getFacadeRoot()?.connection(name)
     }
 
     /// Controls destructive database Artisan commands for the current application.
     pub fn prohibitDestructiveCommands(prohibit: bool) -> DatabaseResult<()> {
-        Self::getFacadeRoot()
-            .map_err(DatabaseError::Unavailable)?
-            .set_destructive_commands_prohibited(prohibit);
+        Self::getFacadeRoot()?.set_destructive_commands_prohibited(prohibit);
         Ok(())
     }
 
@@ -56,22 +52,15 @@ impl DB {
     }
 
     pub fn disconnect(name: Option<&str>) -> DatabaseResult<()> {
-        Self::getFacadeRoot()
-            .map_err(DatabaseError::Unavailable)?
-            .disconnect(name)
+        Self::getFacadeRoot()?.disconnect(name)
     }
 
     pub fn purge(name: Option<&str>) -> DatabaseResult<()> {
-        Self::getFacadeRoot()
-            .map_err(DatabaseError::Unavailable)?
-            .purge(name)
+        Self::getFacadeRoot()?.purge(name)
     }
 
     pub async fn reconnect(name: Option<&str>) -> DatabaseResult<Connection> {
-        Self::getFacadeRoot()
-            .map_err(DatabaseError::Unavailable)?
-            .reconnect(name)
-            .await
+        Self::getFacadeRoot()?.reconnect(name).await
     }
 
     pub fn listen(

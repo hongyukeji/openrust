@@ -231,11 +231,10 @@ impl Model for Stamp {
 
 fn stamp_route(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let database = DB::connection(None).map_err(internal)?;
+        let database = DB::connection(None)?;
         let row = Stamp::queryOn(&database)
             .create(Attributes::from([("label".into(), "test".into())]))
-            .await
-            .map_err(internal)?;
+            .await?;
         let timestamps = ["created_at", "updated_at"].map(|name| match row.getRawOriginal(name) {
             Some(Value::Text(value)) => Some(value.as_str()),
             _ => None,

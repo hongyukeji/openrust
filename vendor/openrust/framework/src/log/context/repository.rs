@@ -315,3 +315,9 @@ impl Repository {
         OVERLAYS.sync_scope(self.overlays(data, hidden), callback)
     }
 }
+
+impl From<crate::contracts::container::BindingResolutionError> for ContextError {
+    fn from(source: crate::contracts::container::BindingResolutionError) -> Self {
+        Self::Unavailable(source)
+    }
+}

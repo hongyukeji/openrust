@@ -125,11 +125,7 @@ impl Facade for ServiceFacade {
 }
 fn read(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let service = ServiceFacade::getFacadeRootAsync()
-            .await
-            .map_err(|source| HttpError::Internal {
-                source: source.into(),
-            })?;
+        let service = ServiceFacade::getFacadeRootAsync().await?;
         Ok(Response::new(
             StatusCode::OK,
             Body::from(service.0.to_string()),
@@ -813,11 +809,7 @@ fn load_from_event(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError
     Box::pin(async move {
         let container = openrust::container::Container::getInstance();
         let dispatcher = container.make::<Dispatcher>().unwrap();
-        dispatch_signal(&dispatcher)
-            .await
-            .map_err(|source| HttpError::Internal {
-                source: source.into(),
-            })?;
+        dispatch_signal(&dispatcher).await?;
         let service = container.make::<Service>().unwrap();
         Ok(Response::new(
             StatusCode::OK,

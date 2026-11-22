@@ -37,10 +37,11 @@ impl Collection<Value> {
     }
 
     pub fn dotWithDepth(self, depth: Option<usize>) -> CollectionResult<Self> {
-        Ok(Self::fromEntries(
-            Arr::dotWithDepth(&self.toArray()?, "", depth)
-                .map_err(|error| CollectionError::Source(Box::new(error)))?,
-        ))
+        Ok(Self::fromEntries(Arr::dotWithDepth(
+            &self.toArray()?,
+            "",
+            depth,
+        )?))
     }
 
     pub fn undot(self) -> CollectionResult<Self> {
@@ -48,9 +49,7 @@ impl Collection<Value> {
             .into_iter()
             .map(|(key, item)| (key.to_string(), item))
             .collect();
-        Ok(Self::fromValue(Arr::undot(&items).map_err(|error| {
-            CollectionError::Source(Box::new(error))
-        })?))
+        Ok(Self::fromValue(Arr::undot(&items)?))
     }
 
     pub fn flatten(self, depth: Option<usize>) -> CollectionResult<Self> {
@@ -79,7 +78,7 @@ impl Collection<Value> {
 }
 
 fn validate(value: &Value) -> CollectionResult<()> {
-    data::check_depth(value, 0).map_err(|error| CollectionError::Source(Box::new(error)))
+    data::check_depth(value, 0).map_err(Into::into)
 }
 
 fn merge(left: Value, right: Value, replace: bool) -> Value {

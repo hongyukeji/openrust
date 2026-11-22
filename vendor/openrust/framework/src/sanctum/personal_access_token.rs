@@ -165,8 +165,7 @@ impl PersonalAccessTokens {
                     expires_at.map_or(Value::Null, |date| timestamp_text(date).into()),
                 ),
             ]))
-            .await
-            .map_err(AuthError::backend)?;
+            .await?;
         Ok(NewAccessToken {
             plain_text_token: Zeroizing::new(format!("{}|{}", access_token.id, secret.as_str())),
             access_token,
@@ -225,13 +224,12 @@ impl PersonalAccessTokens {
     ) -> AuthResult<bool> {
         if !model
             .record_use(seconds_precision(Timestamp::now()))
-            .await
-            .map_err(AuthError::backend)?
+            .await?
         {
             return Ok(false);
         }
-        token.last_used_at = model.last_used_at().map_err(AuthError::backend)?;
-        token.updated_at = model.updated_at().map_err(AuthError::backend)?;
+        token.last_used_at = model.last_used_at()?;
+        token.updated_at = model.updated_at()?;
         token.serialized_model = model.serialized_model();
         Ok(true)
     }

@@ -200,14 +200,10 @@ pub(crate) async fn run(
     name: Option<&str>,
     output: &mut Output,
 ) -> DatabaseResult<()> {
-    let manager = application
-        .container()
-        .get::<DatabaseManager>("db")
-        .map_err(DatabaseError::Unavailable)?;
+    let manager = application.container().get::<DatabaseManager>("db")?;
     let registry = application
         .container()
-        .get::<SeederRegistry>(crate::container::ServiceKey::typed::<SeederRegistry>())
-        .map_err(DatabaseError::Unavailable)?;
+        .get::<SeederRegistry>(crate::container::ServiceKey::typed::<SeederRegistry>())?;
     let name = name.unwrap_or(DEFAULT);
     let selected = match database.filter(|name| !name.is_empty()) {
         Some(database) => database.to_owned(),

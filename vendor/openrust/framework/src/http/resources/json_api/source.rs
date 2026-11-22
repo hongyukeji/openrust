@@ -7,7 +7,7 @@ use crate::{
         Value as AttributeValue,
         eloquent::{Collection, Model},
     },
-    http::{HttpError, StatusCode},
+    http::StatusCode,
 };
 
 use super::super::json::ResourceResult;
@@ -46,7 +46,7 @@ impl<M: Model> JsonApiSource for M {
     }
 
     fn attributes(&self) -> ResourceResult<Map<String, Value>> {
-        let mut attributes = self.attributesToArray().map_err(internal)?;
+        let mut attributes = self.attributesToArray()?;
         attributes.shift_remove(self.getKeyName());
         Ok(attributes)
     }
@@ -73,7 +73,7 @@ impl<M: Model> JsonApiSource for M {
                 .map(|model| M::from_state(model.state().clone()))
                 .collect(),
         );
-        models.loadMissingPaths(&paths).await.map_err(internal)?;
+        models.loadMissingPaths(&paths).await?;
         for (source, mut loaded) in sources.into_iter().zip(models) {
             *source.state_mut() = std::mem::take(loaded.state_mut());
         }
@@ -94,11 +94,5 @@ impl JsonApiSource for Map<String, Value> {
         let mut attributes = self.clone();
         attributes.shift_remove("id");
         Ok(attributes)
-    }
-}
-
-fn internal(source: crate::database::DatabaseError) -> HttpError {
-    HttpError::Internal {
-        source: Box::new(source),
     }
 }

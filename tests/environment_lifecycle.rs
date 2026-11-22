@@ -155,21 +155,15 @@ impl ServiceProvider for Provider {
         })
     }
 }
-fn internal(source: BindingResolutionError) -> HttpError {
-    HttpError::Internal {
-        source: source.into(),
-    }
-}
 fn read(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let report = Reports::getFacadeRootAsync().await.map_err(internal)?;
+        let report = Reports::getFacadeRootAsync().await?;
         Ok(Response::new(StatusCode::OK, Body::from(report.0.clone())))
     })
 }
 fn bad(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
-        Configs::getFacadeRoot()
-            .map_err(internal)?
+        Configs::getFacadeRoot()?
             .set("app.env", Value::Bool(false))
             .unwrap();
         read(request).await
@@ -177,8 +171,7 @@ fn bad(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 }
 fn fix(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
-        Configs::getFacadeRoot()
-            .map_err(internal)?
+        Configs::getFacadeRoot()?
             .set("app.env", Value::String("testing".into()))
             .unwrap();
         read(request).await
@@ -186,13 +179,8 @@ fn fix(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 }
 fn read_binding(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let selected = Container::getInstance()
-            .makeAsync::<dyn Selected>()
-            .await
-            .map_err(internal)?;
-        let observed = Container::getInstance()
-            .offsetGet::<&'static str>("binding-event")
-            .map_err(internal)?;
+        let selected = Container::getInstance().makeAsync::<dyn Selected>().await?;
+        let observed = Container::getInstance().offsetGet::<&'static str>("binding-event")?;
         assert_eq!(*observed, selected.label());
         Ok(Response::new(StatusCode::OK, Body::from(selected.label())))
     })

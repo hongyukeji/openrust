@@ -192,18 +192,14 @@ fn configured_driver(
     container: &Container,
     paths: Arc<super::Paths>,
 ) -> Result<Backend, MaintenanceError> {
-    let config = container
-        .get::<dyn Config>("config")
-        .map_err(MaintenanceError::Unavailable)?;
+    let config = container.get::<dyn Config>("config")?;
     match config.get("app.maintenance.driver").as_ref() {
         None | Some(Value::Null) => Ok(Backend::File(paths)),
         Some(Value::String(driver)) if driver == "file" => Ok(Backend::File(paths)),
         Some(Value::String(driver)) if driver == "array" => Ok(Backend::Array(RwLock::default())),
         Some(Value::String(driver)) if driver == "cache" => {
             let store = config.get("app.maintenance.store");
-            let cache = container
-                .make::<CacheManager>()
-                .map_err(MaintenanceError::Unavailable)?;
+            let cache = container.make::<CacheManager>()?;
             let name = store
                 .as_ref()
                 .and_then(Value::as_str)
@@ -234,5 +230,11 @@ impl ServiceProvider for MaintenanceServiceProvider {
                 })?;
             Ok(())
         })
+    }
+}
+
+impl From<crate::contracts::container::BindingResolutionError> for MaintenanceError {
+    fn from(source: crate::contracts::container::BindingResolutionError) -> Self {
+        Self::Unavailable(source)
     }
 }

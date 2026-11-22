@@ -1,5 +1,27 @@
 # Error Handling
 
+## Propagating domain errors
+
+Use `?` for fixed error conversions that need no additional context. Controllers and middleware returning `HttpError` can propagate configuration failures directly:
+
+```rust
+use openrust::{http::HttpError, support::facades::Config};
+
+fn locale_form_field() -> Result<String, HttpError> {
+    Ok(Config::string("app.locale_form_field")?)
+}
+```
+
+Configuration, container, translation, view, database, logging, Redis, hashing, JSON serialization, I/O, and task join errors retain their original source at the HTTP boundary and become `Internal` errors by default. The existing exception pipeline handles reporting, debugging, and production redaction with status 500. The default database conversion does not turn `ModelNotFound` into 404; routes returning model results retain their existing classification.
+
+Image domain errors and errors from `openrust-horizon`, `openrust-pulse`, and `openrust-pennant` also default to `Internal`. The domain source is retained; nested errors are not automatically unwrapped to change the status code.
+
+Lower layers continue returning their own domain errors. Container resolution failures can propagate directly into the corresponding configuration, translation, view, database, cache, queue, event, and logging results. Database, cache, hashing, session, configuration, and container failures in authentication retain `AuthError::Backend`. General components should not depend on HTTP simply to support `?`.
+
+The `?` operator converts into the current return error type; it does not chain multiple `From` implementations automatically. For return expressions, use `Ok(operation()?)`, or `map_err(Into::into)` where the return type determines the conversion. Give closures an explicit `Result` type when multiple error types make inference ambiguous.
+
+Keep `map_err` when it adds a path, operation, request, or phase context, or performs status classification, recovery, retries, or redaction. Filesystem, validation, collection debugging, and authentication errors already have specialized HTTP conversions. Check their semantics before replacing an explicit `Internal` wrapper with `?`.
+
 ## Reporting Exceptions
 
 Configure reporting in the `withExceptions` closure in `bootstrap/app.rs`. Use `report::<E>` to observe an exception type or a matching source. Callbacks run in registration order. `ReportDecision::Stop` stops later callbacks and the default report.

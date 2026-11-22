@@ -13,7 +13,7 @@ use crate::{
     },
 };
 
-use super::{AuthError, AuthFuture, AuthIdentifier, AuthResult, Credentials, providers};
+use super::{AuthFuture, AuthIdentifier, AuthResult, Credentials, providers};
 
 /// Loads a compiled Eloquent model with its query scopes.
 pub struct EloquentUserProvider<M> {
@@ -51,7 +51,7 @@ impl<M: Model + Authenticatable> UserProvider for EloquentUserProvider<M> {
         Box::pin(async move {
             let mut query = M::queryOn(&self.connection);
             query.r#where(&self.identifier, "=", Value::from(id.clone()));
-            let user = query.first().await.map_err(AuthError::backend)?;
+            let user = query.first().await?;
             Ok(user
                 .filter(|user| providers::same_identity(id, &user.getAuthIdentifier()))
                 .map(erase))
@@ -81,8 +81,7 @@ impl<M: Model + Authenticatable> UserProvider for EloquentUserProvider<M> {
             query.r#where(column, "=", token);
             Ok(query
                 .first()
-                .await
-                .map_err(AuthError::backend)?
+                .await?
                 .filter(|user| providers::matches_api_token(user.getAttribute(column), token))
                 .map(erase))
         })
@@ -115,7 +114,7 @@ impl<M: Model + Authenticatable> UserProvider for EloquentUserProvider<M> {
             if !constrained {
                 return Ok(None);
             }
-            Ok(query.first().await.map_err(AuthError::backend)?.map(erase))
+            Ok(query.first().await?.map(erase))
         })
     }
 

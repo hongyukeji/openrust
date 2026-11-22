@@ -2,10 +2,8 @@
 
 use super::Facade;
 use crate::{
-    container::ServiceKey,
-    contracts::container::BindingResolutionError,
-    foundation::Application,
-    translation::{TranslationError, TranslationResult},
+    container::ServiceKey, contracts::container::BindingResolutionError, foundation::Application,
+    translation::TranslationResult,
 };
 
 /// 当前应用入口，复用 Application 与现有请求／任务作用域。
@@ -45,6 +43,6 @@ impl App {
     }
 
     fn application() -> TranslationResult<std::sync::Arc<Application>> {
-        Self::getFacadeRoot().map_err(TranslationError::Unavailable)
+        Self::getFacadeRoot().map_err(Into::into)
     }
 }

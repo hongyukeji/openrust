@@ -300,3 +300,9 @@ impl From<crate::translation::TranslationError> for DatabaseError {
         Self::Translation(Box::new(error))
     }
 }
+
+impl From<crate::contracts::container::BindingResolutionError> for DatabaseError {
+    fn from(source: crate::contracts::container::BindingResolutionError) -> Self {
+        Self::Unavailable(source)
+    }
+}

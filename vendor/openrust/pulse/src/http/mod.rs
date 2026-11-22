@@ -46,17 +46,17 @@ pub(crate) fn routes() -> Result<(), RoutingError> {
 }
 fn page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let factory = openrust::support::facades::View::getFacadeRoot().map_err(failure)?;
+        let factory = openrust::support::facades::View::getFacadeRoot()?;
         let html = match factory.render("pulse::dashboard", &Default::default()) {
             Ok(html) => html,
             Err(openrust::view::ViewError::NotFound) => {
                 include_str!("../../resources/views/dashboard.html").into()
             }
-            Err(e) => return Err(failure(e)),
+            Err(e) => return Err(e.into()),
         };
-        let pulse = crate::facades::Pulse::getFacadeRoot().map_err(failure)?;
+        let pulse = crate::facades::Pulse::getFacadeRoot()?;
         let html = if html.contains("<!-- PULSE_STYLES -->") {
-            html.replace("<!-- PULSE_STYLES -->", &pulse.css().map_err(failure)?)
+            html.replace("<!-- PULSE_STYLES -->", &pulse.css()?)
         } else {
             html
         };
@@ -73,11 +73,6 @@ fn page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         Ok(response)
     })
 }
-fn failure(e: impl std::error::Error + Send + Sync + 'static) -> HttpError {
-    HttpError::Internal {
-        source: Box::new(e),
-    }
-}
 fn metrics(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
         let period = request
@@ -91,7 +86,7 @@ fn metrics(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
             "7d" => 604800,
             _ => return Err(HttpError::InvalidRequest),
         };
-        let pulse = crate::facades::Pulse::getFacadeRoot().map_err(failure)?;
+        let pulse = crate::facades::Pulse::getFacadeRoot()?;
         let mut cards = serde_json::Map::new();
         for (name, types) in [
             ("slow_requests", vec!["slow_request"]),
@@ -112,13 +107,11 @@ fn metrics(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
             let rows = if types.len() == 1 {
                 pulse
                     .aggregate(&types[0], &aggregates, interval, Some("count"), "desc", 101)
-                    .await
-                    .map_err(failure)?
+                    .await?
             } else {
                 pulse
                     .aggregateTypes(&types, "count", interval, None, "desc", 101)
-                    .await
-                    .map_err(failure)?
+                    .await?
             };
             let mut rows: Vec<_> = rows.into_iter().map(row).collect();
             if name == "requests" || name == "jobs" {
@@ -126,10 +119,10 @@ fn metrics(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
                     .iter()
                     .filter_map(|row| row.get("key").and_then(|v| v.as_str()).map(str::to_owned))
                     .collect();
-                let users = pulse.resolveUsers(&keys).await.map_err(failure)?;
+                let users = pulse.resolveUsers(&keys).await?;
                 for row in &mut rows {
                     if let Some(key) = row.get("key").and_then(|v| v.as_str()) {
-                        let user = serde_json::to_value(users.find(key)).map_err(failure)?;
+                        let user = serde_json::to_value(users.find(key))?;
                         row.as_object_mut()
                             .expect("database row")
                             .insert("user".into(), user);
@@ -148,20 +141,15 @@ fn metrics(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
                         "count",
                         interval,
                     )
-                    .await
-                    .map_err(failure)?,
-            )
-            .map_err(failure)?,
+                    .await?,
+            )?,
         );
-        let systems = pulse.values("system", None).await.map_err(failure)?;
+        let systems = pulse.values("system", None).await?;
         cards.insert(
             "servers".into(),
             serde_json::Value::Array(systems.into_iter().map(row).collect()),
         );
-        let mut response = Response::new(
-            StatusCode::OK,
-            Body::from(serde_json::to_vec(&cards).map_err(failure)?),
-        );
+        let mut response = Response::new(StatusCode::OK, Body::from(serde_json::to_vec(&cards)?));
         response.parts_mut().headers.insert(
             "content-type",
             ::http::HeaderValue::from_static("application/json"),
@@ -195,4 +183,12 @@ fn row(row: openrust::database::Row) -> serde_json::Value {
             })
             .collect(),
     )
+}
+
+impl From<crate::Error> for HttpError {
+    fn from(source: crate::Error) -> Self {
+        Self::Internal {
+            source: Box::new(source),
+        }
+    }
 }

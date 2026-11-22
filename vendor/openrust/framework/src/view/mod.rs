@@ -212,8 +212,7 @@ impl View {
 
         let formatted = match &self.binding {
             Some(binding) => binding.factory.compiler().applyEchoHandler(value)?,
-            None => ViewFacade::getFacadeRoot()
-                .map_err(ViewError::Unavailable)?
+            None => ViewFacade::getFacadeRoot()?
                 .compiler()
                 .applyEchoHandler(value)?,
         };
@@ -291,13 +290,7 @@ impl View {
                     Some(query) = checks.recv() => query.resolve(request).await,
                 }
             };
-            let (html, original) = rendered
-                .map_err(|source| HttpError::Internal {
-                    source: source.into(),
-                })?
-                .map_err(|source| HttpError::Internal {
-                    source: source.into(),
-                })?;
+            let (html, original) = rendered??;
 
             let mut response = Response::new(StatusCode::OK, Body::from(html));
             response.parts_mut().extensions.insert(Arc::new(original));
@@ -307,6 +300,12 @@ impl View {
             );
             Ok(response)
         })
+    }
+}
+
+impl From<crate::contracts::container::BindingResolutionError> for ViewError {
+    fn from(source: crate::contracts::container::BindingResolutionError) -> Self {
+        Self::Unavailable(source)
     }
 }
 

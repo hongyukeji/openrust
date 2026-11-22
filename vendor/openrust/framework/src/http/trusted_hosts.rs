@@ -57,8 +57,8 @@ impl TrustedHosts {
         let patterns = match &self.source {
             Source::Patterns(patterns) => patterns.clone(),
             Source::Resolver(resolver) => {
-                let names = resolver().await.map_err(internal)?;
-                compile_patterns(names.iter().map(String::as_str)).map_err(internal)?
+                let names = resolver().await?;
+                compile_patterns(names.iter().map(String::as_str))?
             }
         };
         Ok(HostSnapshot {

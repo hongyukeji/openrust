@@ -149,11 +149,6 @@ impl MustVerifyEmail for AccountUser {
         field(self, "email").unwrap()
     }
 }
-fn internal(error: impl std::error::Error + Send + Sync + 'static) -> HttpError {
-    HttpError::Internal {
-        source: Box::new(error),
-    }
-}
 fn input(input: &RequestValue, name: &str) -> Json {
     match input.get(name) {
         Some(RequestValue::Value(value)) => value.clone(),
@@ -219,8 +214,7 @@ impl contracts::CreatesNewUsers for Actions {
                     input(values, "password").as_str().unwrap().as_bytes(),
                     &HashOptions::new(),
                 )
-                .await
-                .map_err(internal)?;
+                .await?;
             let mut user = AccountUser::from_state(ModelState::default());
             user.forceFill(
                 [
@@ -236,11 +230,9 @@ impl contracts::CreatesNewUsers for Actions {
                     ("password".into(), hash.into()),
                 ]
                 .into(),
-            )
-            .map_err(internal)?
+            )?
             .save()
-            .await
-            .map_err(internal)?;
+            .await?;
             Ok(Box::new(user) as Box<dyn contracts::User>)
         })
     }
@@ -282,11 +274,9 @@ impl contracts::UpdatesUserProfileInformation for Actions {
                     ("email_verified_at".into(), Value::Null),
                 ]
                 .into(),
-            )
-            .map_err(internal)?
+            )?
             .save()
-            .await
-            .map_err(internal)?;
+            .await?;
             if changed {
                 user.sendEmailVerificationNotification().await?;
             }
@@ -320,8 +310,7 @@ impl contracts::UpdatesUserPasswords for Actions {
                     user.getAuthPassword().unwrap(),
                     &HashOptions::new(),
                 )
-                .await
-                .map_err(internal)?
+                .await?
             {
                 let mut bag = openrust::support::MessageBag::default();
                 bag.add(
@@ -342,13 +331,10 @@ impl contracts::UpdatesUserPasswords for Actions {
                     input(values, "password").as_str().unwrap().as_bytes(),
                     &HashOptions::new(),
                 )
-                .await
-                .map_err(internal)?;
-            user.forceFill([("password".into(), hash.into())].into())
-                .map_err(internal)?
+                .await?;
+            user.forceFill([("password".into(), hash.into())].into())?
                 .save()
-                .await
-                .map_err(internal)?;
+                .await?;
             Ok(Box::new(user) as Box<dyn contracts::User>)
         })
     }
@@ -644,8 +630,7 @@ fn verification_link(request: &mut Request) -> HttpFuture<'_, Result<Response, H
         } else {
             std::time::SystemTime::now() + Duration::from_secs(600)
         };
-        let url = URL::forRequest(request)
-            .map_err(internal)?
+        let url = URL::forRequest(request)?
             .temporarySignedRoute(
                 "verification.verify",
                 expires,
@@ -654,8 +639,7 @@ fn verification_link(request: &mut Request) -> HttpFuture<'_, Result<Response, H
                     RouteParameter::named("hash", hash),
                 ],
                 SignatureMode::Absolute,
-            )
-            .map_err(internal)?;
+            )?;
         Response::json(StatusCode::OK, json!({"url":url}))
     })
 }
@@ -665,10 +649,10 @@ impl contracts::ResetsUserPasswords for Actions {
         Box::pin(async move {
             Validator::make(validation_data(values)?, RuleSet::parse([("password", "required|string|min:8")])?)?.validate().await?;
             policy(values, "default", false, true)?;
-            let hash = self.hasher.make(input(values, "password").as_str().unwrap().as_bytes(), &HashOptions::new()).await.map_err(internal)?;
+            let hash = self.hasher.make(input(values, "password").as_str().unwrap().as_bytes(), &HashOptions::new()).await?;
             let user = (user as &mut dyn std::any::Any).downcast_mut::<AccountUser>().unwrap();
             user.setAttribute("password", hash);
-            user.save().await.map_err(internal)?;
+            user.save().await?;
             Ok(())
         })
     }

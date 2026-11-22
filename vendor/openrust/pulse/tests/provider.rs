@@ -314,48 +314,39 @@ impl openrust::contracts::auth::Authenticatable for Identity {
         "remember_token"
     }
 }
-fn internal(error: impl std::error::Error + Send + Sync + 'static) -> HttpError {
-    HttpError::Internal {
-        source: Box::new(error),
-    }
-}
 fn observed(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
         use openrust::support::facades::{Auth, Cache, Config, DB, Facade, Http, Log};
         Auth::user(request).await?;
-        DB::select("select 1 as probe", &[])
-            .await
-            .map_err(internal)?;
-        Cache::get("feature:123").await.map_err(internal)?;
-        Cache::put("feature:123", &openrust::cache::Value::from("cached"), None)
-            .await
-            .map_err(internal)?;
-        Cache::get("feature:123").await.map_err(internal)?;
-        let log = Log::channel(None).map_err(internal)?;
+        DB::select("select 1 as probe", &[]).await?;
+        Cache::get("feature:123").await?;
+        Cache::put("feature:123", &openrust::cache::Value::from("cached"), None).await?;
+        Cache::get("feature:123").await?;
+        let log = Log::channel(None)?;
         log.logException(
             openrust::log::Level::Error,
             "typed error",
             &std::io::Error::other("expected"),
             &Default::default(),
-        )
-        .map_err(internal)?;
+        )?;
         Log::error(
             "user context is not an actual exception",
             &[("exception".into(), json!({"class":"FakeException"}))]
                 .into_iter()
                 .collect(),
-        )
-        .map_err(internal)?;
-        let config = Config::getFacadeRoot().map_err(internal)?;
+        )?;
+        let config = Config::getFacadeRoot()?;
         let url = config
             .get("probe.url")
             .and_then(|v| v.as_str().map(str::to_owned))
             .unwrap();
-        Http::get(&url).await.map_err(internal)?;
+        Http::get(&url)
+            .await
+            .map_err(|source| HttpError::Internal {
+                source: Box::new(source),
+            })?;
         if request.uri().query().is_some_and(|q| q.contains("drop=1")) {
-            config
-                .set("pulse.recorders.CacheInteractions.sample_rate", json!(0))
-                .map_err(internal)?;
+            config.set("pulse.recorders.CacheInteractions.sample_rate", json!(0))?;
         }
         Ok(Response::from("observed"))
     })
@@ -545,8 +536,7 @@ fn probe(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
             "PulseCustomProbe",
             (),
         ))
-        .await
-        .map_err(internal)?;
+        .await?;
         Ok(Response::from("recorded"))
     })
 }

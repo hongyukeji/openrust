@@ -14,17 +14,10 @@ impl Controller for WelcomeController {}
 impl WelcomeController {
     pub(crate) fn index(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         Box::pin(async move {
-            let locale = App::currentLocale().map_err(|source| HttpError::Internal {
-                source: Box::new(source),
-            })?;
+            let locale = App::currentLocale()?;
             let page = view("welcome");
             let mut headers = HeaderMap::new();
-            headers.insert(
-                "content-language",
-                locale.parse().map_err(|source| HttpError::Internal {
-                    source: Box::new(source),
-                })?,
-            );
+            headers.insert("content-language", locale.parse()?);
             Response::view(StatusCode::OK, page, headers, request).await
         })
     }
@@ -40,9 +33,7 @@ impl WelcomeController {
             let target = SetLocale::urlWithoutLocale(request, &redirect)?;
             SetLocale::storePreferenceFromRequest(
                 request,
-                &Config::string("app.locale_form_field").map_err(|source| HttpError::Internal {
-                    source: Box::new(source),
-                })?,
+                &Config::string("app.locale_form_field")?,
             )
             .await?;
             Ok(Redirect::to(

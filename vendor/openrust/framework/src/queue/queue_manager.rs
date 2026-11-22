@@ -162,8 +162,7 @@ impl QueueManager {
             .upgrade()
             .ok_or(QueueError::InvalidConfiguration)?;
         owner
-            .make::<crate::concurrency::Manager>()
-            .map_err(QueueError::Unavailable)?
+            .make::<crate::concurrency::Manager>()?
             .driver(Some("process"))
             .map_err(backend)
     }
@@ -397,9 +396,7 @@ impl QueueManager {
             .owner
             .upgrade()
             .ok_or(QueueError::InvalidConfiguration)?;
-        let dispatcher = owner
-            .make::<Dispatcher>()
-            .map_err(QueueError::Unavailable)?;
+        let dispatcher = owner.make::<Dispatcher>()?;
         Ok((owner, dispatcher))
     }
 
@@ -464,9 +461,7 @@ impl QueueManager {
             .owner
             .upgrade()
             .ok_or(QueueError::InvalidConfiguration)?;
-        let cache = owner
-            .make::<CacheManager>()
-            .map_err(QueueError::Unavailable)?;
+        let cache = owner.make::<CacheManager>()?;
         Ok(WorkerControl::new(cache.store(None).map_err(backend)?))
     }
 
@@ -636,9 +631,7 @@ impl QueueManager {
             .owner
             .upgrade()
             .ok_or(QueueError::InvalidConfiguration)?;
-        let manager = owner
-            .make::<DatabaseManager>()
-            .map_err(QueueError::Unavailable)?;
+        let manager = owner.make::<DatabaseManager>()?;
         let name = self.config.get("queue.batching.database");
         let connection = manager
             .connection(name.as_ref().and_then(serde_json::Value::as_str))
@@ -1125,11 +1118,7 @@ impl QueueManager {
                             .owner
                             .upgrade()
                             .ok_or(QueueError::InvalidConfiguration)?;
-                        owner
-                            .make::<CacheManager>()
-                            .map_err(QueueError::Unavailable)?
-                            .store(store)
-                            .map_err(backend)
+                        owner.make::<CacheManager>()?.store(store).map_err(backend)
                     },
                 )?);
                 (sqs.clone(), BatchBackend::Sqs(sqs))
@@ -1172,9 +1161,7 @@ impl QueueManager {
                     .owner
                     .upgrade()
                     .ok_or(QueueError::InvalidConfiguration)?;
-                let manager = owner
-                    .make::<DatabaseManager>()
-                    .map_err(QueueError::Unavailable)?;
+                let manager = owner.make::<DatabaseManager>()?;
                 let connection = manager
                     .connection(settings.connection.as_deref())
                     .map_err(backend)?;
@@ -1218,9 +1205,7 @@ impl QueueManager {
                     .owner
                     .upgrade()
                     .ok_or(QueueError::InvalidConfiguration)?;
-                let manager = owner
-                    .make::<RedisManager>()
-                    .map_err(QueueError::Unavailable)?;
+                let manager = owner.make::<RedisManager>()?;
                 let connection = manager
                     .connection(settings.connection.as_deref())
                     .map_err(backend)?;
@@ -1287,9 +1272,7 @@ async fn emit_queueing(
     payload: &Payload,
     options: &DispatchOptions,
 ) -> QueueResult<()> {
-    let dispatcher = owner
-        .make::<Dispatcher>()
-        .map_err(QueueError::Unavailable)?;
+    let dispatcher = owner.make::<Dispatcher>()?;
     if dispatcher.observes(super::events::JobQueueing::NAME) {
         let event = super::events::JobQueueing {
             connection_name: queue.getConnectionName().into(),
@@ -1332,9 +1315,7 @@ async fn dispatch_unique(
         return dispatch(queue, &payload, options, &owner).await;
     };
     if !super::unique_job::acquire(&owner, &mut payload, policy).await? {
-        let dispatcher = owner
-            .make::<Dispatcher>()
-            .map_err(QueueError::Unavailable)?;
+        let dispatcher = owner.make::<Dispatcher>()?;
         if dispatcher.observes(UniqueJobSkipped::NAME) {
             application_scope(owner, async {
                 dispatcher

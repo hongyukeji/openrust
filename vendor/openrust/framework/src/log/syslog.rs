@@ -68,8 +68,8 @@ pub(super) fn writer(
     use std::os::unix::net::UnixDatagram;
 
     let path = path.unwrap_or_else(default_socket);
-    let socket = UnixDatagram::unbound().map_err(LogError::write)?;
-    socket.set_nonblocking(true).map_err(LogError::write)?;
+    let socket = UnixDatagram::unbound()?;
+    socket.set_nonblocking(true)?;
     let ident = ident.replace(
         |character: char| !character.is_ascii_graphic() || matches!(character, '[' | ']' | ':'),
         "-",
@@ -83,9 +83,7 @@ pub(super) fn writer(
             .to_zoned(jiff::tz::TimeZone::system())
             .strftime("%b %e %T");
         let packet = format!("<{}>{time} {tag}: {message}", facility + severity);
-        socket
-            .send_to(packet.as_bytes(), &path)
-            .map_err(LogError::write)?;
+        socket.send_to(packet.as_bytes(), &path)?;
         Ok(())
     }))
 }

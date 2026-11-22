@@ -33,9 +33,7 @@ async fn validate(request: &mut Request) -> Result<AccessToken, HttpError> {
     {
         return Ok(token.clone());
     }
-    let server = ResourceServer::getFacadeRoot().map_err(|source| HttpError::Internal {
-        source: Box::new(source),
-    })?;
+    let server = ResourceServer::getFacadeRoot()?;
     server
         .validateAuthenticatedRequest(request)
         .await
@@ -54,9 +52,7 @@ async fn check(request: &mut Request, scopes: &[String], rule: Rule) -> Result<(
     }
     let mut missing = Vec::new();
     for scope in scopes {
-        if token.can(scope).map_err(|source| HttpError::Internal {
-            source: Box::new(source),
-        })? {
+        if token.can(scope)? {
             if matches!(rule, Rule::Any) {
                 return Ok(());
             }

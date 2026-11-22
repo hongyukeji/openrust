@@ -134,16 +134,14 @@ impl AuthManager {
             (
                 std::any::type_name::<M>(),
                 Arc::new(|container, config| {
-                    let manager = container
-                        .make::<DatabaseManager>()
-                        .map_err(AuthError::backend)?;
+                    let manager = container.make::<DatabaseManager>()?;
                     let prototype = M::from_state(Default::default());
                     let name = config
                         .get("connection")
                         .and_then(Value::as_str)
                         .or_else(|| prototype.getConnectionName());
-                    let connection = manager.connection(name).map_err(AuthError::backend)?;
-                    let hasher = container.make::<dyn Hasher>().map_err(AuthError::backend)?;
+                    let connection = manager.connection(name)?;
+                    let hasher = container.make::<dyn Hasher>()?;
                     Ok(Arc::new(EloquentUserProvider::<M>::new(connection, hasher)))
                 }),
             ),
@@ -194,7 +192,7 @@ impl AuthManager {
             Some(serialize) => serialize(user)?,
             None => [(
                 user.getAuthIdentifierName().to_owned(),
-                serde_json::to_value(user.getAuthIdentifier()).map_err(AuthError::backend)?,
+                serde_json::to_value(user.getAuthIdentifier())?,
             )]
             .into_iter()
             .collect(),
@@ -508,13 +506,10 @@ impl AuthManager {
                 factory(&container, &config)
             }
             "database" => {
-                let manager = container
-                    .make::<DatabaseManager>()
-                    .map_err(AuthError::backend)?;
-                let connection = manager
-                    .connection(config.get("connection").and_then(Value::as_str))
-                    .map_err(AuthError::backend)?;
-                let hasher = container.make::<dyn Hasher>().map_err(AuthError::backend)?;
+                let manager = container.make::<DatabaseManager>()?;
+                let connection =
+                    manager.connection(config.get("connection").and_then(Value::as_str))?;
+                let hasher = container.make::<dyn Hasher>()?;
                 let provider =
                     DatabaseUserProvider::new(connection, hasher, text(&config, "table")?).columns(
                         config

@@ -45,17 +45,14 @@ impl Middleware for EnsureFeaturesAreActive {
         Box::pin(async move {
             let features: Vec<_> = self.features.iter().map(String::as_str).collect();
             if Feature::forRequest(request)
-                .await
-                .map_err(internal)?
+                .await?
                 .someAreInactive(&features)
-                .await
-                .map_err(internal)?
+                .await?
             {
                 if let Some(respond) = &self.respondUsing {
                     return respond(request, &self.features).await;
                 }
-                let debug = Config::getFacadeRoot()
-                    .map_err(internal)?
+                let debug = Config::getFacadeRoot()?
                     .get("app.debug")
                     .and_then(|value| value.as_bool())
                     .unwrap_or(false);
@@ -76,8 +73,11 @@ impl Middleware for EnsureFeaturesAreActive {
         })
     }
 }
-fn internal(source: impl std::error::Error + Send + Sync + 'static) -> HttpError {
-    HttpError::Internal {
-        source: Box::new(source),
+
+impl From<crate::Error> for HttpError {
+    fn from(source: crate::Error) -> Self {
+        Self::Internal {
+            source: Box::new(source),
+        }
     }
 }

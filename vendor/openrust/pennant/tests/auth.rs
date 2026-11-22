@@ -98,16 +98,11 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
 }
 fn identity(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
-        let _features = Feature::forRequest(request).await.map_err(internal)?;
-        let manager = Feature::manager().map_err(internal)?;
-        let value = manager.serializeScope(&manager.defaultScope("array").map_err(internal)?);
+        let _features = Feature::forRequest(request).await?;
+        let manager = Feature::manager()?;
+        let value = manager.serializeScope(&manager.defaultScope("array")?);
         Ok(Response::new(StatusCode::OK, Body::from(value)))
     })
-}
-fn internal(source: impl std::error::Error + Send + Sync + 'static) -> HttpError {
-    HttpError::Internal {
-        source: Box::new(source),
-    }
 }
 #[tokio::test]
 async fn lazy_native_guard_concrete_class_morph_and_guest_scopes_are_request_local() {

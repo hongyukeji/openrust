@@ -1070,10 +1070,10 @@ pub trait Model: Sized + Send + Sync + 'static {
         binding: BindingContext<'_>,
     ) -> HttpFuture<'_, Result<Option<Self>, HttpError>> {
         Box::pin(async move {
-            let query = Self::query().map_err(route_binding::http_error)?;
+            let query = Self::query()?;
             route_binding::lookup(query, binding)
                 .await
-                .map_err(route_binding::http_error)
+                .map_err(Into::into)
         })
     }
 
@@ -1081,7 +1081,7 @@ pub trait Model: Sized + Send + Sync + 'static {
         _binding: BindingContext<'_>,
     ) -> HttpFuture<'_, Result<Option<Self>, HttpError>> {
         Box::pin(async {
-            Err(route_binding::http_error(DatabaseError::InvalidQuery(
+            Err(HttpError::from(DatabaseError::InvalidQuery(
                 "scoped route binding relation",
             )))
         })
@@ -1156,8 +1156,7 @@ pub trait Model: Sized + Send + Sync + 'static {
             return Err(DatabaseError::InvalidQuery("dynamic relationship name"));
         }
         app.container()
-            .make::<super::RelationResolvers>()
-            .map_err(DatabaseError::Unavailable)?
+            .make::<super::RelationResolvers>()?
             .register::<Self, R>(name, resolver);
         Ok(())
     }
@@ -1182,8 +1181,7 @@ pub trait Model: Sized + Send + Sync + 'static {
             return Err(DatabaseError::InvalidQuery("dynamic relationship name"));
         }
         app.container()
-            .make::<super::RelationResolvers>()
-            .map_err(DatabaseError::Unavailable)?
+            .make::<super::RelationResolvers>()?
             .inherit::<Self, B, S, R>(name, base, adapt);
         Ok(())
     }
@@ -1551,8 +1549,7 @@ pub trait Model: Sized + Send + Sync + 'static {
     ) -> DatabaseResult<()> {
         use crate::contracts::{container::Container as _, foundation::Application as _};
         app.container()
-            .make::<super::ModelEvents>()
-            .map_err(DatabaseError::Unavailable)?
+            .make::<super::ModelEvents>()?
             .listen::<Self>(event, listener);
         Ok(())
     }
@@ -1564,8 +1561,7 @@ pub trait Model: Sized + Send + Sync + 'static {
     ) -> DatabaseResult<()> {
         use crate::contracts::{container::Container as _, foundation::Application as _};
         app.container()
-            .make::<super::ModelEvents>()
-            .map_err(DatabaseError::Unavailable)?
+            .make::<super::ModelEvents>()?
             .listen_to::<Self>(O::EVENTS, super::observer::ObserverListener(observer));
         Ok(())
     }
@@ -1583,8 +1579,7 @@ pub trait Model: Sized + Send + Sync + 'static {
     {
         use crate::contracts::{container::Container as _, foundation::Application as _};
         app.container()
-            .make::<super::ModelEvents>()
-            .map_err(DatabaseError::Unavailable)?
+            .make::<super::ModelEvents>()?
             .listen_to::<Self>(
                 O::EVENTS,
                 super::observer::AfterCommitObserver::new(observer),

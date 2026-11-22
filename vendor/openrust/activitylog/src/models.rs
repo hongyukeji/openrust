@@ -529,8 +529,7 @@ impl Activity {
                     R::from_state(Default::default()).getKeyName(),
                 )?;
         let include =
-            openrust::support::facades::Config::get("activitylog.include_soft_deleted_subjects")
-                .map_err(openrust::database::DatabaseError::Unavailable)?
+            openrust::support::facades::Config::get("activitylog.include_soft_deleted_subjects")?
                 .and_then(|v| v.as_bool())
                 .unwrap_or(false);
         Ok(if include {

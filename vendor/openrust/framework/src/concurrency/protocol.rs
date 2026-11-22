@@ -25,7 +25,7 @@ pub(super) enum Outcome {
 }
 
 pub(super) fn encode(outcome: &Outcome, key: &[u8; 32]) -> Result<String> {
-    let payload = STANDARD.encode(serde_json::to_vec(outcome).map_err(Error::Encoding)?);
+    let payload = STANDARD.encode(serde_json::to_vec(outcome)?);
     let tag = hmac::sign(&hmac::Key::new(hmac::HMAC_SHA256, key), payload.as_bytes());
     Ok(format!(
         "{MARKER}{payload}.{}\n",

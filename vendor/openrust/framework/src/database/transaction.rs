@@ -385,9 +385,7 @@ impl Transaction {
         else {
             return Ok(());
         };
-        let dispatcher = owner
-            .get::<Dispatcher>("events")
-            .map_err(DatabaseError::Unavailable)?;
+        let dispatcher = owner.get::<Dispatcher>("events")?;
         if dispatcher.observes(E::NAME) {
             let event = Arc::new(E::new(self.connection.clone(), self.level));
             let mut context = if self.level == 0 {

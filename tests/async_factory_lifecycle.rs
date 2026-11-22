@@ -195,23 +195,18 @@ impl ServiceProvider for WorkerProvider {
 fn json(worker: &Worker) -> String {
     serde_json::json!({"name":worker.client.name,"attempt":worker.client.attempt,"sequence":worker.sequence}).to_string()
 }
-fn internal(source: BindingResolutionError) -> HttpError {
-    HttpError::Internal {
-        source: source.into(),
-    }
-}
 fn read(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let a = Workers::getFacadeRootAsync().await.map_err(internal)?;
-        let b = Workers::getFacadeRootAsync().await.map_err(internal)?;
+        let a = Workers::getFacadeRootAsync().await?;
+        let b = Workers::getFacadeRootAsync().await?;
         assert!(Arc::ptr_eq(&a, &b));
         Ok(Response::new(StatusCode::OK, Body::from(json(&a))))
     })
 }
 fn stash(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        Labels::swap(Arc::new(Label("a"))).map_err(internal)?;
-        let control = Controls::getFacadeRoot().map_err(internal)?;
+        Labels::swap(Arc::new(Label("a")))?;
+        let control = Controls::getFacadeRoot()?;
         let mut pending: FactoryFuture<'static, Worker> = Box::pin(Workers::getFacadeRootAsync());
         tokio::select! {value=&mut pending=>panic!("worker unexpectedly ready: {}",value.unwrap().sequence),_=control.entered.notified()=>{}}
         *control.pending.lock().unwrap() = Some(pending);
@@ -220,8 +215,8 @@ fn stash(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 }
 fn resume(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        Labels::swap(Arc::new(Label("b"))).map_err(internal)?;
-        let control = Controls::getFacadeRoot().map_err(internal)?;
+        Labels::swap(Arc::new(Label("b")))?;
+        let control = Controls::getFacadeRoot()?;
         let pending = control.pending.lock().unwrap().take().unwrap();
         control.release.notify_one();
         assert!(matches!(
@@ -229,22 +224,22 @@ fn resume(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
             Err(BindingResolutionError::FacadeNotSet)
         ));
         assert_eq!(*control.drops.lock().unwrap(), ["missing"]);
-        let worker = Workers::getFacadeRootAsync().await.map_err(internal)?;
+        let worker = Workers::getFacadeRootAsync().await?;
         assert_eq!(worker.sequence, 2);
         Ok(Response::new(StatusCode::OK, Body::from(json(&worker))))
     })
 }
 fn cancel_live(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        Labels::swap(Arc::new(Label("a"))).map_err(internal)?;
-        let control = Controls::getFacadeRoot().map_err(internal)?;
+        Labels::swap(Arc::new(Label("a")))?;
+        let control = Controls::getFacadeRoot()?;
         let mut pending: FactoryFuture<'static, Worker> = Box::pin(Workers::getFacadeRootAsync());
         tokio::select! {value=&mut pending=>panic!("unexpected {}",value.unwrap().sequence),_=control.entered.notified()=>{}}
         *control.pending.lock().unwrap() = Some(pending);
         let other = control.other.lock().unwrap().take().unwrap();
-        other.make::<Killer>().await.map_err(internal)?;
+        other.make::<Killer>().await?;
         assert_eq!(*control.drops.lock().unwrap(), ["a"]);
-        assert_eq!(Labels::getFacadeRoot().map_err(internal)?.0, "a");
+        assert_eq!(Labels::getFacadeRoot()?.0, "a");
         Ok(Response::new(StatusCode::OK, Body::from("cancelled")))
     })
 }

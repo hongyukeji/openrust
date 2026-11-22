@@ -51,7 +51,7 @@ impl SessionLock {
 
     pub async fn release(mut self) -> Result<(), HttpError> {
         if let Some(lock) = &mut self.0 {
-            lock.release().await.map_err(http_error)?;
+            lock.release().await?;
         }
         self.0 = None;
         Ok(())
@@ -67,11 +67,5 @@ impl Drop for SessionLock {
                 let _ = lock.release().await;
             });
         }
-    }
-}
-
-pub(crate) fn http_error(source: CacheError) -> HttpError {
-    HttpError::Internal {
-        source: Box::new(source),
     }
 }

@@ -114,3 +114,9 @@ impl Error for RoutingError {
         }
     }
 }
+
+impl From<crate::contracts::container::BindingResolutionError> for RoutingError {
+    fn from(source: crate::contracts::container::BindingResolutionError) -> Self {
+        Self::ContainerFailed { source }
+    }
+}

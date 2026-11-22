@@ -39,15 +39,13 @@ impl UpdatesUserProfileInformation for UpdateUserProfileInformation {
             if changed {
                 attributes.insert("email_verified_at".into(), Value::Null);
             }
-            user.forceFill(attributes)
-                .map_err(super::internal)?
-                .save()
-                .await
-                .map_err(super::internal)?;
+            user.forceFill(attributes)?.save().await?;
             if changed {
                 user.sendEmailVerificationNotification()
                     .await
-                    .map_err(super::internal)?;
+                    .map_err(|source| HttpError::Internal {
+                        source: Box::new(source),
+                    })?;
             }
             Ok(Box::new(user) as Box<dyn User>)
         })

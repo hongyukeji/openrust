@@ -154,9 +154,7 @@ pub(super) async fn execute(
     use crate::process::{ChildGroup, Signal};
 
     let directory = tempfile::tempdir().map_err(backend)?;
-    let environment_file = app
-        .get::<PathBuf>("env.file")
-        .map_err(QueueError::Unavailable)?;
+    let environment_file = app.get::<PathBuf>("env.file")?;
     let environment = environment_file
         .file_name()
         .and_then(|name| name.to_str())

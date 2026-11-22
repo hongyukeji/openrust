@@ -190,3 +190,9 @@ impl From<EventError> for crate::http::HttpError {
         }
     }
 }
+
+impl From<crate::contracts::container::BindingResolutionError> for EventError {
+    fn from(source: crate::contracts::container::BindingResolutionError) -> Self {
+        Self::Unavailable(source)
+    }
+}

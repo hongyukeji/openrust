@@ -76,7 +76,7 @@ impl Drop for Root {
 fn translate(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     let locale = request.decodedPath().into_owned();
     Box::pin(async move {
-        let outer = Lang::getLocale().map_err(http_error)?;
+        let outer = Lang::getLocale()?;
         let body = Lang::withLocale(&locale, async {
             // Yield while the override is installed to exercise task isolation.
             tokio::task::yield_now().await;
@@ -91,17 +91,15 @@ fn translate(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError
                 "nested": __("messages.nested.values.0", &args)?,
             }))
         })
-        .await
-        .map_err(http_error)?
-        .map_err(http_error)?;
-        assert_eq!(Lang::getLocale().map_err(http_error)?, outer);
+        .await??;
+        assert_eq!(Lang::getLocale()?, outer);
         Ok(Response::new(StatusCode::OK, Body::from(body.to_string())))
     })
 }
 
 fn default_locale(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let locale = Lang::getLocale().map_err(http_error)?;
+        let locale = Lang::getLocale()?;
         Ok(Response::new(StatusCode::OK, Body::from(locale)))
     })
 }
@@ -113,8 +111,7 @@ fn install_lookup_hooks(_: &mut Request) -> HttpFuture<'_, Result<Response, Http
                 .into_iter()
                 .chain(locales.iter().cloned())
                 .collect()
-        })
-        .map_err(http_error)?;
+        })?;
         Lang::handleMissingKeysUsing(|missing| {
             if missing.key == "missing.plural" {
                 assert!(missing.replacements.is_empty());
@@ -122,8 +119,7 @@ fn install_lookup_hooks(_: &mut Request) -> HttpFuture<'_, Result<Response, Http
             }
             let nested = Lang::get("nested.missing", &BTreeMap::new(), None).unwrap();
             Some(format!("{}|{}|{nested}|:Name", missing.key, missing.locale))
-        })
-        .map_err(http_error)?;
+        })?;
         Ok(Response::new(StatusCode::OK, Body::from("installed")))
     })
 }
@@ -142,8 +138,7 @@ fn lookup_hooks(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
                 "fallback": Lang::has("messages.welcome", None, true)?,
                 "plural": Lang::choice("missing.plural", 2_i64, &replacements, None)?,
             }))
-        })()
-        .map_err(http_error)?;
+        })()?;
         Response::json(StatusCode::OK, lines)
     })
 }
@@ -160,8 +155,7 @@ fn install_translation_replacements(
     _: &mut Request,
 ) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        Lang::stringable(|label: &NoticeLabel| format!("custom {}", label.0))
-            .map_err(http_error)?;
+        Lang::stringable(|label: &NoticeLabel| format!("custom {}", label.0))?;
         Lang::handleMissingKeysUsing(|missing| match missing.key {
             "replacements.missing" => {
                 assert_eq!(missing.replacements.get("name").unwrap(), "Ada");
@@ -181,8 +175,7 @@ fn install_translation_replacements(
                 Some("{1} <unused>one</unused>|[2,*] <mark>:count :label</mark>".into())
             }
             _ => None,
-        })
-        .map_err(http_error)?;
+        })?;
         Ok(Response::new(StatusCode::OK, Body::from("installed")))
     })
 }
@@ -205,8 +198,7 @@ fn mixed_translation(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpErr
                 "choice": Lang::choiceWith("replacements.items", 2_i64, &args, None)?,
                 "label": Lang::getWith(":label", &args, None)?,
             }))
-        })()
-        .map_err(http_error)?;
+        })()?;
         Response::json(StatusCode::OK, result)
     })
 }
@@ -214,13 +206,12 @@ fn mixed_translation(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpErr
 fn register_runtime_lines(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
         use openrust::translation::Line;
-        Lang::load(None, "messages", "zh-Hans").map_err(http_error)?;
+        Lang::load(None, "messages", "zh-Hans")?;
         Lang::addLines(
             [("messages.welcome".into(), Line::Text("运行期 :name".into()))],
             "zh-Hans",
             None,
-        )
-        .map_err(http_error)?;
+        )?;
         Ok(Response::new(StatusCode::OK, Body::from("installed")))
     })
 }
@@ -236,8 +227,7 @@ fn load_external_lines(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpE
                 namespace: None,
             }],
         )
-        .await
-        .map_err(http_error)?;
+        .await?;
         Ok(Response::new(StatusCode::OK, Body::from("loaded")))
     })
 }
@@ -262,12 +252,6 @@ impl openrust::contracts::translation::Loader for ExternalLoader {
                 openrust::translation::Line::Text("外部 :name".into()),
             )]))
         })
-    }
-}
-
-fn http_error(source: TranslationError) -> HttpError {
-    HttpError::Internal {
-        source: Box::new(source),
     }
 }
 

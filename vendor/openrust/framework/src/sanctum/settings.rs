@@ -160,9 +160,7 @@ impl Sanctum {
             name: type_name::<M>(),
             store: |database, prefix| {
                 let model = M::from_state(Default::default());
-                let connection = database
-                    .connection(model.getConnectionName())
-                    .map_err(AuthError::backend)?;
+                let connection = database.connection(model.getConnectionName())?;
                 Ok(PersonalAccessTokens::for_model::<M>(connection, prefix))
             },
         });
@@ -182,7 +180,7 @@ impl Sanctum {
         match model {
             Some(model) => (model.store)(database, prefix),
             None => Ok(PersonalAccessTokens::new(
-                database.connection(None).map_err(AuthError::backend)?,
+                database.connection(None)?,
                 prefix,
             )),
         }

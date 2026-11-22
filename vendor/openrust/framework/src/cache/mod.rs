@@ -240,3 +240,27 @@ impl From<CacheError> for crate::http::HttpError {
         }
     }
 }
+
+impl From<crate::contracts::container::BindingResolutionError> for CacheError {
+    fn from(source: crate::contracts::container::BindingResolutionError) -> Self {
+        Self::Unavailable(source)
+    }
+}
+
+impl From<std::io::Error> for CacheError {
+    fn from(source: std::io::Error) -> Self {
+        backend(source)
+    }
+}
+
+impl From<crate::database::DatabaseError> for CacheError {
+    fn from(source: crate::database::DatabaseError) -> Self {
+        backend(source)
+    }
+}
+
+impl From<crate::redis::RedisError> for CacheError {
+    fn from(source: crate::redis::RedisError) -> Self {
+        backend(source)
+    }
+}

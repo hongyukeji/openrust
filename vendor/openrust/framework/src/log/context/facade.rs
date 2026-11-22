@@ -35,7 +35,7 @@ macro_rules! forward {
 #[allow(non_snake_case, reason = "Matches Laravel's Context Facade API")]
 impl Context {
     pub fn repository() -> Result<Arc<Repository>, ContextError> {
-        Self::getFacadeRoot().map_err(ContextError::Unavailable)
+        Self::getFacadeRoot().map_err(Into::into)
     }
 
     pub fn dehydrating(
@@ -58,7 +58,7 @@ impl Context {
                 crate::contracts::container::BindingResolutionError::FacadeNotSet,
             ))?
             .make::<super::Hooks>()
-            .map_err(ContextError::Unavailable)
+            .map_err(Into::into)
     }
 
     forward! {

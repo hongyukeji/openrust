@@ -109,8 +109,6 @@ impl ViewObject for Greeting {
 
 Objects support method chains, variables, includes and component properties; outputs retain Blade escaping. Unknown services, unexposed methods and invalid argument types fail rendering. Objects cannot be printed or JSON-encoded directly. Compiled templates cache expressions, never resolved service instances. Instances retained after a request cannot be called from another request or application.
 
-Calling `environment()` reads the environment name; `environment([])` returns `false`. Object `==` and `===` compare actual instance identity; they do not reflect over properties of separate Rust instances.
-
 HTTP rendering uses the existing asynchronous request bridge for async factories and `ViewObject::callAsync`; its default delegates to `call`. Offline rendering supports synchronous resolution and calls inside an active application scope. Async-only services and language switching require HTTP rendering. This is a Rust adaptation of container access, not an arbitrary PHP executor or automatic exposure of every Rust method.
 
 `Config::string(key)` requires an existing string value; missing keys, null and other types are errors.

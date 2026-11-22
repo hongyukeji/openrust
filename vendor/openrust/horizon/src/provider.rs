@@ -119,8 +119,7 @@ impl Listener for JobListener {
                 if !crate::console::isWorker() {
                     return Ok(None);
                 }
-                let repository =
-                    crate::dashboard::Store::getFacadeRoot().map_err(EventError::Unavailable)?;
+                let repository = crate::dashboard::Store::getFacadeRoot()?;
                 let state = async {
                     if repository.paused().await? {
                         return Ok::<_, Error>(true);
@@ -138,8 +137,7 @@ impl Listener for JobListener {
                 };
             }
             if let Some(event) = event.downcast_ref::<JobQueued>() {
-                let config = openrust::support::facades::Config::getFacadeRoot()
-                    .map_err(EventError::Unavailable)?;
+                let config = openrust::support::facades::Config::getFacadeRoot()?;
                 if config
                     .get(&format!(
                         "queue.connections.{}.driver",
@@ -151,8 +149,7 @@ impl Listener for JobListener {
                 {
                     return Ok(None);
                 }
-                let repository =
-                    crate::dashboard::Store::getFacadeRoot().map_err(EventError::Unavailable)?;
+                let repository = crate::dashboard::Store::getFacadeRoot()?;
                 let tags =
                     crate::Tags::forPayload(&event.job).map_err(|source| EventError::Listener {
                         source: Box::new(source),
@@ -196,8 +193,7 @@ impl Listener for JobListener {
                 } else {
                     return Ok(None);
                 };
-            let config = openrust::support::facades::Config::getFacadeRoot()
-                .map_err(EventError::Unavailable)?;
+            let config = openrust::support::facades::Config::getFacadeRoot()?;
             if config
                 .get(&format!("queue.connections.{connection}.driver"))
                 .and_then(|v| v.as_str().map(str::to_owned))
@@ -206,8 +202,7 @@ impl Listener for JobListener {
             {
                 return Ok(None);
             }
-            let repository =
-                crate::dashboard::Store::getFacadeRoot().map_err(EventError::Unavailable)?;
+            let repository = crate::dashboard::Store::getFacadeRoot()?;
             let tags =
                 crate::Tags::forPayload(&job.payload).map_err(|source| EventError::Listener {
                     source: Box::new(source),

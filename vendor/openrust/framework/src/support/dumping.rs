@@ -37,9 +37,7 @@ pub async fn dump<T: Debug + Sync + ?Sized>(value: &T) -> EventResult<&T> {
         captured: AtomicBool::new(false),
     });
     if let Some(container) = super::facades::current_container() {
-        let dispatcher = container
-            .make::<Dispatcher>()
-            .map_err(crate::events::EventError::Unavailable)?;
+        let dispatcher = container.make::<Dispatcher>()?;
         dispatcher
             .dispatch(event.clone(), &mut EventContext::new())
             .await?;

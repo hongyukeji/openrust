@@ -3,7 +3,7 @@
 use subtle::ConstantTimeEq as _;
 
 use crate::{
-    auth::{Auth, AuthError, AuthManager, session_fingerprint::SessionFingerprint},
+    auth::{Auth, AuthManager, session_fingerprint::SessionFingerprint},
     contracts::{http::Middleware, session::Session as _},
     http::{HttpError, HttpFuture, Next, Request, Response},
 };
@@ -37,7 +37,7 @@ impl Middleware for AuthenticateSession {
             let signer = SessionFingerprint::from_config(manager.config());
             let fingerprint = signer.sign(Some(password));
             let key = SessionFingerprint::session_key(&guard);
-            let session = request.session_mut().map_err(AuthError::backend)?;
+            let session = request.session_mut()?;
             match session.get(&key) {
                 Some(stored)
                     if !serde_json::from_value::<Vec<u8>>(stored.clone())
@@ -47,25 +47,19 @@ impl Middleware for AuthenticateSession {
                         .sessionGuard(request, Some(&guard))?
                         .logoutCurrentDevice()
                         .await;
-                    request.session_mut().map_err(AuthError::backend)?.flush();
+                    request.session_mut()?.flush();
                     result?;
                     return Err(HttpError::Unauthenticated);
                 }
                 Some(_) => {}
-                None => session
-                    .put(&key, serde_json::json!(fingerprint))
-                    .map_err(AuthError::backend)?,
+                None => session.put(&key, serde_json::json!(fingerprint))?,
             }
 
             let response = next.run(request).await;
             let user = AuthManager::resolved_user(request, &guard);
             if let Some(password) = user.as_deref().and_then(|user| user.getAuthPassword()) {
                 let value = signer.sign(Some(password));
-                request
-                    .session_mut()
-                    .map_err(AuthError::backend)?
-                    .put(&key, serde_json::json!(value))
-                    .map_err(AuthError::backend)?;
+                request.session_mut()?.put(&key, serde_json::json!(value))?;
             }
             Ok(response)
         })

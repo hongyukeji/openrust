@@ -33,14 +33,14 @@ impl ProcessDriver {
         context: &DehydratedContext,
         environment: Option<&str>,
     ) -> Result<()> {
-        let input = serde_json::to_vec(&(task, context)).map_err(Error::Encoding)?;
+        let input = serde_json::to_vec(&(task, context))?;
         if input.len() > protocol::INPUT_LIMIT {
             return Err(Error::PayloadTooLarge);
         }
-        let mut stdin = tempfile::tempfile().map_err(Error::Io)?;
-        stdin.write_all(&input).map_err(Error::Io)?;
-        stdin.rewind().map_err(Error::Io)?;
-        let executable = std::env::current_exe().map_err(Error::Io)?;
+        let mut stdin = tempfile::tempfile()?;
+        stdin.write_all(&input)?;
+        stdin.rewind()?;
+        let executable = std::env::current_exe()?;
         let mut args = ["artisan", protocol::COMMAND, "--detached"]
             .map(str::to_owned)
             .to_vec();
@@ -76,7 +76,7 @@ impl ProcessDriver {
                     command.pre_exec(|| rustix::process::setsid().map(|_| ()).map_err(Into::into));
                 }
             }
-            let mut child = command.spawn().map_err(Error::Io)?;
+            let mut child = command.spawn()?;
             tokio::spawn(async move {
                 let _ = child.wait().await;
             });
@@ -124,7 +124,7 @@ impl ProcessDriver {
                 context: context.clone(),
                 key,
             };
-            let input = serde_json::to_vec(&invocation).map_err(Error::Encoding)?;
+            let input = serde_json::to_vec(&invocation)?;
             if input.len() > protocol::INPUT_LIMIT {
                 return Err(Error::PayloadTooLarge);
             }
@@ -153,12 +153,11 @@ impl ProcessDriver {
                     });
                 }
             })
-            .await
-            .map_err(Error::Process)?;
+            .await?;
         results
             .into_iter()
             .map(|(name, result)| {
-                let result = result.map_err(Error::Process)?;
+                let result = result?;
                 if result.failed() {
                     return Err(Error::ChildFailed {
                         task: name,

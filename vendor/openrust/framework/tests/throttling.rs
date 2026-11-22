@@ -176,34 +176,21 @@ fn downstream(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpErro
 
 fn manual(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        fn convert(source: openrust::cache::CacheError) -> HttpError {
-            HttpError::Internal {
-                source: Box::new(source),
-            }
-        }
         let key = "manual-probe";
-        RateLimiter::clear(key).await.map_err(convert)?;
-        let Attempt::Executed(value) = RateLimiter::attempt(key, 1, async { Ok(7) }, 30)
-            .await
-            .map_err(convert)?
+        RateLimiter::clear(key).await?;
+        let Attempt::Executed(value) = RateLimiter::attempt(key, 1, async { Ok(7) }, 30).await?
         else {
             panic!("expected callback to execute");
         };
         assert!(matches!(
-            RateLimiter::attempt(key, 1, async { Ok(8) }, 30)
-                .await
-                .map_err(convert)?,
+            RateLimiter::attempt(key, 1, async { Ok(8) }, 30).await?,
             Attempt::Throttled
         ));
-        assert!(
-            RateLimiter::tooManyAttempts(key, 1)
-                .await
-                .map_err(convert)?
-        );
-        assert!(RateLimiter::availableIn(key).await.map_err(convert)? > 0);
-        let remaining = RateLimiter::remaining(key, 2).await.map_err(convert)?;
-        RateLimiter::clear(key).await.map_err(convert)?;
-        assert_eq!(RateLimiter::attempts(key).await.map_err(convert)?, 0);
+        assert!(RateLimiter::tooManyAttempts(key, 1).await?);
+        assert!(RateLimiter::availableIn(key).await? > 0);
+        let remaining = RateLimiter::remaining(key, 2).await?;
+        RateLimiter::clear(key).await?;
+        assert_eq!(RateLimiter::attempts(key).await?, 0);
         Response::json(StatusCode::OK, json!({"value":value,"remaining":remaining}))
     })
 }

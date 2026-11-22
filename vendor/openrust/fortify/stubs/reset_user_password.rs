@@ -25,7 +25,7 @@ impl ResetsUserPasswords for ResetUserPassword {
             let user = (user as &mut dyn std::any::Any)
                 .downcast_mut::<User>()
                 .ok_or_else(|| {
-                    super::internal(std::io::Error::other(
+                    HttpError::from(std::io::Error::other(
                         "Fortify reset requires app::models::User",
                     ))
                 })?;

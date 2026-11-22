@@ -122,8 +122,7 @@ impl PasswordBroker {
                 }),
                 &mut EventContext::new(),
             )
-            .await
-            .map_err(AuthError::backend)?;
+            .await?;
         Ok(Status::ResetLinkSent)
     }
 

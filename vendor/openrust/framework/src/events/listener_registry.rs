@@ -74,10 +74,7 @@ impl ListenerRegistry {
             std::any::type_name::<L>(),
             ListenerSource::Container(|container| {
                 Box::pin(async move {
-                    let listener = container
-                        .makeAsync::<L>()
-                        .await
-                        .map_err(EventError::Unavailable)?;
+                    let listener = container.makeAsync::<L>().await?;
                     Ok(listener as Arc<dyn Listener>)
                 })
             }),

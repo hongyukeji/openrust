@@ -9,7 +9,7 @@ use crate::{
     },
     contracts::container::Container as _,
     foundation::Application,
-    queue::{QueueError, QueueManager, QueueResult, queue_name},
+    queue::{QueueManager, QueueResult, queue_name},
     support::facades::{Facade, Queue},
 };
 
@@ -20,9 +20,7 @@ pub struct ClearCommand(CommandDefinition);
 impl ClearCommand {
     /// Controls queue clearing for the application in the current Facade scope.
     pub fn prohibit(prohibited: bool) -> QueueResult<()> {
-        Queue::getFacadeRoot()
-            .map_err(QueueError::Unavailable)?
-            .set_clear_prohibited(prohibited);
+        Queue::getFacadeRoot()?.set_clear_prohibited(prohibited);
         Ok(())
     }
 }

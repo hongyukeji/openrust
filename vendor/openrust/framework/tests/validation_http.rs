@@ -97,11 +97,7 @@ async fn submit(request: &mut Request) -> Result<Response, HttpError> {
 fn form(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
         let locale = request.route("locale").unwrap().to_owned();
-        Lang::withLocale(&locale, submit(request))
-            .await
-            .map_err(|source| HttpError::Internal {
-                source: Box::new(source),
-            })?
+        Lang::withLocale(&locale, submit(request)).await?
     })
 }
 

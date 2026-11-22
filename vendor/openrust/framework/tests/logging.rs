@@ -757,46 +757,32 @@ fn record(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
             Some(json!(format!("request-{id}")))
         );
         let context = LogContext::from_iter([("id".into(), json!(id))]);
-        Log::info("request {id} {scope_only}", &context).map_err(|source| HttpError::Internal {
-            source: source.into(),
-        })?;
+        Log::info("request {id} {scope_only}", &context)?;
         let container = openrust::container::Container::getInstance();
         let manager = container.make::<LogManager>().unwrap();
         #[cfg(any(unix, windows))]
         manager
             .channel(Some("syslog"))
-            .and_then(|logger| logger.warning("syslog HTTP", &context))
-            .map_err(|source| HttpError::Internal {
-                source: source.into(),
-            })?;
+            .and_then(|logger| logger.warning("syslog HTTP", &context))?;
         (|| {
             let buffered = manager.channel(Some("buffered"))?;
             buffered.info("before error", &context)?;
             buffered.error("HTTP activation", &context)
-        })()
-        .map_err(|source: LogError| HttpError::Internal {
-            source: source.into(),
-        })?;
+        })()?;
         register_customization(&manager);
         Log::build(&json!({
             "driver":"single","path":"custom-http.log","formatter":"label",
             "formatter_with":{"prefix":"HTTP"},"processors":["trace"],
             "replace_placeholders":true
         }))
-        .and_then(|logger| logger.info("request {id}", &context))
-        .map_err(|source| HttpError::Internal {
-            source: source.into(),
-        })?;
+        .and_then(|logger| logger.info("request {id}", &context))?;
         let logger = container
             .make::<dyn openrust::contracts::log::Logger>()
             .unwrap();
         let shared: Arc<dyn openrust::contracts::log::Logger> = manager;
         assert!(Arc::ptr_eq(&logger, &shared));
         Log::build(&json!({"driver":"daily", "path":"http.log"}))
-            .and_then(|logger| logger.info("daily HTTP", &context))
-            .map_err(|source| HttpError::Internal {
-                source: source.into(),
-            })?;
+            .and_then(|logger| logger.info("daily HTTP", &context))?;
         Ok(Response::new(StatusCode::OK, Body::from("logged")))
     })
 }

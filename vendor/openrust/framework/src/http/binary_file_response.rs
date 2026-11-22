@@ -111,10 +111,10 @@ impl BinaryFile {
         // Opening a FIFO on Unix must not block before the regular-file check.
         #[cfg(unix)]
         options.custom_flags(libc::O_NONBLOCK);
-        let file = options.open(path).await.map_err(file_error)?;
-        let metadata = file.metadata().await.map_err(file_error)?;
+        let file = options.open(path).await?;
+        let metadata = file.metadata().await?;
         if !metadata.is_file() {
-            return Err(file_error(io::Error::other(
+            return Err(HttpError::from(io::Error::other(
                 "HTTP file response requires a regular file",
             )));
         }
@@ -216,12 +216,6 @@ fn single_header<'a>(headers: &'a HeaderMap, name: &HeaderName) -> Option<&'a He
     let all = headers.get_all(name);
     let mut values = all.iter();
     values.next().filter(|_| values.next().is_none())
-}
-
-fn file_error(source: io::Error) -> HttpError {
-    HttpError::Internal {
-        source: Box::new(source),
-    }
 }
 
 fn header_value(value: &str) -> HeaderValue {

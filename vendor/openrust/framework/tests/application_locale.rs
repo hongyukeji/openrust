@@ -133,14 +133,9 @@ impl ServiceProvider for Observer {
         })
     }
 }
-fn error(source: impl std::error::Error + Send + Sync + 'static) -> HttpError {
-    HttpError::Internal {
-        source: Box::new(source),
-    }
-}
 fn defaults(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let locale = App::currentLocale().map_err(error)?;
+        let locale = App::currentLocale()?;
         assert_eq!(App::getLocale().unwrap(), locale);
         assert!(App::isLocale(&locale).unwrap());
         assert_eq!(Config::string("app.locale").unwrap(), locale);
@@ -177,7 +172,7 @@ fn greeting(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
                 Default::default(),
             ));
         }
-        App::setLocale(&locale).await.map_err(error)?;
+        App::setLocale(&locale).await?;
         tokio::task::yield_now().await;
         assert!(App::isLocale(&locale).unwrap());
         if locale == "zh-Hans" {
@@ -188,13 +183,13 @@ fn greeting(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
         }
         assert_eq!(Config::array("app").unwrap()["locale"], locale);
         assert_eq!(Config::all().unwrap()["app"]["locale"], locale);
-        App::setFallbackLocale("en").map_err(error)?;
+        App::setFallbackLocale("en")?;
         assert_eq!(Lang::getFallback().unwrap(), "en");
-        App::setFallbackLocale("zh-Hant").map_err(error)?;
+        App::setFallbackLocale("zh-Hant")?;
         assert_eq!(App::getFallbackLocale().unwrap(), "zh-Hant");
         assert_eq!(Config::string("app.fallback_locale").unwrap(), "zh-Hant");
         assert_eq!(Lang::getFallback().unwrap(), "zh-Hant");
-        App::setFallbackLocale("en").map_err(error)?;
+        App::setFallbackLocale("en")?;
         Response::view(
             StatusCode::OK,
             view("greeting").with("name", "ada"),
@@ -322,7 +317,7 @@ async fn application_instance_and_facade_share_locale_and_fallback_state() {
 
 fn parent_override(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        App::setLocale("ZH-cn").await.map_err(error)?;
+        App::setLocale("ZH-cn").await?;
         assert!(App::isLocale("zh-cn").unwrap());
         assert!(!App::isLocale("zh-Hans").unwrap());
         assert!(!App::isLocale("zh-Hant").unwrap());
@@ -336,7 +331,7 @@ fn parent_override(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError
         assert_eq!(App::currentLocale().unwrap(), "zh-Hant");
         assert_eq!(Config::array("app").unwrap()["locale"], "zh-Hant");
         assert_eq!(Config::all().unwrap()["app"]["locale"], "zh-Hant");
-        App::setLocale("zh-Hant").await.map_err(error)?;
+        App::setLocale("zh-Hant").await?;
         Config::set("app.name", "changed".into()).unwrap();
         assert_eq!(Config::string("app.name").unwrap(), "changed");
         Config::set("app", serde_json::json!({"name":"only"})).unwrap();
@@ -346,9 +341,9 @@ fn parent_override(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError
             Config::all().unwrap()["app"],
             serde_json::json!({"name":"only"})
         );
-        App::setLocale("en").await.map_err(error)?;
+        App::setLocale("en").await?;
         assert_eq!(Config::array("app").unwrap()["locale"], "en");
-        App::setLocale("ZH-cn").await.map_err(error)?;
+        App::setLocale("ZH-cn").await?;
         assert_eq!(App::currentLocale().unwrap(), "zh-CN");
         assert!(App::isLocale("zh-cn").unwrap());
         assert!(!App::isLocale("zh-Hans").unwrap());
@@ -405,13 +400,13 @@ fn listener_failure(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpErro
         // 错误在更新后传播，不回滚本次作用域中的语言。
         assert_eq!(Config::string("app.locale").unwrap(), "fr");
         assert_eq!(Lang::getLocale().unwrap(), "fr");
-        Err(error(failure))
+        Err(failure.into())
     })
 }
 fn same_locale(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        App::setLocale("en").await.map_err(error)?;
-        App::setLocale("en").await.map_err(error)?;
+        App::setLocale("en").await?;
+        App::setLocale("en").await?;
         Ok(Response::from("twice"))
     })
 }

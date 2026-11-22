@@ -10,7 +10,7 @@ use crate::{
 };
 
 use super::{
-    CacheError, CacheManager, CacheResult, FlexibleOptions, Repository, TaggedCache, Ttl, Value,
+    CacheManager, CacheResult, FlexibleOptions, Repository, TaggedCache, Ttl, Value,
     limiters::ConcurrencyLimiterBuilder,
 };
 
@@ -35,29 +35,21 @@ impl Cache {
         + Sync
         + 'static,
     ) -> CacheResult<()> {
-        Self::getFacadeRoot()
-            .map_err(CacheError::Unavailable)?
-            .extend(driver, factory)?;
+        Self::getFacadeRoot()?.extend(driver, factory)?;
         Ok(())
     }
 
     pub fn build(config: serde_json::Value) -> CacheResult<Repository> {
-        Self::getFacadeRoot()
-            .map_err(CacheError::Unavailable)?
-            .build(config)
+        Self::getFacadeRoot()?.build(config)
     }
 
     pub fn forgetDriver(name: Option<&str>) -> CacheResult<()> {
-        Self::getFacadeRoot()
-            .map_err(CacheError::Unavailable)?
-            .forgetDriver(name)?;
+        Self::getFacadeRoot()?.forgetDriver(name)?;
         Ok(())
     }
 
     pub fn purge(name: Option<&str>) -> CacheResult<()> {
-        Self::getFacadeRoot()
-            .map_err(CacheError::Unavailable)?
-            .purge(name)
+        Self::getFacadeRoot()?.purge(name)
     }
 
     pub fn driver(name: Option<&str>) -> CacheResult<Arc<Repository>> {
@@ -65,16 +57,12 @@ impl Cache {
     }
 
     pub fn store(name: Option<&str>) -> CacheResult<Arc<Repository>> {
-        Self::getFacadeRoot()
-            .map_err(CacheError::Unavailable)?
-            .store(name)
+        Self::getFacadeRoot()?.store(name)
     }
 
     /// Memoizes reads of the default store or a named store for this lifecycle.
     pub fn memo(name: Option<&str>) -> CacheResult<Arc<Repository>> {
-        Self::getFacadeRoot()
-            .map_err(CacheError::Unavailable)?
-            .memo(name)
+        Self::getFacadeRoot()?.memo(name)
     }
 
     pub fn tags(names: &[&str]) -> CacheResult<TaggedCache> {

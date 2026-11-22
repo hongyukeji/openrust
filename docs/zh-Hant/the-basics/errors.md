@@ -1,5 +1,27 @@
 # 錯誤處理
 
+## 傳播領域錯誤
+
+對無須額外上下文的固定錯誤轉換，使用 `?`。例如在回傳 `HttpError` 的控制器或中介軟體中，可直接傳播組態讀取錯誤：
+
+```rust
+use openrust::{http::HttpError, support::facades::Config};
+
+fn locale_form_field() -> Result<String, HttpError> {
+    Ok(Config::string("app.locale_form_field")?)
+}
+```
+
+組態、容器、翻譯、視圖、資料庫、日誌、Redis、Hash、JSON 序列化、I/O 與非同步工作排程錯誤進入 HTTP 邊界後保留原始來源，預設歸入 `Internal`。回應狀態為 500，由現有例外處理流程負責報告、偵錯顯示與正式環境脫敏。資料庫錯誤的預設轉換不會將 `ModelNotFound` 改為 404；回傳模型結果的路由仍按自己的既有規則處理。
+
+圖片領域錯誤以及 `openrust-horizon`、`openrust-pulse`、`openrust-pennant` 的錯誤同樣預設轉換為 `Internal`，保留領域來源，不自動展開內嵌錯誤改變狀態碼。
+
+底層模組繼續回傳自身領域錯誤。容器解析失敗可直接傳播到組態、翻譯、視圖、資料庫、快取、佇列、事件、日誌等對應的領域結果；認證中的資料庫、快取、Hash、Session、組態和容器錯誤保留為 `AuthError::Backend`。不要為了使用 `?` 讓通用元件依賴 HTTP。
+
+`?` 只轉換目前回傳邊界的錯誤，不會自動逐層呼叫多個 `From`。回傳運算式需要時使用 `Ok(operation()?)`，或在回傳型別明確時使用 `map_err(Into::into)`。閉包有多個可能的錯誤型別時，明確宣告其 `Result` 型別。
+
+保留需要路徑、操作名稱、請求或階段上下文的 `map_err`，以及狀態碼分類、復原、重試和脫敏邏輯。檔案系統、驗證、集合偵錯與認證已有專用 HTTP 轉換；強制包裝為 `Internal` 的呼叫不能在未核對語義時直接改成 `?`。
+
 ## 報告例外
 
 在 `bootstrap/app.rs` 的 `withExceptions` 閉包中設定報告。使用 `report::<E>` 比對例外型別或其來源。回呼依註冊順序執行，`ReportDecision::Stop` 停止後續回呼和預設報告。

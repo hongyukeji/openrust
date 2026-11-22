@@ -93,19 +93,14 @@ pub struct Worker {
 
 impl Worker {
     pub fn new(app: Arc<Container>) -> QueueResult<Self> {
-        let failed = app
-            .get::<dyn FailedJobProviderInterface>("queue.failer")
-            .map_err(QueueError::Unavailable)?;
+        let failed = app.get::<dyn FailedJobProviderInterface>("queue.failer")?;
         Ok(Self { app, failed })
     }
 
     /// Sets or removes a custom reservation callback in this worker's application.
     #[allow(non_snake_case, reason = "Matches Laravel Worker::popUsing")]
     pub fn popUsing(&self, name: &str, callback: Option<JobPopCallback>) -> QueueResult<()> {
-        self.app
-            .make::<QueueManager>()
-            .map_err(QueueError::Unavailable)?
-            .popUsing(name, callback);
+        self.app.make::<QueueManager>()?.popUsing(name, callback);
         Ok(())
     }
 
@@ -115,10 +110,7 @@ impl Worker {
         queue: Option<&str>,
         options: &WorkerOptions,
     ) -> QueueResult<WorkResult> {
-        let manager = self
-            .app
-            .make::<QueueManager>()
-            .map_err(QueueError::Unavailable)?;
+        let manager = self.app.make::<QueueManager>()?;
         let name = connection.getConnectionName();
         let queue_name = queue.unwrap_or_else(|| connection.default_queue());
         manager
@@ -184,10 +176,7 @@ impl Worker {
         shutdown: &CancellationToken,
         mut status: impl FnMut(WorkerStatus<'_>) + Send,
     ) -> QueueResult<(u64, i32)> {
-        let manager = self
-            .app
-            .make::<QueueManager>()
-            .map_err(QueueError::Unavailable)?;
+        let manager = self.app.make::<QueueManager>()?;
         let maintenance = if options.force
             || cadence.single_run
             || !self
@@ -198,8 +187,7 @@ impl Worker {
         } else {
             Some(
                 self.app
-                    .make::<dyn crate::contracts::foundation::MaintenanceMode>()
-                    .map_err(QueueError::Unavailable)?,
+                    .make::<dyn crate::contracts::foundation::MaintenanceMode>()?,
             )
         };
         let control = manager
@@ -528,10 +516,7 @@ impl Worker {
 
     fn lost_connection(&self, error: &QueueError) -> QueueResult<bool> {
         if self.app.bound::<dyn LostConnectionDetector>() {
-            let detector = self
-                .app
-                .make::<dyn LostConnectionDetector>()
-                .map_err(QueueError::Unavailable)?;
+            let detector = self.app.make::<dyn LostConnectionDetector>()?;
             return Ok(detector.causedByLostConnection(error));
         }
         Ok(crate::database::LostConnectionDetector.causedByLostConnection(error))
@@ -591,10 +576,7 @@ impl Worker {
             self.release_unique_lock(job.payload()).await;
             return Ok(WorkResult::Failed);
         }
-        let manager = self
-            .app
-            .make::<QueueManager>()
-            .map_err(QueueError::Unavailable)?;
+        let manager = self.app.make::<QueueManager>()?;
         let deferred = crate::concurrency::DeferredCallbacks::default();
         // Pin the attempt before task-local scopes wrap its polling state.
         let result = deferred
@@ -653,8 +635,7 @@ impl Worker {
 
     fn exception_cache(&self) -> QueueResult<Arc<Repository>> {
         self.app
-            .make::<CacheManager>()
-            .map_err(QueueError::Unavailable)?
+            .make::<CacheManager>()?
             .store(None)
             .map_err(super::backend)
     }
@@ -1025,10 +1006,7 @@ impl Worker {
             if next.chain_route.is_none() && next.dispatch_options.is_none() {
                 return job.advance_chain(&next).await;
             }
-            let manager = self
-                .app
-                .make::<QueueManager>()
-                .map_err(QueueError::Unavailable)?;
+            let manager = self.app.make::<QueueManager>()?;
             let options = next.chain_options(job.getConnectionName(), job.getQueue());
             let target = options
                 .connection
@@ -1168,9 +1146,7 @@ impl BatchCompletion {
         let Some(id) = job.payload().batchId() else {
             return Ok(None);
         };
-        let queue = app
-            .make::<QueueManager>()
-            .map_err(QueueError::Unavailable)?;
+        let queue = app.make::<QueueManager>()?;
         Ok(Some(Self {
             repository: queue.batch_repository()?,
             queue,

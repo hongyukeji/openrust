@@ -318,15 +318,13 @@ fn routes() -> Result<(), RoutingError> {
 
 fn length_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let mut page = Article::query()
-            .map_err(internal)?
+        let mut page = Article::query()?
             .paginateWith(PageOptions {
                 perPage: Some(2),
                 pageName: "articles",
                 ..Default::default()
             })
-            .await
-            .map_err(internal)?;
+            .await?;
         page.withQueryString().fragment(Some("results here"));
         Response::json(StatusCode::OK, page.map(|article| id(article.getKey())))
     })
@@ -334,24 +332,20 @@ fn length_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 
 fn multiple_pages(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let mut articles = Article::query()
-            .map_err(internal)?
+        let mut articles = Article::query()?
             .paginateWith(PageOptions {
                 perPage: Some(2),
                 pageName: "articles",
                 ..Default::default()
             })
-            .await
-            .map_err(internal)?;
-        let mut comments = Comment::query()
-            .map_err(internal)?
+            .await?;
+        let mut comments = Comment::query()?
             .simplePaginateWith(PageOptions {
                 perPage: Some(2),
                 pageName: "comments",
                 ..Default::default()
             })
-            .await
-            .map_err(internal)?;
+            .await?;
         articles.withQueryString().fragment(Some("article list"));
         comments.withQueryString().fragment(Some("comment list"));
         Response::json(
@@ -366,25 +360,21 @@ fn multiple_pages(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
 
 fn simple_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let page = DB::table("pagination_articles")
-            .map_err(internal)?
+        let page = DB::table("pagination_articles")?
             .orderBy("id", "asc")
             .simplePaginate(2)
-            .await
-            .map_err(internal)?;
+            .await?;
         Response::json(StatusCode::OK, page.map(|row| id(row.get("id"))))
     })
 }
 
 fn cursor_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let mut page = Article::query()
-            .map_err(internal)?
+        let mut page = Article::query()?
             .orderBy("rank_number", "asc")
             .orderBy("id", "desc")
             .cursorPaginate(2)
-            .await
-            .map_err(internal)?;
+            .await?;
         page.withQueryString();
         Response::json(StatusCode::OK, page.map(|article| id(article.getKey())))
     })
@@ -392,12 +382,7 @@ fn cursor_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 
 fn related_length_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let parent = Article::query()
-            .map_err(internal)?
-            .find(1)
-            .await
-            .map_err(internal)?
-            .unwrap();
+        let parent = Article::query()?.find(1).await?.unwrap();
         let mut page = HasMany::<Article, Comment>::new("id", "article_id")
             .constrain(|mut query| {
                 query.r#where("visible", "=", 1).orWhere("id", "=", 12);
@@ -411,8 +396,7 @@ fn related_length_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpE
                     ..Default::default()
                 },
             )
-            .await
-            .map_err(internal)?;
+            .await?;
         page.withQueryString();
         Response::json(StatusCode::OK, page.map(|comment| id(comment.getKey())))
     })
@@ -420,12 +404,7 @@ fn related_length_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpE
 
 fn related_cursor_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let parent = Article::query()
-            .map_err(internal)?
-            .find(1)
-            .await
-            .map_err(internal)?
-            .unwrap();
+        let parent = Article::query()?.find(1).await?.unwrap();
         let mut page =
             MorphMany::<Article, Comment>::new("id", "article_id", "subject_type", "article")
                 .cursorPaginateWith(
@@ -436,8 +415,7 @@ fn related_cursor_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpE
                         ..Default::default()
                     },
                 )
-                .await
-                .map_err(internal)?;
+                .await?;
         page.withQueryString();
         Response::json(StatusCode::OK, page.map(|comment| id(comment.getKey())))
     })
@@ -445,12 +423,7 @@ fn related_cursor_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpE
 
 fn through_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let parent = Article::query()
-            .map_err(internal)?
-            .find(1)
-            .await
-            .map_err(internal)?
-            .unwrap();
+        let parent = Article::query()?.find(1).await?.unwrap();
         let mut page = REACTIONS
             .paginateWith(
                 &parent,
@@ -461,8 +434,7 @@ fn through_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
                     ..Default::default()
                 },
             )
-            .await
-            .map_err(internal)?;
+            .await?;
         page.withQueryString();
         Response::json(
             StatusCode::OK,
@@ -483,12 +455,7 @@ fn labels() -> BelongsToMany<Article, Label> {
 
 fn pivot_length_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let parent = Article::query()
-            .map_err(internal)?
-            .find(1)
-            .await
-            .map_err(internal)?
-            .unwrap();
+        let parent = Article::query()?.find(1).await?.unwrap();
         let mut page = labels()
             .paginateWith(
                 &parent,
@@ -498,8 +465,7 @@ fn pivot_length_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpErr
                     ..Default::default()
                 },
             )
-            .await
-            .map_err(internal)?;
+            .await?;
         page.withQueryString();
         Response::json(
             StatusCode::OK,
@@ -516,12 +482,7 @@ fn pivot_length_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpErr
 
 fn pivot_cursor_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let parent = Article::query()
-            .map_err(internal)?
-            .find(1)
-            .await
-            .map_err(internal)?
-            .unwrap();
+        let parent = Article::query()?.find(1).await?.unwrap();
         let mut page = MorphToMany::<Article, Label>::new(
             "pagination_memberships",
             "owner_id",
@@ -545,8 +506,7 @@ fn pivot_cursor_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpErr
                 ..Default::default()
             },
         )
-        .await
-        .map_err(internal)?;
+        .await?;
         page.withQueryString();
         Response::json(
             StatusCode::OK,
@@ -581,10 +541,10 @@ fn pivot_cursor_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpErr
 fn keyed_page(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
         let mode = request.query(Some("mode"))?.unwrap_or_default();
-        let query = KeyedLabel::query().map_err(internal)?.orderBy("id", "asc");
+        let query = KeyedLabel::query()?.orderBy("id", "asc");
         match mode.as_str() {
             Some("simple") => {
-                let mut page = query.simplePaginate(2).await.map_err(internal)?;
+                let mut page = query.simplePaginate(2).await?;
                 page.withQueryString();
                 if let Some(label) = page.items().first() {
                     let key = format!("label-{}", id(label.getKey()));
@@ -593,12 +553,12 @@ fn keyed_page(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpErro
                 Response::json(StatusCode::OK, page.through(|label| id(label.getKey())))
             }
             Some("cursor") => {
-                let mut page = query.cursorPaginate(2).await.map_err(internal)?;
+                let mut page = query.cursorPaginate(2).await?;
                 page.withQueryString();
                 Response::json(StatusCode::OK, page.through(|label| id(label.getKey())))
             }
             _ => {
-                let mut page = query.paginate(2).await.map_err(internal)?;
+                let mut page = query.paginate(2).await?;
                 page.withQueryString();
                 if let Some(label) = page.items().first() {
                     let key = format!("label-{}", id(label.getKey()));
@@ -612,12 +572,7 @@ fn keyed_page(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpErro
 
 fn keyed_pivot_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let parent = Article::query()
-            .map_err(internal)?
-            .find(1)
-            .await
-            .map_err(internal)?
-            .unwrap();
+        let parent = Article::query()?.find(1).await?.unwrap();
         let relation = BelongsToMany::<Article, KeyedLabel>::new(
             "pagination_memberships",
             "owner_id",
@@ -626,7 +581,7 @@ fn keyed_pivot_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpErro
             "id",
         )
         .wherePivot("subject_type", "=", "article");
-        let page = relation.paginate(&parent, 2).await.map_err(internal)?;
+        let page = relation.paginate(&parent, 2).await?;
         assert!(page.getByKey("pivot-1").is_some() && page.getByKey("label-1").is_none());
         Response::json(StatusCode::OK, page.through(|label| id(label.getKey())))
     })
@@ -634,28 +589,17 @@ fn keyed_pivot_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpErro
 
 fn find_related_or_new(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let parent = Article::query()
-            .map_err(internal)?
-            .find(1)
-            .await
-            .map_err(internal)?
-            .unwrap();
+        let parent = Article::query()?.find(1).await?.unwrap();
         let children = HasMany::<Article, Comment>::new("id", "article_id").constrain(|query| {
             query.withAttributes(
                 Attributes::from([("visible".into(), Value::Integer(1))]),
                 true,
             )
         });
-        let found = children
-            .findOrNew(&parent, 11_i64)
-            .await
-            .map_err(internal)?;
-        let filtered = children
-            .findOrNew(&parent, 12_i64)
-            .await
-            .map_err(internal)?;
+        let found = children.findOrNew(&parent, 11_i64).await?;
+        let filtered = children.findOrNew(&parent, 12_i64).await?;
         for key in [14_i64, 16] {
-            let draft = children.findOrNew(&parent, key).await.map_err(internal)?;
+            let draft = children.findOrNew(&parent, key).await?;
             assert!(!draft.state().exists() && draft.getKey().is_none());
             assert_eq!(id(draft.getAttribute("article_id")), 1);
         }
@@ -663,38 +607,25 @@ fn find_related_or_new(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpE
         assert!(!filtered.state().exists() && filtered.getKey().is_none());
 
         let one = HasOne::<Article, Comment>::new("id", "article_id");
-        let direct = one.findOrNew(&parent, 13_i64).await.map_err(internal)?;
+        let direct = one.findOrNew(&parent, 13_i64).await?;
         let morph_many =
             MorphMany::<Article, Comment>::new("id", "article_id", "subject_type", "article");
         let morph_one =
             MorphOne::<Article, Comment>::new("id", "article_id", "subject_type", "article");
-        let draft = morph_one
-            .findOrNew(&parent, 16_i64)
-            .await
-            .map_err(internal)?;
+        let draft = morph_one.findOrNew(&parent, 16_i64).await?;
         assert_eq!(
             draft.getAttribute("subject_type"),
             Some(&Value::Text("article".into()))
         );
         assert!(!draft.state().exists() && draft.getKey().is_none());
-        let polymorphic = morph_many
-            .findOrNew(&parent, 15_i64)
-            .await
-            .map_err(internal)?;
+        let polymorphic = morph_many.findOrNew(&parent, 15_i64).await?;
 
-        let through = REACTIONS
-            .findOrNew(&parent, 103_i64)
-            .await
-            .map_err(internal)?;
-        let draft = REACTIONS
-            .one()
-            .findOrNew(&parent, 104_i64)
-            .await
-            .map_err(internal)?;
+        let through = REACTIONS.findOrNew(&parent, 103_i64).await?;
+        let draft = REACTIONS.one().findOrNew(&parent, 104_i64).await?;
         assert!(!draft.state().exists() && draft.getKey().is_none());
         assert!(draft.getAttribute("comment_id").is_none());
 
-        let attached = labels().findOrNew(&parent, 2_i64).await.map_err(internal)?;
+        let attached = labels().findOrNew(&parent, 2_i64).await?;
         let pivot = attached.getRelation::<Pivot>("pivot").unwrap();
         let morph_to_many = MorphToMany::<Article, Label>::new(
             "pagination_memberships",
@@ -705,10 +636,7 @@ fn find_related_or_new(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpE
             "subject_type",
             "article",
         );
-        let draft = morph_to_many
-            .findOrNew(&parent, 5_i64)
-            .await
-            .map_err(internal)?;
+        let draft = morph_to_many.findOrNew(&parent, 5_i64).await?;
         assert!(!draft.state().exists() && draft.getKey().is_none());
         assert!(draft.getRelation::<Pivot>("pivot").is_none());
 
@@ -731,12 +659,7 @@ fn find_related_or_new(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpE
 fn relation_lookup(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
         let mode = request.query(Some("mode"))?.unwrap_or_default();
-        let parent = Article::query()
-            .map_err(internal)?
-            .find(1)
-            .await
-            .map_err(internal)?
-            .unwrap();
+        let parent = Article::query()?.find(1).await?.unwrap();
         let children = HasMany::<Article, Comment>::new("id", "article_id");
         let labels = labels();
         match mode.as_str() {
@@ -767,23 +690,15 @@ fn relation_lookup(request: &mut Request) -> HttpFuture<'_, Result<Response, Htt
             .findOr(&parent, 11_i64, || async {
                 panic!("matching row must suppress fallback");
             })
-            .await
-            .map_err(internal)?;
+            .await?;
         let draft = children
             .findOr(&parent, 14_i64, || async {
                 children.make(&parent, Attributes::new()).await
             })
-            .await
-            .map_err(internal)?;
+            .await?;
         assert!(!draft.state().exists());
         assert_eq!(id(draft.getAttribute("article_id")), 1);
-        assert!(
-            children
-                .find(&parent, 14_i64)
-                .await
-                .map_err(internal)?
-                .is_none()
-        );
+        assert!(children.find(&parent, 14_i64).await?.is_none());
         assert!(matches!(
             children.findOrFail(&parent, 14_i64).await,
             Err(openrust::database::DatabaseError::ModelNotFound(_))
@@ -796,8 +711,7 @@ fn relation_lookup(request: &mut Request) -> HttpFuture<'_, Result<Response, Htt
             .firstOr(&parent, || async {
                 panic!("nonempty relation must suppress fallback");
             })
-            .await
-            .map_err(internal)?;
+            .await?;
         assert_eq!(id(first.getAttribute("article_id")), 1);
         let broken = HasMany::<Article, Comment>::new("id", "article_id").constrain(|mut query| {
             query.r#where("pagination_comments.does_not_exist", "=", 1);
@@ -811,11 +725,8 @@ fn relation_lookup(request: &mut Request) -> HttpFuture<'_, Result<Response, Htt
                 .await
                 .is_err()
         );
-        let through = REACTIONS
-            .findSole(&parent, 103_i64)
-            .await
-            .map_err(internal)?;
-        let attached = labels.findSole(&parent, 2_i64).await.map_err(internal)?;
+        let through = REACTIONS.findSole(&parent, 103_i64).await?;
+        let attached = labels.findSole(&parent, 2_i64).await?;
         assert!(attached.getRelation::<Pivot>("pivot").is_some());
         let empty = children.constrain(|mut query| {
             query.r#where("id", "<", 0);
@@ -847,52 +758,34 @@ fn relation_lookup(request: &mut Request) -> HttpFuture<'_, Result<Response, Htt
 
 fn find_related_many(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let parent = Article::query()
-            .map_err(internal)?
-            .find(1)
-            .await
-            .map_err(internal)?
-            .unwrap();
+        let parent = Article::query()?.find(1).await?.unwrap();
         let children =
             HasMany::<Article, Comment>::new("id", "article_id").constrain(|mut query| {
                 query.r#where("id", ">", 0).orWhere("article_id", "=", 2);
                 query.orderBy("id", "desc")
             });
         let keys = [15_i64, 11, 11, 14, 16, 999].map(Value::Integer);
-        let direct = children.findMany(&parent, &keys).await.map_err(internal)?;
+        let direct = children.findMany(&parent, &keys).await?;
         let invalid =
             HasMany::<Article, Comment>::new("id", "article_id").constrain(|mut query| {
                 query.r#where("pagination_comments.does_not_exist", "=", 1);
                 query
             });
-        assert!(
-            invalid
-                .findMany(&parent, &[])
-                .await
-                .map_err(internal)?
-                .is_empty()
-        );
+        assert!(invalid.findMany(&parent, &[]).await?.is_empty());
         assert!(invalid.findMany(&parent, &keys).await.is_err());
-        let unsaved = Article::newInstance(Attributes::new()).map_err(internal)?;
-        assert!(
-            children
-                .findMany(&unsaved, &keys)
-                .await
-                .map_err(internal)?
-                .is_empty()
-        );
+        let unsaved = Article::newInstance(Attributes::new())?;
+        assert!(children.findMany(&unsaved, &keys).await?.is_empty());
 
         let morph =
             MorphMany::<Article, Comment>::new("id", "article_id", "subject_type", "article")
                 .constrain(|query| query.orderBy("id", "asc"));
-        let polymorphic = morph.findMany(&parent, &keys).await.map_err(internal)?;
+        let polymorphic = morph.findMany(&parent, &keys).await?;
 
         let through_keys = [103_i64, 102, 102, 104, 105].map(Value::Integer);
         let related = REACTIONS
             .constrain(|query| query.orderBy("id", "asc"))
             .findMany(&parent, &through_keys)
-            .await
-            .map_err(internal)?;
+            .await?;
 
         let pivot_keys = [3_i64, 1, 1, 4, 5].map(Value::Integer);
         let labels = BelongsToMany::<Article, KeyedLabel>::new(
@@ -905,10 +798,7 @@ fn find_related_many(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpErr
         .wherePivot("subject_type", "=", "article")
         .orderByPivot("label_id", "asc")
         .withPivot(["label"]);
-        let attached = labels
-            .findMany(&parent, &pivot_keys)
-            .await
-            .map_err(internal)?;
+        let attached = labels.findMany(&parent, &pivot_keys).await?;
         let red = attached
             .getByKey("pivot-1")
             .unwrap()
@@ -926,10 +816,7 @@ fn find_related_many(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpErr
             "article",
         )
         .orderByPivot("label_id", "asc");
-        let morph_attached = morph_labels
-            .findMany(&parent, &pivot_keys)
-            .await
-            .map_err(internal)?;
+        let morph_attached = morph_labels.findMany(&parent, &pivot_keys).await?;
         Response::json(
             StatusCode::OK,
             json!({
@@ -946,12 +833,7 @@ fn find_related_many(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpErr
 fn find_strict_related_many(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
         let mode = request.query(Some("mode"))?.unwrap_or_default();
-        let parent = Article::query()
-            .map_err(internal)?
-            .find(1)
-            .await
-            .map_err(internal)?
-            .unwrap();
+        let parent = Article::query()?.find(1).await?.unwrap();
         let labels = labels();
         let missing_keys = [2_i64, 4].map(Value::Integer);
         if mode.as_str() == Some("missing") {
@@ -966,8 +848,7 @@ fn find_strict_related_many(request: &mut Request) -> HttpFuture<'_, Result<Resp
             .findManyOr(&parent, &[Value::Integer(2), Value::Integer(2)], || async {
                 panic!("matched primary keys must suppress fallback");
             })
-            .await
-            .map_err(internal)?;
+            .await?;
         let pivot_labels = found
             .iter()
             .map(|model| {
@@ -984,8 +865,7 @@ fn find_strict_related_many(request: &mut Request) -> HttpFuture<'_, Result<Resp
             .findManyOr(&parent, &missing_keys, || async {
                 labels.findMany(&parent, &[Value::Integer(3)]).await
             })
-            .await
-            .map_err(internal)?;
+            .await?;
 
         let children = HasMany::<Article, Comment>::new("id", "article_id")
             .constrain(|query| query.orderBy("id", "asc"));
@@ -998,8 +878,7 @@ fn find_strict_related_many(request: &mut Request) -> HttpFuture<'_, Result<Resp
                     Value::Text("15".into()),
                 ],
             )
-            .await
-            .map_err(internal)?;
+            .await?;
         let bad_query =
             HasMany::<Article, Comment>::new("id", "article_id").constrain(|mut query| {
                 query.r#where("pagination_comments.does_not_exist", "=", 1);
@@ -1010,8 +889,7 @@ fn find_strict_related_many(request: &mut Request) -> HttpFuture<'_, Result<Resp
                 .findManyOr(&parent, &[], || async {
                     panic!("an empty key list must suppress fallback");
                 })
-                .await
-                .map_err(internal)?
+                .await?
                 .is_empty()
         );
         assert!(
@@ -1043,7 +921,7 @@ fn find_strict_related_many(request: &mut Request) -> HttpFuture<'_, Result<Resp
 fn morph_page(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
         let mode = request.query(Some("mode"))?.unwrap_or_default();
-        let query = Activity::query().map_err(internal)?.orderBy("id", "asc");
+        let query = Activity::query()?.orderBy("id", "asc");
         let subject = MorphTo::<Activity>::new("subject_type", "subject_id")
             .target::<Article>("article", "id")
             .target::<Label>("label", "id");
@@ -1051,7 +929,7 @@ fn morph_page(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpErro
         let memberships = HasMany::<Label, PageMembership>::new("id", "label_id");
         macro_rules! respond {
             ($page:expr) => {{
-                let mut page = $page.await.map_err(internal)?;
+                let mut page = $page.await?;
                 let identity = std::ptr::from_ref(&page).addr();
                 assert!(matches!(
                     page.loadMorph("subject", &subject, "label", "comments", &comments)
@@ -1060,14 +938,11 @@ fn morph_page(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpErro
                 ));
                 let loaded = page
                     .loadMorph("subject", &subject, "article", "comments", &comments)
-                    .await
-                    .map_err(internal)?
+                    .await?
                     .loadMorphCount("subject", &subject, "article", "comments", &comments)
-                    .await
-                    .map_err(internal)?
+                    .await?
                     .loadMorphCount("subject", &subject, "label", "memberships", &memberships)
-                    .await
-                    .map_err(internal)?
+                    .await?
                     .withQueryString();
                 assert_eq!(std::ptr::from_ref(loaded).addr(), identity);
                 Response::json(
@@ -1090,34 +965,33 @@ fn pagination_links(request: &mut Request) -> HttpFuture<'_, Result<Response, Ht
         let locale = request.query(Some("locale"))?.unwrap_or_default();
         let locale = locale.as_str().unwrap_or("en");
         Lang::withLocale(locale, async {
-            let query = Article::query().map_err(internal)?.orderBy("id", "asc");
+            let query = Article::query()?.orderBy("id", "asc");
             let mut view = match mode.as_str() {
                 Some("json") => {
-                    let page = query.paginate(2).await.map_err(internal)?;
+                    let page = query.paginate(2).await?;
                     return Response::json(StatusCode::OK, page.map(|_| ()));
                 }
                 Some("window") => {
-                    let mut page = query.paginate(1).await.map_err(internal)?;
+                    let mut page = query.paginate(1).await?;
                     page.onEachSide(0);
                     page.links()
                 }
                 Some("simple") => {
-                    let mut page = query.simplePaginate(2).await.map_err(internal)?;
+                    let mut page = query.simplePaginate(2).await?;
                     page.withQueryString();
                     page.links()
                 }
                 Some("cursor") => {
-                    let mut page = query.cursorPaginate(2).await.map_err(internal)?;
+                    let mut page = query.cursorPaginate(2).await?;
                     page.withQueryString();
                     page.links()
                 }
                 Some("semantic") => query
                     .paginate(2)
-                    .await
-                    .map_err(internal)?
+                    .await?
                     .linksWith("pagination::semantic-ui", ViewData::new()),
                 Some("custom") => {
-                    let page = query.paginate(2).await.map_err(internal)?;
+                    let page = query.paginate(2).await?;
                     page.linksWith(
                         "pagination::custom",
                         ViewData::from_iter([
@@ -1126,15 +1000,14 @@ fn pagination_links(request: &mut Request) -> HttpFuture<'_, Result<Response, Ht
                         ]),
                     )
                 }
-                Some("single") => query.paginate(20).await.map_err(internal)?.links(),
+                Some("single") => query.paginate(20).await?.links(),
                 _ => {
-                    let mut page = query.paginate(2).await.map_err(internal)?;
+                    let mut page = query.paginate(2).await?;
                     page.withQueryString().fragment(Some("results"));
                     page.links()
                 }
-            }
-            .map_err(view_error)?;
-            let html = view.render().map_err(view_error)?;
+            }?;
+            let html = view.render()?;
             let mut response = Response::new(StatusCode::OK, html.into());
             response
                 .parts_mut()
@@ -1256,16 +1129,9 @@ fn manual_error(source: PaginationError) -> HttpError {
     }
 }
 
-fn view_error(source: ViewError) -> HttpError {
-    HttpError::Internal {
-        source: Box::new(source),
-    }
-}
-
 fn model_cursor_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let mut rows = StreamedComment::query()
-            .map_err(internal)?
+        let mut rows = StreamedComment::query()?
             .withCasts([("id", AttributeCast::String)])
             .orderBy("pagination_comments.id", "desc")
             .with(
@@ -1276,24 +1142,18 @@ fn model_cursor_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpErr
                 ),
             )
             .cursor();
-        let first = rows.try_next().await.map_err(internal)?.unwrap();
+        let first = rows.try_next().await?.unwrap();
         assert!(!first.relationLoaded("article"));
         assert_eq!(first.getAttribute("retrieved"), Some(&Value::Bool(true)));
         drop(rows);
 
-        let mut rows = StreamedComment::query()
-            .map_err(internal)?
-            .orderBy("id", "asc")
-            .cursor();
+        let mut rows = StreamedComment::query()?.orderBy("id", "asc").cursor();
         for expected in [11, 12] {
-            assert_eq!(
-                id(rows.try_next().await.map_err(internal)?.unwrap().getKey()),
-                expected
-            );
+            assert_eq!(id(rows.try_next().await?.unwrap().getKey()), expected);
         }
         assert!(rows.try_next().await.is_err());
-        assert!(rows.try_next().await.map_err(internal)?.is_none());
-        Response::json(StatusCode::OK, first.toArray().map_err(internal)?)
+        assert!(rows.try_next().await?.is_none());
+        Response::json(StatusCode::OK, first.toArray()?)
     })
 }
 
@@ -1410,7 +1270,7 @@ fn relationship_cursor_page(_: &mut Request) -> HttpFuture<'_, Result<Response, 
                 "pivot": pivot_values,
             }))
         }
-        Response::json(StatusCode::OK, stream_relations().await.map_err(internal)?)
+        Response::json(StatusCode::OK, stream_relations().await?)
     })
 }
 
@@ -1564,7 +1424,7 @@ fn relationship_chunk_page(_: &mut Request) -> HttpFuture<'_, Result<Response, H
             panic!("empty batch invoked the callback")
         }
 
-        Response::json(StatusCode::OK, batches().await.map_err(internal)?)
+        Response::json(StatusCode::OK, batches().await?)
     })
 }
 
@@ -1703,7 +1563,7 @@ fn inverse_chunk_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
             panic!("callback invoked for missing rows")
         }
 
-        Response::json(StatusCode::OK, verify_batches().await.map_err(internal)?)
+        Response::json(StatusCode::OK, verify_batches().await?)
     })
 }
 
@@ -2039,7 +1899,7 @@ fn chunk_by_id_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpErro
             Ok(())
         }
 
-        Response::json(StatusCode::OK, verify_keyset().await.map_err(internal)?)
+        Response::json(StatusCode::OK, verify_keyset().await?)
     })
 }
 
@@ -2183,7 +2043,7 @@ fn each_batch_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError
             Ok(json!({ "indices": indices, "relations": relations }))
         }
 
-        Response::json(StatusCode::OK, verify_each().await.map_err(internal)?)
+        Response::json(StatusCode::OK, verify_each().await?)
     })
 }
 
@@ -2331,7 +2191,7 @@ fn lazy_batch_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError
             Ok(json!({ "descending": descending, "pivot": pivot_keys }))
         }
 
-        Response::json(StatusCode::OK, verify_lazy().await.map_err(internal)?)
+        Response::json(StatusCode::OK, verify_lazy().await?)
     })
 }
 
@@ -2438,7 +2298,7 @@ fn singular_relation_pages(_: &mut Request) -> HttpFuture<'_, Result<Response, H
             Ok(json!({"empty": missing.map(|model| id(model.getKey())), "subjects": cursor}))
         }
 
-        Response::json(StatusCode::OK, relation_pages().await.map_err(internal)?)
+        Response::json(StatusCode::OK, relation_pages().await?)
     })
 }
 
@@ -2513,7 +2373,7 @@ fn page_defaults(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
             }))
         }
 
-        Response::json(StatusCode::OK, verify_defaults().await.map_err(internal)?)
+        Response::json(StatusCode::OK, verify_defaults().await?)
     })
 }
 
@@ -2624,14 +2484,8 @@ fn page_resolvers(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
             }))
         }
 
-        Response::json(StatusCode::OK, verify_resolvers().await.map_err(internal)?)
+        Response::json(StatusCode::OK, verify_resolvers().await?)
     })
-}
-
-fn internal(source: openrust::database::DatabaseError) -> HttpError {
-    HttpError::Internal {
-        source: Box::new(source),
-    }
 }
 
 async fn transport(
@@ -3774,13 +3628,13 @@ fn resolver_view(_: &mut Request) -> HttpFuture<'_, Result<openrust::view::View,
         LengthAwarePaginator::new(vec![1], 3, 1, Some(1), PaginatorOptions::default())
             .map_err(manual_error)?
             .links()
-            .map_err(view_error)
+            .map_err(Into::into)
     })
 }
 
 fn state_resolvers(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let connection = DB::connection(None).map_err(internal)?;
+        let connection = DB::connection(None)?;
         let mut numbered = connection
             .table("pagination_articles")
             .orderBy("id", "asc")
@@ -3789,8 +3643,7 @@ fn state_resolvers(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError
                 pageName: "entries",
                 ..Default::default()
             })
-            .await
-            .map_err(internal)?;
+            .await?;
         numbered
             .appends(&[("filter".into(), "manual".into())])
             .withQueryString();
@@ -3802,8 +3655,7 @@ fn state_resolvers(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError
                 pageName: "entries",
                 ..Default::default()
             })
-            .await
-            .map_err(internal)?;
+            .await?;
         let cursor = connection
             .table("pagination_articles")
             .orderBy("id", "asc")
@@ -3812,8 +3664,7 @@ fn state_resolvers(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError
                 cursorName: "position",
                 ..Default::default()
             })
-            .await
-            .map_err(internal)?;
+            .await?;
         let explicit = Paginator::new(
             vec![1, 2],
             1,
@@ -3854,8 +3705,7 @@ fn state_resolvers(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError
                     "version".into(),
                     (counter.fetch_add(1, Ordering::SeqCst) + 1).to_string(),
                 )]
-            })
-            .map_err(view_error)?;
+            })?;
             dynamic.withQueryString();
             let first = dynamic.url(1);
             dynamic.withQueryString();
@@ -3863,12 +3713,10 @@ fn state_resolvers(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError
         } else {
             None
         };
-        let factory_shared = Arc::ptr_eq(
-            &Paginator::viewFactory().map_err(view_error)?,
-            &CursorPaginator::viewFactory().map_err(view_error)?,
-        );
-        let mut view = numbered.links().map_err(view_error)?;
-        let html = view.render().map_err(view_error)?;
+        let factory_shared =
+            Arc::ptr_eq(&Paginator::viewFactory()?, &CursorPaginator::viewFactory()?);
+        let mut view = numbered.links()?;
+        let html = view.render()?;
         Response::json(
             StatusCode::OK,
             json!({

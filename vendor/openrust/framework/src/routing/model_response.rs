@@ -25,13 +25,13 @@ impl<M: Model> ModelOutput for M {
         } else {
             StatusCode::OK
         };
-        Response::json(status, self.toArray().map_err(internal)?)
+        Response::json(status, self.toArray()?)
     }
 }
 
 impl<M: Model> ModelOutput for Collection<M> {
     fn into_response(self) -> Result<Response, HttpError> {
-        Response::json(StatusCode::OK, self.toArray().map_err(internal)?)
+        Response::json(StatusCode::OK, self.toArray()?)
     }
 }
 
@@ -40,14 +40,8 @@ impl<T: ModelOutput> ModelOutput for DatabaseResult<T> {
         match self {
             Ok(output) => output.into_response(),
             Err(DatabaseError::ModelNotFound(_)) => Err(HttpError::NotFound),
-            Err(error) => Err(internal(error)),
+            Err(error) => Err(error.into()),
         }
-    }
-}
-
-fn internal(error: DatabaseError) -> HttpError {
-    HttpError::Internal {
-        source: Box::new(error),
     }
 }
 

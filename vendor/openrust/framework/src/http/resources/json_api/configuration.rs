@@ -2,9 +2,7 @@ use std::sync::Arc;
 
 use serde_json::{Map, Value};
 
-use crate::{
-    contracts::container::Container as _, http::HttpError, support::facades::current_container,
-};
+use crate::{contracts::container::Container as _, support::facades::current_container};
 
 use super::super::json::ResourceResult;
 
@@ -79,11 +77,6 @@ impl JsonApi {
         if !container.bound::<Self>() {
             return Ok(None);
         }
-        container
-            .make::<Self>()
-            .map(Some)
-            .map_err(|source| HttpError::Internal {
-                source: Box::new(source),
-            })
+        container.make::<Self>().map(Some).map_err(Into::into)
     }
 }

@@ -122,10 +122,7 @@ impl Controller {
             if let Some((connection, table)) = self.0.persistence.get() {
                 connection
                     .statement(&format!("INSERT INTO {table} (name) VALUES ('Ada')"), &[])
-                    .await
-                    .map_err(|source| HttpError::Internal {
-                        source: Box::new(source),
-                    })?;
+                    .await?;
             }
             Response::json(StatusCode::OK, json!({"stored":true}))
         })

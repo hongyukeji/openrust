@@ -65,9 +65,7 @@ impl VerifyEmail {
 
     fn default_url(user: &dyn MustVerifyEmail) -> AuthResult<String> {
         let container = current_container().ok_or(AuthError::Configuration("application scope"))?;
-        let config = container
-            .get::<dyn Repository>("config")
-            .map_err(AuthError::backend)?;
+        let config = container.get::<dyn Repository>("config")?;
         let minutes = config
             .get("auth.verification.expire")
             .and_then(|value| value.as_u64())

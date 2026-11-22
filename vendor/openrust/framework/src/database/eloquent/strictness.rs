@@ -3,7 +3,7 @@ use std::{any::TypeId, collections::HashMap, sync::RwLock};
 use super::Model;
 use crate::{
     contracts::{container::Container as _, foundation::Application as _},
-    database::{Connection, DatabaseError, DatabaseResult},
+    database::{Connection, DatabaseResult},
     foundation::Application,
 };
 
@@ -21,10 +21,7 @@ pub(super) fn configure<M: Model>(
     app: &Application,
     change: impl FnOnce(&mut Policy),
 ) -> DatabaseResult<()> {
-    let registry = app
-        .container()
-        .make::<ModelPolicies>()
-        .map_err(DatabaseError::Unavailable)?;
+    let registry = app.container().make::<ModelPolicies>()?;
     let mut policies = registry.0.write().expect("模型策略注册表锁损坏");
     change(policies.entry(TypeId::of::<M>()).or_default());
     Ok(())

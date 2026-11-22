@@ -62,8 +62,7 @@ impl TokenPolicy {
         let hash = self
             .hasher
             .make(token.as_bytes(), &HashOptions::default())
-            .await
-            .map_err(AuthError::backend)?;
+            .await?;
         Ok((token, hash))
     }
 

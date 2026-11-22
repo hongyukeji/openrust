@@ -43,7 +43,7 @@ impl GateRegistry {
         definitions.policy_types.insert(
             (type_name::<P>().into(), TypeId::of::<T>()),
             Arc::new(|container| {
-                let policy = container.make::<P>().map_err(AuthError::backend)?;
+                let policy = container.make::<P>()?;
                 Ok(Arc::new(TypedPolicy::<T, P>(
                     policy,
                     std::marker::PhantomData,

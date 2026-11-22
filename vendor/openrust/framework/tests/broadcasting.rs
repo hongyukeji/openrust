@@ -379,26 +379,20 @@ fn transaction_unique<const COMMIT: bool>(
 ) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
         let id = request.route("id").unwrap().to_owned();
-        let database = DB::connection(None).map_err(internal)?;
-        let mut transaction = database.beginTransaction().await.map_err(internal)?;
+        let database = DB::connection(None)?;
+        let mut transaction = database.beginTransaction().await?;
         openrust::support::facades::Event::dispatchInTransaction(
             UniqueNotice::<1>(id),
             &mut transaction,
         )
         .await?;
         if COMMIT {
-            transaction.commit().await.map_err(internal)?;
+            transaction.commit().await?;
         } else {
-            transaction.rollBack(None).await.map_err(internal)?;
+            transaction.rollBack(None).await?;
         }
         Ok(Response::empty(StatusCode::NO_CONTENT))
     })
-}
-
-fn internal(source: impl std::error::Error + Send + Sync + 'static) -> HttpError {
-    HttpError::Internal {
-        source: Box::new(source),
-    }
 }
 
 fn channels() -> BroadcastResult<()> {

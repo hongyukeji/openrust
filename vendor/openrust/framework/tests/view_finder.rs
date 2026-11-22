@@ -478,17 +478,8 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
 
     fn contract_route(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         Box::pin(async {
-            let factory = ViewFacade::contract().map_err(|source| HttpError::Internal {
-                source: Box::new(source),
-            })?;
-            let html = tokio::task::spawn_blocking(move || render_card(factory.as_ref()))
-                .await
-                .map_err(|source| HttpError::Internal {
-                    source: Box::new(source),
-                })?
-                .map_err(|source| HttpError::Internal {
-                    source: Box::new(source),
-                })?;
+            let factory = ViewFacade::contract()?;
+            let html = tokio::task::spawn_blocking(move || render_card(factory.as_ref())).await??;
             Ok(Response::new(StatusCode::OK, Body::from(html)))
         })
     }

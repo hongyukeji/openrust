@@ -2,11 +2,11 @@ use std::sync::Arc;
 
 use crate::support::facades::Facade;
 
-use super::{Cache, CacheError, CacheManager, CacheResult};
+use super::{Cache, CacheManager, CacheResult};
 
 /// Resolves the cache manager for the active application.
 pub fn cache() -> CacheResult<Arc<CacheManager>> {
-    Cache::getFacadeRoot().map_err(CacheError::Unavailable)
+    Cache::getFacadeRoot().map_err(Into::into)
 }
 
 /// Accesses the active cache manager, reads a value, or writes an entry.

@@ -52,9 +52,7 @@ impl Drop for Root {
 fn render(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
         if let Some(name) = request.header("x-config-locale")?.map(str::to_owned) {
-            Config::set("app.locale", name.into()).map_err(|source| HttpError::Internal {
-                source: Box::new(source),
-            })?;
+            Config::set("app.locale", name.into())?;
         }
         Response::view(StatusCode::OK, view("main"), HeaderMap::new(), request).await
     })

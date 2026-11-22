@@ -23,22 +23,19 @@ fn routes() -> Result<(), RoutingError> {
 
 fn name(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let name = Config::get("app.name").map_err(|source| internal(source.into()))?;
+        let name = Config::get("app.name").map_err(ConfigError::from)?;
         Response::json(StatusCode::OK, json!({"name":name}))
     })
 }
 
 fn check(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        assert!(Config::has("app.empty").map_err(internal)?);
+        assert!(Config::has("app.empty")?);
         assert_eq!(
-            Config::get("app.empty").map_err(|source| internal(source.into()))?,
+            Config::get("app.empty").map_err(ConfigError::from)?,
             Some(json!(null))
         );
-        assert_eq!(
-            Config::get("app.missing").map_err(|source| internal(source.into()))?,
-            None
-        );
+        assert_eq!(Config::get("app.missing").map_err(ConfigError::from)?, None);
         assert!(matches!(
             Config::string("app.number"),
             Err(ConfigError::InvalidType { .. })
@@ -51,21 +48,18 @@ fn check(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
             Config::integer("app.ratio"),
             Err(ConfigError::InvalidType { .. })
         ));
-        assert_eq!(Config::integer("app.number").map_err(internal)?, 7);
-        assert_eq!(Config::float("app.ratio").map_err(internal)?, 1.5);
-        assert!(Config::boolean("app.active").map_err(internal)?);
+        assert_eq!(Config::integer("app.number")?, 7);
+        assert_eq!(Config::float("app.ratio")?, 1.5);
+        assert!(Config::boolean("app.active")?);
+        assert_eq!(Config::array("app.map")?, json!({"mode":"test"}));
         assert_eq!(
-            Config::array("app.map").map_err(internal)?,
-            json!({"mode":"test"})
-        );
-        assert_eq!(
-            Config::collection("app.map").map_err(internal)?.get("mode"),
+            Config::collection("app.map")?.get("mode"),
             Some(&json!("test"))
         );
-        Config::set("app.name", json!("Updated")).map_err(internal)?;
-        Config::push("app.list", json!("last")).map_err(internal)?;
-        Config::prepend("app.list", json!("first")).map_err(internal)?;
-        let all = Config::all().map_err(internal)?;
+        Config::set("app.name", json!("Updated"))?;
+        Config::push("app.list", json!("last"))?;
+        Config::prepend("app.list", json!("first"))?;
+        let all = Config::all()?;
         Response::json(StatusCode::OK, all["app"]["list"].clone())
     })
 }
@@ -75,12 +69,6 @@ fn commands() -> Result<(), ConsoleError> {
         output.comment(&Config::string("app.name").unwrap());
     })?
     .purpose("Read application configuration")
-}
-
-fn internal(source: ConfigError) -> HttpError {
-    HttpError::Internal {
-        source: Box::new(source),
-    }
 }
 
 fn app(name: &'static str) -> Result<TestApp, Box<dyn Error + Send + Sync>> {

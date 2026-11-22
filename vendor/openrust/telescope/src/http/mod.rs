@@ -104,9 +104,7 @@ fn failure(error: Error) -> HttpError {
     }
 }
 fn telescope() -> Result<Arc<Telescope>, HttpError> {
-    facades::Telescope::getFacadeRoot().map_err(|source| HttpError::Internal {
-        source: Box::new(source),
-    })
+    facades::Telescope::getFacadeRoot().map_err(Into::into)
 }
 fn page(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
@@ -228,21 +226,14 @@ fn api(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
             }
             ("POST", "toggle-recording") => {
                 if paused().await? {
-                    openrust::cache::Cache::forget("telescope:pause-recording")
-                        .await
-                        .map_err(|source| HttpError::Internal {
-                            source: Box::new(source),
-                        })?;
+                    openrust::cache::Cache::forget("telescope:pause-recording").await?;
                 } else {
                     openrust::cache::Cache::put(
                         "telescope:pause-recording",
                         &openrust::cache::Value::Json(json!(true)),
                         Some(openrust::cache::Ttl::Seconds(30 * 24 * 60 * 60)),
                     )
-                    .await
-                    .map_err(|source| HttpError::Internal {
-                        source: Box::new(source),
-                    })?;
+                    .await?;
                 }
                 return Ok(Response::empty(StatusCode::OK));
             }
@@ -263,10 +254,7 @@ fn api(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
                             &openrust::cache::Value::Json(json!(true)),
                             Some(openrust::cache::Ttl::Seconds(4)),
                         )
-                        .await
-                        .map_err(|source| HttpError::Internal {
-                            source: Box::new(source),
-                        })?;
+                        .await?;
                     }
                     let options = EntryQueryOptions::fromRequest(request).await?;
                     let mut result = json!({"entries":repository.get(Some(*kind), options).await.map_err(failure)?,"status":status(watcher).await?});
@@ -315,18 +303,12 @@ fn api(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 }
 async fn paused() -> Result<bool, HttpError> {
     Ok(matches!(
-        openrust::cache::Cache::get("telescope:pause-recording")
-            .await
-            .map_err(|source| HttpError::Internal {
-                source: Box::new(source)
-            })?,
+        openrust::cache::Cache::get("telescope:pause-recording").await?,
         Some(openrust::cache::Value::Json(Value::Bool(true)))
     ))
 }
 async fn status(watcher: &str) -> Result<&'static str, HttpError> {
-    let config = Config::getFacadeRoot().map_err(|source| HttpError::Internal {
-        source: Box::new(source),
-    })?;
+    let config = Config::getFacadeRoot()?;
     if config.get("telescope.enabled") != Some(json!(true)) {
         return Ok("disabled");
     }

@@ -208,11 +208,7 @@ fn generic_matching_does_not_guess_chinese_script_from_region() {
 
 fn inspect(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
-        let preferred = request
-            .getPreferredLanguage(Some(&["en", "fr-FR"]))
-            .map_err(|source| HttpError::Internal {
-                source: Box::new(source),
-            })?;
+        let preferred = request.getPreferredLanguage(Some(&["en", "fr-FR"]))?;
         Response::json(
             StatusCode::OK,
             json!({

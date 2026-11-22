@@ -51,11 +51,6 @@ impl Response {
     }
 
     pub async fn call(name: &str, arguments: Vec<Value>) -> Result<HttpResponse, HttpError> {
-        Self::getFacadeRoot()
-            .map_err(|source| HttpError::Internal {
-                source: Box::new(source),
-            })?
-            .call(name, arguments)
-            .await
+        Self::getFacadeRoot()?.call(name, arguments).await
     }
 }

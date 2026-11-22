@@ -54,17 +54,10 @@ impl TokenGuard {
                 tokens.0.remove(guard);
             }
             request.parts_mut().extensions.remove::<AccessToken>();
-            if request
-                .bearerToken()
-                .map_err(|e| AuthError::Http(Box::new(e)))?
-                .is_none()
-            {
+            if request.bearerToken()?.is_none() {
                 let container = openrust::container::Container::getInstance();
                 let passport = container.make::<crate::Passport>().map_err(backend)?;
-                if !request
-                    .hasCookie(&passport.cookie(None))
-                    .map_err(|e| AuthError::Http(Box::new(e)))?
-                {
+                if !request.hasCookie(&passport.cookie(None))? {
                     return Ok(None);
                 }
                 let encrypter = container

@@ -9,7 +9,7 @@ use crate::{
 };
 
 use super::{
-    Command, Error, Factory, FakeProcessDescription, InvokedProcess, PendingProcess, Pool,
+    Command, Factory, FakeProcessDescription, InvokedProcess, PendingProcess, Pool,
     ProcessPoolResults, ProcessResult, RecordedProcess, Result,
 };
 
@@ -27,9 +27,7 @@ impl Facade for Process {
 #[allow(non_snake_case, reason = "Matches Laravel's Process facade API")]
 impl Process {
     pub fn command(command: impl Into<Command>) -> Result<PendingProcess> {
-        Ok(Self::getFacadeRoot()
-            .map_err(Error::Unavailable)?
-            .command(command))
+        Ok(Self::getFacadeRoot()?.command(command))
     }
 
     pub async fn run(command: impl Into<Command>) -> Result<ProcessResult> {
@@ -41,9 +39,7 @@ impl Process {
     }
 
     pub fn pool(configure: impl FnOnce(&mut Pool)) -> Result<Pool> {
-        Ok(Self::getFacadeRoot()
-            .map_err(Error::Unavailable)?
-            .pool(configure))
+        Ok(Self::getFacadeRoot()?.pool(configure))
     }
 
     pub async fn concurrently(configure: impl FnOnce(&mut Pool)) -> Result<ProcessPoolResults> {
@@ -53,10 +49,7 @@ impl Process {
     pub async fn pipe<C: Into<Command>>(
         commands: impl IntoIterator<Item = C>,
     ) -> Result<ProcessResult> {
-        Self::getFacadeRoot()
-            .map_err(Error::Unavailable)?
-            .pipe(commands)
-            .await
+        Self::getFacadeRoot()?.pipe(commands).await
     }
 
     pub fn describe() -> FakeProcessDescription {
@@ -74,16 +67,12 @@ impl Process {
     pub fn fake(
         callback: impl Fn(&RecordedProcess) -> Option<Result<ProcessResult>> + Send + Sync + 'static,
     ) -> Result<()> {
-        Self::getFacadeRoot()
-            .map_err(Error::Unavailable)?
-            .fake(callback);
+        Self::getFacadeRoot()?.fake(callback);
         Ok(())
     }
 
     pub fn preventStrayProcesses(prevent: bool) -> Result<()> {
-        Self::getFacadeRoot()
-            .map_err(Error::Unavailable)?
-            .preventStrayProcesses(prevent);
+        Self::getFacadeRoot()?.preventStrayProcesses(prevent);
         Ok(())
     }
 
@@ -91,9 +80,7 @@ impl Process {
     pub fn assertRan(
         predicate: impl Fn(&RecordedProcess, Option<&ProcessResult>) -> bool,
     ) -> Result<()> {
-        Self::getFacadeRoot()
-            .map_err(Error::Unavailable)?
-            .assertRan(predicate);
+        Self::getFacadeRoot()?.assertRan(predicate);
         Ok(())
     }
 
@@ -102,9 +89,7 @@ impl Process {
         predicate: impl Fn(&RecordedProcess, Option<&ProcessResult>) -> bool,
         expected: usize,
     ) -> Result<()> {
-        Self::getFacadeRoot()
-            .map_err(Error::Unavailable)?
-            .assertRanTimes(predicate, expected);
+        Self::getFacadeRoot()?.assertRanTimes(predicate, expected);
         Ok(())
     }
 
@@ -112,25 +97,19 @@ impl Process {
     pub fn assertNotRan(
         predicate: impl Fn(&RecordedProcess, Option<&ProcessResult>) -> bool,
     ) -> Result<()> {
-        Self::getFacadeRoot()
-            .map_err(Error::Unavailable)?
-            .assertNotRan(predicate);
+        Self::getFacadeRoot()?.assertNotRan(predicate);
         Ok(())
     }
 
     #[track_caller]
     pub fn assertNothingRan() -> Result<()> {
-        Self::getFacadeRoot()
-            .map_err(Error::Unavailable)?
-            .assertNothingRan();
+        Self::getFacadeRoot()?.assertNothingRan();
         Ok(())
     }
 
     #[track_caller]
     pub fn assertRanInOrder(callbacks: &[&super::ProcessAssertion<'_>]) -> Result<()> {
-        Self::getFacadeRoot()
-            .map_err(Error::Unavailable)?
-            .assertRanInOrder(callbacks);
+        Self::getFacadeRoot()?.assertRanInOrder(callbacks);
         Ok(())
     }
 
@@ -138,9 +117,7 @@ impl Process {
     pub fn assertDidntRun(
         predicate: impl Fn(&RecordedProcess, Option<&ProcessResult>) -> bool,
     ) -> Result<()> {
-        Self::getFacadeRoot()
-            .map_err(Error::Unavailable)?
-            .assertDidntRun(predicate);
+        Self::getFacadeRoot()?.assertDidntRun(predicate);
         Ok(())
     }
 }

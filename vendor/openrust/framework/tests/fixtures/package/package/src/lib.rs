@@ -90,9 +90,7 @@ fn routes() -> Result<(), RoutingError> {
 fn messages(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
         let message = |key| {
-            __(key, &Default::default()).map_err(|source| HttpError::Internal {
-                source: Box::new(source),
-            })
+            __(key, &Default::default()).map_err(Into::into)
         };
         Response::json(
             StatusCode::OK,

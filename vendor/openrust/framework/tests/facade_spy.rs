@@ -53,9 +53,7 @@ impl Lookup for RecordingCatalog {
 }
 
 fn catalog() -> Result<Arc<dyn Lookup>, HttpError> {
-    CatalogFacade::getFacadeRoot().map_err(|source| HttpError::Internal {
-        source: Box::new(source),
-    })
+    CatalogFacade::getFacadeRoot().map_err(Into::into)
 }
 
 fn lookup(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
@@ -66,10 +64,7 @@ fn install_inside_scope(_: &mut Request) -> HttpFuture<'_, Result<Response, Http
     Box::pin(async {
         let original = catalog()?;
         original.find("before");
-        let spy = CatalogFacade::spy(|calls| Arc::new(RecordingCatalog { calls, original }))
-            .map_err(|source| HttpError::Internal {
-                source: Box::new(source),
-            })?;
+        let spy = CatalogFacade::spy(|calls| Arc::new(RecordingCatalog { calls, original }))?;
         let value = catalog()?.find("inside");
         spy.shouldHaveReceived("find")
             .with(Find("inside".into()))

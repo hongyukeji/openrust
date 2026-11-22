@@ -324,11 +324,7 @@ fn probe(
     Box::pin(async {
         use openrust::contracts::container::Container as _;
         let container = openrust::container::Container::getInstance();
-        let key = container.make::<PrivateKey>().map_err(|source| {
-            openrust::http::HttpError::Internal {
-                source: Box::new(source),
-            }
-        })?;
+        let key = container.make::<PrivateKey>()?;
         assert!(!format!("{key:?}").contains("BEGIN"));
         Ok(openrust::http::Response::new(
             openrust::http::StatusCode::OK,

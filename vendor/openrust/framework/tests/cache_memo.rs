@@ -113,9 +113,7 @@ async fn exercise_tags(initial: i64) -> CacheResult<()> {
 
 fn endpoint(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let value = exercise().await.map_err(|source| HttpError::Internal {
-            source: Box::new(source),
-        })?;
+        let value = exercise().await?;
         Response::json(StatusCode::OK, json!(value))
     })
 }

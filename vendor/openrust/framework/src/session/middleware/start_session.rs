@@ -19,10 +19,7 @@ impl Middleware for StartSession {
         Box::pin(async move {
             let manager = current_container()
                 .ok_or(SessionError::Configuration)?
-                .get::<SessionManager>("session")
-                .map_err(|source| HttpError::Internal {
-                    source: Box::new(source),
-                })?;
+                .get::<SessionManager>("session")?;
             if !manager.is_configured() || request.hasSession() {
                 return Ok(next.run(request).await);
             }

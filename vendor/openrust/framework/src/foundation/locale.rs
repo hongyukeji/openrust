@@ -32,10 +32,7 @@ impl Application {
     /// 按配置、译器、事件的顺序切换语言，等待事件监听器完成。
     pub async fn setLocale(&self, locale: &str) -> TranslationResult<()> {
         let locale = canonical_locale(locale)?;
-        let config = self
-            .container()
-            .get::<dyn Repository>("config")
-            .map_err(TranslationError::Unavailable)?;
+        let config = self.container().get::<dyn Repository>("config")?;
         let previousLocale = config
             .get("app.locale")
             .and_then(|value| value.as_str().map(str::to_owned))
@@ -45,13 +42,9 @@ impl Application {
             .set("app.locale", locale.clone().into())
             .map_err(source)?;
         self.container()
-            .get::<Translator>("translator")
-            .map_err(TranslationError::Unavailable)?
+            .get::<Translator>("translator")?
             .setLocale(&locale)?;
-        let events = self
-            .container()
-            .get::<Dispatcher>("events")
-            .map_err(TranslationError::Unavailable)?;
+        let events = self.container().get::<Dispatcher>("events")?;
         events
             .dispatch(
                 Arc::new(LocaleUpdated {
@@ -67,23 +60,18 @@ impl Application {
 
     pub fn setFallbackLocale(&self, fallbackLocale: &str) -> TranslationResult<()> {
         let locale = canonical_locale(fallbackLocale)?;
-        let config = self
-            .container()
-            .get::<dyn Repository>("config")
-            .map_err(TranslationError::Unavailable)?;
+        let config = self.container().get::<dyn Repository>("config")?;
         config
             .set("app.fallback_locale", locale.clone().into())
             .map_err(source)?;
         self.container()
-            .get::<Translator>("translator")
-            .map_err(TranslationError::Unavailable)?
+            .get::<Translator>("translator")?
             .setFallback(&locale)
     }
 
     fn locale_config(&self, key: &str) -> TranslationResult<String> {
         self.container()
-            .get::<dyn Repository>("config")
-            .map_err(TranslationError::Unavailable)?
+            .get::<dyn Repository>("config")?
             .get(key)
             .and_then(|value| value.as_str().map(str::to_owned))
             .ok_or(TranslationError::InvalidLocale)

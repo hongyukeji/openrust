@@ -361,12 +361,8 @@ impl Application {
     ) -> Result<Vec<crate::routing::RouteInfo>, BootstrapError> {
         let middleware = if expanded_middleware {
             let mut middleware = self.configured_middleware().clone();
-            let config = self
-                .configuration_repository()
-                .map_err(|source| BootstrapError::ContainerFailed { source })?;
-            middleware
-                .configure_web(config.as_ref())
-                .map_err(|source| BootstrapError::ConfigurationFailed { source })?;
+            let config = self.configuration_repository()?;
+            middleware.configure_web(config.as_ref())?;
             Some(middleware)
         } else {
             None
@@ -827,10 +823,7 @@ impl Application {
         reason = "Matches Laravel Application::isDownForMaintenance"
     )]
     pub async fn isDownForMaintenance(&self) -> Result<bool, super::maintenance::MaintenanceError> {
-        self.maintenanceMode()
-            .map_err(super::maintenance::MaintenanceError::Unavailable)?
-            .active()
-            .await
+        self.maintenanceMode()?.active().await
     }
 
     pub async fn boot(&mut self) -> Result<(), BootstrapError> {
@@ -944,28 +937,21 @@ impl Application {
         let _ = self.shared.event_cache_path.set(event_cache_path);
         self.shared
             .container
-            .instanceNamed("config.cache.path", Arc::new(cache_path))
-            .map_err(|source| BootstrapError::ContainerFailed { source })?;
+            .instanceNamed("config.cache.path", Arc::new(cache_path))?;
         self.shared
             .container
-            .instanceNamed("config_loaded_from_cache", Arc::new(cached.is_some()))
-            .map_err(|source| BootstrapError::ContainerFailed { source })?;
+            .instanceNamed("config_loaded_from_cache", Arc::new(cached.is_some()))?;
         self.shared
             .container
-            .scoped::<crate::config::LocaleOverrides, _>(|_| Ok(Arc::default()))
-            .map_err(|source| BootstrapError::ContainerFailed { source })?;
+            .scoped::<crate::config::LocaleOverrides, _>(|_| Ok(Arc::default()))?;
         let config = Arc::new(
             Repository::new(Default::default()).with_owner(Arc::downgrade(&self.shared.container)),
         );
         self.shared
             .container
-            .instanceNamed::<dyn config::Repository>("config", config.clone())
-            .map_err(|source| BootstrapError::ContainerFailed { source })?;
+            .instanceNamed::<dyn config::Repository>("config", config.clone())?;
         let grpc_options = Arc::new(grpc::GrpcServerOptions::default());
-        self.shared
-            .container
-            .instance(grpc_options.clone())
-            .map_err(|source| BootstrapError::ContainerFailed { source })?;
+        self.shared.container.instance(grpc_options.clone())?;
         let loaded = match cached {
             Some(values) => Repository::new(values),
             None => LoadConfiguration::bootstrap(
@@ -978,16 +964,11 @@ impl Application {
         config.replace_with(loaded);
         self.shared
             .container
-            .instance(Arc::new(grpc::GrpcClients::new(config.clone())))
-            .map_err(|source| BootstrapError::ContainerFailed { source })?;
+            .instance(Arc::new(grpc::GrpcClients::new(config.clone())))?;
         self.shared
             .container
-            .instanceNamed("env.file", Arc::new(environment.file.clone()))
-            .map_err(|source| BootstrapError::ContainerFailed { source })?;
-        self.shared
-            .container
-            .instance(environment)
-            .map_err(|source| BootstrapError::ContainerFailed { source })?;
+            .instanceNamed("env.file", Arc::new(environment.file.clone()))?;
+        self.shared.container.instance(environment)?;
         let name = match selected {
             Some(name) => Arc::from(name),
             None => match config::Repository::get(config.as_ref(), "app.env") {
@@ -1001,8 +982,7 @@ impl Application {
                 }
             },
         };
-        environment_detector::install(&self.shared.container, name)
-            .map_err(|source| BootstrapError::ContainerFailed { source })?;
+        environment_detector::install(&self.shared.container, name)?;
         if self
             .shared
             .publicPath
@@ -1079,17 +1059,13 @@ impl Application {
         self.run_lifecycle(0)?;
         self.run_lifecycle(1)?;
         self.shared.booting_started.store(true, Ordering::Release);
-        deferred
-            .boot_prepared()
-            .await
-            .map_err(|source| BootstrapError::ContainerFailed { source })?;
+        deferred.boot_prepared().await?;
         let mut previous_position = 0;
         for (provider, position) in providers.iter_mut().zip(boot_positions) {
             if previous_position != position {
                 deferred
                     .boot_registration_range(previous_position..position)
-                    .await
-                    .map_err(|source| BootstrapError::ContainerFailed { source })?;
+                    .await?;
                 previous_position = position;
             }
             let (provider_type, name) = (provider.providerType(), provider.name());
@@ -1102,10 +1078,7 @@ impl Application {
                     source,
                 })?;
         }
-        deferred
-            .boot_registered()
-            .await
-            .map_err(|source| BootstrapError::ContainerFailed { source })?;
+        deferred.boot_registered().await?;
         let routing_failed = |source| BootstrapError::RoutingFailed { source };
         let routing = self
             .shared
@@ -1114,9 +1087,7 @@ impl Application {
             .expect("application routing lock poisoned")
             .take()
             .unwrap_or_default();
-        let routing_config = self
-            .configuration_repository()
-            .map_err(|source| BootstrapError::ContainerFailed { source })?;
+        let routing_config = self.configuration_repository()?;
         let api_prefix = routing
             .resolve_api_prefix(routing_config.as_ref())
             .map_err(configuration_failed)?;
@@ -1139,9 +1110,7 @@ impl Application {
                 .map_err(routing_failed)?;
         }
         routes.resolve_static_directories(&self.shared.basePath);
-        let config = self
-            .configuration_repository()
-            .map_err(|source| BootstrapError::ContainerFailed { source })?;
+        let config = self.configuration_repository()?;
         crate::filesystem::register_signed_routes(&mut routes, config.as_ref())
             .map_err(routing_failed)?;
         let loaded = routes.load_cache(&route_cache_path);
@@ -1149,20 +1118,16 @@ impl Application {
             .route_cache
             .set((route_cache_path, loaded))
             .expect("application route cache loaded once");
+        self.shared.container.instanceNamed(
+            "url",
+            Arc::new(crate::routing::UrlGenerator::new(
+                routes.url_routes(),
+                config.clone(),
+            )),
+        )?;
         self.shared
             .container
-            .instanceNamed(
-                "url",
-                Arc::new(crate::routing::UrlGenerator::new(
-                    routes.url_routes(),
-                    config.clone(),
-                )),
-            )
-            .map_err(|source| BootstrapError::ContainerFailed { source })?;
-        self.shared
-            .container
-            .alias("url", ServiceKey::typed::<crate::routing::UrlGenerator>())
-            .map_err(|source| BootstrapError::ContainerFailed { source })?;
+            .alias("url", ServiceKey::typed::<crate::routing::UrlGenerator>())?;
         *self
             .shared
             .routes
@@ -1195,8 +1160,7 @@ impl Application {
             .get()
             .expect("provider registry initialized")
             .boot_registered()
-            .await
-            .map_err(|source| BootstrapError::ContainerFailed { source })?;
+            .await?;
         self.shared.state.store(BOOTED, Ordering::Release);
         self.run_lifecycle(2)?;
         Ok(())

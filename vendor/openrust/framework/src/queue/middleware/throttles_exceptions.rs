@@ -278,7 +278,7 @@ impl JobMiddleware for ThrottlesExceptions {
     ) -> QueueFuture<'a, QueueResult<()>> {
         Box::pin(async move {
             let limiter = facades::RateLimiter::getFacadeRoot()
-                .map_err(CacheError::Unavailable)
+                .map_err(CacheError::from)
                 .map_err(backend)?;
             self.run(Backend::Cache(limiter), context, payload, next)
                 .await

@@ -143,7 +143,7 @@ impl Listener for QueueLifecycle {
                 .0
                 .upgrade()
                 .ok_or(EventError::Unavailable(BindingResolutionError::ScopeClosed))?;
-            let _handler = owner.make::<Handler>().map_err(EventError::Unavailable)?;
+            let _handler = owner.make::<Handler>()?;
             let current = Origin::current();
             let command = match current {
                 Some(Origin::Console { command }) | Some(Origin::Queue { command, .. }) => command,

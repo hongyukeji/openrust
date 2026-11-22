@@ -52,12 +52,6 @@ impl ServiceProvider for TelescopeServiceProvider {
  */
 fn authorize(_: &mut Request) -> HttpFuture<'_, Result<bool, HttpError>> {
     Box::pin(async {
-        Ok(
-            openrust::support::facades::Config::get("app.env").map_err(|source| {
-                HttpError::Internal {
-                    source: Box::new(source),
-                }
-            })? == Some("local".into()),
-        )
+        Ok(openrust::support::facades::Config::get("app.env")? == Some("local".into()))
     })
 }

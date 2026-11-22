@@ -111,3 +111,9 @@ pub(crate) fn language_path(root: &std::path::Path) -> std::path::PathBuf {
 }
 
 pub(crate) use translator::LocaleSnapshot;
+
+impl From<crate::contracts::container::BindingResolutionError> for TranslationError {
+    fn from(source: crate::contracts::container::BindingResolutionError) -> Self {
+        Self::Unavailable(source)
+    }
+}

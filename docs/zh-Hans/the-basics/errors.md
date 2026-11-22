@@ -1,5 +1,27 @@
 # 错误处理
 
+## 传播领域错误
+
+对无须额外上下文的固定错误转换，使用 `?`。例如在返回 `HttpError` 的控制器或中间件中，可直接传播配置读取错误：
+
+```rust
+use openrust::{http::HttpError, support::facades::Config};
+
+fn locale_form_field() -> Result<String, HttpError> {
+    Ok(Config::string("app.locale_form_field")?)
+}
+```
+
+配置、容器、翻译、视图、数据库、日志、Redis、Hash、JSON 序列化、I/O 与异步任务调度错误进入 HTTP 边界后保留原始来源，默认归入 `Internal`。响应状态为 500，由现有异常处理流程负责报告、调试展示和生产环境脱敏。数据库错误的默认转换不会将 `ModelNotFound` 改为 404；返回模型结果的路由仍按自己的既有规则处理。
+
+图片领域错误以及 `openrust-horizon`、`openrust-pulse`、`openrust-pennant` 的错误同样默认转换为 `Internal`，保留领域来源，不自动展开内嵌错误改变状态码。
+
+底层模块继续返回自身领域错误。容器解析失败可直接传播到配置、翻译、视图、数据库、缓存、队列、事件、日志等对应的领域结果；认证中的数据库、缓存、Hash、Session、配置和容器错误保留为 `AuthError::Backend`。不要为了使用 `?` 让通用组件依赖 HTTP。
+
+`?` 只转换当前返回边界的错误，不会自动逐层调用多个 `From`。返回表达式需要时使用 `Ok(operation()?)`，或在返回类型明确时使用 `map_err(Into::into)`。闭包有多个可能的错误类型时，显式声明其 `Result` 类型。
+
+保留需要路径、操作名、请求或阶段上下文的 `map_err`，以及状态码分类、恢复、重试和脱敏逻辑。文件系统、校验、集合调试与认证已有专用 HTTP 转换；强制包装为 `Internal` 的调用不能在未核对语义时直接改成 `?`。
+
 ## 报告异常
 
 在 `bootstrap/app.rs` 的 `withExceptions` 闭包中配置报告。使用 `report::<E>` 匹配异常类型或其来源。回调按注册顺序执行，`ReportDecision::Stop` 停止后续回调和默认报告。

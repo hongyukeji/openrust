@@ -65,9 +65,7 @@ impl Listener for Count {
 
 fn greet(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let greeting = GreetingFacade::getFacadeRoot().map_err(|source| HttpError::Internal {
-            source: Box::new(source),
-        })?;
+        let greeting = GreetingFacade::getFacadeRoot()?;
         Event::dispatch(NamedEvent::new("greeting.sent", 42_u64)).await?;
         Event::dispatch(NamedEvent::new("greeting.done", ())).await?;
         Response::json(StatusCode::OK, greeting.message())

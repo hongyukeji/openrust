@@ -63,7 +63,7 @@ impl Queue {
             .upgrade()
             .ok_or(QueueError::InvalidConfiguration)?
             .make::<QueueManager>()
-            .map_err(QueueError::Unavailable)
+            .map_err(Into::into)
     }
 
     pub(super) async fn run_chain_catches(
@@ -75,9 +75,7 @@ impl Queue {
             .owner
             .upgrade()
             .ok_or(QueueError::InvalidConfiguration)?;
-        let manager = owner
-            .make::<QueueManager>()
-            .map_err(QueueError::Unavailable)?;
+        let manager = owner.make::<QueueManager>()?;
         application_scope(owner, manager.run_chain_catches(job, cause)).await;
         Ok(())
     }

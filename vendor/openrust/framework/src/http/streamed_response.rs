@@ -33,11 +33,7 @@ impl StreamedJson {
     /// Serializes a value before response headers are sent.
     pub fn value(value: impl Serialize) -> Result<Self, HttpError> {
         let mut bytes = Vec::new();
-        JsonFormatter::STREAM
-            .write(&mut bytes, &value)
-            .map_err(|source| HttpError::Internal {
-                source: Box::new(source),
-            })?;
+        JsonFormatter::STREAM.write(&mut bytes, &value)?;
         Ok(Self(Box::pin(stream::once(async {
             Ok(Bytes::from(bytes))
         }))))
@@ -171,11 +167,7 @@ impl StreamedEvent {
 
     pub fn json(event: impl Into<String>, data: impl Serialize) -> Result<Self, HttpError> {
         let mut bytes = Vec::new();
-        JsonFormatter::EVENT
-            .write(&mut bytes, &data)
-            .map_err(|source| HttpError::Internal {
-                source: Box::new(source),
-            })?;
+        JsonFormatter::EVENT.write(&mut bytes, &data)?;
         let data = String::from_utf8(bytes).expect("JSON serializer writes UTF-8");
         Self::new(event, data)
     }

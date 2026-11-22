@@ -183,7 +183,10 @@ pub(super) fn parse_expression(expression: &str, depth: usize) -> ViewResult<Exp
             Box::new(parse_expression(&expression[index + 2..], depth + 1)?),
         ));
     }
-    if let Some(group) = parenthesized(expression) {
+    if let Some(group) = expression
+        .strip_prefix('(')
+        .and_then(|rest| rest.strip_suffix(')'))
+    {
         return parse_expression(group, depth + 1);
     }
     if let Some(start) = offset_start(expression) {
@@ -248,31 +251,6 @@ pub(super) fn parse_expression(expression: &str, depth: usize) -> ViewResult<Exp
         }
     }
     Err(invalid("Unsupported Blade expression."))
-}
-
-// 仅去掉包住整个表达式的括号，保留 (object)->method() 的接收对象边界。
-fn parenthesized(expression: &str) -> Option<&str> {
-    if !expression.starts_with('(') {
-        return None;
-    }
-    let mut quote = Quote::default();
-    let mut depth = 0usize;
-    for (index, character) in expression.char_indices() {
-        if quote.literal(character) {
-            continue;
-        }
-        match character {
-            '(' => depth += 1,
-            ')' => {
-                depth = depth.checked_sub(1)?;
-                if depth == 0 {
-                    return (index + 1 == expression.len()).then_some(&expression[1..index]);
-                }
-            }
-            _ => {}
-        }
-    }
-    None
 }
 
 fn parse_array(entries: Vec<&str>, depth: usize) -> ViewResult<Expression> {
@@ -767,7 +745,6 @@ pub(super) fn loose_equal(left: &ViewValue, right: &ViewValue) -> bool {
                     .zip(right)
                     .all(|(left, right)| loose_equal(left, right))
         }
-        (ViewValue::Instance(left), ViewValue::Instance(right)) => left == right,
         (Object(left), Object(right)) => {
             left.len() == right.len()
                 && left.iter().all(|(key, value)| {

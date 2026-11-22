@@ -68,15 +68,10 @@ impl Facade for Sampler {
         openrust::container::ServiceKey::typed::<Servers>()
     }
 }
-fn internal(error: impl std::error::Error + Send + Sync + 'static) -> HttpError {
-    HttpError::Internal {
-        source: Box::new(error),
-    }
-}
 fn beats(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let pulse = openrust_pulse::facades::Pulse::manager().map_err(internal)?;
-        let servers = Sampler::getFacadeRoot().map_err(internal)?;
+        let pulse = openrust_pulse::facades::Pulse::manager()?;
+        let servers = Sampler::getFacadeRoot()?;
         for (time, instance) in [(100, "one"), (114, "one"), (115, "one"), (114, "two")] {
             servers
                 .record(
@@ -86,8 +81,7 @@ fn beats(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
                     },
                     &pulse,
                 )
-                .await
-                .map_err(internal)?;
+                .await?;
         }
         Ok(Response::from("recorded"))
     })

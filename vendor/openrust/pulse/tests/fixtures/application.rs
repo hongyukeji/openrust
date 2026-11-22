@@ -60,11 +60,6 @@ impl ServiceProvider for Access {
         })
     }
 }
-fn internal(error: impl std::error::Error + Send + Sync + 'static) -> HttpError {
-    HttpError::Internal {
-        source: Box::new(error),
-    }
-}
 fn probe(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
         use openrust_pulse::facades::Pulse;
@@ -75,24 +70,20 @@ fn probe(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
             Some(1234),
             None,
         )
-        .await
-        .map_err(internal)?
+        .await?
         .count()
         .max();
         Pulse::record("user_request", "42", None, None)
-            .await
-            .map_err(internal)?
+            .await?
             .count();
         Pulse::record("cache_hit", unsafe_text, None, None)
-            .await
-            .map_err(internal)?
+            .await?
             .count();
         Pulse::record("queued", "redis:default", None, None)
-            .await
-            .map_err(internal)?
+            .await?
             .count()
             .onlyBuckets();
-        Pulse::set("system","acceptance",json!({"name":unsafe_text,"cpu":25,"memory_used":2048,"memory_total":8192,"storage":[{"directory":"/","used":100,"total":200}]}).to_string(),None).await.map_err(internal)?;
+        Pulse::set("system","acceptance",json!({"name":unsafe_text,"cpu":25,"memory_used":2048,"memory_total":8192,"storage":[{"directory":"/","used":100,"total":200}]}).to_string(),None).await?;
         Ok(Response::from("observed"))
     })
 }

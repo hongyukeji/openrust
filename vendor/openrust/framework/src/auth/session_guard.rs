@@ -182,15 +182,10 @@ impl<'a> SessionGuard<'a> {
             let Some(owner) = owner.filter(|owner| owner.has("events")) else {
                 return Ok(());
             };
-            let dispatcher = owner
-                .get::<Dispatcher>("events")
-                .map_err(AuthError::backend)?;
+            let dispatcher = owner.get::<Dispatcher>("events")?;
             let event = Arc::new(event);
             let mut context = EventContext::with_arguments(event.as_ref(), arguments);
-            dispatcher
-                .dispatch(event.clone(), &mut context)
-                .await
-                .map_err(AuthError::backend)?;
+            dispatcher.dispatch(event.clone(), &mut context).await?;
             Ok(())
         })
     }
@@ -266,11 +261,11 @@ impl<'a> SessionGuard<'a> {
     }
 
     async fn update_session(&mut self, id: &AuthIdentifier) -> AuthResult<()> {
-        let value = serde_json::to_value(id).map_err(AuthError::backend)?;
+        let value = serde_json::to_value(id)?;
         let key = self.session_key.clone();
         let password_key = SessionFingerprint::session_key(&self.name);
         let session = self.session()?;
-        session.regenerate(true).await.map_err(AuthError::backend)?;
+        session.regenerate(true).await?;
         session.forget(&[&password_key, PASSWORD_CONFIRMED_AT]);
         session.put(&key, value).map_err(AuthError::backend)
     }
@@ -395,13 +390,9 @@ impl<'a> SessionGuard<'a> {
         if key.is_empty() || maximum == 0 || decay_seconds == 0 {
             return Err(AuthError::Configuration("login throttle"));
         }
-        let limiter = RateLimiter::getFacadeRoot().map_err(AuthError::backend)?;
+        let limiter = RateLimiter::getFacadeRoot()?;
         let key = format!("login:{}:{key}", self.name);
-        if let Some(retry) = limiter
-            .reserve(&key, maximum, decay_seconds)
-            .await
-            .map_err(AuthError::backend)?
-        {
+        if let Some(retry) = limiter.reserve(&key, maximum, decay_seconds).await? {
             self.emit(
                 Lockout {
                     guard: self.name.clone(),
@@ -415,7 +406,7 @@ impl<'a> SessionGuard<'a> {
         let Some(user) = self.login_candidate(credentials, remember).await? else {
             return Ok(false);
         };
-        limiter.clear(&key).await.map_err(AuthError::backend)?;
+        limiter.clear(&key).await?;
         self.persist(user, remember).await?;
         Ok(true)
     }
@@ -474,7 +465,7 @@ impl<'a> SessionGuard<'a> {
         };
         self.update_session(&id).await?;
         if let Some(cookie) = cookie {
-            Cookie::queue(cookie).map_err(AuthError::backend)?;
+            Cookie::queue(cookie)?;
         }
         let user: Arc<dyn Authenticatable> = user.into();
         self.emit(
@@ -499,8 +490,7 @@ impl<'a> SessionGuard<'a> {
             id,
             token,
             password,
-        })
-        .map_err(AuthError::backend)?;
+        })?;
         let options = CookieOptions {
             secure: self.request.is_secure().then_some(true),
             ..Default::default()
@@ -540,7 +530,7 @@ impl<'a> SessionGuard<'a> {
         let previous = fingerprint(user.as_ref()).ok_or(AuthError::InvalidIdentity)?;
         let refresh_cookie = self.request.cookie_is_protected(&self.recaller)
             && (self.request.cookie(Some(&self.recaller))?.is_some()
-                || Cookie::hasQueued(&self.recaller, None).map_err(AuthError::backend)?);
+                || Cookie::hasQueued(&self.recaller, None)?);
         self.provider
             .rehashPasswordIfRequired(user.as_mut(), &credentials, true)
             .await?;
@@ -557,21 +547,17 @@ impl<'a> SessionGuard<'a> {
             ));
         }
         if let Some(owner) = self.owner.upgrade() {
-            let config = owner
-                .get::<dyn Repository>("config")
-                .map_err(AuthError::backend)?;
+            let config = owner.get::<dyn Repository>("config")?;
             let value =
                 SessionFingerprint::from_config(config.as_ref()).sign(user.getAuthPassword());
             let key = SessionFingerprint::session_key(&self.name);
-            self.session()?
-                .put(&key, serde_json::json!(value))
-                .map_err(AuthError::backend)?;
+            self.session()?.put(&key, serde_json::json!(value))?;
         }
         if refresh_cookie
             && let Some(token) = user.getRememberToken().filter(|token| !token.is_empty())
         {
             let cookie = self.remember_cookie(id, token.to_owned(), changed)?;
-            Cookie::queue(cookie).map_err(AuthError::backend)?;
+            Cookie::queue(cookie)?;
         }
         AuthContext::set_shared(self.request, &self.name, Some(user.clone()), remembered);
         self.emit(
@@ -603,9 +589,7 @@ impl<'a> SessionGuard<'a> {
         {
             return Ok(false);
         }
-        self.session()?
-            .passwordConfirmed()
-            .map_err(AuthError::backend)?;
+        self.session()?.passwordConfirmed()?;
         Ok(true)
     }
 
@@ -613,7 +597,7 @@ impl<'a> SessionGuard<'a> {
     pub async fn logoutAndInvalidate(&mut self) -> AuthResult<()> {
         self.logout().await?;
         let session = self.session()?;
-        session.invalidate().await.map_err(AuthError::backend)?;
+        session.invalidate().await?;
         session.regenerateToken().map_err(AuthError::backend)
     }
 
@@ -670,7 +654,7 @@ impl<'a> SessionGuard<'a> {
         self.session()?
             .forget(&[&key, &password_key, PASSWORD_CONFIRMED_AT]);
         if self.request.cookie_is_protected(&self.recaller) {
-            Cookie::expire(&self.recaller, None, None).map_err(AuthError::backend)?;
+            Cookie::expire(&self.recaller, None, None)?;
         }
         Ok(())
     }

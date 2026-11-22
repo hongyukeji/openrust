@@ -76,9 +76,7 @@ impl RelationResolvers {
         let Some(container) = Connection::model_container(model.state().connection.as_ref()) else {
             return Ok(None);
         };
-        let registry = container
-            .make::<Self>()
-            .map_err(DatabaseError::Unavailable)?;
+        let registry = container.make::<Self>()?;
         registry.lookup(model, name, &mut Vec::new())
     }
 

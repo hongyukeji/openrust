@@ -25,11 +25,7 @@ impl Middleware for CreateFreshApiToken {
         next: Next<'a>,
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
-            let passport = openrust::container::Container::getInstance()
-                .make::<Passport>()
-                .map_err(|source| HttpError::Internal {
-                    source: Box::new(source),
-                })?;
+            let passport = openrust::container::Container::getInstance().make::<Passport>()?;
             let name = passport.cookie(None);
             let initially_authenticated = if request.hasCookie(&name)? {
                 Auth::guard(request, self.guard.as_deref())?.check().await?

@@ -6,7 +6,6 @@ use crate::database::{
     Value as AttributeValue,
     eloquent::{Model, RelationAggregate},
 };
-use crate::http::HttpError;
 
 use super::ResourceResult;
 
@@ -44,9 +43,7 @@ impl Conditional {
 
     /// Selects keys from the model's serialized attributes and relations.
     pub fn attributes(model: &impl Model, names: &[&str]) -> ResourceResult<Map<String, Value>> {
-        let mut fields = model.toArray().map_err(|source| HttpError::Internal {
-            source: Box::new(source),
-        })?;
+        let mut fields = model.toArray()?;
         fields.retain(|name, _| names.contains(&name.as_str()));
         Ok(fields)
     }

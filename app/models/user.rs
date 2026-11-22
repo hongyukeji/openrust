@@ -1,6 +1,6 @@
 use openrust::{
     auth::{
-        AuthError, AuthFuture, AuthIdentifier, AuthResult,
+        AuthFuture, AuthIdentifier, AuthResult,
         notifications::{ResetPassword, VerifyEmail},
     },
     contracts::auth::{Authenticatable, CanResetPassword, MustVerifyEmail},
@@ -64,8 +64,7 @@ impl Authenticatable for User {
         "remember_token"
     }
     fn getAuthAttribute(&self, name: &str) -> AuthResult<Option<Value>> {
-        self.getAttributeValue(name)
-            .map_err(|source| AuthError::Backend(Box::new(source)))
+        self.getAttributeValue(name).map_err(Into::into)
     }
     fn as_password_reset(&self) -> Option<&dyn CanResetPassword> {
         Some(self)
@@ -126,8 +125,7 @@ impl User {
         } else {
             Value::Null
         };
-        let query = DB::connection(self.getConnectionName())
-            .map_err(|source| AuthError::Backend(Box::new(source)))?
+        let query = DB::connection(self.getConnectionName())?
             .table(self.getTable())
             .r#where(
                 self.getKeyName(),
@@ -148,8 +146,7 @@ impl User {
                 ]
                 .into(),
             )
-            .await
-            .map_err(|source| AuthError::Backend(Box::new(source)))?
+            .await?
             != 0;
         if changed {
             self.setAttribute("email_verified_at", value);

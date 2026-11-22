@@ -154,11 +154,7 @@ impl RequestRead {
                 Self::FullUrl => request.fullUrl()?.into(),
                 Self::Method => request.method().as_str().into(),
                 Self::Secure => request.secure().into(),
-                Self::LocaleSelection => serde_json::to_value(request.localeSelection())
-                    .map_err(|source| crate::http::HttpError::Internal {
-                        source: Box::new(source),
-                    })?
-                    .into(),
+                Self::LocaleSelection => serde_json::to_value(request.localeSelection())?.into(),
             })
         }
         .await;

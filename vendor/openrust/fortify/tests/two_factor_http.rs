@@ -45,9 +45,7 @@ impl ServiceProvider for Provider {
 }
 fn verify(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
-        let provider = Engine::getFacadeRoot().map_err(|error| HttpError::Internal {
-            source: Box::new(error),
-        })?;
+        let provider = Engine::getFacadeRoot()?;
         let secret = request
             .query(Some("secret"))?
             .and_then(|v| v.as_str().map(str::to_owned))

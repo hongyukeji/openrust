@@ -57,9 +57,7 @@ impl Guard {
         container: &Container,
         request: &mut Request,
     ) -> AuthResult<Option<Arc<dyn Authenticatable>>> {
-        let auth = container
-            .make::<AuthManager>()
-            .map_err(AuthError::backend)?;
+        let auth = container.make::<AuthManager>()?;
         for name in &self.session_guards {
             // Delegating to another Sanctum guard can recursively enter this same chain.
             if auth.guard_uses_driver(request, name, "sanctum")? {
@@ -72,13 +70,11 @@ impl Guard {
                 return Ok(Some(user));
             }
         }
-        let sanctum = container.make::<Sanctum>().map_err(AuthError::backend)?;
+        let sanctum = container.make::<Sanctum>()?;
         let Some((credential, is_bearer)) = sanctum.credential(request) else {
             return Ok(None);
         };
-        let database = container
-            .make::<DatabaseManager>()
-            .map_err(AuthError::backend)?;
+        let database = container.make::<DatabaseManager>()?;
         let tokens = sanctum.personalAccessTokens(&database, "")?;
         if is_bearer && !tokens.accepts_bearer(&credential) {
             return Ok(None);
@@ -86,9 +82,7 @@ impl Guard {
         let Some((token, token_model)) = tokens.find_for_authentication(&credential).await? else {
             return Ok(None);
         };
-        let morphs = container
-            .make::<crate::database::eloquent::relations::MorphMap>()
-            .map_err(AuthError::backend)?;
+        let morphs = container.make::<crate::database::eloquent::relations::MorphMap>()?;
         let model = morphs
             .getMorphedModel(&token.tokenable_type)
             .unwrap_or(&token.tokenable_type);
@@ -107,16 +101,14 @@ impl Guard {
         };
         let token = Arc::new(token);
         container
-            .make::<Dispatcher>()
-            .map_err(AuthError::backend)?
+            .make::<Dispatcher>()?
             .dispatch(
                 Arc::new(TokenAuthenticated {
                     token: token.clone(),
                 }),
                 &mut EventContext::new(),
             )
-            .await
-            .map_err(AuthError::backend)?;
+            .await?;
         let token = if self.track_last_used_at {
             let mut token = Arc::unwrap_or_clone(token);
             if !tokens.record_use(&mut token, token_model).await? {

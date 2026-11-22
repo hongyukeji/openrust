@@ -60,8 +60,7 @@ pub(super) async fn update_token(
             field.to_owned(),
             Value::from(token),
         )]))
-        .await
-        .map_err(AuthError::backend)?;
+        .await?;
     if affected == 0 {
         return Err(AuthError::InvalidIdentity);
     }
@@ -81,17 +80,12 @@ pub(super) async fn rehash(
         return Ok(());
     };
     let options = HashOptions::default();
-    if !force
-        && !hasher
-            .needsRehash(old, &options)
-            .map_err(AuthError::backend)?
-    {
+    if !force && !hasher.needsRehash(old, &options)? {
         return Ok(());
     }
     let new = hasher
         .make(credentials.password().as_bytes(), &options)
-        .await
-        .map_err(AuthError::backend)?;
+        .await?;
     let field = user.getAuthPasswordName();
     let affected = connection
         .table(table)
@@ -105,8 +99,7 @@ pub(super) async fn rehash(
             field.to_owned(),
             Value::Text(new),
         )]))
-        .await
-        .map_err(AuthError::backend)?;
+        .await?;
     if affected == 0 {
         return Err(AuthError::InvalidIdentity);
     }

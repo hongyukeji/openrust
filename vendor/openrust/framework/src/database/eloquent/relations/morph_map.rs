@@ -71,10 +71,7 @@ impl MorphMap {
             incoming.insert(entry.alias, entry);
         }
 
-        let map = app
-            .container()
-            .make::<Self>()
-            .map_err(DatabaseError::Unavailable)?;
+        let map = app.container().make::<Self>()?;
         let mut map = map.0.write().unwrap();
         if merge {
             for (alias, entry) in &map.entries {
@@ -120,9 +117,7 @@ impl MorphMap {
         connection: &Connection,
     ) -> DatabaseResult<Vec<&'static str>> {
         if let Some(container) = Connection::model_container(Some(connection)) {
-            let map = container
-                .make::<Self>()
-                .map_err(DatabaseError::Unavailable)?;
+            let map = container.make::<Self>()?;
             let aliases = map.aliases::<M>();
             if !aliases.is_empty() {
                 return Ok(aliases);
@@ -137,9 +132,7 @@ impl MorphMap {
         let Some(container) = Connection::model_container(connection) else {
             return Ok(type_name::<M>());
         };
-        let map = container
-            .make::<Self>()
-            .map_err(DatabaseError::Unavailable)?;
+        let map = container.make::<Self>()?;
         let map = map.0.read().unwrap();
         if let Some(entry) = map
             .entries

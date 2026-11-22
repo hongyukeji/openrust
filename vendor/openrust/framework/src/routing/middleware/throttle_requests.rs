@@ -69,8 +69,7 @@ pub(super) async fn handle(
         None
     } else {
         RateLimiter::getFacadeRoot()
-            .map_err(CacheError::Unavailable)
-            .map_err(internal)?
+            .map_err(CacheError::Unavailable)?
             .named_limiter(name)
     };
     let named_policy = named.is_some();
@@ -93,17 +92,15 @@ pub(super) async fn handle(
         return Ok(next.run(request).await);
     }
     let backend = if redis {
-        let limiter = DurationLimiter::new(Redis::connection(None).map_err(internal)?);
+        let limiter = DurationLimiter::new(Redis::connection(None)?);
         Backend::Redis(if named_policy {
             limiter.for_http_policy(namespace)
         } else {
             limiter
         })
     } else {
-        let limiter = RateLimiter::getFacadeRoot()
-            .map_err(CacheError::Unavailable)
-            .map_err(internal)?;
-        Backend::Cache(limiter.repository().map_err(internal)?)
+        let limiter = RateLimiter::getFacadeRoot().map_err(CacheError::Unavailable)?;
+        Backend::Cache(limiter.repository()?)
     };
     let mut quotas: Vec<_> = limits
         .iter()
@@ -114,7 +111,7 @@ pub(super) async fn handle(
             charge: limit.afterCallback.is_none(),
         })
         .collect();
-    let mut buckets = match backend.admit(&quotas).await.map_err(internal)? {
+    let mut buckets = match backend.admit(&quotas).await? {
         Admission::Allowed(buckets) => buckets,
         Admission::Denied { index, bucket } => {
             let limit = &limits[index];
@@ -140,11 +137,7 @@ pub(super) async fn handle(
         {
             quota.max = i64::MAX as u64;
             quota.charge = true;
-            *bucket = match backend
-                .admit(std::slice::from_ref(quota))
-                .await
-                .map_err(internal)?
-            {
+            *bucket = match backend.admit(std::slice::from_ref(quota)).await? {
                 Admission::Allowed(buckets) => buckets[0],
                 Admission::Denied { bucket, .. } => bucket,
             };
@@ -167,7 +160,7 @@ async fn numeric_limit(parameters: &str, request: &mut Request) -> Result<Limit,
     use crate::auth::{Auth, AuthIdentifier};
 
     let invalid = || {
-        internal(std::io::Error::other(
+        HttpError::from(std::io::Error::other(
             "named rate limiter is unavailable or numeric throttle parameters are invalid",
         ))
     };
@@ -230,7 +223,7 @@ async fn numeric_limit(parameters: &str, request: &mut Request) -> Result<Limit,
         },
         None => {
             if !request.matched_route {
-                return Err(internal(std::io::Error::other(
+                return Err(HttpError::from(std::io::Error::other(
                     "unable to generate the throttle request signature without a matched route",
                 )));
             }
@@ -279,14 +272,8 @@ fn headers(limit: &Limit, bucket: Bucket, retry: Option<u64>) -> Result<HeaderMa
         headers.insert(RETRY_AFTER, HeaderValue::from(retry));
         headers.insert(
             RESET,
-            HeaderValue::from(counters::clock().map_err(internal)?.saturating_add(retry)),
+            HeaderValue::from(counters::clock()?.saturating_add(retry)),
         );
     }
     Ok(headers)
-}
-
-fn internal(source: impl std::error::Error + Send + Sync + 'static) -> HttpError {
-    HttpError::Internal {
-        source: Box::new(source),
-    }
 }

@@ -16,7 +16,7 @@ use crate::{
 };
 
 use super::{
-    Level, LogContext, LogError, LogResult,
+    Level, LogContext, LogResult,
     sink::{self, Handler, Handlers},
 };
 
@@ -46,8 +46,7 @@ impl Emergency {
             use std::io::Write as _;
             std::io::stderr()
                 .lock()
-                .write_all(record.format_line(&record.message()).as_bytes())
-                .map_err(LogError::write)?;
+                .write_all(record.format_line(&record.message()).as_bytes())?;
         }
         Ok(())
     }
@@ -127,7 +126,7 @@ impl NativeLogger {
         self.processors
             .iter()
             .try_for_each(|process| process(record))?;
-        sink::write(handlers, record).map_err(LogError::write)
+        sink::write(handlers, record).map_err(Into::into)
     }
 
     log_methods!(self);

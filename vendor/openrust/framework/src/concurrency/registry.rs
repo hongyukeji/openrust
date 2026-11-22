@@ -24,7 +24,7 @@ impl Task {
         validate_name(&name)?;
         Ok(Self {
             name,
-            input: serde_json::to_value(input).map_err(Error::Encoding)?,
+            input: serde_json::to_value(input)?,
         })
     }
 

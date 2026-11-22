@@ -335,7 +335,7 @@ impl<T> Collection<Option<T>> {
 }
 
 fn sample_index(len: usize) -> CollectionResult<usize> {
-    crate::support::arr::random_index(len).map_err(|error| CollectionError::Source(Box::new(error)))
+    crate::support::arr::random_index(len).map_err(Into::into)
 }
 
 #[allow(non_snake_case, reason = "Matches Laravel's Collection API")]

@@ -73,3 +73,9 @@ impl std::error::Error for HashError {
         }
     }
 }
+
+impl From<crate::contracts::container::BindingResolutionError> for HashError {
+    fn from(source: crate::contracts::container::BindingResolutionError) -> Self {
+        Self::Unavailable(source)
+    }
+}

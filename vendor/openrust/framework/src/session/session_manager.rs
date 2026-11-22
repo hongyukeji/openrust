@@ -238,7 +238,7 @@ impl SessionManager {
         super::SessionLock::acquire(self.blockDriver(), id, lease, wait)
             .await
             .map(Some)
-            .map_err(super::blocking::http_error)
+            .map_err(Into::into)
     }
 
     pub(super) fn build(

@@ -39,11 +39,10 @@ impl JsonOptions {
         let output = if self.pretty {
             let mut bytes = Vec::new();
             let formatter = PrettyFormatter::with_indent(b"    ");
-            data.serialize(&mut Serializer::with_formatter(&mut bytes, formatter))
-                .map_err(internal)?;
+            data.serialize(&mut Serializer::with_formatter(&mut bytes, formatter))?;
             String::from_utf8(bytes).map_err(internal)?
         } else {
-            serde_json::to_string(data).map_err(internal)?
+            serde_json::to_string(data)?
         };
         if !self.escape_slashes && !self.escape_unicode {
             return Ok(output);

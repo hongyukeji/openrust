@@ -47,12 +47,7 @@ impl DatabaseTokenRepository {
     }
 
     async fn record(&self, email: &str) -> AuthResult<Option<(String, Timestamp)>> {
-        let Some(row) = self
-            .query(email)
-            .first()
-            .await
-            .map_err(AuthError::backend)?
-        else {
+        let Some(row) = self.query(email).first().await? else {
             return Ok(None);
         };
         let (Some(Value::Text(hash)), Some(Value::Text(created))) =
@@ -85,8 +80,7 @@ impl TokenRepository for DatabaseTokenRepository {
             self.database
                 .table(&self.table)
                 .upsert(&[record], &["email"], Some(&["token", "created_at"]))
-                .await
-                .map_err(AuthError::backend)?;
+                .await?;
             Ok(token)
         })
     }
@@ -119,8 +113,7 @@ impl TokenRepository for DatabaseTokenRepository {
                         .orWhereNull("created_at")
                 })
                 .update(values.clone())
-                .await
-                .map_err(AuthError::backend)?;
+                .await?;
             if updated != 0 {
                 return Ok(Some(token));
             }
@@ -130,8 +123,7 @@ impl TokenRepository for DatabaseTokenRepository {
                 .database
                 .table(&self.table)
                 .insertOrIgnore(&[values])
-                .await
-                .map_err(AuthError::backend)?;
+                .await?;
             Ok((inserted == 1).then_some(token))
         })
     }
@@ -161,8 +153,7 @@ impl TokenRepository for DatabaseTokenRepository {
                     timestamp(self.policy.expiry_cutoff(now())),
                 )
                 .update([("token".into(), format!("!{hash}").into())].into())
-                .await
-                .map_err(AuthError::backend)?;
+                .await?;
             Ok((changed == 1).then_some(TokenClaim { hash }))
         })
     }
@@ -178,12 +169,11 @@ impl TokenRepository for DatabaseTokenRepository {
                 .query(email)
                 .r#where("token", "=", format!("!{}", claim.hash));
             if success {
-                query.delete().await.map_err(AuthError::backend)?;
+                query.delete().await?;
             } else {
                 query
                     .update([("token".into(), claim.hash.into())].into())
-                    .await
-                    .map_err(AuthError::backend)?;
+                    .await?;
             }
             Ok(())
         })
@@ -222,10 +212,7 @@ impl TokenRepository for DatabaseTokenRepository {
 
     fn delete<'a>(&'a self, user: &'a dyn CanResetPassword) -> AuthFuture<'a, AuthResult<()>> {
         Box::pin(async move {
-            self.query(user.getEmailForPasswordReset())
-                .delete()
-                .await
-                .map_err(AuthError::backend)?;
+            self.query(user.getEmailForPasswordReset()).delete().await?;
             Ok(())
         })
     }
@@ -240,8 +227,7 @@ impl TokenRepository for DatabaseTokenRepository {
                     timestamp(self.policy.expiry_cutoff(now())),
                 )
                 .delete()
-                .await
-                .map_err(AuthError::backend)?;
+                .await?;
             Ok(())
         })
     }

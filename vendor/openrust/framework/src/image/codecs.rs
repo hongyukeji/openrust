@@ -85,9 +85,7 @@ pub(super) fn decode(
             decode_native(decoder, limits, false)?
         }
         _ => {
-            let mut reader = ImageReader::new(Cursor::new(contents))
-                .with_guessed_format()
-                .map_err(Error::Io)?;
+            let mut reader = ImageReader::new(Cursor::new(contents)).with_guessed_format()?;
             reader.limits(decoder_limits);
             decode_native(
                 reader.into_decoder().map_err(decode_error)?,

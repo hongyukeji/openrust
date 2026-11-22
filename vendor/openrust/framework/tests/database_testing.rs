@@ -467,10 +467,7 @@ fn write_item(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
                 .insert(&[Record::from([("name".into(), "http".into())])])
                 .await
         }
-        .await
-        .map_err(|source| HttpError::Internal {
-            source: Box::new(source),
-        })?;
+        .await?;
         Ok(Response::empty(StatusCode::NO_CONTENT))
     })
 }

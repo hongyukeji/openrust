@@ -76,10 +76,9 @@ impl PasswordBrokerManager {
             .as_str()
             .ok_or(AuthError::Configuration("app.key"))?;
         let users = app
-            .make::<AuthManager>()
-            .map_err(AuthError::backend)?
+            .make::<AuthManager>()?
             .createUserProvider(config["provider"].as_str().unwrap_or("users"))?;
-        let hasher = app.make::<dyn Hasher>().map_err(AuthError::backend)?;
+        let hasher = app.make::<dyn Hasher>()?;
         let duration = |key, default| -> AuthResult<u64> {
             match config.get(key) {
                 None | Some(Value::Null) => Ok(default),
@@ -97,20 +96,16 @@ impl PasswordBrokerManager {
         {
             "cache" => {
                 let cache = app
-                    .make::<CacheManager>()
-                    .map_err(AuthError::backend)?
-                    .store(config["store"].as_str())
-                    .map_err(AuthError::backend)?;
+                    .make::<CacheManager>()?
+                    .store(config["store"].as_str())?;
                 Arc::new(CacheTokenRepository::new(
                     cache, app_key, hasher, expires, throttle,
                 )?)
             }
             "database" => {
                 let connection = app
-                    .make::<DatabaseManager>()
-                    .map_err(AuthError::backend)?
-                    .connection(config["connection"].as_str())
-                    .map_err(AuthError::backend)?;
+                    .make::<DatabaseManager>()?
+                    .connection(config["connection"].as_str())?;
                 let table = config["table"]
                     .as_str()
                     .ok_or(AuthError::Configuration("password token table"))?;
@@ -120,7 +115,7 @@ impl PasswordBrokerManager {
             }
             _ => return Err(AuthError::Configuration("password broker driver")),
         };
-        let events = app.make::<Dispatcher>().map_err(AuthError::backend)?;
+        let events = app.make::<Dispatcher>()?;
         let microseconds = self
             .config
             .get("auth.timebox_duration")

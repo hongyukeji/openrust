@@ -104,10 +104,7 @@ impl Middleware for PreventRequestForgery {
             {
                 let manager = current_container()
                     .ok_or(SessionError::Configuration)?
-                    .get::<SessionManager>("session")
-                    .map_err(|source| HttpError::Internal {
-                        source: Box::new(source),
-                    })?;
+                    .get::<SessionManager>("session")?;
                 #[cfg(feature = "sanctum")]
                 let stateful_frontend = crate::sanctum::StatefulFrontend::is_active(request);
                 #[cfg(not(feature = "sanctum"))]

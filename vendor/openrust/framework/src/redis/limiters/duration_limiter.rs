@@ -76,9 +76,7 @@ impl DurationLimiter {
             .query_slot::<u64>(::redis::cmd("DEL").arg(self.key(key)))
             .await
             .map(|_| ())
-            .map_err(|source| CacheError::Backend {
-                source: Box::new(source),
-            })
+            .map_err(Into::into)
     }
 
     pub(crate) async fn admit(&self, quotas: &[Quota]) -> CacheResult<Admission> {
@@ -98,10 +96,7 @@ impl DurationLimiter {
             self.connection.query_slot(&command).await
         } else {
             self.connection.query(&command).await
-        }
-        .map_err(|source| CacheError::Backend {
-            source: Box::new(source),
-        })?;
+        }?;
         match result.split_first() {
             Some((&0, buckets)) if buckets.len() == quotas.len() * 2 => Ok(Admission::Allowed(
                 buckets

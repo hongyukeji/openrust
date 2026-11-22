@@ -254,7 +254,7 @@ fn quote_etag(value: &str) -> Option<HeaderValue> {
 }
 
 fn last_modified(input: &str) -> Result<HeaderValue, HttpError> {
-    let configured = Config::get("app.timezone").map_err(internal)?;
+    let configured = Config::get("app.timezone")?;
     let timezone = configured
         .as_ref()
         .and_then(|value| value.as_str())
@@ -280,7 +280,8 @@ fn last_modified(input: &str) -> Result<HeaderValue, HttpError> {
         .map(|date| date.to_zoned(jiff::tz::TimeZone::UTC))
         .filter(|date| (1..=9999).contains(&date.year()))
         .ok_or_else(|| internal(std::io::Error::other("cache last_modified is out of range")))?;
-    HeaderValue::from_str(&date.strftime("%a, %d %b %Y %H:%M:%S GMT").to_string()).map_err(internal)
+    HeaderValue::from_str(&date.strftime("%a, %d %b %Y %H:%M:%S GMT").to_string())
+        .map_err(Into::into)
 }
 
 fn is_not_modified(request: &HeaderMap, response: &HeaderMap) -> bool {

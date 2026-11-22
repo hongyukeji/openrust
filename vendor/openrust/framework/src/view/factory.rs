@@ -738,10 +738,7 @@ impl ContractView for View {
         use crate::support::facades::{Facade as _, View as ViewFacade};
         let factory = match &self.binding {
             Some(binding) => binding.factory.clone(),
-            None => ViewFacade::getFacadeRoot()
-                .map_err(ViewError::Unavailable)?
-                .as_ref()
-                .clone(),
+            None => ViewFacade::getFacadeRoot()?.as_ref().clone(),
         };
         factory.render_view_ref(self, &mut RenderContext::new(Some(&factory)))
     }

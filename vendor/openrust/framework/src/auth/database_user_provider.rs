@@ -58,12 +58,7 @@ impl DatabaseUserProvider {
     }
 
     async fn first(&self, query: Builder<'static>) -> AuthResult<Option<Box<dyn Authenticatable>>> {
-        query
-            .first()
-            .await
-            .map_err(AuthError::backend)?
-            .map(|row| self.record(row))
-            .transpose()
+        query.first().await?.map(|row| self.record(row)).transpose()
     }
 
     pub(super) async fn retrieve_by_field(
@@ -117,8 +112,7 @@ impl UserProvider for DatabaseUserProvider {
                 .table(&self.table)
                 .r#where(column, "=", token)
                 .first()
-                .await
-                .map_err(AuthError::backend)?;
+                .await?;
             row.filter(|row| providers::matches_api_token(row.get(column), token))
                 .map(|row| self.record(row))
                 .transpose()

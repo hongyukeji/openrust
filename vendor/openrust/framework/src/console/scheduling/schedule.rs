@@ -66,8 +66,7 @@ impl Schedule {
         + 'static,
     ) -> crate::events::EventResult<()> {
         use crate::support::facades::Facade as _;
-        let events = crate::support::facades::Event::getFacadeRoot()
-            .map_err(crate::events::EventError::Unavailable)?;
+        let events = crate::support::facades::Event::getFacadeRoot()?;
         let listener = Arc::new(super::long_task_listener::LongTaskListener {
             threshold,
             handler: Arc::new(handler),

@@ -925,9 +925,7 @@ impl Connection {
         else {
             return Ok(());
         };
-        let dispatcher = owner
-            .get::<Dispatcher>("events")
-            .map_err(DatabaseError::Unavailable)?;
+        let dispatcher = owner.get::<Dispatcher>("events")?;
         if dispatcher.observes(ConnectionEstablished::NAME) {
             let event = Arc::new(ConnectionEstablished {
                 connection: self.clone(),
@@ -1048,9 +1046,7 @@ impl Connection {
         else {
             return Ok(());
         };
-        let dispatcher = owner
-            .get::<Dispatcher>("events")
-            .map_err(DatabaseError::Unavailable)?;
+        let dispatcher = owner.get::<Dispatcher>("events")?;
         dispatcher
             .listen(QueryExecuted::NAME, listener, Delivery::Sync)
             .map_err(|source| DatabaseError::ConnectionEvent(Box::new(source)))
@@ -1208,9 +1204,7 @@ impl Connection {
             && let Some(owner) =
                 Self::model_container(Some(self)).filter(|owner| owner.has("events"))
         {
-            let dispatcher = owner
-                .get::<Dispatcher>("events")
-                .map_err(DatabaseError::Unavailable)?;
+            let dispatcher = owner.get::<Dispatcher>("events")?;
             if dispatcher.observes(QueryExecuted::NAME) {
                 return Ok(Some(QueryNotification {
                     owner,

@@ -352,9 +352,7 @@ impl Request {
         let timezone = match timezone {
             Some(timezone) => timezone,
             None => {
-                configured = Config::get("app.timezone").map_err(|source| HttpError::Internal {
-                    source: Box::new(source),
-                })?;
+                configured = Config::get("app.timezone")?;
                 match &configured {
                     None => "UTC",
                     Some(value) => value.as_str().ok_or_else(|| HttpError::Internal {
@@ -461,11 +459,7 @@ impl Request {
     pub async fn image(&mut self, key: &str) -> Result<Option<crate::image::Image>, HttpError> {
         self.file(key)
             .await?
-            .map(|file| {
-                crate::image::ImageFacade::fromUpload(&file).map_err(|error| HttpError::Internal {
-                    source: Box::new(error),
-                })
-            })
+            .map(|file| crate::image::ImageFacade::fromUpload(&file).map_err(Into::into))
             .transpose()
     }
 

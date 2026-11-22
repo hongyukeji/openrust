@@ -88,12 +88,10 @@ impl<'a> ResetPassword<'a> {
     }
 
     fn default_mail(&self, url: &str) -> AuthResult<MailDelivery> {
-        let broker = Config::get("auth.defaults.passwords")
-            .map_err(AuthError::backend)?
+        let broker = Config::get("auth.defaults.passwords")?
             .and_then(|value| value.as_str().map(str::to_owned))
             .unwrap_or_else(|| "users".into());
-        let expires_minutes = Config::get(&format!("auth.passwords.{broker}.expire"))
-            .map_err(AuthError::backend)?
+        let expires_minutes = Config::get(&format!("auth.passwords.{broker}.expire"))?
             .and_then(|value| value.as_u64())
             .unwrap_or(60);
         LinkMail {

@@ -138,9 +138,7 @@ impl CacheManager {
             .upgrade()
             .filter(|owner| owner.has_active_scope())
         {
-            let repositories = owner
-                .make::<MemoizedRepositories>()
-                .map_err(CacheError::Unavailable)?;
+            let repositories = owner.make::<MemoizedRepositories>()?;
             return Ok(repositories.repository(repository));
         }
         Ok(MemoizedStore::wrap(repository, None))

@@ -29,7 +29,7 @@ pub trait HasApiTokens: Model + Authenticatable {
             None => return Err(AuthError::InvalidIdentity),
         };
         Ok(TokenRelation {
-            owner_type: self.getMorphClass().map_err(AuthError::backend)?,
+            owner_type: self.getMorphClass()?,
             owner_id,
             store: sanctum.personalAccessTokens(database, "")?,
         })
@@ -41,7 +41,7 @@ pub trait HasApiTokens: Model + Authenticatable {
         sanctum: &Sanctum,
     ) -> AuthResult<MorphMany<Self, T>> {
         sanctum.require_token_model::<T>()?;
-        let alias = self.getMorphClass().map_err(AuthError::backend)?;
+        let alias = self.getMorphClass()?;
         Ok(
             MorphMany::new(self.getKeyName(), "tokenable_id", "tokenable_type", alias)
                 .with_exact_morph_alias(alias),

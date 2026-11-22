@@ -237,9 +237,9 @@ impl SetLocale {
         if let Some(callback) = &self.locale_callback
             && let Some(locale) = callback(request)?
         {
-            let locale = canonical_locale(&locale).map_err(internal)?;
+            let locale = canonical_locale(&locale)?;
             if !self.supported.contains(&locale) {
-                return Err(internal(std::io::Error::new(
+                return Err(HttpError::from(std::io::Error::new(
                     std::io::ErrorKind::InvalidInput,
                     format!("语言选择回调返回了不在候选列表中的语言：{locale}"),
                 )));
@@ -300,8 +300,8 @@ impl Middleware for SetLocale {
                 return Ok(next.run(request).await);
             }
             // 最小应用可不提供 app.locale，沿用译器已有的英文默认值。
-            let default = if Config::has("app.locale").map_err(internal)? {
-                App::currentLocale().map_err(internal)?
+            let default = if Config::has("app.locale")? {
+                App::currentLocale()?
             } else {
                 "en".to_owned()
             };
@@ -331,7 +331,7 @@ impl Middleware for SetLocale {
                 header.as_ref(),
                 preference.as_deref(),
             )?;
-            App::setLocale(&locale).await.map_err(internal)?;
+            App::setLocale(&locale).await?;
             request.parts_mut().extensions.insert(LocaleSelection {
                 // 回调已决定语言时，URL 控件无法覆盖它，因此不对页面提供可切换入口。
                 query_parameter: if from_callback { None } else { parameter },
@@ -342,8 +342,8 @@ impl Middleware for SetLocale {
             });
             let mut response = next.run(request).await;
             // 下游可以主动切换语言，已有响应头仍由响应提供者决定。
-            let language = if Config::has("app.locale").map_err(internal)? {
-                App::currentLocale().map_err(internal)?
+            let language = if Config::has("app.locale")? {
+                App::currentLocale()?
             } else {
                 locale
             };
@@ -351,7 +351,7 @@ impl Middleware for SetLocale {
                 response
                     .parts_mut()
                     .headers
-                    .insert("content-language", language.parse().map_err(internal)?);
+                    .insert("content-language", language.parse()?);
             }
             if let Some(header) = header {
                 add_vary(
@@ -384,16 +384,13 @@ fn add_vary(response: &mut Response, name: &str) -> Result<(), HttpError> {
         })
     });
     if !present {
-        response
-            .parts_mut()
-            .headers
-            .append("vary", name.parse().map_err(internal)?);
+        response.parts_mut().headers.append("vary", name.parse()?);
     }
     Ok(())
 }
 
 fn locale_cookie() -> Result<Option<String>, HttpError> {
-    match Config::get("app.locale_cookie").map_err(internal)? {
+    match Config::get("app.locale_cookie")? {
         None => Ok(Some("locale".into())),
         Some(serde_json::Value::Null) => Ok(None),
         Some(serde_json::Value::String(name))
@@ -402,8 +399,7 @@ fn locale_cookie() -> Result<Option<String>, HttpError> {
                 && name != "XSRF-TOKEN"
                 && !name.contains(['.', '[', ']'])
                 && name.parse::<http::HeaderName>().is_ok()
-                && Config::get("session.cookie")
-                    .map_err(internal)?
+                && Config::get("session.cookie")?
                     .and_then(|value| value.as_str().map(str::to_owned))
                     .as_deref()
                     .unwrap_or("openrust_session")
@@ -411,7 +407,7 @@ fn locale_cookie() -> Result<Option<String>, HttpError> {
         {
             Ok(Some(name))
         }
-        _ => Err(internal(ConfigError::InvalidType {
+        _ => Err(HttpError::from(ConfigError::InvalidType {
             key: "app.locale_cookie".into(),
             expected: "不与会话或 XSRF Cookie 冲突的非空顶层 Cookie 名称，或 null",
         })),
@@ -420,12 +416,12 @@ fn locale_cookie() -> Result<Option<String>, HttpError> {
 
 fn locale_header() -> Result<Option<http::HeaderName>, HttpError> {
     let invalid = || {
-        internal(ConfigError::InvalidType {
+        HttpError::from(ConfigError::InvalidType {
             key: "app.locale_header".into(),
             expected: "合法的非空 HTTP 请求头名称，或 null",
         })
     };
-    match Config::get("app.locale_header").map_err(internal)? {
+    match Config::get("app.locale_header")? {
         None => Ok(Some(http::header::ACCEPT_LANGUAGE)),
         Some(serde_json::Value::Null) => Ok(None),
         Some(serde_json::Value::String(name)) => http::HeaderName::from_bytes(name.as_bytes())
@@ -436,7 +432,7 @@ fn locale_header() -> Result<Option<http::HeaderName>, HttpError> {
 }
 
 fn query_parameter() -> Result<Option<String>, HttpError> {
-    match Config::get("app.locale_query_parameter").map_err(internal)? {
+    match Config::get("app.locale_query_parameter")? {
         None => Ok(Some("locale".into())),
         Some(serde_json::Value::Null) => Ok(None),
         Some(serde_json::Value::String(name))
@@ -447,16 +443,10 @@ fn query_parameter() -> Result<Option<String>, HttpError> {
         {
             Ok(Some(name))
         }
-        _ => Err(internal(ConfigError::InvalidType {
+        _ => Err(HttpError::from(ConfigError::InvalidType {
             key: "app.locale_query_parameter".into(),
             expected: "非空查询参数名（不含空白、控制字符、点或方括号），或 null",
         })),
-    }
-}
-
-fn internal(source: impl std::error::Error + Send + Sync + 'static) -> HttpError {
-    HttpError::Internal {
-        source: Box::new(source),
     }
 }
 

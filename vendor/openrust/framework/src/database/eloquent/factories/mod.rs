@@ -526,8 +526,7 @@ impl<M: Model> Factory<M> {
         };
         match Connection::model_container(Some(inherited)) {
             Some(container) => container
-                .get::<DatabaseManager>("db")
-                .map_err(DatabaseError::Unavailable)?
+                .get::<DatabaseManager>("db")?
                 .connection(Some(name)),
             None => DB::connection(Some(name)),
         }

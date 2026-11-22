@@ -101,9 +101,7 @@ impl<T: Serialize> ApiResponse<T> {
             return Ok(Response::empty(self.status));
         }
 
-        let body = serde_json::to_vec(&self).map_err(|source| HttpError::Internal {
-            source: source.into(),
-        })?;
+        let body = serde_json::to_vec(&self)?;
         let mut response = Response::new(self.status, Body::from(body));
         response
             .parts_mut()

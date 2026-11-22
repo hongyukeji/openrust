@@ -71,8 +71,7 @@ impl DatabaseBackend {
             .useWritePdo()
             .r#where("key", "=", key.as_str())
             .first()
-            .await
-            .map_err(backend)?;
+            .await?;
         let Some(row) = row else {
             return Ok(None);
         };
@@ -83,8 +82,7 @@ impl DatabaseBackend {
                 .r#where("key", "=", key)
                 .r#where("expiration", "<=", time / 1000)
                 .delete()
-                .await
-                .map_err(backend)?;
+                .await?;
             return Ok(None);
         }
         decode(row, self.column).map(Some)
@@ -169,16 +167,11 @@ impl DatabaseBackend {
                 },
                 3,
             )
-            .await
-            .map_err(backend)?
+            .await?
     }
 
     pub(super) async fn flush(&self) -> CacheResult<()> {
-        self.connection
-            .table(&self.table)
-            .delete()
-            .await
-            .map_err(backend)?;
+        self.connection.table(&self.table).delete().await?;
         Ok(())
     }
 }

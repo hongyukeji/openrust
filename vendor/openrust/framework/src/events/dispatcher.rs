@@ -109,9 +109,7 @@ impl Dispatcher {
 
     fn pushed_events(&self) -> EventResult<Arc<PushedEvents>> {
         match self.owner.upgrade() {
-            Some(owner) => owner
-                .make::<PushedEvents>()
-                .map_err(EventError::Unavailable),
+            Some(owner) => owner.make::<PushedEvents>().map_err(Into::into),
             None => Ok(self.pushed.clone()),
         }
     }
@@ -168,7 +166,7 @@ impl Dispatcher {
             .upgrade()
             .ok_or(EventError::QueueUnavailable)?
             .make::<crate::queue::QueueManager>()
-            .map_err(EventError::Unavailable)
+            .map_err(Into::into)
     }
 
     pub fn register(
@@ -518,9 +516,7 @@ impl Dispatcher {
                     std::io::Error::other("Broadcast application is unavailable.").into(),
                 ))
             })?;
-            let factory = owner
-                .make::<dyn BroadcastFactory>()
-                .map_err(EventError::Unavailable)?;
+            let factory = owner.make::<dyn BroadcastFactory>()?;
             delivery
                 .handle(factory.as_ref())
                 .await

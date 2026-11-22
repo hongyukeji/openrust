@@ -35,9 +35,7 @@ impl CreatesNewUsers for CreateNewUser {
             super::validator(input, rules, Default::default())?
                 .validate()
                 .await?;
-            let password = Hash::make(super::text(input, "password")?, &HashOptions::new())
-                .await
-                .map_err(super::internal)?;
+            let password = Hash::make(super::text(input, "password")?, &HashOptions::new()).await?;
             let user = User::create(
                 [
                     ("name".into(), super::text(input, "name")?.into()),
@@ -46,8 +44,7 @@ impl CreatesNewUsers for CreateNewUser {
                 ]
                 .into(),
             )
-            .await
-            .map_err(super::internal)?;
+            .await?;
             Ok(Box::new(user) as Box<dyn Account>)
         })
     }

@@ -49,18 +49,9 @@ fn application(path: PathBuf) -> Application {
 
 fn cache_http(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let value = Cache::get("reports/latest")
-            .await
-            .map_err(|source| HttpError::Internal {
-                source: Box::new(source),
-            })?;
+        let value = Cache::get("reports/latest").await?;
         let reply = value.as_ref().and_then(Value::as_str).unwrap_or("empty");
-        let _: openrust::redis::Value =
-            Redis::command("PING", &[])
-                .await
-                .map_err(|source| HttpError::Internal {
-                    source: Box::new(source),
-                })?;
+        let _: openrust::redis::Value = Redis::command("PING", &[]).await?;
         Ok(Response::new(StatusCode::OK, Body::from(reply.to_owned())))
     })
 }

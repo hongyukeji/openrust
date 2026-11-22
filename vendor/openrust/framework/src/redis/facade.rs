@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use crate::{container::ServiceKey, support::facades::Facade};
 
-use super::{RedisError, RedisManager, RedisResult, Value, connections::Connection};
+use super::{RedisManager, RedisResult, Value, connections::Connection};
 
 /// Resolves a Redis connection in the current application.
 pub struct Redis;
@@ -17,9 +17,7 @@ impl Facade for Redis {
 
 impl Redis {
     pub fn purge(name: Option<&str>) -> RedisResult<()> {
-        Self::getFacadeRoot()
-            .map_err(RedisError::Unavailable)?
-            .purge(name);
+        Self::getFacadeRoot()?.purge(name);
         Ok(())
     }
 
@@ -27,16 +25,12 @@ impl Redis {
         driver: impl Into<String>,
         callback: impl Fn(&serde_json::Value, &str) -> RedisResult<Connection> + Send + Sync + 'static,
     ) -> RedisResult<()> {
-        Self::getFacadeRoot()
-            .map_err(RedisError::Unavailable)?
-            .extend(driver, callback);
+        Self::getFacadeRoot()?.extend(driver, callback);
         Ok(())
     }
 
     pub fn connection(name: Option<&str>) -> RedisResult<Arc<Connection>> {
-        Self::getFacadeRoot()
-            .map_err(RedisError::Unavailable)?
-            .connection(name)
+        Self::getFacadeRoot()?.connection(name)
     }
 
     pub async fn command(method: &str, parameters: &[&[u8]]) -> RedisResult<Value> {

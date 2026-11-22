@@ -13,7 +13,7 @@ impl UpdatesUserPasswords for UpdateUserPassword {
         _: &'a RequestValue,
     ) -> HttpFuture<'a, Result<Box<dyn User>, HttpError>> {
         Box::pin(async {
-            Err(super::internal(std::io::Error::other(
+            Err(HttpError::from(std::io::Error::other(
                 "UpdateUserPassword requires updateFromRequest to resolve current_password:web",
             )))
         })
@@ -45,8 +45,7 @@ impl UpdatesUserPasswords for UpdateUserPassword {
                     "The provided password does not match your current password.",
                     &Default::default(),
                     None,
-                )
-                .map_err(super::internal)?,
+                )?,
             )]
             .into();
             super::validator(input, rules, messages)?

@@ -113,10 +113,7 @@ fn render(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
             assert_eq!(Lang::getLocale().unwrap(), locale);
             rendered
         })
-        .await
-        .map_err(|source| HttpError::Internal {
-            source: Box::new(source),
-        })?
+        .await?
     })
 }
 

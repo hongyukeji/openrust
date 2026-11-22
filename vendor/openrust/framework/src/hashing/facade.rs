@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use crate::{container::ServiceKey, contracts::hashing::Hasher, support::facades::Facade};
 
-use super::{HashError, HashInfo, HashManager, HashOptions, HashResult};
+use super::{HashInfo, HashManager, HashOptions, HashResult};
 
 /// Resolves the application hash manager.
 pub struct Hash;
@@ -21,23 +21,17 @@ impl Hash {
         name: impl Into<String>,
         factory: impl Fn(&HashManager) -> HashResult<Arc<dyn Hasher>> + Send + Sync + 'static,
     ) -> HashResult<()> {
-        Self::getFacadeRoot()
-            .map_err(HashError::Unavailable)?
-            .extend(name, factory);
+        Self::getFacadeRoot()?.extend(name, factory);
         Ok(())
     }
 
     pub fn forgetDrivers() -> HashResult<()> {
-        Self::getFacadeRoot()
-            .map_err(HashError::Unavailable)?
-            .forgetDrivers();
+        Self::getFacadeRoot()?.forgetDrivers();
         Ok(())
     }
 
     pub fn driver(name: Option<&str>) -> HashResult<Arc<dyn Hasher>> {
-        Self::getFacadeRoot()
-            .map_err(HashError::Unavailable)?
-            .driver(name)
+        Self::getFacadeRoot()?.driver(name)
     }
 
     pub async fn make(value: impl AsRef<[u8]>, options: &HashOptions) -> HashResult<String> {
@@ -63,9 +57,7 @@ impl Hash {
     }
 
     pub fn isHashed(value: &str) -> HashResult<bool> {
-        Self::getFacadeRoot()
-            .map_err(HashError::Unavailable)?
-            .isHashed(value)
+        Self::getFacadeRoot()?.isHashed(value)
     }
 
     pub fn verifyConfiguration(hashed: &str) -> HashResult<bool> {

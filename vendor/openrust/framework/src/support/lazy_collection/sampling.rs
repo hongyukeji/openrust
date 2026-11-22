@@ -15,8 +15,7 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
         if items.isEmpty() {
             return Err(CollectionError::ItemNotFound);
         }
-        let index = random_index(items.count())
-            .map_err(|error| CollectionError::Source(Box::new(error)))?;
+        let index = random_index(items.count())?;
         Ok(items
             .into_iter()
             .nth(index)

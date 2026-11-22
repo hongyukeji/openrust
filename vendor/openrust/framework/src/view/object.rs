@@ -213,7 +213,7 @@ impl ApplicationObject {
                     arguments
                 };
                 let patterns = values.iter().map(string).collect::<ViewResult<Vec<_>>>()?;
-                let query = if arguments.is_empty() {
+                let query = if patterns.is_empty() {
                     None
                 } else {
                     Some(EnvironmentQuery::Names(&patterns))

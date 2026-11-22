@@ -369,11 +369,7 @@ fn replica(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
                 .cloned()
                 .unwrap_or(Value::Null))
         }
-        let id = read(write, force_writer)
-            .await
-            .map_err(|source| HttpError::Internal {
-                source: source.into(),
-            })?;
+        let id = read(write, force_writer).await?;
         let Value::Integer(id) = id else {
             panic!("expected integer")
         };
@@ -384,9 +380,7 @@ fn replica(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
 fn routes(_: &Application) -> Result<Router, RoutingError> {
     fn query(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         Box::pin(async {
-            let value = probe_value().await.map_err(|source| HttpError::Internal {
-                source: source.into(),
-            })?;
+            let value = probe_value().await?;
             let Value::Integer(id) = value else {
                 panic!("expected integer")
             };

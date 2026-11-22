@@ -32,7 +32,14 @@ impl std::fmt::Display for ArrValueError {
     }
 }
 
-impl std::error::Error for ArrValueError {}
+impl std::error::Error for ArrValueError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Path(source) => Some(source),
+            _ => None,
+        }
+    }
+}
 
 impl From<DataPathError> for ArrValueError {
     fn from(error: DataPathError) -> Self {

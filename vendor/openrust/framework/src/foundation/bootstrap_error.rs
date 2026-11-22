@@ -92,3 +92,21 @@ impl Error for BootstrapError {
         }
     }
 }
+
+impl From<crate::contracts::container::BindingResolutionError> for BootstrapError {
+    fn from(source: crate::contracts::container::BindingResolutionError) -> Self {
+        Self::ContainerFailed { source }
+    }
+}
+
+impl From<ConfigError> for BootstrapError {
+    fn from(source: ConfigError) -> Self {
+        Self::ConfigurationFailed { source }
+    }
+}
+
+impl From<RoutingError> for BootstrapError {
+    fn from(source: RoutingError) -> Self {
+        Self::RoutingFailed { source }
+    }
+}

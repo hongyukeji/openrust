@@ -133,12 +133,7 @@ impl<F> ValidatedFormRequest<F> {
 impl<F: FormRequest + Default + 'static> ValidatedFormRequest<F> {
     pub(crate) async fn resolve(request: &mut Request) -> Result<Self, HttpError> {
         let mut form = if let Some(container) = current_container().filter(|app| app.bound::<F>()) {
-            let form = request
-                .withContainer(container.makeAsync::<F>())
-                .await
-                .map_err(|source| HttpError::Internal {
-                    source: Box::new(source),
-                })?;
+            let form = request.withContainer(container.makeAsync::<F>()).await?;
             std::sync::Arc::into_inner(form).ok_or_else(|| HttpError::Internal {
                 source: std::io::Error::other(
                     "A form request binding must return an owned instance for each resolution.",

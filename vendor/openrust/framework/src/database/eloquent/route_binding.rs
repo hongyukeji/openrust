@@ -1,6 +1,6 @@
 use crate::{
     contracts::routing::UrlRoutable,
-    database::{DatabaseError, DatabaseResult, Value},
+    database::{DatabaseResult, Value},
     http::{HttpError, HttpFuture},
     routing::{BindingContext, UrlError, UrlResult, UrlValue},
 };
@@ -65,10 +65,4 @@ pub(super) async fn lookup<M: Model>(
     }
     query.r#where(&query.qualifyColumn(field), "=", value);
     query.first().await
-}
-
-pub(super) fn http_error(source: DatabaseError) -> HttpError {
-    HttpError::Internal {
-        source: Box::new(source),
-    }
 }

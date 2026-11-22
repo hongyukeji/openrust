@@ -44,12 +44,7 @@ impl Middleware for AuthenticateSession {
             let mut invalid = false;
             for guard in &session_guards {
                 let key = format!("password_hash_{guard}");
-                let Some(stored) = request
-                    .session()
-                    .map_err(AuthError::backend)?
-                    .get(&key)
-                    .cloned()
-                else {
+                let Some(stored) = request.session()?.get(&key).cloned() else {
                     continue;
                 };
                 let user = auth.userForGuard(request, Some(guard.as_str())).await?;
@@ -66,7 +61,7 @@ impl Middleware for AuthenticateSession {
                 }
             }
             if invalid {
-                request.session_mut().map_err(AuthError::backend)?.flush();
+                request.session_mut()?.flush();
                 crate::auth::reset_request(request);
                 return Err(HttpError::Unauthenticated);
             }
@@ -75,14 +70,10 @@ impl Middleware for AuthenticateSession {
             for guard in session_guards {
                 if let Some(user) = AuthManager::resolved_user(request, guard) {
                     let fingerprint = self.signer.sign(user.getAuthPassword());
-                    request
-                        .session_mut()
-                        .map_err(AuthError::backend)?
-                        .put(
-                            &format!("password_hash_{guard}"),
-                            serde_json::json!(fingerprint),
-                        )
-                        .map_err(AuthError::backend)?;
+                    request.session_mut()?.put(
+                        &format!("password_hash_{guard}"),
+                        serde_json::json!(fingerprint),
+                    )?;
                     break;
                 }
             }

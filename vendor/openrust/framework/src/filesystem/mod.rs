@@ -148,3 +148,9 @@ mod signed_routes;
 pub(crate) use signed_routes::register as register_signed_routes;
 
 mod contracts;
+
+impl From<crate::contracts::container::BindingResolutionError> for FilesystemError {
+    fn from(source: crate::contracts::container::BindingResolutionError) -> Self {
+        Self::Unavailable(source)
+    }
+}

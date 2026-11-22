@@ -1065,10 +1065,9 @@ impl ServiceProvider for Providers {
         Box::pin(async move {
             if std::env::var_os("QUEUE_WORKER_TEST_CUSTOM_DETECTOR").is_some() {
                 app.container()
-                    .instance::<dyn LostConnectionDetector>(Arc::new(FixtureLostConnectionDetector))
-                    .map_err(|source| HttpError::Internal {
-                        source: Box::new(source),
-                    })?;
+                    .instance::<dyn LostConnectionDetector>(Arc::new(
+                        FixtureLostConnectionDetector,
+                    ))?;
             }
             if std::env::var_os("QUEUE_WORKER_DISABLE_POLLING").is_some() {
                 Queue::withoutInterruptionPolling()?;
@@ -1231,14 +1230,8 @@ fn dispatch(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
         Context::addHidden("secret", json!("remove")).unwrap();
         Context::addHidden("protected", json!("hidden")).unwrap();
         if matches!(kind, "missing-chain" | "missing-sync") {
-            let model = QueuedModel::newInstance(Default::default()).map_err(|source| {
-                HttpError::Internal {
-                    source: Box::new(source),
-                }
-            })?;
-            let id = ModelIdentifier::capture(&model).map_err(|source| HttpError::Internal {
-                source: Box::new(source),
-            })?;
+            let model = QueuedModel::newInstance(Default::default())?;
+            let id = ModelIdentifier::capture(&model)?;
             let jobs = [
                 Payload::new("restore-required", id)?.deleteWhenMissingModels(),
                 Payload::new("restore-required", "chain successor must not run")?,
@@ -1259,21 +1252,13 @@ fn dispatch(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
                 ["default"]
             );
         } else if matches!(kind, "invoice" | "rollback") {
-            let mut transaction =
-                DB::beginTransaction()
-                    .await
-                    .map_err(|source| HttpError::Internal {
-                        source: Box::new(source),
-                    })?;
+            let mut transaction = DB::beginTransaction().await?;
             Event::dispatchInTransaction(Invoice(42), &mut transaction).await?;
             if kind == "rollback" {
                 transaction.rollBack(None).await
             } else {
                 transaction.commit().await
-            }
-            .map_err(|source| HttpError::Internal {
-                source: Box::new(source),
-            })?;
+            }?;
         } else {
             let mut payload = if kind.starts_with("rate_") {
                 Payload::new(kind, kind)?

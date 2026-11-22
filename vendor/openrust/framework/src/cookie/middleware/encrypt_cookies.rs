@@ -40,9 +40,7 @@ impl EncryptCookies {
         crate::support::facades::current_container()
             .ok_or(CookieError)?
             .get::<dyn Encrypter>(crate::container::ServiceKey::typed::<dyn Encrypter>())
-            .map_err(|source| HttpError::Internal {
-                source: Box::new(source),
-            })
+            .map_err(Into::into)
     }
 
     pub fn disableFor(&mut self, names: impl IntoIterator<Item = impl Into<String>>) {

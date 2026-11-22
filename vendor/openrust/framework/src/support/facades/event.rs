@@ -6,7 +6,7 @@ use crate::{
         Dispatcher as _, Event as Payload, Listener, ShouldDispatchAfterCommit, Subscriber,
     },
     events::{
-        Delivery, DispatchResult, Dispatcher, EventContext, EventError, EventFake, EventResult,
+        Delivery, DispatchResult, Dispatcher, EventContext, EventFake, EventResult,
         ListenerResponse,
     },
 };
@@ -39,7 +39,7 @@ impl Event {
     }
 
     pub fn dispatcher() -> EventResult<Arc<Dispatcher>> {
-        Self::getFacadeRoot().map_err(EventError::Unavailable)
+        Self::getFacadeRoot().map_err(Into::into)
     }
 
     /// Records the selected events in the current application.

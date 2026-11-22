@@ -5,27 +5,27 @@ use serde::{
 };
 use serde_json::Value;
 
-use super::{ArrayKey, Collection, CollectionError, CollectionResult, finite::Finite};
+use super::{ArrayKey, Collection, CollectionResult, finite::Finite};
 
 #[allow(non_snake_case, reason = "Matches Laravel's Collection API")]
 impl<T: Serialize> Collection<T> {
     pub fn toArray(&self) -> CollectionResult<Value> {
-        serde_json::to_value(self).map_err(CollectionError::Serialization)
+        serde_json::to_value(self).map_err(Into::into)
     }
 
     pub fn toPrettyJson(&self) -> CollectionResult<String> {
-        serde_json::to_string_pretty(self).map_err(CollectionError::Serialization)
+        serde_json::to_string_pretty(self).map_err(Into::into)
     }
 
     pub fn toJson(&self) -> CollectionResult<String> {
-        serde_json::to_string(self).map_err(CollectionError::Serialization)
+        serde_json::to_string(self).map_err(Into::into)
     }
 }
 
 #[allow(non_snake_case, reason = "Matches Laravel's Collection API")]
 impl<T: DeserializeOwned> Collection<T> {
     pub fn fromJson(json: &str) -> CollectionResult<Self> {
-        serde_json::from_str(json).map_err(CollectionError::Serialization)
+        serde_json::from_str(json).map_err(Into::into)
     }
 }
 

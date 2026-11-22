@@ -70,6 +70,40 @@ impl fmt::Display for Error {
     }
 }
 
-impl std::error::Error for Error {}
+impl std::error::Error for Error {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Process(source) => Some(source),
+            Self::Encoding(source) => Some(source),
+            Self::Io(source) => Some(source),
+            Self::Unavailable(source) => Some(source),
+            _ => None,
+        }
+    }
+}
 
 pub type Result<T> = std::result::Result<T, Error>;
+
+impl From<crate::contracts::container::BindingResolutionError> for Error {
+    fn from(source: crate::contracts::container::BindingResolutionError) -> Self {
+        Self::Unavailable(source)
+    }
+}
+
+impl From<std::io::Error> for Error {
+    fn from(source: std::io::Error) -> Self {
+        Self::Io(source)
+    }
+}
+
+impl From<serde_json::Error> for Error {
+    fn from(source: serde_json::Error) -> Self {
+        Self::Encoding(source)
+    }
+}
+
+impl From<crate::process::Error> for Error {
+    fn from(source: crate::process::Error) -> Self {
+        Self::Process(source)
+    }
+}

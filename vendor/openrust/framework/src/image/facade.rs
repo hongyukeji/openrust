@@ -200,58 +200,39 @@ impl Facade for ImageFacade {
 #[allow(non_snake_case, reason = "Matches Laravel's Image facade")]
 impl ImageFacade {
     pub fn fromBytes(bytes: impl Into<Bytes>) -> Result<Image> {
-        Ok(Self::getFacadeRoot()
-            .map_err(Error::Unavailable)?
-            .fromBytes(bytes))
+        Ok(Self::getFacadeRoot()?.fromBytes(bytes))
     }
 
     pub async fn fromStream(reader: impl AsyncRead) -> Result<Image> {
-        Self::getFacadeRoot()
-            .map_err(Error::Unavailable)?
-            .fromStream(reader)
-            .await
+        Self::getFacadeRoot()?.fromStream(reader).await
     }
 
     pub fn fromBase64(encoded: impl Into<Arc<str>>) -> Result<Image> {
-        Ok(Self::getFacadeRoot()
-            .map_err(Error::Unavailable)?
-            .fromBase64(encoded))
+        Ok(Self::getFacadeRoot()?.fromBase64(encoded))
     }
 
     pub fn fromPath(path: impl Into<PathBuf>) -> Result<Image> {
-        Ok(Self::getFacadeRoot()
-            .map_err(Error::Unavailable)?
-            .fromPath(path))
+        Ok(Self::getFacadeRoot()?.fromPath(path))
     }
 
     pub fn fromUpload(file: &UploadedFile) -> Result<Image> {
-        Ok(Self::getFacadeRoot()
-            .map_err(Error::Unavailable)?
-            .fromUpload(file))
+        Ok(Self::getFacadeRoot()?.fromUpload(file))
     }
 
     pub fn fromDisk(disk: Arc<FilesystemAdapter>, path: impl Into<String>) -> Result<Image> {
-        Ok(Self::getFacadeRoot()
-            .map_err(Error::Unavailable)?
-            .fromDisk(disk, path))
+        Ok(Self::getFacadeRoot()?.fromDisk(disk, path))
     }
 
     pub fn fromStorage(path: impl Into<String>, disk: Option<&str>) -> Result<Image> {
-        Self::getFacadeRoot()
-            .map_err(Error::Unavailable)?
-            .fromStorage(path, disk)
+        Self::getFacadeRoot()?.fromStorage(path, disk)
     }
 
     pub fn fromUrl(url: impl Into<String>) -> Result<Image> {
-        Self::getFacadeRoot()
-            .map_err(Error::Unavailable)?
-            .fromUrl(url)
+        Self::getFacadeRoot()?.fromUrl(url)
     }
 
     pub fn driver(name: Option<&str>) -> Result<Arc<dyn Driver>> {
-        Self::getFacadeRoot()
-            .map_err(Error::Unavailable)?
-            .driver(name)
+        Self::getFacadeRoot()?.driver(name)
     }
 
     pub fn transformUsing(
@@ -259,29 +240,21 @@ impl ImageFacade {
         transformation: &str,
         callback: TransformationHandler,
     ) -> Result<()> {
-        Self::getFacadeRoot()
-            .map_err(Error::Unavailable)?
+        Self::getFacadeRoot()?
             .transformUsing(driver, transformation, callback)
             .map(|_| ())
     }
 
     pub fn getDefaultDriver() -> Result<String> {
-        Ok(Self::getFacadeRoot()
-            .map_err(Error::Unavailable)?
-            .getDefaultDriver())
+        Ok(Self::getFacadeRoot()?.getDefaultDriver())
     }
 
     pub fn getDrivers() -> Result<HashMap<String, Arc<dyn Driver>>> {
-        Ok(Self::getFacadeRoot()
-            .map_err(Error::Unavailable)?
-            .getDrivers())
+        Ok(Self::getFacadeRoot()?.getDrivers())
     }
 
     pub fn extend(name: impl Into<String>, driver: impl Driver) -> Result<()> {
-        Self::getFacadeRoot()
-            .map_err(Error::Unavailable)?
-            .extend(name, driver)
-            .map(|_| ())
+        Self::getFacadeRoot()?.extend(name, driver).map(|_| ())
     }
 }
 

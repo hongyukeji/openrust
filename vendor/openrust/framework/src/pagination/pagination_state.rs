@@ -4,7 +4,7 @@ use crate::{
     container::ServiceKey,
     http::request_context,
     support::facades::{Facade, View as ViewFacade},
-    view::{Factory, ViewError, ViewResult},
+    view::{Factory, ViewResult},
 };
 
 use super::{Cursor, CursorPaginator, LengthAwarePaginator, Paginator};
@@ -37,7 +37,7 @@ impl Facade for StateFacade {
 }
 
 fn state() -> ViewResult<Arc<PaginationState>> {
-    StateFacade::getFacadeRoot().map_err(ViewError::Unavailable)
+    StateFacade::getFacadeRoot().map_err(Into::into)
 }
 
 fn query() -> Option<Vec<(String, String)>> {
@@ -143,7 +143,7 @@ macro_rules! offset_resolvers {
                     .and_then(|state| state.view.read().expect("分页视图解析器锁").clone());
                 match callback {
                     Some(callback) => callback(),
-                    None => ViewFacade::getFacadeRoot().map_err(ViewError::Unavailable),
+                    None => ViewFacade::getFacadeRoot().map_err(Into::into),
                 }
             }
         }

@@ -207,7 +207,7 @@ pub(super) fn enqueue_run(
 pub(crate) fn restore(owner: Arc<Container>, transferred: TransferredRun) -> Result<()> {
     let TransferredRun { run, always } = transferred;
     let callback = enqueue(Box::pin(async move {
-        let manager = owner.make::<Manager>().map_err(Error::Unavailable)?;
+        let manager = owner.make::<Manager>()?;
         manager.resume(run).await
     }))?;
     if always {

@@ -79,3 +79,9 @@ pub(crate) fn backend(source: impl Error + Send + Sync + 'static) -> RedisError 
 
 /// Native Redis command batching, shared by queues and optional extensions.
 pub use ::redis::Pipeline;
+
+impl From<crate::contracts::container::BindingResolutionError> for RedisError {
+    fn from(source: crate::contracts::container::BindingResolutionError) -> Self {
+        Self::Unavailable(source)
+    }
+}

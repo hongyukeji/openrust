@@ -10,9 +10,7 @@ use crate::{
         events::{Event, Listener},
         foundation::Application as _,
     },
-    events::{
-        Delivery, Dispatcher, EventContext, EventError, EventFuture, EventResult, ListenerResponse,
-    },
+    events::{Delivery, Dispatcher, EventContext, EventFuture, EventResult, ListenerResponse},
     support::{ProviderFactory, ServiceProvider},
 };
 use std::{
@@ -67,14 +65,8 @@ impl Listener for LoadOnEvent {
             else {
                 return Ok(None);
             };
-            let boot = repository
-                .application()
-                .map_err(EventError::Unavailable)?
-                .is_booted();
-            repository
-                .initialize(&slot, None, boot)
-                .await
-                .map_err(EventError::Unavailable)?;
+            let boot = repository.application()?.is_booted();
+            repository.initialize(&slot, None, boot).await?;
             Ok(Some(ListenerResponse::Value(Box::new(self.name))))
         })
     }

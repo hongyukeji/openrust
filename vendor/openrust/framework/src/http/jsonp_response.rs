@@ -98,11 +98,7 @@ fn encode(callback: &str, data: impl Serialize) -> Result<Vec<u8>, HttpError> {
     let mut output = Vec::from(b"/**/".as_slice());
     output.extend_from_slice(callback.as_bytes());
     output.push(b'(');
-    JsonFormatter::DEFAULT
-        .write(&mut output, &data)
-        .map_err(|source| HttpError::Internal {
-            source: Box::new(source),
-        })?;
+    JsonFormatter::DEFAULT.write(&mut output, &data)?;
     output.extend_from_slice(b");");
     Ok(output)
 }

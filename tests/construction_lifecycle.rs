@@ -209,31 +209,15 @@ impl ServiceProvider for ClientProvider {
 }
 fn read(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let a = Workers::getFacadeRootAsync()
-            .await
-            .map_err(|source| HttpError::Internal {
-                source: source.into(),
-            })?;
-        let b = Workers::getFacadeRootAsync()
-            .await
-            .map_err(|source| HttpError::Internal {
-                source: source.into(),
-            })?;
+        let a = Workers::getFacadeRootAsync().await?;
+        let b = Workers::getFacadeRootAsync().await?;
         assert!(Arc::ptr_eq(&a, &b));
-        let direct = Container::getInstance()
-            .makeAsync::<Worker>()
-            .await
-            .map_err(|source| HttpError::Internal {
-                source: source.into(),
-            })?;
+        let direct = Container::getInstance().makeAsync::<Worker>().await?;
         assert!(Arc::ptr_eq(&a, &direct));
         let expected: Arc<dyn WorkerView> = direct;
         let view = Container::getInstance()
             .getAsync::<dyn WorkerView>("worker.view")
-            .await
-            .map_err(|source| HttpError::Internal {
-                source: source.into(),
-            })?;
+            .await?;
         assert_eq!(view.sequence(), a.sequence);
         assert!(Arc::ptr_eq(&view, &expected));
         assert!(a.observed.load(Ordering::SeqCst));
@@ -248,12 +232,7 @@ fn read(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 }
 fn read_self_built(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let result = Container::getInstance()
-            .makeAsync::<SelfBuilt>()
-            .await
-            .map_err(|source| HttpError::Internal {
-                source: source.into(),
-            })?;
+        let result = Container::getInstance().makeAsync::<SelfBuilt>().await?;
         Ok(Response::new(StatusCode::OK, Body::from(result.0.clone())))
     })
 }

@@ -75,11 +75,7 @@ impl From<Stringable> for Response {
 fn structured_json(data: impl Serialize) -> Result<Response, HttpError> {
     Response::json_with(StatusCode::OK, || {
         let mut bytes = Vec::new();
-        super::json_formatter::JsonFormatter::DEFAULT
-            .write(&mut bytes, &data)
-            .map_err(|source| HttpError::Internal {
-                source: Box::new(source),
-            })?;
+        super::json_formatter::JsonFormatter::DEFAULT.write(&mut bytes, &data)?;
         Ok(bytes)
     })
 }
@@ -241,11 +237,7 @@ impl Response {
     pub fn json(status: StatusCode, data: impl Serialize) -> Result<Self, HttpError> {
         Self::json_with(status, || {
             let mut bytes = Vec::new();
-            super::json_formatter::JsonFormatter::DEFAULT
-                .write(&mut bytes, &data)
-                .map_err(|source| HttpError::Internal {
-                    source: Box::new(source),
-                })?;
+            super::json_formatter::JsonFormatter::DEFAULT.write(&mut bytes, &data)?;
             Ok(bytes)
         })
     }

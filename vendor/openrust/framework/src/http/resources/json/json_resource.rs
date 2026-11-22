@@ -2,7 +2,7 @@ use serde_json::{Map, Value};
 
 use crate::{
     database::eloquent::Model,
-    http::{HttpError, HttpFuture, Request, Response, StatusCode},
+    http::{HttpFuture, Request, Response, StatusCode},
 };
 
 use super::{
@@ -157,12 +157,7 @@ impl<M: Model> From<M> for ModelResource<M> {
 
 impl<M: Model> JsonResource for ModelResource<M> {
     fn toArray(&self, _: &Request) -> ResourceResult<Value> {
-        self.0
-            .toArray()
-            .map(Value::Object)
-            .map_err(|source| HttpError::Internal {
-                source: Box::new(source),
-            })
+        self.0.toArray().map(Value::Object).map_err(Into::into)
     }
 
     fn status(&self) -> StatusCode {
