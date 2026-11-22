@@ -1,37 +1,53 @@
+use std::borrow::Cow;
+
 use crate::translation::{TranslationResult, canonical_locale};
 
 use super::Request;
 
 #[allow(non_snake_case, reason = "沿用请求语言接口名称")]
 impl Request {
-    /// 按偏好顺序读取语言范围；合并重复请求头，忽略无效标签、非法权重及 q=0。
-    /// 标签使用 BCP 47；通配符保留为 `*`，不读取或修改应用语言。
+    /// 按偏好顺序读取标准 Accept-Language；合并重复头，忽略无效标签、非法权重及 q=0。
+    /// 标签使用 BCP 47；通配符保留为 `*`，不受 app.locale_header 影响。
+    /// 当前实际应用语言请读取 App::currentLocale()，此方法不读取或修改应用语言。
     pub fn getLanguages(&self) -> &[String] {
-        self.languages.get_or_init(|| {
-            let mut entries = Vec::new();
-            for header in self.headers().get_all("accept-language") {
-                let Ok(header) = header.to_str() else {
-                    continue;
-                };
-                for item in header.split(',') {
-                    if let Some((language, quality)) = preference(item) {
-                        entries.push((language, quality));
-                    }
-                }
-            }
-            // 稳定排序保留同权输入顺序；去重保留同一标签的最高有效权重。
-            entries.sort_by(|left, right| right.1.cmp(&left.1));
-            let mut languages = Vec::new();
-            for (language, _) in entries {
-                if !languages.contains(&language) {
-                    languages.push(language);
-                }
-            }
-            languages
-        })
+        self.languages
+            .get_or_init(|| self.parse_language_header(&http::header::ACCEPT_LANGUAGE))
     }
 
-    /// 从有序候选中选择语言，无匹配时返回首项。
+    // 自定义头只在中间件选择时解析，不读取或填充标准 Accept-Language 缓存。
+    pub(crate) fn languages_from_header(&self, header: &http::HeaderName) -> Cow<'_, [String]> {
+        if header == http::header::ACCEPT_LANGUAGE {
+            Cow::Borrowed(self.getLanguages())
+        } else {
+            Cow::Owned(self.parse_language_header(header))
+        }
+    }
+
+    fn parse_language_header(&self, header: &http::HeaderName) -> Vec<String> {
+        let mut entries = Vec::new();
+        for header in self.headers().get_all(header) {
+            let Ok(header) = header.to_str() else {
+                continue;
+            };
+            for item in header.split(',') {
+                if let Some((language, quality)) = preference(item) {
+                    entries.push((language, quality));
+                }
+            }
+        }
+        // 稳定排序保留同权输入顺序；去重保留同一标签的最高有效权重。
+        entries.sort_by(|left, right| right.1.cmp(&left.1));
+        let mut languages = Vec::new();
+        for (language, _) in entries {
+            if !languages.contains(&language) {
+                languages.push(language);
+            }
+        }
+        languages
+    }
+
+    /// 按标准 Accept-Language 偏好从有序候选中选择语言，无匹配时返回首项。
+    /// 不受 app.locale_header 影响，也不代表 App::currentLocale() 的最终应用语言。
     /// `None` 或空候选返回请求首选项；非法候选显式报错。
     pub fn getPreferredLanguage(
         &self,

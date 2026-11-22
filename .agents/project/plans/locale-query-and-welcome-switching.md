@@ -2,20 +2,22 @@
 
 日期：2026-11-22。
 
-状态：本计划范围已实现，并通过隔离范围源码的功能、浏览器、质量及三语文档验收。包含其他协作者在途框架改造的组合复验另行记录，不代表全仓所有在途代码完成。本次未暂存、提交或推送。详见第12节及对应主题验收记录。
+最新默认命名决定（2026-11-23）：查询参数与偏好 Cookie 均为 `locale`，覆盖下文历史 `lang` 默认描述；当前实施和验收见第16节。第1–15节验收仅代表相应时间的源码。
+
+状态：2026-11-23 自动与固定语言功能及locale默认命名已实现，当前契约及验收见第16节（持久化历史见第15节）；此前范围已实现，并通过隔离范围源码的功能、浏览器、质量及三语文档验收。包含其他协作者在途框架改造的组合复验另行记录，不代表全仓所有在途代码完成。本次未暂存、提交或推送。详见第12节及对应主题验收记录。
 
 ## 1. 目标与最终决策
 
 欢迎页提供 English、简体中文、繁體中文和“跟随浏览器”的切换功能。框架负责语言选择，应用不重复解析 URL 参数；普通应用开箱即用，需要定制时修改现有配置。
 
-- 保持框架默认全局 `openrust::http::middleware::SetLocale` 和浏览器 `Accept-Language` 协商。
-- 在现有 `config/app.rs` 的语言配置区域增加 `app.locale_query_parameter`，默认字符串 `"lang"`；JSON `null` 只关闭 URL 参数识别。
-- 不新增 `config/localization.rs`、`config/language.rs` 或同义配置文件，不增加对应 `.env` 变量或重复的 Builder 参数名入口。
+- 保持框架默认自动装配的 `openrust::http::middleware::SetLocale` 和浏览器 `Accept-Language` 协商。
+- 在现有 `config/app.rs` 的语言配置区域增加 `app.locale_query_parameter`，默认字符串 `"locale"`；JSON `null` 只关闭 URL 参数识别。
+- 不新增 `config/localization.rs`、`config/language.rs` 或同义配置文件，保留现有语言环境变量支持，不增加重复的 Builder 参数名入口。
 - URL 参数名可以由应用配置，例如 `lang`、`language`；一次只读取配置的名称，不同时猜测多个名称。
 - URL 参数读取、BCP 47 校验、候选检查及回退内置到框架 `SetLocale`，不写进 `bootstrap/app.rs` 或欢迎页控制器。
 - 保留实例级 `localeUsing` 自定义选择能力；复杂业务按需配置，默认欢迎页不需要配置回调。
-- 不自动写 Cookie、Session、数据库或 localStorage。手动选择保存在 URL 中，只影响当前请求。
-- 这是 OpenRust 默认能力的明确扩展，不宣称固定 Laravel 默认支持 `SetLocale`、`?lang=` 或此配置键。
+- 2026-11-23 后手动选择经明确写入请求保存加密 Cookie，恢复自动删除 Cookie；自动协商及 URL 单次覆盖均不写入长期偏好。历史无持久化结果仅代表当时实现。
+- 这是 OpenRust 默认能力的明确扩展，不宣称固定 Laravel 默认支持 `SetLocale`、`?locale=` 或此配置键。
 
 ## 2. 实施前核对
 
@@ -44,17 +46,23 @@
 "fallback_locale": locale(env, "APP_FALLBACK_LOCALE", "en")?,
 "faker_locale": locale(env, "APP_FAKER_LOCALE", "en-US")?,
 
+// 浏览器手动语言偏好 Cookie；JSON null 表示关闭。
+"locale_cookie": get(env, "APP_LOCALE_COOKIE", "locale")?,
 // URL 语言参数名；null 表示关闭 URL 语言切换。
-"locale_query_parameter": "lang",
+"locale_query_parameter": get(env, "APP_LOCALE_QUERY_PARAMETER", "locale")?,
+// 应用语言协商请求头；JSON null 表示关闭。
+"locale_header": get(env, "APP_LOCALE_HEADER", "Accept-Language")?,
 ```
 
 | 配置值 | 行为 |
 | --- | --- |
-| `"lang"` | 默认读取 `?lang=zh-Hans` |
+| `"locale"` | 默认读取 `?locale=zh-Hans` |
 | `"language"` 等有效名称 | 只读取该名称，例如 `?language=zh-Hans` |
 | JSON `null` | 不读取 URL 语言参数，仍允许自定义回调和浏览器协商 |
-| 配置键缺失 | 最小应用和旧配置缓存使用默认名称 `lang`，不因缺键报错 |
+| 配置键缺失 | 最小应用和旧配置缓存使用默认名称 `locale`，不因缺键报错 |
 | 空名称、纯空白、错误类型 | 作为开发配置错误明确报告，不静默转换成默认值 |
+
+`app.locale_header` 的完整契约见第13节；保留 APP_LOCALE_QUERY_PARAMETER 与 APP_LOCALE_HEADER 环境覆盖，加载后遵守配置缓存。
 
 参数名不能通过当前请求自行改写；查询参数只提供语言值。保留现有 `app.locale` 字符串结构，不将其改成嵌套配置对象。不新增 `app.supported_locales`；支持候选继续使用现有中间件配置机制。
 
@@ -66,8 +74,8 @@
 
 1. `localeUsing` 回调返回 `Some(locale)`：沿用已有回调契约，规范化后须属于候选；成功后不读取低优先级 URL 语言值。
 2. 回调不存在或返回 `None`：若 URL 参数识别启用且参数存在，选择 URL 显式指定的受支持语言。
-3. URL 参数识别关闭或指定参数不存在：复用现有 `Accept-Language` 选择规则。
-4. 浏览器没有匹配：沿用现有应用默认语言及候选兜底规则，不借此改变中文映射、权重或通配符行为。
+3. URL 参数识别关闭或指定参数不存在：从 `app.locale_header` 指定请求头复用现有语言协商规则；缺键默认 Accept-Language，null 跳过此步骤。
+4. 请求头关闭或没有匹配：沿用现有应用默认语言及候选兜底规则，不借此改变中文映射、权重或通配符行为。
 
 选定后只通过现有 `App::setLocale` 同步配置、译器和事件。继续使用下游最终语言处理响应，保留请求、任务、实例和应用之间的隔离。
 
@@ -87,15 +95,15 @@
 
 在现有页面设计中增加紧凑的语言选择控件，包含 English、简体中文、繁體中文和“跟随浏览器”，桌面及手机布局保持美观简洁。
 
-- 默认链接分别为 `/?lang=en`、`/?lang=zh-Hans`、`/?lang=zh-Hant`。
-- 参数名从同一配置取得；修改成 `language` 后，界面实际生成 `?language=...`，不得硬编码 `lang`。
-- “跟随浏览器”删除当前配置的语言参数；欢迎页默认路径为 `/`，不要通过写死 `lang=auto` 增加另一种协议。
+- 默认链接分别为 `/?locale=en`、`/?locale=zh-Hans`、`/?locale=zh-Hant`。
+- 参数名从同一配置取得；修改成 `language` 后，界面实际生成 `?language=...`，不得硬编码默认名称。
+- “跟随浏览器”删除当前配置的语言参数；欢迎页默认路径为 `/`，不要通过写死 `locale=auto` 增加另一种协议。
 - 根据当前应用语言标识所选语言，并区分“显式 URL 选择”与“跟随浏览器”模式；自动识别成简体不代表用户曾手动选择简体。
 - 配置为 `null` 时不生成无效的 URL 切换控件。候选为空或候选被修改时，也不能生成框架会拒绝的链接；应用欢迎页继续展示已实际提供资源的三语，不凭空生成未翻译的菜单项。
 - 复用现有链接／query 编码机制；若保留其他查询参数，使用已有工具合并、替换或删除参数，不手写不安全字符串拼接，不新增通用 URL 管理器。
 - 切换只发起正常 GET 导航，不引入前端框架、新接口或页面重载后的客户端翻译系统。
 - 控件有可访问名称、键盘可操作、清晰的焦点及选中状态。通过三语资源提供需要翻译的控件文案，不把整组显示文案硬编码进框架。
-- 不额外增加 Cookie、Session、数据库依赖，不承诺关闭页面后仍永久记住选择。刷新和分享带参数 URL 可保留选择；重新访问不带参数的首页恢复浏览器识别。
+- 2026-11-22 的旧范围（已由第15节覆盖）：不额外增加 Cookie、Session、数据库依赖，不承诺关闭页面后仍永久记住选择。刷新和分享带参数 URL 可保留选择；重新访问不带参数的首页恢复浏览器识别。
 
 控制器只提供模板所需的当前语言及最少的控件显示数据；如需参数名、自动模式或链接数据，可复用既有 Config／Request／view 数据机制，但不能在控制器再实现语言选择、回退或手工调用一次 `App::setLocale`。普通应用 `bootstrap/app.rs` 不增加读取参数的回调示例接线。
 
@@ -120,10 +128,10 @@ href="{{ $repository }}/blob/master/docs/{{ $language }}/getting-started/deploym
 
 - `localeUsing` 是实例级扩展入口，保留候选与回调互不清除的行为；不引入共享可变全局状态、语言管理器或探测器注册体系。
 - 回调可覆盖 URL 和浏览器规则；依赖 Session／认证的数据仍受实际中间件顺序限制。需要时沿用关闭全局识别、在正确路由组位置挂载同一中间件的已有方式，不声称全局执行点已经拥有下游用户信息。
-- 本轮不为假想需求增加异步回调框架、自动 Cookie 持久化或 URL 语言前缀路由。
-- 保留 `Content-Language`、下游主动切换、既有响应头和 `Vary` 去重契约。URL 本身区分显式选择，但不能简单删除无参数请求仍需要的 `Vary: Accept-Language`。
+- 此前阶段不为假想需求增加异步回调框架、自动 Cookie 持久化或 URL 语言前缀路由；2026-11-23 用户明确要求的手动偏好持久化按第15节实现，自动识别结果仍不保存。
+- 保留 `Content-Language`、下游主动切换、既有响应头和 `Vary` 去重契约。URL 本身区分显式选择，但启用请求头协商时，合并实际配置的头名；null 不添加语言头 Vary。保留已有项、通配符和大小写不敏感去重。
 - 自定义用户／Cookie 语言不等于只靠 `Vary: Accept-Language` 就能保证私有内容缓存隔离；文档说明职责，不为本功能重建缓存系统。
-- 复用每请求语言解析缓存，避免重复规范化和重复调用 `App::setLocale`。未使用回调或已关闭 query 时不执行相应选择分支。不做数据库或网络查询。
+- 标准 Accept-Language 复用每请求解析缓存；自定义头按需复用解析器，不读取或写入标准缓存，避免来源混用和重复调用 `App::setLocale`。未使用回调或已关闭 query 时不执行相应选择分支。不做数据库或网络查询。
 - 没有性能压测不得给出耗时、吞吐下降比例或“零开销”结论；现有功能测试不能代替性能测量。
 
 ## 8. 改动范围与实施顺序
@@ -146,9 +154,10 @@ href="{{ $repository }}/blob/master/docs/{{ $language }}/getting-started/deploym
 
 | 范围 | 正向与反向要求 |
 | --- | --- |
-| 默认配置 | 无语言参数仍按浏览器识别；`?lang=zh-Hans` 优先于英文请求头；三语都覆盖 |
-| 可配置参数名 | 改为 `language` 后只认该键；原 `lang` 不再切换；菜单链接和“跟随浏览器”同步使用配置 |
-| 关闭／缺键 | null 只关闭 query；缺键默认 lang；空候选关闭整个中间件；关闭时不读取错误输入或触发语言事件 |
+| 默认配置 | 无语言参数仍按浏览器识别；`?locale=zh-Hans` 优先于英文请求头；三语都覆盖 |
+| 可配置参数名 | 改为 `language` 后只认该键；默认 `locale` 不再切换；菜单链接和“跟随浏览器”同步使用配置 |
+| 关闭／缺键 | null 只关闭 query；缺键默认 locale；空候选关闭整个中间件；关闭时不读取错误输入或触发语言事件 |
+| 请求头配置 | 缺键默认 Accept-Language；X-Language 只读自身；大小写不敏感；null 保留回调／URL／兜底；非法名称或类型500；多行、权重、无效值复用原解析；标准 Request API 不受配置影响 |
 | 配置错误／缓存 | 空名称、错误类型明确报错；配置缓存命中遵守既有语义；最小应用缺键可运行；不每请求重读文件 |
 | URL 输入 | 空值、非法标签、非标量、有效但未支持语言均为400；大小写规范化成功；重复键依现有契约验证；请求体中的同名字段不参与选择 |
 | 优先级 | 回调Some覆盖query；回调None转query；缺query才浏览器；浏览器无匹配沿用已有默认；回调错误不被吞掉 |
@@ -174,7 +183,7 @@ href="{{ $repository }}/blob/master/docs/{{ $language }}/getting-started/deploym
 | [mcamara/laravel-localization](https://github.com/mcamara/laravel-localization) | 浏览器、Cookie／Session、路由及重定向分工 | 不整体引入本轮不需要的持久化或语言路由 |
 | [CodeZero Laravel Localizer](https://github.com/codezero-be/laravel-localizer) | 有序来源、自定义探测和Session／绑定顺序 | 借鉴明确优先级；本轮不引入完整探测器链框架 |
 
-项目配置键、默认 `lang` 和URL优先级是本次用户确认的OpenRust设计，不是国际标准或Laravel强制要求。浏览器中文映射及BCP47的已有明确适配继续参照主题记录，本轮不顺便重写。
+项目配置键、默认 `locale` 和URL优先级是本次用户确认的OpenRust设计，不是国际标准或Laravel强制要求。浏览器中文映射及BCP47的已有明确适配继续参照主题记录，本轮不顺便重写。
 
 ## 11. 给执行 Agent 的交付要求
 
@@ -205,3 +214,62 @@ href="{{ $repository }}/blob/master/docs/{{ $language }}/getting-started/deploym
 
 
 2026-11-22 用户随后明确授权本轮本地提交，不包含推送或发布。仅提交 URL 语言选择、欢迎页切换及必要的实例回调依赖；其他版本 API、MessageBag、复数选择器、测试框架和新增环境变量改动留在工作区。提交范围保持已验收的静态 lang 默认配置。
+
+
+## 13. 可配置语言请求头（2026-11-23）
+
+已核对欢迎页页头、三语母语名称、Blade 链接生成与原计划 URL 切换已经实现，本轮保留并复验。初次验收采用 `app.locale_header` 静态默认 `Accept-Language`（该历史快照不包含随后保留的 APP_LOCALE_HEADER；当前契约见第14节）：缺键同默认，null 仅关闭头识别，其他值须为合法 HTTP 请求头名，大小写不敏感；空、非法及非字符串配置报配置错误。无新增 Builder、环境变量或配置文件。
+
+优先级为 localeUsing Some → 配置 URL 参数 → 配置请求头 → 原应用默认／候选兜底。空候选仍关闭整个实例。启用时先校验配置，即使回调或 URL 能选择也不掩盖非法配置；null 不影响回调与 URL。Vary 使用实际头名，保留已有项与通配符，null 不追加；自定义身份来源仍由应用负责私有缓存策略。
+
+Request 的公开 getLanguages／getPreferredLanguage 保持标准 Accept-Language 语义及其请求缓存；内部按指定头复用同一个解析器，自定义头不复用标准头的缓存，不新增配置管理器或解析器。头值的权重、多行、非法输入及候选映射不变。配置只读已有仓储及缓存快照。
+
+验收新增：默认／自定义／缺键／null／错误配置；头名大小写、多行与权重；回调／URL／头／兜底优先级；Vary 保留、去重、通配符与关闭；标准 API 与不同头、请求及应用隔离；配置缓存；原欢迎页三语、自动模式、自定义参数及仓库链接。实际实施已完成：123项定向回归（框架74＋应用49，0 ignored）、44组真实HTTP浏览器、fmt及workspace/all-targets严格Clippy通过。三语文档构建和内容检查通过；最终文档浏览器及双前缀导航见主题记录。11个源码／测试／正文文件与最终快照一致。详见[请求头验收](../audits/03-07/welcome-language-2026-11-22.md#可配置语言请求头2026-11-23)。本轮未暂存、提交或推送；真实设备／其他引擎、Windows／Docker发布及性能不计通过。
+
+
+## 14. 请求偏好与应用语言边界（2026-11-23）
+
+当前配置保留 `"locale_header": get(env, "APP_LOCALE_HEADER", "Accept-Language")?`；第13节及此前“无新增环境变量”的结果仅代表当时静态配置快照，不再作为当前限制。环境值为字符串，字面 null 是合法头名；关闭须配置 JSON null。配置缓存优先，运行中不按请求重读环境或文件。
+
+Request::getLanguages／getPreferredLanguage 始终表示标准 Accept-Language；SetLocale 按配置头复用解析器，自定义头缺失不回退标准头，自定义解析不读写标准缓存。实际应用语言由 App::currentLocale 获取，控制器／翻译／页面不重新调用 Request 选择；保留回调→URL→配置头→默认候选、Session依赖顺序、用户偏好回调与响应缓存策略。停用中间件后配置不独立执行协商。
+
+复核与验收结果见主题记录同日“请求偏好与应用语言职责边界”；具体运行结果在验收后追加，不沿用第13节的旧快照结果。
+
+
+第14节收尾：125项定向回归（框架75＋应用50，0 ignored）、44组本批重新编译服务的真实HTTP浏览器、fmt、workspace/all-targets严格Clippy及三语内容／构建／浏览器／全导航通过。15个语言相关交付文件与验收快照一致；无关数据库协作后续文件差异在closure.json中单列，不计为本轮验收。该范围无阻塞，未验平台／发布与上游PHPUnit边界见主题记录。本轮无暂存／提交／推送授权。
+
+
+## 15. 自动跟随与持久手动偏好（2026-11-23）
+
+本节覆盖旧版“不保存偏好”的限制。Web优先级为回调→URL→加密Cookie偏好→配置头→默认候选；API不自动解密Cookie或启动Session，默认保持配置头与显式URL、回调契约。Request标准API不变。
+
+复用既有路由装配，将默认同一SetLocale在每条路由管线自动装配到Cookie解密／队列之后、常规Web Session之前；没有Cookie管线的请求只按其余来源选择。避免全局先setLocale再由Web二次覆盖。依赖Session的回调仍须关掉默认实例并在Session之后显式装配同一个类型。此生命周期调整是持久化正确性所必需，并同步中间件说明。
+
+仅增加必要app.locale_cookie字段，保留APP_LOCALE_COOKIE环境覆盖，缺键默认lang、null关闭Cookie来源与写入，非法配置报错。Cookie寿命复用Cookie::forever的400天，路径／域名／HTTPS／SameSite使用现有CookieJar默认，HttpOnly，必须经过EncryptCookies且不得豁免加密。读取损坏／非法／不支持偏好安全忽略；自动识别及GET不写偏好。显式保存经SetLocale通用方法校验候选并排队Cookie，欢迎页POST设置入口受既有Web CSRF保护，成功303重定向到固定本地首页，清除URL语言覆盖并保留其余查询参数，不接受任意跳转目标。
+
+LocaleSelection分别提供最终选择来源、有效持久偏好及可写能力；欢迎页按偏好标记自动／固定，不凭当前语言推断。保留无Cookie管线时的单次URL入口。Cookie参与的Web页面合并Cookie Vary，并通过现有Cache-Control合并机制设置private,no-store，保留其他指令与Vary通配符；不得让路由public指令重新开放共享缓存。
+
+验收须覆盖自动不写入、手动更新／刷新／导航／请求头变化、恢复自动、URL临时覆盖、损坏／失效候选／过期Cookie、配置缓存及错误、Cookie加解密／CSRF／删除、API无状态、优先级／事件／隔离、三语移动桌面明暗与仓库链接。跨设备仅示例接入用户回调，不新增数据库字段或假装实现客户端存储。实际结果见下表与对应主题验收记录。
+
+
+| 本次范围 | 实现状态 | 已取得验收证据 | 边界 |
+| --- | --- | --- | --- |
+| 自动／固定／恢复自动 | 已实现 | 受保护 Cookie 与实际语言分离，明确 POST、CSRF、303，自动与 URL 不保存；HTTP Kernel 和浏览器保存／更新／刷新／导航／重置通过 | Cookie 为当前浏览器本地设置，过期／清除后丢失，不承诺跨设备 |
+| 生命周期／API | 已实现 | 默认实例在解密和队列之后只执行一次；无 Session 保护管线、无状态 API、可信来源有状态 API、隔离及事件通过 | Session／认证回调须显式放到依赖之后；客户端存储仅提供三语说明 |
+| 配置／缓存／安全 | 已实现 | 保留APP_LOCALE_COOKIE／HEADER／QUERY_PARAMETER与配置缓存；缺键／null／错误、来源优先级、Cookie安全属性、Vary和private,no-store回归通过 | 任意账号或其他回调来源仍由应用设置私有缓存策略；不修改用户模型或数据 |
+| 欢迎页／文档 | 已实现 | 最终快照23组真实HTTP Chromium；三语／自动固定／桌面手机／明暗／无JS／过期损坏／配置改名／原仓库链接通过；三语正文内容、构建、12组浏览器及6组全导航通过 | 其他浏览器引擎、实机、Windows、Docker部署与性能压测未验 |
+| Rust质量 | 已验收 | Rust1.94.0：17个框架目标129项、应用4目标71项、Sanctum8项，共208项0失败0忽略；fmt和严格workspace/all-targets及Sanctum定向Clippy通过 | 不将其他协作者后续源码变更纳入本轮通过结论 |
+
+实际命令、失败回归、快照指纹和未验范围见[主题验收](../audits/03-07/welcome-language-2026-11-22.md#自动跟随与持久手动偏好2026-11-23)。无暂存／提交／推送授权。本轮未修改共享数据库／缓存驱动，无需启动无关服务，也未操作开发或生产数据。
+
+
+## 16. 默认语言参数与 Cookie 统一为 locale（2026-11-23）
+
+用户明确确认覆盖历史默认 lang 约定。应用配置 APP_LOCALE_COOKIE、APP_LOCALE_QUERY_PARAMETER 的默认值和框架缺键回退统一为 locale；locale_header／APP_LOCALE_HEADER 继续默认 Accept-Language。已有 POST /locale、store_locale、表单字段 locale 直接复用。优先级、BCP 47、加密 Cookie、CSRF、自动／固定和 null 关闭语义不变，不新增兼容读取、双写或配置入口。
+
+升级：旧 lang Cookie 默认不再读取，重新选择即可；旧书签改为 ?locale=...。需要保留旧名称时用既有环境配置显式指定 lang，重建配置缓存；已有缓存中的显式名称在清除／重建前继续生效。资源 lang/、HTML lang、第三方字段及自定义名称回归保留。根 .env 未设置这两个名称，无需修改本地敏感配置；根环境模板、Docker模板和生成器未发现单独维护的旧默认。
+
+实施：配置和框架两个缺省入口修正；现有欢迎页动态消费配置，无需改造入口。补充新旧来源正反、独立自定义、缓存及欢迎页消费者回归，三语正文同步迁移说明。最终隔离源码Rust1.94.0定向215次执行（131框架＋74应用＋10有状态API），0失败／忽略；fmt、workspace/all-targets严格Clippy、25组真实HTTP Chromium及三语内容／构建／浏览器／全导航通过。31个语言相关源码／测试／正文文件与验收快照一致；其他协作者后续日志测试变化不计本轮通过。详见[本轮记录](../audits/03-07/welcome-language-2026-11-22.md#默认语言名称统一为-locale2026-11-23)。第15节旧数字未改写。
+
+
+用户随后明确授权本轮本地提交，不含推送或发布。提交语言请求头配置、请求偏好职责边界、持久偏好及locale默认命名的完整依赖；框架版本查询和无关对齐审计改动保留工作区。提交前31个语言相关暂存文件与本轮验收SHA256一致，10项构建守卫测试及三语内容检查再次通过。

@@ -107,6 +107,7 @@ pub struct Router {
     static_mounts: Vec<StaticMount>,
     has_domains: bool,
     route_cache: Option<super::route_cache::RouteCache>,
+    locale_middleware: Vec<Arc<dyn crate::contracts::http::Middleware>>,
 }
 
 /// Metadata for the methods that still dispatch to a registered route.
@@ -484,16 +485,26 @@ impl Router {
     pub(crate) fn configure_middleware(
         &mut self,
         registry: &MiddlewareRegistry,
+        locale: &crate::http::middleware::SetLocale,
     ) -> Result<(), RoutingError> {
+        self.locale_middleware = vec![Arc::new(locale.clone())];
         let groups = registry.resolve_groups()?;
         let active_routes: HashSet<_> = self.by_method.values().flatten().copied().collect();
         for index in active_routes {
             let route = &mut self.routes[index];
-            route.resolved_middleware = Some(registry.resolve_stack(
-                &route.middleware,
-                &route.excluded_middleware,
-                &groups,
-            )?);
+            let mut stack =
+                registry.resolve_stack(&route.middleware, &route.excluded_middleware, &groups)?;
+            // 同一默认实例在路由管线选择一次语言，Web 必须先完成 Cookie 解密与队列装配。
+            let position = stack.iter().rposition(|item| {
+                #[cfg(feature = "sanctum")]
+                if item.middleware_type_id() == std::any::TypeId::of::<crate::sanctum::EnsureFrontendRequestsAreStateful>() {
+                    return true;
+                }
+                item.middleware_type_id() == std::any::TypeId::of::<crate::cookie::middleware::AddQueuedCookiesToResponse>()
+                || item.middleware_type_id() == std::any::TypeId::of::<crate::cookie::middleware::EncryptCookies>()
+            }).map_or(0, |index| index + 1);
+            stack.insert(position, Arc::new(locale.clone()));
+            route.resolved_middleware = Some(stack);
         }
         Ok(())
     }
@@ -591,7 +602,7 @@ impl Router {
                     )
                     .await
             {
-                return Ok(response);
+                return Ok(self.localize_response(request, response).await);
             }
             let parameters = route.parameters(host, &path);
             request.parts_mut().extensions.insert(super::RouteMetadata {
@@ -651,15 +662,48 @@ impl Router {
             return Ok(Next::new(middleware, &dispatcher).run(request).await);
         }
 
+        if self.locale_middleware.is_empty() {
+            return self.dispatch_unmatched(request).await;
+        }
+        Ok(
+            Next::new(&self.locale_middleware, &UnmatchedDispatcher(self))
+                .run(request)
+                .await,
+        )
+    }
+
+    async fn localize_response(&self, request: &mut Request, response: Response) -> Response {
+        // Handler 通过共享引用调用，响应体则必须按所有权移交；这个容器只属于当前请求。
+        let handler = StaticResponseDispatcher(std::sync::Mutex::new(Some(response)));
+        Next::new(&self.locale_middleware, &handler)
+            .run(request)
+            .await
+    }
+
+    async fn dispatch_unmatched(&self, request: &mut Request) -> Result<Response, HttpError> {
+        let path = percent_decode_str(request.uri().path().trim_end_matches('/'))
+            .decode_utf8()
+            .map_err(|_| HttpError::InvalidRequest)?;
+        let path = if path.is_empty() { "/" } else { &path };
+        let authority = request
+            .headers()
+            .get(::http::header::HOST)
+            .and_then(|header| header.to_str().ok())
+            .and_then(|host| host.parse::<::http::uri::Authority>().ok());
+        let host = request
+            .uri()
+            .host()
+            .or_else(|| authority.as_ref().map(::http::uri::Authority::host))
+            .unwrap_or_default();
         let allowed: Vec<_> = VERBS
             .iter()
             .map(|verb| Method::from_bytes(verb.as_bytes()).expect("valid HTTP method"))
-            .filter(|method| self.matched(method, host, &path).is_some())
+            .filter(|method| self.matched(method, host, path).is_some())
             .collect();
         if allowed.is_empty() {
             if let Some(response) = self
                 .static_response(
-                    &path,
+                    path,
                     request.method(),
                     request.headers(),
                     request.uri().path().ends_with('/'),
@@ -674,6 +718,29 @@ impl Router {
             return Ok(Response::empty(StatusCode::OK).with_allow(&allowed, ","));
         }
         Err(HttpError::MethodNotAllowed { allowed })
+    }
+}
+
+struct StaticResponseDispatcher(std::sync::Mutex<Option<Response>>);
+impl Handler for StaticResponseDispatcher {
+    fn handle<'a>(&'a self, _: &'a mut Request) -> HttpFuture<'a, Result<Response, HttpError>> {
+        Box::pin(std::future::ready(Ok(self
+            .0
+            .lock()
+            .expect("响应锁不可用")
+            .take()
+            .expect("响应只发送一次"))))
+    }
+}
+
+// 未匹配路由的错误页及公开静态资源仍执行默认语言处理，不启用 Web Cookie 管线。
+struct UnmatchedDispatcher<'a>(&'a Router);
+impl Handler for UnmatchedDispatcher<'_> {
+    fn handle<'a>(
+        &'a self,
+        request: &'a mut Request,
+    ) -> HttpFuture<'a, Result<Response, HttpError>> {
+        Box::pin(self.0.dispatch_unmatched(request))
     }
 }
 

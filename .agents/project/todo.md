@@ -1,10 +1,24 @@
 # 项目待办
 
+## 默认语言名称统一为 locale（2026-11-23）
+
+应用与框架缺省query／偏好Cookie统一locale，保留Accept-Language、既有环境覆盖、自定义lang及null语义；复用POST /locale和store_locale。旧lang不默认读取，升级重新选择、更新书签并重建配置缓存。覆盖此前默认lang约定，历史记录保留当时边界。
+
+Rust1.94.0定向215次执行（131框架＋74应用＋10有状态API，0失败／忽略）、fmt、workspace/all-targets严格Clippy、25组真实HTTP Chromium及三语内容／构建／浏览器／导航通过。31个语言相关交付文件与快照一致；日志模块后续协作修改不计本轮通过。详见[验收与迁移](audits/03-07/welcome-language-2026-11-22.md#默认语言名称统一为-locale2026-11-23)。无本范围剩余实现阻塞；完整workspace测试、其他引擎／实机、Windows／Docker／性能未验。用户随后授权本轮本地提交，不含推送或发布；无关协作改动继续保留。
+
+
 ## Blade 原生 Rust 代码块（2026-11-23）
 
 [计划](plans/blade-native-rust-blocks.md)范围已实现并按[记录](audits/03-08/native-rust-blocks-2026-11-23.md)验收；无剩余实现阻塞。Windows／release／Docker／性能／持久化异步队列仍为未验范围，不计入完成结论。用户随后授权本次本地提交，不含推送或发布。
 
 ## 请求语言选择与欢迎页切换
+
+- [x] **自动跟随／固定语言（2026-11-23）**：POST／CSRF加密Cookie保存，恢复自动删除；URL仅临时覆盖，偏好与实际语言分离；默认管线单次选择、无状态／有状态API、配置缓存、私有缓存与三语说明闭环。208项Rust回归、10项guard、23组最终HTTP浏览器、fmt／严格Clippy与三语文档检查通过，见[验收边界](audits/03-07/welcome-language-2026-11-22.md#自动跟随与持久手动偏好2026-11-23)。实机／其他引擎／Windows／Docker／压测未验；账号和独立客户端持久化属于应用接入范围。
+
+
+- [x] **请求偏好与当前应用语言职责复核（2026-11-23）**：保留APP_LOCALE_HEADER环境支持，明确Request标准偏好／SetLocale配置协商／App当前语言，修正三语正文与计划。125项定向回归、44组HTTP浏览器、fmt／严格Clippy及三语检查通过，见[证据及未验边界](audits/03-07/welcome-language-2026-11-22.md#请求偏好与应用语言职责边界2026-11-23)。无本次提交／推送授权；无关数据库协作WIP未计通过。
+
+- [x] **可配置语言请求头**：app.locale_header默认Accept-Language／缺键同默认／合法自定义头／null仅关闭头识别；callback→query→头→兜底，标准Request API与缓存不混用，Vary使用实际头名。最终123项定向测试、44组真实HTTP浏览器、fmt／workspace严格Clippy及三语文档全部检查通过，边界见[验收记录](audits/03-07/welcome-language-2026-11-22.md#可配置语言请求头2026-11-23)。本轮未授权暂存、提交或推送。
 
 - [x] **URL语言参数与欢迎页手动切换**：默认lang、可配置名称／null关闭、回调→query→浏览器、非法输入400、精确候选与请求隔离已实现；三语普通GET／自动控件、参数保留和候选过滤已实现。范围131项回归、36组真实浏览器、fmt／严格Clippy与三语文档检查通过，组合在途源码复验和边界见[实际记录](audits/03-07/welcome-language-2026-11-22.md#url-语言参数与欢迎页切换2026-11-22)。不代表全仓其他在途任务完成；用户已授权本轮本地提交，未推送／发布。
 

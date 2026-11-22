@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from build_guard import Project, STOP_BYTES, run
 
@@ -67,6 +68,21 @@ class BuildGuardTest(unittest.TestCase):
             self.project.cleanup()
         self.assertTrue(self.artifact.exists())
 
+    def test_process_scan_tolerates_non_utf8_arguments(self):
+        check_output = subprocess.check_output
+
+        def process_list(command, **kwargs):
+            return check_output(self.command('import sys; sys.stdout.buffer.write(b"123 python python \\xff\\n")'), **kwargs)
+
+        with patch('build_guard.subprocess.check_output', side_effect=process_list):
+            self.assertEqual(Project(self.root).active_builds(), [])
+
+    def test_process_scan_detects_macos_truncated_command(self):
+        listing = '123 /Users/Home/.rus /Users/Home/.rustup/toolchains/1.94.0/bin/cargo check\n'
+        cwd = subprocess.CompletedProcess([], 0, stdout=f'p123\nfcwd\nn{self.root}\n')
+        with patch('build_guard.subprocess.check_output', return_value=listing), patch('build_guard.subprocess.run', return_value=cwd):
+            self.assertEqual(Project(self.root).active_builds(), [123])
+
     def test_normal_and_failed_runs_preserve_reusable_cache(self):
         for code in [0, 7]:
             result = run(self.project, self.command(f'raise SystemExit({code})'), self.env, interval=.01)
@@ -79,8 +95,18 @@ class BuildGuardTest(unittest.TestCase):
                 marker = self.root / 'finished'
                 marker.unlink(missing_ok=True)
                 self.artifact.write_text('compiled')
-                self.project.free = lambda: STOP_BYTES if self.artifact.exists() and (timing == 'before' or marker.exists()) else STOP_BYTES + 1024
-                script = 'from pathlib import Path; Path("finished").write_text("done");'
+                def free():
+                    low = timing == 'before' or marker.exists()
+                    if timing == 'after' and marker.exists():
+                        try:
+                            os.kill(int(marker.read_text()), 0)
+                            low = False
+                        except ProcessLookupError:
+                            pass
+                    return STOP_BYTES if self.artifact.exists() and low else STOP_BYTES + 1024
+
+                self.project.free = free
+                script = 'import os; from pathlib import Path; Path("finished").write_text(str(os.getpid()));'
                 if timing == 'during':
                     script = 'import signal,time; signal.signal(signal.SIGINT, lambda *_: exit(0));' + script + 'time.sleep(30)'
                 else:

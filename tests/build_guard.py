@@ -28,14 +28,15 @@ class Project:
         return path
 
     def active_builds(self):
-        output = subprocess.check_output(['ps', '-axo', 'pid=,comm=,args='], text=True)
+        output = subprocess.check_output(['ps', '-axo', 'pid=,comm=,args='], text=True, errors='replace')
         builds = []
         for line in output.splitlines():
             parts = line.strip().split(None, 2)
             if len(parts) < 3:
                 continue
             pid, command, args = parts
-            name = Path(command).name
+            # macOS 的 comm 列可能截断完整路径；同时核对未截断的启动参数。
+            name = Path(args.split(None, 1)[0]).name
             rust = name in {'cargo', 'rustc', 'rustdoc', 'cargo-clippy', 'clippy-driver'}
             docs = name in {'node', 'npm'} and bool(re.search(r'vitepress.*build|npm.*run.*build', args))
             if not (rust or docs):
@@ -45,7 +46,7 @@ class Project:
                 if proc.exists():
                     cwd = proc.resolve()
                 else:
-                    result = subprocess.run(['lsof', '-a', '-p', pid, '-d', 'cwd', '-Fn'], capture_output=True, text=True)
+                    result = subprocess.run(['lsof', '-a', '-p', pid, '-d', 'cwd', '-Fn'], capture_output=True, text=True, errors='replace')
                     locations = [line[1:] for line in result.stdout.splitlines() if line.startswith('n')]
                     if not locations:
                         if subprocess.run(['ps', '-p', pid], stdout=subprocess.DEVNULL).returncode:

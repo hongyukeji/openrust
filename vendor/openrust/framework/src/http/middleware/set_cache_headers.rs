@@ -147,7 +147,20 @@ pub(in crate::http) fn set_public_cache_control(headers: &mut HeaderMap) {
     apply_cache_control(headers, &Directives::new(), Some(true));
 }
 
-fn apply_cache_control(headers: &mut HeaderMap, configured: &Directives, public: Option<bool>) {
+// Cookie 语言选择不允许被下游 public 指令重新开放给共享缓存。
+pub(super) fn set_private_locale_cache_control(headers: &mut HeaderMap) {
+    let existing = cache_directives(headers);
+    if existing.contains_key("private")
+        && existing.contains_key("no-store")
+        && !existing.contains_key("public")
+    {
+        return;
+    }
+    let directives = BTreeMap::from([("no-store".into(), Some(String::new()))]);
+    apply_cache_control(headers, &directives, Some(false));
+}
+
+fn cache_directives(headers: &HeaderMap) -> Directives {
     let mut directives = Directives::new();
     for value in headers.get_all(CACHE_CONTROL) {
         if let Ok(value) = value.to_str() {
@@ -160,6 +173,11 @@ fn apply_cache_control(headers: &mut HeaderMap, configured: &Directives, public:
             }
         }
     }
+    directives
+}
+
+fn apply_cache_control(headers: &mut HeaderMap, configured: &Directives, public: Option<bool>) {
+    let mut directives = cache_directives(headers);
     directives.extend(configured.clone());
     if let Some(public) = public {
         let (include, remove) = if public {
@@ -208,8 +226,17 @@ impl Middleware for SetCacheHeaders {
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
             let response = next.run(request).await;
-            self.apply(request.method(), request.headers(), response)
-                .await
+            let mut response = self
+                .apply(request.method(), request.headers(), response)
+                .await?;
+            if request
+                .extensions()
+                .get::<super::set_locale::PrivateLocaleResponse>()
+                .is_some()
+            {
+                set_private_locale_cache_control(&mut response.parts_mut().headers);
+            }
+            Ok(response)
         })
     }
 }

@@ -120,7 +120,7 @@ impl Middleware {
         Self::default()
     }
 
-    /// 覆盖默认全局语言中间件的候选；空列表关闭识别，非法标签保留原设置。
+    /// 覆盖自动装配的默认语言中间件候选；空列表关闭识别，非法标签保留原设置。
     #[allow(non_snake_case, reason = "沿用中间件配置方法的命名风格")]
     pub fn setLocale(
         &mut self,

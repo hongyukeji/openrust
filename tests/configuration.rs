@@ -28,7 +28,9 @@ fn application_configuration_loads_all_sections_and_typed_overrides() {
     let environment = LoadEnvironmentVariables::bootstrap(&root, None).unwrap();
     let defaults = config::load(&root, &environment).unwrap();
     assert_eq!(defaults["app"]["name"], env!("CARGO_PKG_NAME"));
-    assert_eq!(defaults["app"]["locale_query_parameter"], "lang");
+    assert_eq!(defaults["app"]["locale_query_parameter"], "locale");
+    assert_eq!(defaults["app"]["locale_cookie"], "locale");
+    assert_eq!(defaults["app"]["locale_header"], "Accept-Language");
     assert_eq!(defaults["app"]["version"], env!("CARGO_PKG_VERSION"));
     assert_eq!(
         defaults["logging"]["channels"]["slack"]["username"],
@@ -92,9 +94,12 @@ fn application_configuration_loads_all_sections_and_typed_overrides() {
         );
     }
 
-    fs::write(root.join(".env"),"GOOGLE_CLIENT_ID=google-client\nGOOGLE_CLIENT_SECRET=google-secret\nGOOGLE_REDIRECT_URI=/google/callback\n").unwrap();
+    fs::write(root.join(".env"),"APP_LOCALE_COOKIE=lang\nAPP_LOCALE_QUERY_PARAMETER=lang\nAPP_LOCALE_HEADER=X-Language\nGOOGLE_CLIENT_ID=google-client\nGOOGLE_CLIENT_SECRET=google-secret\nGOOGLE_REDIRECT_URI=/google/callback\n").unwrap();
     let environment = LoadEnvironmentVariables::bootstrap(&root, None).unwrap();
     let configured = config::load(&root, &environment).unwrap();
+    assert_eq!(configured["app"]["locale_cookie"], "lang");
+    assert_eq!(configured["app"]["locale_query_parameter"], "lang");
+    assert_eq!(configured["app"]["locale_header"], "X-Language");
     assert_eq!(
         configured["services"]["google"],
         json!({"client_id":"google-client","client_secret":"google-secret","redirect":"/google/callback"})

@@ -546,3 +546,182 @@ cargo +1.94.0 clippy --locked -p openrust -p openrust-framework --lib \
 2026-11-23 用户随后明确授权本轮本地提交，不包含推送或发布。提交欢迎页、通用Blade助手、母语资源、关联回归和三语正文及本主题记录；保留框架版本及其他对齐任务的未提交内容。欢迎页测试中已有的 MessageBag::first(None, None) 消费者迁移随测试保留，因为当前HEAD的MessageBag已采用该签名；不修改MessageBag实现。
 
 提交前复验：从实际暂存树导出全新 source-commit-welcome-20261123，96项定向测试、全项目fmt、受影响lib／tests严格Clippy和三语内容检查全部通过，分别见commit-welcome-tests／fmt／clippy／content.log。22个运行／测试／资源／正文文件与此前96项及36组浏览器验收源码一致。首次导出误用了既有source-index目录，发现历史文件未覆盖后已中断该次运行，改用全新目录重新导出；中断批次commit-index-tests不计通过。内部交接及待办仅暂存本主题追加内容，其余修改保留在工作区。
+
+
+## 可配置语言请求头（2026-11-23）
+
+用户授权完善 locale-query-and-welcome-switching 计划及实施验收，未授权暂存、提交、推送或操作开发数据。开始 HEAD 为4044b5364，期间协作者持续提交；验收使用本轮独立工作区快照，其他在途修改保留，不将其后续状态归入本任务结论。欢迎页页头、母语资源、Blade 链接及原 URL 能力已存在，核对后复用，未重新开发。
+
+### 调研与实现取舍
+
+重新读取固定 Laravel Framework v13.40.0／1449bf241017087fbd38c118ecaabef3f6797fdc 的 Authenticate 回调、固定 Docs 960eedf0911155ad16326ade49c0ea5d18eda0b8 的 localization；联网获取 Symfony HttpFoundation v7.4.0 Request、HttpKernel v7.4.0 LocaleListener 和 CodeZero Laravel Localizer README。来源分别为 raw.githubusercontent.com/laravel/framework/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Auth/Middleware/Authenticate.php、raw.githubusercontent.com/laravel/docs/960eedf0911155ad16326ade49c0ea5d18eda0b8/localization.md、raw.githubusercontent.com/symfony/http-foundation/v7.4.0/Request.php、raw.githubusercontent.com/symfony/http-kernel/v7.4.0/EventListener/LocaleListener.php、raw.githubusercontent.com/codezero-be/laravel-localizer/master/README.md；下载原文保存在本批 research/，不升级上游基线。CodeZero 仅参考有序来源和依赖执行顺序，README 为当时 master，不宣称其任一版本的完整兼容。旧 v0.x 的 translation/application_locales 测试主要覆盖旧配置／翻译结构，无可直接复用的请求头配置机制，沿用当前已有 Request 解析实现。
+
+固定文档以 App 设置语言；Symfony 的 getLanguages 读取并缓存标准 Accept-Language，LocaleListener 划分显式来源和协商。此次保留这些职责；locale_header、默认 URL 与 localeUsing 是 OpenRust 扩展，不虚构上游同名配置。未引入探测器体系、依赖或另一解析器。
+
+- config/app.rs 语言区域新增静态 locale_header=Accept-Language；缺键同默认，null 仅关头识别，其他值由 http::HeaderName 校验，空／非法／非字符串报含 app.locale_header 的配置错误。保持现有 query 环境覆盖，不为 header 增加环境变量、Builder 或配置文件。配置来自已加载仓储／缓存快照，先校验启用实例的配置，再进入回调／URL；非法配置不会被更高优先级输入掩盖。空候选仍最先关闭整个实例。
+- SetLocale 顺序为 callback Some → URL → 指定头 → 原默认／候选兜底；None 继续，值解析、中文映射、权重及候选规则不变。Vary 使用实际头名，默认保留既有 Accept-Language 输出拼写，自定义头按 HeaderName 规范化小写；大小写不敏感去重，保留原有头及通配符，null 不追加。Content-Language、下游切换及隔离继续复用原生命周期。
+- Request 只抽出内部按 HeaderName 读取的同一解析函数；公共 getLanguages／getPreferredLanguage 永远只描述标准 Accept-Language。标准来源借用原 OnceLock 缓存，自定义头在实际选择分支解析，不读写该缓存，因此无混源缓存键或额外失效状态；parts_mut 仍使标准缓存失效。无额外自定义缓存，重复实例会按当前头重新解析，未作性能结论。
+- 欢迎页生产控制器／模板／资源无需改动。扩充真实模板消费者，验证自定义头、null、language 参数、三语元信息及四仓库链接；三语本地化正文新增 API 请求头示例、配置契约和缓存边界，中间件正文链接该主题。
+
+### 验收与证据
+
+工作流为 target/tmp/locale-header-20261123/，完整独立源码在 source/；核对空闲后复用 target/tmp/locale-query-20261122/cargo-target。全部验收经根 tests/build_guard.py，Rust1.94.0、项目内 TMPDIR、正常并发与增量，未触及32GB停线。守卫入口为：
+
+```sh
+python3 -B tests/build_guard.py --workflow locale-header-20261123 --target-dir target/tmp/locale-query-20261122/cargo-target -- python3 -B target/tmp/locale-header-20261123/verify.py
+```
+
+verify.py 在独立源码执行下列实际命令，日志按 final-* 命名：
+
+```sh
+cargo +1.94.0 fmt --all -- --check
+cargo +1.94.0 test --locked -p openrust-framework --test set_locale_middleware --test request_languages --test application_locale --test config_scoped_overrides --test config_facade_access --test config_facade --test locale_bcp47 --test blade_translations --test blade_query_helpers
+cargo +1.94.0 test --locked --test welcome --test startup --test application_skeleton
+cargo +1.94.0 clippy --locked --workspace --all-targets -- -D warnings
+```
+
+| 范围 | 结果 | 证据／边界 |
+| --- | --- | --- |
+| 框架9目标 | 74通过、0失败、0忽略 | final-framework.log；默认／自定义头、大小写、多行、权重、无效值、优先级、错误配置、缺键、null、空候选、Vary、事件、下游切换、路由组、并发／多应用、重复请求头变更及标准缓存不串源；配置缓存变更不影响已有应用，新应用保留null |
+| 应用3目标 | 49通过、0失败、0忽略 | final-root.log；welcome19、startup28、application_skeleton2，真实欢迎页文案／HTML及HTTP语言／四链接和本地目标路径，保留原query和自动行为 |
+| 质量 | fmt及workspace/all-targets严格Clippy通过 | final-fmt.log、final-clippy.log；隔离快照组合通过不等于协作者后续WIP已验 |
+| 真实浏览器 | 44组HTTP Kernel＋Chromium交互通过 | browser-runtime.log、browser/browser-results.json；原36组加自定义头／null各4组，桌面／手机、明暗、三语点击、自动、刷新、母语名称、参数保留、自定义参数、候选过滤、回调、禁用、实际Vary、键盘、无JS320、受限存储。浏览器夹具实际执行1个测试通过，菜单手机截图已人工核对 |
+| 三语文档 | 内容检查与站点构建通过 | final-docs-build.log，npm --prefix docs run build 内含内容及命令入口门禁；最终12组文档浏览器与三语双前缀全导航通过，见 final-docs-browser／final-docs-scope.log |
+| 源码一致性 | 11个生产／测试／正文文件与最终验收源码逐字节相同 | consistency.json仅保存在临时批次，无长期哈希清单；内部记录不影响验收源码 |
+
+失败记录保留而不计通过：初次测试夹具重复helper及错误Request命名空间已修正；red-behavior.log在旧实现真实失败（预期zh-Hant却得到zh-Hans），证明自定义头回归可发现缺口。首次fmt受临时浏览器夹具未格式化影响；浏览器首轮编译错误、随后90秒启动超时，以及同时清除临时夹具导致的Clippy读文件失败均不计通过。已使用本批ready文件的端口正常停止超时后遗留的验收服务，改为执行已构建的本批测试二进制，完成44组交互并退出；移除临时测试夹具后再运行上述最终完整质量／测试命令通过。未修改开发数据或数据库／缓存驱动，因此未启动无关三库三缓存服务矩阵。
+
+本范围无功能阻塞。真实移动设备、其他浏览器引擎、Windows、Docker发布和性能未验；自定义Cookie／身份回调仍须应用自行配置私有缓存策略，语言头Vary不足以隔离。非三语应用语言可能指向不存在的docs目录，继续保留原已确认边界，不悄悄增加文档语言回退。
+
+
+## 请求偏好与应用语言职责边界（2026-11-23）
+
+本轮授权仅开发与验收，无暂存、提交、推送、发布或开发数据操作。起点 HEAD 为 `3201057adfdca1ab857762ee112688e3d4254394`；其他协作者在本轮期间提交 Eloquent 改动至 `87b9338d27f7a1df91463bd5cf009e3477dae88f`，保留其在途文件，未将它们计为本轮修复。
+
+### 上游与实际核对
+
+联网重新读取固定 Laravel v13.40.0 的 [Request](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/Request.php)、[HttpRequestTest](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Http/HttpRequestTest.php) 和 composer.json：Request 继承 Symfony Request，没有重写这两个语言方法；该基线允许 Symfony HttpFoundation ^7.4.0 或 ^8.0.0。本轮核对既定参考 [Symfony v7.4.0 Request](https://github.com/symfony/http-foundation/blob/v7.4.0/Request.php) 的 getLanguages／getPreferredLanguage 及 [RequestTest](https://github.com/symfony/http-foundation/blob/v7.4.0/Tests/RequestTest.php) 对无头、候选、权重和组合匹配的断言。getLanguages 固定从 Accept-Language 读取并保存请求级结果，getPreferredLanguage 消费它，不读取应用配置。只审阅上游源码与测试，未声称执行 PHP PHPUnit。下载原文在本批 research/，没有升级基线。
+
+保留项目明确的 BCP 47 输出、严格 qvalue 过滤与中文应用候选策略，不把这些适配宣称为所有 Symfony 行为等价。现有 Request 标准缓存和内部 languages_from_header 已正确分工：标准头复用 OnceLock，自定义头按需调用同一解析器且不读写标准缓存。SetLocale 的回调→URL→配置头→默认候选优先级、候选关闭、配置失败与响应合并已正确，未重复改造。
+
+生产调用点核对覆盖应用／控制器、bootstrap、routes、框架及扩展：未发现业务消费者通过 getLanguages／getPreferredLanguage 再次选择当前应用语言。欢迎页已用 App::currentLocale；译器、验证器使用既有语言作用域。邮件／通知的 Lang::getLocale 用于保存或恢复显式翻译作用域，包含 Lang::withLocale 的独立语义，保留而不机械替换。既有 Session 偏好回调须位于 Session 之后，原测试实际保存 Cookie 再读取法文，并验证 private, no-store；没有新增自动持久化机制。
+
+### 实际修改与证据
+
+| 范围 | 核对结论与实际修改 | 验证结果 |
+| --- | --- | --- |
+| Request／SetLocale／App | 核心行为正确；补 API 注释，明确标准偏好、配置协商和当前应用语言的区别、自定义头缺失不重试标准头、停用中间件不执行配置 | 新增 standard_preferences_and_actual_locale_are_independent_in_http_consumers，真实 Kernel 同时输出标准列表／首选、App、Lang 和翻译；覆盖协商前预读与协商后首次读取、URL覆盖、下游切换、不同应用默认值恢复 |
+| 环境与缓存 | 保留 config/app.rs 中 get(env, APP_LOCALE_HEADER, Accept-Language)，仅澄清注释；修正文档及计划中的静态配置旧说明 | 新增 environment_header_selection_and_cached_configuration_reach_real_welcome，使用实际 config::load 验证缺省、自定义、大小写、缓存优先于非法环境、运行实例不重读、空值配置错误、字面null头名、JSON null关闭、停用中间件 |
+| 原有边界 | 不改变回调、URL、用户Session偏好、权重、多行、无效值、缺头兜底、请求和多应用隔离、最终语言响应及已有头优先 | set_locale_middleware 全30项及 request_languages 全11项通过；自定义头缺失不回退标准头，已有 Content-Language 仍由显式响应提供者负责 |
+| 三语正文 | 修正“中间件直接调用 Request 标准方法”的过时表述，说明 APP_LOCALE_HEADER／缓存／null、App::currentLocale 与停用行为 | 六篇 requests／localization 正文同步；内容检查、构建、12组文档浏览器及双前缀六组全导航通过 |
+| 真实页面 | 保留欢迎页原有语言与主题交互、链接及缓存语义；本批浏览器自定义头服务直接使用 APP_LOCALE_HEADER 环境配置 | 从最新快照重新编译服务，Cargo JSON 确认 fresh=false 的本批可执行产物；44组真实 HTTP Chromium 交互通过，含桌面／手机、明暗、三语／自动、query、自定义头／null、无JS、存储异常及非法query |
+
+### 实际命令与结果
+
+临时资料、完整隔离源码、日志及浏览器材料位于 `target/tmp/locale-boundary-20261123/`。复用已闲置的独占 `target/tmp/locale-query-20261122/cargo-target`，增量与并发保持原样，所有运行经 `python3 -B tests/build_guard.py --workflow locale-boundary-20261123 --target-dir target/tmp/locale-query-20261122/cargo-target -- ...`；文档工作流使用项目内 docs-target，子进程 TMPDIR 与 RUSTUP_TOOLCHAIN 由守卫传递。
+
+- `cargo +1.94.0 fmt --all -- --check` 通过。
+- `cargo +1.94.0 test --locked -p openrust-framework` 定向9个test目标：set_locale_middleware、request_languages、application_locale、config_scoped_overrides、config_facade_access、config_facade、locale_bcp47、blade_translations、blade_query_helpers，75 passed／0 failed／0 ignored。
+- `cargo +1.94.0 test --locked --test welcome --test startup --test application_skeleton`：50 passed／0 failed／0 ignored，其中欢迎页20项。最终合计125项通过，没有把跳过计为通过。
+- `cargo +1.94.0 clippy --locked --workspace --all-targets -- -D warnings` 通过；既有外部 imgalifier-avif依赖的5条cfg告警不属于工作区新增告警，未修改依赖以掩盖提示。
+- `node docs/tests/check_content.mjs`、`npm --prefix docs run build`、`node docs/tests/check_browser.mjs`、`node docs/tests/check_scope.mjs` 全部通过；文档在隔离源码构建，浏览器使用已安装的Chromium。
+- 本批 browser-compile、browser-run.py 先重新编译临时网络服务，再运行 browser/browser.mjs；服务已正常停止，临时Rust服务入口已移除，然后重新执行最终fmt／125项测试／严格Clippy。最终日志为 final-fmt.log、final-framework.log、final-root.log、final-clippy.log；结果及指纹见 closure.json。
+
+首次框架测试编译暴露新增断言对 Option<Value> 多借用一次，应用测试编译暴露缺少 Application trait 导入，随后严格Clippy指出多余 Repository trait 导入；均修正后完整重跑。上述失败不属于通过结果，没有跳过断言或删掉用例。
+
+收尾逐字节核对15个语言相关源码／测试／配置／视图／正文文件与验收快照一致；已逐文件检查其他非内部材料输入；协作者后续修改的 database/eloquent/ 与 database/query/ 无关文件已保留，一致文件数量与差异清单保存在closure.json，不以本轮组合结果声称这些后续在途变更通过。closure.json 明确列出差异，语言范围无未验阻塞。最终磁盘约69.73 GB／64.94 GiB可用，高于32 GB停线，未无故清空可复用缓存。
+
+未验：完整PHPUnit、其他浏览器引擎／真实手机、Windows、Docker发布和性能压测；本轮未改数据库或缓存驱动共享行为，未启动无关服务，也未操作开发数据库／数据卷。Cookie或用户身份内容的缓存隔离仍须应用的private策略及对应Vary；语言Vary本身不提供完整私有隔离。非默认三语的文档目录边界沿用现有说明。
+
+
+## 自动跟随与持久手动偏好（2026-11-23）
+
+### 依据与实现决策
+
+本节覆盖此前“不持久化语言偏好”的历史限制。固定 Laravel framework v13.40.0／1449bf241017087fbd38c118ecaabef3f6797fdc 的 Middleware Web 顺序、EncryptCookies、CookieJar 作为基础；固定文档960eedf0911155ad16326ade49c0ea5d18eda0b8 的 localization、requests、session 与 middleware 配合核对。Symfony v7.4.0 LocaleListener 说明请求语言与应用 locale 的职责；CodeZero Localizer 的 Cookie 来源先于浏览器，以及 mcamara 的浏览器／Cookie／Session 分工仅作参考。没有照搬探测器体系或将自动检测结果持久化。SetLocale、storePreference、locale_cookie 配置及默认装配是 OpenRust 扩展，不声称是上游默认本地化接口。
+
+研究材料位于 target/tmp/locale-preference-20261123/research/。参考来源：
+
+- https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Configuration/Middleware.php
+- https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Cookie/CookieJar.php
+- https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/localization.md
+- https://github.com/symfony/http-kernel/blob/v7.4.0/EventListener/LocaleListener.php
+- https://github.com/codezero-be/laravel-localizer
+- https://github.com/mcamara/laravel-localization
+
+默认同一 SetLocale 自动装配在已解析路由的直接 Cookie 解密／队列之后、常规 Web Session 之前，有状态 API 则进入其保护包装器后执行。纯 API、未匹配和公开静态请求不启用 Web 偏好存储。依赖 Session／认证的回调仍由应用关掉默认实例并将相同中间件放到依赖之后。此变更避免全局先选语言、Web 再选一次的重复事件；未装配 Kernel 的独立 Router 保留原错误返回契约。
+
+Web 优先级：回调 → 配置 URL 参数 → 已解密且未豁免的偏好 Cookie → 配置请求头 → 默认候选。自动结果及 URL 不写 Cookie。LocaleSelection 将有效固定偏好、可写能力与实际语言分开；业务使用 App::currentLocale。保存方法只接受写请求和当前候选，复用 Cookie 队列；欢迎页 POST /locale 由原 Web CSRF 保护，成功303跳转到固定站内首页，不读取外部重定向目标。
+
+app.locale_cookie 缺键默认lang，保留应用已有 APP_LOCALE_COOKIE 覆盖，JSON null 关闭。Cookie::forever 复用400天及现有路径／域／HTTPS／SameSite／HttpOnly，删除复用相同属性。无效、损坏、候选移除安全回到自动；显式非法提交400。过期由浏览器执行，Cookie请求头自身不携带到期时间，不承诺拒绝被重播的合法旧密文。安全 Cookie 参与的页面合并 Vary: Cookie，并复用 Cache-Control 解析合并设置private,no-store，路由缓存不能重新公开。回调的其他私有来源仍由应用提供相应缓存策略。
+
+### 修改范围与失败回归
+
+- 框架：set_locale.rs／LocaleSelection／storePreference；foundation/http.rs、configuration/middleware.rs、routing/router.rs 装配；set_cache_headers.rs 保护私有缓存。
+- 应用：config/app.rs、WelcomeController、routes/web.rs、welcome.blade.html，保留既有母语名称资源与主题实现，新增明确 POST 表单和模式显示。
+- 回归：locale_preference、set_locale_middleware、welcome。扩大CSRF验收暴露旧夹具MessageBag错误值为字符串，按既有Vec<String>契约改为数组，未删除断言；直接Router未匹配错误行为回归已修复并恢复原断言。
+- 三语localization与middleware正文、计划、规范和交接；正文只放开发者用法及真实支持边界。
+- 2026-11-23在验收专用源码暂时禁用Cookie读取，protected_preference_is_distinct_from_actual_locale_and_never_needs_session实际失败：得到en而非已保存zh-Hans；随后恢复原源码再执行完整回归。误写筛选名的一次0 tests仅作为诊断，不计通过。
+
+### 本轮最终验收
+
+最终结果如下；旧批次和失败运行不作为本批最终结果。
+
+
+| 范围 | 实际命令／消费者 | 最终结果 | 未验证边界 |
+| --- | --- | --- | --- |
+| 框架与HTTP管线 | `cargo +1.94.0 test --locked -p openrust-framework`，显式17个test目标：set_locale_middleware、locale_preference、request_languages、application_locale、config_scoped_overrides、config_facade_access、config_facade、locale_bcp47、blade_translations、blade_query_helpers、middleware_lifecycle、middleware_exclusions、routing_groups、cookies、cookie_value_prefix、csrf、request_input | 129 passed，0 failed，0 ignored；含失败注入后恢复的真正消费者 | 没有执行完整workspace测试或完整上游PHPUnit |
+| 应用 | `cargo +1.94.0 test --locked --test welcome --test startup --test application_skeleton --test http` | 71 passed（25欢迎页＋28启动＋2骨架＋16HTTP），0 failed／ignored；含真实TCP CSRF／保存／读取／删除 | 不代表所有应用业务或其他在途代码通过 |
+| 有状态API | `cargo +1.94.0 test --locked -p openrust-framework --features sanctum --test locale_preference` | 8 passed，0 failed／ignored；可信源安全管线读取偏好，无源／非可信源保持无状态 | 外部移动客户端和账号同步未实现，由应用接入 |
+| 质量 | `cargo +1.94.0 fmt --all -- --check`；`cargo +1.94.0 clippy --locked --workspace --all-targets -- -D warnings`；`cargo +1.94.0 clippy --locked -p openrust-framework --features sanctum --test locale_preference -- -D warnings` | 均通过；初轮协作native Blade格式与bindings.rs的box_default阻塞由对应负责人处理后刷新组合复验，无放宽警告级别 | 外部vendor依赖现有cfg／弃用等warning保留，没有作为本功能新增错误掩盖 |
+| 浏览器 | 最终隔离源码新编译的临时TCP服务器＋Playwright Chromium，`browser-compile.log`确认fresh=false，`browser-run.py`执行browser/browser.mjs | 23组通过；3语×2视口×2主题12组、JS开关／过期损坏2组、query与header变体4组、停用控件3组、Cookie关闭临时链接1组、Cookie改名1组；刷新／导航／URL临时覆盖／更新／自动／键盘操作／私有响应头／四类仓库链接及文件存在性通过，无页面脚本错误 | Chromium模拟视口，其他引擎、真实手机、Windows及性能压测未验 |
+| 三语文档 | `node docs/tests/check_content.mjs`、`npm --prefix docs run build`、`node docs/tests/check_browser.mjs`、`node docs/tests/check_scope.mjs` | 内容／构建通过，根及/docs双前缀12组浏览器和6组全导航通过 | 不代表Docker发布和公网托管已部署 |
+| 构建守卫 | `python3 -B -m unittest discover -s tests -p build_guard_test.py` | 10项通过；修复实际遇到的非UTF8进程参数、macOS comm截断漏检，覆盖持锁／并行构建阻止清理；after-exit测试按PID确认进程退出，消除已有时序竞态，未放宽断言 | RustRover可能重启根target构建，不能绕过其Cargo锁清理 |
+
+临时源码、研究材料、命令日志、截图与`closure.json`统一位于`target/tmp/locale-preference-20261123/`；Cargo复用`target/tmp/locale-query-20261122/cargo-target`。命令统一经`python3 -B tests/build_guard.py --workflow locale-preference-20261123 --target-dir target/tmp/locale-query-20261122/cargo-target -- ...`，docs另用同目录docs-target和docs工作流；TMPDIR、工具链传递由守卫负责。保留正常并发、增量和可复用缓存。初期相同Cargo目录有协作锁竞争，已协调对方使用其独占目录；最终命令不存在交叉构建。
+
+过程触及32GB停线，守卫实际停止构建；清理扫描暴露异常字节和macOS comm截断，已修复。Cargo锁占用时拒绝清理，识别到RustRover自动重启的项目构建，未绕过锁删除。协作清理后空间恢复再验收；收尾可用空间以closure.json实测为准。守卫修改没有关闭停线，也没有删除源码、日志、下载缓存、独立交付文件或开发数据库／数据卷。
+
+最后重新运行verify.py，五阶段全部exit=0；208次Rust测试执行均0 failed／ignored。浏览器服务器已正常结束，临时welcome_browser_acceptance.rs已移除。语言功能、应用配置、模板、消费者与三语正文共30个文件逐字节／SHA256核对与最终验收源码一致，差异为空。验收快照外其他协作者随后变化单列于closure.json的other_later_changes_not_verified：原生Blade验收材料、三语Blade正文和log模块，不把这些后续变化计为本轮通过。
+
+本轮不涉及共享数据库／缓存驱动变更，未启动无关数据库或缓存服务；Session／Cookie测试只使用项目内隔离夹具。未操作开发／生产数据。此次无暂存、提交、推送或发布；工作区其他协作者的改动保留。非三语且停用默认中间件时docs/fr等不存在的原有欢迎页链接边界仍按正文说明保留，没有擅自增加回退或新语言管理器。
+
+收尾指纹时HEAD为292418a396f62497ab7d1d6c295b8a20aa6524a8（含其他协作者提交），可用49.35 GB／45.97 GiB；暂存区为空。本次未进行Git写操作。
+
+
+## 默认语言名称统一为 locale（2026-11-23）
+
+本节是用户明确确认的新默认命名决定，覆盖此前 lang 默认；此前验收仍只代表当时源码。开始HEAD为292418a396f62497ab7d1d6c295b8a20aa6524a8，最新验收快照采集时为f0cdf615034f7fc97250d9e3ae14c8eb269f4001；期间保留其他协作者提交和未提交改动，本任务未进行Git写操作。
+
+### 核对和修改
+
+- 联网读取固定1449bf241017087fbd38c118ecaabef3f6797fdc的CookieJar.php和Foundation/Configuration/Middleware.php，核对Cookie名称由消费者传入，沿用已有forever／forget和解密／队列管线，不新增兼容层。查询参数／偏好Cookie默认名称属于OpenRust用户决定，不宣称上游原生配置。
+- config/app.rs的APP_LOCALE_COOKIE、APP_LOCALE_QUERY_PARAMETER默认值改locale；SetLocale中两个缺键回退同步。Accept-Language／APP_LOCALE_HEADER、自定义名称、null、优先级、BCP47和请求隔离保持原契约。
+- 欢迎页已有POST /locale、store_locale、locale表单字段及动态参数／Cookie消费正确，复用而不增加重复入口。针对现有默认消费者更新断言，保留lang/、HTML lang、第三方协议和自定义／旧来源负例。
+- 新增HTTP Kernel回归：旧加密lang Cookie和旧query默认忽略，旧新Cookie并存只用新名称；Cookie／query分别及同时显式lang仍可读取、临时覆盖、删除；缓存名称覆盖实时配置且不同应用不串用。欢迎页覆盖文案、语言元信息、CSRF保存、旧参数保留及本地303重定向。
+- 根.env未显式设置两个名称；环境模板、Docker模板、安装／生成链未发现额外硬编码旧默认。没有修改敏感环境值。三语localization正文同步用法和升级；规范及计划第1–11节当前契约更新，历史第12–15节保留并标注新决定覆盖。
+
+### 实际验收
+
+所有临时源码、资料、日志和截图位于target/tmp/locale-defaults-20261123/；独占复用Cargo目录为target/tmp/locale-query-20261122/cargo-target，命令由tests/build_guard.py传入项目TMPDIR、CARGO_TARGET_DIR及Rust1.94.0。没有操作开发数据或启动无关数据库／缓存。
+
+| 范围 | 实际命令／证据 | 结果 |
+| --- | --- | --- |
+| 失败回归 | `run.py red cargo +1.94.0 test --locked -p openrust-framework --test locale_preference locale_defaults_ignore_legacy_sources_but_explicit_lang_remains_supported` | 旧生产实现实际失败：找不到默认locale Cookie；red.log保留，不计通过 |
+| 框架 | `verify.py`中17个显式test目标，含set_locale_middleware、locale_preference、request_languages、application_locale、Config作用域／Facade、BCP47、Blade、生命周期、路由、Cookie、CSRF与请求输入 | final-framework.log：131 passed，0 failed／ignored |
+| 应用 | `cargo +1.94.0 test --locked --test welcome --test startup --test application_skeleton --test http --test configuration` | final-root.log：74 passed（26欢迎页＋28启动＋2骨架＋16HTTP＋2配置），0 failed／ignored |
+| 有状态API | `cargo +1.94.0 test --locked -p openrust-framework --features sanctum --test locale_preference` | final-stateful.log：10 passed，0 failed／ignored |
+| 质量 | `cargo +1.94.0 fmt --all -- --check`；`cargo +1.94.0 clippy --locked --workspace --all-targets -- -D warnings` | 最终均exit=0；依赖既有cfg warning未转成项目豁免 |
+| 真实浏览器 | `browser-prepare.py`，新编译welcome_browser_acceptance（browser-compile.log fresh=false），browser-run.py／browser/browser.mjs | browser.log／results.json：25组真实TCP Kernel＋Chromium通过；三语×桌面手机×明暗，持久选择／更新／URL临时覆盖／恢复自动、过期损坏、关闭／改名、无JS、CSRF、Cookie及缓存头、仓库链接；新增旧来源忽略和显式lang端到端验证 |
+| 三语文档 | `node docs/tests/check_content.mjs`、`npm --prefix docs run build`、`node docs/tests/check_browser.mjs`、`node docs/tests/check_scope.mjs` | 内容／构建、双前缀12组浏览器和6组导航通过 |
+
+过程修正：删除Cookie也经过加密，新增测试最初误断言值必须为空，改为校验正确名称和Max-Age=0，保留浏览器实际删除验收。一次旧mtime导致Cargo复用旧feature测试产物，已改验收快照复制为内容变化才更新时间，并强制重编译该测试；最终feature日志确认Compiling和10项通过。整仓Clippy初轮遇到协作native_logger测试调用在途API错误，负责人修正后重新采集最新组合并通过；后续日志测试变化单列closure.json，不冒充其通过。
+
+收尾以closure.json记录31个语言相关交付源码／测试／正文SHA256，和最终验收快照逐字节一致。浏览器服务正常退出；快照专用服务器测试移除。没有把旧lang默认的历史验收改写为新默认通过。
+
+升级：旧Cookie不默认读取、不迁移／双写，用户重新选择；书签改?locale=...。需保留旧名称时显式配置APP_LOCALE_COOKIE=lang和／或APP_LOCALE_QUERY_PARAMETER=lang；升级重建配置缓存，缓存显式名称继续有效直到重建。没有自动兼容读取。
+
+范围内无剩余实现阻塞。未验完整workspace测试、完整上游PHPUnit、其他浏览器引擎／真实设备、Windows、Docker部署和性能压测；本轮不变更共享数据库／缓存驱动。未经授权未暂存、提交、推送或发布。
+
+
+用户随后明确授权本轮本地提交，不含推送或发布。提交语言请求头配置、请求偏好职责边界、持久偏好及locale默认命名的完整依赖；框架版本查询和无关对齐审计改动保留工作区。提交前31个语言相关暂存文件与本轮验收SHA256一致，10项构建守卫测试及三语内容检查再次通过。

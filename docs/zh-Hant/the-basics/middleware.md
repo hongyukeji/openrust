@@ -4,9 +4,9 @@
 
 全域中介軟體包覆路由比對流程，也能讀取 404 和 405 回應。符合路由後，先執行外層路由群組的中介軟體，再執行內層路由群組和單一路由的中介軟體。每一層都可以呼叫 `next.run(request).await` 繼續執行並讀取傳回的回應，也可以直接傳回回應，略過其餘中介軟體和路由處理器。
 
-## 預設全域語言中介軟體 {#locale-middleware}
+## 預設語言中介軟體 {#locale-middleware}
 
-預設全域堆疊包含 `openrust::http::middleware::SetLocale`，不必由應用程式註冊。候選設定、關閉辨識、執行位置與回應標頭行為見[瀏覽器語言](../digging-deeper/localization.md#welcome-page-language)。 URL 參數與設定方式見[URL 語言選擇](../digging-deeper/localization.md#locale-query)。
+框架自動裝配 `openrust::http::middleware::SetLocale`，在安全 Web 路由的 Cookie 解密和佇列之後、一般 Web Session 之前執行；無狀態 API 不讀取偏好 Cookie。儲存、關閉、執行順序與回呼見[自動與固定語言](../digging-deeper/localization.md#locale-preference)和[自訂語言選擇](../digging-deeper/localization.md#custom-locale-selection)。[URL 選擇](../digging-deeper/localization.md#locale-query)與[`app.locale_header`](../digging-deeper/localization.md#locale-header)可獨立設定或關閉。
 
 ## 命名群組與優先順序
 

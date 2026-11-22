@@ -1,5 +1,32 @@
 # 当前交接
 
+## 默认语言名称统一为 locale（2026-11-23）
+
+应用与框架缺省query／偏好Cookie统一locale，保留Accept-Language、既有环境覆盖、自定义lang及null语义；复用POST /locale和store_locale。旧lang不默认读取，升级重新选择、更新书签并重建配置缓存。覆盖此前默认lang约定，历史记录保留当时边界。
+
+Rust1.94.0定向215次执行（131框架＋74应用＋10有状态API，0失败／忽略）、fmt、workspace/all-targets严格Clippy、25组真实HTTP Chromium及三语内容／构建／浏览器／导航通过。31个语言相关交付文件与快照一致；日志模块后续协作修改不计本轮通过。详见[验收与迁移](audits/03-07/welcome-language-2026-11-22.md#默认语言名称统一为-locale2026-11-23)。无本范围剩余实现阻塞；完整workspace测试、其他引擎／实机、Windows／Docker／性能未验。用户随后授权本轮本地提交，不含推送或发布；无关协作改动继续保留。
+
+## 自动跟随与持久手动语言（2026-11-23）
+
+已实现明确POST保存加密偏好Cookie、恢复自动删除、自动识别不持久化、URL仅单次覆盖。默认顺序callback→URL→受保护Cookie→配置头→兜底；Request标准头语义不变，业务使用App::currentLocale。保留APP_LOCALE_COOKIE（默认lang）、HEADER与QUERY_PARAMETER及配置缓存，null分别关来源。默认SetLocale在解析路由中于解密／队列之后装配一次；普通API无状态，可信前端有状态包装器可接入；依赖Session／认证回调仍显式后置。Cookie页面private,no-store及Vary:Cookie，普通语言Vary不承担任意用户来源隔离。
+
+Rust1.94.0定向208项（129框架＋71应用＋8Sanctum，0失败0忽略）、严格workspace/all-targets及Sanctum定向Clippy、整仓fmt通过；最终服务重新编译后23组真实HTTP Chromium和三语内容／构建／浏览器／导航检查通过。新增guard异常进程扫描回归，10项Python检查通过。证据、修复过的失败与源码指纹见[主题验收](audits/03-07/welcome-language-2026-11-22.md#自动跟随与持久手动偏好2026-11-23)及target/tmp/locale-preference-20261123/。其他协作者后续WIP不计本轮通过。
+
+未验：其他引擎／实机、Windows、Docker发布、性能；移动端客户端保存与账号跨设备同步只提供接入说明，不新增客户端或账号字段。未改共享数据库／缓存驱动，未操作开发数据。此次没有暂存、提交、推送或发布授权。
+
+## 请求偏好与应用语言职责边界（2026-11-23）
+
+已核对核心行为正确并保留：Request标准方法始终读取Accept-Language，SetLocale按APP_LOCALE_HEADER支持的配置协商，实际语言用App::currentLocale；自定义头缺失不回退标准头。补充API注释、实际Kernel边界消费者、环境加载与缓存欢迎页验收，修正三语正文和计划中的过时静态配置说明；字面环境null是头名，JSON null才关闭。停用中间件后配置不独立执行选择。
+
+最终Rust1.94.0隔离快照125项测试（75框架＋50应用，0 ignored）、fmt、workspace/all-targets严格Clippy、44组真实HTTP浏览器及三语内容／构建／浏览器／全导航通过。15个相关文件与交付源码一致；其他协作者之后的数据库在途源码不纳入本轮通过结论。证据在target/tmp/locale-boundary-20261123/及[主题记录](audits/03-07/welcome-language-2026-11-22.md#请求偏好与应用语言职责边界2026-11-23)。语言范围无未验阻塞；其他引擎、实机、Windows、Docker发布及性能未验。本次未暂存、提交、推送、发布或操作开发数据，覆盖下方历史授权对本轮的适用性。
+
+## 可配置语言请求头与欢迎页切换复验（2026-11-23）
+
+按[计划](plans/locale-query-and-welcome-switching.md#13-可配置语言请求头2026-11-23)完成app.locale_header：缺键默认Accept-Language、合法自定义头、null仅关头识别、非法配置明确500；callback→query→配置头→既有兜底。复用Request解析器，标准getLanguages／getPreferredLanguage仍只读Accept-Language及原缓存；Vary跟随实际头名，保留已有项及通配符。欢迎页已完成能力保留，无新增控制器／模板抽象；三语正文、规范、计划与记录同步。
+
+Rust1.94.0隔离源码最终123项定向回归0 ignored、44组真实HTTP／Chromium交互、fmt、workspace/all-targets严格Clippy、三语内容／构建／浏览器与双前缀全导航通过；11个生产／测试／正文文件与验收快照一致。详见[验收记录](audits/03-07/welcome-language-2026-11-22.md#可配置语言请求头2026-11-23)。本批资料位于target/tmp/locale-header-20261123，复用已空闲独占locale-query-20261122/cargo-target；全部命令经build_guard，未触磁盘停线，结束可用约76.23GB／71.00GiB。本批验收服务已退出；保留增量缓存、源码与日志。未访问开发数据，未暂存、提交或推送，其他协作者改动保留。真实设备／其他引擎／Windows／Docker发布及性能未验；非三语文档目录及用户私有缓存仍为明确边界。
+
+
 ## 基础 HTTP 路由方法（2026-11-23）
 
 Router 与 Route Facade 已补齐 post／put／patch／delete／options／query／any，复用现有注册、IntoRouteHandler、可配置路由和调用位置；match 方法名规范为大写，GET 保留 HEAD。固定基线的 any 恰含八种方法；同身份逐方法覆盖和重叠模式首次匹配的顺序均经缓存前后 HTTP 验证。欢迎页改用 Route::post，相关业务消费者、三语路由与控制器／验证／认证／Passport 示例同步；保留动态方法宏与专测 match 的声明。

@@ -83,8 +83,12 @@ pub(super) fn load(env: &Environment) -> Result<Loaded<'_>, ConfigError> {
         "locale": locale(env, "APP_LOCALE", "en")?,
         "fallback_locale": locale(env, "APP_FALLBACK_LOCALE", "en")?,
         "faker_locale": locale(env, "APP_FAKER_LOCALE", "en-US")?,
+        // 浏览器手动语言偏好 Cookie；JSON null 表示关闭。
+        "locale_cookie": get(env, "APP_LOCALE_COOKIE", "locale")?,
+        // 应用语言协商请求头；JSON null 表示关闭。
+        "locale_header": get(env, "APP_LOCALE_HEADER", "Accept-Language")?,
         // URL 语言查询参数名；null 表示关闭 URL 语言切换。
-        "locale_query_parameter": get(env, "APP_LOCALE_QUERY_PARAMETER", "lang")?,
+        "locale_query_parameter": get(env, "APP_LOCALE_QUERY_PARAMETER", "locale")?,
 
         /*
         |--------------------------------------------------------------------------

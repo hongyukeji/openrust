@@ -332,7 +332,7 @@ THE SOFTWARE.
             }
             .preference-menu summary::-webkit-details-marker { display: none; }
             .preference-menu summary:hover, .preference-menu[open] summary { background: var(--outline); }
-            .preference-menu summary:focus-visible, .theme-options button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+            .language-switcher button:focus-visible, .preference-menu summary:focus-visible, .theme-options button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
             .preference-menu nav, .theme-options {
                 position: absolute;
                 z-index: 5;
@@ -345,7 +345,7 @@ THE SOFTWARE.
                 background: var(--card);
                 box-shadow: 0 8px 24px rgb(0 0 0 / 10%);
             }
-            .language-switcher a, .theme-options button {
+            .language-switcher :is(a, button), .theme-options button {
                 display: flex;
                 align-items: center;
                 gap: 12px;
@@ -362,10 +362,10 @@ THE SOFTWARE.
                 background: transparent;
                 cursor: pointer;
             }
-            .language-switcher a[data-current-language="true"] { text-decoration: underline; text-underline-offset: 3px; }
-            .language-switcher a[aria-current="true"], .theme-options button[aria-pressed="true"] { background: var(--outline); }
-            .language-switcher a:hover, .theme-options button:hover { background: var(--outline); }
-            .language-switcher a[aria-current="true"]::after, .theme-options button[aria-pressed="true"]::after { content: "✓"; margin-inline-start: auto; }
+            .language-switcher :is(a, button)[data-current-language="true"] { text-decoration: underline; text-underline-offset: 3px; }
+            .language-switcher :is(a, button)[aria-current="true"], .theme-options button[aria-pressed="true"] { background: var(--outline); }
+            .language-switcher :is(a, button):hover, .theme-options button:hover { background: var(--outline); }
+            .language-switcher :is(a, button)[aria-current="true"]::after, .theme-options button[aria-pressed="true"]::after { content: "✓"; margin-inline-start: auto; }
         </style>
     </head>
     <body>
@@ -375,18 +375,34 @@ THE SOFTWARE.
                 <span class="brand-name" title="{{ $name }}">{{ $name }}</span>
             </div>
             <div class="preferences">
-                @if(($locale_parameter ?? null) && (in_array('en', $locale_candidates, true) || in_array('zh-Hans', $locale_candidates, true) || in_array('zh-Hant', $locale_candidates, true)))
+                @if((($locale_can_store ?? false) || ($locale_parameter ?? null)) && (in_array('en', $locale_candidates, true) || in_array('zh-Hans', $locale_candidates, true) || in_array('zh-Hant', $locale_candidates, true)))
                 <details class="preference-menu" name="welcome-preferences">
                     <summary aria-label="{{ __('welcome.language') }}" title="{{ __('welcome.language') }}">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><path d="M3 12h18M5 6h14M5 18h14"/></svg>
                     </summary>
-                    <nav class="language-switcher" aria-label="{{ __('welcome.language') }}" data-locale="{{ $language }}">
+                    <nav class="language-switcher" aria-label="{{ __('welcome.language') }}" data-locale="{{ $language }}" data-mode="@if($locale_preference ?? null){{ 'fixed' }}@else{{ 'auto' }}@endif">
+                        @if($locale_can_store ?? false)
+                        @if($locale_parameter)
+                        <form method="post" action="{{ $base_path }}/locale?{{ Arr::query(Arr::except($query, [$locale_parameter])) }}">
+                        @else
+                        <form method="post" action="{{ $base_path }}/locale?{{ Arr::query($query) }}">
+                        @endif
+                            @csrf
+                            @foreach(['en', 'zh-Hans', 'zh-Hant'] as $choice)
+                            @if(in_array($choice, $locale_candidates, true))
+                            <button type="submit" name="locale" value="{{ $choice }}" @if(($locale_preference ?? null) === $choice)aria-current="true"@endif @if($language === $choice)data-current-language="true"@endif lang="{{ $choice }}">{{ __('languages.name', [], $choice) }}</button>
+                            @endif
+                            @endforeach
+                            <button type="submit" name="locale" value="" @if(!($locale_preference ?? null))aria-current="true"@endif lang="{{ $language }}">{{ __('welcome.follow_browser') }}</button>
+                        </form>
+                        @else
                         @foreach(['en', 'zh-Hans', 'zh-Hant'] as $choice)
                         @if(in_array($choice, $locale_candidates, true))
                         <a href="{{ $base_path }}/?{{ Arr::query([$locale_parameter => $choice] + $query) }}" @if($locale_from_query && $language === $choice)aria-current="true"@endif @if($language === $choice)data-current-language="true"@endif lang="{{ $choice }}">{{ __('languages.name', [], $choice) }}</a>
                         @endif
                         @endforeach
                         <a href="{{ $base_path }}/@if(Arr::query(Arr::except($query, [$locale_parameter])))?{{ Arr::query(Arr::except($query, [$locale_parameter])) }}@endif" @if(!$locale_from_query)aria-current="true"@endif lang="{{ $language }}">{{ __('welcome.follow_browser') }}</a>
+                        @endif
                     </nav>
                 </details>
                 @endif

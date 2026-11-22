@@ -4,9 +4,9 @@
 
 全局中间件包裹路由匹配过程，也能读取 404 和 405 响应。匹配路由后，先执行外层路由组的中间件，再执行内层路由组和单条路由的中间件。每一层都可以调用 `next.run(request).await` 继续执行并读取返回的响应，也可以直接返回响应，跳过其余中间件和路由处理器。
 
-## 默认全局语言中间件 {#locale-middleware}
+## 默认语言中间件 {#locale-middleware}
 
-默认全局栈包含 `openrust::http::middleware::SetLocale`，无需应用注册。候选配置、关闭识别、执行位置与响应头行为见[浏览器语言](../digging-deeper/localization.md#welcome-page-language)。 URL 参数和配置方式见[URL 语言选择](../digging-deeper/localization.md#locale-query)。
+框架自动装配 `openrust::http::middleware::SetLocale`，在安全 Web 路由的 Cookie 解密和队列之后、普通 Web Session 之前执行；无状态 API 不读取偏好 Cookie。保存、关闭、执行顺序及回调见[自动与固定语言](../digging-deeper/localization.md#locale-preference)和[自定义语言选择](../digging-deeper/localization.md#custom-locale-selection)。[URL 选择](../digging-deeper/localization.md#locale-query)与[`app.locale_header`](../digging-deeper/localization.md#locale-header)可独立配置或关闭。
 
 ## 命名组与优先级
 

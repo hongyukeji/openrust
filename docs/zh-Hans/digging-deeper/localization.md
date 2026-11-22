@@ -49,9 +49,9 @@ fn greeting(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
 
 ### 浏览器语言 {#welcome-page-language}
 
-OpenRust 的默认全局中间件栈包含 `openrust::http::middleware::SetLocale`，应用无需创建语言中间件或在 `bootstrap/app.rs` 手动注册。
+OpenRust 默认自动装配 `openrust::http::middleware::SetLocale`，应用无需创建语言中间件或在 `bootstrap/app.rs` 手动注册。
 
-默认支持 `en`、`zh-Hans`、`zh-Hant`。中间件通过 `Request::getLanguages()` 复用请求头解析与偏好排序，按权重选择、跳过 `q=0`，同权重保持浏览器顺序。没有匹配项时使用受支持的 `APP_LOCALE`，否则使用候选列表的第一项（默认英文）。控制器、校验和 Blade 模板共用当前请求语言。
+默认支持 `en`、`zh-Hans`、`zh-Hant`。中间件为配置的协商头复用请求语言解析器，按权重选择、跳过 `q=0`，同权重保持浏览器顺序。没有匹配项时使用受支持的 `APP_LOCALE`，否则使用候选列表的第一项（默认英文）。控制器、校验和 Blade 模板共用当前请求语言。
 
 `zh-Hans`、`zh-CN`、`zh-SG` 和仅 `zh` 对应简体；`zh-Hant`、`zh-TW`、`zh-HK`、`zh-MO` 对应繁体，明确的文字体系优先于地区，未知文字体系不按中文地区猜测。数字变体不作为文字体系。其他语言匹配完整标识或基础语言。此选择规则不改变公开语言标签的规范化语义。
 
@@ -65,7 +65,7 @@ OpenRust 的默认全局中间件栈包含 `openrust::http::middleware::SetLocal
 
 候选按 BCP 47 规范化；非法标签返回 `TranslationError` 并保留之前的设置，重复调用使用最后一次成功设置。传入空列表 `middleware.setLocale(&[])` 关闭识别，此时不修改语言或响应头，也不触发语言更新事件，应用继续使用 `app.locale` 和手动 `App::setLocale`。仅用于特定路由时，先关闭全局识别，再通过已有路由或路由组中间件注册 `SetLocale::new(&["en", "fr"])?`。
 
-中间件在执行下游前调用 `App::setLocale`，同步配置、译器和 `LocaleUpdated` 事件；监听器失败时交由现有异常处理，不继续执行下游。下游处理完成（包括已渲染的异常响应）后读取最终语言，在缺少时添加 `Content-Language`，将 `Accept-Language` 合并到 `Vary`，保留已有值或通配符。不写入 Cookie，不改变其他请求、队列任务或应用默认语言。默认执行位置在输入转换之后、应用追加的全局中间件和路由之前；之前已返回响应的 CORS 预检、维护模式或请求体大小检查不会经过语言选择。
+中间件在执行下游前调用 `App::setLocale`，同步配置、译器和 `LocaleUpdated` 事件；监听器失败时交由现有异常处理，不继续执行下游。下游处理完成（包括已渲染的异常响应）后读取最终语言，在缺少时添加 `Content-Language`，将启用的语言请求头（默认 `Accept-Language`）合并到 `Vary`，保留已有值或通配符。自动选择不保存偏好，不改变其他请求、队列任务或应用默认语言。默认路由装配位于输入转换与安全 Cookie 建立之后，详见[自动与固定语言](#locale-preference)；之前已返回响应的 CORS 预检、维护模式或请求体大小检查不会经过语言选择。
 
 原先应用中的 `SetLocale` 文件和 `append` 注册应移除，避免重复执行；需要关闭识别时改用上述空列表设置。
 
@@ -73,25 +73,66 @@ OpenRust 的默认全局中间件栈包含 `openrust::http::middleware::SetLocal
 
 ### URL 语言选择 {#locale-query}
 
-默认中间件先读取 `?lang=en`、`?lang=zh-Hans` 或 `?lang=zh-Hant`，再协商 `Accept-Language`。`localeUsing` 回调返回语言时优先于 URL；返回 `None` 后依次尝试 URL 和浏览器。URL 显式值必须规范化后精确属于候选：`ZH-hANT` 可选择 `zh-Hant`，此处不将 `zh-CN` 当作别名。空值、非法标签、数组及不支持的语言返回 HTTP 400。重复标量参数遵循查询解析器规则，后值覆盖前值；请求体字段不参与选择。
+`?locale=en`、`?locale=zh-Hans`、`?locale=zh-Hant` 只覆盖本次请求，不保存或替换固定偏好。顺序为回调 → URL → 受保护的偏好 Cookie → 配置请求头 → 默认语言或首个候选。回调返回 `None` 才进入下一来源。显式 URL 值规范化后必须精确属于候选；非法、空值、数组或不支持的值返回 HTTP 400。重复标量键沿用查询解析器的后值覆盖规则。请求体字段不参与本次语言选择。
 
-在 `config/app.rs` 的语言区域配置参数名：
+在 `config/app.rs` 的语言区域配置：
 
 ```rust
-"locale_query_parameter": "lang",
+"locale_query_parameter": get(env, "APP_LOCALE_QUERY_PARAMETER", "locale")?,
 ```
 
-改成 `"language"` 后只读取 `?language=...`；设为 JSON `null` 只关闭 URL 选择，仍保留回调和浏览器协商。缺键时默认使用 `lang`，兼容旧配置缓存。空名称、空白、控制字符、点、方括号及非字符串值属于配置错误，请使用非空的顶层查询键。配置缓存保留原有值，修改后需重建缓存；无需额外环境变量或中间件注册。
+设置 `APP_LOCALE_QUERY_PARAMETER=language` 后只读 `?language=...`。缺键默认 `locale`，JSON `null` 只关闭 URL 选择。参数名须为非空顶层键，不含空白、控制字符、点或方括号，错误配置类型明确报错。环境值仍是字符串。修改后重建配置缓存；请求使用已加载的仓储，不重新读取 `.env`。
 
-欢迎页头部的语言图标展开候选中实际可用语言的普通 GET 链接，名称始终使用母语：English、简体中文、繁體中文，另提供“跟随浏览器”。每种语言在自己的 `lang/{语言}/languages.json` 中用 `name` 保存名称，模板指定目标语言读取，无需重复维护其他语言名称。链接保留其他查询参数，自动选项只删除配置的语言键。当前语言使用下划线标识，高亮与勾选标识显式选择或自动模式。刷新或分享带参数 URL 可保留选择；访问不带该参数的首页恢复浏览器协商，不写入 Cookie、Session、数据库或 localStorage。
+查询参数和 Cookie 默认名称现统一为 `locale`（`?locale=zh-Hans`，Cookie 加密前为 `locale=zh-Hans`）。默认不再读取旧 `lang` Cookie，请重新选择语言并更新旧书签。需保留旧名称时，显式设置 `APP_LOCALE_COOKIE=lang` 和／或 `APP_LOCALE_QUERY_PARAMETER=lang`。升级后重建配置缓存；缓存中显式保存的名称仍会生效。保存入口保持 `POST /locale`，表单字段为 `locale`。
 
-主题图标提供浅色、深色、跟随系统。未手动设置时，CSS 自动响应系统主题变化；手动选择保存在浏览器 localStorage（`appearance`），选择跟随系统会移除该覆盖。存储不可用时仍可切换当前页面。禁用 JavaScript 后，语言链接仍可使用，主题继续跟随系统。
+### 自动跟随与固定语言 {#locale-preference}
 
-关闭 URL 选择、停用中间件、没有欢迎页语言候选，或回调已选定 URL 无法覆盖的语言时，不显示切换控件。自定义候选不会生成未翻译的菜单项。中间件将 `LocaleSelection` 放入请求原生扩展，提供实际参数名、候选及 `from_query` 标识；控制器仅将这些原始信息、查询参数和基础路径传入 Blade，由模板过滤候选、翻译母语名称、生成编码链接和标记选中项，不重新选择语言。URL 选择保留 `Content-Language`、`Vary: Accept-Language` 及下游响应头行为；回调涉及私有内容时，仍需应用设置缓存策略。
+从未手动设置时，Web 页面每次请求重新协商语言。欢迎页菜单提供 English、简体中文、繁體中文和“跟随浏览器”。受现有 Web CSRF 中间件保护的 POST 表单保存选择，“跟随浏览器”删除偏好；自动识别和 GET 不保存偏好。下划线表示本次实际语言，勾选表示固定选择或自动模式，URL 临时覆盖时也分别显示。母语名称来自各语言的 `languages.json`。POST 后以 303 跳转至站内首页，保留其他查询参数并移除临时语言参数；关闭 URL 识别不影响保存表单。
+
+OpenRust 扩展 `app.locale_cookie` 默认 `"locale"`，缺键相同，应用保留 `APP_LOCALE_COOKIE` 覆盖名称。JSON `null` 关闭偏好读取与写入（环境字符串 `null` 是名称）。名称须为非空顶层 Cookie 名称，不能与 Session 或 `XSRF-TOKEN` 冲突，非法配置报错。必须经过 `EncryptCookies`，不能豁免加密。默认实例自动装配在 Web Cookie 解密和队列之后、普通 Web Session 之前。无状态 API 不读取原始偏好 Cookie，也不自动启动 Session。没有安全 Cookie 队列时，欢迎页在 URL 识别启用时保留单次 GET 链接。
+
+偏好复用 `Cookie::forever`（400 天）、加密、HttpOnly，以及现有 CookieJar 的 `session.path`、`domain`、`secure`、`same_site` 默认值（通常为 `/`、当前主机、HTTPS 时 Secure、Lax）。删除使用相同路径与域名。仅提供 HTTPS 的部署应设 `session.secure=true`。过期、清除 Cookie 或更换浏览器都会丢失本地选择，不承诺永久或跨设备同步。损坏、非法或已不属于候选的已保存值被忽略并恢复自动；显式非法提交返回 HTTP 400。过期由客户端执行，重放的 Cookie 请求头本身不携带过期信息。
+
+其他安全 Web 入口可在应用的 CSRF 保护之后复用同一方法：
+
+```rust
+SetLocale::storePreference(request, Some("zh-Hans"))?;
+SetLocale::storePreference(request, None)?; // 恢复自动
+```
+
+每次写请求选择其中一种操作，再跳转至应用控制的站内地址。方法拒绝读取请求及不可用或未加密的偏好存储，只排队 Cookie，不改变本次语言或再次发事件，不能代替 CSRF 中间件。`LocaleSelection` 提供 `preference`、`can_store`、候选和 URL 信息；实际语言使用 `App::currentLocale()`。回调已决定语言时，不显示无法覆盖它的控件；空候选关闭整个中间件。
+
+安全偏好页面通过现有响应头合并机制设置 `Cache-Control: private, no-store` 和 `Vary: Cookie`，未保存偏好时也适用。请求头识别启用时另合并实际头名，保留已有 `Vary` 和 `*`；路由缓存指令不能将这些变体公开缓存。账号等私有来源的回调仍须设置适当的应用缓存策略，尤其是未接入 Cookie 管线时。
+
+主题菜单提供浅色、深色和跟随系统。自动模式响应系统变化，手动主题存入 localStorage（`appearance`），跟随系统会清除覆盖。禁用 JavaScript 后语言表单仍可使用，主题跟随系统。
+
+### API 客户端偏好 {#api-locale-preference}
+
+独立前端和移动端自行保存固定选择。自动模式每次发送当前系统／浏览器语言，固定模式通过配置请求头（默认 `Accept-Language`）发送保存的标签，恢复自动时清除客户端固定选择。发送语言头不会创建服务端永久偏好、Cookie、Session 或账号记录，只有接入翻译资源的文案变化。仓库提供服务端能力及消费者行为，没有实现移动端存储。
+
+同源有状态浏览器 API 只有在管线于 SetLocale 之前完成 Cookie 解密和队列装配后，才可复用相同偏好。内置有状态 API 包装器为可信前端来源提供此管线，普通 API 仍无状态；接入后同样按回调 → URL → Cookie → 请求头排序，写入口保留 CSRF 保护。返回 JSON 本身不会启用偏好。
+
+需要跨设备同步时，在应用账号设置中保存语言，并在认证之后的实例 `localeUsing` 回调中返回已校验的可信候选；账号未设置则返回 `None`，继续 Cookie 与浏览器兜底。框架不要求或创建用户模型字段和账号表。关闭默认实例、将同一个中间件放到依赖之后的示例见[自定义语言选择](#custom-locale-selection)。
+
+### 语言偏好请求头 {#locale-header}
+
+API 客户端默认传入标准请求头：
+
+```http
+Accept-Language: zh-Hans
+```
+
+在 `config/app.rs` 中，`"locale_header": get(env, "APP_LOCALE_HEADER", "Accept-Language")?` 指定应用语言协商请求头。设置 `APP_LOCALE_HEADER=X-Language` 后只读取该头，头名按 HTTP 规则不区分大小写；该头缺失时不再尝试 `Accept-Language`。值继续使用同一 BCP 47 校验、权重、多头合并和候选匹配规则。缺键默认 `Accept-Language`；JSON `null` 仅关闭请求头识别。环境值按字符串读取：`APP_LOCALE_HEADER=null` 表示名为 `null` 的请求头，并不关闭识别；关闭时请在应用配置中设置 JSON `null`。空名称、非法名称或非字符串类型属于配置错误（HTTP 500），即使回调或 URL 已选择语言也会报告。空候选仍关闭整个中间件。
+
+选择顺序为 `localeUsing` 返回 `Some` → 配置的 URL 参数 → 受保护的偏好 Cookie → 配置的请求头 → 应用默认语言及候选兜底；回调返回 `None` 才进入下一来源。配置使用已有仓储和配置缓存，修改源码或环境不会覆盖已加载的缓存，修改 `APP_LOCALE_HEADER` 后需重建配置缓存。可配置请求头和默认 URL 识别属于 OpenRust 扩展。
+
+`Request::getLanguages`／`getPreferredLanguage` 始终描述标准 `Accept-Language`，不受应用配置影响。只有接入翻译资源的文案随语言变化。启用请求头识别时，`Vary` 合并实际配置的头名，保留已有项和 `*`；`null` 不添加语言头的项，仍保留 URL、回调和 `Content-Language`。依赖 Cookie 或用户资料的回调仍需应用设置适当的私有缓存策略及其他 `Vary` 项。
+
+业务、控制器和页面读取实际使用的语言时使用 `App::currentLocale()?`；URL、持久化偏好回调或下游 `App::setLocale` 都可能让它不同于请求偏好。例如配置 `APP_LOCALE_HEADER=X-Language`，同时收到 `Accept-Language: en` 和 `X-Language: zh-Hant` 时，Request 仍返回英文偏好，App 与翻译使用繁体中文。停用 SetLocale 后，配置本身不会自动执行语言选择。
 
 ### 自定义语言选择 {#custom-locale-selection}
 
-`localeUsing` 是 OpenRust 扩展接口，可为当前应用的中间件实例设置同步回调。例如优先读取指定请求头，缺少时依次尝试 URL 选择与浏览器协商：
+`localeUsing` 是 OpenRust 扩展接口，可为当前应用的中间件实例设置同步回调。例如优先读取指定请求头，缺少时依次尝试 URL、受保护的偏好 Cookie 与请求头协商：
 
 ```rust
 .withMiddleware(|middleware| {
@@ -105,12 +146,12 @@ OpenRust 的默认全局中间件栈包含 `openrust::http::middleware::SetLocal
 回调返回 `Result<Option<String>, HttpError>`：
 
 - `Ok(Some(locale))` 先规范化 BCP 47 标签，再与规范化后的候选列表精确匹配，不执行浏览器别名、基础语言匹配或翻译回退。默认候选下，`ZH-hANT` 选择 `zh-Hant`；`zh-CN`、`en-US`、空字符串和非法标签均报错。若需选择地区或扩展标签，请将有效标签明确加入候选，选中后保留完整标识。
-- `Ok(None)` 先尝试配置的 URL 参数，再使用原有浏览器协商、受支持的应用默认语言或候选首项。
+- `Ok(None)` 先尝试配置的 URL 参数和受保护的偏好 Cookie，再使用原有浏览器协商、受支持的应用默认语言或候选首项。
 - `Err(error)` 将原错误交给现有异常处理并停止下游。非法或不受支持的选择作为内部错误处理；若值来自用户输入，可在回调内校验并返回适当的 HTTP 错误。选择失败不切换语言，也不触发 `LocaleUpdated`。
 
 未设置回调时行为不变。候选与回调独立设置，调用顺序不限；候选更新失败保留原候选及回调，重复设置回调使用最后一个。空候选关闭整个实例，不执行回调、不触发事件、不处理响应头，但保留回调以供重新启用。路由实例也提供 `setLocale` 与 `localeUsing`，候选更新与回调只属于该实例，不使用进程全局注册表；回调自身也应避免共享可变用户状态。
 
-默认全局位置早于路由、Session 和认证。回调可以读取请求头及此时已准备的信息，不能访问后续才提供的依赖。依赖 Session 时，先在 `withMiddleware` 调用 `middleware.setLocale(&[]).expect("语言标签有效")` 关闭全局识别，再在 `routes/web.rs` 中注册同一个中间件，放到默认 `web` 组加载 Session 之后：
+默认实例在解析后的路由管线执行，位于直接 Cookie 解密／队列之后、普通 Web Session 和认证之前。有状态 API 包装器中则在其 Cookie／Session 保护之后执行。没有这些依赖的路由保持无状态；未匹配错误页和公开静态响应仍执行请求头／URL 选择，不启用 Web 存储。回调可以读取请求头及此时已准备的信息，不能访问后续才提供的依赖。依赖 Session 时，先在 `withMiddleware` 调用 `middleware.setLocale(&[]).expect("语言标签有效")` 关闭全局识别，再在 `routes/web.rs` 中注册同一个中间件，放到默认 `web` 组加载 Session 之后：
 
 ```rust
 use std::sync::Arc;
@@ -135,9 +176,9 @@ pub fn register() -> Result<(), RoutingError> {
 }
 ```
 
-示例要求已配置 Session 驱动和应用加密密钥；只读取已有的 `locale` Session 值，不保存新偏好。没有值时依次尝试 URL 选择与浏览器协商。依赖认证的规则同样应放到认证之后；影响本地化路由绑定的规则应在绑定替换之前执行，需要这种位置时通过现有 `Middleware::group`／`MiddlewareEntry` 显式配置组内顺序。增加回调不会自动调整执行顺序。异步查询应由前置中间件完成，再通过请求传递已准备的数据；此回调本身同步执行。
+示例要求已配置 Session 驱动和应用加密密钥；只读取已有的 `locale` Session 值，不保存新偏好。没有值时依次尝试 URL、受保护的偏好 Cookie 与请求头协商。依赖认证的规则同样应放到认证之后；影响本地化路由绑定的规则应在绑定替换之前执行，需要这种位置时通过现有 `Middleware::group`／`MiddlewareEntry` 显式配置组内顺序。增加回调不会自动调整执行顺序。异步查询应由前置中间件完成，再通过请求传递已准备的数据；此回调本身同步执行。
 
-这些来源统一由 `SetLocale` 调用 `App::setLocale`、派发事件并处理响应头。下游主动切换语言后，缺少的 `Content-Language` 使用最终语言，已有值保持不变。由于回调可能回退浏览器协商，仍会将 `Accept-Language` 合并到 `Vary`。这**不能**完整隔离由 `X-Locale`、Cookie、Session 或用户资料选择的响应。请求头示例还需让响应按 `X-Locale` 区分；私有内容应设置 `Cache-Control: private, no-store` 或应用所需的缓存策略，并按需增加其他 `Vary` 字段。中间件保留这些响应头，不推断缓存键、不持久化 Cookie，也不保证个性化响应可以安全进入共享缓存。
+这些来源统一由 `SetLocale` 调用 `App::setLocale`、派发事件并处理响应头。下游主动切换语言后，缺少的 `Content-Language` 使用最终语言，已有值保持不变。由于回调可能回退浏览器协商，仍会将启用的语言请求头（默认 `Accept-Language`）合并到 `Vary`。这**不能**完整隔离由 `X-Locale`、Cookie、Session 或用户资料选择的响应。请求头示例还需让响应按 `X-Locale` 区分；私有内容应设置 `Cache-Control: private, no-store` 或应用所需的缓存策略，并按需增加其他 `Vary` 字段。中间件保留这些响应头，不推断缓存键、不持久化回调结果，也不保证任意个性化响应可以安全进入共享缓存。安全 Cookie 偏好页面还会获得 `private, no-store` 与 `Vary: Cookie`。
 
 ### 在 Blade 中翻译 {#blade-translations}
 

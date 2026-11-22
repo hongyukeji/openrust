@@ -228,7 +228,7 @@ impl Kernel {
                 self.routes
                     .as_mut()
                     .expect("boot assembled the application routes")
-                    .configure_middleware(&self.middleware.registry)
+                    .configure_middleware(&self.middleware.registry, &self.middleware.set_locale)
                     .map_err(|source| BootstrapError::RoutingFailed { source })?;
                 let maintenance_index = self.middleware.prepended + usize::from(cors.is_some());
                 if let Some(cors) = cors {
@@ -253,10 +253,6 @@ impl Kernel {
                 self.middleware.global.insert(
                     maintenance_index + 3,
                     Arc::new(std::mem::take(&mut self.middleware.empty_strings_to_null)),
-                );
-                self.middleware.global.insert(
-                    maintenance_index + 4,
-                    Arc::new(std::mem::take(&mut self.middleware.set_locale)),
                 );
                 if self
                     .application
@@ -292,6 +288,14 @@ impl http::Kernel for Kernel {
                 }
                 let started_at = std::time::Instant::now();
                 let request_started_at = jiff::Timestamp::now().as_millisecond();
+                request
+                    .parts_mut()
+                    .extensions
+                    .remove::<crate::http::middleware::LocaleSelection>();
+                request
+                    .parts_mut()
+                    .extensions
+                    .remove::<crate::http::middleware::PrivateLocaleResponse>();
                 request.matched_route = false;
                 request.route_name = None;
                 request

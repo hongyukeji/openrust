@@ -81,6 +81,7 @@ impl Root {
             .withConfig(|base, env| {
                 let mut app = serde_json::json!({"locale":env.get_utf8("APP_LOCALE")?.unwrap_or("en"), "fallback_locale":"en"});
                 if let Ok(bytes) = fs::read(base.join("locale-query.json")) { app["locale_query_parameter"] = serde_json::from_slice(&bytes).unwrap(); }
+                if let Ok(bytes) = fs::read(base.join("locale-header.json")) { app["locale_header"] = serde_json::from_slice(&bytes).unwrap(); }
                 Ok(BTreeMap::from([("app".into(), app)]))
             })
             .withProviders(vec![Box::new(Observer(events))])
@@ -88,6 +89,8 @@ impl Root {
             .withRouting(Routing::default().web(|| {
                 Route::get("/", inspect)?;
                 Route::get("/switch", switch)?;
+                Route::get("/boundary", language_boundary)?;
+                Route::get("/boundary-switch", language_boundary)?;
                 Route::get("/metadata", || {
                     let mut response = Response::from("metadata");
                     response.parts_mut().headers.insert("content-language", "it".parse().unwrap());
@@ -97,6 +100,7 @@ impl Root {
                 })?;
                 Route::get("/star", || Response::from("star").header("vary".parse().unwrap(), "*".parse().unwrap()))?;
                 Route::get("/existing", || Response::from("existing").header("vary".parse().unwrap(), "Origin, accept-language".parse().unwrap()))?;
+                Route::get("/existing-custom", || Response::from("existing").header("vary".parse().unwrap(), "Origin, X-LANGUAGE".parse().unwrap()))?;
                 Route::get("/failure", failure)?;
                 Route::get("/replace-config", || {
                     Config::set("app", serde_json::json!({})).unwrap();
@@ -886,10 +890,10 @@ async fn query_is_exact_and_overrides_browser_with_one_event_per_request() {
     let events = Arc::new(Events::default());
     let kernel = root.kernel("en", |_| {}, events.clone()).await;
     for (path, expected) in [
-        ("/?lang=en", "en"),
-        ("/?lang=zh-Hans", "zh-Hans"),
-        ("/?lang=ZH-hANT", "zh-Hant"),
-        ("/?lang=en&lang=zh-Hans", "zh-Hans"),
+        ("/?locale=en", "en"),
+        ("/?locale=zh-Hans", "zh-Hans"),
+        ("/?locale=ZH-hANT", "zh-Hant"),
+        ("/?locale=en&locale=zh-Hans", "zh-Hans"),
         ("/?other=fr", "zh-Hant"),
     ] {
         let (status, headers, body) = send(&kernel, path, "zh-TW").await;
@@ -902,14 +906,14 @@ async fn query_is_exact_and_overrides_browser_with_one_event_per_request() {
         ["en", "zh-Hans", "zh-Hant", "zh-Hans", "zh-Hant"]
     );
     for path in [
-        "/?lang=",
-        "/?lang",
-        "/?lang=zh_CN",
-        "/?lang=fr",
-        "/?lang=zh-CN",
-        "/?lang[]=en",
-        "/?lang[x]=en",
-        "/?lang=en&lang[]=fr",
+        "/?locale=",
+        "/?locale",
+        "/?locale=zh_CN",
+        "/?locale=fr",
+        "/?locale=zh-CN",
+        "/?locale[]=en",
+        "/?locale[x]=en",
+        "/?locale=en&locale[]=fr",
     ] {
         assert_eq!(
             send(&kernel, path, "en").await.0,
@@ -920,10 +924,10 @@ async fn query_is_exact_and_overrides_browser_with_one_event_per_request() {
     assert_eq!(events.0.lock().unwrap().len(), 5);
     assert_eq!(send(&kernel, "/", "en").await.2, "en|Hello");
     assert_eq!(
-        send(&kernel, "/switch?lang=zh-Hans", "en").await.1["content-language"],
+        send(&kernel, "/switch?locale=zh-Hans", "en").await.1["content-language"],
         "fr"
     );
-    let (_, headers, _) = send(&kernel, "/metadata?lang=zh-Hans", "en").await;
+    let (_, headers, _) = send(&kernel, "/metadata?locale=zh-Hans", "en").await;
     assert_eq!(headers["content-language"], "it");
     assert_eq!(headers.get_all("vary").iter().count(), 3);
 }
@@ -936,17 +940,17 @@ async fn query_configuration_missing_null_custom_invalid_and_empty_candidates() 
         .kernel_query("en", |_| {}, events.clone(), Some("language".into()))
         .await;
     assert!(
-        send(&kernel, "/?language=zh-Hans&lang=fr", "en")
+        send(&kernel, "/?language=zh-Hans&locale=fr", "en")
             .await
             .2
             .starts_with("zh-Hans|")
     );
-    assert_eq!(send(&kernel, "/?lang=zh-Hans", "en").await.2, "en|Hello");
+    assert_eq!(send(&kernel, "/?locale=zh-Hans", "en").await.2, "en|Hello");
     let disabled = root
         .kernel_query("en", |_| {}, events.clone(), Some(serde_json::Value::Null))
         .await;
     assert!(
-        send(&disabled, "/?lang[]=bad", "zh-TW")
+        send(&disabled, "/?locale[]=bad", "zh-TW")
             .await
             .2
             .starts_with("zh-Hant|")
@@ -979,7 +983,7 @@ async fn query_configuration_missing_null_custom_invalid_and_empty_candidates() 
             Some(false.into()),
         )
         .await;
-    let (status, headers, body) = send(&empty, "/?lang[]=bad", "zh-TW").await;
+    let (status, headers, body) = send(&empty, "/?locale[]=bad", "zh-TW").await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body, "en|Hello");
     assert!(!headers.contains_key("content-language"));
@@ -998,19 +1002,19 @@ async fn callback_precedes_query_and_none_continues_query() {
         )
         .await;
     assert!(
-        send_selected(&kernel, "/?lang[]=bad", Some("zh-Hant"), "en")
+        send_selected(&kernel, "/?locale[]=bad", Some("zh-Hant"), "en")
             .await
             .2
             .starts_with("zh-Hant|")
     );
     assert!(
-        send_selected(&kernel, "/?lang=zh-Hans", None, "en")
+        send_selected(&kernel, "/?locale=zh-Hans", None, "en")
             .await
             .2
             .starts_with("zh-Hans|")
     );
     assert_eq!(
-        send_selected(&kernel, "/?lang=en", Some("fr"), "en")
+        send_selected(&kernel, "/?locale=en", Some("fr"), "en")
             .await
             .0,
         StatusCode::INTERNAL_SERVER_ERROR
@@ -1025,7 +1029,7 @@ async fn callback_precedes_query_and_none_continues_query() {
         )
         .await;
     assert_eq!(
-        send(&failed, "/?lang=zh-Hans", "en").await.0,
+        send(&failed, "/?locale=zh-Hans", "en").await.0,
         StatusCode::NOT_FOUND
     );
 }
@@ -1046,9 +1050,9 @@ async fn query_selection_ignores_body_and_isolated_concurrent_applications() {
         )
         .await;
     let (a, b, c) = tokio::join!(
-        send(&first_kernel, "/?lang=zh-Hans", "en"),
-        send(&first_kernel, "/?lang=zh-Hant", "en"),
-        send(&second_kernel, "/?lang=zh-Hans", "en")
+        send(&first_kernel, "/?locale=zh-Hans", "en"),
+        send(&first_kernel, "/?locale=zh-Hant", "en"),
+        send(&second_kernel, "/?locale=zh-Hans", "en")
     );
     assert!(a.2.starts_with("zh-Hans|"));
     assert!(b.2.starts_with("zh-Hant|"));
@@ -1058,7 +1062,7 @@ async fn query_selection_ignores_body_and_isolated_concurrent_applications() {
         .header("host", "localhost")
         .header("content-type", "application/json")
         .header("accept-language", "en")
-        .body(Body::from(r#"{"lang":"zh-Hant"}"#))
+        .body(Body::from(r#"{"locale":"zh-Hant"}"#))
         .unwrap();
     let (parts, body) = raw.into_parts();
     let response = first_kernel
@@ -1073,7 +1077,7 @@ async fn query_selection_ignores_body_and_isolated_concurrent_applications() {
         .header("host", "localhost")
         .header("content-type", "application/json")
         .header("accept-language", "en")
-        .body(Body::from(r#"{"lang":"zh-Hans"}"#))
+        .body(Body::from(r#"{"locale":"zh-Hans"}"#))
         .unwrap();
     let (parts, body) = first_kernel
         .handle(&mut Request::from(raw))
@@ -1094,7 +1098,7 @@ async fn query_parameter_uses_cached_configuration_without_reloading_source() {
     .unwrap();
     let kernel = root.kernel("en", |_| {}, Arc::new(Events::default())).await;
     assert!(
-        send(&kernel, "/?language=zh-Hans&lang=bad", "en")
+        send(&kernel, "/?language=zh-Hans&locale=bad", "en")
             .await
             .2
             .starts_with("zh-Hans|")
@@ -1129,9 +1133,455 @@ async fn explicit_query_preserves_exact_region_and_extension_candidates() {
         )
         .await;
     for locale in ["en-US", "zh-CN", "en-US-u-nu-arab"] {
-        let (status, headers, body) = send(&kernel, &format!("/?lang={locale}"), "zh-TW").await;
+        let (status, headers, body) = send(&kernel, &format!("/?locale={locale}"), "zh-TW").await;
         assert_eq!(status, StatusCode::OK, "{body}");
         assert_eq!(headers["content-language"], locale);
         assert!(body.starts_with(&format!("{locale}|")));
     }
+}
+
+async fn send_headers(
+    kernel: &Kernel,
+    path: &str,
+    headers: &[(&str, &str)],
+) -> (StatusCode, HeaderMap, String) {
+    let mut raw = http::Request::builder()
+        .uri(path)
+        .header("host", "localhost");
+    for (name, value) in headers {
+        raw = raw.header(*name, *value);
+    }
+    let mut request = Request::from(raw.body(Body::empty()).unwrap());
+    // 先读取标准接口的缓存，确保配置的其他来源不会复用它。
+    let standard = request.getLanguages().to_vec();
+    assert_eq!(
+        request.getPreferredLanguage(None).unwrap(),
+        standard.first().cloned()
+    );
+    let response = kernel.handle(&mut request).await;
+    assert_eq!(request.getLanguages(), standard);
+    let (parts, body) = response.into_parts();
+    (
+        parts.status,
+        parts.headers,
+        String::from_utf8(axum::body::to_bytes(body, 131072).await.unwrap().to_vec()).unwrap(),
+    )
+}
+
+fn configure_header(root: &Root, value: serde_json::Value) {
+    fs::write(
+        root.0.join("locale-header.json"),
+        serde_json::to_vec(&value).unwrap(),
+    )
+    .unwrap();
+}
+
+#[tokio::test]
+async fn configured_header_reuses_negotiation_and_preserves_standard_request_api() {
+    let root = Root::new();
+    configure_header(&root, "X-LaNgUaGe".into());
+    let kernel = root.kernel("en", |_| {}, Arc::new(Events::default())).await;
+    for (values, expected) in [
+        (
+            vec![("accept-language", "zh-CN"), ("x-language", "zh-TW")],
+            "zh-Hant",
+        ),
+        (vec![("accept-language", "zh-TW")], "en"),
+        (
+            vec![
+                ("x-language", "zh-CN;q=0.3, en;q=0.2"),
+                ("X-LANGUAGE", "zh-TW;q=0.9"),
+            ],
+            "zh-Hant",
+        ),
+        (
+            vec![
+                (
+                    "x-language",
+                    "zh-TW;q=0, invalid_tag, zh-CN;q=NaN, en;q=1.001",
+                ),
+                ("accept-language", "zh-TW"),
+            ],
+            "en",
+        ),
+        (
+            vec![("x-language", "*"), ("accept-language", "zh-TW")],
+            "en",
+        ),
+    ] {
+        let (status, headers, body) = send_headers(&kernel, "/", &values).await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        assert!(body.starts_with(&format!("{expected}|")), "{body}");
+        assert_eq!(headers["content-language"], expected);
+        assert_eq!(
+            headers["vary"].to_str().unwrap().to_ascii_lowercase(),
+            "x-language"
+        );
+    }
+    let (a, b) = tokio::join!(
+        send_headers(&kernel, "/", &[("x-language", "zh-CN")]),
+        send_headers(&kernel, "/", &[("x-language", "zh-TW")])
+    );
+    assert!(a.2.starts_with("zh-Hans|"));
+    assert!(b.2.starts_with("zh-Hant|"));
+    assert_eq!(
+        send_headers(&kernel, "/?locale=zh-Hans", &[("x-language", "zh-TW")])
+            .await
+            .2,
+        "zh-Hans|你好"
+    );
+    let callback = root
+        .kernel(
+            "en",
+            |m| {
+                m.localeUsing(header_locale);
+            },
+            Arc::new(Events::default()),
+        )
+        .await;
+    assert!(
+        send_headers(
+            &callback,
+            "/?locale=zh-Hans",
+            &[("x-locale", "zh-Hant"), ("x-language", "en")]
+        )
+        .await
+        .2
+        .starts_with("zh-Hant|")
+    );
+    assert!(
+        send_headers(&callback, "/?locale=zh-Hans", &[("x-language", "zh-TW")])
+            .await
+            .2
+            .starts_with("zh-Hans|")
+    );
+    assert!(
+        send_headers(&callback, "/", &[("x-language", "zh-TW")])
+            .await
+            .2
+            .starts_with("zh-Hant|")
+    );
+}
+
+#[tokio::test]
+async fn header_null_errors_empty_candidates_and_vary_contract() {
+    let root = Root::new();
+    configure_header(&root, serde_json::Value::Null);
+    let disabled = root
+        .kernel("zh-Hans", |_| {}, Arc::new(Events::default()))
+        .await;
+    let (_, headers, body) = send(&disabled, "/", "zh-TW").await;
+    assert_eq!(body, "zh-Hans|你好");
+    assert!(!headers.contains_key("vary"));
+    let (_, existing, _) = send(&disabled, "/existing", "zh-TW").await;
+    assert_eq!(existing["vary"], "Origin, accept-language");
+
+    assert!(
+        send(&disabled, "/?locale=zh-Hant", "en")
+            .await
+            .2
+            .starts_with("zh-Hant|")
+    );
+    let callback = root
+        .kernel(
+            "en",
+            |m| {
+                m.localeUsing(|_| Ok(Some("zh-Hant".into())));
+            },
+            Arc::new(Events::default()),
+        )
+        .await;
+    assert!(
+        send(&callback, "/?locale=bad", "en")
+            .await
+            .2
+            .starts_with("zh-Hant|")
+    );
+    for value in [
+        serde_json::json!(""),
+        serde_json::json!(" "),
+        serde_json::json!("X Language"),
+        serde_json::json!("X:Language"),
+        serde_json::json!("头"),
+        serde_json::json!("X\r\nOther"),
+        serde_json::json!(42),
+        serde_json::json!(false),
+        serde_json::json!([]),
+        serde_json::json!({}),
+    ] {
+        configure_header(&root, value);
+        let invalid = root.kernel("en", |_| {}, Arc::new(Events::default())).await;
+        assert_eq!(
+            send(&invalid, "/?locale=zh-Hans", "en").await.0,
+            StatusCode::INTERNAL_SERVER_ERROR
+        );
+    }
+    let invalid_callback = root
+        .kernel(
+            "en",
+            |m| {
+                m.localeUsing(|_| panic!("错误配置须先于回调报告"));
+            },
+            Arc::new(Events::default()),
+        )
+        .await;
+    assert_eq!(
+        send(&invalid_callback, "/", "en").await.0,
+        StatusCode::INTERNAL_SERVER_ERROR
+    );
+    let empty = root
+        .kernel(
+            "en",
+            |m| {
+                m.setLocale(&[]).unwrap();
+                m.localeUsing(|_| panic!("停用实例不能执行回调"));
+            },
+            Arc::new(Events::default()),
+        )
+        .await;
+    let (_, headers, body) = send(&empty, "/?locale[]=bad", "zh-TW").await;
+    assert_eq!(body, "en|Hello");
+    assert!(!headers.contains_key("vary"));
+    configure_header(&root, "X-Language".into());
+    let kernel = root.kernel("en", |_| {}, Arc::new(Events::default())).await;
+    let (_, headers, _) = send_headers(&kernel, "/metadata", &[]).await;
+    let varies: Vec<_> = headers
+        .get_all("vary")
+        .iter()
+        .map(|v| v.to_str().unwrap())
+        .collect();
+    assert_eq!(varies, ["Accept-Encoding", "Origin", "x-language"]);
+    assert_eq!(headers["content-language"], "it");
+    let (_, headers, _) = send_headers(&kernel, "/star", &[]).await;
+    assert_eq!(headers["vary"], "*");
+    let (_, headers, _) = send_headers(&kernel, "/existing-custom", &[]).await;
+    assert_eq!(headers.get_all("vary").iter().count(), 1);
+    assert_eq!(headers["vary"], "Origin, X-LANGUAGE");
+    let (_, headers, body) = send_headers(&kernel, "/switch", &[]).await;
+    assert_eq!(body, "switched");
+    assert_eq!(headers["content-language"], "fr");
+    let second = Root::new();
+    let standard = second
+        .kernel("en", |_| {}, Arc::new(Events::default()))
+        .await;
+    let (a, b) = tokio::join!(
+        send_headers(
+            &kernel,
+            "/",
+            &[("accept-language", "zh-TW"), ("x-language", "zh-CN")]
+        ),
+        send_headers(
+            &standard,
+            "/",
+            &[("accept-language", "zh-TW"), ("x-language", "zh-CN")]
+        )
+    );
+    assert!(a.2.starts_with("zh-Hans|"));
+    assert!(b.2.starts_with("zh-Hant|"));
+}
+
+#[tokio::test]
+async fn header_configuration_uses_cache_snapshot_and_preserves_null() {
+    let root = Root::new();
+    fs::create_dir_all(root.0.join("storage/framework")).unwrap();
+    let cache = root.0.join("storage/framework/config.json");
+    fs::write(
+        &cache,
+        r#"{"app":{"locale":"en","fallback_locale":"en","locale_header":"X-Language"}}"#,
+    )
+    .unwrap();
+    let kernel = root.kernel("en", |_| {}, Arc::new(Events::default())).await;
+    fs::write(
+        &cache,
+        r#"{"app":{"locale":"en","fallback_locale":"en","locale_header":null}}"#,
+    )
+    .unwrap();
+    assert!(
+        send_headers(&kernel, "/", &[("x-language", "zh-TW")])
+            .await
+            .2
+            .starts_with("zh-Hant|")
+    );
+    let disabled = root.kernel("en", |_| {}, Arc::new(Events::default())).await;
+    let (_, headers, body) = send_headers(
+        &disabled,
+        "/",
+        &[("x-language", "zh-TW"), ("accept-language", "zh-TW")],
+    )
+    .await;
+    assert_eq!(body, "en|Hello");
+    assert!(!headers.contains_key("vary"));
+}
+
+#[tokio::test]
+async fn custom_header_rereads_changed_request_without_standard_cache_contamination() {
+    let root = Root::new();
+    configure_header(&root, "X-Language".into());
+    let kernel = root.kernel("en", |_| {}, Arc::new(Events::default())).await;
+    let mut request = Request::from(
+        http::Request::builder()
+            .uri("/")
+            .header("host", "localhost")
+            .header("accept-language", "en")
+            .header("x-language", "zh-CN")
+            .body(Body::empty())
+            .unwrap(),
+    );
+    for (value, expected) in [
+        ("zh-CN", "zh-Hans"),
+        ("zh-TW", "zh-Hant"),
+        ("invalid_tag", "en"),
+    ] {
+        request
+            .parts_mut()
+            .headers
+            .insert("x-language", value.parse().unwrap());
+        assert_eq!(request.getLanguages(), ["en"]);
+        let (parts, body) = kernel.handle(&mut request).await.into_parts();
+        assert_eq!(parts.headers["content-language"], expected);
+        let body = axum::body::to_bytes(body, 4096).await.unwrap();
+        assert!(
+            std::str::from_utf8(&body)
+                .unwrap()
+                .starts_with(&format!("{expected}|"))
+        );
+        assert_eq!(request.getLanguages(), ["en"]);
+    }
+}
+
+// 在真实 Kernel 下同时消费标准偏好、应用语言与译器，覆盖协商后首次读取标准头。
+fn language_boundary(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        if request.path() == "boundary-switch" {
+            App::setLocale("fr").await.unwrap();
+        }
+        tokio::task::yield_now().await;
+        Ok(Response::from(serde_json::json!({
+            "languages": request.getLanguages(),
+            "preferred": request.getPreferredLanguage(Some(&["en", "zh-Hans", "zh-Hant"])).unwrap(),
+            "current": App::currentLocale().unwrap(),
+            "translator": Lang::getLocale().unwrap(),
+            "text": Lang::get("messages.hello", &BTreeMap::new(), None).unwrap(),
+        }).to_string()))
+    })
+}
+
+#[tokio::test]
+async fn standard_preferences_and_actual_locale_are_independent_in_http_consumers() {
+    let root = Root::new();
+    configure_header(&root, "X-Language".into());
+    let custom = root.kernel("en", |_| {}, Arc::new(Events::default())).await;
+    let other = Root::new();
+    let standard = other
+        .kernel("en", |_| {}, Arc::new(Events::default()))
+        .await;
+    for warm_standard in [false, true] {
+        for (kernel, path, expected, text, vary) in [
+            (&custom, "/boundary", "zh-Hant", "您好", "x-language"),
+            (&custom, "/boundary?locale=en", "en", "Hello", "x-language"),
+            (&custom, "/boundary-switch", "fr", "Bonjour", "x-language"),
+            (&standard, "/boundary", "zh-Hans", "你好", "Accept-Language"),
+        ] {
+            let mut request = Request::from(
+                http::Request::builder()
+                    .uri(path)
+                    .header("host", "localhost")
+                    .header("accept-language", "zh-Hans;q=0.9, en;q=0.1")
+                    .header("x-language", "zh-Hant")
+                    .body(Body::empty())
+                    .unwrap(),
+            );
+            if warm_standard {
+                assert_eq!(request.getLanguages(), ["zh-Hans", "en"]);
+                assert_eq!(
+                    request.getPreferredLanguage(None).unwrap().as_deref(),
+                    Some("zh-Hans")
+                );
+            }
+            let (parts, body) = kernel.handle(&mut request).await.into_parts();
+            assert_eq!(parts.status, StatusCode::OK);
+            assert_eq!(parts.headers["content-language"], expected);
+            assert_eq!(parts.headers["vary"], vary);
+            let value: serde_json::Value =
+                serde_json::from_slice(&axum::body::to_bytes(body, 65536).await.unwrap()).unwrap();
+            assert_eq!(
+                value,
+                serde_json::json!({"languages":["zh-Hans","en"], "preferred":"zh-Hans", "current":expected, "translator":expected,"text":text})
+            );
+            assert_eq!(request.getLanguages(), ["zh-Hans", "en"]);
+        }
+    }
+    assert_eq!(
+        custom.get_application().config().unwrap().get("app.locale"),
+        Some(serde_json::json!("en"))
+    );
+    assert_eq!(
+        standard
+            .get_application()
+            .config()
+            .unwrap()
+            .get("app.locale"),
+        Some(serde_json::json!("en"))
+    );
+}
+
+#[tokio::test]
+async fn protected_cookie_selection_emits_one_synchronized_event_per_request() {
+    use openrust::{
+        cookie::{
+            CookieValuePrefix,
+            middleware::{AddQueuedCookiesToResponse, EncryptCookies},
+        },
+        encryption::{Cipher, Encrypter},
+        routing::MiddlewareEntry,
+    };
+    let root = Root::new();
+    let events = Arc::new(Events::default());
+    let kernel = root
+        .kernel(
+            "en",
+            |middleware| {
+                middleware.group(
+                    "web",
+                    [
+                        MiddlewareEntry::Instance(Arc::new(EncryptCookies::new(Arc::new(
+                            Encrypter::new([b'a'; 32], Cipher::Aes256Cbc).unwrap(),
+                        )))),
+                        MiddlewareEntry::Instance(Arc::new(AddQueuedCookiesToResponse)),
+                    ],
+                );
+            },
+            events.clone(),
+        )
+        .await;
+    let encrypter = Encrypter::new([b'a'; 32], Cipher::Aes256Cbc).unwrap();
+    let mut clear = CookieValuePrefix::create("locale", &[b'a'; 32]).to_vec();
+    clear.extend_from_slice(b"zh-Hans");
+    let cipher = encrypter.encryptString(&clear).unwrap();
+    for (path, locale) in [
+        ("/", "zh-Hans"),
+        ("/?locale=zh-Hant", "zh-Hant"),
+        ("/", "zh-Hans"),
+    ] {
+        let mut request = Request::from(
+            http::Request::builder()
+                .uri(path)
+                .header("cookie", format!("locale={cipher}"))
+                .header("accept-language", "en")
+                .body(Body::empty())
+                .unwrap(),
+        );
+        let (parts, body) = kernel.handle(&mut request).await.into_parts();
+        assert_eq!(parts.status, StatusCode::OK);
+        assert_eq!(parts.headers["content-language"], locale);
+        assert!(
+            String::from_utf8(axum::body::to_bytes(body, 4096).await.unwrap().to_vec())
+                .unwrap()
+                .starts_with(locale)
+        );
+    }
+    assert_eq!(
+        events.0.lock().unwrap().as_slice(),
+        ["zh-Hans", "zh-Hant", "zh-Hans"]
+    );
 }

@@ -3,6 +3,7 @@
 mod handle_cors;
 mod set_cache_headers;
 mod set_locale;
+pub(crate) use set_locale::PrivateLocaleResponse;
 mod validate_path_encoding;
 mod validate_post_size;
 

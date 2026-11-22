@@ -4,9 +4,9 @@ In `bootstrap/app.rs`, configure global middleware inside the `withMiddleware` c
 
 Global middleware wraps route matching, so it can also inspect 404 and 405 responses. On a matching route, the outer group runs before the inner group, followed by middleware attached to the route. Each layer can call `next.run(request).await` to pass control downstream and inspect the returned response. A layer can return its own response immediately to skip the remaining layers and the handler.
 
-## Default Global Locale Middleware {#locale-middleware}
+## Default Locale Middleware {#locale-middleware}
 
-The default global stack includes `openrust::http::middleware::SetLocale`; applications need no registration. See [Browser language](../digging-deeper/localization.md#welcome-page-language) for candidates, disabling selection, execution order, and response headers. URL selection and its configuration are described in [URL Language Selection](../digging-deeper/localization.md#locale-query).
+The framework automatically installs `openrust::http::middleware::SetLocale`. It runs after Cookie decryption and queuing on protected Web routes, before ordinary Web Session; stateless APIs use no preference Cookie. See [Automatic and fixed language](../digging-deeper/localization.md#locale-preference) and [Custom locale selection](../digging-deeper/localization.md#custom-locale-selection) for persistence, disabling, execution order and callbacks. [URL selection](../digging-deeper/localization.md#locale-query) and [`app.locale_header`](../digging-deeper/localization.md#locale-header) can be configured or disabled independently.
 
 ## Named groups and priority
 
