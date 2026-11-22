@@ -201,11 +201,11 @@ impl Application {
         }
     }
 
-    fn syntax(&self) -> Syntax {
+    fn syntax(&self, version: &'static str) -> Syntax {
         Syntax::new("artisan")
             .about("OpenRust command-line interface")
             .disable_help_subcommand(true)
-            .version(env!("CARGO_PKG_VERSION"))
+            .version(version)
             .propagate_version(true)
             .arg(
                 Arg::new("quiet")
@@ -308,7 +308,7 @@ impl Application {
         output: &mut Output,
         shutdown: Option<tokio_util::sync::CancellationToken>,
     ) -> i32 {
-        let mut syntax = self.syntax();
+        let mut syntax = self.syntax(application.version());
         syntax.build();
         let position = command_position(arguments);
         let mut normalized = arguments.to_vec();
@@ -338,7 +338,7 @@ impl Application {
             && io::stdin().is_terminal()
             && let (Some(name), Some(position)) = (command, position)
         {
-            match self.prompt_for_missing_argument(name, &normalized) {
+            match self.prompt_for_missing_argument(application, name, &normalized) {
                 Ok(Some(arguments)) => {
                     normalized.splice(position + 1..position + 1, arguments);
                     result = parse(&mut syntax, &normalized);
@@ -404,15 +404,18 @@ impl Application {
 
     fn prompt_for_missing_argument(
         &self,
+        application: &FoundationApplication,
         command: &str,
         arguments: &[OsString],
     ) -> Result<Option<Vec<OsString>>, ConsoleError> {
         let Some((argument, prompt)) = &self.commands[command].definition().missing_argument else {
             return Ok(None);
         };
-        let relaxed = self.syntax().mut_subcommand(command, |syntax| {
-            syntax.mut_arg(*argument, |arg| arg.required(false))
-        });
+        let relaxed = self
+            .syntax(application.version())
+            .mut_subcommand(command, |syntax| {
+                syntax.mut_arg(*argument, |arg| arg.required(false))
+            });
         let Ok(matches) = relaxed.try_get_matches_from(
             std::iter::once(OsString::from("artisan")).chain(arguments.iter().cloned()),
         ) else {
@@ -438,7 +441,7 @@ impl Application {
         input: &Input,
         output: &mut Output,
     ) -> Result<i32, ConsoleError> {
-        let mut syntax = self.syntax();
+        let mut syntax = self.syntax(application.version());
         syntax.build();
         let definition = syntax
             .find_subcommand(self.resolve(command)?)
@@ -462,7 +465,7 @@ impl Application {
         output: &mut Output,
     ) -> Result<i32, ConsoleError> {
         let name = self.resolve(command)?;
-        let mut syntax = self.syntax();
+        let mut syntax = self.syntax(application.version());
         let parsed = syntax.try_get_matches_from_mut(
             ["artisan", name]
                 .into_iter()

@@ -3,11 +3,12 @@
 use super::Facade;
 use crate::{
     container::ServiceKey,
+    contracts::container::BindingResolutionError,
     foundation::Application,
     translation::{TranslationError, TranslationResult},
 };
 
-/// 当前应用的语言入口，复用 Application 与现有请求／任务作用域。
+/// 当前应用入口，复用 Application 与现有请求／任务作用域。
 pub struct App;
 
 impl Facade for App {
@@ -18,6 +19,11 @@ impl Facade for App {
 }
 
 impl App {
+    /// 从当前应用解析框架版本；未进入应用作用域时返回绑定错误。
+    pub fn version() -> Result<&'static str, BindingResolutionError> {
+        Ok(Self::getFacadeRoot()?.version())
+    }
+
     pub fn getLocale() -> TranslationResult<String> {
         Self::application()?.getLocale()
     }

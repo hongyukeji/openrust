@@ -10,6 +10,19 @@ HTTP URL generation, including `URL::forRequest(request)`, uses the explicit `AP
 
 Set `APP_VERSION` to override the application version stored in `app.version`. When `APP_VERSION` is unset, the version defaults to the Cargo package version captured at compile time by `env!("CARGO_PKG_VERSION")`. The welcome page displays `app.version`.
 
+## Framework and Application Versions {#framework-version}
+
+`Application::VERSION` and `application.version()` return the framework package version, embedded from `vendor/openrust/framework/Cargo.toml` at compile time. Within an application scope, `App::version()?` resolves the current Application and returns the same value; outside that scope it returns a container binding error. The constant and instance method do not require booting configuration.
+
+```rust
+use openrust::{foundation::Application, support::facades::App};
+
+let framework_version = Application::VERSION;
+let current_framework_version = App::version()?;
+```
+
+`./artisan --version` reports this framework version using the existing `artisan <version>` format. By contrast, `Config::get("app.version")?` reads the application's version. It defaults to the application package version and can be overridden with `APP_VERSION`; the welcome page continues to display it. Changing the application package version, `app.version` or `APP_VERSION` never changes the framework version. Rebuild after updating the framework package to embed its new version.
+
 ## Current configuration repository
 
 Configuration becomes available during boot, before providers register. As in Laravel's LoadConfiguration, boot binds a new repository before evaluating the configuration loader, then fills that repository. `create()` does not preload an empty configuration service. `Application::config()` returns `Result<Arc<dyn Repository>, BindingResolutionError>` by resolving the current `config` service each time; access before boot or after an incompatible replacement returns an error.

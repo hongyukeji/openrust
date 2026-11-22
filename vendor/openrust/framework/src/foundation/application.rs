@@ -96,8 +96,16 @@ const FAILED: u8 = 1;
 const BOOTED: u8 = 2;
 
 impl Application {
+    /// 框架包的编译期版本，与应用配置版本相互独立。
+    pub const VERSION: &'static str = env!("CARGO_PKG_VERSION");
+
     /// 框架源码仓库。
     pub const REPOSITORY: &'static str = env!("CARGO_PKG_REPOSITORY");
+
+    /// 返回当前框架版本。
+    pub fn version(&self) -> &'static str {
+        Self::VERSION
+    }
 
     fn run_lifecycle(&self, phase: usize) -> Result<(), BootstrapError> {
         let callbacks =

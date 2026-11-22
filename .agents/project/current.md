@@ -55,6 +55,14 @@ Application::REPOSITORY 来自框架 Cargo repository；欢迎页模板按当前
 本计划范围131项回归、36组真实HTTP浏览器交互、fmt、workspace严格Clippy及三语最终文档构建／浏览器／双前缀全导航通过；负向断开query的测试确实失败，恢复后通过。范围快照用于隔离质量结果；另以包含当时全部在途实现的最新组合快照复验，上述131项同样通过，18个交付文件逐字节一致。两处测试时间转换改为等价into后，当前组合受影响目标严格Clippy通过，另8项TestResponse消费者通过（最终139项）。协作者后续追加的无关API保留并排除本轮结论。组合过程和实际边界单列于[主题记录](audits/03-07/welcome-language-2026-11-22.md#url-语言参数与欢迎页切换2026-11-22)。本任务临时源码、参考资料、日志及独占构建缓存在target/tmp/locale-query-20261122/。保留其他协作者改动，本次未暂存、提交、推送或操作开发数据。非三语文档目录、真实设备／其他引擎、性能及发布不计通过。
 
 
+## 框架版本查询（2026-11-22）
+
+基线 `b214e46be`。Foundation Application 新增 VERSION／version()，App Facade 转发 version()，Artisan 从 Application 传入框架版本，保留既有输出。唯一来源为框架 crate 的 package.version；应用 app.version／APP_VERSION 与欢迎页显示保持独立。三语配置正文同步；两处既有console夹具补齐欢迎页language数据，生产页面不变。
+
+本轮范围隔离快照11项关联回归、异版本消费2项、实际./artisan入口4组共8个进程、fmt、workspace/all-targets严格Clippy、三语内容／构建／12组合浏览器通过。异版本样例为应用7.6.5-consumer、框架0.0.0，环境覆盖不改变框架版本。最初包含协作者修改的快照有在途validation格式差异，保留而不代改；不能将本轮质量结果扩展为其他WIP已通过。材料及独占构建目录在target/tmp/framework-version-20261122/；详见[验收记录](audits/01-01/framework-version-2026-11-22.md)。未操作开发数据，未验Windows／Docker／release发布／完整上游PHPUnit。用户仅授权实施验收，未暂存、提交、推送或发布，保留其他协作者改动。
+
+2026-11-23 用户随后授权本轮本地提交，不含推送或发布；版本实现与最终验收快照复核一致，其他在途改动保留。
+
 ## SetLocale 实例语言回调（2026-11-22）
 
 基线 `b214e46be`；按本轮用户要求为现有默认全局 `SetLocale` 增加实例 `localeUsing`，配置类转发同名入口。严格候选选择与浏览器协商分离，候选原子更新且保留回调，空候选停用整个实例。复用原 App／事件／请求作用域与响应头处理，不改应用骨架或默认栈顺序，不引入新依赖。设计、实际验收和边界见[主题记录](audits/03-07/welcome-language-2026-11-22.md#setlocale-实例级语言选择回调2026-11-22)。本轮120项定向回归、三语示例3项Kernel验收、16组欢迎页HTTP浏览器、fmt、严格Clippy及三语文档构建／浏览器／导航均通过；详见主题记录与本批closure.json。本轮未授权暂存、提交或推送；其他协作者的 framework-parity／MessageBag 在途修改保留，最终验收使用 HEAD 加本轮文件的隔离快照，不混入其他未完代码。

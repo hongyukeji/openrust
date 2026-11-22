@@ -10,6 +10,19 @@ HTTP 请求内生成 URL 时，包括使用 `URL::forRequest(request)`，优先�
 
 设置 `APP_VERSION` 可覆盖 `app.version` 中的应用版本。未设置时，默认取编译时由 `env!("CARGO_PKG_VERSION")` 读取的 Cargo 包版本。欢迎页显示 `app.version`。
 
+## 框架版本与应用版本 {#framework-version}
+
+`Application::VERSION` 和 `application.version()` 返回框架包版本，编译时取自 `vendor/openrust/framework/Cargo.toml`。应用作用域内可用 `App::version()?` 解析当前 Application 并取得相同版本；作用域外返回容器绑定错误。常量和实例方法无需先引导配置。
+
+```rust
+use openrust::{foundation::Application, support::facades::App};
+
+let framework_version = Application::VERSION;
+let current_framework_version = App::version()?;
+```
+
+`./artisan --version` 使用既有的 `artisan <version>` 格式显示框架版本。`Config::get("app.version")?` 则读取应用版本，默认取应用包版本，可通过 `APP_VERSION` 覆盖；欢迎页继续显示该应用版本。修改应用包版本、`app.version` 或 `APP_VERSION` 均不改变框架版本。更新框架包后需重新编译，才能嵌入新的框架版本。
+
 ## 当前配置仓储
 
 配置在 boot 中、Provider register 前可用。与 Laravel LoadConfiguration 一样，boot 先绑定新仓储，再执行配置加载器并填充该仓储；`create()` 不提前放入空配置服务。`Application::config()` 每次解析当前 `config` 服务，返回 `Result<Arc<dyn Repository>, BindingResolutionError>`；引导前访问或替换为不兼容类型后访问会返回错误。
