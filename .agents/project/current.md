@@ -1,6 +1,14 @@
 # 当前交接
 
-## 当前任务：Request语言协商与应用策略拆分（2026-11-22）
+## 当前任务：语言中间件进入默认全局栈（2026-11-22）
+
+用户明确要求整个 SetLocale 迁入框架，并像其他默认全局中间件自动执行；该决定覆盖此前“应用实现、显式注册”的建议。框架 `http/middleware/set_locale.rs` 保留原三语协商、中文映射及响应头逻辑，配置类保存实例及候选，默认栈在输入转换后接入。`Middleware::setLocale` 覆盖候选，空列表关闭；不新增配置键、管理器或全局可变语言。
+
+已恢复并保留 `app/http/middleware/mod.rs`、`app/http/mod.rs` 模块入口与 `bootstrap/app.rs` 空 `withMiddleware` 闭包；只删除已迁移的应用 SetLocale 实现和手动追加注册。原欢迎页控制器、视图、路由及应用 Provider 不因迁移改动。已发现并修复默认接入后最小应用缺少 app.locale、下游整体替换 app 配置导致正常请求变500的问题，保留原 Config／Blade 回归断言。只验收配置默认语言的测试显式关闭识别；CORS 回归同时检查原 Vary 值与新增 Accept-Language。
+
+103项配置／语言／Blade／欢迎页／启动定向测试及96项实际关联回归通过；缺服务直接返回的11项、Precognition官方浏览器ignored及MySQL筛除项不计通过。真实Kernel＋Chromium44组合、全workspace严格Clippy／fmt、三语构建及两前缀导航／桌面手机检查通过；断开默认接入点的负向检验实际失败，恢复后8项通过。证据、未验服务与历史失败见[本轮记录](audits/03-07/welcome-language-2026-11-22.md#默认全局语言中间件迁移与关联复核2026-11-22)。Rust1.94.0、隔离源码及日志在 `target/tmp/set-locale-middleware-20261122/`，复用空闲独占 `target/tmp/welcome-locale-20261122/cargo-target/`。2026-11-22 用户随后授权本轮暂存和本地提交，不包含推送或发布；保留协作者的待办、全量审计计划，不操作开发数据。
+
+## 历史任务：Request语言协商与应用策略拆分（2026-11-22）
 
 用户授权实施。框架Request新增getLanguages／getPreferredLanguage，复用既有ICU和严格qvalue规则，按请求缓存并在parts_mut后失效；应用SetLocale删除头解析／权重计算，保留三语映射和请求语言设置。修复数字变体误认文字体系（欢迎页审计W02）。注册仍在bootstrap/app.rs，不将三语策略放进框架Middleware配置类，不新增管理器、依赖或配置键。
 

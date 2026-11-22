@@ -254,6 +254,10 @@ impl Kernel {
                     maintenance_index + 3,
                     Arc::new(std::mem::take(&mut self.middleware.empty_strings_to_null)),
                 );
+                self.middleware.global.insert(
+                    maintenance_index + 4,
+                    Arc::new(std::mem::take(&mut self.middleware.set_locale)),
+                );
                 if self
                     .application
                     .shared

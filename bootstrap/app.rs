@@ -1,4 +1,4 @@
-use std::{error::Error, sync::Arc};
+use std::error::Error;
 
 use openrust::foundation::{Application, configuration::Routing};
 
@@ -22,8 +22,8 @@ pub(crate) fn create_application() -> Result<Application, Box<dyn Error + Send +
                 .commands(routes::console::register)
                 .health("/up"),
         )
-        .withMiddleware(|middleware| {
-            middleware.append(Arc::new(crate::app::http::middleware::SetLocale));
+        .withMiddleware(|_middleware| {
+            //
         })
         .withExceptions(|exceptions| {
             exceptions

@@ -4,6 +4,10 @@ In `bootstrap/app.rs`, configure global middleware inside the `withMiddleware` c
 
 Global middleware wraps route matching, so it can also inspect 404 and 405 responses. On a matching route, the outer group runs before the inner group, followed by middleware attached to the route. Each layer can call `next.run(request).await` to pass control downstream and inspect the returned response. A layer can return its own response immediately to skip the remaining layers and the handler.
 
+## Default Global Locale Middleware {#locale-middleware}
+
+The default global stack includes `openrust::http::middleware::SetLocale`; applications need no registration. See [Browser language](../digging-deeper/localization.md#welcome-page-language) for candidates, disabling selection, execution order, and response headers.
+
 ## Named groups and priority
 
 In `withMiddleware`, register named groups with `group` and individual instances with `alias`. A group accepts `MiddlewareEntry::Instance` or `MiddlewareEntry::named`. The latter can refer to another group or an alias. Attach a name to a route or route group with `middleware_name`. A missing name or a cyclic reference fails application startup before the listener opens.

@@ -5,7 +5,10 @@ use crate::{
     contracts::{config::Repository, http::Middleware as HttpMiddleware},
     cookie::middleware::{AddQueuedCookiesToResponse, EncryptCookies},
     foundation::http::middleware::{ConvertEmptyStringsToNull, PreventRequestForgery, TrimStrings},
-    http::{Request, middleware::CorsSkipCallback},
+    http::{
+        Request,
+        middleware::{CorsSkipCallback, SetLocale},
+    },
     routing::{
         MiddlewareEntry,
         middleware::{MiddlewareRegistry, SubstituteBindings},
@@ -26,6 +29,7 @@ pub struct Middleware {
     pub(crate) cors_skip_callbacks: Vec<CorsSkipCallback>,
     pub(crate) trim_strings: TrimStrings,
     pub(crate) empty_strings_to_null: ConvertEmptyStringsToNull,
+    pub(crate) set_locale: SetLocale,
     default_web: bool,
     default_api: bool,
     api_limiter: Option<String>,
@@ -47,6 +51,7 @@ impl Default for Middleware {
             cors_skip_callbacks: Vec::new(),
             trim_strings: TrimStrings::default(),
             empty_strings_to_null: ConvertEmptyStringsToNull::default(),
+            set_locale: SetLocale::default(),
             default_web: true,
             default_api: true,
             api_limiter: None,
@@ -113,6 +118,16 @@ impl Default for Middleware {
 impl Middleware {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// 覆盖默认全局语言中间件的候选；空列表关闭识别，非法标签保留原设置。
+    #[allow(non_snake_case, reason = "沿用中间件配置方法的命名风格")]
+    pub fn setLocale(
+        &mut self,
+        locales: &[&str],
+    ) -> crate::translation::TranslationResult<&mut Self> {
+        self.set_locale = SetLocale::new(locales)?;
+        Ok(self)
     }
 
     /// Skips CORS for requests matching this callback in the current application.

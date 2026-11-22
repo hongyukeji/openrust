@@ -291,6 +291,10 @@ async fn start(root: &Root) -> (SocketAddr, tokio::task::JoinHandle<()>) {
             config.get_mut("session").unwrap()["driver"] = "array".into();
             Ok(config)
         })
+        .withMiddleware(|middleware| {
+            // 本组验证配置默认语言及译器钩子，不启用浏览器识别。
+            middleware.setLocale(&[]).unwrap();
+        })
         .withRouting(Routing::default().web(|| {
             for route in ["/en", "/zh-Hans", "/ZH-hans", "/zh-Hant", "/ZH-hant"] {
                 Route::get(route, translate)?;

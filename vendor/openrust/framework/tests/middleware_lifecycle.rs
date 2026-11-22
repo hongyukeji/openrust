@@ -132,8 +132,9 @@ async fn cors_uses_host_paths_and_wraps_real_http_errors() {
     assert!(plain_options.contains("vary: access-control-request-method"));
     let existing = send(address, "GET /api/data HTTP/1.1\r\nHost: app.test\r\nOrigin: https://client.test\r\nConnection: close\r\n\r\n").await;
     assert!(existing.starts_with("HTTP/1.1 200 "));
-    assert_eq!(existing.matches("\r\nvary: ").count(), 1, "{existing}");
+    assert_eq!(existing.matches("\r\nvary: ").count(), 2, "{existing}");
     assert!(existing.contains("vary: Accept-Encoding, Origin"));
+    assert!(existing.contains("\r\nvary: Accept-Language\r\n"));
     let other_host = send(address, "GET /api/data HTTP/1.1\r\nHost: restricted.test:9000\r\nOrigin: https://client.test\r\nConnection: close\r\n\r\n").await;
     assert!(other_host.starts_with("HTTP/1.1 200 "));
     assert!(!other_host.contains("access-control-allow-origin"));
@@ -197,7 +198,9 @@ async fn cors_skip_callbacks_apply_only_to_the_configured_application() {
     let passed = send(skipped, preflight).await;
     assert!(passed.starts_with("HTTP/1.1 404 "), "{passed}");
     assert!(!passed.contains("access-control-"));
-    assert!(!passed.contains("\r\nvary: "));
+    // 跳过 CORS 后仍经过默认语言中间件，且不能残留 CORS 的 Vary。
+    assert_eq!(passed.matches("\r\nvary: ").count(), 1, "{passed}");
+    assert!(passed.contains("\r\nvary: Accept-Language\r\n"));
     let intercepted = send(ordinary, preflight).await;
     assert!(intercepted.starts_with("HTTP/1.1 204 "), "{intercepted}");
     assert!(intercepted.contains("access-control-allow-origin: *"));

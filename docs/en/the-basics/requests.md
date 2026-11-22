@@ -15,7 +15,7 @@ let preferred = request.getPreferredLanguage(Some(&["en", "fr-FR"]))?;
 
 `getPreferredLanguage` checks each preference against ordered candidates, starting with the full tag, then language/script/region combinations and the base language. A wildcard or no match selects the first candidate. With `None` or an empty candidate list, it returns the first request range, or `None` when absent. Candidates use the same BCP 47 validation as other locale APIs; an invalid candidate returns a translation error, even if an earlier candidate matches. The returned value is an owned `Option<String>` inside a `Result`. This is a preference helper, not a 406 rejection mechanism: ignored `q=0` ranges do not form a persistent exclusion list, and the ordered fallback still applies.
 
-These methods do not change the application locale or infer Chinese script from region. Choosing supported resources and calling `App::setLocale` belong in application middleware; see [Browser language](../digging-deeper/localization.md#welcome-page-language). Parsed ranges are cached per request; changing headers through `parts_mut()` invalidates that cache.
+These methods do not change the application locale or infer Chinese script from region. The default global `SetLocale` middleware applies these preferences; applications may override or disable its candidates with `middleware.setLocale(...)`; see [Browser language](../digging-deeper/localization.md#welcome-page-language). Parsed ranges are cached per request; changing headers through `parts_mut()` invalidates that cache.
 
 ## Request Path, Host and URL {#request-path-host-and-method}
 

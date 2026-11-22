@@ -4,6 +4,10 @@
 
 全域中介軟體包覆路由比對流程，也能讀取 404 和 405 回應。符合路由後，先執行外層路由群組的中介軟體，再執行內層路由群組和單一路由的中介軟體。每一層都可以呼叫 `next.run(request).await` 繼續執行並讀取傳回的回應，也可以直接傳回回應，略過其餘中介軟體和路由處理器。
 
+## 預設全域語言中介軟體 {#locale-middleware}
+
+預設全域堆疊包含 `openrust::http::middleware::SetLocale`，不必由應用程式註冊。候選設定、關閉辨識、執行位置與回應標頭行為見[瀏覽器語言](../digging-deeper/localization.md#welcome-page-language)。
+
 ## 命名群組與優先順序
 
 在 `withMiddleware` 中用 `group` 註冊命名群組，用 `alias` 註冊單一執行個體。群組成員可以是 `MiddlewareEntry::Instance`，也可以用 `MiddlewareEntry::named` 參照另一個群組或別名。透過 `middleware_name` 將群組名稱或別名附加到路由或路由群組。名稱不存在或參照形成循環時，應用程式會在開始監聽前啟動失敗。

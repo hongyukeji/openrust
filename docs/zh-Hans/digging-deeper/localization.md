@@ -49,15 +49,27 @@ fn greeting(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
 
 ### 浏览器语言 {#welcome-page-language}
 
-这是本项目为欢迎页三语自动识别启用的应用配置，Laravel 默认骨架不预置浏览器语言自动识别。遵循教程只使用默认语言或路由手动切换时，可移除 `bootstrap/app.rs` 中的 `SetLocale` 注册；翻译功能仍然可用。 中间件通过 `Request::getLanguages()` 复用请求头解析与偏好排序，三语资源映射仍由应用决定。
+OpenRust 的默认全局中间件栈包含 `openrust::http::middleware::SetLocale`，应用无需创建语言中间件或在 `bootstrap/app.rs` 手动注册。
 
-应用在 `bootstrap/app.rs` 注册 `app/http/middleware/set_locale.rs`，根据 `Accept-Language` 为整个请求选择语言。控制器、校验和 Blade 模板共用当前语言，按权重选择，跳过 `q=0`，同权重保持浏览器顺序。没有匹配项时，使用受支持的 `APP_LOCALE`，否则使用英文。
+默认支持 `en`、`zh-Hans`、`zh-Hant`。中间件通过 `Request::getLanguages()` 复用请求头解析与偏好排序，按权重选择、跳过 `q=0`，同权重保持浏览器顺序。没有匹配项时使用受支持的 `APP_LOCALE`，否则使用候选列表的第一项（默认英文）。控制器、校验和 Blade 模板共用当前请求语言。
 
-三语候选 `["en", "zh-Hans", "zh-Hant"]` 直接定义在应用中间件中，不增加 Laravel 应用配置键。`zh-Hans`、`zh-CN`、`zh-SG` 和仅 `zh` 对应简体；`zh-Hant`、`zh-TW`、`zh-HK`、`zh-MO` 对应繁体，明确的文字体系优先于地区，未知文字体系不按中文地区猜测。其他语言匹配完整标识或基础语言。
+`zh-Hans`、`zh-CN`、`zh-SG` 和仅 `zh` 对应简体；`zh-Hant`、`zh-TW`、`zh-HK`、`zh-MO` 对应繁体，明确的文字体系优先于地区，未知文字体系不按中文地区猜测。数字变体不作为文字体系。其他语言匹配完整标识或基础语言。此选择规则不改变公开语言标签的规范化语义。
 
-中间件先调用 `App::setLocale` 设置当前请求语言，再执行后续处理，包括视图渲染和异常响应。在缺少时添加 `Content-Language`，将 `Accept-Language` 合并到 `Vary` 并保留已有值。不写入 Cookie，不改变其他请求、队列任务或应用默认语言。移除该中间件注册即可仅使用配置的默认语言，也可以在此应用中间件中调整自己的语言选择策略。
+需要其他语言时，在 `bootstrap/app.rs` 的 `withMiddleware` 中覆盖候选，不必新增配置键：
 
-欢迎页的 HTML `lang` 与 `Content-Language` 使用应用当前语言。文案和链接直接在 Blade 中翻译，缺失词条由译器按配置回退。在 `lang/*/welcome.json` 中设置 `documentation_url`、`deployment_url`，即可为各语言指定文档链接，增加语言不需要修改控制器。例如 `APP_LOCALE=fr`、`APP_FALLBACK_LOCALE=en` 时，缺失的法文词条使用英文文案和链接，应用及页面语言仍为 `fr`。请在当前语言或配置的回退语言中提供词条；两者均缺失时遵循普通翻译缺键行为。
+```rust
+.withMiddleware(|middleware| {
+    middleware.setLocale(&["en", "fr", "de"]).expect("语言标签有效");
+})
+```
+
+候选按 BCP 47 规范化；非法标签返回 `TranslationError` 并保留之前的设置，重复调用使用最后一次成功设置。传入空列表 `middleware.setLocale(&[])` 关闭识别，此时不修改语言或响应头，也不触发语言更新事件，应用继续使用 `app.locale` 和手动 `App::setLocale`。仅用于特定路由时，先关闭全局识别，再通过已有路由或路由组中间件注册 `SetLocale::new(&["en", "fr"])?`。
+
+中间件在执行下游前调用 `App::setLocale`，同步配置、译器和 `LocaleUpdated` 事件；监听器失败时交由现有异常处理，不继续执行下游。下游处理完成（包括已渲染的异常响应）后读取最终语言，在缺少时添加 `Content-Language`，将 `Accept-Language` 合并到 `Vary`，保留已有值或通配符。不写入 Cookie，不改变其他请求、队列任务或应用默认语言。默认执行位置在输入转换之后、应用追加的全局中间件和路由之前；之前已返回响应的 CORS 预检、维护模式或请求体大小检查不会经过语言选择。
+
+原先应用中的 `SetLocale` 文件和 `append` 注册应移除，避免重复执行；需要关闭识别时改用上述空列表设置。
+
+欢迎页的 HTML `lang` 与 `Content-Language` 使用应用当前语言。文案和链接直接在 Blade 中翻译，缺失词条由译器按配置回退。在 `lang/*/welcome.json` 中设置 `documentation_url`、`deployment_url`，即可为各语言指定文档链接，增加语言不需要修改控制器。例如关闭识别后，`APP_LOCALE=fr`、`APP_FALLBACK_LOCALE=en` 时，缺失的法文词条使用英文文案和链接，应用及页面语言仍为 `fr`。请在当前语言或配置的回退语言中提供词条；两者均缺失时遵循普通翻译缺键行为。
 
 ### 在 Blade 中翻译 {#blade-translations}
 

@@ -49,15 +49,27 @@ fn greeting(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
 
 ### 瀏覽器語言 {#welcome-page-language}
 
-這是本專案為歡迎頁三語自動辨識啟用的應用程式設定，Laravel 預設骨架不預置瀏覽器語言自動辨識。依照教學僅使用預設語言或路由手動切換時，可移除 `bootstrap/app.rs` 中的 `SetLocale` 註冊；翻譯功能仍然可用。 中介軟體透過 `Request::getLanguages()` 共用請求標頭解析與偏好排序，三語資源對應仍由應用程式決定。
+OpenRust 的預設全域中介軟體堆疊包含 `openrust::http::middleware::SetLocale`，應用程式不必建立語言中介軟體或在 `bootstrap/app.rs` 手動註冊。
 
-應用程式在 `bootstrap/app.rs` 註冊 `app/http/middleware/set_locale.rs`，根據 `Accept-Language` 為整個請求選擇語言。控制器、驗證和 Blade 模板共用目前語言，按權重選擇，略過 `q=0`，同權重保持瀏覽器順序。沒有符合項目時，使用支援的 `APP_LOCALE`，否則使用英文。
+預設支援 `en`、`zh-Hans`、`zh-Hant`。中介軟體透過 `Request::getLanguages()` 共用請求標頭解析與偏好排序，依權重選擇、略過 `q=0`，同權重保留瀏覽器順序。沒有符合項目時使用支援的 `APP_LOCALE`，否則使用候選清單第一項（預設英文）。控制器、驗證與 Blade 模板共用目前請求語言。
 
-三語候選 `["en", "zh-Hans", "zh-Hant"]` 直接定義在應用程式中介軟體中，不增加 Laravel 應用程式設定鍵。`zh-Hans`、`zh-CN`、`zh-SG` 和僅 `zh` 對應簡體；`zh-Hant`、`zh-TW`、`zh-HK`、`zh-MO` 對應繁體，明確的文字體系優先於地區，未知文字體系不按中文地區猜測。其他語言符合完整識別碼或基礎語言。
+`zh-Hans`、`zh-CN`、`zh-SG` 與單獨 `zh` 對應簡體；`zh-Hant`、`zh-TW`、`zh-HK`、`zh-MO` 對應繁體，明確的文字體系優先於地區，未知文字體系不依中文地區猜測。數字變體不視為文字體系。其他語言比對完整標識或基礎語言。此選擇規則不改變公開語言標籤的正規化語意。
 
-中介軟體先呼叫 `App::setLocale` 設定目前請求語言，再執行後續處理，包括視圖渲染和例外回應。在缺少時加入 `Content-Language`，將 `Accept-Language` 合併至 `Vary` 並保留既有值。不寫入 Cookie，不改變其他請求、佇列工作或應用程式預設語言。移除該中介軟體註冊即可僅使用設定的預設語言，也可以在此應用程式中介軟體中調整自己的語言選擇策略。
+需要其他語言時，在 `bootstrap/app.rs` 的 `withMiddleware` 中覆寫候選，不必新增設定鍵：
 
-歡迎頁的 HTML `lang` 與 `Content-Language` 使用應用程式目前語言。文案和連結直接在 Blade 中翻譯，缺少的詞條由譯器依設定備援。在 `lang/*/welcome.json` 中設定 `documentation_url`、`deployment_url`，即可為各語言指定文件連結，新增語言不需要修改控制器。例如 `APP_LOCALE=fr`、`APP_FALLBACK_LOCALE=en` 時，缺少的法文詞條使用英文文案和連結，應用程式及頁面語言仍為 `fr`。請在目前語言或設定的備援語言中提供詞條；兩者均缺少時遵循一般翻譯缺鍵行為。
+```rust
+.withMiddleware(|middleware| {
+    middleware.setLocale(&["en", "fr", "de"]).expect("語言標籤有效");
+})
+```
+
+候選依 BCP 47 正規化；無效標籤回傳 `TranslationError` 並保留先前設定，重複呼叫使用最後一次成功設定。傳入空清單 `middleware.setLocale(&[])` 關閉辨識，此時不修改語言或回應標頭，也不觸發語言更新事件，應用程式繼續使用 `app.locale` 與手動 `App::setLocale`。僅用於特定路由時，先關閉全域辨識，再透過既有路由或路由群組中介軟體註冊 `SetLocale::new(&["en", "fr"])?`。
+
+中介軟體在執行下游前呼叫 `App::setLocale`，同步設定、翻譯器與 `LocaleUpdated` 事件；監聽器失敗時交由既有例外處理，不繼續執行下游。下游處理完成（包括已渲染的例外回應）後讀取最終語言，在缺少時新增 `Content-Language`，將 `Accept-Language` 合併至 `Vary`，保留既有值或萬用字元。不寫入 Cookie，不改變其他請求、佇列工作或應用程式預設語言。預設執行位置在輸入轉換之後、應用程式追加的全域中介軟體與路由之前；先前已回傳回應的 CORS 預檢、維護模式或請求大小檢查不會經過語言選擇。
+
+原先應用程式中的 `SetLocale` 檔案與 `append` 註冊應移除，避免重複執行；需要關閉辨識時改用上述空清單設定。
+
+歡迎頁的 HTML `lang` 與 `Content-Language` 使用應用程式目前語言。文案和連結直接在 Blade 中翻譯，缺少的詞條由譯器依設定備援。在 `lang/*/welcome.json` 中設定 `documentation_url`、`deployment_url`，即可為各語言指定文件連結，新增語言不需要修改控制器。例如关闭识别后，`APP_LOCALE=fr`、`APP_FALLBACK_LOCALE=en` 時，缺少的法文詞條使用英文文案和連結，應用程式及頁面語言仍為 `fr`。請在目前語言或設定的備援語言中提供詞條；兩者均缺少時遵循一般翻譯缺鍵行為。
 
 ### 在 Blade 中翻譯 {#blade-translations}
 

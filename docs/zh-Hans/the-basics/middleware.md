@@ -4,6 +4,10 @@
 
 全局中间件包裹路由匹配过程，也能读取 404 和 405 响应。匹配路由后，先执行外层路由组的中间件，再执行内层路由组和单条路由的中间件。每一层都可以调用 `next.run(request).await` 继续执行并读取返回的响应，也可以直接返回响应，跳过其余中间件和路由处理器。
 
+## 默认全局语言中间件 {#locale-middleware}
+
+默认全局栈包含 `openrust::http::middleware::SetLocale`，无需应用注册。候选配置、关闭识别、执行位置与响应头行为见[浏览器语言](../digging-deeper/localization.md#welcome-page-language)。
+
 ## 命名组与优先级
 
 在 `withMiddleware` 中用 `group` 注册命名组，用 `alias` 注册单个实例。组成员可以是 `MiddlewareEntry::Instance`，也可以用 `MiddlewareEntry::named` 引用另一个组或别名。通过 `middleware_name` 将组名或别名附加到路由或路由组。名称缺失或引用成环会使应用在监听前启动失败。

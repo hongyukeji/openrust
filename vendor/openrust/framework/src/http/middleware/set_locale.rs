@@ -1,12 +1,51 @@
-use openrust::{
+use crate::{
     contracts::http::Middleware,
     http::{HttpError, HttpFuture, Next, Request, Response},
-    support::facades::App,
-    translation::canonical_locale,
+    support::facades::{App, Config},
+    translation::{TranslationResult, canonical_locale},
 };
 
-/// 在整个请求处理期间选择语言，供模板、校验及控制器共用。
-pub(crate) struct SetLocale;
+/// 默认全局语言中间件；支持语言仅属于当前应用的装配实例。
+#[derive(Clone)]
+pub struct SetLocale {
+    supported: Vec<String>,
+}
+
+impl Default for SetLocale {
+    fn default() -> Self {
+        Self {
+            supported: ["en", "zh-Hans", "zh-Hant"].map(str::to_owned).to_vec(),
+        }
+    }
+}
+
+impl SetLocale {
+    /// 覆盖候选语言；空列表关闭识别，不修改当前语言或响应头。
+    pub fn new(locales: &[&str]) -> TranslationResult<Self> {
+        let supported = locales
+            .iter()
+            .map(|locale| canonical_locale(locale))
+            .collect::<TranslationResult<_>>()?;
+        Ok(Self { supported })
+    }
+
+    fn preferred_locale(&self, request: &Request, default: &str) -> String {
+        request
+            .getLanguages()
+            .iter()
+            .find_map(|language| {
+                if language == "*" {
+                    supported_locale(default, &self.supported)
+                        .or_else(|| self.supported.first().map(String::as_str))
+                } else {
+                    supported_locale(language, &self.supported)
+                }
+            })
+            .or_else(|| supported_locale(default, &self.supported))
+            .unwrap_or_else(|| self.supported.first().expect("候选非空时才选择语言"))
+            .to_owned()
+    }
+}
 
 impl Middleware for SetLocale {
     fn handle<'a>(
@@ -15,17 +54,24 @@ impl Middleware for SetLocale {
         next: Next<'a>,
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
-            // 浏览器识别是应用策略，不向 Laravel 默认配置增加配置键。
-            let supported = ["en", "zh-Hans", "zh-Hant"].map(str::to_owned);
-            let locale = preferred_locale(
-                request,
-                &App::currentLocale().map_err(internal)?,
-                &supported,
-            );
+            if self.supported.is_empty() {
+                return Ok(next.run(request).await);
+            }
+            // 最小应用可不提供 app.locale，沿用译器已有的英文默认值。
+            let default = if Config::has("app.locale").map_err(internal)? {
+                App::currentLocale().map_err(internal)?
+            } else {
+                "en".to_owned()
+            };
+            let locale = self.preferred_locale(request, &default);
             App::setLocale(&locale).await.map_err(internal)?;
             let mut response = next.run(request).await;
-            // 使用下游最终语言；控制器可以在当前请求内主动切换语言。
-            let language = App::currentLocale().map_err(internal)?;
+            // 下游可以主动切换语言，已有响应头仍由响应提供者决定。
+            let language = if Config::has("app.locale").map_err(internal)? {
+                App::currentLocale().map_err(internal)?
+            } else {
+                locale
+            };
             if !response.headers().contains_key("content-language") {
                 response
                     .parts_mut()
@@ -35,8 +81,7 @@ impl Middleware for SetLocale {
             let varies = response.headers().get_all("vary").iter().any(|value| {
                 value.to_str().is_ok_and(|value| {
                     value.split(',').any(|part| {
-                        matches!(part.trim(), "*")
-                            || part.trim().eq_ignore_ascii_case("Accept-Language")
+                        part.trim() == "*" || part.trim().eq_ignore_ascii_case("Accept-Language")
                     })
                 })
             });
@@ -44,7 +89,7 @@ impl Middleware for SetLocale {
                 response
                     .parts_mut()
                     .headers
-                    .append("vary", "Accept-Language".parse().expect("固定响应头有效"));
+                    .append("vary", http::HeaderValue::from_static("Accept-Language"));
             }
             Ok(response)
         })
@@ -55,23 +100,6 @@ fn internal(source: impl std::error::Error + Send + Sync + 'static) -> HttpError
     HttpError::Internal {
         source: Box::new(source),
     }
-}
-
-fn preferred_locale(request: &Request, default: &str, supported: &[String]) -> String {
-    request
-        .getLanguages()
-        .iter()
-        .find_map(|language| {
-            if language == "*" {
-                supported_locale(default, supported)
-                    .or_else(|| supported.first().map(String::as_str))
-            } else {
-                supported_locale(language, supported)
-            }
-        })
-        .or_else(|| supported_locale(default, supported))
-        .unwrap_or_else(|| supported.first().map_or("en", String::as_str))
-        .to_owned()
 }
 
 fn supported_locale<'a>(locale: &str, supported: &'a [String]) -> Option<&'a str> {

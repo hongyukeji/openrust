@@ -49,15 +49,27 @@ The `App` facade currently exposes these locale methods; other Laravel App metho
 
 ### Browser Language {#welcome-page-language}
 
-This is application configuration enabled for this project’s browser-language welcome page. The default Laravel skeleton does not include browser-language selection. To follow the tutorial using only the configured default or an explicit route switch, remove the `SetLocale` registration from `bootstrap/app.rs`; translation remains available. The middleware uses `Request::getLanguages()` for header parsing and priority order; its three-language mapping remains an application policy.
+OpenRust includes `openrust::http::middleware::SetLocale` in its default global middleware stack. Applications do not need a locale middleware file or manual registration in `bootstrap/app.rs`.
 
-The application registers `app/http/middleware/set_locale.rs` in `bootstrap/app.rs`. This middleware selects a language for the entire request from `Accept-Language`; controllers, validation, and Blade templates use the same current language. It respects quality weights, skips `q=0`, and keeps browser order for equal weights. Without a match, it uses a supported `APP_LOCALE`, then English.
+The defaults are `en`, `zh-Hans`, and `zh-Hant`. The middleware reuses `Request::getLanguages()` for parsing and priority order, respects quality weights, skips `q=0`, and keeps browser order for equal weights. Without a match, it uses a supported `APP_LOCALE`, then the first candidate (English by default). Controllers, validation, and Blade share the current request locale.
 
-The three candidates `["en", "zh-Hans", "zh-Hant"]` are defined in the application middleware, without adding a Laravel application configuration key. Chinese `zh-Hans`, `zh-CN`, `zh-SG`, and bare `zh` select Simplified Chinese; `zh-Hant`, `zh-TW`, `zh-HK`, and `zh-MO` select Traditional Chinese. An explicit script takes precedence over the region; unknown scripts do not use the Chinese region heuristic. Other languages match an exact supported locale or its base language.
+`zh-Hans`, `zh-CN`, `zh-SG`, and bare `zh` select Simplified Chinese; `zh-Hant`, `zh-TW`, `zh-HK`, and `zh-MO` select Traditional Chinese. An explicit script takes precedence over region; unknown scripts are not inferred from Chinese regions. Numeric variants are not scripts. Other languages match an exact tag or base language. This selection policy does not change public locale canonicalization.
 
-The middleware calls `App::setLocale` before downstream processing, including view rendering and exception responses. It adds `Content-Language` when absent and merges `Accept-Language` into `Vary`, preserving existing values. It does not write cookies or change other requests, jobs, or the application default. Remove its registration to use only the configured default, or adapt this application middleware for your own language-selection policy.
+To support other languages, override candidates inside `withMiddleware` in `bootstrap/app.rs`, without adding configuration keys:
 
-The welcome page uses the current application locale for HTML `lang` and `Content-Language`. Each text and link is translated directly in Blade, with missing entries resolved by the configured fallback. Set `documentation_url` and `deployment_url` in `lang/*/welcome.json` to choose the documentation links for each language. Adding another language does not require changing the controller. For example, with `APP_LOCALE=fr` and `APP_FALLBACK_LOCALE=en`, missing French entries use English text and links while the application and page locale remain `fr`. Provide the entries in the selected language or its configured fallback; a key missing from both follows the usual missing-translation behavior.
+```rust
+.withMiddleware(|middleware| {
+    middleware.setLocale(&["en", "fr", "de"]).expect("Valid locale tags");
+})
+```
+
+Candidates are canonicalized as BCP 47. Invalid tags return `TranslationError` and preserve the previous setting; repeated calls use the last successful setting. Pass an empty list with `middleware.setLocale(&[])` to disable detection. The middleware then leaves the locale and response headers untouched and emits no locale update event; the application retains `app.locale` and manual `App::setLocale` calls. For specific routes only, disable global detection and attach `SetLocale::new(&["en", "fr"])?` through existing route or group middleware.
+
+Before dispatching downstream, the middleware calls `App::setLocale`, updating configuration, the translator, and the `LocaleUpdated` event. Listener errors use the existing exception handler and stop downstream dispatch. After downstream processing, including rendered exception responses, it reads the final locale, adds `Content-Language` only when absent, and merges `Accept-Language` into `Vary`, preserving existing values and wildcards. It does not write cookies or change other requests, queue jobs, or application defaults. It runs after input transformations and before application-appended global middleware and routing. Earlier responses from CORS preflight, maintenance mode, or request size checks do not pass through locale selection.
+
+Remove the previous application `SetLocale` file and its `append` registration to avoid duplicate execution. Use the empty-list setting above to disable detection.
+
+The welcome page uses the current application locale for HTML `lang` and `Content-Language`. Each text and link is translated directly in Blade, with missing entries resolved by the configured fallback. Set `documentation_url` and `deployment_url` in `lang/*/welcome.json` to choose the documentation links for each language. Adding another language does not require changing the controller. For example, with detection disabled and `APP_LOCALE=fr` and `APP_FALLBACK_LOCALE=en`, missing French entries use English text and links while the application and page locale remain `fr`. Provide the entries in the selected language or its configured fallback; a key missing from both follows the usual missing-translation behavior.
 
 ### Translating in Blade {#blade-translations}
 

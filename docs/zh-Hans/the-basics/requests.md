@@ -15,7 +15,7 @@ let preferred = request.getPreferredLanguage(Some(&["en", "fr-FR"]))?;
 
 `getPreferredLanguage` 按请求偏好依次匹配有序候选：先完整标签，再语言／文字体系／地区组合及基础语言。通配符或没有匹配时选择首个候选。传入 `None` 或空候选时，返回请求的首选范围，没有则为 `None`。候选使用其他语言接口相同的 BCP 47 校验；任意候选无效都会返回翻译错误，即使前面的候选已匹配。返回值是 `Result` 包装的独立 `Option<String>`。 这是偏好选择助手，不会自动返回 406；忽略的 `q=0` 条目不形成永久排除清单，无匹配时仍使用有序候选的首项。
 
-这两个方法不改变应用语言，也不根据中文地区推断文字体系。支持哪些资源、何时调用 `App::setLocale` 仍由应用中间件决定，见[浏览器语言](../digging-deeper/localization.md#welcome-page-language)。解析结果按请求缓存，通过 `parts_mut()` 修改请求头时缓存失效。
+这两个方法不改变应用语言，也不根据中文地区推断文字体系。默认全局 `SetLocale` 中间件应用这些偏好；应用可通过 `middleware.setLocale(...)` 覆盖候选或关闭识别，见[浏览器语言](../digging-deeper/localization.md#welcome-page-language)。解析结果按请求缓存，通过 `parts_mut()` 修改请求头时缓存失效。
 
 ## 请求路径、主机和 URL {#request-path-host-and-method}
 

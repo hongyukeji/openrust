@@ -313,3 +313,42 @@ Docker runtime 增加 COPY lang/，三语部署命令增加复制 lang；避免�
 2026-11-22 用户要求参考 [Laravel 13 中间件文章](https://learnku.com/docs/laravel/13.x/middleware/17061)，希望语言中间件纳入框架提供的能力。实际读取文章及固定 Framework `1449bf241017087fbd38c118ecaabef3f6797fdc` 的 `Foundation/Configuration/Middleware.php`：文章区分内置中间件、应用自定义中间件和全局注册；文章与固定源码的默认全局／web／api 栈均未提供自动语言选择，不能把此建议描述为 Laravel 默认行为。参考源码保存在本批 `research/learnku-middleware.html` 与 `research/laravel-middleware.php`。
 
 建议主对话后续评估由框架提供通用、可选的语言中间件，复用本轮 Request API 与既有请求语言作用域，允许应用明确给出资源候选及映射策略；三语及中文地区映射不能硬编码进框架。中间件实现放在框架 HTTP 中间件模块，`foundation/configuration/middleware.rs` 只负责装配，应用在 `bootstrap/app.rs` 显式启用。新增可选能力与默认自动启用必须分开决策，记录相对固定 Laravel 的扩展边界。本轮仅完成 Request 能力与应用复用，尚未实现框架 SetLocale，不能将该建议计为已完成。
+
+
+## 默认全局语言中间件迁移与关联复核（2026-11-22）
+
+### 用户决定与范围
+
+基线 `8e2810911`。用户明确要求整个 SetLocale 进入框架默认全局栈，覆盖前节“可选框架能力、应用策略注册”的建议；不是只搬响应头或保留应用策略回调。固定 Laravel Framework v13.40.0 的默认栈不含语言识别，本轮是用户确认的 OpenRust 默认扩展，不声称与上游默认栈相同。
+
+重新联网读取固定 [Middleware.php](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Configuration/Middleware.php)、[中间件教程](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/middleware.md)和[本地化教程](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/localization.md)，并参考 mcamara/laravel-localization 的中间件职责。原始材料在本批 `research/`；采用现有 Request 解析、ICU、App::setLocale、请求作用域和中间件链，不引入路由重定向、Cookie、Session依赖或新语言管理器。本地 v0.x 翻译器／测试的架构不同，没有可直接复用的默认中间件；迁移当前已验实现。
+
+### 实际发现及处理
+
+| 关联位置 | 核对与处理 |
+| --- | --- |
+| 应用骨架 | 迁移中误删空入口的做法已纠正。保留 app/http/middleware/mod.rs、父模块声明、bootstrap/app.rs 空 withMiddleware 闭包；对照引入 SetLocale 前的 d4a40d7f4^，bootstrap 恢复原样。仅删除已迁移的应用 set_locale.rs、声明／导出及手动 append；应用目录可继续放业务中间件 |
+| 框架完整实现 | http/middleware/set_locale.rs 保留原三语策略及头合并，公开导出；配置类只保存候选实例；默认在输入转换后、应用 append 之前装配。候选规范化、错误原子保留，空列表关闭；可复用实例用于路由，无应用回调和全局可变状态 |
+| 最小应用 | 默认接入后，缺少 app.locale 的最小应用原本返回500；中间件现在使用译器已有英文默认，并允许浏览器选择。原 Blade 测试不改断言通过 |
+| 下游配置替换 | Config::set("app", {}) 是合法操作，响应阶段读取被移除的 app.locale 原本把成功响应变500；现在沿用本请求选择语言。原 Config 测试不改断言通过，新增实际Kernel回归 |
+| 默认语言与事件 | application_locale 和根 localization 中只验证配置语言／手动切换的夹具显式关闭浏览器识别，保留原精确地区与事件断言；默认启用、关闭、监听器失败与恢复、请求／应用并发由新测试单独覆盖 |
+| CORS 与生命周期 | 新默认中间件会给经过它的响应增加 Vary: Accept-Language；CORS测试保留原Origin／Accept-Encoding断言，另外精确核对新增值和头数量，不将新增头误判为CORS未关闭。CORS预检、维护及大小检查的提前响应仍不进入语言选择 |
+| 旧引用与生成路径 | 检查 app、bootstrap、根测试、框架默认栈、安装器、生成器、Docker资源复制和三语正文；移除现行应用注册引用。控制器、视图、路由、AppServiceProvider、Config仓储及译器未因本次迁移改变。历史审计保留原事实，由本节覆盖旧建议 |
+| 正文与规范 | 三语本地化说明默认行为、候选、关闭、旧注册升级、事件及早返回边界；请求和中间件章节链接至同一正文。规范删除旧显式启用要求，新增迁移时保留骨架入口的约束 |
+
+### 最终验收
+
+Rust 1.94.0，所有临时源码、参考、日志、测试文件和浏览器材料在 `target/tmp/set-locale-middleware-20261122/`，独占复用 `target/tmp/welcome-locale-20261122/cargo-target/`；保留增量和正常并发。各阶段运行前检查空间，未触及32GB停线。以下均针对本轮交付源码，而非前节快照。
+
+| 验收 | 实际结果与证据 |
+| --- | --- |
+| 配置、语言与默认接入 | `framework.log`：application_locale7、blade_translations6、config_scoped_overrides4、laravel_alignment_http7、locale_bcp476、request_languages11、set_locale_middleware8，共49项通过，0 ignored。新测试使用真实Kernel，覆盖默认自动接入、空候选／路由复用、非法原子保留、事件顺序／失败、最小配置、父键替换、404／500恢复、最终响应头及并发应用隔离 |
+| 欢迎页与启动 | `root.log`：application_skeleton2、localization13、startup28、welcome11，共54项通过，0 ignored；与上一行合计103项。所有旧语言、Config及Blade行为断言保留；默认欢迎页不手动注册应用中间件 |
+| 扩大关联检查 | `http-impact.log`／`app-impact.log`／`precognition-http.log`：CORS生命周期5、排除1、HTTP观察4、请求属性3、视图11、实际HTTP验证19、无外部服务Session12、SQLite数据库Worker／时长钩子2、根HTTP16、初始化14、文件维护2、Precognition7，共96项实际执行通过；Worker子进程夹具不重复计数。日志另外显示11项缺少服务环境后直接返回的“ok”，全部排除：Session MySQL／Redis5、验证MySQL1、Worker MySQL／Redis／Cluster／SQLServer4、维护Redis1。ignored的Worker入口由SQLite父测试实际派生执行；Precognition官方前端ignored不计通过，MySQL写入专项明确筛除1项 |
+| 负向接入校验 | 仅在隔离快照临时移除默认栈接入，`negative-default-registration.log` 实际断言失败（英文而非简中），退出101；恢复原源码后8项全部通过，`restored-default-registration.log`。这是接入点负向检验，未将编译缺符号当作行为失败证据，交付源码不受临时操作影响 |
+| 真实浏览器 | `welcome-browser.log`／`browser-results.json`：实际Kernel回环HTTP＋Chromium，11场景×手机桌面×明暗=44组合通过。覆盖默认三语、显式文字／数字变体／未知文字、关闭识别与法文两种回退／部分资源；检查HTML和HTTP语言、Vary、真实存在的文档／部署路径、名称版本间距、无横溢出及脚本错误；人工检查简中手机浅色截图。服务正常退出，临时Rust浏览器夹具移除 |
+| 质量与三语站点 | `fmt.log`、`clippy.log`：全workspace fmt、workspace/all-targets/locked严格Clippy通过；`docs-build.log`：三语内容检查与构建通过；`docs-browser.log`：根和/docs/三语桌面手机12组合通过；`docs-scope.log`：两前缀全部导航通过。第三方依赖仍有既有cfg／弃用警告，不称全依赖零诊断 |
+
+首次复验先后暴露最小配置和父配置替换500、默认识别改变精确配置语言、CORS新增Vary预期及缺少MySQL验收环境。前两项修实现，精确语言夹具只显式关闭浏览器识别且保留断言，CORS按新默认头增加断言；缺服务明确记未验。早期公开API夹具另有编译错误，不能作为有效行为失败；完整尝试退出码见本批 `results.jsonl`。本轮补充的配置、视图、Kernel、页面和生命周期回归已通过，不凭关键词消失关闭问题。
+
+本轮没有改变共享数据库、缓存或队列引擎，未操作开发／生产数据及卷；未复验PostgreSQL／MySQL、Redis及Cluster专项、官方Precognition前端、Windows、Docker镜像、独立发布部署或完整上游PHPUnit，不将它们计为通过。默认语言接入只在HTTP Kernel，Console／Worker不自动装配HTTP中间件；SQLite实际Worker及既有语言作用域测试继续通过。最终源码与快照对账见本批 `closure.json`，仅内部验收记录在结果补录后同步；验收结束时HEAD为 `8e2810911`，索引为空。2026-11-22 用户随后授权本轮代码、测试、三语文档及项目记录暂存和本地提交，不包含推送或发布；提交前再次核对3,738项验收输入一致，仅补录本段及当前交接的Git授权。协作者的todo与framework-parity计划保留，不纳入本轮提交。

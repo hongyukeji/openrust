@@ -1,4 +1,4 @@
-use std::{fs, path::PathBuf, sync::Arc};
+use std::{fs, path::PathBuf};
 
 use openrust::{
     contracts::{http::Kernel as _, validation::Validator as _},
@@ -74,8 +74,8 @@ impl Root {
                 Ok(values)
             })
             .withMiddleware(move |middleware| {
-                if browser {
-                    middleware.append(Arc::new(http::middleware::SetLocale));
+                if !browser {
+                    middleware.setLocale(&[]).unwrap();
                 }
             })
             .withRouting(Routing::default().web(|| {

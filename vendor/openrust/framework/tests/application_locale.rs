@@ -73,6 +73,9 @@ impl Root {
                     }),
                 )]))
             })
+            .withMiddleware(|middleware| {
+                middleware.setLocale(&[]).unwrap();
+            })
             .withProviders(vec![Box::new(Observer(recorder))])
             .withRouting(Routing::default().web(|| {
                 Route::get("/default", defaults)?;
