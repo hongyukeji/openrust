@@ -6,7 +6,7 @@ Global middleware wraps route matching, so it can also inspect 404 and 405 respo
 
 ## Default Global Locale Middleware {#locale-middleware}
 
-The default global stack includes `openrust::http::middleware::SetLocale`; applications need no registration. See [Browser language](../digging-deeper/localization.md#welcome-page-language) for candidates, disabling selection, execution order, and response headers.
+The default global stack includes `openrust::http::middleware::SetLocale`; applications need no registration. See [Browser language](../digging-deeper/localization.md#welcome-page-language) for candidates, disabling selection, execution order, and response headers. URL selection and its configuration are described in [URL Language Selection](../digging-deeper/localization.md#locale-query).
 
 ## Named groups and priority
 

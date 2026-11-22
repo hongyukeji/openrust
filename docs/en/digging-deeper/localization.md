@@ -71,6 +71,72 @@ Remove the previous application `SetLocale` file and its `append` registration t
 
 The welcome page uses the current application locale for HTML `lang` and `Content-Language`. Display text uses the configured translation fallback. Repository links use the framework package metadata, and the template builds documentation paths with the current application locale. The default `en`, `zh-Hans`, and `zh-Hant` locales have matching documentation directories. If detection is disabled and `APP_LOCALE=fr`, text may fall back to English, but documentation links still point to `docs/fr`, which is not included. For another application locale, provide the corresponding documentation or customize the welcome template.
 
+### URL Language Selection {#locale-query}
+
+The default middleware reads `?lang=en`, `?lang=zh-Hans`, or `?lang=zh-Hant` before negotiating `Accept-Language`. A `localeUsing` callback returning a language takes priority over the URL; `None` continues with the URL, then browser negotiation. Explicit URL values require an exact canonical candidate: `ZH-hANT` selects `zh-Hant`, but `zh-CN` is not an alias here. Empty, invalid, array and unsupported values return HTTP 400. Repeated scalar keys follow the normal query parser: the last value wins. Request body fields do not select a language.
+
+Configure the parameter in the language section of `config/app.rs`:
+
+```rust
+"locale_query_parameter": "lang",
+```
+
+Change it to `"language"` to read only `?language=...`, or set it to JSON `null` to disable URL selection while retaining callbacks and browser negotiation. A missing key uses `lang`, including older configuration caches. Empty names, whitespace, control characters, dots, brackets and non-string values are configuration errors; use a nonempty top-level query key. Configuration caches retain their existing values until rebuilt. There is no additional environment variable or middleware registration.
+
+The welcome page provides normal GET links for the available `en`, `zh-Hans` and `zh-Hant` candidates plus “Follow browser”. Links preserve other query parameters, and the automatic option removes only the configured language key. The current language is underlined; a border marks the explicit selection or automatic mode. Refreshing or sharing a URL retains its choice. Visiting the home page without that parameter resumes browser negotiation; no preference is written to Cookie, Session, a database or localStorage.
+
+The switcher is hidden when URL selection is disabled, the middleware is disabled, no welcome-page language is a candidate, or a callback has already selected a language that URL links cannot override. Custom candidates do not add untranslated menu entries. The middleware places `LocaleSelection` in the native request extensions, carrying the active query parameter, candidates and `from_query` flag; the controller reads it only to build controls, without selecting a language again. URL selection retains `Content-Language`, `Vary: Accept-Language` and downstream header behavior. Private callback-based content still requires an application cache policy.
+
+### Custom Locale Selection {#custom-locale-selection}
+
+`localeUsing` is an OpenRust extension. Use it to configure a synchronous callback on the current application's middleware instance. For example, prefer an explicit request header and continue with URL selection and browser negotiation when it is absent:
+
+```rust
+.withMiddleware(|middleware| {
+    middleware.setLocale(&["en", "zh-Hans", "zh-Hant"]).expect("语言标签有效");
+    middleware.localeUsing(|request| {
+        Ok(request.header("X-Locale")?.map(str::to_owned))
+    });
+})
+```
+
+The callback returns `Result<Option<String>, HttpError>`:
+
+- `Ok(Some(locale))` canonicalizes the BCP 47 tag and requires an exact match in the canonical candidate list. It does not apply browser aliases, base-language matching, or translation fallback. With default candidates, `ZH-hANT` selects `zh-Hant`; `zh-CN`, `en-US`, empty strings, and invalid tags are errors. Include a valid region or extension tag explicitly to select it unchanged.
+- `Ok(None)` tries the configured URL parameter first, then the existing browser negotiation and supported application default or first candidate.
+- `Err(error)` passes the original error to the existing exception handler and stops downstream execution. Invalid or unsupported selections are internal errors; validate untrusted user input in the callback and return an appropriate HTTP error if needed. Selection failures do not switch locale or emit `LocaleUpdated`.
+
+Without a callback, behavior stays unchanged. Candidate and callback configuration are independent and can be called in either order. Invalid candidate updates preserve both previous settings; the last callback replaces the previous callback. Empty candidates disable the entire instance, including callback execution, events and header handling. The callback remains stored for re-enabling candidates. Route instances expose the same `setLocale` and `localeUsing` methods; callbacks and candidate changes belong to that instance, never a process-wide registry. The callback itself must also avoid shared mutable user state.
+
+The default global position precedes routing, Session and authentication. A callback can read headers and information already prepared at that point; it cannot access dependencies provided later. For Session rules, first call `middleware.setLocale(&[]).expect("语言标签有效")` in `withMiddleware`. Then register the same middleware in `routes/web.rs`, after the default `web` group has loaded Session:
+
+```rust
+use std::sync::Arc;
+use openrust::{
+    contracts::session::Session,
+    http::{Response, middleware::SetLocale},
+    routing::{RouteGroup, RoutingError},
+    support::facades::Route,
+};
+
+pub fn register() -> Result<(), RoutingError> {
+    let mut locale = SetLocale::new(&["en", "zh-Hans", "zh-Hant"])
+        .expect("语言标签有效");
+    locale.localeUsing(|request| {
+        Ok(request.session()?.get("locale")
+            .and_then(|value| value.as_str().map(str::to_owned)))
+    });
+    Route::group(RouteGroup::new().middleware(Arc::new(locale)), |router| {
+        router.get("/account", || Response::from("Account"))?;
+        Ok(())
+    })
+}
+```
+
+This example requires a configured Session driver and application encryption key. It reads an existing `locale` Session value and does not persist a new preference. If no value exists, URL selection and then browser negotiation apply. Authentication-dependent rules likewise belong after authentication; a rule affecting localized route bindings must run before binding substitution. For that placement, use the existing `Middleware::group` / `MiddlewareEntry` configuration to explicitly order the group. Merely adding a callback does not reorder middleware. Perform asynchronous lookups in an earlier middleware and pass prepared data through the request; this callback is synchronous.
+
+The same `SetLocale` applies `App::setLocale`, events and response headers for these sources. Downstream locale changes determine a missing `Content-Language`; existing values remain intact. `Accept-Language` is still merged into `Vary`, since the callback can fall back to browser negotiation. This does **not** fully vary a response selected by `X-Locale`, Cookie, Session or user data. For the header example, the response must also vary by `X-Locale`; for private content, apply `Cache-Control: private, no-store` or an appropriate application cache policy. Add other `Vary` fields when relevant. The middleware preserves those headers and does not infer cache keys, persist cookies, or make personalized responses safe for shared caches.
+
 ### Translating in Blade {#blade-translations}
 
 Read translations directly in templates. The controller only supplies page data:

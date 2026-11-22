@@ -60,9 +60,29 @@ impl Root {
         configure: impl FnOnce(&mut Middleware) + Send + Sync + 'static,
         events: Arc<Events>,
     ) -> Kernel {
+        self.kernel_query(default, configure, events, None).await
+    }
+
+    async fn kernel_query(
+        &self,
+        default: &str,
+        configure: impl FnOnce(&mut Middleware) + Send + Sync + 'static,
+        events: Arc<Events>,
+        parameter: Option<serde_json::Value>,
+    ) -> Kernel {
         fs::write(self.0.join(".env"), format!("APP_LOCALE={default}\n")).unwrap();
+        let parameter_path = self.0.join("locale-query.json");
+        if let Some(value) = parameter {
+            fs::write(&parameter_path, serde_json::to_vec(&value).unwrap()).unwrap();
+        } else {
+            let _ = fs::remove_file(&parameter_path);
+        }
         let app = Application::configure(self.0.clone())
-            .withConfig(|_, env| Ok(BTreeMap::from([("app".into(), serde_json::json!({"locale":env.get_utf8("APP_LOCALE")?.unwrap_or("en"), "fallback_locale":"en"}))])))
+            .withConfig(|base, env| {
+                let mut app = serde_json::json!({"locale":env.get_utf8("APP_LOCALE")?.unwrap_or("en"), "fallback_locale":"en"});
+                if let Ok(bytes) = fs::read(base.join("locale-query.json")) { app["locale_query_parameter"] = serde_json::from_slice(&bytes).unwrap(); }
+                Ok(BTreeMap::from([("app".into(), app)]))
+            })
             .withProviders(vec![Box::new(Observer(events))])
             .withMiddleware(configure)
             .withRouting(Routing::default().web(|| {
@@ -156,6 +176,7 @@ fn failure(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 async fn send(kernel: &Kernel, path: &str, language: &str) -> (StatusCode, HeaderMap, String) {
     let (parts, body) = http::Request::builder()
         .uri(path)
+        .header("host", "localhost")
         .header("accept-language", language)
         .body(Body::empty())
         .unwrap()
@@ -370,5 +391,747 @@ async fn policy_and_locale_are_isolated_between_concurrent_requests_and_applicat
         assert_eq!(en.2, "en|Hello");
         assert_eq!(other.2, "fr|Bonjour");
         assert!(!other.1.contains_key("vary"));
+    }
+}
+
+fn header_locale(request: &Request) -> Result<Option<String>, HttpError> {
+    Ok(request.header("x-locale")?.map(str::to_owned))
+}
+
+async fn send_selected(
+    kernel: &Kernel,
+    path: &str,
+    selected: Option<&str>,
+    browser: &str,
+) -> (StatusCode, HeaderMap, String) {
+    let mut builder = http::Request::builder()
+        .uri(path)
+        .header("host", "localhost")
+        .header("accept-language", browser);
+    if let Some(locale) = selected {
+        builder = builder.header("x-locale", locale);
+    }
+    let (parts, body) = builder.body(Body::empty()).unwrap().into_parts();
+    let response = kernel.handle(&mut Request::from_parts(parts, body)).await;
+    let (parts, body) = response.into_parts();
+    let body = axum::body::to_bytes(body, 1024 * 128).await.unwrap();
+    (
+        parts.status,
+        parts.headers,
+        String::from_utf8(body.to_vec()).unwrap(),
+    )
+}
+
+#[tokio::test]
+async fn callback_selects_exact_canonical_candidate_and_none_uses_browser() {
+    let root = Root::new();
+    let events = Arc::new(Events::default());
+    let kernel = root
+        .kernel(
+            "en",
+            |middleware| {
+                middleware.localeUsing(header_locale);
+            },
+            events.clone(),
+        )
+        .await;
+    for (selected, browser, expected) in [
+        (Some("ZH-hANT"), "en", "zh-Hant|您好"),
+        (Some("en"), "zh-CN", "en|Hello"),
+        (None, "zh-CN", "zh-Hans|你好"),
+        (None, "xx", "en|Hello"),
+    ] {
+        let (status, headers, body) = send_selected(&kernel, "/", selected, browser).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(body, expected);
+        assert_eq!(
+            headers["content-language"],
+            expected.split('|').next().unwrap()
+        );
+    }
+    assert_eq!(
+        *events.0.lock().unwrap(),
+        ["zh-Hant", "en", "zh-Hans", "en"]
+    );
+}
+
+#[tokio::test]
+async fn invalid_or_unsupported_callback_values_fail_without_dispatch_or_event() {
+    let root = Root::new();
+    let events = Arc::new(Events::default());
+    let kernel = root
+        .kernel(
+            "en",
+            |middleware| {
+                middleware.localeUsing(header_locale);
+            },
+            events.clone(),
+        )
+        .await;
+    for selected in ["zh_CN", "", "fr", "zh-CN", "en-US", "en-u-ca-gregory"] {
+        let (status, _, body) = send_selected(&kernel, "/", Some(selected), "en").await;
+        assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR, "{selected}");
+        assert!(!body.contains("en|Hello"));
+    }
+    assert!(events.0.lock().unwrap().is_empty());
+    assert_eq!(send(&kernel, "/", "en").await.2, "en|Hello");
+    assert_eq!(
+        kernel.get_application().config().unwrap().get("app.locale"),
+        Some(serde_json::json!("en"))
+    );
+}
+
+#[tokio::test]
+async fn callback_errors_keep_the_original_http_status_and_do_not_update_locale() {
+    let root = Root::new();
+    let events = Arc::new(Events::default());
+    let kernel = root
+        .kernel(
+            "en",
+            |middleware| {
+                middleware.localeUsing(|request| {
+                    if request.header("x-locale")?.is_some() {
+                        Err(openrust::http::abort(
+                            StatusCode::IM_A_TEAPOT,
+                            "语言选择失败",
+                            HeaderMap::new(),
+                        ))
+                    } else {
+                        Ok(None)
+                    }
+                });
+            },
+            events.clone(),
+        )
+        .await;
+    let (status, _, body) = send_selected(&kernel, "/", Some("fr"), "en").await;
+    assert_eq!(status, StatusCode::IM_A_TEAPOT);
+    assert!(!body.contains("en|Hello"));
+    assert!(events.0.lock().unwrap().is_empty());
+    assert_eq!(send(&kernel, "/", "en").await.2, "en|Hello");
+}
+
+#[tokio::test]
+async fn candidates_and_callback_survive_both_configuration_orders_and_failed_updates() {
+    let root = Root::new();
+    for callback_first in [true, false] {
+        let kernel = root
+            .kernel(
+                "en",
+                move |middleware| {
+                    if callback_first {
+                        middleware.localeUsing(header_locale);
+                    }
+                    middleware.setLocale(&["en", "fr"]).unwrap();
+                    if !callback_first {
+                        middleware.localeUsing(header_locale);
+                    }
+                    assert!(middleware.setLocale(&["de", "zh_CN"]).is_err());
+                },
+                Arc::default(),
+            )
+            .await;
+        assert_eq!(
+            send_selected(&kernel, "/", Some("fr"), "en").await.2,
+            "fr|Bonjour"
+        );
+        assert_eq!(send(&kernel, "/", "fr").await.2, "fr|Bonjour");
+        assert_eq!(
+            send_selected(&kernel, "/", Some("de"), "en").await.0,
+            StatusCode::INTERNAL_SERVER_ERROR
+        );
+    }
+}
+
+#[tokio::test]
+async fn empty_candidates_skip_callback_but_keep_it_for_reenabling() {
+    let root = Root::new();
+    let events = Arc::new(Events::default());
+    let disabled = root
+        .kernel(
+            "de",
+            |middleware| {
+                middleware.localeUsing(|_| panic!("关闭后不得执行回调"));
+                middleware.setLocale(&[]).unwrap();
+            },
+            events.clone(),
+        )
+        .await;
+    let (status, headers, body) = send(&disabled, "/", "en").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body, "de|Hallo");
+    assert!(!headers.contains_key("content-language"));
+    assert!(!headers.contains_key("vary"));
+    assert!(events.0.lock().unwrap().is_empty());
+    let enabled = root
+        .kernel(
+            "en",
+            |middleware| {
+                middleware.localeUsing(header_locale);
+                middleware.setLocale(&[]).unwrap();
+                assert!(middleware.setLocale(&["zh_CN"]).is_err());
+                middleware.setLocale(&["en", "fr"]).unwrap();
+            },
+            Arc::default(),
+        )
+        .await;
+    assert_eq!(
+        send_selected(&enabled, "/", Some("fr"), "en").await.2,
+        "fr|Bonjour"
+    );
+}
+
+#[tokio::test]
+async fn custom_sources_keep_downstream_language_and_existing_response_headers() {
+    let root = Root::new();
+    let kernel = root
+        .kernel(
+            "en",
+            |middleware| {
+                browser(middleware);
+                middleware.localeUsing(header_locale);
+            },
+            Arc::default(),
+        )
+        .await;
+    let (_, headers, _) = send_selected(&kernel, "/switch", Some("de"), "en").await;
+    assert_eq!(headers["content-language"], "fr");
+    let (_, headers, _) = send_selected(&kernel, "/metadata", Some("de"), "en").await;
+    assert_eq!(headers["content-language"], "it");
+    assert_eq!(
+        headers
+            .get_all("vary")
+            .iter()
+            .map(|v| v.to_str().unwrap())
+            .collect::<Vec<_>>(),
+        ["Accept-Encoding", "Origin", "Accept-Language"]
+    );
+    for (path, expected) in [("/star", "*"), ("/existing", "Origin, accept-language")] {
+        let (_, headers, _) = send_selected(&kernel, path, Some("de"), "en").await;
+        assert_eq!(headers["vary"], expected);
+        assert_eq!(headers.get_all("vary").iter().count(), 1);
+    }
+}
+
+#[tokio::test]
+async fn callback_policy_is_isolated_between_requests_instances_and_applications() {
+    let root = Root::new();
+    let selected = root
+        .kernel(
+            "en",
+            |middleware| {
+                browser(middleware);
+                middleware.localeUsing(header_locale);
+            },
+            Arc::default(),
+        )
+        .await;
+    let constant = root
+        .kernel(
+            "en",
+            |middleware| {
+                middleware.setLocale(&["en", "fr"]).unwrap();
+                middleware.localeUsing(|_| Ok(Some("fr".into())));
+            },
+            Arc::default(),
+        )
+        .await;
+    let default = root.kernel("en", |_| {}, Arc::default()).await;
+    for _ in 0..4 {
+        let (de, fr, fallback, other, unchanged) = tokio::join!(
+            send_selected(&selected, "/", Some("de"), "en"),
+            send_selected(&selected, "/", Some("fr"), "en"),
+            send(&selected, "/", "en"),
+            send(&constant, "/", "de"),
+            send(&default, "/", "de")
+        );
+        assert_eq!(de.2, "de|Hallo");
+        assert_eq!(fr.2, "fr|Bonjour");
+        assert_eq!(fallback.2, "en|Hello");
+        assert_eq!(other.2, "fr|Bonjour");
+        assert_eq!(unchanged.2, "en|Hello");
+    }
+    for kernel in [&selected, &constant, &default] {
+        assert_eq!(
+            kernel.get_application().config().unwrap().get("app.locale"),
+            Some(serde_json::json!("en"))
+        );
+    }
+}
+
+#[tokio::test]
+async fn exact_callback_tags_keep_regions_and_extensions_without_browser_mapping() {
+    let root = Root::new();
+    let kernel = root
+        .kernel(
+            "en",
+            |middleware| {
+                middleware
+                    .setLocale(&["en", "zh-Hans", "zh-CN", "en-US-u-ca-gregory"])
+                    .unwrap();
+                middleware.localeUsing(header_locale);
+            },
+            Arc::default(),
+        )
+        .await;
+    for (selected, expected) in [
+        ("ZH-cn", "zh-CN"),
+        ("EN-us-u-CA-gregory", "en-US-u-ca-gregory"),
+    ] {
+        let (status, headers, body) = send_selected(&kernel, "/", Some(selected), "zh-CN").await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(headers["content-language"], expected);
+        assert_eq!(body, format!("{expected}|Hello"));
+    }
+    assert_eq!(send(&kernel, "/", "zh-CN").await.2, "zh-Hans|你好");
+}
+
+#[tokio::test]
+async fn cloned_route_instances_keep_independent_candidates_and_callbacks() {
+    let root = Root::new();
+    let app = Application::configure(root.0.clone())
+        .withConfig(|_, _| {
+            Ok(BTreeMap::from([(
+                "app".into(),
+                serde_json::json!({"locale":"en"}),
+            )]))
+        })
+        .withMiddleware(|middleware| {
+            middleware.setLocale(&[]).unwrap();
+        })
+        .withRouting(Routing::default().web(|| {
+            let mut first = SetLocale::new(&["en", "fr"]).unwrap();
+            first.localeUsing(|_| Ok(Some("fr".into())));
+            let mut second = first.clone();
+            second.setLocale(&["en", "de"]).unwrap();
+            assert!(second.setLocale(&["zh_CN"]).is_err());
+            second.localeUsing(|_| Ok(Some("de".into())));
+            Route::group(
+                openrust::routing::RouteGroup::new().middleware(Arc::new(first)),
+                |router| {
+                    router.get("/first", inspect)?;
+                    Ok(())
+                },
+            )?;
+            Route::group(
+                openrust::routing::RouteGroup::new().middleware(Arc::new(second)),
+                |router| {
+                    router.get("/second", inspect)?;
+                    Ok(())
+                },
+            )?;
+            Ok(())
+        }))
+        .create()
+        .unwrap();
+    let mut kernel = Kernel::new(app);
+    kernel.bootstrap().await.unwrap();
+    for _ in 0..3 {
+        let (first, second) = tokio::join!(
+            send(&kernel, "/first", "en"),
+            send(&kernel, "/second", "en")
+        );
+        assert_eq!(first.2, "fr|Bonjour");
+        assert_eq!(second.2, "de|Hallo");
+    }
+}
+
+fn session_locale(request: &Request) -> Result<Option<String>, HttpError> {
+    use openrust::contracts::session::Session;
+    Ok(request
+        .session()?
+        .get("locale")
+        .and_then(|value| value.as_str().map(str::to_owned)))
+}
+
+fn seed_session(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        use openrust::contracts::session::Session;
+        request
+            .session_mut()?
+            .put("locale", serde_json::json!("fr"))?;
+        Ok(Response::from("saved"))
+    })
+}
+
+fn private_session(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        assert!(request.hasSession());
+        let response = inspect(request).await?;
+        Ok(response
+            .header(
+                "cache-control".parse().unwrap(),
+                "private, no-store".parse().unwrap(),
+            )
+            .header(
+                "vary".parse().unwrap(),
+                "Cookie, accept-language".parse().unwrap(),
+            ))
+    })
+}
+
+async fn session_kernel(root: &Root, global: bool, locale_before_session: bool) -> Kernel {
+    use openrust::{
+        cookie::middleware::EncryptCookies,
+        encryption::{Cipher, Encrypter},
+        routing::MiddlewareEntry,
+        session::middleware::StartSession,
+    };
+    let app = Application::configure(root.0.clone())
+        .withConfig(|_, _| Ok(BTreeMap::from([
+            ("app".into(), serde_json::json!({"locale":"en", "fallback_locale":"en", "key":"a".repeat(32)})),
+            ("session".into(), serde_json::json!({"driver":"array", "cookie":"locale_session", "lottery":[0,100]})),
+        ])))
+        .withMiddleware(move |middleware| {
+            if global {
+                middleware.setLocale(&["en", "fr"]).unwrap();
+                middleware.localeUsing(session_locale);
+            } else { middleware.setLocale(&[]).unwrap(); }
+            let mut locale = SetLocale::new(&["en", "fr"]).unwrap();
+            locale.localeUsing(session_locale);
+            let locale = MiddlewareEntry::Instance(Arc::new(locale));
+            let mut entries = vec![MiddlewareEntry::Instance(Arc::new(EncryptCookies::new(Arc::new(Encrypter::new([b'a';32], Cipher::Aes256Cbc).unwrap()))))];
+            if locale_before_session { entries.push(locale.clone()); }
+            entries.push(MiddlewareEntry::Instance(Arc::new(StartSession)));
+            if !locale_before_session { entries.push(locale); }
+            middleware.group("web", entries);
+        })
+        .withRouting(Routing::default().web(|| {
+            Route::get("/seed", seed_session)?;
+            Route::get("/", private_session)?;
+            Ok(())
+        })).create().unwrap();
+    let mut kernel = Kernel::new(app);
+    kernel.bootstrap().await.unwrap();
+    kernel
+}
+
+#[tokio::test]
+async fn session_rules_require_correct_group_order_and_keep_private_cache_policy() {
+    let root = Root::new();
+    for (global, before_session) in [(true, false), (false, true)] {
+        let kernel = session_kernel(&root, global, before_session).await;
+        let (status, _, body) = send(&kernel, "/seed", "en").await;
+        assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
+        assert_ne!(body, "saved");
+    }
+    let kernel = session_kernel(&root, false, false).await;
+    let (status, headers, _) = send(&kernel, "/seed", "en").await;
+    assert_eq!(status, StatusCode::OK);
+    let cookie = headers
+        .get_all("set-cookie")
+        .iter()
+        .find_map(|v| {
+            let value = v.to_str().unwrap();
+            value
+                .starts_with("locale_session=")
+                .then(|| value.split(';').next().unwrap().to_owned())
+        })
+        .unwrap();
+    let (parts, body) = http::Request::builder()
+        .uri("/")
+        .header("host", "localhost")
+        .header("cookie", cookie)
+        .header("accept-language", "en")
+        .body(Body::empty())
+        .unwrap()
+        .into_parts();
+    let response = kernel.handle(&mut Request::from_parts(parts, body)).await;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(response.headers()["content-language"], "fr");
+    assert_eq!(response.headers()["cache-control"], "private, no-store");
+    assert_eq!(response.headers()["vary"], "Cookie, accept-language");
+    assert_eq!(response.headers().get_all("vary").iter().count(), 1);
+    assert_eq!(
+        axum::body::to_bytes(response.into_parts().1, 1024)
+            .await
+            .unwrap(),
+        "fr|Bonjour"
+    );
+    assert_eq!(send(&kernel, "/", "en").await.2, "en|Hello");
+}
+
+#[tokio::test]
+async fn callback_source_errors_are_visible_to_registered_exception_renderers() {
+    let root = Root::new();
+    let app = Application::configure(root.0.clone())
+        .withMiddleware(|middleware| {
+            middleware.localeUsing(|_| {
+                Err(HttpError::Internal {
+                    source: Box::new(std::io::Error::other("语言来源暂不可用")),
+                })
+            });
+        })
+        .withExceptions(|exceptions| {
+            exceptions.render::<std::io::Error>(|error, _| {
+                Some(Response::new(
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    Body::from(error.to_string()),
+                ))
+            });
+        })
+        .withRouting(Routing::default().web(|| Route::get("/", inspect)))
+        .create()
+        .unwrap();
+    let mut kernel = Kernel::new(app);
+    kernel.bootstrap().await.unwrap();
+    let (status, _, body) = send(&kernel, "/", "en").await;
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(body, "语言来源暂不可用");
+}
+
+#[tokio::test]
+async fn query_is_exact_and_overrides_browser_with_one_event_per_request() {
+    let root = Root::new();
+    let events = Arc::new(Events::default());
+    let kernel = root.kernel("en", |_| {}, events.clone()).await;
+    for (path, expected) in [
+        ("/?lang=en", "en"),
+        ("/?lang=zh-Hans", "zh-Hans"),
+        ("/?lang=ZH-hANT", "zh-Hant"),
+        ("/?lang=en&lang=zh-Hans", "zh-Hans"),
+        ("/?other=fr", "zh-Hant"),
+    ] {
+        let (status, headers, body) = send(&kernel, path, "zh-TW").await;
+        assert_eq!(status, StatusCode::OK, "{path}: {body}");
+        assert_eq!(headers["content-language"], expected);
+        assert!(body.starts_with(expected));
+    }
+    assert_eq!(
+        events.0.lock().unwrap().as_slice(),
+        ["en", "zh-Hans", "zh-Hant", "zh-Hans", "zh-Hant"]
+    );
+    for path in [
+        "/?lang=",
+        "/?lang",
+        "/?lang=zh_CN",
+        "/?lang=fr",
+        "/?lang=zh-CN",
+        "/?lang[]=en",
+        "/?lang[x]=en",
+        "/?lang=en&lang[]=fr",
+    ] {
+        assert_eq!(
+            send(&kernel, path, "en").await.0,
+            StatusCode::BAD_REQUEST,
+            "{path}"
+        );
+    }
+    assert_eq!(events.0.lock().unwrap().len(), 5);
+    assert_eq!(send(&kernel, "/", "en").await.2, "en|Hello");
+    assert_eq!(
+        send(&kernel, "/switch?lang=zh-Hans", "en").await.1["content-language"],
+        "fr"
+    );
+    let (_, headers, _) = send(&kernel, "/metadata?lang=zh-Hans", "en").await;
+    assert_eq!(headers["content-language"], "it");
+    assert_eq!(headers.get_all("vary").iter().count(), 3);
+}
+
+#[tokio::test]
+async fn query_configuration_missing_null_custom_invalid_and_empty_candidates() {
+    let root = Root::new();
+    let events = Arc::new(Events::default());
+    let kernel = root
+        .kernel_query("en", |_| {}, events.clone(), Some("language".into()))
+        .await;
+    assert!(
+        send(&kernel, "/?language=zh-Hans&lang=fr", "en")
+            .await
+            .2
+            .starts_with("zh-Hans|")
+    );
+    assert_eq!(send(&kernel, "/?lang=zh-Hans", "en").await.2, "en|Hello");
+    let disabled = root
+        .kernel_query("en", |_| {}, events.clone(), Some(serde_json::Value::Null))
+        .await;
+    assert!(
+        send(&disabled, "/?lang[]=bad", "zh-TW")
+            .await
+            .2
+            .starts_with("zh-Hant|")
+    );
+    for value in [
+        serde_json::json!(""),
+        serde_json::json!(" "),
+        serde_json::json!("lang.name"),
+        serde_json::json!("lang[]"),
+        serde_json::json!(42),
+        serde_json::json!(false),
+        serde_json::json!([]),
+    ] {
+        let invalid = root
+            .kernel_query("en", |_| {}, events.clone(), Some(value))
+            .await;
+        assert_eq!(
+            send(&invalid, "/", "en").await.0,
+            StatusCode::INTERNAL_SERVER_ERROR
+        );
+    }
+    let empty = root
+        .kernel_query(
+            "en",
+            |middleware| {
+                middleware.setLocale(&[]).unwrap();
+                middleware.localeUsing(|_| panic!("停用实例不能执行回调"));
+            },
+            events,
+            Some(false.into()),
+        )
+        .await;
+    let (status, headers, body) = send(&empty, "/?lang[]=bad", "zh-TW").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body, "en|Hello");
+    assert!(!headers.contains_key("content-language"));
+}
+
+#[tokio::test]
+async fn callback_precedes_query_and_none_continues_query() {
+    let root = Root::new();
+    let kernel = root
+        .kernel(
+            "en",
+            |middleware| {
+                middleware.localeUsing(header_locale);
+            },
+            Arc::new(Events::default()),
+        )
+        .await;
+    assert!(
+        send_selected(&kernel, "/?lang[]=bad", Some("zh-Hant"), "en")
+            .await
+            .2
+            .starts_with("zh-Hant|")
+    );
+    assert!(
+        send_selected(&kernel, "/?lang=zh-Hans", None, "en")
+            .await
+            .2
+            .starts_with("zh-Hans|")
+    );
+    assert_eq!(
+        send_selected(&kernel, "/?lang=en", Some("fr"), "en")
+            .await
+            .0,
+        StatusCode::INTERNAL_SERVER_ERROR
+    );
+    let failed = root
+        .kernel(
+            "en",
+            |middleware| {
+                middleware.localeUsing(|_| Err(HttpError::NotFound));
+            },
+            Arc::new(Events::default()),
+        )
+        .await;
+    assert_eq!(
+        send(&failed, "/?lang=zh-Hans", "en").await.0,
+        StatusCode::NOT_FOUND
+    );
+}
+
+#[tokio::test]
+async fn query_selection_ignores_body_and_isolated_concurrent_applications() {
+    let first = Root::new();
+    let second = Root::new();
+    let first_kernel = first
+        .kernel("en", |_| {}, Arc::new(Events::default()))
+        .await;
+    let second_kernel = second
+        .kernel_query(
+            "en",
+            |_| {},
+            Arc::new(Events::default()),
+            Some("language".into()),
+        )
+        .await;
+    let (a, b, c) = tokio::join!(
+        send(&first_kernel, "/?lang=zh-Hans", "en"),
+        send(&first_kernel, "/?lang=zh-Hant", "en"),
+        send(&second_kernel, "/?lang=zh-Hans", "en")
+    );
+    assert!(a.2.starts_with("zh-Hans|"));
+    assert!(b.2.starts_with("zh-Hant|"));
+    assert_eq!(c.2, "en|Hello");
+    let raw = http::Request::builder()
+        .uri("/")
+        .header("host", "localhost")
+        .header("content-type", "application/json")
+        .header("accept-language", "en")
+        .body(Body::from(r#"{"lang":"zh-Hant"}"#))
+        .unwrap();
+    let (parts, body) = raw.into_parts();
+    let response = first_kernel
+        .handle(&mut Request::from_parts(parts, body))
+        .await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let (_, body) = response.into_parts();
+    assert_eq!(axum::body::to_bytes(body, 4096).await.unwrap(), "en|Hello");
+
+    let raw = http::Request::builder()
+        .uri("/")
+        .header("host", "localhost")
+        .header("content-type", "application/json")
+        .header("accept-language", "en")
+        .body(Body::from(r#"{"lang":"zh-Hans"}"#))
+        .unwrap();
+    let (parts, body) = first_kernel
+        .handle(&mut Request::from(raw))
+        .await
+        .into_parts();
+    assert_eq!(parts.status, StatusCode::OK);
+    assert_eq!(axum::body::to_bytes(body, 65536).await.unwrap(), "en|Hello");
+}
+
+#[tokio::test]
+async fn query_parameter_uses_cached_configuration_without_reloading_source() {
+    let root = Root::new();
+    fs::create_dir_all(root.0.join("storage/framework")).unwrap();
+    fs::write(
+        root.0.join("storage/framework/config.json"),
+        r#"{"app":{"locale":"en","fallback_locale":"en","locale_query_parameter":"language"}}"#,
+    )
+    .unwrap();
+    let kernel = root.kernel("en", |_| {}, Arc::new(Events::default())).await;
+    assert!(
+        send(&kernel, "/?language=zh-Hans&lang=bad", "en")
+            .await
+            .2
+            .starts_with("zh-Hans|")
+    );
+    fs::write(
+        root.0.join("storage/framework/config.json"),
+        r#"{"app":{"locale":"en","locale_query_parameter":null}}"#,
+    )
+    .unwrap();
+    assert!(
+        send(&kernel, "/?language=zh-Hant", "en")
+            .await
+            .2
+            .starts_with("zh-Hant|")
+    );
+    let disabled = root.kernel("en", |_| {}, Arc::new(Events::default())).await;
+    assert_eq!(send(&disabled, "/?language=bad", "en").await.2, "en|Hello");
+}
+
+#[tokio::test]
+async fn explicit_query_preserves_exact_region_and_extension_candidates() {
+    let root = Root::new();
+    let kernel = root
+        .kernel(
+            "en",
+            |middleware| {
+                middleware
+                    .setLocale(&["en", "en-US", "zh-CN", "en-US-u-nu-arab"])
+                    .unwrap();
+            },
+            Arc::new(Events::default()),
+        )
+        .await;
+    for locale in ["en-US", "zh-CN", "en-US-u-nu-arab"] {
+        let (status, headers, body) = send(&kernel, &format!("/?lang={locale}"), "zh-TW").await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        assert_eq!(headers["content-language"], locale);
+        assert!(body.starts_with(&format!("{locale}|")));
     }
 }

@@ -353,6 +353,51 @@ Rust 1.94.0，所有临时源码、参考、日志、测试文件和浏览器材
 
 本轮没有改变共享数据库、缓存或队列引擎，未操作开发／生产数据及卷；未复验PostgreSQL／MySQL、Redis及Cluster专项、官方Precognition前端、Windows、Docker镜像、独立发布部署或完整上游PHPUnit，不将它们计为通过。默认语言接入只在HTTP Kernel，Console／Worker不自动装配HTTP中间件；SQLite实际Worker及既有语言作用域测试继续通过。最终源码与快照对账见本批 `closure.json`，仅内部验收记录在结果补录后同步；验收结束时HEAD为 `8e2810911`，索引为空。2026-11-22 用户随后授权本轮代码、测试、三语文档及项目记录暂存和本地提交，不包含推送或发布；提交前再次核对3,738项验收输入一致，仅补录本段及当前交接的Git授权。协作者的todo与framework-parity计划保留，不纳入本轮提交。
 
+## SetLocale 实例级语言选择回调（2026-11-22）
+
+### 范围与调研
+
+基线 `b214e46be`。保留已完成的默认全局中间件、三语浏览器策略和应用骨架，只扩展现有 SetLocale 实例及配置入口。独立材料统一位于 `target/tmp/set-locale-callback-20261122/`；本次没有暂存、提交或推送授权。
+
+设计前联网读取下列原始实现，下载内容保留在本批 `research/`，没有把实时分支名称作为固定版本：
+
+| 来源 | 核对结果与采用方式 |
+| --- | --- |
+| [Laravel 本地化教程](https://laravel.com/docs/13.x/localization)及[固定文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/localization.md) | 语言由应用规则确定，通过 App::setLocale 设置；保持既有配置、译器与事件链。教程没有 localeUsing，本次是 OpenRust 扩展 |
+| [Authenticate::redirectUsing](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Auth/Middleware/Authenticate.php) | 借鉴 Request 入参、Using 命名及可选回调；不复刻 PHP 静态属性，使用项目已有 Arc＋Send＋Sync 实例约定，避免跨应用状态 |
+| [Symfony LocaleListener v7.4.0](https://github.com/symfony/http-kernel/blob/v7.4.0/EventListener/LocaleListener.php) | 显式请求来源优先，未提供时才协商；读取路由属性必须在路由之后，不能通过回调绕过执行顺序。保留本项目已确认的中文匹配策略，不声称完整 Symfony 等价 |
+| [mcamara/laravel-localization](https://github.com/mcamara/laravel-localization/tree/dbfa563ea0ceb6d072adc280a8830999ade9ed74) | 核对显式候选、浏览器回退和路由／Session职责；不引入 URL 语言、重定向、持久化或 LC_TIME 全局切换。其不支持值回退行为不照搬，本轮用户要求显式错误 |
+| [CodeZero Laravel Localizer](https://github.com/codezero-be/laravel-localizer/tree/013cab8762357f04ddfa4f62c5e836a9212c554f) | 核对 README、SetLocale 与配置：Session 之后、绑定之前的顺序有实际意义；采用职责划分，不引入其探测器、存储器与 trusted detector 机制 |
+| 本地 v0.x | 检查旧 http/middleware.rs，依赖旧 locale_service 与 Request metadata，不具备本次实例回调契约；复用当前 SetLocale、Request、App 和现有回调模式 |
+
+### 实际实现与决定
+
+- `SetLocale::localeUsing` 与 `foundation::configuration::Middleware::localeUsing` 接受同步 `Fn(&Request) -> Result<Option<String>, HttpError> + Send + Sync + 'static`；闭包可捕获不可变应用规则。重复配置替换该实例回调，克隆后配置变更相互独立；闭包内部的共享可变用户状态仍须由应用避免。
+- `Some` 复用 ICU 规范化，再精确核对候选成员；`zh-CN` 不因浏览器策略变成 `zh-Hans`，地区及支持的扩展必须完整出现在候选中。非法标签使用原 TranslationError，候选之外使用带中文说明的 InvalidInput 源错误，经既有 HttpError::Internal 处理；都不静默回退。用户输入需要4xx时可在回调里返回既有 HTTP 错误。
+- `None` 才执行原浏览器协商；没有回调时原行为不变。`SetLocale::setLocale` 原子更新候选，配置类改为修改该实例字段而非整体替换，因此先后顺序不清除回调；验证失败保留原候选／回调。空候选沿用已确认的关闭语义，包含回调、语言、事件和响应头，仍保存回调以供重新启用。
+- 同一个中间件仍负责 App::setLocale、事件及最终语言响应头。保持既有 Content-Language、多个 Vary 值、大小写不敏感去重及 `*`；继续添加 Accept-Language 以覆盖 None 的浏览器路径，不猜测自定义来源的缓存键。三语正文明确 X-Locale 需相应 Vary，Session／用户私有内容需 private／no-store 等应用缓存策略。
+- 默认全局位置及应用文件不变；依赖 Session／认证须关闭全局，复用路由组实例安排顺序。同步回调无法 await，异步查询在前置中间件准备，不为假想需求新增异步协议。文档同时说明绑定前的规则需要显式组内排列，默认 web 后的路由实例不能提前影响已执行的绑定。
+- 三语本地化正文同步全局回调及 Session 路由组示例、错误／回退、精确候选、空列表、实例隔离、执行顺序和缓存责任；设计和验收证据留在本主题记录。
+
+### 验收记录
+
+先以可编译的回调存储入口补失败回归，`red.log` 实际执行12项，8项原回归通过、4项行为断言失败，退出101：选定语言未生效、非法／不支持值未拒绝、回调错误被忽略、候选更新丢失回调。之后实现执行与原子更新，再扩充恢复、并发、精确地区／扩展及 Session 回归；没有把缺符号编译失败当作有效行为失败。
+
+早期 Session 夹具先遇到异步闭包不能作为此处路由处理器的编译错误，改为项目既有函数处理器；其后无 Host 的请求导致 URL InvalidOrigin，补真实 Host 后通过，未修改生产代码绕过。完整阶段退出码在 results.jsonl，不将失败尝试计为通过。
+
+最终验收采用 `b214e46be` 加本轮9份交付文件的 `source-final/` 隔离快照，不混入其他对话正在开发的 MessageBag、JsonSchema 等改动；它们完整保留在工作区，不能将本次结果扩展为这些在途修改也已通过。Rust 1.94.0、项目内 TMPDIR 和独占使用的复用 Cargo 缓存；曾遇另一工作流引用同缓存，等待 Cargo 锁并按实际冲突发出协调信息，没有并发改写构建目录。各阶段检查磁盘，未触及32GB停线，无清理数据或开发服务操作。
+
+| 范围 | 验收结果与证据 |
+| --- | --- |
+| 框架与 Kernel | `delivered-framework.log`：application_locale7、blade_translations6、config_scoped_overrides4、laravel_alignment_http7、locale_bcp476、middleware_exclusions1、middleware_lifecycle5、request_languages11、set_locale_middleware19，共66项通过，0 ignored。19项中的11项为本轮新增；覆盖无回调、Some／None／错误、非法／不支持／精确地区扩展、两种配置顺序、失败原子保留、关闭及重启、克隆实例及多应用并发、下游切换和头保留去重、真实加密Session恢复与错误顺序。原错误源可由注册的异常渲染器识别并返回503，HTTP回调错误保留418状态 |
+| 欢迎页与启动 | `delivered-root.log`：application_skeleton2、localization13、startup28、welcome11，共54项通过，0 ignored；与前行合计120项。不删除旧断言，不把缺环境返回算通过 |
+| 三语示例 | `docs-examples.log`：从三语本地化正文逐份提取两段Rust示例，3项实际Kernel测试通过（全局X-Locale和默认web后的Session路由实例）；真实Cookie写入后请求/account，候选语言与响应头符合正文，缺值回退浏览器。临时夹具归档为本批doc-example-fixture.rs，未加入交付测试；正文后续仅增加扩展归属说明，示例代码保持一致 |
+| 实际 HTTP／浏览器 | `welcome-browser.log`、`browser-results.json`：使用交付核心、当前欢迎页模板及真实Kernel回环HTTP，Chromium验收Some英文／简中／繁中和None浏览器回退4场景×桌面手机×明暗=16组合通过；核对HTML、文案、Content-Language、Vary、真实文档链接及页面无横溢出。另3种非法／不支持选择实际返回500，之后无选择请求恢复英文200。人工查看简中手机浅色截图。临时服务正常退出，夹具从验收源码移除 |
+| 格式与静态质量 | `final-fmt.log`、`final-clippy.log`：cargo +1.94.0 fmt --all --check、workspace/all-targets/locked严格Clippy通过。依赖仍有既有cfg／弃用等警告，不声称全部第三方依赖零诊断 |
+| 三语文档站 | `docs-final-build.log`：命令入口正反例2项、三语内容检查及构建通过；`docs-final-browser.log`：/与/docs/三语桌面手机12组合通过；`docs-final-scope.log`：两前缀全部三语导航通过。未调整文档站导航数量或支持状态 |
+
+最终源码／快照对账、示例代码哈希、HEAD及空间实测见本批 `closure.json`。本次未改变共享数据库／缓存驱动、持久化模型或Worker，未启动无关数据库／Redis或操作开发数据；没有三库／缓存矩阵需求。尚未复验Windows、Docker镜像、独立发布部署、外部身份服务与完整上游PHPUnit，这些不计本轮通过。默认全局不能访问后续Session／认证，回调同步，应用负责自定义来源的共享缓存与私有内容策略，均为已说明的支持边界，不隐藏为无条件支持。本轮不暂存、提交、推送或发布。
+
 
 ## 仓库元信息与欢迎页链接调整（2026-11-22）
 
@@ -382,3 +427,74 @@ Rust 1.94.0，所有临时源码、参考、日志、测试文件和浏览器材
 
 
 2026-11-22 用户随后授权本轮本地提交，不包含推送。提交按文件片段隔离欢迎页仓库元信息改动；VERSION／version、SetLocale回调及其他协作者在途功能不纳入本次提交。仓库元信息回归只暂存对应测试函数，其余版本测试原样保留在工作区；MessageBag新API调整也保留未提交。上述77项属于当时完整源码组合的关联验证，不表述为其他在途功能已提交。
+
+
+## URL 语言参数与欢迎页切换（2026-11-22）
+
+### 范围与调研
+
+执行 [已确认计划](../../plans/locale-query-and-welcome-switching.md)，实施起点 HEAD `2c3b8102e`。保留既有框架版本、SetLocale 回调、仓库元信息以及其他协作者的框架对齐改动；本次授权仅开发与验收，未暂存、提交、推送、发布或操作开发数据。
+
+联网读取固定 Laravel Framework v13.40.0 / `1449bf241017087fbd38c118ecaabef3f6797fdc` 的 [InteractsWithInput::query](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/Concerns/InteractsWithInput.php)、[Request 的 query 合并／删除](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/Request.php)、[Arr::query](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/Arr.php) 、[HttpRequestTest 的 query与合并删除测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Http/HttpRequestTest.php) 和 [Authenticate::redirectUsing](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Auth/Middleware/Authenticate.php)。复用本项目 Request 查询集合、Arr 的 RFC3986 编码、Config 仓储和现有实例回调；不复制 PHP 静态回调状态，也不新增管理器。
+
+核对 [Symfony LocaleListener v7.4.0](https://github.com/symfony/http-kernel/blob/v7.4.0/EventListener/LocaleListener.php) 的显式路由语言优先及路由后执行顺序；其 `_locale` 属性不是 query API。[mcamara](https://github.com/mcamara/laravel-localization) 的 Session／Cookie 重定向和 [CodeZero](https://github.com/codezero-be/laravel-localizer) 的有序探测、Session／绑定顺序用于界定职责，不整体引入持久化、路由前缀或探测器链。生态 README 按本日联网快照核对，不作为固定 Laravel 契约。旧版不存在可直接复用的同路径 SetLocale；采用当前主线现有机制。参考资料仅存在本批 `target/tmp/locale-query-20261122/research/`。默认全局 SetLocale、URL 参数与配置键均是用户确认的 OpenRust 扩展，不是 Laravel 默认功能。
+
+### 实际实现与决策
+
+- `config/app.rs` 相邻语言配置增加 `locale_query_parameter: "lang"`。缺键为 lang，JSON null只关闭 query；配置缓存仍由现有仓储加载，不逐请求扫描配置文件。
+- 同一个 `SetLocale` 按 callback Some → query → 浏览器选择，经既有 `App::setLocale` 更新配置、译器与事件。Some 不读取低优先级语言值，None 继续 query；非法 callback 仍沿用开发错误契约。空候选早返回，连错误 query 配置也不读取。
+- query 仅读 `Request::query`，不读请求体。ICU 规范化后须精确属于候选；空值、数组／对象、非法或不受支持标签返回400。`zh-CN` 不等于候选 `zh-Hans`；重复标量按原解析器后值覆盖前值。精确地区和 Unicode 扩展候选保留完整标签。
+- 参数名必须为非空顶层键，拒绝空白、控制字符、点与方括号。这是既有 PHP 式解析及 Arr 点路径可往返的约束，不是 Laravel 标准。错误类型或名称走现有 ConfigError／异常处理，返回500。
+- 最小请求扩展 `LocaleSelection` 提供实际参数名、候选及 from_query，欢迎页只据此生成显示链接，不再做选择。callback 已选择语言时隐藏 URL 控件，避免生成无法覆盖回调的入口。null、停用中间件及无三语候选同样隐藏；候选子集仅显示真实可用项。
+- 控制器用 Arr::forget／set／query 保留其他参数，生成当前应用基路径下的首页 GET 链接；自动模式仅删除配置键。使用相对路径，无 Host 或重定向来源依赖。Blade 保留默认转义，三语资源仅增加显示文案。
+- 控件区分显式／自动模式（边框）及当前语言（下划线），有可访问名称、键盘焦点和换行布局。没有 Cookie、Session、数据库或 localStorage 写入。原应用名称／版本布局及仓库链接方案保留。
+- Content-Language 使用下游最终语言且保留既有值；Vary 维持去重行为。URL 不等于用户私有缓存隔离，仍保留现有自定义来源的缓存策略说明。
+
+### 实际验收
+
+Rust 1.94.0；隔离源码、独占 `cargo-target/`、日志、浏览器脚本和临时 fixture 都在 `target/tmp/locale-query-20261122/`，子进程使用本批 TMPDIR、RUSTUP_TOOLCHAIN 及 CARGO_TARGET_DIR。保留增量和默认并发；本批磁盘未触及32GB停线。为避免重复大型调试符号，本批测试／Clippy临时使用 dev/test debug=0 和 strip=symbols，不修改项目 profile。
+
+| 范围 | 命令／消费者 | 实际结果 |
+| --- | --- | --- |
+| 应用消费者 | `cargo +1.94.0 test --locked --test welcome --test configuration --test localization --test startup --test console` | 65项通过，0 ignored；真实Kernel、模板、缓存模板、关闭／自定义参数、候选子集、callback覆盖与三语repository链接 |
+| 框架回归 | `cargo +1.94.0 test --locked -p openrust-framework --test set_locale_middleware --test application_locale --test request_languages --test blade_translations --test config_scoped_overrides --test locale_bcp47 --test laravel_alignment_http` | 66项通过，0 ignored；其中SetLocale25项覆盖优先级、错误、配置缓存、事件、body隔离、并发及两应用隔离、路由组顺序和原响应头契约 |
+| 负向对照 | 快照中关闭 query 选择，再运行 `query_is_exact_and_overrides_browser_with_one_event_per_request --exact` | 实际断言失败：预期 en，实际 zh-Hant；恢复源码后SetLocale25项通过，真实工作区未被注入故障 |
+| 欢迎页浏览器 | 临时真实 HTTP Kernel listener＋Chromium，`browser.mjs` | 36组合通过：三种浏览器语言及6种配置变体 × 桌面／手机 × 明／暗。实际点击候选／自动、刷新、URL保留、安全编码、当前模式、键盘Enter、HTTP／HTML语言、四仓库链接与本地文件存在、无溢出／脚本错误；另4类非法query400。代表截图经人工检查 |
+| Rust质量 | `cargo +1.94.0 fmt --all -- --check`；`cargo +1.94.0 clippy --locked --workspace --all-targets -- -D warnings` | 范围快照全部通过；真实工作区本任务Rust文件另行rustfmt --check通过 |
+| 三语正文 | `npm --prefix docs run build` | 最终正文内容检查、入口测试及VitePress构建通过 |
+| 文档浏览器 | `node docs/tests/check_browser.mjs`、`node docs/tests/check_scope.mjs` | 根／docs双前缀、三语、桌面／手机、切换／搜索及全导航渲染通过；最终正文更新后重新构建及运行 |
+
+范围快照为 HEAD 加本任务文件及既有回调配置文件；为排除并行 MessageBag API 改造，仅快照 `tests/welcome.rs` 的旧消费者采用 HEAD 的 first 调用，未更改真实文件。另使用包含当时全部WIP、且本任务文件字节一致的 `source-current/` 复验，结果见下方最终核对，不将范围快照结果扩大为其他协作者全部工作已完成。命令、退出码和磁盘实测见本批 `results.jsonl`，不将临时源码哈希清单或patch复制到长期审计。
+
+首次fixture用闭包捕获配置参数，与既有ConfigLoader fn指针契约不符；改为仅测试使用的临时JSON fixture，未扩大生产加载器。首次欢迎页断言过度限定query字段顺序，以及用非法query测试仅fr候选下的隐藏控件，修正为原编码顺序与有效无参数请求，保留所有非法400回归。以上失败均保留日志，不能计作通过。
+
+### 支持边界
+
+默认三语所有仓库路径存在。应用主动增加 fr 等语言，或停用识别并设 APP_LOCALE=fr，仍可能产生 docs/fr 无效链接；本计划要求不改变应用语言或增加文档回退层，需应用提供对应文档或定制欢迎页。回调Some时隐藏控件属于既定优先级的直接结果。
+
+本功能无数据库或缓存驱动变更，未启动无关数据库矩阵或操作开发数据。Windows、Docker／独立部署、本机物理移动设备、正式HTTPS和性能压测本轮未重验；现有结果仅覆盖macOS隔离HTTP／Chromium消费者，不声称吞吐或零开销。现有发布／真实环境待办保持独立。
+
+
+初次失败与修正据实保留：
+
+- 测试配置加载器是 fn 指针，最初测试闭包捕获参数导致编译错误。改为本批测试根目录的配置 fixture，通过既有 loader 读取；生产配置接口未改变。
+- 首次欢迎页测试的两个失败是错误期望：强行要求query键顺序，以及仅fr候选时误认为非法query会被忽略。修正测试为验证实际链接字段和无query的控件隐藏场景；未放宽生产400契约。
+- 范围测试通过后首次组合快照的Config HTTP回归3项在请求前因TestApp缺app.url而返回InvalidOrigin；当时其他协作者正在修改testing入口，工作区随后已有fallback修复。刷新后曾遇到在途TestResponse缺assertLocation的编译错误；未删除断言或将失败记为通过，待工作区新增response_metadata实现后再刷新复验。各批原始失败保留在current-framework.log、current-framework-revised.log及results.jsonl。
+
+边界：默认三语链接分别对应已有目录；非三语语言（例如关闭识别并使用APP_LOCALE=fr，或候选包含fr且用户选择fr）仍可生成不存在的docs/fr链接。本轮按用户要求保留当前应用语言，不引入文档语言管理器或额外回退。未验性能、Windows、Docker、发布、远程正式文档站、真实移动设备及其他浏览器引擎；没有数据库／缓存共享行为变更，未启动无关服务。参考PHP源码与测试用于核对契约，未运行完整上游PHPUnit。
+
+
+最终组合复验：重新从最新工作区取不可变快照，保留 MessageBag 新调用及所有当时在途实现，`current-framework-final` 66项、`current-root-final` 65项全部通过，均0 ignored。前述在途错误在更新后的快照中未再出现；未更改协作者的testing实现。交付范围18个配置／源码／测试／语言资源／三语正文文件与该组合快照逐字节相同（scope-consistency.json），真实文件单独rustfmt检查通过。范围快照仅用于隔离质量结果，最终组合验收不再替换MessageBag调用。此结论只覆盖实际运行的上述131项，不表示其他Agent的整个全仓对齐任务完成。
+
+
+组合质量复验补充：新 testing 辅助代码将 Jiff Timestamp 转成 SystemTime 时使用了 `.try_into().expect(...)`，Rust1.94严格Clippy报 unnecessary_fallible_conversions；仅将该表达式及 testing/app.rs 捕获响应时间的同类转换改为等价 `.into()`，保留协作者其余实现并格式化这两个文件。后续一次单文件刷新快照使metadata与旧TestResponse字段不同步，出现response_time缺字段的快照编译错误；改为从工作区完整刷新不可变组合快照后重新验收，不将该快照错误归为交付代码的新缺陷。原始current-clippy、delivery-clippy与accepted各批失败日志均保留。本轮没有放宽lint、删除断言或计入任何失败／跳过项。
+
+
+最终收尾：两处直接转换修正后，`final-accepted-clippy-framework` 与 `final-accepted-clippy-root` 的上述受影响lib／tests在 `-D warnings` 下通过；`final-accepted-tests-framework` 74项（原66项＋TestResponse消费者8项）和 `final-accepted-tests-root` 65项通过，均0 ignored，共139项。本任务18个配置／源码／测试／语言资源／三语正文文件与最后组合快照仍逐字节一致；testing/app.rs与快照相同，response_metadata.rs本轮修改的转换表达式一致。该metadata文件在取样后有其他协作者追加重定向断言API，已保留，新增API不混入本轮验收结论，详见delivery-consistency.json。不为追随无关在途功能重做或扩大本计划。根／完整范围fmt、范围workspace all-targets严格Clippy、当前组合受影响目标严格Clippy的范围分别据实记录，不声称全仓其他改动已经完成。
+
+三语最终构建、文档浏览器与全导航分别见docs-build-final.log、docs-browser-final.log、docs-scope-final.log；欢迎页最终重复36组合验证及中文手机截图见browser-results.json、initial-zh-CN-light.png、initial-zh-TW-dark.png。所有证据保留于本批target/tmp/，本次无Git写操作及开发数据操作。本计划适用功能与验收无剩余阻塞，发布／性能／真实设备等未验边界按上文保留。
+
+
+2026-11-22 用户随后明确授权本轮本地提交，不包含推送或发布。仅提交 URL 语言选择、欢迎页切换及必要的实例回调依赖；其他版本 API、MessageBag、复数选择器、测试框架和新增环境变量改动留在工作区。提交范围保持已验收的静态 lang 默认配置。
+
+提交前核对：将实际暂存树导出为本批 source-index，与已验收 source 的3,272个非内部记录文件逐一核对，运行源码、配置、测试及资源全部一致；差异仅为三语正文排除其他协作者的复数选择器段落。实际暂存树重新通过 fmt、三语内容检查及 git diff --cached --check。沿用上述一致源码的131项范围回归与严格Clippy证据，不重复构建。config/app.rs 的后续环境变量改造、MessageBag消费者迁移及testing辅助转换保留未提交；本次不将组合139项结果解释为其已纳入提交。

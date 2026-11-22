@@ -313,11 +313,37 @@ THE SOFTWARE.
                 }
 
             }
+            .language-switcher {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 6px;
+                margin-bottom: 20px;
+                font-size: 12px;
+                line-height: 1.5;
+            }
+            .language-switcher a {
+                padding: 4px 8px;
+                border: 1px solid transparent;
+                border-radius: 5px;
+                text-decoration: none;
+                color: inherit;
+            }
+            .language-switcher a[data-current-language="true"] { text-decoration: underline; text-underline-offset: 3px; }
+            .language-switcher a[aria-current="true"] { border-color: currentColor; }
+            .language-switcher a:hover { background: light-dark(#f3f3f0, #242423); }
+            .language-switcher a:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
         </style>
     </head>
     <body>
         <main>
             <section class="introduction" aria-labelledby="welcome-heading">
+                @if($language_links ?? [])
+                <nav class="language-switcher" aria-label="{{ __('welcome.language') }}" data-locale="{{ $language }}">
+                    @foreach($language_links as $link)
+                    <a href="{{ $link['href'] }}" @if($link['selected'])aria-current="true"@endif @if($link['current'])data-current-language="true"@endif>{{ __($link['label']) }}</a>
+                    @endforeach
+                </nav>
+                @endif
                 <h1 id="welcome-heading">{{ __('welcome.heading') }}</h1>
                 <p>{{ __('welcome.description') }}</p>
 

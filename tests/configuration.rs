@@ -28,6 +28,7 @@ fn application_configuration_loads_all_sections_and_typed_overrides() {
     let environment = LoadEnvironmentVariables::bootstrap(&root, None).unwrap();
     let defaults = config::load(&root, &environment).unwrap();
     assert_eq!(defaults["app"]["name"], env!("CARGO_PKG_NAME"));
+    assert_eq!(defaults["app"]["locale_query_parameter"], "lang");
     assert_eq!(defaults["app"]["version"], env!("CARGO_PKG_VERSION"));
     assert_eq!(
         defaults["logging"]["channels"]["slack"]["username"],

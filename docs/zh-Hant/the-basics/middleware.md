@@ -6,7 +6,7 @@
 
 ## 預設全域語言中介軟體 {#locale-middleware}
 
-預設全域堆疊包含 `openrust::http::middleware::SetLocale`，不必由應用程式註冊。候選設定、關閉辨識、執行位置與回應標頭行為見[瀏覽器語言](../digging-deeper/localization.md#welcome-page-language)。
+預設全域堆疊包含 `openrust::http::middleware::SetLocale`，不必由應用程式註冊。候選設定、關閉辨識、執行位置與回應標頭行為見[瀏覽器語言](../digging-deeper/localization.md#welcome-page-language)。 URL 參數與設定方式見[URL 語言選擇](../digging-deeper/localization.md#locale-query)。
 
 ## 命名群組與優先順序
 

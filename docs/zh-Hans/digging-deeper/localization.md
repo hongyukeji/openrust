@@ -71,6 +71,72 @@ OpenRust 的默认全局中间件栈包含 `openrust::http::middleware::SetLocal
 
 欢迎页的 HTML `lang` 与 `Content-Language` 使用应用当前语言，显示文案按配置进行翻译回退。仓库地址来自框架包元信息，模板使用应用当前语言拼接文档路径。默认的 `en`、`zh-Hans`、`zh-Hant` 均有对应文档目录。关闭识别并设置 `APP_LOCALE=fr` 时，文案可以回退到英文，但文档链接仍指向仓库未提供的 `docs/fr`。使用其他应用语言时，请提供对应文档或定制欢迎页模板。
 
+### URL 语言选择 {#locale-query}
+
+默认中间件先读取 `?lang=en`、`?lang=zh-Hans` 或 `?lang=zh-Hant`，再协商 `Accept-Language`。`localeUsing` 回调返回语言时优先于 URL；返回 `None` 后依次尝试 URL 和浏览器。URL 显式值必须规范化后精确属于候选：`ZH-hANT` 可选择 `zh-Hant`，此处不将 `zh-CN` 当作别名。空值、非法标签、数组及不支持的语言返回 HTTP 400。重复标量参数遵循查询解析器规则，后值覆盖前值；请求体字段不参与选择。
+
+在 `config/app.rs` 的语言区域配置参数名：
+
+```rust
+"locale_query_parameter": "lang",
+```
+
+改成 `"language"` 后只读取 `?language=...`；设为 JSON `null` 只关闭 URL 选择，仍保留回调和浏览器协商。缺键时默认使用 `lang`，兼容旧配置缓存。空名称、空白、控制字符、点、方括号及非字符串值属于配置错误，请使用非空的顶层查询键。配置缓存保留原有值，修改后需重建缓存；无需额外环境变量或中间件注册。
+
+欢迎页提供候选中实际可用的 `en`、`zh-Hans`、`zh-Hant` 及“跟随浏览器”的普通 GET 链接。链接保留其他查询参数，自动选项只删除配置的语言键。当前语言使用下划线标识，边框标识显式选择或自动模式。刷新或分享带参数 URL 可保留选择；访问不带该参数的首页恢复浏览器协商，不写入 Cookie、Session、数据库或 localStorage。
+
+关闭 URL 选择、停用中间件、没有欢迎页语言候选，或回调已选定 URL 无法覆盖的语言时，不显示切换控件。自定义候选不会生成未翻译的菜单项。中间件将 `LocaleSelection` 放入请求原生扩展，提供实际参数名、候选及 `from_query` 标识；控制器仅用它生成控件，不再选择语言。URL 选择保留 `Content-Language`、`Vary: Accept-Language` 及下游响应头行为；回调涉及私有内容时，仍需应用设置缓存策略。
+
+### 自定义语言选择 {#custom-locale-selection}
+
+`localeUsing` 是 OpenRust 扩展接口，可为当前应用的中间件实例设置同步回调。例如优先读取指定请求头，缺少时依次尝试 URL 选择与浏览器协商：
+
+```rust
+.withMiddleware(|middleware| {
+    middleware.setLocale(&["en", "zh-Hans", "zh-Hant"]).expect("语言标签有效");
+    middleware.localeUsing(|request| {
+        Ok(request.header("X-Locale")?.map(str::to_owned))
+    });
+})
+```
+
+回调返回 `Result<Option<String>, HttpError>`：
+
+- `Ok(Some(locale))` 先规范化 BCP 47 标签，再与规范化后的候选列表精确匹配，不执行浏览器别名、基础语言匹配或翻译回退。默认候选下，`ZH-hANT` 选择 `zh-Hant`；`zh-CN`、`en-US`、空字符串和非法标签均报错。若需选择地区或扩展标签，请将有效标签明确加入候选，选中后保留完整标识。
+- `Ok(None)` 先尝试配置的 URL 参数，再使用原有浏览器协商、受支持的应用默认语言或候选首项。
+- `Err(error)` 将原错误交给现有异常处理并停止下游。非法或不受支持的选择作为内部错误处理；若值来自用户输入，可在回调内校验并返回适当的 HTTP 错误。选择失败不切换语言，也不触发 `LocaleUpdated`。
+
+未设置回调时行为不变。候选与回调独立设置，调用顺序不限；候选更新失败保留原候选及回调，重复设置回调使用最后一个。空候选关闭整个实例，不执行回调、不触发事件、不处理响应头，但保留回调以供重新启用。路由实例也提供 `setLocale` 与 `localeUsing`，候选更新与回调只属于该实例，不使用进程全局注册表；回调自身也应避免共享可变用户状态。
+
+默认全局位置早于路由、Session 和认证。回调可以读取请求头及此时已准备的信息，不能访问后续才提供的依赖。依赖 Session 时，先在 `withMiddleware` 调用 `middleware.setLocale(&[]).expect("语言标签有效")` 关闭全局识别，再在 `routes/web.rs` 中注册同一个中间件，放到默认 `web` 组加载 Session 之后：
+
+```rust
+use std::sync::Arc;
+use openrust::{
+    contracts::session::Session,
+    http::{Response, middleware::SetLocale},
+    routing::{RouteGroup, RoutingError},
+    support::facades::Route,
+};
+
+pub fn register() -> Result<(), RoutingError> {
+    let mut locale = SetLocale::new(&["en", "zh-Hans", "zh-Hant"])
+        .expect("语言标签有效");
+    locale.localeUsing(|request| {
+        Ok(request.session()?.get("locale")
+            .and_then(|value| value.as_str().map(str::to_owned)))
+    });
+    Route::group(RouteGroup::new().middleware(Arc::new(locale)), |router| {
+        router.get("/account", || Response::from("Account"))?;
+        Ok(())
+    })
+}
+```
+
+示例要求已配置 Session 驱动和应用加密密钥；只读取已有的 `locale` Session 值，不保存新偏好。没有值时依次尝试 URL 选择与浏览器协商。依赖认证的规则同样应放到认证之后；影响本地化路由绑定的规则应在绑定替换之前执行，需要这种位置时通过现有 `Middleware::group`／`MiddlewareEntry` 显式配置组内顺序。增加回调不会自动调整执行顺序。异步查询应由前置中间件完成，再通过请求传递已准备的数据；此回调本身同步执行。
+
+这些来源统一由 `SetLocale` 调用 `App::setLocale`、派发事件并处理响应头。下游主动切换语言后，缺少的 `Content-Language` 使用最终语言，已有值保持不变。由于回调可能回退浏览器协商，仍会将 `Accept-Language` 合并到 `Vary`。这**不能**完整隔离由 `X-Locale`、Cookie、Session 或用户资料选择的响应。请求头示例还需让响应按 `X-Locale` 区分；私有内容应设置 `Cache-Control: private, no-store` 或应用所需的缓存策略，并按需增加其他 `Vary` 字段。中间件保留这些响应头，不推断缓存键、不持久化 Cookie，也不保证个性化响应可以安全进入共享缓存。
+
 ### 在 Blade 中翻译 {#blade-translations}
 
 模板可以直接读取翻译，控制器只需提供页面数据：

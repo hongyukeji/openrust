@@ -126,8 +126,21 @@ impl Middleware {
         &mut self,
         locales: &[&str],
     ) -> crate::translation::TranslationResult<&mut Self> {
-        self.set_locale = SetLocale::new(locales)?;
+        self.set_locale.setLocale(locales)?;
         Ok(self)
+    }
+
+    /// 配置当前应用的语言选择回调；候选与回调分别保存。
+    #[allow(non_snake_case, reason = "沿用项目回调配置方法的命名风格")]
+    pub fn localeUsing(
+        &mut self,
+        callback: impl Fn(&Request) -> Result<Option<String>, crate::http::HttpError>
+        + Send
+        + Sync
+        + 'static,
+    ) -> &mut Self {
+        self.set_locale.localeUsing(callback);
+        self
     }
 
     /// Skips CORS for requests matching this callback in the current application.

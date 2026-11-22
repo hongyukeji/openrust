@@ -65,15 +65,51 @@ impl Root {
     }
 
     async fn kernel_with_browser(&self, browser: bool) -> Kernel {
+        self.kernel_options(browser, None, None).await
+    }
+
+    async fn kernel_options(
+        &self,
+        browser: bool,
+        parameter: Option<serde_json::Value>,
+        candidates: Option<Vec<&'static str>>,
+    ) -> Kernel {
+        self.kernel_custom(browser, parameter, candidates, None)
+            .await
+    }
+
+    async fn kernel_custom(
+        &self,
+        browser: bool,
+        parameter: Option<serde_json::Value>,
+        candidates: Option<Vec<&'static str>>,
+        callback: Option<&'static str>,
+    ) -> Kernel {
+        let parameter_path = self.0.join("locale-query.json");
+        if let Some(value) = parameter {
+            fs::write(&parameter_path, serde_json::to_vec(&value).unwrap()).unwrap();
+        } else {
+            let _ = fs::remove_file(&parameter_path);
+        }
         let application = Application::configure(self.0.clone())
             .withConfig(|base, env| {
                 let mut values = config::load(base, env)?;
                 values.get_mut("app").unwrap()["key"] = "a".repeat(32).into();
                 values.get_mut("app").unwrap()["name"] = "Welcome <Test>".into();
                 values.get_mut("session").unwrap()["driver"] = "array".into();
+                if let Ok(bytes) = fs::read(base.join("locale-query.json")) {
+                    values.get_mut("app").unwrap()["locale_query_parameter"] =
+                        serde_json::from_slice(&bytes).unwrap();
+                }
                 Ok(values)
             })
             .withMiddleware(move |middleware| {
+                if let Some(candidates) = candidates {
+                    middleware.setLocale(&candidates).unwrap();
+                }
+                if let Some(locale) = callback {
+                    middleware.localeUsing(move |_| Ok(Some(locale.into())));
+                }
                 if !browser {
                     middleware.setLocale(&[]).unwrap();
                 }
@@ -579,4 +615,72 @@ async fn repository_is_escaped_in_all_welcome_links() {
         assert!(html.contains(&format!("href=\"{escaped}{suffix}\"")));
     }
     assert!(!html.contains("href=\"https://example.test/a?x=1&y="));
+}
+
+#[tokio::test]
+async fn manual_switching_uses_selected_language_and_auto_removes_only_its_parameter() {
+    let root = Root::new("en");
+    let kernel = root.kernel().await;
+    for locale in ["en", "zh-Hans", "zh-Hant"] {
+        let (headers, html) = send(
+            &kernel,
+            &format!("/?lang={locale}&search=a%26b"),
+            &["en-US"],
+        )
+        .await;
+        assert_page(&headers, &html, locale);
+        assert!(html.contains("class=\"language-switcher\""));
+        assert!(html.contains("href=\"/?search=a%26b\""));
+        let selected = html
+            .split("<a ")
+            .map(|part| part.split('>').next().unwrap())
+            .find(|tag| tag.contains("aria-current=\"true\""))
+            .unwrap();
+        assert!(selected.contains(&format!("lang={locale}")));
+        assert!(selected.contains("search=a%26b"));
+    }
+    let (_, html) = send(&kernel, "/", &["zh-TW"]).await;
+    assert!(html.contains("href=\"/\" aria-current=\"true\""));
+    assert!(html.contains("data-locale=\"zh-Hant\""));
+}
+
+#[tokio::test]
+async fn switcher_tracks_custom_parameter_null_and_actual_candidates() {
+    let root = Root::new("en");
+    let custom = root
+        .kernel_options(
+            true,
+            Some("language".into()),
+            Some(vec!["en", "zh-Hant", "fr"]),
+        )
+        .await;
+    let (headers, html) = send(&custom, "/?language=zh-Hant&lang=keep", &["en"]).await;
+    assert_page(&headers, &html, "zh-Hant");
+    assert!(html.contains("/?lang=keep&amp;language=en"));
+    assert!(html.contains("href=\"/?lang=keep\""));
+    assert!(!html.contains("language=zh-Hans"));
+    assert!(!html.contains("language=fr"));
+    for (browser, parameter, candidates) in [
+        (true, Some(serde_json::Value::Null), None),
+        (false, None, None),
+        (true, None, Some(vec!["fr"])),
+    ] {
+        let path = if browser && candidates.is_some() {
+            "/"
+        } else {
+            "/?lang[]=bad"
+        };
+        let kernel = root.kernel_options(browser, parameter, candidates).await;
+        let (_, html) = send(&kernel, path, &["en"]).await;
+        assert!(!html.contains("class=\"language-switcher\""));
+    }
+}
+
+#[tokio::test]
+async fn callback_selected_language_hides_controls_that_cannot_override_it() {
+    let root = Root::new("en");
+    let kernel = root.kernel_custom(true, None, None, Some("zh-Hant")).await;
+    let (headers, html) = send(&kernel, "/?lang[]=invalid", &["en"]).await;
+    assert_page(&headers, &html, "zh-Hant");
+    assert!(!html.contains("class=\"language-switcher\""));
 }
