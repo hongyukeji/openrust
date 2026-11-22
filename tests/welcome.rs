@@ -413,8 +413,8 @@ async fn browser_language_policy_does_not_require_extra_application_configuratio
 }
 
 #[tokio::test]
-async fn welcome_without_browser_detection_keeps_links_in_existing_documentation_languages() {
-    for (locale, fallback, page_locale, title) in [
+async fn welcome_without_browser_detection_uses_configured_translation_fallback() {
+    for (locale, fallback, docs_locale, title) in [
         ("fr", "en", "en", "Let’s get started"),
         ("fr", "zh-Hant", "zh-Hant", "開始使用"),
         ("zh-Hans", "en", "zh-Hans", "开始使用"),
@@ -428,20 +428,20 @@ async fn welcome_without_browser_detection_keeps_links_in_existing_documentation
         let kernel = root.kernel_with_browser(false).await;
         let (headers, html) = send(&kernel, "/", &["zh-CN"]).await;
         assert!(html.contains(title));
-        assert!(html.contains(&format!("<html lang=\"{page_locale}\">")));
+        assert!(html.contains(&format!("<html lang=\"{locale}\">")));
         for suffix in ["README.md", "getting-started/deployment.md"] {
-            assert!(html.contains(&format!("docs/{page_locale}/{suffix}")));
+            assert!(html.contains(&format!("docs/{docs_locale}/{suffix}")));
         }
         assert!(!html.contains("docs/fr/"));
-        assert_eq!(headers["content-language"], page_locale);
+        assert_eq!(headers["content-language"], locale);
         assert!(!headers.contains_key("vary"));
         assert_eq!(send(&kernel, "/locale", &[]).await.1, locale);
     }
 }
 
 #[tokio::test]
-async fn custom_welcome_translation_keeps_its_language_and_uses_an_available_docs_language() {
-    for fallback in ["en", "zh-Hant", "de"] {
+async fn custom_welcome_translation_uses_fallback_for_missing_links() {
+    for fallback in ["en", "zh-Hant"] {
         let root = Root::new("fr");
         fs::write(
             root.0.join(".env"),
@@ -451,7 +451,7 @@ async fn custom_welcome_translation_keeps_its_language_and_uses_an_available_doc
         fs::create_dir_all(root.0.join("lang/fr")).unwrap();
         fs::write(
             root.0.join("lang/fr/welcome.json"),
-            include_str!("../lang/en/welcome.json").replace("Let’s get started", "Bienvenue"),
+            serde_json::json!({"heading":"Bienvenue"}).to_string(),
         )
         .unwrap();
         let kernel = root.kernel_with_browser(false).await;
@@ -469,4 +469,60 @@ async fn custom_welcome_translation_keeps_its_language_and_uses_an_available_doc
         assert!(!html.contains("docs/fr/"));
         assert_eq!(send(&kernel, "/locale", &[]).await.1, "fr");
     }
+}
+
+#[tokio::test]
+async fn partial_translations_do_not_guess_the_page_language_from_the_heading() {
+    let root = Root::new("fr");
+    fs::create_dir_all(root.0.join("lang/fr")).unwrap();
+    fs::write(
+        root.0.join("lang/fr/welcome.json"),
+        serde_json::json!({
+            "description":"Une application Rust.",
+            "documentation_url":"https://example.test/fr/guide",
+            "deployment_url":"https://example.test/fr/deploy?mode=prod&region=eu"
+        })
+        .to_string(),
+    )
+    .unwrap();
+    let kernel = root.kernel_with_browser(false).await;
+    let (headers, html) = send(&kernel, "/", &[]).await;
+    assert_eq!(headers["content-language"], "fr");
+    assert!(html.contains("<html lang=\"fr\">"));
+    assert!(html.contains("Let’s get started"));
+    assert!(html.contains("Une application Rust."));
+    assert!(html.contains("href=\"https://example.test/fr/guide\""));
+    assert!(html.contains("href=\"https://example.test/fr/deploy?mode=prod&amp;region=eu\""));
+    assert_eq!(send(&kernel, "/locale", &[]).await.1, "fr");
+}
+
+#[tokio::test]
+async fn missing_link_translations_use_the_configured_fallback_per_key() {
+    let root = Root::new("zh-Hans");
+    let path = root.0.join("lang/zh-Hans/welcome.json");
+    let mut data: serde_json::Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+    data.as_object_mut().unwrap().remove("documentation_url");
+    fs::write(path, serde_json::to_vec(&data).unwrap()).unwrap();
+    let kernel = root.kernel().await;
+    let (headers, html) = send(&kernel, "/", &["zh-CN"]).await;
+    assert_eq!(headers["content-language"], "zh-Hans");
+    assert!(html.contains("开始使用"));
+    assert!(html.contains("docs/en/README.md"));
+    assert!(html.contains("docs/zh-Hans/getting-started/deployment.md"));
+    assert!(!html.contains("welcome.documentation_url"));
+}
+
+#[tokio::test]
+async fn missing_links_in_both_locales_follow_normal_missing_key_behavior() {
+    let root = Root::new("fr");
+    fs::write(
+        root.0.join(".env"),
+        "APP_LOCALE=fr\nAPP_FALLBACK_LOCALE=de\n",
+    )
+    .unwrap();
+    let kernel = root.kernel_with_browser(false).await;
+    let (headers, html) = send(&kernel, "/", &[]).await;
+    assert_eq!(headers["content-language"], "fr");
+    assert!(html.contains("href=\"welcome.documentation_url\""));
+    assert!(!html.contains("docs/en/README.md"));
 }

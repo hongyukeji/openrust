@@ -57,7 +57,7 @@ fn greeting(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
 
 中间件先调用 `App::setLocale` 设置当前请求语言，再执行后续处理，包括视图渲染和异常响应。在缺少时添加 `Content-Language`，将 `Accept-Language` 合并到 `Vary` 并保留已有值。不写入 Cookie，不改变其他请求、队列任务或应用默认语言。移除该中间件注册即可仅使用配置的默认语言，也可以在此应用中间件中调整自己的语言选择策略。
 
-欢迎页按应用当前语言和配置的回退语言查找文案；HTML `lang` 与 `Content-Language` 使用提供 `welcome.heading` 的语言，个别缺失词条仍可回退。文档及部署链接只使用已有的 `en`、`zh-Hans`、`zh-Hant`，依次选择标题语言、配置的回退语言、英文。移除 `SetLocale` 后也遵循此规则：例如 `APP_LOCALE=fr` 配合内置语言文件显示英文、链接英文文档，应用当前语言仍是 `fr`。修改三份 `lang/*/welcome.json` 可定制文案。
+欢迎页的 HTML `lang` 与 `Content-Language` 使用应用当前语言。文案和链接直接在 Blade 中翻译，缺失词条由译器按配置回退。在 `lang/*/welcome.json` 中设置 `documentation_url`、`deployment_url`，即可为各语言指定文档链接，增加语言不需要修改控制器。例如 `APP_LOCALE=fr`、`APP_FALLBACK_LOCALE=en` 时，缺失的法文词条使用英文文案和链接，应用及页面语言仍为 `fr`。请在当前语言或配置的回退语言中提供词条；两者均缺失时遵循普通翻译缺键行为。
 
 ### 在 Blade 中翻译 {#blade-translations}
 

@@ -172,6 +172,28 @@ Docker runtime 增加 COPY lang/，三语部署命令增加复制 lang；避免�
 未重建应用 Docker 镜像、未执行 Windows／优化 release 或本轮独立部署；浏览器为实际 Kernel 消费者，不冒充完整部署验收。任务语言隔离验证使用队列共用的容器生命周期，未新增真实队列 worker 专项。没有数据库／共享缓存驱动行为修改，未操作开发数据库、Redis 或数据卷，不把本轮当作三库／三缓存矩阵。完整 Laravel PHPUnit、真实部署平台及上述未实现的模板服务对象能力仍未验证或未实现。当前已实施修复没有未解除的外部阻塞。
 
 
+## 欢迎页回退职责修正（2026-11-22）
+
+基线 `02fdc4ce83cbe6514b3d8492a376006973b7dc19`。用户要求处理控制器中通过 `welcome.heading` 推断页面语言，以及手工选择文档语言的重复逻辑。本节覆盖历史记录中相应的页面语言与链接回退结论，其他历史验收不扩大为本轮结论。
+
+### 修改及来源
+
+- `WelcomeController::index` 仅读取当前语言、准备页面数据和响应元信息；删除 `Lang::hasForLocale` 探测、回退语言读取和文档语言列表。HTML `lang`／`Content-Language` 跟随当前应用语言，单个词条的回退不改变应用语言。
+- 模板通过 `__('welcome.documentation_url')`／`__('welcome.deployment_url')` 消费三语 `welcome.json` 中的链接；沿用译器逐键回退及Blade转义。增加语言或定制链接不需要修改控制器，不新增管理器、框架配置、全局composer或单页专用回退接口。
+- 当前语言和配置的回退语言都没有资源时，继续返回普通翻译键；不额外猜测英文可用。默认三语都提供完整链接，应用新增语言须提供资源或配置有效回退。三语国际化正文与项目规范同步说明。
+- 延续本主题已核对的固定Framework `1449bf241017087fbd38c118ecaabef3f6797fdc` [Translator](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Translation/Translator.php) 的逐键回退职责及固定骨架 `06d016a364a37430eec9cbc52209adce3d7667ce` [welcome视图](https://github.com/laravel/laravel/blob/06d016a364a37430eec9cbc52209adce3d7667ce/resources/views/welcome.blade.php) 读取当前应用语言的做法；链接本地化是本应用资源策略，并非上游默认欢迎页的原样功能。没有引入第三方路由本地化依赖。本轮收尾再次联网读取未获得可用正文，不把该次请求计作新增上游验证。
+
+### 验收与边界
+
+证据目录 `target/tmp/welcome-resource-links-20261122/`，源码隔离在其 `source/`；独占复用已空闲的 `target/tmp/welcome-locale-20261122/cargo-target/`。Rust1.94.0，保留增量及正常并发，进程树TMPDIR为本批项目内目录。
+
+- `tests.log`：欢迎页11项、startup28项，共39项通过，0失败／0 ignored。新增正反例验证部分法文翻译不依赖标题、单独缺失链接按键回退、双语言缺键不额外兜底、URL中的 `&` 正常转义；原并发语言隔离及浏览器协商测试继续通过。
+- `browser-results.json`／`browser.log`／`browser-server.log`：真实Kernel经回环HTTP接入Chromium，9场景×桌面手机×明暗=36组合通过。验证标题、HTML及HTTP语言、Vary、实际文档路径、无横向溢出／脚本错误、名称版本间距；人工检查关闭识别、法文当前语言／英文回退的手机深色截图。临时服务正常退出，夹具仅在隔离快照生成，退出后移除。
+- `clippy.log`：根应用main及welcome／startup目标执行locked严格Clippy通过；`fmt.log`：fmt --all --check通过。第三方补丁依赖仍有既有cfg诊断，不宣称全依赖零诊断或本轮运行了全workspace Clippy。
+- `docs-build.log`／`docs-browser.log`／`docs-scope.log`：三语内容检查、静态站构建、根与 `/docs/` 两前缀的三语桌面手机12组合、全部导航路径及显式支持范围检查通过。复用已有Node依赖，构建产物位于隔离源码内。
+- `input-comparison.json`：9份代码／资源／测试／文档验收输入与交付文件逐字节相同；`results.json`记录各阶段命令、退出码及耗时。
+- 未变更框架译器、共享数据库／缓存驱动、队列、Provider或请求语言选择策略；没有执行三库／三缓存矩阵、Docker重建、Windows或正式部署验收。现有协作者todo及全量审计／计划保留。验收结束后，用户明确授权将本轮代码、测试、三语文档及项目记录本地提交，并将解决方案、建议和验收结果发送主对话框；不包含推送。
+
 ## 手机端名称与版本间距修复（2026-11-22）
 
 手机端原先使用固定宽高比容器和绝对定位版本图形，应用名称换行时会与版本重叠；真实 HTTP Kernel 接入 Chromium，在 320px 视口复现两者边界间距为 -45.89px。`resources/views/welcome.blade.html` 沿用桌面端的纵向 Flex 排版，将名称与版本纳入正常文档流，统一保留 16px 间距；移除手机端固定宽高比，容器随内容撑开，保留版本叠层效果。
