@@ -29,7 +29,7 @@ fn store(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 
 用 `exists:table,column` 要求存在匹配行，用 `unique:table,column` 拒绝已有值。省略列名时使用字段名，在表名前加 `connection.` 可指定具名连接。两条规则都使用写连接。数组形式的 `exists` 用一次查询检查所有不同的值是否存在。
 
-字符串规则的参数值含逗号时，用双引号包住该值，如 `exists:directory.references,reference,namespace,"team,west"`。用于排除记录的文本 ID 如 `001` 会保留前导零。数组存在性验证按 Laravel 的标量字符串形式统计不同输入。
+字符串规则的参数值含逗号时，用双引号包住该值，如 `exists:directory.references,reference,namespace,"team,west"`。用于排除记录的文本 ID 如 `001` 会保留前导零。数组存在性验证按标量字符串形式统计不同输入。
 
 ```rust
 use openrust::validation::{Rule, RuleSet, ValidationResult};
@@ -90,7 +90,7 @@ fn register() -> Result<(), RoutingError> {
 
 内容检测将 JSON 对象和数组识别为 `application/json`，将 CSV 内容识别为纯文本，将空上传识别为 `application/x-empty`。需要检查客户端文件名的 CSV 扩展名时，使用 `extensions:csv`。
 
-用 `dimensions` 限制宽、高或宽高比。比例可写成小数或 `16/9` 这样的分数。图片规则允许的 SVG 会跳过位图尺寸约束。用 `encoding:UTF-8` 或 `File::default().encoding("UTF-8")` 检查文件字节。可使用 UTF-8、ASCII、UTF-16、UTF-32、SJIS、CP932 和 EUC-CN 等受支持的 Laravel 编码名称。Windows Shift-JIS 扩展使用 CP932 或 SJIS-win。
+用 `dimensions` 限制宽、高或宽高比。比例可写成小数或 `16/9` 这样的分数。图片规则允许的 SVG 会跳过位图尺寸约束。用 `encoding:UTF-8` 或 `File::default().encoding("UTF-8")` 检查文件字节。可使用 UTF-8、ASCII、UTF-16、UTF-32、SJIS、CP932 和 EUC-CN 等受支持的编码名称。Windows Shift-JIS 扩展使用 CP932 或 SJIS-win。
 
 单字节文件可用 `encoding:CP850` 或 `File::default().encoding("ArmSCII-8")` 校验。CP850 接受所有字节。ArmSCII-8 以及存在未定义位置的 Windows 和 ISO 编码按 PHP mbstring 的字表拒绝这些字节。编码校验保留上传文件原始字节。
 
@@ -108,9 +108,9 @@ HZ、EUC-TW 和 ISO-2022-KR 文件可用 `encoding:HZ`、`File::default().encodi
 
 四种移动版 UTF-8 按标准 UTF-8 校验字节。可用 `encoding:UTF-8-Mobile#DOCOMO` 或 `File::default().encoding("UTF-8-Mobile#SOFTBANK")`，另外两个名称为 `UTF-8-Mobile#KDDI-A` 和 `UTF-8-Mobile#KDDI-B`。校验保留原始字节中的私用区字符。
 
-TIFF 和 ICO 上传可以使用 `file` 和 `dimensions:width=100,height=100` 一起验证。TIFF 从第一个图像目录取尺寸，ICO 从位深最高的条目取尺寸，位深相同时取最后一个。尺寸校验只读取元数据。Laravel 的 `image` 规则排除 TIFF 和 ICO。
+TIFF 和 ICO 上传可以使用 `file` 和 `dimensions:width=100,height=100` 一起验证。TIFF 从第一个图像目录取尺寸，ICO 从位深最高的条目取尺寸，位深相同时取最后一个。尺寸校验只读取元数据。`image` 规则排除 TIFF 和 ICO。
 
-PSD 和 JPEG 2000 上传也可以使用这组规则。JP2 从第一个根级码流读取尺寸，裸 JPEG 2000 码流从 SIZ 标记读取尺寸。Laravel 的 `image` 规则也排除这两种格式。
+PSD 和 JPEG 2000 上传也可以使用这组规则。JP2 从第一个根级码流读取尺寸，裸 JPEG 2000 码流从 SIZ 标记读取尺寸。`image` 规则也排除这两种格式。
 
 相同的元数据校验也支持 IFF 位图、WBMP、XBM，以及未压缩或使用 zlib 压缩的 SWF。SWF 的尺寸来自舞台矩形。
 

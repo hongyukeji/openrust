@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 
-/// Laravel parses rule arguments as a CSV record with backslash escape enabled.
+/// 规则参数按启用反斜杠转义的 CSV 记录解析。
 pub(super) fn csv(mut input: &str) -> Vec<Cow<'_, str>> {
     let mut fields = Vec::new();
     loop {

@@ -38,7 +38,7 @@ impl Model for User {
     }
 }
 
-#[allow(non_snake_case, reason = "认证契约沿用 Laravel 原名")]
+#[allow(non_snake_case, reason = "认证契约保留公开方法名")]
 impl Authenticatable for User {
     fn getAuthIdentifierName(&self) -> &str {
         self.getKeyName()
@@ -78,7 +78,7 @@ impl Authenticatable for User {
     }
 }
 
-#[allow(non_snake_case, reason = "Implements Laravel's user reset capability")]
+#[allow(non_snake_case, reason = "密码重置契约保留公开方法名")]
 impl CanResetPassword for User {
     fn getEmailForPasswordReset(&self) -> &str {
         text(self.getAttribute("email")).unwrap_or_default()
@@ -92,10 +92,7 @@ impl CanResetPassword for User {
     }
 }
 
-#[allow(
-    non_snake_case,
-    reason = "Implements Laravel's user verification capability"
-)]
+#[allow(non_snake_case, reason = "邮箱验证契约保留公开方法名")]
 impl MustVerifyEmail for User {
     fn hasVerifiedEmail(&self) -> bool {
         self.getAttribute("email_verified_at")

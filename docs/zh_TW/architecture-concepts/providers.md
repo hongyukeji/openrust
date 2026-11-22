@@ -99,4 +99,4 @@ boot 前由服務鍵首次觸發的 Provider 同時進入 booting 回呼與已�
 
 ## 檢查已載入的 Provider
 
-使用 `app.providerIsLoaded(std::any::type_name::<MyProvider>())` 查詢 Provider 的編譯型別身分。register 成功後、boot 之前回傳 true；註冊失敗或取消不作標記。後續 boot 失敗仍保留成功註冊狀態，與 Laravel 一致。僅宣告延遲 Provider 不會載入它，自訂診斷用的 name() 不改變型別身分。每個應用程式獨立保存已載入集合。Rust 的 type_name 對應 PHP 的 MyProvider::class 表達式。
+使用 `app.providerIsLoaded(std::any::type_name::<MyProvider>())` 查詢 Provider 的編譯型別身分。register 成功後、boot 之前回傳 true；註冊失敗或取消不作標記。後續 boot 失敗仍保留成功註冊狀態。僅宣告延遲 Provider 不會載入它，自訂診斷用的 name() 不改變型別身分。每個應用程式獨立保存已載入集合。Rust 的 type_name 對應 PHP 的 MyProvider::class 表達式。
