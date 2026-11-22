@@ -23,3 +23,6 @@ Thumbs.db
 
 # Compiled application package catalog
 /bootstrap/cache/packages.json
+
+# Local-only upstream PHP reference scripts
+*.php

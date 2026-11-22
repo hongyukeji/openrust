@@ -1,4 +1,4 @@
-//! Carbon numeric timestamp parsing. See SOURCES.md and LICENSE.php.
+//! Carbon numeric timestamp parsing. See SOURCES.md and LICENSE.
 
 use super::{CalendarInstant, Result, range_error};
 
@@ -59,7 +59,7 @@ pub(super) fn carbon_timestamp(text: &str) -> Result<CalendarInstant> {
 }
 
 /// 固定 PHP 8.5 `number_format` 的6位 half-up；不是 Rust format 的ties-even。
-/// Copyright (c) The PHP Group；移植 ext/standard/math.c，完整 PHP3.01许可见LICENSE.php。
+/// Copyright (c) The PHP Group；移植 ext/standard/math.c，完整 PHP3.01许可见LICENSE。
 #[allow(clippy::float_cmp)]
 pub(super) fn number_format_timestamp(value: f64) -> Result<String> {
     if !value.is_finite() {

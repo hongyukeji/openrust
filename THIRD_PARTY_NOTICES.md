@@ -4122,7 +4122,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 
-## vendor/openrust/framework/src/support/calendar/LICENSE.php
+## vendor/openrust/framework/src/support/calendar/LICENSE
 
 --------------------------------------------------------------------
                   The PHP License, version 3.01

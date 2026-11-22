@@ -5,7 +5,7 @@ from OpenRust v0.x commit `6d1a81924451e15f595f68c8dfb520ad6d6c44cf`, under
 `vendor/openrust/framework/src/support/calendar/date`.
 
 - PHP 8.5.0 timelib supplies the date-expression grammar and transition rules.
-  See `LICENSE.timelib` and `LICENSE.php`.
+  See `LICENSE.timelib` and `LICENSE`.
 - The legacy parser was developed against Carbon 3.8.4. See `LICENSE.carbon`.
   The Faker adapter uses its date-expression scanner and omits Carbon input
   coercion, custom date factories, and PHP format-string parsing.
