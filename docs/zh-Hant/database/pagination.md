@@ -301,7 +301,7 @@ Paginator::currentPathResolver(|| "/articles".to_owned())?;
 Paginator::queryStringResolver(|| vec![("category".into(), "rust".into())])?;
 ```
 
-解析器作用於目前應用中的手工分頁、查詢建構器、模型及關聯分頁。明確傳入的頁碼、游標和路徑優先。`withQueryString()` 在呼叫時讀取查詢解析器，同名值覆蓋先前 `appends` 的參數，排除分頁位置參數。查詢回呼傳回字串鍵值對，巢狀值由應用編碼。
+解析器作用於目前應用中的手工分頁、查詢建構器、模型及關聯分頁。明確傳入的頁碼、游標和路徑優先。`withQueryString()` 在呼叫時讀取查詢解析器，同名值覆蓋先前 `appends` 的參數，排除分頁位置參數。查詢回呼傳回字串鍵值對或 `None`。`None` 和空清單都會停用請求查詢參數的附加；`resolveQueryString` 區分兩者，明確傳回 `None` 時不再使用後備值。巢狀值由應用編碼。
 
 `resolveCurrentPage(name, default)`、`resolveCurrentPath(default)`、`resolveQueryString(default)` 及 `CursorPaginator::resolveCurrentCursor(name, default)` 提供相同的解析入口。應用請求之外沒有對應回呼時傳回傳入的預設值；預設請求來源中缺少或無效頁碼使用一，缺少或無效游標從頭開始。預設連結路徑仍為請求相對路徑。
 

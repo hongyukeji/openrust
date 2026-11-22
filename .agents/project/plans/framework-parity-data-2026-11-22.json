@@ -915,13 +915,13 @@
         "vendor/openrust/framework/src/pagination/mod.rs:33",
         "Illuminate\\Pagination\\AbstractPaginator.currentPathResolver;Illuminate\\Pagination\\AbstractPaginator.currentPageResolver;Illuminate\\Pagination\\AbstractPaginator.queryStringResolver;Illuminate\\Pagination\\AbstractPaginator.resolveCurrentPath;Illuminate\\Pagination\\AbstractPaginator.resolveCurrentPage;Illuminate\\Pagination\\AbstractPaginator.resolveQueryString",
         "vendor/openrust/framework/tests/pagination.rs",
-        "页码、路径、查询、游标及视图工厂公开解析入口与实际消费链路已验收；完整Pagination仍未关闭",
-        "target/tmp/framework-parity-20261122/ [pagination-resolvers-reference.json;pagination-resolvers-postgres.log;pagination-resolvers-mysql.log;pagination-view-accepted.log;pagination-options-final.log;pagination-http-welcome-final.log;clippy-pagination-options-final.log;fmt-pagination-options-final.log;docs-{build,browser,scope}-pagination-final.log;pagination-source-verification.json]",
+        "分页解析公开入口及消费链路已验收，空查询和18组整数字符串边界已补齐；完整Pagination未关闭",
+        "target/tmp/framework-parity-20261122/ [pagination-boundaries-{reference-accepted.json,final.log,postgres.log,mysql.log};clippy-pagination-boundaries.log;fmt-pagination-boundaries.log;docs-{build,browser,scope}-pagination-boundaries.log]",
         "Q01;C19",
-        "PostgreSQL18.7/MySQL8.4.13隔离真实查询各1项；分页最终9项、Blade请求8项/翻译7项、ViewFinder5项/Native6项、根HTTP16项/欢迎页34项通过；严格workspace/all-targets Clippy/fmt与三语站点构建/浏览器/导航通过",
+        "分页11项通过，含18组实际HTTP整数字符串/溢出及None/空数组来源抑制；PostgreSQL18/MySQL8.4隔离查询各1项通过；严格workspace/all-targets Clippy/fmt通过；三语站点构建/浏览器/导航全部通过",
         "固定AbstractPaginator/AbstractCursorPaginator/PaginationState原名；Rust闭包Send+Sync、u64、字符串键值对、相对路径和应用隔离保留差异",
         "应用隔离的解析状态；Links/构造/查询与实际视图渲染接入；缺失的Result<View,HttpError>路由入口一并补齐",
-        "本批入口通过；默认输入POST/JSON、FILTER_VALIDATE_INT完整边界、动态query及完整类型复核仍未关闭"
+        "默认输入POST/JSON、动态string/嵌套query及完整类型逐项复核仍未关闭"
       ],
       [
         "main",
@@ -293923,6 +293923,29 @@
       ],
       "evidence": "target/tmp/framework-parity-20261122/ [pagination-resolvers-reference.json;pagination-resolvers-postgres.log;pagination-resolvers-mysql.log;pagination-view-accepted.log;pagination-options-final.log;pagination-http-welcome-final.log;clippy-pagination-options-final.log;fmt-pagination-options-final.log;docs-{build,browser,scope}-pagination-final.log;pagination-source-verification.json]",
       "snapshot": "全部已提交源码47e48890e06a08026f28405310b23180eeb1acca加本批差异；view/mod.rs与factory.rs中协作者错误转换WIP单独保留，不纳入本批快照/提交；共享pagination/views.rs及pagination_state.rs中的并行错误转换、view/mod.rs中的ViewObject扩展同样保留，不混入本批提交。所有未共享技术文件与快照逐字节核对"
+    },
+    {
+      "date": "2026-11-23",
+      "kind": "pagination_nullable_query_and_integer_input",
+      "tasks": [
+        "C39"
+      ],
+      "note": "分页11项通过，含18组实际HTTP整数字符串/溢出及None/空数组来源抑制；PostgreSQL18/MySQL8.4隔离查询各1项通过；严格workspace/all-targets Clippy/fmt通过；三语站点构建/浏览器/导航全部通过",
+      "evidence": "target/tmp/framework-parity-20261122/ [pagination-boundaries-{reference-accepted.json,final.log,postgres.log,mysql.log};clippy-pagination-boundaries.log;fmt-pagination-boundaries.log;docs-{build,browser,scope}-pagination-boundaries.log]",
+      "source": "固定PaginationState/AbstractPaginator，PHP8.5.12，Symfony HttpFoundation7.4.0；实际Request输入，非输入桩",
+      "methods": [
+        "Paginator/LengthAwarePaginator.queryStringResolver",
+        "Paginator/LengthAwarePaginator.resolveQueryString",
+        "Paginator/LengthAwarePaginator.resolveCurrentPage",
+        "Paginator/LengthAwarePaginator/CursorPaginator.withQueryString"
+      ],
+      "remaining": [
+        "默认POST/JSON输入未接入",
+        "动态string及嵌套query返回",
+        "Abstract继承入口及完整类型逐项复核",
+        "u64和Send+Sync回调及默认相对路径等适配"
+      ],
+      "shared_file": "pagination_state.rs中的错误转换WIP保留在工作区，提交仅包含本批内容"
     }
   ]
 }

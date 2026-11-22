@@ -11,5 +11,82 @@
     "cursor_null": null,
     "version_one": "\/configured?filter=resolved&version=1&entries=1",
     "version_two": "\/configured?filter=resolved&version=2&entries=1",
-    "shared_view_factory": true
+    "shared_view_factory": true,
+    "null_query": null,
+    "null_query_keeps_appends": true,
+    "empty_query": [],
+    "page_inputs": [
+        {
+            "input": "1",
+            "page": 1
+        },
+        {
+            "input": "01",
+            "page": 1
+        },
+        {
+            "input": "02",
+            "page": 1
+        },
+        {
+            "input": " 2 ",
+            "page": 2
+        },
+        {
+            "input": "+2",
+            "page": 2
+        },
+        {
+            "input": "-2",
+            "page": 1
+        },
+        {
+            "input": "0",
+            "page": 1
+        },
+        {
+            "input": "2.0",
+            "page": 1
+        },
+        {
+            "input": "1e2",
+            "page": 1
+        },
+        {
+            "input": "0x2",
+            "page": 1
+        },
+        {
+            "input": "9223372036854775807",
+            "page": 9223372036854775807
+        },
+        {
+            "input": "9223372036854775808",
+            "page": 1
+        },
+        {
+            "input": "18446744073709551615",
+            "page": 1
+        },
+        {
+            "input": "2\n",
+            "page": 2
+        },
+        {
+            "input": "\f2\f",
+            "page": 1
+        },
+        {
+            "input": "\u000b2\u000b",
+            "page": 2
+        },
+        {
+            "input": "\u00002",
+            "page": 1
+        },
+        {
+            "input": "\uff12",
+            "page": 1
+        }
+    ]
 }

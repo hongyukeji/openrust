@@ -301,7 +301,7 @@ Paginator::currentPathResolver(|| "/articles".to_owned())?;
 Paginator::queryStringResolver(|| vec![("category".into(), "rust".into())])?;
 ```
 
-The resolvers affect manual paginators, query builders, models, and relationship pagination in the current application. Explicit page, cursor, and path options take precedence. `withQueryString()` invokes the query resolver when called, replaces previously appended values with matching keys, and excludes the paginator's position parameter. The query callback returns string pairs; nested query values must be encoded by the application.
+The resolvers affect manual paginators, query builders, models, and relationship pagination in the current application. Explicit page, cursor, and path options take precedence. `withQueryString()` invokes the query resolver when called, replaces previously appended values with matching keys, and excludes the paginator's position parameter. The query callback returns string pairs or `None`. `None` and an empty list both suppress request query parameters; `resolveQueryString` preserves their distinction and does not substitute its fallback for an explicit `None`. Nested query values must be encoded by the application.
 
 `resolveCurrentPage(name, default)`, `resolveCurrentPath(default)`, `resolveQueryString(default)`, and `CursorPaginator::resolveCurrentCursor(name, default)` expose the same resolution. Outside an application request, missing callbacks return the supplied defaults. With the default request source, invalid or missing pages start at one and invalid cursors start at the beginning. The default path remains relative to the request.
 

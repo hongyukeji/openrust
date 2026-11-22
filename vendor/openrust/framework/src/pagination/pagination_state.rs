@@ -11,7 +11,7 @@ use super::{Cursor, CursorPaginator, LengthAwarePaginator, Paginator};
 
 type PathResolver = Arc<dyn Fn() -> String + Send + Sync>;
 type PageResolver = Arc<dyn Fn(&str) -> u64 + Send + Sync>;
-type QueryResolver = Arc<dyn Fn() -> Vec<(String, String)> + Send + Sync>;
+type QueryResolver = Arc<dyn Fn() -> Option<Vec<(String, String)>> + Send + Sync>;
 type CursorResolver = Arc<dyn Fn(&str) -> Option<Cursor> + Send + Sync>;
 type ViewResolver = Arc<dyn Fn() -> ViewResult<Arc<Factory>> + Send + Sync>;
 
@@ -95,17 +95,26 @@ macro_rules! offset_resolvers {
                 }
                 if query().is_some() {
                     return input(pageName)
-                        .and_then(|value| value.parse::<u64>().ok())
+                        .and_then(|value| {
+                            let value = serde_json::Value::String(value);
+                            crate::support::input_scalars::valid_integer(&value)
+                                .then(|| crate::support::input_scalars::integer(&value))
+                                .and_then(|value| u64::try_from(value).ok())
+                        })
                         .filter(|value| *value >= 1)
                         .unwrap_or(1);
                 }
                 default
             }
 
-            pub fn queryStringResolver(
-                resolver: impl Fn() -> Vec<(String, String)> + Send + Sync + 'static,
-            ) -> ViewResult<()> {
-                *state()?.query.write().expect("分页查询解析器锁") = Some(Arc::new(resolver));
+            pub fn queryStringResolver<R>(
+                resolver: impl Fn() -> R + Send + Sync + 'static,
+            ) -> ViewResult<()>
+            where
+                R: Into<Option<Vec<(String, String)>>>,
+            {
+                *state()?.query.write().expect("分页查询解析器锁") =
+                    Some(Arc::new(move || resolver().into()));
                 Ok(())
             }
 
@@ -115,10 +124,10 @@ macro_rules! offset_resolvers {
                 let callback = state()
                     .ok()
                     .and_then(|state| state.query.read().expect("分页查询解析器锁").clone());
-                callback
-                    .map(|callback| callback())
-                    .or_else(query)
-                    .or(default)
+                match callback {
+                    Some(callback) => callback(),
+                    None => query().or(default),
+                }
             }
 
             pub fn viewFactoryResolver(

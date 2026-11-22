@@ -295,6 +295,8 @@ fn routes() -> Result<(), RoutingError> {
     Route::get("/page-resolvers", page_resolvers)?;
     Route::get("/state-resolvers", state_resolvers)?;
     Route::get("/resolver-view", resolver_view)?;
+    Route::get("/resolver-input", resolver_input)?;
+    Route::get("/resolver-query", resolver_query)?;
     Route::get("/links", pagination_links)?;
     Route::get("/manual", manual_length)?;
     Route::get("/manual-simple", manual_simple)?;
@@ -4018,4 +4020,74 @@ async fn explicit_paginator_options_do_not_invoke_position_or_path_resolvers() {
     })
     .await;
     server.abort();
+}
+
+fn resolver_input(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async { Response::json(StatusCode::OK, Paginator::resolveCurrentPage("entries", 7)) })
+}
+
+fn resolver_query(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        let mut page = Paginator::new(
+            vec![1],
+            1,
+            Some(1),
+            PaginatorOptions {
+                path: Some("/items"),
+                pageName: Some("entries"),
+                ..Default::default()
+            },
+        )
+        .map_err(manual_error)?;
+        page.appends(&[("filter".into(), "manual".into())])
+            .withQueryString();
+        Response::json(
+            StatusCode::OK,
+            json!({"query": LengthAwarePaginator::resolveQueryString(Some(vec![("fallback".into(), "yes".into())])), "url":page.url(1)}),
+        )
+    })
+}
+
+#[tokio::test]
+async fn pagination_default_page_input_matches_the_fixed_filter_rules() {
+    let reference: Json =
+        serde_json::from_str(include_str!("reference/pagination-resolvers.json")).unwrap();
+    let (_root, address, server) = styled_server(|| Ok(())).await;
+    assert_eq!(request(address, "/api/resolver-input").await, json!(1));
+    for case in reference["page_inputs"].as_array().unwrap() {
+        let query = url::form_urlencoded::Serializer::new(String::new())
+            .append_pair("entries", case["input"].as_str().unwrap())
+            .finish();
+        assert_eq!(
+            request(address, &format!("/api/resolver-input?{query}")).await,
+            case["page"],
+            "{case}"
+        );
+    }
+    server.abort();
+}
+
+#[tokio::test]
+async fn pagination_null_and_empty_query_callbacks_suppress_request_and_fallback_sources() {
+    let (_null_root, null, null_server) =
+        styled_server(|| Paginator::queryStringResolver(|| None)).await;
+    let (_empty_root, empty, empty_server) =
+        styled_server(|| LengthAwarePaginator::queryStringResolver(Vec::<(String, String)>::new))
+            .await;
+    let (_default_root, ordinary, ordinary_server) = styled_server(|| Ok(())).await;
+    let (null, empty, ordinary) = tokio::join!(
+        request(null, "/api/resolver-query?filter=incoming"),
+        request(empty, "/api/resolver-query?filter=incoming"),
+        request(ordinary, "/api/resolver-query?filter=incoming")
+    );
+    let reference: Json =
+        serde_json::from_str(include_str!("reference/pagination-resolvers.json")).unwrap();
+    assert_eq!(null["query"], reference["null_query"]);
+    assert_eq!(empty["query"], reference["empty_query"]);
+    assert_eq!(null["url"], "/items?filter=manual&entries=1");
+    assert_eq!(empty["url"], null["url"]);
+    assert_eq!(ordinary["url"], "/items?filter=incoming&entries=1");
+    for server in [null_server, empty_server, ordinary_server] {
+        server.abort();
+    }
 }

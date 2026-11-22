@@ -128,6 +128,14 @@ PHP8.5.12实际执行固定分页类的默认值、跨子类共享回调、同�
 
 PostgreSQL18.7、MySQL8.4.13在隔离容器中开启必需连接校验，实际分页各1项通过，容器已回收。SQLite及分页/Blade/视图原有回归34项通过；随后补充显式页码/游标/路径不调用解析器的实际入口回归，分页最终9项通过。旧分页夹具使用locale参数专门验证翻译器区域回退，现行HTTP候选校验会提前拒绝未配置的zh-TW；在该夹具显式设置app.locale_query_parameter=null隔离职责，保留原有回退断言。根应用HTTP16项、欢迎页34项通过；严格workspace/all-targets Clippy、fmt、三语站点构建及根路径/子路径浏览器与导航检查通过。不能关闭完整Pagination类型。保留具体差异：页码为u64且回调静态Fn；查询为字符串键值对，未支持PHP动态string/array/null回调返回与嵌套值；默认页码/游标来源仍为URI查询，不读取POST/JSON输入；整数字符串校验未完全等价FILTER_VALIDATE_INT；默认路径仍为相对路径；Abstract类型继承入口和其他公开方法须继续逐项裁决。临时验收快照先暴露新旧View依赖组合错误，已按47e48890e06a08026f28405310b23180eeb1acca全部已提交源码统一并覆盖本批文件，未混入协作者WIP；失败日志保留。共享view/mod.rs、factory.rs、pagination/views.rs与pagination_state.rs使用本批验收内容按差异暂存，工作区中的并行错误转换及ViewObject扩展改动保留。证据为pagination-resolvers-{reference.json,postgres.log,mysql.log}、pagination-source-verification.json、pagination-view-accepted.log、pagination-options-final.log、pagination-http-welcome-final.log、clippy-pagination-options-final.log、fmt-pagination-options-final.log与docs-{build,browser,scope}-pagination-final.log。
 
+### 分页空查询与整数字符串边界（2026-11-23）
+
+在6ff17cf0d之后继续修复C39两项具体差异。queryStringResolver允许原有Vec或Option<Vec>返回，显式None与空列表都不回退到请求查询或默认参数；resolveQueryString仍区分None/空数组，withQueryString保留已追加值。默认页码来源复用已有support::input_scalars::valid_integer及integer，不新增解析引擎；拒绝前导零/负数/零/浮点与指数文本/64位溢出，保留固定过滤规则所允许的空白和正号。
+
+PHP8.5.12以固定PaginationState真实绑定Http Request输入，实际运行18组字符串，并对照空查询回调与默认值；依赖使用现有php-testing-reference中的Symfony HttpFoundation7.4.0。最初使用不含HttpFoundation的php-reference失败，原始日志保留，最终使用正确依赖重新运行；没有用测试桩替代Request输入。普通Rust测试读取更新的reference/pagination-resolvers.json，在实际HTTP入口逐组核对，并并发运行None/空列表/默认请求三个应用验证来源抑制与隔离。
+
+本地分页11项（含18组实际HTTP输入与两类回调）及PostgreSQL/MySQL隔离实际查询各1项通过；严格workspace/all-targets Clippy及fmt通过。三语站点构建、根路径/子路径浏览器和导航检查全部通过。本批不重复计入前批HTTP/欢迎页/独立视图测试；没有关闭默认POST/JSON输入、动态string/嵌套query、Abstract继承入口和完整Pagination逐项复核。证据目录仍为target/tmp/framework-parity-20261122/，使用pagination-boundaries-{reference-accepted.json,reference-accepted.log,final.log,postgres.log,mysql.log}、clippy-pagination-boundaries.log、fmt-pagination-boundaries.log与docs-{build,browser,scope}-pagination-boundaries.log。
+
 ## 当前实施与验收（2026-11-22）
 
 本节记录正在实施的事实，不能将清单登记或API出现当作全部完成。源码基线为b214e46be及实时WIP；协作者SetLocale实例回调与其三语正文、规范和验收记录保留。本批未操作开发数据或Git索引。
