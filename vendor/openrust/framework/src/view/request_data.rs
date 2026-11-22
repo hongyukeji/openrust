@@ -35,7 +35,7 @@ enum RequestCheck {
     Object(super::ObjectValue, String, Vec<ViewValue>),
 }
 
-/// 只读模板调用仍由持有真实请求的异步管线执行，不复制请求体或暴露可变请求。
+/// 请求读取与对象调用由持有真实请求的异步管线执行，不复制请求体或暴露可变请求。
 pub(super) enum RequestRead {
     Query(Option<String>, ViewValue),
     Input(Option<String>, ViewValue),
