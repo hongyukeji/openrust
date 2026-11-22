@@ -28,28 +28,7 @@ impl WelcomeController {
                 .with("version", Config::stringOr("app.version", "1.0.0"))
                 .with("repository", Application::REPOSITORY)
                 .with("language", locale.clone())
-                .with(
-                    "locale_parameter",
-                    selection.and_then(|value| value.query_parameter.clone()),
-                )
-                .with(
-                    "locale_candidates",
-                    selection
-                        .map(|value| value.supported.clone())
-                        .unwrap_or_default(),
-                )
-                .with(
-                    "locale_can_store",
-                    selection.is_some_and(|value| value.can_store),
-                )
-                .with(
-                    "locale_preference",
-                    selection.and_then(|value| value.preference.clone()),
-                )
-                .with(
-                    "locale_from_query",
-                    selection.is_some_and(|value| value.from_query),
-                )
+                .with("locale_selection", serde_json::json!(selection))
                 .with(
                     "query",
                     request

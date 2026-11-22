@@ -14,7 +14,7 @@ pub(crate) struct PrivateLocaleResponse;
 type LocaleCallback = Arc<dyn Fn(&Request) -> Result<Option<String>, HttpError> + Send + Sync>;
 
 /// 当前请求的语言切换信息，由实际执行的中间件提供给页面。
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize)]
 pub struct LocaleSelection {
     /// 可接受 URL 选择的参数名；关闭识别或回调已决定语言时为空。
     pub query_parameter: Option<String>,
