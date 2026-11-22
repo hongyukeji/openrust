@@ -76,8 +76,7 @@ impl Builder<'_> {
     pub fn setBindings(mut self, values: Vec<Value>, kind: Option<&str>) -> DatabaseResult<Self> {
         let kind = index(kind)?;
         let prefix = self.natural_bindings(kind)?.len();
-        self.binding_changes.get_or_insert_with(Box::default)[kind] =
-            Some(Change { values, prefix });
+        self.binding_changes.get_or_insert_default()[kind] = Some(Change { values, prefix });
         Ok(self)
     }
 
@@ -177,8 +176,7 @@ impl Builder<'_> {
                 .as_ref()
                 .is_some_and(|changes| changes[1].is_some())
         {
-            self.binding_changes.get_or_insert_with(Box::default)[1] =
-                Some(Change { values, prefix: 0 });
+            self.binding_changes.get_or_insert_default()[1] = Some(Change { values, prefix: 0 });
         }
     }
 }
