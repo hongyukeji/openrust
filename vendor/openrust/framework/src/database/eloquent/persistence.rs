@@ -298,9 +298,13 @@ async fn save_model<M: Model>(
             model.state_mut().connection = Some(connection.clone());
             return finish_save(model, &connection, transaction).await;
         }
-        let rows = query
-            .insertOrIgnoreReturning(std::slice::from_ref(&attributes), &["*"], unique_by)
-            .await?;
+        // 将驱动插入分支置于堆上，避免其 Future 扩大所有普通模型保存的调用栈。
+        let rows = Box::pin(query.insertOrIgnoreReturning(
+            std::slice::from_ref(&attributes),
+            &["*"],
+            unique_by,
+        ))
+        .await?;
         model.state_mut().connection = Some(connection.clone());
         let Some(row) = rows.first() else {
             return Ok(false);

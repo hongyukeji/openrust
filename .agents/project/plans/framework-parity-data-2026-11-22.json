@@ -573,10 +573,10 @@
         "受支持保存删除变体已实现并验收；显式事务与动态options边界保留",
         "tests/eloquent_write_variants.rs；tests/reference/eloquent-write-variants.php/json；target/tmp/framework-parity-20261122/model-write-*、clippy-model-write及docs-*-model-write日志",
         "Q01;C21",
-        "22组真实固定PHP/PDO SQLite状态与事件参考；SQLite/隔离PostgreSQL18/MySQL8.4各1项集成通过，MySQL显式Unsupported不记为RETURNING支持。事件/模型5项通过中旧MySQL无变量早退不计真实库；关系6项在RUST_MIN_STACK=16777216通过，默认测试线程栈原先溢出如实保留。fmt/严格workspace-all-targets Clippy/三语build、12页面组合及双前缀全导航通过。",
+        "22组真实固定PHP/PDO SQLite状态与事件参考；SQLite/隔离PostgreSQL18/MySQL8.4各1项集成通过，MySQL显式Unsupported不记为RETURNING支持。事件/模型5项通过中旧MySQL无变量早退不计真实库；关系6项在RUST_MIN_STACK=16777216通过，默认测试线程栈原先溢出如实保留。fmt/严格workspace-all-targets Clippy/三语build、12页面组合及双前缀全导航通过。 随后仅装箱忽略插入分支Future，默认线程栈关系6项及写入1项全部通过，三库重验通过。隔离HEAD加本批修复的严格Clippy/fmt通过；初轮混入协作者半成品导致的失败日志保留，未修改其WIP。",
         "复用固定Model的事务/事件与insertOrIgnoreReturning机制；Rust显式Transaction hook及Result代替动态异常/options",
         "saveOrFail/updateOrFail/updateQuietly/deleteOrFail/saveOrIgnore已实现；保存后事件失败不提前syncOriginal，成功监听器修改纳入original；不关闭整个ORM",
-        "2026-11-23定向三库、真实PHP对照、fmt/Clippy/三语通过；关系专项默认线程栈容量问题仍须后续独立定位"
+        "2026-11-23三库/22组PHP/fmt/严格Clippy/三语通过；独立驱动Future装箱后关系6项在默认线程栈通过，已消除前述增栈要求"
       ],
       [
         "main",
@@ -293281,6 +293281,15 @@
       ],
       "note": "22组真实固定PHP写入参考，三库实际验收包含事务回滚、事件取消、SQL失败、quiet、取消与内存状态；MySQL的忽略插入RETURNING明确Unsupported。红测试证明original提前同步，修复后绿。fmt/严格Clippy/三语站点通过；关系6项增加测试线程栈后通过，未将默认栈溢出记为无条件通过。显式事务hook/动态options边界保留。新联网读取空内容，来源采用既有固定源码与真实PHP依赖。",
       "evidence": "target/tmp/framework-parity-20261122/model-write-*、fmt/clippy/docs-model-write日志"
+    },
+    {
+      "date": "2026-11-23",
+      "kind": "model_write_future_stack_fixed",
+      "tasks": [
+        "C24"
+      ],
+      "note": "单独将insertOrIgnoreReturning的Future装箱，避免分支状态扩大普通save Future；同一关系回归由默认栈溢出变为默认栈6项通过，22组写入及独立PG/MySQL重验通过。严格Clippy/fmt以HEAD加本批变更验收，排除协作者未完成WIP；保留初次混合失败日志。",
+      "evidence": "target/tmp/framework-parity-20261122/model-write-boxed*.log、clippy-model-write-boxed-clean.log、fmt-model-write-boxed.log"
     }
   ]
 }

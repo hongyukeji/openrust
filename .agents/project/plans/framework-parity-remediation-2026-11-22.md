@@ -91,6 +91,8 @@ C24 已补 `saveOrFail`、`updateOrFail`、`updateQuietly`、`deleteOrFail`、`s
 
 `fmt-model-write.log`、`clippy-model-write.log`、`docs-{build,browser,scope}-model-write.log` 均通过，包含严格workspace/all-targets Clippy、三语构建、12页面组合与双前缀全部导航。证据及隔离驱动位于 `target/tmp/framework-parity-20261122/`；源码参考固定 Framework v13.40.0 的 Model.php，来源及许可沿用既有记录。新联网读取仍为空，未宣称额外联网核实。真实PHP参考补用 serializable-closure v2.0.10 测试依赖，Composer报告该包6项advisory，仅用于隔离参考工具，不将其声明为已通过安全审计。
 
+后续已解除默认栈问题：只将忽略插入的驱动 Future 装箱，避免它扩大普通 save 的状态体；`model-write-boxed.log` 同一关系6项在默认线程栈通过，写入1项及隔离PG/MySQL重验通过，无需设置 RUST_MIN_STACK。`clippy-model-write-boxed-clean.log` 与 fmt通过。初轮全量复验混入协作者尚未完成的语言配置类型/格式错误，已在独立快照使用HEAD加本批修复验收，未修改其工作区；失败日志保留。此结果覆盖此前“默认栈仍待定位”的限制。
+
 Rust通过 `saveInTransaction`/`deleteInTransaction` hook执行事务变体；已有外层事务显式传入，未实现PHP环境式事务或动态save覆盖及options数组。模型内存状态不会因数据库回滚自动复原，符合实测参考。C20/C21/C23及其他未完成任务继续实施，此处不是全任务完成结论。
 
 ## 目标与依据
