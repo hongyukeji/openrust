@@ -21,6 +21,55 @@ use super::{
     soft_deleting_scope::Trashed,
 };
 
+/// 主键条件支持单值或列表；模型参数请显式传入 getKey() 的结果。
+#[derive(Clone, Debug)]
+pub enum Key {
+    Scalar(Value),
+    Many(Vec<Value>),
+}
+
+impl<T: Into<Value>> From<T> for Key {
+    fn from(value: T) -> Self {
+        Self::Scalar(value.into())
+    }
+}
+impl<T: Into<Value>> From<Vec<T>> for Key {
+    fn from(values: Vec<T>) -> Self {
+        Self::Many(values.into_iter().map(Into::into).collect())
+    }
+}
+impl<T: Into<Value>, const N: usize> From<[T; N]> for Key {
+    fn from(values: [T; N]) -> Self {
+        Self::Many(values.into_iter().map(Into::into).collect())
+    }
+}
+
+fn integer_key(value: Value) -> i64 {
+    use serde_json::Value as Json;
+    let value = match value {
+        Value::Integer(value) => return value,
+        Value::Unsigned(value) => return i64::from_ne_bytes(value.to_ne_bytes()),
+        Value::Real(value) => serde_json::Number::from_f64(value).map_or(Json::Null, Json::Number),
+        Value::Text(value) => Json::String(value),
+        Value::Bytes(value) => Json::String(String::from_utf8_lossy(&value).into_owned()),
+        Value::Bool(value) => Json::Bool(value),
+        Value::Json(value) => value,
+        Value::Null => Json::Null,
+    };
+    crate::support::php_integer_cast(&value)
+}
+
+fn string_key(value: Value) -> Value {
+    match value {
+        Value::Integer(value) => value.to_string().into(),
+        Value::Unsigned(value) => value.to_string().into(),
+        Value::Real(value) => crate::support::php_float_string(value).into(),
+        Value::Bool(value) => if value { "1" } else { "" }.into(),
+        Value::Json(_) => "Array".into(),
+        value => value,
+    }
+}
+
 /// Builds model queries and hydrates results from the selected connection.
 pub struct Builder<'connection, M: Model> {
     query: query::Builder<'connection>,
@@ -475,8 +524,55 @@ impl<M: Model> Builder<'_, M> {
         Ok(self.orWhereVectorDistanceLessThan(column, &vector, max_distance))
     }
 
-    pub fn whereKey(&mut self, value: impl Into<Value>) -> &mut Self {
-        self.r#where(M::metadata().primary_key, "=", value)
+    pub fn whereKey(&mut self, value: impl Into<Key>) -> &mut Self {
+        self.key_condition(value.into(), false, false)
+    }
+
+    pub fn whereKeyNot(&mut self, value: impl Into<Key>) -> &mut Self {
+        self.key_condition(value.into(), false, true)
+    }
+
+    pub fn orWhereKey(&mut self, value: impl Into<Key>) -> &mut Self {
+        self.key_condition(value.into(), true, false)
+    }
+
+    pub fn orWhereKeyNot(&mut self, value: impl Into<Key>) -> &mut Self {
+        self.key_condition(value.into(), true, true)
+    }
+
+    fn key_condition(&mut self, value: Key, or: bool, not: bool) -> &mut Self {
+        let column = self.qualifyColumn(M::metadata().primary_key);
+        let integer =
+            M::from_state(ModelState::default()).getKeyType() == super::ModelKeyType::Integer;
+        let configure = |group: query::Conditions| match value {
+            Key::Scalar(value) => group.r#where(
+                &column,
+                if not { "!=" } else { "=" },
+                if integer { value } else { string_key(value) },
+            ),
+            Key::Many(values) if integer => {
+                let values = values.into_iter().map(integer_key).collect();
+                if not {
+                    group.whereIntegerNotInRaw(&column, values)
+                } else {
+                    group.whereIntegerInRaw(&column, values)
+                }
+            }
+            Key::Many(values) => {
+                if not {
+                    group.whereNotIn(&column, values)
+                } else {
+                    group.whereIn(&column, values)
+                }
+            }
+        };
+        let predicates = mem::take(&mut self.predicates);
+        self.predicates = if or {
+            predicates.orWhereNested(configure)
+        } else {
+            configure(predicates)
+        };
+        self
     }
 
     pub fn qualifyColumn(&self, column: &str) -> String {
@@ -2015,6 +2111,44 @@ impl<M: Model> Builder<'static, M> {
                 pivot,
             },
         ))
+    }
+
+    /// 通过模型取值，保留访问器、类型转换、检索事件及全局作用域。
+    pub async fn value(self, column: &str) -> DatabaseResult<Value> {
+        self.value_query(column)
+            .first()
+            .await?
+            .map(|model| model.getAttributeValue(column.rsplit('.').next().unwrap_or(column)))
+            .transpose()
+            .map(|value| value.flatten().unwrap_or(Value::Null))
+    }
+
+    pub async fn sole(self) -> DatabaseResult<M> {
+        super::relations::sole_match(self.limit(2).get().await?.into_iter().collect())
+    }
+
+    pub async fn soleValue(self, column: &str) -> DatabaseResult<Value> {
+        self.value_query(column)
+            .sole()
+            .await?
+            .getAttributeValue(column.rsplit('.').next().unwrap_or(column))
+            .map(|value| value.unwrap_or(Value::Null))
+    }
+
+    pub async fn valueOrFail(self, column: &str) -> DatabaseResult<Value> {
+        self.value_query(column)
+            .firstOrFail()
+            .await?
+            .getAttributeValue(column.rsplit('.').next().unwrap_or(column))
+            .map(|value| value.unwrap_or(Value::Null))
+    }
+
+    fn value_query(self, column: &str) -> Self {
+        if self.query.has_columns() {
+            self
+        } else {
+            self.select([column])
+        }
     }
 
     pub async fn first(self) -> DatabaseResult<Option<M>> {

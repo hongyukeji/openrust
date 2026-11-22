@@ -34,7 +34,7 @@ pub(super) fn primary_key<M: Model>(key: Value) -> Attributes {
     Attributes::from([(M::metadata().primary_key.into(), key)])
 }
 
-pub(super) fn sole_match<M: Model>(mut models: Vec<M>) -> DatabaseResult<M> {
+pub(in crate::database::eloquent) fn sole_match<M: Model>(mut models: Vec<M>) -> DatabaseResult<M> {
     match models.len() {
         0 => Err(DatabaseError::ModelNotFound(M::metadata().table)),
         1 => Ok(models.pop().expect("one matching model")),

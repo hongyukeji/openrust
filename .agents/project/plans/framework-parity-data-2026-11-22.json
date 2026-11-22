@@ -524,13 +524,13 @@
         "vendor/openrust/framework/src/database/eloquent/builder.rs:1",
         "Illuminate\\Database\\Eloquent\\Builder.whereKeyNot;Illuminate\\Database\\Eloquent\\Builder.orWhereKey;Illuminate\\Database\\Eloquent\\Builder.orWhereKeyNot;Illuminate\\Database\\Eloquent\\Builder.soleValue;Illuminate\\Database\\Eloquent\\Builder.valueOrFail",
         "vendor/openrust/framework/tests/eloquent_models.rs;vendor/openrust/framework/tests/laravel_alignment_database.rs",
-        "历史发现待当前契约复核；复核仍成立后实施",
-        "",
+        "核心主键/单值接口已实现，受支持范围通过；PHP动态签名全集保留",
+        "181组真实PHP PDO SQLite参考；4项本地、隔离PG3/MySQL3；fmt/严格Clippy/三语build/browser/scope通过",
         "Q01;C21",
-        "本轮未执行框架验收",
-        "历史差异待当前契约裁决",
-        "先复核已有实现后补缺口；本计划未执行",
-        "本轮未运行功能验收，历史结果仅限对应提交和环境"
+        "2026-11-23；target/tmp/framework-parity-20261122/eloquent-key-third.log / eloquent-postgres.log / eloquent-mysql.log / clippy-eloquent-key.log及docs对应日志",
+        "固定13.40.0；复用已有Conditions、模型水合、全局scope与sole_match，不创建第二套查询引擎",
+        "已实现whereKeyNot/orWhereKey/orWhereKeyNot、列表whereKey及value/sole/soleValue/valueOrFail",
+        "本轮核心实际三库通过；typed Key/显式模型getKey、Expression与动态Arrayable参数差异继续裁决"
       ],
       [
         "main",
@@ -293254,6 +293254,15 @@
       ],
       "note": "156组真实固定PHP参考；44项本地查询+16项响应通过，PG专项明确ignored后在隔离PG显式执行通过，PG3+1/MySQL3实际通过；fmt、严格Clippy、三语build/12浏览器/双前缀全导航通过。空HAVING闭包和typed集合/回调/PG文本结果差异保留，C20未实现。",
       "evidence": "target/tmp/framework-parity-20261122/当前query/redirect-errors/clippy/docs日志"
+    },
+    {
+      "date": "2026-11-23",
+      "kind": "eloquent_key_value_verified",
+      "tasks": [
+        "C22"
+      ],
+      "note": "136主键+45单值=181真实固定PHP/PDO SQLite参考，Rust4项通过；隔离PG3/MySQL3并发不同表实际通过。原eloquent_models MySQL默认早退不计实际验收。fmt/严格workspace Clippy/三语站点通过。typed Key及模型/Expression动态输入边界保留。",
+      "evidence": "target/tmp/framework-parity-20261122/eloquent与docs-eloquent-key相关日志"
     }
   ]
 }

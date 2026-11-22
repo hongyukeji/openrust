@@ -29,7 +29,7 @@ use crate::database::Value;
 
 mod searchable;
 
-pub use builder::Builder;
+pub use builder::{Builder, Key};
 pub use collection::{
     BorrowedRelatedModel, Collection, CollectionModel, MorphCollectionModel, RelatedCollectionModel,
 };

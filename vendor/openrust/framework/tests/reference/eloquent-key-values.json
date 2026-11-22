@@ -1,0 +1,1644 @@
+{
+    "keys": [
+        {
+            "kind": "integer",
+            "method": "whereKey",
+            "input": null,
+            "ids": []
+        },
+        {
+            "kind": "integer",
+            "method": "whereKeyNot",
+            "input": null,
+            "ids": [
+                1,
+                2
+            ]
+        },
+        {
+            "kind": "integer",
+            "method": "orWhereKey",
+            "input": null,
+            "ids": [
+                1
+            ]
+        },
+        {
+            "kind": "integer",
+            "method": "orWhereKeyNot",
+            "input": null,
+            "ids": [
+                1,
+                2
+            ]
+        },
+        {
+            "kind": "integer",
+            "method": "whereKey",
+            "input": false,
+            "ids": []
+        },
+        {
+            "kind": "integer",
+            "method": "whereKeyNot",
+            "input": false,
+            "ids": [
+                1,
+                2
+            ]
+        },
+        {
+            "kind": "integer",
+            "method": "orWhereKey",
+            "input": false,
+            "ids": [
+                1
+            ]
+        },
+        {
+            "kind": "integer",
+            "method": "orWhereKeyNot",
+            "input": false,
+            "ids": [
+                1,
+                2
+            ]
+        },
+        {
+            "kind": "integer",
+            "method": "whereKey",
+            "input": true,
+            "ids": [
+                1
+            ]
+        },
+        {
+            "kind": "integer",
+            "method": "whereKeyNot",
+            "input": true,
+            "ids": [
+                2
+            ]
+        },
+        {
+            "kind": "integer",
+            "method": "orWhereKey",
+            "input": true,
+            "ids": [
+                1
+            ]
+        },
+        {
+            "kind": "integer",
+            "method": "orWhereKeyNot",
+            "input": true,
+            "ids": [
+                1,
+                2
+            ]
+        },
+        {
+            "kind": "integer",
+            "method": "whereKey",
+            "input": 0,
+            "ids": []
+        },
+        {
+            "kind": "integer",
+            "method": "whereKeyNot",
+            "input": 0,
+            "ids": [
+                1,
+                2
+            ]
+        },
+        {
+            "kind": "integer",
+            "method": "orWhereKey",
+            "input": 0,
+            "ids": [
+                1
+            ]
+        },
+        {
+            "kind": "integer",
+            "method": "orWhereKeyNot",
+            "input": 0,
+            "ids": [
+                1,
+                2
+            ]
+        },
+        {
+            "kind": "integer",
+            "method": "whereKey",
+            "input": 1,
+            "ids": [
+                1
+            ]
+        },
+        {
+            "kind": "integer",
+            "method": "whereKeyNot",
+            "input": 1,
+            "ids": [
+                2
+            ]
+        },
+        {
+            "kind": "integer",
+            "method": "orWhereKey",
+            "input": 1,
+            "ids": [
+                1
+            ]
+        },
+        {
+            "kind": "integer",
+            "method": "orWhereKeyNot",
+            "input": 1,
+            "ids": [
+                1,
+                2
+            ]
+        },
+        {
+            "kind": "integer",
+            "method": "whereKey",
+            "input": 2,
+            "ids": [
+                2
+            ]
+        },
+        {
+            "kind": "integer",
+            "method": "whereKeyNot",
+            "input": 2,
+            "ids": [
+                1
+            ]
+        },
+        {
+            "kind": "integer",
+            "method": "orWhereKey",
+            "input": 2,
+            "ids": [
+                1,
+                2
+            ]
+        },
+        {
+            "kind": "integer",
+            "method": "orWhereKeyNot",
+            "input": 2,
+            "ids": [
+                1
+            ]
+        },
+        {
+            "kind": "integer",
+            "method": "whereKey",
+            "input": 3,
+            "ids": []
+        },
+        {
+            "kind": "integer",
+            "method": "whereKeyNot",
+            "input": 3,
+            "ids": [
+                1,
+                2
+            ]
+        },
+        {
+            "kind": "integer",
+            "method": "orWhereKey",
+            "input": 3,
+            "ids": [
+                1
+            ]
+        },
+        {
+            "kind": "integer",
+            "method": "orWhereKeyNot",
+            "input": 3,
+            "ids": [
+                1,
+                2
+            ]
+        },
+        {
+            "kind": "integer",
+            "method": "whereKey",
+            "input": 7,
+            "ids": []
+        },
+        {
+            "kind": "integer",
+            "method": "whereKeyNot",
+            "input": 7,
+            "ids": [
+                1,
+                2
+            ]
+        },
+        {
+            "kind": "integer",
+            "method": "orWhereKey",
+            "input": 7,
+            "ids": [
+                1
+            ]
+        },
+        {
+            "kind": "integer",
+            "method": "orWhereKeyNot",
+            "input": 7,
+            "ids": [
+                1,
+                2
+            ]
+        },
+        {
+            "kind": "integer",
+            "method": "whereKey",
+            "input": "",
+            "ids": []
+        },
+        {
+            "kind": "integer",
+            "method": "whereKeyNot",
+            "input": "",
+            "ids": [
+                1,
+                2
+            ]
+        },
+        {
+            "kind": "integer",
+            "method": "orWhereKey",
+            "input": "",
+            "ids": [
+                1
+            ]
+        },
+        {
+            "kind": "integer",
+            "method": "orWhereKeyNot",
+            "input": "",
+            "ids": [
+                1,
+                2
+            ]
+        },
+        {
+            "kind": "integer",
+            "method": "whereKey",
+            "input": "1",
+            "ids": [
+                1
+            ]
+        },
+        {
+            "kind": "integer",
+            "method": "whereKeyNot",
+            "input": "1",
+            "ids": [
+                2
+            ]
+        },
+        {
+            "kind": "integer",
+            "method": "orWhereKey",
+            "input": "1",
+            "ids": [
+                1
+            ]
+        },
+        {
+            "kind": "integer",
+            "method": "orWhereKeyNot",
+            "input": "1",
+            "ids": [
+                1,
+                2
+            ]
+        },
+        {
+            "kind": "integer",
+            "method": "whereKey",
+            "input": "007",
+            "ids": []
+        },
+        {
+            "kind": "integer",
+            "method": "whereKeyNot",
+            "input": "007",
+            "ids": [
+                1,
+                2
+            ]
+        },
+        {
+            "kind": "integer",
+            "method": "orWhereKey",
+            "input": "007",
+            "ids": [
+                1
+            ]
+        },
+        {
+            "kind": "integer",
+            "method": "orWhereKeyNot",
+            "input": "007",
+            "ids": [
+                1,
+                2
+            ]
+        },
+        {
+            "kind": "integer",
+            "method": "whereKey",
+            "input": "2suffix",
+            "ids": []
+        },
+        {
+            "kind": "integer",
+            "method": "whereKeyNot",
+            "input": "2suffix",
+            "ids": [
+                1,
+                2
+            ]
+        },
+        {
+            "kind": "integer",
+            "method": "orWhereKey",
+            "input": "2suffix",
+            "ids": [
+                1
+            ]
+        },
+        {
+            "kind": "integer",
+            "method": "orWhereKeyNot",
+            "input": "2suffix",
+            "ids": [
+                1,
+                2
+            ]
+        },
+        {
+            "kind": "integer",
+            "method": "whereKey",
+            "input": "x' OR 1=1 --",
+            "ids": []
+        },
+        {
+            "kind": "integer",
+            "method": "whereKeyNot",
+            "input": "x' OR 1=1 --",
+            "ids": [
+                1,
+                2
+            ]
+        },
+        {
+            "kind": "integer",
+            "method": "orWhereKey",
+            "input": "x' OR 1=1 --",
+            "ids": [
+                1
+            ]
+        },
+        {
+            "kind": "integer",
+            "method": "orWhereKeyNot",
+            "input": "x' OR 1=1 --",
+            "ids": [
+                1,
+                2
+            ]
+        },
+        {
+            "kind": "integer",
+            "method": "whereKey",
+            "input": [],
+            "ids": []
+        },
+        {
+            "kind": "integer",
+            "method": "whereKeyNot",
+            "input": [],
+            "ids": [
+                1,
+                2
+            ]
+        },
+        {
+            "kind": "integer",
+            "method": "orWhereKey",
+            "input": [],
+            "ids": [
+                1
+            ]
+        },
+        {
+            "kind": "integer",
+            "method": "orWhereKeyNot",
+            "input": [],
+            "ids": [
+                1,
+                2
+            ]
+        },
+        {
+            "kind": "integer",
+            "method": "whereKey",
+            "input": [
+                1,
+                2,
+                3
+            ],
+            "ids": [
+                1,
+                2
+            ]
+        },
+        {
+            "kind": "integer",
+            "method": "whereKeyNot",
+            "input": [
+                1,
+                2,
+                3
+            ],
+            "ids": []
+        },
+        {
+            "kind": "integer",
+            "method": "orWhereKey",
+            "input": [
+                1,
+                2,
+                3
+            ],
+            "ids": [
+                1,
+                2
+            ]
+        },
+        {
+            "kind": "integer",
+            "method": "orWhereKeyNot",
+            "input": [
+                1,
+                2,
+                3
+            ],
+            "ids": [
+                1
+            ]
+        },
+        {
+            "kind": "integer",
+            "method": "whereKey",
+            "input": [
+                "007",
+                "x' OR 1=1 --"
+            ],
+            "ids": []
+        },
+        {
+            "kind": "integer",
+            "method": "whereKeyNot",
+            "input": [
+                "007",
+                "x' OR 1=1 --"
+            ],
+            "ids": [
+                1,
+                2
+            ]
+        },
+        {
+            "kind": "integer",
+            "method": "orWhereKey",
+            "input": [
+                "007",
+                "x' OR 1=1 --"
+            ],
+            "ids": [
+                1
+            ]
+        },
+        {
+            "kind": "integer",
+            "method": "orWhereKeyNot",
+            "input": [
+                "007",
+                "x' OR 1=1 --"
+            ],
+            "ids": [
+                1,
+                2
+            ]
+        },
+        {
+            "kind": "integer",
+            "method": "whereKey",
+            "input": [
+                "2suffix",
+                null
+            ],
+            "ids": [
+                2
+            ]
+        },
+        {
+            "kind": "integer",
+            "method": "whereKeyNot",
+            "input": [
+                "2suffix",
+                null
+            ],
+            "ids": [
+                1
+            ]
+        },
+        {
+            "kind": "integer",
+            "method": "orWhereKey",
+            "input": [
+                "2suffix",
+                null
+            ],
+            "ids": [
+                1,
+                2
+            ]
+        },
+        {
+            "kind": "integer",
+            "method": "orWhereKeyNot",
+            "input": [
+                "2suffix",
+                null
+            ],
+            "ids": [
+                1
+            ]
+        },
+        {
+            "kind": "string",
+            "method": "whereKey",
+            "input": null,
+            "ids": []
+        },
+        {
+            "kind": "string",
+            "method": "whereKeyNot",
+            "input": null,
+            "ids": [
+                "",
+                "007",
+                "1",
+                "7",
+                "x' OR 1=1 --"
+            ]
+        },
+        {
+            "kind": "string",
+            "method": "orWhereKey",
+            "input": null,
+            "ids": [
+                "1"
+            ]
+        },
+        {
+            "kind": "string",
+            "method": "orWhereKeyNot",
+            "input": null,
+            "ids": [
+                "",
+                "007",
+                "1",
+                "7",
+                "x' OR 1=1 --"
+            ]
+        },
+        {
+            "kind": "string",
+            "method": "whereKey",
+            "input": false,
+            "ids": [
+                ""
+            ]
+        },
+        {
+            "kind": "string",
+            "method": "whereKeyNot",
+            "input": false,
+            "ids": [
+                "007",
+                "1",
+                "7",
+                "x' OR 1=1 --"
+            ]
+        },
+        {
+            "kind": "string",
+            "method": "orWhereKey",
+            "input": false,
+            "ids": [
+                "",
+                "1"
+            ]
+        },
+        {
+            "kind": "string",
+            "method": "orWhereKeyNot",
+            "input": false,
+            "ids": [
+                "007",
+                "1",
+                "7",
+                "x' OR 1=1 --"
+            ]
+        },
+        {
+            "kind": "string",
+            "method": "whereKey",
+            "input": true,
+            "ids": [
+                "1"
+            ]
+        },
+        {
+            "kind": "string",
+            "method": "whereKeyNot",
+            "input": true,
+            "ids": [
+                "",
+                "007",
+                "7",
+                "x' OR 1=1 --"
+            ]
+        },
+        {
+            "kind": "string",
+            "method": "orWhereKey",
+            "input": true,
+            "ids": [
+                "1"
+            ]
+        },
+        {
+            "kind": "string",
+            "method": "orWhereKeyNot",
+            "input": true,
+            "ids": [
+                "",
+                "007",
+                "1",
+                "7",
+                "x' OR 1=1 --"
+            ]
+        },
+        {
+            "kind": "string",
+            "method": "whereKey",
+            "input": 0,
+            "ids": []
+        },
+        {
+            "kind": "string",
+            "method": "whereKeyNot",
+            "input": 0,
+            "ids": [
+                "",
+                "007",
+                "1",
+                "7",
+                "x' OR 1=1 --"
+            ]
+        },
+        {
+            "kind": "string",
+            "method": "orWhereKey",
+            "input": 0,
+            "ids": [
+                "1"
+            ]
+        },
+        {
+            "kind": "string",
+            "method": "orWhereKeyNot",
+            "input": 0,
+            "ids": [
+                "",
+                "007",
+                "1",
+                "7",
+                "x' OR 1=1 --"
+            ]
+        },
+        {
+            "kind": "string",
+            "method": "whereKey",
+            "input": 1,
+            "ids": [
+                "1"
+            ]
+        },
+        {
+            "kind": "string",
+            "method": "whereKeyNot",
+            "input": 1,
+            "ids": [
+                "",
+                "007",
+                "7",
+                "x' OR 1=1 --"
+            ]
+        },
+        {
+            "kind": "string",
+            "method": "orWhereKey",
+            "input": 1,
+            "ids": [
+                "1"
+            ]
+        },
+        {
+            "kind": "string",
+            "method": "orWhereKeyNot",
+            "input": 1,
+            "ids": [
+                "",
+                "007",
+                "1",
+                "7",
+                "x' OR 1=1 --"
+            ]
+        },
+        {
+            "kind": "string",
+            "method": "whereKey",
+            "input": 2,
+            "ids": []
+        },
+        {
+            "kind": "string",
+            "method": "whereKeyNot",
+            "input": 2,
+            "ids": [
+                "",
+                "007",
+                "1",
+                "7",
+                "x' OR 1=1 --"
+            ]
+        },
+        {
+            "kind": "string",
+            "method": "orWhereKey",
+            "input": 2,
+            "ids": [
+                "1"
+            ]
+        },
+        {
+            "kind": "string",
+            "method": "orWhereKeyNot",
+            "input": 2,
+            "ids": [
+                "",
+                "007",
+                "1",
+                "7",
+                "x' OR 1=1 --"
+            ]
+        },
+        {
+            "kind": "string",
+            "method": "whereKey",
+            "input": 3,
+            "ids": []
+        },
+        {
+            "kind": "string",
+            "method": "whereKeyNot",
+            "input": 3,
+            "ids": [
+                "",
+                "007",
+                "1",
+                "7",
+                "x' OR 1=1 --"
+            ]
+        },
+        {
+            "kind": "string",
+            "method": "orWhereKey",
+            "input": 3,
+            "ids": [
+                "1"
+            ]
+        },
+        {
+            "kind": "string",
+            "method": "orWhereKeyNot",
+            "input": 3,
+            "ids": [
+                "",
+                "007",
+                "1",
+                "7",
+                "x' OR 1=1 --"
+            ]
+        },
+        {
+            "kind": "string",
+            "method": "whereKey",
+            "input": 7,
+            "ids": [
+                "7"
+            ]
+        },
+        {
+            "kind": "string",
+            "method": "whereKeyNot",
+            "input": 7,
+            "ids": [
+                "",
+                "007",
+                "1",
+                "x' OR 1=1 --"
+            ]
+        },
+        {
+            "kind": "string",
+            "method": "orWhereKey",
+            "input": 7,
+            "ids": [
+                "1",
+                "7"
+            ]
+        },
+        {
+            "kind": "string",
+            "method": "orWhereKeyNot",
+            "input": 7,
+            "ids": [
+                "",
+                "007",
+                "1",
+                "x' OR 1=1 --"
+            ]
+        },
+        {
+            "kind": "string",
+            "method": "whereKey",
+            "input": "",
+            "ids": [
+                ""
+            ]
+        },
+        {
+            "kind": "string",
+            "method": "whereKeyNot",
+            "input": "",
+            "ids": [
+                "007",
+                "1",
+                "7",
+                "x' OR 1=1 --"
+            ]
+        },
+        {
+            "kind": "string",
+            "method": "orWhereKey",
+            "input": "",
+            "ids": [
+                "",
+                "1"
+            ]
+        },
+        {
+            "kind": "string",
+            "method": "orWhereKeyNot",
+            "input": "",
+            "ids": [
+                "007",
+                "1",
+                "7",
+                "x' OR 1=1 --"
+            ]
+        },
+        {
+            "kind": "string",
+            "method": "whereKey",
+            "input": "1",
+            "ids": [
+                "1"
+            ]
+        },
+        {
+            "kind": "string",
+            "method": "whereKeyNot",
+            "input": "1",
+            "ids": [
+                "",
+                "007",
+                "7",
+                "x' OR 1=1 --"
+            ]
+        },
+        {
+            "kind": "string",
+            "method": "orWhereKey",
+            "input": "1",
+            "ids": [
+                "1"
+            ]
+        },
+        {
+            "kind": "string",
+            "method": "orWhereKeyNot",
+            "input": "1",
+            "ids": [
+                "",
+                "007",
+                "1",
+                "7",
+                "x' OR 1=1 --"
+            ]
+        },
+        {
+            "kind": "string",
+            "method": "whereKey",
+            "input": "007",
+            "ids": [
+                "007"
+            ]
+        },
+        {
+            "kind": "string",
+            "method": "whereKeyNot",
+            "input": "007",
+            "ids": [
+                "",
+                "1",
+                "7",
+                "x' OR 1=1 --"
+            ]
+        },
+        {
+            "kind": "string",
+            "method": "orWhereKey",
+            "input": "007",
+            "ids": [
+                "007",
+                "1"
+            ]
+        },
+        {
+            "kind": "string",
+            "method": "orWhereKeyNot",
+            "input": "007",
+            "ids": [
+                "",
+                "1",
+                "7",
+                "x' OR 1=1 --"
+            ]
+        },
+        {
+            "kind": "string",
+            "method": "whereKey",
+            "input": "2suffix",
+            "ids": []
+        },
+        {
+            "kind": "string",
+            "method": "whereKeyNot",
+            "input": "2suffix",
+            "ids": [
+                "",
+                "007",
+                "1",
+                "7",
+                "x' OR 1=1 --"
+            ]
+        },
+        {
+            "kind": "string",
+            "method": "orWhereKey",
+            "input": "2suffix",
+            "ids": [
+                "1"
+            ]
+        },
+        {
+            "kind": "string",
+            "method": "orWhereKeyNot",
+            "input": "2suffix",
+            "ids": [
+                "",
+                "007",
+                "1",
+                "7",
+                "x' OR 1=1 --"
+            ]
+        },
+        {
+            "kind": "string",
+            "method": "whereKey",
+            "input": "x' OR 1=1 --",
+            "ids": [
+                "x' OR 1=1 --"
+            ]
+        },
+        {
+            "kind": "string",
+            "method": "whereKeyNot",
+            "input": "x' OR 1=1 --",
+            "ids": [
+                "",
+                "007",
+                "1",
+                "7"
+            ]
+        },
+        {
+            "kind": "string",
+            "method": "orWhereKey",
+            "input": "x' OR 1=1 --",
+            "ids": [
+                "1",
+                "x' OR 1=1 --"
+            ]
+        },
+        {
+            "kind": "string",
+            "method": "orWhereKeyNot",
+            "input": "x' OR 1=1 --",
+            "ids": [
+                "",
+                "007",
+                "1",
+                "7"
+            ]
+        },
+        {
+            "kind": "string",
+            "method": "whereKey",
+            "input": [],
+            "ids": []
+        },
+        {
+            "kind": "string",
+            "method": "whereKeyNot",
+            "input": [],
+            "ids": [
+                "",
+                "007",
+                "1",
+                "7",
+                "x' OR 1=1 --"
+            ]
+        },
+        {
+            "kind": "string",
+            "method": "orWhereKey",
+            "input": [],
+            "ids": [
+                "1"
+            ]
+        },
+        {
+            "kind": "string",
+            "method": "orWhereKeyNot",
+            "input": [],
+            "ids": [
+                "",
+                "007",
+                "1",
+                "7",
+                "x' OR 1=1 --"
+            ]
+        },
+        {
+            "kind": "string",
+            "method": "whereKey",
+            "input": [
+                1,
+                2,
+                3
+            ],
+            "ids": [
+                "1"
+            ]
+        },
+        {
+            "kind": "string",
+            "method": "whereKeyNot",
+            "input": [
+                1,
+                2,
+                3
+            ],
+            "ids": [
+                "",
+                "007",
+                "7",
+                "x' OR 1=1 --"
+            ]
+        },
+        {
+            "kind": "string",
+            "method": "orWhereKey",
+            "input": [
+                1,
+                2,
+                3
+            ],
+            "ids": [
+                "1"
+            ]
+        },
+        {
+            "kind": "string",
+            "method": "orWhereKeyNot",
+            "input": [
+                1,
+                2,
+                3
+            ],
+            "ids": [
+                "",
+                "007",
+                "1",
+                "7",
+                "x' OR 1=1 --"
+            ]
+        },
+        {
+            "kind": "string",
+            "method": "whereKey",
+            "input": [
+                "007",
+                "x' OR 1=1 --"
+            ],
+            "ids": [
+                "007",
+                "x' OR 1=1 --"
+            ]
+        },
+        {
+            "kind": "string",
+            "method": "whereKeyNot",
+            "input": [
+                "007",
+                "x' OR 1=1 --"
+            ],
+            "ids": [
+                "",
+                "1",
+                "7"
+            ]
+        },
+        {
+            "kind": "string",
+            "method": "orWhereKey",
+            "input": [
+                "007",
+                "x' OR 1=1 --"
+            ],
+            "ids": [
+                "007",
+                "1",
+                "x' OR 1=1 --"
+            ]
+        },
+        {
+            "kind": "string",
+            "method": "orWhereKeyNot",
+            "input": [
+                "007",
+                "x' OR 1=1 --"
+            ],
+            "ids": [
+                "",
+                "1",
+                "7"
+            ]
+        },
+        {
+            "kind": "string",
+            "method": "whereKey",
+            "input": [
+                "2suffix",
+                null
+            ],
+            "ids": []
+        },
+        {
+            "kind": "string",
+            "method": "whereKeyNot",
+            "input": [
+                "2suffix",
+                null
+            ],
+            "ids": []
+        },
+        {
+            "kind": "string",
+            "method": "orWhereKey",
+            "input": [
+                "2suffix",
+                null
+            ],
+            "ids": [
+                "1"
+            ]
+        },
+        {
+            "kind": "string",
+            "method": "orWhereKeyNot",
+            "input": [
+                "2suffix",
+                null
+            ],
+            "ids": [
+                "1"
+            ]
+        }
+    ],
+    "values": [
+        {
+            "method": "value",
+            "id": null,
+            "column": "label",
+            "result": {
+                "ok": "ADA"
+            }
+        },
+        {
+            "method": "value",
+            "id": null,
+            "column": "parity_model_keys.label",
+            "result": {
+                "ok": "ADA"
+            }
+        },
+        {
+            "method": "value",
+            "id": null,
+            "column": "nullable_value",
+            "result": {
+                "ok": null
+            }
+        },
+        {
+            "method": "value",
+            "id": 1,
+            "column": "label",
+            "result": {
+                "ok": "ADA"
+            }
+        },
+        {
+            "method": "value",
+            "id": 1,
+            "column": "parity_model_keys.label",
+            "result": {
+                "ok": "ADA"
+            }
+        },
+        {
+            "method": "value",
+            "id": 1,
+            "column": "nullable_value",
+            "result": {
+                "ok": null
+            }
+        },
+        {
+            "method": "value",
+            "id": 2,
+            "column": "label",
+            "result": {
+                "ok": "GRACE"
+            }
+        },
+        {
+            "method": "value",
+            "id": 2,
+            "column": "parity_model_keys.label",
+            "result": {
+                "ok": "GRACE"
+            }
+        },
+        {
+            "method": "value",
+            "id": 2,
+            "column": "nullable_value",
+            "result": {
+                "ok": null
+            }
+        },
+        {
+            "method": "value",
+            "id": 3,
+            "column": "label",
+            "result": {
+                "ok": null
+            }
+        },
+        {
+            "method": "value",
+            "id": 3,
+            "column": "parity_model_keys.label",
+            "result": {
+                "ok": null
+            }
+        },
+        {
+            "method": "value",
+            "id": 3,
+            "column": "nullable_value",
+            "result": {
+                "ok": null
+            }
+        },
+        {
+            "method": "value",
+            "id": 99,
+            "column": "label",
+            "result": {
+                "ok": null
+            }
+        },
+        {
+            "method": "value",
+            "id": 99,
+            "column": "parity_model_keys.label",
+            "result": {
+                "ok": null
+            }
+        },
+        {
+            "method": "value",
+            "id": 99,
+            "column": "nullable_value",
+            "result": {
+                "ok": null
+            }
+        },
+        {
+            "method": "soleValue",
+            "id": null,
+            "column": "label",
+            "result": {
+                "error": "MultipleModelsFound",
+                "count": 2
+            }
+        },
+        {
+            "method": "soleValue",
+            "id": null,
+            "column": "parity_model_keys.label",
+            "result": {
+                "error": "MultipleModelsFound",
+                "count": 2
+            }
+        },
+        {
+            "method": "soleValue",
+            "id": null,
+            "column": "nullable_value",
+            "result": {
+                "error": "MultipleModelsFound",
+                "count": 2
+            }
+        },
+        {
+            "method": "soleValue",
+            "id": 1,
+            "column": "label",
+            "result": {
+                "ok": "ADA"
+            }
+        },
+        {
+            "method": "soleValue",
+            "id": 1,
+            "column": "parity_model_keys.label",
+            "result": {
+                "ok": "ADA"
+            }
+        },
+        {
+            "method": "soleValue",
+            "id": 1,
+            "column": "nullable_value",
+            "result": {
+                "ok": null
+            }
+        },
+        {
+            "method": "soleValue",
+            "id": 2,
+            "column": "label",
+            "result": {
+                "ok": "GRACE"
+            }
+        },
+        {
+            "method": "soleValue",
+            "id": 2,
+            "column": "parity_model_keys.label",
+            "result": {
+                "ok": "GRACE"
+            }
+        },
+        {
+            "method": "soleValue",
+            "id": 2,
+            "column": "nullable_value",
+            "result": {
+                "ok": null
+            }
+        },
+        {
+            "method": "soleValue",
+            "id": 3,
+            "column": "label",
+            "result": {
+                "error": "ModelNotFound"
+            }
+        },
+        {
+            "method": "soleValue",
+            "id": 3,
+            "column": "parity_model_keys.label",
+            "result": {
+                "error": "ModelNotFound"
+            }
+        },
+        {
+            "method": "soleValue",
+            "id": 3,
+            "column": "nullable_value",
+            "result": {
+                "error": "ModelNotFound"
+            }
+        },
+        {
+            "method": "soleValue",
+            "id": 99,
+            "column": "label",
+            "result": {
+                "error": "ModelNotFound"
+            }
+        },
+        {
+            "method": "soleValue",
+            "id": 99,
+            "column": "parity_model_keys.label",
+            "result": {
+                "error": "ModelNotFound"
+            }
+        },
+        {
+            "method": "soleValue",
+            "id": 99,
+            "column": "nullable_value",
+            "result": {
+                "error": "ModelNotFound"
+            }
+        },
+        {
+            "method": "valueOrFail",
+            "id": null,
+            "column": "label",
+            "result": {
+                "ok": "ADA"
+            }
+        },
+        {
+            "method": "valueOrFail",
+            "id": null,
+            "column": "parity_model_keys.label",
+            "result": {
+                "ok": "ADA"
+            }
+        },
+        {
+            "method": "valueOrFail",
+            "id": null,
+            "column": "nullable_value",
+            "result": {
+                "ok": null
+            }
+        },
+        {
+            "method": "valueOrFail",
+            "id": 1,
+            "column": "label",
+            "result": {
+                "ok": "ADA"
+            }
+        },
+        {
+            "method": "valueOrFail",
+            "id": 1,
+            "column": "parity_model_keys.label",
+            "result": {
+                "ok": "ADA"
+            }
+        },
+        {
+            "method": "valueOrFail",
+            "id": 1,
+            "column": "nullable_value",
+            "result": {
+                "ok": null
+            }
+        },
+        {
+            "method": "valueOrFail",
+            "id": 2,
+            "column": "label",
+            "result": {
+                "ok": "GRACE"
+            }
+        },
+        {
+            "method": "valueOrFail",
+            "id": 2,
+            "column": "parity_model_keys.label",
+            "result": {
+                "ok": "GRACE"
+            }
+        },
+        {
+            "method": "valueOrFail",
+            "id": 2,
+            "column": "nullable_value",
+            "result": {
+                "ok": null
+            }
+        },
+        {
+            "method": "valueOrFail",
+            "id": 3,
+            "column": "label",
+            "result": {
+                "error": "ModelNotFound"
+            }
+        },
+        {
+            "method": "valueOrFail",
+            "id": 3,
+            "column": "parity_model_keys.label",
+            "result": {
+                "error": "ModelNotFound"
+            }
+        },
+        {
+            "method": "valueOrFail",
+            "id": 3,
+            "column": "nullable_value",
+            "result": {
+                "error": "ModelNotFound"
+            }
+        },
+        {
+            "method": "valueOrFail",
+            "id": 99,
+            "column": "label",
+            "result": {
+                "error": "ModelNotFound"
+            }
+        },
+        {
+            "method": "valueOrFail",
+            "id": 99,
+            "column": "parity_model_keys.label",
+            "result": {
+                "error": "ModelNotFound"
+            }
+        },
+        {
+            "method": "valueOrFail",
+            "id": 99,
+            "column": "nullable_value",
+            "result": {
+                "error": "ModelNotFound"
+            }
+        }
+    ]
+}

@@ -385,3 +385,15 @@ fn register<M: Model + Clone>(app: &Application) -> DatabaseResult<()> {
     M::observeAfterCommit(app, ArticleCommitted)
 }
 ```
+
+## 主鍵與單值查詢 {#keys-and-single-values}
+
+`whereKey`、`whereKeyNot`、`orWhereKey`、`orWhereKeyNot` 接收單值、`Vec` 或陣列。整數主鍵列表使用整數條件，字串主鍵列表使用綁定值；正向空列表不符合任何列，反向空列表符合全部列。主鍵欄位帶模型表限定，OR 條件仍受全域作用域約束。字串主鍵模型應覆寫 `getKeyType()` 回傳 `ModelKeyType::String`，此時單值主鍵依字串轉換。傳模型實例時，明確傳入其 `getKey()` 的值。動態條件可用 `eloquent::Key` 表示單值或列表。
+
+```rust
+let mut query = User::query()?;
+query.whereKey([1, 2, 3]).orWhereKeyNot(4);
+let users = query.get().await?;
+```
+
+`value(column)` 回傳首個模型的屬性，無結果回傳 `Value::Null`。`valueOrFail(column)` 在無結果時回傳模型不存在錯誤。`sole()` 和 `soleValue(column)` 要求恰好一列：零列回傳模型不存在錯誤，多列回傳 `DatabaseError::MultipleModelsFound`。這些介面經過模型水合，保留存取器、型別轉換、檢索事件與全域作用域。已選欄位不會被覆蓋；只選擇 `id` 後查詢其他屬性，不會自動補查。實際列的欄位為 SQL NULL 時，`valueOrFail` 仍回傳 `Value::Null`。

@@ -197,6 +197,10 @@ impl<'connection> Builder<'connection> {
         self
     }
 
+    pub(in crate::database) fn has_columns(&self) -> bool {
+        !self.columns.is_empty()
+    }
+
     pub fn select<C: Into<Column>>(mut self, columns: impl IntoIterator<Item = C>) -> Self {
         self.columns.clear();
         self.addSelect(columns)

@@ -385,3 +385,15 @@ fn register<M: Model + Clone>(app: &Application) -> DatabaseResult<()> {
     M::observeAfterCommit(app, ArticleCommitted)
 }
 ```
+
+## Primary Keys and Single Values {#keys-and-single-values}
+
+`whereKey`, `whereKeyNot`, `orWhereKey` and `orWhereKeyNot` accept a scalar, a `Vec` or an array. Integer-key lists use integer conditions; string-key lists use bound values. Empty positive lists match nothing and empty negative lists match everything. Key columns are qualified with the model table, and OR conditions remain grouped under global scopes. Models with string keys override `getKeyType()` to return `ModelKeyType::String`; scalar keys then use string conversion. To filter by a model instance, explicitly pass its `getKey()` value. `eloquent::Key` represents the scalar/list alternative when building dynamic conditions.
+
+```rust
+let mut query = User::query()?;
+query.whereKey([1, 2, 3]).orWhereKeyNot(4);
+let users = query.get().await?;
+```
+
+`value(column)` returns the first model's attribute or `Value::Null` for no row. `valueOrFail(column)` returns a model-not-found error for no row. `sole()` and `soleValue(column)` require exactly one row; zero rows return a model-not-found error and multiple rows return `DatabaseError::MultipleModelsFound`. These methods hydrate models and retain accessors, casts, retrieved events and global scopes. Existing selected columns are preserved; selecting only `id` does not implicitly fetch another requested attribute. A present row containing SQL NULL still returns `Value::Null` from `valueOrFail`.

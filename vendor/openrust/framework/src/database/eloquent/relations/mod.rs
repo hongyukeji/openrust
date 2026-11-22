@@ -10,6 +10,7 @@ mod has_one;
 mod has_one_through;
 mod key_chunks;
 mod lookup;
+pub(super) use lookup::sole_match;
 mod morph_many;
 mod morph_map;
 mod morph_one;
