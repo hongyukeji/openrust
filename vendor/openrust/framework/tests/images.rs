@@ -7,6 +7,10 @@ use openrust::image::{
     Transformation,
 };
 
+fn image_reference() -> serde_json::Value {
+    serde_json::from_str(include_str!("reference/image-lifecycle.json")).unwrap()
+}
+
 fn sample() -> Vec<u8> {
     let colors = RgbaImage::from_fn(12, 6, |x, _| {
         if x < 6 {
@@ -63,6 +67,7 @@ async fn decodes_real_images_and_encodes_each_supported_output() {
         source
             .clone()
             .resize(Some(6), None)
+            .unwrap()
             .dimensions()
             .await
             .unwrap(),
@@ -72,6 +77,7 @@ async fn decodes_real_images_and_encodes_each_supported_output() {
         source
             .clone()
             .scale(Some(40), Some(40))
+            .unwrap()
             .dimensions()
             .await
             .unwrap(),
@@ -166,9 +172,20 @@ async fn reads_exif_orientation_and_checks_inputs_and_limits() {
         .write_with_encoder(encoder)
         .unwrap();
     let manager = ImageManager::new(Limits::default());
-    let image = manager.fromBytes(jpeg);
+    let image = manager.fromBytes(jpeg.clone());
     assert_eq!(image.dimensions().await.unwrap(), (8, 3));
     assert_eq!(image.orient().dimensions().await.unwrap(), (3, 8));
+    // 覆盖 Orient 后没有执行内置旋转，不能擅自将 EXIF 方向改成正向。
+    manager
+        .transformUsing("image", "Orient", Arc::new(|_, _| Ok(())))
+        .unwrap();
+    let unrotated = manager.fromBytes(jpeg).orient().toBytes().await.unwrap();
+    let mut decoder = ::image::codecs::jpeg::JpegDecoder::new(Cursor::new(unrotated)).unwrap();
+    use ::image::ImageDecoder as _;
+    assert_eq!(
+        decoder.orientation().unwrap(),
+        ::image::metadata::Orientation::Rotate90
+    );
 
     let png = sample();
     let limited = ImageManager::new(Limits {
@@ -247,7 +264,13 @@ async fn applies_custom_driver_and_keeps_manager_registrations_isolated() {
     }
     let left = ImageManager::new(Limits::default());
     let right = ImageManager::new(Limits::default());
-    left.extend("probe", Probe);
+    left.extend("probe", Probe).unwrap();
+    assert!(matches!(
+        left.driver(Some("probe"))
+            .unwrap()
+            .transformUsing("Probe", Arc::new(|_, _| Ok(()))),
+        Err(Error::UnsupportedTransformationHandler)
+    ));
     let image = left
         .fromBytes(sample())
         .using("probe")
@@ -447,6 +470,7 @@ async fn preserves_composited_frames_delays_and_finite_repeats_across_animation_
     let render = source
         .flipHorizontally()
         .resize(Some(8), Some(6))
+        .unwrap()
         .quality(100);
     let mut outputs = Vec::new();
     for format in [Format::Gif, Format::Png, Format::Webp] {
@@ -597,7 +621,12 @@ async fn bounds_animation_work_and_rejects_damage_after_the_first_frame() {
     let source = limited.fromBytes(eight_frames.clone());
     assert!(source.toBytes().await.is_ok());
     assert!(matches!(
-        source.resize(Some(8), Some(3)).toWebp().toBytes().await,
+        source
+            .resize(Some(8), Some(3))
+            .unwrap()
+            .toWebp()
+            .toBytes()
+            .await,
         Err(Error::AnimationTooLarge)
     ));
     let smaller = ImageManager::new(Limits {
@@ -679,7 +708,8 @@ async fn avif_heic_and_jpeg_xl_sequence_round_trips() {
     ] {
         let source = manager
             .fromBytes(gif_sample(repeat))
-            .resize(Some(16), Some(12));
+            .resize(Some(16), Some(12))
+            .unwrap();
         for format in [Format::Avif, Format::Heic, Format::Jxl] {
             let bytes = source
                 .clone()
@@ -841,7 +871,7 @@ async fn preserves_jpeg_iptc_and_comments_after_a_transform() {
         profiles.extend_from_slice(&payload);
     }
     let input = [jpeg[..2].as_ref(), profiles.as_slice(), &jpeg[2..]].concat();
-    let image = manager.fromBytes(input).resize(Some(12), Some(16));
+    let image = manager.fromBytes(input).resize(Some(12), Some(16)).unwrap();
     let output = image.clone().toJpeg().toBytes().await.unwrap();
     let mut decoder = JpegDecoder::new(Cursor::new(&output)).unwrap();
     assert_eq!(decoder.dimensions(), (12, 16));
@@ -947,6 +977,7 @@ async fn preserves_external_heif_metadata_on_the_original_display_frames() {
             let converted = manager
                 .fromBytes(fixture.to_vec())
                 .resize(Some(20), Some(14))
+                .unwrap()
                 .flipHorizontally()
                 .encode(target)
                 .quality(100)
@@ -979,4 +1010,501 @@ async fn preserves_external_heif_metadata_on_the_original_display_frames() {
             }
         }
     }
+}
+
+#[tokio::test]
+async fn flip_and_flop_follow_vertical_and_horizontal_pixel_directions() {
+    let pixels = RgbaImage::from_fn(2, 2, |x, y| Rgba([(x + 2 * y) as u8 * 50, 0, 0, 255]));
+    let mut encoded = Cursor::new(Vec::new());
+    DynamicImage::ImageRgba8(pixels.clone())
+        .write_to(&mut encoded, ImageFormat::Png)
+        .unwrap();
+    let manager = ImageManager::new(Limits::default());
+    let image = manager.fromBytes(encoded.into_inner());
+    let vertical = ::image::load_from_memory(&image.clone().flip().toBytes().await.unwrap())
+        .unwrap()
+        .into_rgba8();
+    let horizontal = ::image::load_from_memory(&image.flop().toBytes().await.unwrap())
+        .unwrap()
+        .into_rgba8();
+    assert_eq!(vertical, ::image::imageops::flip_vertical(&pixels));
+    assert_eq!(horizontal, ::image::imageops::flip_horizontal(&pixels));
+}
+
+#[tokio::test]
+async fn native_driver_handlers_modify_real_pixels_in_pipeline_order_and_override_builtins() {
+    use openrust::image::NativeImage;
+    use std::sync::Mutex;
+    let manager = ImageManager::new(Limits::default());
+    let other = ImageManager::new(Limits::default());
+    let driver = manager.driver(None).unwrap();
+    let observed = Arc::new(Mutex::new(Vec::new()));
+    let seen = observed.clone();
+    driver
+        .transformUsing(
+            "Probe",
+            Arc::new(move |image, transformation| {
+                let Transformation::Custom { options, .. } = transformation else {
+                    panic!("wrong transformation")
+                };
+                assert_eq!(options["value"], 9);
+                let image = image
+                    .downcast_mut::<NativeImage>()
+                    .ok_or(Error::InvalidTransformation)?;
+                assert_eq!(image.width(), 12);
+                *image = image.fliph();
+                seen.lock().unwrap().push("Probe");
+                Ok(())
+            }),
+        )
+        .unwrap();
+    let seen = observed.clone();
+    driver
+        .transformUsing(
+            "Resize",
+            Arc::new(move |image, transformation| {
+                assert!(matches!(
+                    transformation,
+                    Transformation::Resize(Some(3), Some(2))
+                ));
+                let image = image
+                    .downcast_mut::<NativeImage>()
+                    .ok_or(Error::InvalidTransformation)?;
+                *image = image.crop_imm(0, 0, 3, 2);
+                seen.lock().unwrap().push("Resize");
+                Ok(())
+            }),
+        )
+        .unwrap();
+    let custom = || Transformation::Custom {
+        name: "Probe".into(),
+        options: serde_json::json!({"value":9}),
+    };
+    let image = manager
+        .fromBytes(sample())
+        .transform(custom())
+        .resize(Some(3), Some(2))
+        .unwrap();
+    let output = image.toBytes().await.unwrap();
+    assert_eq!(image.toBytes().await.unwrap(), output);
+    assert_eq!(*observed.lock().unwrap(), ["Probe", "Resize"]);
+    let pixels = ::image::load_from_memory(&output).unwrap().into_rgba8();
+    assert_eq!(pixels.dimensions(), (3, 2));
+    assert_eq!(pixels.get_pixel(0, 0), &Rgba([0, 0, 255, 255]));
+    assert!(matches!(
+        other
+            .fromBytes(sample())
+            .transform(custom())
+            .toBytes()
+            .await,
+        Err(Error::InvalidTransformation)
+    ));
+    assert_eq!(
+        driver
+            .dimensions(sample().into(), Limits::default())
+            .unwrap(),
+        (12, 6)
+    );
+}
+
+#[tokio::test]
+async fn custom_handlers_propagate_errors_enforce_limits_and_process_animation_frames() {
+    use openrust::image::NativeImage;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let manager = ImageManager::new(Limits {
+        max_dimension: 20,
+        ..Limits::default()
+    });
+    let driver = manager.driver(None).unwrap();
+    let calls = Arc::new(AtomicUsize::new(0));
+    let seen = calls.clone();
+    driver
+        .transformUsing(
+            "Probe",
+            Arc::new(move |image, _| {
+                let image = image
+                    .downcast_mut::<NativeImage>()
+                    .ok_or(Error::InvalidTransformation)?;
+                *image = image.fliph();
+                seen.fetch_add(1, Ordering::SeqCst);
+                Ok(())
+            }),
+        )
+        .unwrap();
+    let custom = || Transformation::Custom {
+        name: "Probe".into(),
+        options: serde_json::Value::Null,
+    };
+    let animated = manager
+        .fromBytes(gif_sample(Some(gif::Repeat::Infinite)))
+        .transform(custom());
+    let frames = frames_for(&animated.toBytes().await.unwrap(), Format::Gif);
+    assert_eq!(frames.len(), 3);
+    assert_eq!(calls.load(Ordering::SeqCst), 3);
+    driver
+        .transformUsing(
+            "Probe",
+            Arc::new(|_, _| Err(Error::Io(std::io::Error::other("转换失败")))),
+        )
+        .unwrap();
+    let error = manager
+        .fromBytes(sample())
+        .transform(custom())
+        .toBytes()
+        .await
+        .unwrap_err();
+    assert!(matches!(error, Error::Io(ref error) if error.to_string()=="转换失败"));
+    driver
+        .transformUsing(
+            "Probe",
+            Arc::new(|image, _| {
+                *image
+                    .downcast_mut::<NativeImage>()
+                    .ok_or(Error::InvalidTransformation)? = NativeImage::new_rgba8(21, 1);
+                Ok(())
+            }),
+        )
+        .unwrap();
+    assert!(matches!(
+        manager
+            .fromBytes(sample())
+            .transform(custom())
+            .toBytes()
+            .await,
+        Err(Error::DimensionsTooLarge)
+    ));
+    assert!(
+        matches!(manager.fromBytes(sample()).usingGd().cover(1,1).toBytes().await,Err(Error::UnknownDriver(name)) if name=="gd")
+    );
+    assert!(
+        matches!(manager.fromBytes(sample()).usingImagick().cover(1,1).toBytes().await,Err(Error::UnknownDriver(name)) if name=="imagick")
+    );
+}
+
+#[tokio::test]
+async fn handler_can_register_a_later_pipeline_handler_without_holding_the_registry_lock() {
+    let manager = ImageManager::new(Limits::default());
+    let driver = manager.driver(None).unwrap();
+    let weak = Arc::downgrade(&driver);
+    driver
+        .transformUsing(
+            "First",
+            Arc::new(move |_, _| {
+                weak.upgrade()
+                    .unwrap()
+                    .transformUsing("Second", Arc::new(|_, _| Err(Error::InvalidTransformation)))
+            }),
+        )
+        .unwrap();
+    let output = manager
+        .fromBytes(sample())
+        .transform(Transformation::Custom {
+            name: "First".into(),
+            options: serde_json::Value::Null,
+        })
+        .transform(Transformation::Custom {
+            name: "Second".into(),
+            options: serde_json::Value::Null,
+        })
+        .toBytes()
+        .await;
+    assert!(matches!(output, Err(Error::InvalidTransformation)));
+}
+
+#[tokio::test]
+async fn lazy_source_is_shared_and_processed_branches_do_not_repeat_prior_transformations() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let manager = ImageManager::new(Limits::default());
+    let calls = Arc::new(AtomicUsize::new(0));
+    let seen = calls.clone();
+    manager
+        .transformUsing(
+            "image",
+            "Probe",
+            Arc::new(move |_, _| {
+                seen.fetch_add(1, Ordering::SeqCst);
+                Ok(())
+            }),
+        )
+        .unwrap();
+    let file = tempfile::NamedTempFile::new().unwrap();
+    std::fs::write(file.path(), sample()).unwrap();
+    let source = manager.fromPath(file.path());
+    let processed = source.clone().transform(Transformation::Custom {
+        name: "Probe".into(),
+        options: serde_json::Value::Null,
+    });
+    let first = processed.toBytes().await.unwrap();
+    std::fs::write(file.path(), b"changed after first successful load").unwrap();
+    assert_eq!(processed.dominantColor().await.unwrap(), "#800080");
+    assert_eq!(processed.dominantColor().await.unwrap(), "#800080");
+    assert_eq!(source.flop().dimensions().await.unwrap(), (12, 6));
+    assert_eq!(processed.clone().toPng().toBytes().await.unwrap(), first);
+    assert_eq!(
+        calls.load(Ordering::SeqCst) as u64,
+        image_reference()["custom_calls"].as_u64().unwrap()
+    );
+    let base_name = processed.hashName("").await.unwrap();
+    assert_eq!(
+        base_name.len() as u64,
+        image_reference()["hash_length"].as_u64().unwrap()
+    );
+    assert_eq!(
+        processed.hashName("avatars").await.unwrap(),
+        format!("avatars/{base_name}")
+    );
+    assert_eq!(processed.hashName("0").await.unwrap(), base_name);
+    assert_eq!(
+        processed.clone().toPng().hashName("").await.unwrap(),
+        base_name
+    );
+    assert_eq!(
+        processed.toString().await.unwrap(),
+        processed.toDataUri().await.unwrap()
+    );
+}
+
+#[tokio::test]
+async fn manager_retains_handlers_before_custom_driver_registration() {
+    struct Forward(Arc<dyn Driver>);
+    #[allow(non_snake_case)]
+    impl Driver for Forward {
+        fn process(
+            &self,
+            bytes: Bytes,
+            pipeline: &ImagePipeline,
+            limits: Limits,
+        ) -> openrust::image::Result<EncodedImage> {
+            self.0.process(bytes, pipeline, limits)
+        }
+        fn dominantColor(
+            &self,
+            bytes: Bytes,
+            pipeline: &ImagePipeline,
+            limits: Limits,
+        ) -> openrust::image::Result<String> {
+            self.0.dominantColor(bytes, pipeline, limits)
+        }
+        fn transformUsing(
+            &self,
+            name: &str,
+            callback: openrust::image::TransformationHandler,
+        ) -> openrust::image::Result<()> {
+            self.0.transformUsing(name, callback)
+        }
+    }
+    let manager = ImageManager::new(Limits::default());
+    assert_eq!(manager.getDefaultDriver(), "image");
+    manager
+        .transformUsing(
+            "custom",
+            "Probe",
+            Arc::new(|_, _| Err(Error::InvalidTransformation)),
+        )
+        .unwrap();
+    manager
+        .extend(
+            "custom",
+            Forward(ImageManager::new(Limits::default()).driver(None).unwrap()),
+        )
+        .unwrap();
+    assert!(manager.getDrivers().contains_key("custom"));
+    let result = manager
+        .fromBytes(sample())
+        .using("custom")
+        .transform(Transformation::Custom {
+            name: "Probe".into(),
+            options: serde_json::Value::Null,
+        })
+        .toBytes()
+        .await;
+    assert!(matches!(result, Err(Error::InvalidTransformation)));
+    manager
+        .transformUsing("custom", "Probe", Arc::new(|_, _| Ok(())))
+        .unwrap();
+    assert!(
+        manager
+            .fromBytes(sample())
+            .using("custom")
+            .transform(Transformation::Custom {
+                name: "Probe".into(),
+                options: serde_json::Value::Null
+            })
+            .toBytes()
+            .await
+            .is_ok()
+    );
+}
+
+fn image_response(
+    _: &mut openrust::http::Request,
+) -> openrust::http::HttpFuture<'_, Result<openrust::image::Image, openrust::http::HttpError>> {
+    Box::pin(async {
+        let facade = &openrust::support::facades::Image::getDefaultDriver().unwrap();
+        assert_eq!(facade, "image");
+        openrust::support::facades::Config::set("images.default", "missing".into()).unwrap();
+        assert_eq!(
+            openrust::support::facades::Image::getDefaultDriver().unwrap(),
+            "missing"
+        );
+        assert!(
+            matches!(openrust::support::facades::Image::driver(None), Err(Error::UnknownDriver(name)) if name=="missing")
+        );
+        openrust::support::facades::Config::set("images.default", "image".into()).unwrap();
+        openrust::support::facades::Image::transformUsing(
+            "image",
+            "Probe",
+            Arc::new(|_, _| Ok(())),
+        )
+        .unwrap();
+        assert!(
+            openrust::support::facades::Image::getDrivers()
+                .unwrap()
+                .contains_key("image")
+        );
+        assert_eq!(
+            openrust::support::facades::Image::driver(None)
+                .unwrap()
+                .dimensions(sample().into(), Limits::default())
+                .unwrap(),
+            (12, 6)
+        );
+        let image = openrust::support::facades::Image::fromBytes(sample())
+            .unwrap()
+            .transform(Transformation::Custom {
+                name: "Probe".into(),
+                options: serde_json::Value::Null,
+            })
+            .cover(3, 3);
+        let first = image.store("avatars", None).await.unwrap();
+        assert_eq!(image.store("avatars", None).await.unwrap(), first);
+        assert_eq!(first, Some(image.hashName("avatars").await.unwrap()));
+        assert_eq!(
+            image.storeAs("/single.png/", None, None).await.unwrap(),
+            image_reference()["store_null"].as_str().map(str::to_owned)
+        );
+        assert_eq!(
+            image
+                .storeAs("/avatars/", "/named.png/", None)
+                .await
+                .unwrap(),
+            image_reference()["store_slashes"]
+                .as_str()
+                .map(str::to_owned)
+        );
+        assert_eq!(
+            image
+                .storePubliclyAs("/public.png/", None, None)
+                .await
+                .unwrap(),
+            image_reference()["store_public_null"]
+                .as_str()
+                .map(str::to_owned)
+        );
+        Ok(image)
+    })
+}
+#[tokio::test]
+async fn image_facade_and_responsable_return_real_image_response() {
+    use openrust::{foundation::configuration::Routing, support::facades::Route, testing::TestApp};
+    let mut app = TestApp::create(|builder| {
+        builder.withConfig(|base, _|Ok(std::collections::BTreeMap::from([("filesystems".into(),serde_json::json!({"default":"test","disks":{"test":{"driver":"local","root":base.join("images"),"throw":true}}}))]))).withRouting(Routing::default().web(|| {
+            Route::get("/image", image_response)?;
+            Ok(())
+        }))
+    })
+    .unwrap();
+    let response = app.get("/image").await.unwrap();
+    response
+        .assertOk()
+        .assertHeader("content-type", "image/png");
+    let pixels = ::image::load_from_memory(response.body()).unwrap();
+    assert_eq!((pixels.width(), pixels.height()), (3, 3));
+}
+
+#[tokio::test]
+async fn image_builders_reject_missing_dimensions_and_normalize_bounds_before_handlers() {
+    let manager = ImageManager::new(Limits::default());
+    assert!(matches!(
+        manager.fromBytes(sample()).resize(None, None),
+        Err(Error::InvalidDimensions)
+    ));
+    assert!(matches!(
+        manager.fromBytes(sample()).scale(None, None),
+        Err(Error::InvalidDimensions)
+    ));
+    assert_eq!(
+        manager
+            .fromBytes(sample())
+            .resize(Some(0), Some(0))
+            .unwrap()
+            .dimensions()
+            .await
+            .unwrap(),
+        (1, 1)
+    );
+    assert_eq!(
+        manager
+            .fromBytes(sample())
+            .cover(0, 0)
+            .dimensions()
+            .await
+            .unwrap(),
+        (1, 1)
+    );
+    assert_eq!(
+        manager
+            .fromBytes(sample())
+            .contain(0, 0, Background::Transparent)
+            .dimensions()
+            .await
+            .unwrap(),
+        (1, 1)
+    );
+    assert_eq!(
+        manager
+            .fromBytes(sample())
+            .crop(0, 0, 0, 0)
+            .dimensions()
+            .await
+            .unwrap(),
+        (1, 1)
+    );
+    manager
+        .transformUsing(
+            "image",
+            "Blur",
+            Arc::new(|_, step| {
+                assert!(matches!(step, Transformation::Blur(100)));
+                Ok(())
+            }),
+        )
+        .unwrap();
+    manager
+        .transformUsing(
+            "image",
+            "Sharpen",
+            Arc::new(|_, step| {
+                assert!(matches!(step, Transformation::Sharpen(100)));
+                Ok(())
+            }),
+        )
+        .unwrap();
+    manager
+        .fromBytes(sample())
+        .blur(255)
+        .sharpen(255)
+        .toBytes()
+        .await
+        .unwrap();
+    // 未进行转换时不会为了读取原始字节去解析尚未安装的驱动。
+    assert_eq!(
+        manager
+            .fromBytes(sample())
+            .usingGd()
+            .toBytes()
+            .await
+            .unwrap(),
+        sample()
+    );
 }

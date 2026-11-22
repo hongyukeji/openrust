@@ -8,6 +8,10 @@
 
 变换按追加顺序执行。`resize` 接收可选的宽和高。`scale` 保持宽高比且不会放大。`cover` 裁剪并填满目标尺寸，`contain` 保留整张图像并填充空白。还支持裁剪、EXIF 方向、旋转、模糊、灰度、锐化和翻转。用克隆分出处理链，通过 `toBytes().await?`、`toBase64().await?` 或 `toDataUri().await?` 获取结果。
 
+`flip()` 垂直翻转，`flop()` 水平翻转。`resize(width, height)` 和 `scale(width, height)` 返回 `Result<Image>`，两个尺寸都缺失时立即报错；传入的零尺寸归一为 1。模糊和锐化强度在交给驱动处理器之前限制为最大 100。
+
+成功加载的来源在分支之间共享。修改已渲染的图像时以处理后的字节为起点，不重复此前的变换。`hashName("").await?` 返回该图像稳定的文件名，`store` 复用此名称；`hashName("avatars").await?` 添加路径前缀。`toString().await?` 返回数据 URI。路由处理器可直接返回 `Image` 或 `Result<Image, HttpError>`，响应包含图像字节及对应 MIME 类型。
+
 ```rust
 use openrust::image::{ImageManager, Limits};
 
@@ -38,6 +42,8 @@ AVIF 与 HEIC 序列的变换和相互转换保留每个显示帧各自的 ICC�
 
 `store` 按编码格式生成文件名。`storeAs` 使用指定文件名，`storePublicly` 和 `storePubliclyAs` 请求公开可见性。磁盘写入成功后返回存储路径。
 
+`storeAs("avatar.png", None, None).await?` 将第一个参数作为完整文件名；同时指定目录和名称时，只去掉合并路径两端的斜杠。
+
 ## 检查图像 {#inspecting-images}
 
 用 `mimeType`、`extension`、`dimensions`、`width` 和 `height` 检查处理后的结果。`dominantColor` 返回按透明度加权的 RGB 平均色，格式为十六进制。
@@ -47,3 +53,34 @@ AVIF 与 HEIC 序列的变换和相互转换保留每个显示帧各自的 ICC�
 应用默认使用 `image` 驱动。`IMAGE_DRIVER` 可选择已注册的驱动。用 `Image::extend` 注册 `Driver` 实现，用 `using` 为图像选择驱动。默认限制为每个输入 32 MiB、每边 16,384 像素、每张图像 2,400 万像素。
 
 内置驱动读写 JPEG、PNG、GIF、WebP、AVIF、HEIC、JPEG XL 和 BMP。可用 `toAvif()`、`toHeic()`、`toJxl()` 或 `toFormat("heif")` 转换格式。`heif` 别名输出扩展名为 `.heic`、MIME 类型为 `image/heic` 的文件。JPEG、WebP、AVIF、HEIC 和 JPEG XL 应用指定质量。WebP 和 JPEG XL 在质量为 100 时采用无损编码。编解码均在 Rust 中运行。
+
+### 自定义转换处理器 {#custom-transformation-handlers}
+
+用 `Image::transformUsing(driver, name, callback)?` 或 `ImageManager` 的同名方法为指定驱动注册处理器。也可先注册处理器，再通过 `extend` 注册应用驱动；管理器的 `extend` 返回 `Result`。驱动契约提供 `transformUsing` 和 `dimensions`；不支持扩展处理器的驱动返回 `UnsupportedTransformationHandler`。`Image::driver(None)?`、`getDefaultDriver()` 和 `getDrivers()` 提供当前配置驱动与已注册实例。
+
+```rust
+use std::sync::Arc;
+use openrust::image::{Error, NativeImage, Transformation};
+use openrust::support::facades::Image;
+
+Image::transformUsing(
+    "image",
+    "app::Invert",
+    Arc::new(|native, _transformation| {
+        let image = native.downcast_mut::<NativeImage>()
+            .ok_or(Error::InvalidTransformation)?;
+        image.invert();
+        Ok(())
+    }),
+)?;
+let output = Image::fromBytes(bytes)?
+    .transform(Transformation::Custom {
+        name: "app::Invert".into(),
+        options: serde_json::Value::Null,
+    })
+    .toBytes().await?;
+```
+
+内置转换使用变体原名，如 `Resize` 或 `Grayscale`，同名处理器覆盖内置操作。自定义转换使用传入名称，建议加应用命名空间以避免冲突。回调接收驱动实际对象的 `&mut dyn Any`，内置驱动使用 `NativeImage`；返回错误即停止流水线。原生动画处理器逐个处理参与转换的帧，修改后的帧仍须符合配置限额。
+
+`usingGd()` 和 `usingImagick()` 分别选择应用已注册的 `gd` 和 `imagick` 驱动。框架内置原生 `image` 后端；转换需要的后端未注册时返回 `UnknownDriver`，原样读取字节不解析所选后端。

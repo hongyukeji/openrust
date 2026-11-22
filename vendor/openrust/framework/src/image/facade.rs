@@ -17,16 +17,20 @@ use crate::{
 };
 
 use super::{
-    Driver, Error, Image, Limits, Result,
+    Driver, Error, Image, Limits, Result, TransformationHandler,
     instance::{Source, read_bounded},
     native_driver::NativeDriver,
 };
+
+type TransformationHandlers = HashMap<String, indexmap::IndexMap<String, TransformationHandler>>;
 
 /// Resolves named drivers and limits processing within one application.
 #[derive(Clone)]
 pub struct ImageManager {
     default: Arc<str>,
+    config: Option<Arc<dyn Repository>>,
     drivers: Arc<RwLock<HashMap<String, Arc<dyn Driver>>>>,
+    transformation_handlers: Arc<RwLock<TransformationHandlers>>,
     limits: Limits,
     workers: Arc<Semaphore>,
     http: Option<Arc<Factory>>,
@@ -37,10 +41,12 @@ impl ImageManager {
     pub fn new(limits: Limits) -> Self {
         Self {
             default: "image".into(),
+            config: None,
             drivers: Arc::new(RwLock::new(HashMap::from([(
                 "image".into(),
-                Arc::new(NativeDriver) as Arc<dyn Driver>,
+                Arc::new(NativeDriver::default()) as Arc<dyn Driver>,
             )]))),
+            transformation_handlers: Arc::default(),
             limits,
             workers: Arc::new(Semaphore::new(
                 std::thread::available_parallelism()
@@ -51,21 +57,74 @@ impl ImageManager {
         }
     }
 
-    pub fn extend(&self, name: impl Into<String>, driver: impl Driver) {
+    pub fn extend(&self, name: impl Into<String>, driver: impl Driver) -> Result<&Self> {
+        let name = name.into();
+        let handlers = self
+            .transformation_handlers
+            .read()
+            .map_err(|_| Error::Io(std::io::Error::other("图片转换处理器锁中毒")))?
+            .get(&name)
+            .cloned()
+            .unwrap_or_default();
+        for (transformation, callback) in handlers {
+            driver.transformUsing(&transformation, callback)?;
+        }
         self.drivers
             .write()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .insert(name.into(), Arc::new(driver));
+            .insert(name, Arc::new(driver));
+        Ok(self)
     }
 
-    pub fn driver(&self, name: Option<&str>) -> Result<Arc<dyn Driver>> {
-        let name = name.unwrap_or(&self.default);
+    pub fn transformUsing(
+        &self,
+        driver: &str,
+        transformation: &str,
+        callback: TransformationHandler,
+    ) -> Result<&Self> {
+        self.transformation_handlers
+            .write()
+            .map_err(|_| Error::Io(std::io::Error::other("图片转换处理器锁中毒")))?
+            .entry(driver.to_owned())
+            .or_default()
+            .insert(transformation.to_owned(), callback.clone());
+        let resolved = self
+            .drivers
+            .read()
+            .map_err(|_| Error::Io(std::io::Error::other("图片驱动锁中毒")))?
+            .get(driver)
+            .cloned();
+        if let Some(resolved) = resolved {
+            resolved.transformUsing(transformation, callback)?;
+        }
+        Ok(self)
+    }
+
+    pub fn getDefaultDriver(&self) -> String {
+        self.config
+            .as_ref()
+            .and_then(|config| config.get("images.default"))
+            .and_then(|value| value.as_str().map(str::to_owned))
+            .unwrap_or_else(|| self.default.to_string())
+    }
+
+    pub fn getDrivers(&self) -> HashMap<String, Arc<dyn Driver>> {
         self.drivers
             .read()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .get(name)
+            .clone()
+    }
+
+    pub fn driver(&self, name: Option<&str>) -> Result<Arc<dyn Driver>> {
+        let name = name
+            .map(str::to_owned)
+            .unwrap_or_else(|| self.getDefaultDriver());
+        self.drivers
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .get(&name)
             .cloned()
-            .ok_or_else(|| Error::UnknownDriver(name.into()))
+            .ok_or_else(|| Error::UnknownDriver(name))
     }
 
     pub(super) fn limits(&self) -> Limits {
@@ -189,11 +248,40 @@ impl ImageFacade {
             .fromUrl(url)
     }
 
+    pub fn driver(name: Option<&str>) -> Result<Arc<dyn Driver>> {
+        Self::getFacadeRoot()
+            .map_err(Error::Unavailable)?
+            .driver(name)
+    }
+
+    pub fn transformUsing(
+        driver: &str,
+        transformation: &str,
+        callback: TransformationHandler,
+    ) -> Result<()> {
+        Self::getFacadeRoot()
+            .map_err(Error::Unavailable)?
+            .transformUsing(driver, transformation, callback)
+            .map(|_| ())
+    }
+
+    pub fn getDefaultDriver() -> Result<String> {
+        Ok(Self::getFacadeRoot()
+            .map_err(Error::Unavailable)?
+            .getDefaultDriver())
+    }
+
+    pub fn getDrivers() -> Result<HashMap<String, Arc<dyn Driver>>> {
+        Ok(Self::getFacadeRoot()
+            .map_err(Error::Unavailable)?
+            .getDrivers())
+    }
+
     pub fn extend(name: impl Into<String>, driver: impl Driver) -> Result<()> {
         Self::getFacadeRoot()
             .map_err(Error::Unavailable)?
-            .extend(name, driver);
-        Ok(())
+            .extend(name, driver)
+            .map(|_| ())
     }
 }
 
@@ -205,12 +293,7 @@ impl ServiceProvider for ImageServiceProvider {
             app.container().singleton::<ImageManager, _>(|container| {
                 let config = container.get::<dyn Repository>("config")?;
                 let mut manager = ImageManager::new(Limits::default());
-                if let Some(name) = config
-                    .get("images.default")
-                    .and_then(|value| value.as_str().map(Arc::from))
-                {
-                    manager.default = name;
-                }
+                manager.config = Some(config);
                 manager.http = Some(container.make::<Factory>()?);
                 Ok(Arc::new(manager))
             })?;

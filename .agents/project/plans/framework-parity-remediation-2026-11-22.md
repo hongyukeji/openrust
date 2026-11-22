@@ -100,6 +100,22 @@ OIDC真实HTTP验收发现Provider.register设置的app父配置在启动容器�
 
 证据均在target/tmp/framework-parity-20261122/：http-sink-final.log、http-sink-reference.json/log、http-sink-source-verification.json、http-sink-memory-{stream,buffer}.log、clippy-http-sink-final.log、fmt-http-sink-final.log、http-sink-{core,config,telescope,oidc}-final.log及docs-{build,browser,scope}-http-sink.log；相关扩展结果使用http-sink-{framework,pay,socialite,cashier,telescope,oidc}.log。验收快照沿本批登记目录复用；为修正已提交调用方和旧快照路由接口组合，显式同步f0cdf6150的router.rs/support/facades.rs，以及本批启动修复所需application/config/translator与测试；未混入其他语言/路由WIP。三语站点日志来自本批正文最终版本，触线清理已回收dist，不将清理后的目录当作仍存在的交付文件。
 
+### 图片驱动处理器与来源生命周期（2026-11-23）
+
+C35在既有原生Driver/Pipeline上实现transformUsing，不另引图片引擎。Driver、ImageManager和Image Facade分别提供实际入口；管理器保存驱动级处理器，支持先登记处理器再extend驱动，也能更新已存在驱动。内置转换按变体名称匹配，Custom按给定名称匹配，回调接收实际后端对象的&mut dyn Any；内置NativeImage是image::DynamicImage。回调在注册锁释放后执行，可登记后续转换；返回错误停止流水线，修改后的帧仍检查尺寸限额。默认不支持处理器的自定义Driver明确返回UnsupportedTransformationHandler；Driver::dimensions有真实默认实现，可由自定义后端覆盖。
+
+补flip/flop、usingGd/usingImagick、hashName、toString、Responsable/toResponse及实际路由返回；GD/Imagick入口只选择应用已注册驱动，不把原生后端冒充PHP扩展。getDefaultDriver按当前images.default读取，Facade提供driver/getDrivers等实际转发。resize/scale两尺寸都缺失时立即返回错误，零尺寸归一为1；cover/contain/crop同样规范零尺寸，blur/sharpen在进入自定义回调前限制100。resize/scale现在返回Result<Image>，调用方及文档已同步。
+
+来源成功读取一次后在分支间共享；已渲染图像继续修改时以处理结果为新来源，清空已经执行的流水线，避免重复旧回调。dominantColor有自身缓存；未渲染时处理克隆流水线计算颜色但不标记原图已处理，已渲染时使用处理结果。hashName每实例稳定、克隆复制已有名称，store复用；storeAs/storePubliclyAs支持None名称的完整文件名形式，按上游只裁掉合并路径两端斜杠。Error保留底层source，路由返回包含真实字节和MIME。覆盖Orient且未执行内置旋转时保留EXIF方向，避免仅覆盖回调就擅自重写元数据。
+
+图片存储验收发现下层拒绝重复分隔符。本批沿FilesystemAdapter读写边界合并中间重复的 `/` 分隔符，实际本地读写/复制/移动/删除共用规范路径；path、url及临时URL构造器保留路径文本，S3配置的root前缀同样保留内部重复斜杠。目录列表空根继续沿既有职责。没有降低既有绝对路径/点路径/反斜杠/冒号/临时文件名与Unix链接保护。这些保护与Flysystem完整归一化仍不同，保留为C43未完成差异；仅此修复不能关闭完整Filesystem模块。
+
+联网核对固定Image.php/ImageManager.php/InterventionDriver.php/Driver.php并与本地固定源码逐字一致；另核对Flysystem3.30.2 WhitespacePathNormalizer，SHA256保存在image-source-verification.json。v0.x树未找到可复用的对应image模块。PHP8.5.12实际运行固定Image/ImageManager的来源、克隆、归一化、文件名、响应和存储职责，Driver/Filesystem是明确测试桩，没有执行PHP原生像素处理；Flysystem真实运行7组路径，保存完整输出和本地更严格行为的差异。Rust普通回归读取image-lifecycle.json及filesystem-paths.json；脚本只保留在target/tmp。
+
+图片22项和本地文件系统10项通过，包含真实像素翻转、内置处理器覆盖/顺序/失败/动画三帧、处理器重入、来源/已处理分支、稳定存储名、Facade/路由响应、参数边界及路径保护。S3本批仅配置的path/url键映射，不是远程对象I/O验收；真实GD/Imagick及原生像素与其逐像素等价均未验。最终严格workspace/all-targets Clippy、fmt及三语站点构建、根路径/子路径浏览器与导航检查全部通过。证据目录target/tmp/framework-parity-20261122/，使用images-filesystem-release-final.log、clippy-images-filesystem-final.log、fmt-images-filesystem-final.log、image-lifecycle-reference.json、flysystem-paths-reference.json、image-source-verification.json及docs-{build,browser,scope}-images-filesystem-final.log。
+
+尚未关闭：公开直接构造/任意惰性Closure来源，Manager惰性creator/rebind/getContainer/setContainer/forgetDrivers，存储任意options，Conditionable完整重载；fromStream仍构造时读取借用流。类型/方法逐项裁决已追加同一JSON的本批method_review：未完全复验的方法保持待核对，不能据新增方法或32项通过宣称Image模块或全框架1:1。Rust默认image后端、typed尺寸/颜色/格式、名称/JSON替代转换类、逐帧回调以及async/Result/无隐式字符串IO均是需保留登记的差异。
+
 ## 当前实施与验收（2026-11-22）
 
 本节记录正在实施的事实，不能将清单登记或API出现当作全部完成。源码基线为b214e46be及实时WIP；协作者SetLocale实例回调与其三语正文、规范和验收记录保留。本批未操作开发数据或Git索引。

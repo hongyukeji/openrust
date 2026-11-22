@@ -39,6 +39,7 @@ impl<T: Serialize + Send, const N: usize> DirectOutput for [T; N] {}
 impl<T: Serialize + Send> DirectOutput for Collection<T> {}
 impl DirectOutput for Fluent {}
 impl DirectOutput for RedirectResponse {}
+impl DirectOutput for crate::image::Image {}
 
 trait Output {
     fn respond(

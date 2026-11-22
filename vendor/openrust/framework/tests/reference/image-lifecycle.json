@@ -1,0 +1,82 @@
+{
+    "reference_scope": "fixed Image\/ImageManager with test Driver and filesystem; no native PHP pixel processing",
+    "flip": "FlipVertically",
+    "flop": "FlipHorizontally",
+    "resize_missing": "error",
+    "scale_missing": "error",
+    "normalized": [
+        {
+            "name": "Resize",
+            "values": {
+                "width": 1,
+                "height": 1
+            }
+        },
+        {
+            "name": "Scale",
+            "values": {
+                "width": 1,
+                "height": 1
+            }
+        },
+        {
+            "name": "Cover",
+            "values": {
+                "width": 1,
+                "height": 1
+            }
+        },
+        {
+            "name": "Contain",
+            "values": {
+                "width": 1,
+                "height": 1,
+                "background": null
+            }
+        },
+        {
+            "name": "Crop",
+            "values": {
+                "width": 1,
+                "height": 1,
+                "x": 0,
+                "y": 0
+            }
+        },
+        {
+            "name": "Blur",
+            "values": {
+                "amount": 100
+            }
+        },
+        {
+            "name": "Sharpen",
+            "values": {
+                "amount": 100
+            }
+        }
+    ],
+    "handler_deferred": true,
+    "source_loads": 1,
+    "custom_calls": 1,
+    "pipelines": [
+        [
+            "ProbeTransformation"
+        ],
+        []
+    ],
+    "stable_hash": true,
+    "hash_length": 44,
+    "hash_prefix": true,
+    "hash_zero": true,
+    "clone_keeps_hash": true,
+    "store_stable": true,
+    "store_null": "single.png",
+    "store_slashes": "avatars\/\/\/named.png",
+    "store_public_null": "public.png",
+    "string_uri": true,
+    "response_status": 200,
+    "response_type": "image\/png",
+    "response_bytes": true,
+    "default_driver": "probe"
+}

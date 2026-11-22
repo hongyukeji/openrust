@@ -1,0 +1,34 @@
+{
+    "source": "thephpleague\/flysystem 3.30.2 WhitespacePathNormalizer",
+    "cases": [
+        {
+            "input": "avatars\/\/\/nested\/\/image.png",
+            "normalized": "avatars\/nested\/image.png"
+        },
+        {
+            "input": "avatars\/\/\/image.png",
+            "normalized": "avatars\/image.png"
+        },
+        {
+            "input": "\/\/absolute",
+            "normalized": "absolute"
+        },
+        {
+            "input": "logs\/..\/outside",
+            "normalized": "outside"
+        },
+        {
+            "input": "logs\\outside",
+            "normalized": "logs\/outside"
+        },
+        {
+            "input": "..\/escape",
+            "error": "PathTraversalDetected"
+        },
+        {
+            "input": "bad\u0000name",
+            "error": "CorruptedPathDetected"
+        }
+    ],
+    "prefix_case": "tenant\/avatars\/\/\/image.png"
+}

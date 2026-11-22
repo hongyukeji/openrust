@@ -20,7 +20,14 @@ pub use image_pipeline::{Background, Format, ImagePipeline, Transformation};
 pub use instance::Image;
 
 use axum::body::Bytes;
-use std::fmt;
+use std::{any::Any, fmt, sync::Arc};
+
+/// 原生图片驱动交给转换回调的像素类型。
+pub use ::image::DynamicImage as NativeImage;
+
+/// 回调修改驱动的实际图片对象，保留流水线中的转换顺序。
+pub type TransformationHandler =
+    Arc<dyn Fn(&mut dyn Any, &Transformation) -> Result<()> + Send + Sync>;
 
 #[derive(Clone, Copy, Debug)]
 pub struct Limits {
@@ -70,6 +77,21 @@ pub trait Driver: Send + Sync + 'static {
         pipeline: &ImagePipeline,
         limits: Limits,
     ) -> Result<EncodedImage>;
+    fn dimensions(&self, contents: Bytes, limits: Limits) -> Result<(u32, u32)> {
+        Ok(self
+            .process(contents, &ImagePipeline::default(), limits)?
+            .dimensions)
+    }
+
+    /// 按转换名称注册驱动处理器；没有可扩展后端的驱动须明确拒绝。
+    fn transformUsing(
+        &self,
+        _transformation: &str,
+        _callback: TransformationHandler,
+    ) -> Result<()> {
+        Err(Error::UnsupportedTransformationHandler)
+    }
+
     fn dominantColor(
         &self,
         contents: Bytes,
@@ -90,6 +112,7 @@ pub enum Error {
     AnimationTooLarge,
     InvalidAnimationTiming,
     InvalidTransformation,
+    UnsupportedTransformationHandler,
     Missing,
     Encoding(::image::ImageError),
     Codec {
@@ -121,6 +144,9 @@ impl fmt::Display for Error {
             }
             Self::InvalidDimensions => formatter.write_str("invalid image dimensions"),
             Self::InvalidTransformation => formatter.write_str("invalid image transformation"),
+            Self::UnsupportedTransformationHandler => {
+                formatter.write_str("当前图片驱动不支持注册转换处理器")
+            }
             Self::Missing => formatter.write_str("image source was not found"),
             Self::Encoding(error) => error.fmt(formatter),
             Self::Codec { format, source } => {
@@ -135,7 +161,20 @@ impl fmt::Display for Error {
     }
 }
 
-impl std::error::Error for Error {}
+impl std::error::Error for Error {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Encoding(error) => Some(error),
+            Self::Codec { source, .. } => Some(source.as_ref()),
+            Self::Base64(error) => Some(error),
+            Self::Io(error) => Some(error),
+            Self::Filesystem(error) => Some(error),
+            Self::Http(error) => Some(error),
+            Self::Unavailable(error) => Some(error),
+            _ => None,
+        }
+    }
+}
 
 pub type Result<T> = std::result::Result<T, Error>;
 

@@ -303,8 +303,10 @@ impl FilesystemAdapter {
     }
 
     pub async fn copy(&self, from: &str, to: &str) -> FilesystemResult<bool> {
-        validate_path(from)?;
-        validate_path(to)?;
+        let normalized_from = normalize_path(from)?;
+        let from = normalized_from.as_ref();
+        let normalized_to = normalize_path(to)?;
+        let to = normalized_to.as_ref();
         if let Driver::S3(disk) = &self.driver {
             return self.or_default(disk.copy(from, to).await.map(|()| true));
         }
@@ -323,8 +325,10 @@ impl FilesystemAdapter {
     }
 
     pub async fn r#move(&self, from: &str, to: &str) -> FilesystemResult<bool> {
-        validate_path(from)?;
-        validate_path(to)?;
+        let normalized_from = normalize_path(from)?;
+        let from = normalized_from.as_ref();
+        let normalized_to = normalize_path(to)?;
+        let to = normalized_to.as_ref();
         if from == to {
             return self.exists(from).await;
         }
@@ -364,7 +368,8 @@ impl FilesystemAdapter {
     }
 
     pub async fn size(&self, path: &str) -> FilesystemResult<u64> {
-        validate_path(path)?;
+        let normalized_path = normalize_path(path)?;
+        let path = normalized_path.as_ref();
         let Driver::Local(disk) = &self.driver else {
             return Err(FilesystemError::UnsupportedOperation);
         };
@@ -372,7 +377,8 @@ impl FilesystemAdapter {
     }
 
     pub async fn lastModified(&self, path: &str) -> FilesystemResult<SystemTime> {
-        validate_path(path)?;
+        let normalized_path = normalize_path(path)?;
+        let path = normalized_path.as_ref();
         let Driver::Local(disk) = &self.driver else {
             return Err(FilesystemError::UnsupportedOperation);
         };
@@ -380,7 +386,8 @@ impl FilesystemAdapter {
     }
 
     pub async fn mimeType(&self, path: &str) -> FilesystemResult<Option<String>> {
-        validate_path(path)?;
+        let normalized_path = normalize_path(path)?;
+        let path = normalized_path.as_ref();
         let Driver::Local(disk) = &self.driver else {
             return Err(FilesystemError::UnsupportedOperation);
         };
@@ -395,7 +402,8 @@ impl FilesystemAdapter {
         &self,
         path: &str,
     ) -> FilesystemResult<Option<String>> {
-        validate_path(path)?;
+        let normalized_path = normalize_path(path)?;
+        let path = normalized_path.as_ref();
         let Driver::Local(disk) = &self.driver else {
             return Err(FilesystemError::UnsupportedOperation);
         };
@@ -441,7 +449,8 @@ impl FilesystemAdapter {
         headers: HeaderMap,
         disposition: &str,
     ) -> FilesystemResult<Response> {
-        validate_path(path)?;
+        let normalized_path = normalize_path(path)?;
+        let path = normalized_path.as_ref();
         let file = match &self.driver {
             Driver::Local(disk) => {
                 let reader = disk.read(path.into()).await?;
@@ -468,7 +477,8 @@ impl FilesystemAdapter {
         &self,
         path: &str,
     ) -> FilesystemResult<Option<(FilesystemReader, Option<String>)>> {
-        validate_path(path)?;
+        let normalized_path = normalize_path(path)?;
+        let path = normalized_path.as_ref();
         let result = match &self.driver {
             Driver::Local(disk) => disk
                 .read(path.into())
@@ -539,7 +549,8 @@ impl FilesystemAdapter {
         reader: &mut (impl AsyncRead + Unpin),
         options: WriteOptions,
     ) -> FilesystemResult<bool> {
-        validate_path(path)?;
+        let normalized_path = normalize_path(path)?;
+        let path = normalized_path.as_ref();
         let result = match &self.driver {
             Driver::Local(disk) => disk.write(path.into(), reader, options.visibility).await,
             Driver::S3(disk) => disk.write(path, reader, options.visibility).await,
@@ -548,7 +559,8 @@ impl FilesystemAdapter {
     }
 
     pub async fn exists(&self, path: &str) -> FilesystemResult<bool> {
-        validate_path(path)?;
+        let normalized_path = normalize_path(path)?;
+        let path = normalized_path.as_ref();
         match &self.driver {
             Driver::Local(disk) => disk.exists(path.into(), None).await,
             Driver::S3(disk) if disk.file_exists(path).await? => Ok(true),
@@ -561,7 +573,8 @@ impl FilesystemAdapter {
     }
 
     pub async fn fileExists(&self, path: &str) -> FilesystemResult<bool> {
-        validate_path(path)?;
+        let normalized_path = normalize_path(path)?;
+        let path = normalized_path.as_ref();
         match &self.driver {
             Driver::Local(disk) => disk.exists(path.into(), Some(false)).await,
             Driver::S3(disk) => disk.file_exists(path).await,
@@ -569,7 +582,8 @@ impl FilesystemAdapter {
     }
 
     pub async fn directoryExists(&self, path: &str) -> FilesystemResult<bool> {
-        validate_path(path)?;
+        let normalized_path = normalize_path(path)?;
+        let path = normalized_path.as_ref();
         match &self.driver {
             Driver::Local(disk) => disk.exists(path.into(), Some(true)).await,
             Driver::S3(disk) => disk.directory_exists(path).await,
@@ -599,9 +613,12 @@ impl FilesystemAdapter {
         directories: bool,
     ) -> FilesystemResult<Vec<String>> {
         let path = directory.unwrap_or_default();
-        if !path.is_empty() {
-            validate_path(path)?;
-        }
+        let normalized_path = if path.is_empty() {
+            std::borrow::Cow::Borrowed(path)
+        } else {
+            normalize_path(path)?
+        };
+        let path = normalized_path.as_ref();
         match &self.driver {
             Driver::Local(disk) => disk.list(path.to_owned(), recursive, directories).await,
             Driver::S3(disk) if recursive && !directories => disk.all_files(path).await,
@@ -610,7 +627,8 @@ impl FilesystemAdapter {
     }
 
     pub async fn makeDirectory(&self, path: &str) -> FilesystemResult<bool> {
-        validate_path(path)?;
+        let normalized_path = normalize_path(path)?;
+        let path = normalized_path.as_ref();
         let Driver::Local(disk) = &self.driver else {
             return Err(FilesystemError::UnsupportedOperation);
         };
@@ -618,7 +636,8 @@ impl FilesystemAdapter {
     }
 
     pub async fn deleteDirectory(&self, path: &str) -> FilesystemResult<bool> {
-        validate_path(path)?;
+        let normalized_path = normalize_path(path)?;
+        let path = normalized_path.as_ref();
         let Driver::Local(disk) = &self.driver else {
             return Err(FilesystemError::UnsupportedOperation);
         };
@@ -626,7 +645,8 @@ impl FilesystemAdapter {
     }
 
     pub async fn delete(&self, path: &str) -> FilesystemResult<bool> {
-        validate_path(path)?;
+        let normalized_path = normalize_path(path)?;
+        let path = normalized_path.as_ref();
         let result = match &self.driver {
             Driver::Local(disk) => disk.delete(path.into()).await,
             Driver::S3(disk) => disk.delete(path).await,
@@ -635,7 +655,8 @@ impl FilesystemAdapter {
     }
 
     pub async fn getVisibility(&self, path: &str) -> FilesystemResult<Visibility> {
-        validate_path(path)?;
+        let normalized_path = normalize_path(path)?;
+        let path = normalized_path.as_ref();
         match &self.driver {
             Driver::Local(disk) => disk.get_visibility(path.into()).await,
             Driver::S3(disk) => disk.get_visibility(path).await,
@@ -647,7 +668,8 @@ impl FilesystemAdapter {
         path: &str,
         visibility: Visibility,
     ) -> FilesystemResult<bool> {
-        validate_path(path)?;
+        let normalized_path = normalize_path(path)?;
+        let path = normalized_path.as_ref();
         let result = match &self.driver {
             Driver::Local(disk) => disk.set_visibility(path.into(), visibility).await,
             Driver::S3(disk) => disk.set_visibility(path, visibility).await,
@@ -668,12 +690,31 @@ impl FilesystemAdapter {
     }
 }
 
+// 重复的中间分隔符按磁盘相对路径归一化；其余路径保护仍由统一校验执行。
+fn normalize_path(path: &str) -> FilesystemResult<std::borrow::Cow<'_, str>> {
+    let normalized = if path.contains("//") && !path.starts_with('/') && !path.ends_with('/') {
+        std::borrow::Cow::Owned(
+            path.split('/')
+                .filter(|part| !part.is_empty())
+                .collect::<Vec<_>>()
+                .join("/"),
+        )
+    } else {
+        std::borrow::Cow::Borrowed(path)
+    };
+    validate_path(&normalized)?;
+    Ok(normalized)
+}
+
 pub(super) fn validate_path(path: &str) -> FilesystemResult<()> {
-    if path.contains(['\\', ':'])
+    if path.is_empty()
+        || path.starts_with('/')
+        || path.ends_with('/')
+        || path.contains(['\\', ':'])
         || path.chars().any(char::is_control)
         || path
             .split('/')
-            .any(|part| matches!(part, "" | "." | "..") || is_staging_name(part))
+            .any(|part| matches!(part, "." | "..") || is_staging_name(part))
     {
         return Err(FilesystemError::InvalidPath);
     }

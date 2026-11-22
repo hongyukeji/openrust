@@ -784,3 +784,95 @@ async fn local_permission_maps_apply_to_writes_directories_and_visibility_reads(
         Err(FilesystemError::InvalidConfiguration)
     ));
 }
+
+#[tokio::test]
+async fn repeated_separators_share_local_files_and_preserve_s3_path_prefix_text() {
+    let root = Sandbox::new();
+    let disk = root.manager(true).disk(None).unwrap();
+    let reference: serde_json::Value =
+        serde_json::from_str(include_str!("reference/filesystem-paths.json")).unwrap();
+    let source = reference["cases"][0]["input"].as_str().unwrap();
+    let normalized = reference["cases"][0]["normalized"].as_str().unwrap();
+    assert!(disk.put(source, b"image").await.unwrap());
+    assert_eq!(disk.get(normalized).await.unwrap(), Some(b"image".to_vec()));
+    assert_eq!(
+        disk.get("avatars/nested/image.png").await.unwrap(),
+        Some(b"image".to_vec())
+    );
+    assert_eq!(
+        disk.get("avatars//nested///image.png").await.unwrap(),
+        Some(b"image".to_vec())
+    );
+    assert_eq!(
+        disk.path("avatars//nested///image.png").unwrap(),
+        disk.path("avatars/nested/image.png").unwrap()
+    );
+    assert!(
+        disk.copy("avatars//nested/image.png", "copies///image.png")
+            .await
+            .unwrap()
+    );
+    assert!(
+        disk.r#move("copies///image.png", "moved///image.png")
+            .await
+            .unwrap()
+    );
+    assert!(disk.delete("moved///image.png").await.unwrap());
+    for path in [
+        "/absolute",
+        "logs/../outside",
+        "logs\\outside",
+        "",
+        "logs/.storage-write-test",
+    ] {
+        assert!(
+            matches!(
+                disk.put(path, b"invalid").await,
+                Err(FilesystemError::InvalidPath)
+            ),
+            "{path}"
+        );
+    }
+    disk.buildTemporaryUrlsUsing(|path, _, _| Box::pin(async move { Ok(path.to_owned()) }));
+    disk.buildTemporaryUploadUrlsUsing(|path, _, _| {
+        Box::pin(async move {
+            Ok(openrust::filesystem::TemporaryUploadUrl {
+                url: path.to_owned(),
+                headers: Default::default(),
+            })
+        })
+    });
+    let expires = std::time::SystemTime::now() + std::time::Duration::from_secs(60);
+    assert_eq!(
+        disk.temporaryUrl("avatars///image.png", expires)
+            .await
+            .unwrap(),
+        "avatars///image.png"
+    );
+    assert_eq!(
+        disk.temporaryUploadUrl("avatars///image.png", expires)
+            .await
+            .unwrap()
+            .url,
+        "avatars///image.png"
+    );
+    let config = Repository::new(std::collections::BTreeMap::from([(
+        "filesystems".into(),
+        json!({"default":"s3","disks":{"s3":{"driver":"s3","bucket":"test-bucket","region":"us-east-1","key":"test","secret":"test","root":"tenant","url":"https://cdn.example.test/files"}}}),
+    )]));
+    let s3 = FilesystemManager::new(Arc::new(config), root.0.clone())
+        .disk(None)
+        .unwrap();
+    assert_eq!(
+        s3.path("avatars///image.png").unwrap(),
+        PathBuf::from("tenant/avatars///image.png")
+    );
+    assert_eq!(
+        s3.path("avatars///image.png").unwrap().to_string_lossy(),
+        reference["prefix_case"].as_str().unwrap()
+    );
+    assert_eq!(
+        s3.url("avatars///image.png").unwrap(),
+        "https://cdn.example.test/files/tenant/avatars///image.png"
+    );
+}

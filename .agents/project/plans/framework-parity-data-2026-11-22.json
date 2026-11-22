@@ -823,13 +823,13 @@
         "vendor/openrust/framework/src/image/instance.rs:116",
         "",
         "vendor/openrust/framework/tests/images.rs",
-        "历史发现待当前契约复核；复核仍成立后实施",
-        "",
+        "翻转别名、真实驱动/Manager/Facade transformUsing、来源缓存及处理后分支生命周期已实现；公开继承接口和结构差异仍未关闭",
+        "target/tmp/framework-parity-20261122/ [images-filesystem-release-final.log;image-lifecycle-reference.json;flysystem-paths-reference.json;image-source-verification.json]",
         "Q01",
-        "本轮未执行框架验收",
-        "历史差异待当前契约裁决",
-        "先复核已有实现后补缺口；本计划未执行",
-        "本轮未运行功能验收，历史结果仅限对应提交和环境"
+        "图片22项及文件系统本地10项通过；固定PHP实际执行Image/ImageManager生命周期及文件系统桩，非PHP原生像素对照；Flysystem3.30.2真实7组路径输出；严格workspace/all-targets Clippy、fmt、三语站点构建及根路径/子路径浏览器与导航全部通过",
+        "固定Image/ImageManager/Driver/InterventionDriver原名职责；Rust Any可变回调、枚举变体名称/JSON自定义参数、逐帧原生处理、Result/async/typed整数、原生image默认后端均保留差异；未声称提供实际GD/Imagick",
+        "原计划flop/transformUsing及必要相邻缺口已实现；公开构造/惰性creator/getContainer/setContainer/forgetDrivers、任意存储选项及Conditionable完整重载仍未完成",
+        "32项定向通过；完整类型API/动态类继承处理器匹配与全部错误语义未关闭"
       ],
       [
         "main",
@@ -1007,10 +1007,10 @@
         "vendor/openrust/framework/src/filesystem/mod.rs:17",
         "",
         "vendor/openrust/framework/tests/filesystem_local.rs;tests/storage.rs",
-        "历史发现待当前契约复核；复核仍成立后实施",
-        "",
+        "本批附带修复重复中间分隔符，原计划Manager/driver缺口仍未关闭；完整路径归一化差异继续登记",
+        "target/tmp/framework-parity-20261122/images-filesystem-release-final.log;flysystem-paths-reference.json",
         "Q01",
-        "本轮未执行框架验收",
+        "本地10项与图片22项通过；读写合并重复中间分隔符；path/url/临时构造器保留文本，回调实测；S3仅实际配置root前缀path/url映射，未计对象存储网络I/O。绝对/点/反斜杠/冒号等既有路径限制与Flysystem仍不同",
         "历史差异待当前契约裁决",
         "先复核已有实现后补缺口；本计划未执行",
         "本轮未运行功能验收，历史结果仅限对应提交和环境"
@@ -293378,6 +293378,466 @@
         "https://github.com/guzzle/guzzle/tree/7.10.0"
       ],
       "local_reference_script": "target/tmp/framework-parity-20261122/reference/http-sink.php and telescope-limits.php; local-only; replay requires pinned local sources and PHP dependencies"
+    },
+    {
+      "date": "2026-11-23",
+      "kind": "image_handlers_lifecycle_and_repeated_filesystem_separators",
+      "tasks": [
+        "C35",
+        "C43"
+      ],
+      "note": "图片22项及文件系统本地10项通过；固定PHP实际执行Image/ImageManager生命周期及文件系统桩，非PHP原生像素对照；Flysystem3.30.2真实7组路径输出；严格workspace/all-targets Clippy、fmt、三语站点构建及根路径/子路径浏览器与导航全部通过",
+      "evidence": "target/tmp/framework-parity-20261122/ [images-filesystem-release-final.log;image-lifecycle-reference.json;flysystem-paths-reference.json;image-source-verification.json]",
+      "method_review": [
+        {
+          "type": "Image",
+          "method": "__construct",
+          "local": "vendor/openrust/framework/src/image/instance.rs",
+          "decision": "未提供上游同职责的公开直接构造/任意惰性Closure输入；当前通过ImageManager及Facade构造，仍为缺口"
+        },
+        {
+          "type": "Image",
+          "method": "cover",
+          "local": "vendor/openrust/framework/src/image/instance.rs",
+          "decision": "本批定向行为已验；保留Result/async/所有权及下方具体边界，非字面签名1:1"
+        },
+        {
+          "type": "Image",
+          "method": "contain",
+          "local": "vendor/openrust/framework/src/image/instance.rs",
+          "decision": "本批定向行为已验；保留Result/async/所有权及下方具体边界，非字面签名1:1"
+        },
+        {
+          "type": "Image",
+          "method": "crop",
+          "local": "vendor/openrust/framework/src/image/instance.rs",
+          "decision": "本批定向行为已验；保留Result/async/所有权及下方具体边界，非字面签名1:1"
+        },
+        {
+          "type": "Image",
+          "method": "resize",
+          "local": "vendor/openrust/framework/src/image/instance.rs",
+          "decision": "本批定向行为已验；保留Result/async/所有权及下方具体边界，非字面签名1:1"
+        },
+        {
+          "type": "Image",
+          "method": "rotate",
+          "local": "vendor/openrust/framework/src/image/instance.rs",
+          "decision": "存在对应入口；本批仅部分输入有回归，完整参数/错误语义继续核对"
+        },
+        {
+          "type": "Image",
+          "method": "scale",
+          "local": "vendor/openrust/framework/src/image/instance.rs",
+          "decision": "本批定向行为已验；保留Result/async/所有权及下方具体边界，非字面签名1:1"
+        },
+        {
+          "type": "Image",
+          "method": "orient",
+          "local": "vendor/openrust/framework/src/image/instance.rs",
+          "decision": "存在对应入口；本批仅部分输入有回归，完整参数/错误语义继续核对"
+        },
+        {
+          "type": "Image",
+          "method": "blur",
+          "local": "vendor/openrust/framework/src/image/instance.rs",
+          "decision": "本批定向行为已验；保留Result/async/所有权及下方具体边界，非字面签名1:1"
+        },
+        {
+          "type": "Image",
+          "method": "grayscale",
+          "local": "vendor/openrust/framework/src/image/instance.rs",
+          "decision": "存在对应入口；本批仅部分输入有回归，完整参数/错误语义继续核对"
+        },
+        {
+          "type": "Image",
+          "method": "sharpen",
+          "local": "vendor/openrust/framework/src/image/instance.rs",
+          "decision": "本批定向行为已验；保留Result/async/所有权及下方具体边界，非字面签名1:1"
+        },
+        {
+          "type": "Image",
+          "method": "flipVertically",
+          "local": "vendor/openrust/framework/src/image/instance.rs",
+          "decision": "存在对应入口；本批仅部分输入有回归，完整参数/错误语义继续核对"
+        },
+        {
+          "type": "Image",
+          "method": "flipHorizontally",
+          "local": "vendor/openrust/framework/src/image/instance.rs",
+          "decision": "存在对应入口；本批仅部分输入有回归，完整参数/错误语义继续核对"
+        },
+        {
+          "type": "Image",
+          "method": "flip",
+          "local": "vendor/openrust/framework/src/image/instance.rs",
+          "decision": "本批定向行为已验；保留Result/async/所有权及下方具体边界，非字面签名1:1"
+        },
+        {
+          "type": "Image",
+          "method": "flop",
+          "local": "vendor/openrust/framework/src/image/instance.rs",
+          "decision": "本批定向行为已验；保留Result/async/所有权及下方具体边界，非字面签名1:1"
+        },
+        {
+          "type": "Image",
+          "method": "transform",
+          "local": "vendor/openrust/framework/src/image/instance.rs",
+          "decision": "本批定向行为已验；保留Result/async/所有权及下方具体边界，非字面签名1:1"
+        },
+        {
+          "type": "Image",
+          "method": "optimize",
+          "local": "vendor/openrust/framework/src/image/instance.rs",
+          "decision": "存在对应入口；本批仅部分输入有回归，完整参数/错误语义继续核对"
+        },
+        {
+          "type": "Image",
+          "method": "quality",
+          "local": "vendor/openrust/framework/src/image/instance.rs",
+          "decision": "存在对应入口；本批仅部分输入有回归，完整参数/错误语义继续核对"
+        },
+        {
+          "type": "Image",
+          "method": "toWebp",
+          "local": "vendor/openrust/framework/src/image/instance.rs",
+          "decision": "存在对应入口；本批仅部分输入有回归，完整参数/错误语义继续核对"
+        },
+        {
+          "type": "Image",
+          "method": "toJpg",
+          "local": "vendor/openrust/framework/src/image/instance.rs",
+          "decision": "存在对应入口；本批仅部分输入有回归，完整参数/错误语义继续核对"
+        },
+        {
+          "type": "Image",
+          "method": "toJpeg",
+          "local": "vendor/openrust/framework/src/image/instance.rs",
+          "decision": "存在对应入口；本批仅部分输入有回归，完整参数/错误语义继续核对"
+        },
+        {
+          "type": "Image",
+          "method": "toPng",
+          "local": "vendor/openrust/framework/src/image/instance.rs",
+          "decision": "存在对应入口；本批仅部分输入有回归，完整参数/错误语义继续核对"
+        },
+        {
+          "type": "Image",
+          "method": "toGif",
+          "local": "vendor/openrust/framework/src/image/instance.rs",
+          "decision": "存在对应入口；本批仅部分输入有回归，完整参数/错误语义继续核对"
+        },
+        {
+          "type": "Image",
+          "method": "toAvif",
+          "local": "vendor/openrust/framework/src/image/instance.rs",
+          "decision": "存在对应入口；本批仅部分输入有回归，完整参数/错误语义继续核对"
+        },
+        {
+          "type": "Image",
+          "method": "toHeic",
+          "local": "vendor/openrust/framework/src/image/instance.rs",
+          "decision": "存在对应入口；本批仅部分输入有回归，完整参数/错误语义继续核对"
+        },
+        {
+          "type": "Image",
+          "method": "toJxl",
+          "local": "vendor/openrust/framework/src/image/instance.rs",
+          "decision": "存在对应入口；本批仅部分输入有回归，完整参数/错误语义继续核对"
+        },
+        {
+          "type": "Image",
+          "method": "toBmp",
+          "local": "vendor/openrust/framework/src/image/instance.rs",
+          "decision": "存在对应入口；本批仅部分输入有回归，完整参数/错误语义继续核对"
+        },
+        {
+          "type": "Image",
+          "method": "toFormat",
+          "local": "vendor/openrust/framework/src/image/instance.rs",
+          "decision": "存在对应入口；本批仅部分输入有回归，完整参数/错误语义继续核对"
+        },
+        {
+          "type": "Image",
+          "method": "store",
+          "local": "vendor/openrust/framework/src/image/instance.rs",
+          "decision": "本批定向行为已验；保留Result/async/所有权及下方具体边界，非字面签名1:1"
+        },
+        {
+          "type": "Image",
+          "method": "storePublicly",
+          "local": "vendor/openrust/framework/src/image/instance.rs",
+          "decision": "本批定向行为已验；保留Result/async/所有权及下方具体边界，非字面签名1:1"
+        },
+        {
+          "type": "Image",
+          "method": "storeAs",
+          "local": "vendor/openrust/framework/src/image/instance.rs",
+          "decision": "本批定向行为已验；保留Result/async/所有权及下方具体边界，非字面签名1:1"
+        },
+        {
+          "type": "Image",
+          "method": "storePubliclyAs",
+          "local": "vendor/openrust/framework/src/image/instance.rs",
+          "decision": "本批定向行为已验；保留Result/async/所有权及下方具体边界，非字面签名1:1"
+        },
+        {
+          "type": "Image",
+          "method": "hashName",
+          "local": "vendor/openrust/framework/src/image/instance.rs",
+          "decision": "本批定向行为已验；保留Result/async/所有权及下方具体边界，非字面签名1:1"
+        },
+        {
+          "type": "Image",
+          "method": "toBytes",
+          "local": "vendor/openrust/framework/src/image/instance.rs",
+          "decision": "本批定向行为已验；保留Result/async/所有权及下方具体边界，非字面签名1:1"
+        },
+        {
+          "type": "Image",
+          "method": "toBase64",
+          "local": "vendor/openrust/framework/src/image/instance.rs",
+          "decision": "存在对应入口；本批仅部分输入有回归，完整参数/错误语义继续核对"
+        },
+        {
+          "type": "Image",
+          "method": "toDataUri",
+          "local": "vendor/openrust/framework/src/image/instance.rs",
+          "decision": "存在对应入口；本批仅部分输入有回归，完整参数/错误语义继续核对"
+        },
+        {
+          "type": "Image",
+          "method": "extension",
+          "local": "vendor/openrust/framework/src/image/instance.rs",
+          "decision": "存在对应入口；本批仅部分输入有回归，完整参数/错误语义继续核对"
+        },
+        {
+          "type": "Image",
+          "method": "mimeType",
+          "local": "vendor/openrust/framework/src/image/instance.rs",
+          "decision": "存在对应入口；本批仅部分输入有回归，完整参数/错误语义继续核对"
+        },
+        {
+          "type": "Image",
+          "method": "dimensions",
+          "local": "vendor/openrust/framework/src/image/instance.rs",
+          "decision": "存在对应入口；本批仅部分输入有回归，完整参数/错误语义继续核对"
+        },
+        {
+          "type": "Image",
+          "method": "width",
+          "local": "vendor/openrust/framework/src/image/instance.rs",
+          "decision": "存在对应入口；本批仅部分输入有回归，完整参数/错误语义继续核对"
+        },
+        {
+          "type": "Image",
+          "method": "height",
+          "local": "vendor/openrust/framework/src/image/instance.rs",
+          "decision": "存在对应入口；本批仅部分输入有回归，完整参数/错误语义继续核对"
+        },
+        {
+          "type": "Image",
+          "method": "dominantColor",
+          "local": "vendor/openrust/framework/src/image/instance.rs",
+          "decision": "本批定向行为已验；保留Result/async/所有权及下方具体边界，非字面签名1:1"
+        },
+        {
+          "type": "Image",
+          "method": "using",
+          "local": "vendor/openrust/framework/src/image/instance.rs",
+          "decision": "存在对应入口；本批仅部分输入有回归，完整参数/错误语义继续核对"
+        },
+        {
+          "type": "Image",
+          "method": "usingGd",
+          "local": "vendor/openrust/framework/src/image/instance.rs",
+          "decision": "本批定向行为已验；保留Result/async/所有权及下方具体边界，非字面签名1:1"
+        },
+        {
+          "type": "Image",
+          "method": "usingImagick",
+          "local": "vendor/openrust/framework/src/image/instance.rs",
+          "decision": "本批定向行为已验；保留Result/async/所有权及下方具体边界，非字面签名1:1"
+        },
+        {
+          "type": "Image",
+          "method": "file",
+          "local": "vendor/openrust/framework/src/image/instance.rs",
+          "decision": "存在对应入口；本批仅部分输入有回归，完整参数/错误语义继续核对"
+        },
+        {
+          "type": "Image",
+          "method": "toResponse",
+          "local": "vendor/openrust/framework/src/image/instance.rs",
+          "decision": "本批定向行为已验；保留Result/async/所有权及下方具体边界，非字面签名1:1"
+        },
+        {
+          "type": "Image",
+          "method": "__serialize",
+          "local": "vendor/openrust/framework/src/image/instance.rs",
+          "decision": "Rust未实现Serialize，编译期拒绝序列化；非运行时抛异常，保留语言适配"
+        },
+        {
+          "type": "Image",
+          "method": "toString",
+          "local": "vendor/openrust/framework/src/image/instance.rs",
+          "decision": "本批定向行为已验；保留Result/async/所有权及下方具体边界，非字面签名1:1"
+        },
+        {
+          "type": "Image",
+          "method": "__toString",
+          "local": "vendor/openrust/framework/src/image/instance.rs",
+          "decision": "Rust异步加载不能隐式Display执行I/O；提供toString().await，保留语言适配"
+        },
+        {
+          "type": "ImageManager",
+          "method": "fromBytes",
+          "local": "vendor/openrust/framework/src/image/facade.rs",
+          "decision": "存在对应入口；本批仅部分输入有回归，完整参数/错误语义继续核对"
+        },
+        {
+          "type": "ImageManager",
+          "method": "fromStream",
+          "local": "vendor/openrust/framework/src/image/facade.rs",
+          "decision": "存在对应入口；本批仅部分输入有回归，完整参数/错误语义继续核对"
+        },
+        {
+          "type": "ImageManager",
+          "method": "fromBase64",
+          "local": "vendor/openrust/framework/src/image/facade.rs",
+          "decision": "存在对应入口；本批仅部分输入有回归，完整参数/错误语义继续核对"
+        },
+        {
+          "type": "ImageManager",
+          "method": "fromPath",
+          "local": "vendor/openrust/framework/src/image/facade.rs",
+          "decision": "存在对应入口；本批仅部分输入有回归，完整参数/错误语义继续核对"
+        },
+        {
+          "type": "ImageManager",
+          "method": "fromStorage",
+          "local": "vendor/openrust/framework/src/image/facade.rs",
+          "decision": "存在对应入口；本批仅部分输入有回归，完整参数/错误语义继续核对"
+        },
+        {
+          "type": "ImageManager",
+          "method": "fromUpload",
+          "local": "vendor/openrust/framework/src/image/facade.rs",
+          "decision": "存在对应入口；本批仅部分输入有回归，完整参数/错误语义继续核对"
+        },
+        {
+          "type": "ImageManager",
+          "method": "fromUrl",
+          "local": "vendor/openrust/framework/src/image/facade.rs",
+          "decision": "存在对应入口；本批仅部分输入有回归，完整参数/错误语义继续核对"
+        },
+        {
+          "type": "ImageManager",
+          "method": "transformUsing",
+          "local": "vendor/openrust/framework/src/image/facade.rs",
+          "decision": "本批驱动/管理器/Facade实际入口和失败路径已验；名称/Any回调/原生帧处理为显式结构差异"
+        },
+        {
+          "type": "ImageManager",
+          "method": "getDefaultDriver",
+          "local": "vendor/openrust/framework/src/image/facade.rs",
+          "decision": "本批驱动/管理器/Facade实际入口和失败路径已验；名称/Any回调/原生帧处理为显式结构差异"
+        },
+        {
+          "type": "Manager",
+          "method": "__construct",
+          "local": "vendor/openrust/framework/src/image/facade.rs",
+          "decision": "ImageManager::new(Limits)与Provider注入配置替代容器构造；构造形状及默认image后端为有意差异"
+        },
+        {
+          "type": "Manager",
+          "method": "getDefaultDriver",
+          "local": "vendor/openrust/framework/src/image/facade.rs",
+          "decision": "存在对应入口；本批仅部分输入有回归，完整参数/错误语义继续核对"
+        },
+        {
+          "type": "Manager",
+          "method": "driver",
+          "local": "vendor/openrust/framework/src/image/facade.rs",
+          "decision": "存在对应入口；本批仅部分输入有回归，完整参数/错误语义继续核对"
+        },
+        {
+          "type": "Manager",
+          "method": "extend",
+          "local": "vendor/openrust/framework/src/image/facade.rs",
+          "decision": "当前接收Driver实例并返回Result，未提供上游惰性creator/rebind语义；继续实现并验收"
+        },
+        {
+          "type": "Manager",
+          "method": "getDrivers",
+          "local": "vendor/openrust/framework/src/image/facade.rs",
+          "decision": "存在对应入口；本批仅部分输入有回归，完整参数/错误语义继续核对"
+        },
+        {
+          "type": "Manager",
+          "method": "getContainer",
+          "local": "vendor/openrust/framework/src/image/facade.rs",
+          "decision": "尚缺公开入口；forgetDrivers需先保留可重建的驱动creator，不能清空实例后丢失注册"
+        },
+        {
+          "type": "Manager",
+          "method": "setContainer",
+          "local": "vendor/openrust/framework/src/image/facade.rs",
+          "decision": "尚缺公开入口；forgetDrivers需先保留可重建的驱动creator，不能清空实例后丢失注册"
+        },
+        {
+          "type": "Manager",
+          "method": "forgetDrivers",
+          "local": "vendor/openrust/framework/src/image/facade.rs",
+          "decision": "尚缺公开入口；forgetDrivers需先保留可重建的驱动creator，不能清空实例后丢失注册"
+        },
+        {
+          "type": "Manager",
+          "method": "__call",
+          "local": "vendor/openrust/framework/src/image/facade.rs",
+          "decision": "Rust不支持动态方法增加/隐式字符串分派；Facade显式转发，仍登记结构差异"
+        },
+        {
+          "type": "Driver",
+          "method": "process",
+          "local": "vendor/openrust/framework/src/image/mod.rs",
+          "decision": "存在对应入口；本批仅部分输入有回归，完整参数/错误语义继续核对"
+        },
+        {
+          "type": "Driver",
+          "method": "dimensions",
+          "local": "vendor/openrust/framework/src/image/mod.rs",
+          "decision": "本批驱动/管理器/Facade实际入口和失败路径已验；名称/Any回调/原生帧处理为显式结构差异"
+        },
+        {
+          "type": "Driver",
+          "method": "dominantColor",
+          "local": "vendor/openrust/framework/src/image/mod.rs",
+          "decision": "存在对应入口；本批仅部分输入有回归，完整参数/错误语义继续核对"
+        },
+        {
+          "type": "Driver",
+          "method": "transformUsing",
+          "local": "vendor/openrust/framework/src/image/mod.rs",
+          "decision": "本批驱动/管理器/Facade实际入口和失败路径已验；名称/Any回调/原生帧处理为显式结构差异"
+        }
+      ],
+      "unresolved": [
+        "Image公开直接构造和任意惰性Closure来源",
+        "Manager::extend惰性creator/rebind/getContainer/setContainer/forgetDrivers",
+        "Image存储任意options尚未暴露；公共可见性沿既有WriteOptions实现",
+        "Conditionable callable condition/default callback overloads",
+        "Custom名称/JSON参数不具备PHP转换类继承匹配；不能说成全部结构1:1",
+        "fromStream仍在构造时读取借用AsyncRead，与上游惰性资源读取不同",
+        "目录安全限制：上游归一化前导/尾随/点/反斜杠，本地仍拒绝；冒号/临时文件名/符号链接/多硬链接保护仍为额外差异",
+        "S3本批无网络I/O；原生驱动逐帧回调与上游整张Intervention对象回调不同",
+        "变换后格式/颜色/像素因原生codec与GD/Imagick后端不同，未逐像素全矩阵复核"
+      ],
+      "references": [
+        "https://github.com/laravel/framework/tree/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Image",
+        "https://github.com/thephpleague/flysystem/blob/3.30.2/src/WhitespacePathNormalizer.php"
+      ],
+      "local_reference_script": "target/tmp/framework-parity-20261122/reference/image-lifecycle.php and flysystem-paths.php; local-only; test Driver/filesystem replaces external dependencies; not native PHP processing replay"
     }
   ]
 }

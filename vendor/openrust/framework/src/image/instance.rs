@@ -1,4 +1,7 @@
-use std::{path::PathBuf, sync::Arc};
+use std::{
+    path::PathBuf,
+    sync::{Arc, OnceLock},
+};
 
 use axum::body::Bytes;
 use base64::{Engine as _, engine::general_purpose::STANDARD};
@@ -35,6 +38,9 @@ pub struct Image {
     pipeline: ImagePipeline,
     driver: Option<String>,
     rendered: Arc<OnceCell<EncodedImage>>,
+    loaded: Arc<OnceCell<Bytes>>,
+    hash_name: OnceLock<String>,
+    dominant_color: OnceCell<String>,
 }
 
 #[allow(non_snake_case, reason = "Matches Laravel's Image API")]
@@ -46,6 +52,9 @@ impl Image {
             pipeline: ImagePipeline::default(),
             driver: None,
             rendered: Arc::default(),
+            loaded: Arc::default(),
+            hash_name: OnceLock::new(),
+            dominant_color: OnceCell::new(),
         }
     }
 
@@ -57,37 +66,53 @@ impl Image {
     }
 
     pub fn using(mut self, driver: impl Into<String>) -> Self {
+        self.newClone();
         self.driver = Some(driver.into());
-        self.rendered = Arc::default();
         self
     }
 
     pub fn transform(mut self, transformation: Transformation) -> Self {
+        self.newClone();
         self.pipeline.transformations.push(transformation);
-        self.rendered = Arc::default();
         self
     }
 
-    pub fn resize(self, width: Option<u32>, height: Option<u32>) -> Self {
-        self.transform(Transformation::Resize(width, height))
+    pub fn resize(self, width: Option<u32>, height: Option<u32>) -> Result<Self> {
+        if width.is_none() && height.is_none() {
+            return Err(Error::InvalidDimensions);
+        }
+        Ok(self.transform(Transformation::Resize(
+            width.map(|value| value.max(1)),
+            height.map(|value| value.max(1)),
+        )))
     }
 
-    pub fn scale(self, width: Option<u32>, height: Option<u32>) -> Self {
-        self.transform(Transformation::Scale(width, height))
+    pub fn scale(self, width: Option<u32>, height: Option<u32>) -> Result<Self> {
+        if width.is_none() && height.is_none() {
+            return Err(Error::InvalidDimensions);
+        }
+        Ok(self.transform(Transformation::Scale(
+            width.map(|value| value.max(1)),
+            height.map(|value| value.max(1)),
+        )))
     }
 
     pub fn cover(self, width: u32, height: u32) -> Self {
-        self.transform(Transformation::Cover(width, height))
+        self.transform(Transformation::Cover(width.max(1), height.max(1)))
     }
 
     pub fn contain(self, width: u32, height: u32, background: Background) -> Self {
-        self.transform(Transformation::Contain(width, height, background))
+        self.transform(Transformation::Contain(
+            width.max(1),
+            height.max(1),
+            background,
+        ))
     }
 
     pub fn crop(self, width: u32, height: u32, x: u32, y: u32) -> Self {
         self.transform(Transformation::Crop {
-            width,
-            height,
+            width: width.max(1),
+            height: height.max(1),
             x,
             y,
         })
@@ -102,11 +127,11 @@ impl Image {
     }
 
     pub fn blur(self, amount: u8) -> Self {
-        self.transform(Transformation::Blur(amount))
+        self.transform(Transformation::Blur(amount.min(100)))
     }
 
     pub fn sharpen(self, amount: u8) -> Self {
-        self.transform(Transformation::Sharpen(amount))
+        self.transform(Transformation::Sharpen(amount.min(100)))
     }
 
     pub fn grayscale(self) -> Self {
@@ -121,6 +146,24 @@ impl Image {
         self.transform(Transformation::FlipVertically)
     }
 
+    pub fn flip(self) -> Self {
+        self.flipVertically()
+    }
+
+    pub fn flop(self) -> Self {
+        self.flipHorizontally()
+    }
+
+    /// 选择应用已注册的 GD 驱动；未注册时在处理图片时返回 UnknownDriver。
+    pub fn usingGd(self) -> Self {
+        self.using("gd")
+    }
+
+    /// 选择应用已注册的 Imagick 驱动；未注册时在处理图片时返回 UnknownDriver。
+    pub fn usingImagick(self) -> Self {
+        self.using("imagick")
+    }
+
     pub fn when(self, condition: bool, transform: impl FnOnce(Self) -> Self) -> Self {
         if condition { transform(self) } else { self }
     }
@@ -130,8 +173,8 @@ impl Image {
     }
 
     pub fn encode(mut self, format: Format) -> Self {
+        self.newClone();
         self.pipeline.format = Some(format);
-        self.rendered = Arc::default();
         self
     }
 
@@ -168,8 +211,8 @@ impl Image {
     }
 
     pub fn quality(mut self, quality: u8) -> Self {
+        self.newClone();
         self.pipeline.quality = Some(quality.clamp(1, 100));
-        self.rendered = Arc::default();
         self
     }
 
@@ -216,25 +259,89 @@ impl Image {
     }
 
     pub async fn dominantColor(&self) -> Result<String> {
-        let contents = self.load().await?;
-        let driver = self.manager.driver(self.driver.as_deref())?;
-        let pipeline = self.pipeline.clone();
-        let limits = self.manager.limits();
-        self.manager
-            .blocking(move || driver.dominantColor(contents, &pipeline, limits))
+        self.dominant_color
+            .get_or_try_init(|| async {
+                let rendered = self.rendered.get();
+                let contents = match rendered {
+                    Some(rendered) => rendered.bytes.clone(),
+                    None => self.load().await?,
+                };
+                let pipeline = if rendered.is_some() {
+                    ImagePipeline::default()
+                } else {
+                    self.pipeline.clone()
+                };
+                let driver = self.manager.driver(self.driver.as_deref())?;
+                let limits = self.manager.limits();
+                self.manager
+                    .blocking(move || {
+                        let contents = if pipeline.transformations.is_empty()
+                            && pipeline.format.is_none()
+                            && pipeline.quality.is_none()
+                        {
+                            contents
+                        } else {
+                            driver.process(contents, &pipeline, limits)?.bytes
+                        };
+                        driver.dominantColor(contents, &ImagePipeline::default(), limits)
+                    })
+                    .await
+            })
             .await
+            .cloned()
+    }
+
+    pub async fn hashName(&self, path: &str) -> Result<String> {
+        let hash = self
+            .hash_name
+            .get_or_init(|| crate::support::Str::random(40));
+        let name = format!("{hash}.{}", self.extension().await?);
+        Ok(if path.is_empty() || path == "0" {
+            name
+        } else {
+            format!("{path}/{name}")
+        })
+    }
+
+    pub async fn toString(&self) -> Result<String> {
+        self.toDataUri().await
+    }
+
+    pub async fn toResponse(&self, _: &mut crate::http::Request) -> Result<crate::http::Response> {
+        let rendered = self.render().await?;
+        let mut response =
+            crate::http::Response::new(crate::http::StatusCode::OK, crate::http::Body::empty());
+        response.setContent(rendered.bytes.clone());
+        Ok(response.header(
+            ::http::header::CONTENT_TYPE,
+            ::http::HeaderValue::from_static(rendered.format.mime_type()),
+        ))
+    }
+
+    fn newClone(&mut self) {
+        if let Some(rendered) = self.rendered.get() {
+            self.source = Source::Bytes(rendered.bytes.clone());
+            self.loaded = Arc::default();
+            self.pipeline = ImagePipeline::default();
+        }
+        self.rendered = Arc::default();
+        self.dominant_color = OnceCell::new();
     }
 
     pub async fn store(&self, directory: &str, disk: Option<&str>) -> Result<Option<String>> {
         self.store_inner(directory, None, disk, None).await
     }
 
-    pub async fn storeAs(
+    pub async fn storeAs<'a>(
         &self,
         directory: &str,
-        name: &str,
+        name: impl Into<Option<&'a str>>,
         disk: Option<&str>,
     ) -> Result<Option<String>> {
+        let (directory, name) = match name.into() {
+            Some(name) => (directory, name),
+            None => ("", directory),
+        };
         self.store_inner(directory, Some(name), disk, None).await
     }
 
@@ -247,12 +354,16 @@ impl Image {
             .await
     }
 
-    pub async fn storePubliclyAs(
+    pub async fn storePubliclyAs<'a>(
         &self,
         directory: &str,
-        name: &str,
+        name: impl Into<Option<&'a str>>,
         disk: Option<&str>,
     ) -> Result<Option<String>> {
+        let (directory, name) = match name.into() {
+            Some(name) => (directory, name),
+            None => ("", directory),
+        };
         self.store_inner(directory, Some(name), disk, Some(Visibility::Public))
             .await
     }
@@ -270,19 +381,10 @@ impl Image {
         let name = if let Some(name) = name {
             name
         } else {
-            generated = format!(
-                "{}.{}",
-                crate::http::random_upload_name().map_err(Error::Filesystem)?,
-                rendered.format.extension()
-            );
+            generated = self.hashName("").await?;
             &generated
         };
-        let directory = directory.trim_matches('/');
-        let path = if directory.is_empty() {
-            name.to_owned()
-        } else {
-            format!("{directory}/{name}")
-        };
+        let path = format!("{directory}/{name}").trim_matches('/').to_owned();
         let written = disk
             .putWithOptions(&path, &rendered.bytes, WriteOptions { visibility })
             .await
@@ -294,7 +396,16 @@ impl Image {
         self.rendered
             .get_or_try_init(|| async {
                 let contents = self.load().await?;
-                let driver = self.manager.driver(self.driver.as_deref())?;
+                let driver = if self.pipeline.transformations.is_empty()
+                    && self.pipeline.format.is_none()
+                    && self.pipeline.quality.is_none()
+                {
+                    // 原样读取不解析指定后端，仍执行原生输入与尺寸限额检查。
+                    Arc::new(super::native_driver::NativeDriver::default())
+                        as Arc<dyn super::Driver>
+                } else {
+                    self.manager.driver(self.driver.as_deref())?
+                };
                 let pipeline = self.pipeline.clone();
                 let limits = self.manager.limits();
                 self.manager
@@ -305,6 +416,13 @@ impl Image {
     }
 
     async fn load(&self) -> Result<Bytes> {
+        self.loaded
+            .get_or_try_init(|| self.read_source())
+            .await
+            .cloned()
+    }
+
+    async fn read_source(&self) -> Result<Bytes> {
         let limits = self.manager.limits();
         let bytes = match &self.source {
             Source::Bytes(bytes) => bytes.clone(),
@@ -365,4 +483,18 @@ pub(super) async fn read_bounded(reader: impl AsyncRead, limits: Limits) -> Resu
         return Err(Error::InputTooLarge);
     }
     Ok(buffer.into())
+}
+
+#[allow(non_snake_case)]
+impl crate::contracts::support::Responsable for Image {
+    async fn toResponse(
+        self,
+        request: &mut crate::http::Request,
+    ) -> std::result::Result<crate::http::Response, crate::http::HttpError> {
+        Image::toResponse(&self, request)
+            .await
+            .map_err(|source| crate::http::HttpError::Internal {
+                source: Box::new(source),
+            })
+    }
 }

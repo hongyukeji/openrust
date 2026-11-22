@@ -107,6 +107,27 @@ pub enum Transformation {
     },
 }
 
+impl Transformation {
+    /// 内置转换使用变体原名，自定义转换使用调用方提供的名称。
+    pub fn name(&self) -> &str {
+        match self {
+            Self::Resize(..) => "Resize",
+            Self::Scale(..) => "Scale",
+            Self::Cover(..) => "Cover",
+            Self::Contain(..) => "Contain",
+            Self::Crop { .. } => "Crop",
+            Self::Orient => "Orient",
+            Self::Rotate(..) => "Rotate",
+            Self::Blur(..) => "Blur",
+            Self::Sharpen(..) => "Sharpen",
+            Self::Grayscale => "Grayscale",
+            Self::FlipHorizontally => "FlipHorizontally",
+            Self::FlipVertically => "FlipVertically",
+            Self::Custom { name, .. } => name,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct ImagePipeline {
     pub transformations: Vec<Transformation>,
