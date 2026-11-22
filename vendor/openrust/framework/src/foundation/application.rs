@@ -91,11 +91,22 @@ pub(super) struct ApplicationState {
     pub(super) routes: Mutex<Option<Router>>,
 }
 
+tokio::task_local! {
+    // 启动回调也在容器作用域中执行，但其中的配置与语言必须成为应用默认值。
+    static BOOTSTRAPPING: Arc<Container>;
+}
+
 const PENDING: u8 = 0;
 const FAILED: u8 = 1;
 const BOOTED: u8 = 2;
 
 impl Application {
+    pub(crate) fn is_bootstrapping(container: &Container) -> bool {
+        BOOTSTRAPPING
+            .try_with(|owner| std::ptr::eq(owner.as_ref(), container))
+            .unwrap_or(false)
+    }
+
     /// 框架包的编译期版本，与应用配置版本相互独立。
     pub const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 
@@ -844,22 +855,30 @@ impl Application {
         selected: Option<&str>,
         configuration_ready: Option<tokio::sync::oneshot::Sender<()>>,
     ) -> Result<(), BootstrapError> {
-        crate::support::facades::scope(
-            self.shared.container.clone(),
-            self.boot_application(selected, configuration_ready, true),
-        )
-        .await
+        BOOTSTRAPPING
+            .scope(
+                self.shared.container.clone(),
+                crate::support::facades::scope(
+                    self.shared.container.clone(),
+                    self.boot_application(selected, configuration_ready, true),
+                ),
+            )
+            .await
     }
 
     pub(super) async fn boot_without_config_cache(
         &mut self,
         selected: Option<&str>,
     ) -> Result<(), BootstrapError> {
-        crate::support::facades::scope(
-            self.shared.container.clone(),
-            self.boot_application(selected, None, false),
-        )
-        .await
+        BOOTSTRAPPING
+            .scope(
+                self.shared.container.clone(),
+                crate::support::facades::scope(
+                    self.shared.container.clone(),
+                    self.boot_application(selected, None, false),
+                ),
+            )
+            .await
     }
 
     async fn boot_application(

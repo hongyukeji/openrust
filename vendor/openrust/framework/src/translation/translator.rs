@@ -643,7 +643,9 @@ impl Translator {
         use crate::contracts::container::Container as _;
         self.owner
             .upgrade()
-            .filter(|owner| owner.has_active_scope())
+            .filter(|owner| {
+                owner.has_active_scope() && !crate::foundation::Application::is_bootstrapping(owner)
+            })
             .and_then(|owner| owner.make().ok())
     }
     fn locales(&self) -> Locales {
