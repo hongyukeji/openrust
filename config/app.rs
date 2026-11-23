@@ -80,9 +80,9 @@ pub(super) fn load(env: &Environment) -> Result<Loaded<'_>, ConfigError> {
         |
         */
         "timezone": get(env, "APP_TIMEZONE", "UTC")?,
-        "locale": locale(env, "APP_LOCALE", "en")?,
-        "fallback_locale": locale(env, "APP_FALLBACK_LOCALE", "en")?,
-        "faker_locale": locale(env, "APP_FAKER_LOCALE", "en-US")?,
+        "locale": get_locale(env, "APP_LOCALE", "en")?,
+        "fallback_locale": get_locale(env, "APP_FALLBACK_LOCALE", "en")?,
+        "faker_locale": get_locale(env, "APP_FAKER_LOCALE", "en-US")?,
         // "*" 自动发现全部可用语言；数组限制候选，空数组关闭语言协商。
         "supported_locales": get_supported_locales(env, "APP_SUPPORTED_LOCALES", "*")?,
         // 保存语言偏好的表单字段名。
@@ -177,7 +177,11 @@ fn resolve_url(
     Ok((url, false))
 }
 
-fn locale(env: &Environment, key: &str, default: &str) -> Result<String, ConfigError> {
+/*
+ * 读取语言配置，未设置时使用默认值，并规范化为 BCP 47 标签。
+ * 无效标签返回包含配置键的类型错误。
+ */
+fn get_locale(env: &Environment, key: &str, default: &str) -> Result<String, ConfigError> {
     canonical_locale(env.get_utf8(key)?.unwrap_or(default)).map_err(|_| ConfigError::InvalidType {
         key: key.into(),
         expected: "BCP 47 语言标签（如 en、zh-Hans、zh-Hant）",
