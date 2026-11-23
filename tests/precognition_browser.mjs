@@ -10,7 +10,8 @@ assert.equal(pkg.version, '2.0.0');
 const bundle = await build({stdin:{contents:'import {client, createValidator} from "laravel-precognition"; window.precognition = {client, createValidator};', resolveDir:root},bundle:true,write:false,format:'iife',platform:'browser'});
 const browser = await chromium.launch({headless:true,executablePath:process.env.DOCS_BROWSER_PATH});
 try {
-    const page = await browser.newPage();
+    const page = await browser.newPage({locale:'en-US'});
+    assert.equal(await page.evaluate(() => navigator.language), 'en-US');
     const base = process.argv[2];
     await page.goto(`${base}/api/closure`);
     await page.addScriptTag({content:bundle.outputFiles[0].text});

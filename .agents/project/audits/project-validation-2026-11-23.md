@@ -31,3 +31,7 @@ validation_email首轮暴露已知内置email的未实现参数被通用扩展�
 ## 数据库翻译公开示例修复
 
 全workspace实际Rustdoc测试发现translation-database的README及DatabaseLoader文档仍使用withTable／withMaxRows／withFallback／loadFrom。仅将Rust代码示例同步为现有原生命名；接口、加载和SQL行为不变。最终4项Rustdoc编译／执行通过，PostgreSQL18加载目标首轮通过；MySQL／SQLite及三库复验继续在补充矩阵记录。不以Rustdoc通过替代驱动行为验收。
+
+## Precognition 实际浏览器的语言前置
+
+最终额外启用固定2.0.0前端助手的ignore专项，浏览器默认协商到zh-Hans，实际中文校验提示与旧英文断言不一致。仅给该测试浏览器固定en-US并核对navigator.language；不关闭应用语言协商、不替换产品词条。Node语法检查与真实Chromium153.0.8010.12的204／422／200、文件上传／遗漏及前端验证状态全部通过（precognition-browser.log，2.30秒），原失败日志独立保留。Rust源码未变化，已通过的两套严格Clippy仍对应同一Rust组合。
