@@ -503,13 +503,13 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
         let package_views = path.join("resources/views/package");
         let extra_components = path.join("extra-components");
         let mut application = Application::configure(path)
-            .withConfig(|_, _| {
+            .with_config(|_, _| {
                 Ok([("auth".to_owned(), serde_json::json!({
                 "defaults":{"guard":"web"},
                 "guards":{"web":{"driver":"view-default"}, "alternate":{"driver":"view-alternate"}}
             }))].into())
             })
-            .withRouting(Routing::default().web(|| {
+            .with_routing(Routing::default().web(|| {
                 Route::get("/page", || view("page").with("title", "route"))?;
                 Route::get("/plain", || view("layout"))?;
                 Route::get("/contract", contract_route)?;
@@ -742,7 +742,7 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
             .create()
             .unwrap();
         if app == "B" {
-            application.usePublicPath("hot-public");
+            application.use_public_path("hot-public");
         }
         let mut kernel = Kernel::new(application);
         kernel.bootstrap().await.unwrap();

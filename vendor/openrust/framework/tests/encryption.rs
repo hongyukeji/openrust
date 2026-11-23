@@ -161,8 +161,8 @@ async fn crypt_uses_each_apps_current_and_previous_keys_over_http() {
 
     async fn start(root: &Path) -> (std::net::SocketAddr, tokio::task::JoinHandle<()>) {
         let application = Application::configure(root.to_owned())
-            .withConfig(config)
-            .withRouting(Routing::default().web(|| {
+            .with_config(config)
+            .with_routing(Routing::default().web(|| {
                 Route::get("/encrypt", encrypt)?;
                 Route::get("/decrypt", decrypt)
             }))

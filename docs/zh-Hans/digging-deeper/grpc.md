@@ -8,7 +8,7 @@
 ./artisan install:grpc
 ```
 
-安装器创建 `routes/grpc.rs`，并通过 `bootstrap/app.rs` 中的 `withGrpc` 接入注册函数。重复执行会保留现有路由文件。注册服务后重新构建应用。
+安装器创建 `routes/grpc.rs`，并通过 `bootstrap/app.rs` 中的 `with_grpc` 接入注册函数。重复执行会保留现有路由文件。注册服务后重新构建应用。
 
 ## 注册服务
 

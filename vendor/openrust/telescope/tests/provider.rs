@@ -195,7 +195,7 @@ fn handler(
     _: &mut openrust::http::Request,
 ) -> openrust::http::HttpFuture<'_, Result<openrust::http::Response, openrust::http::HttpError>> {
     Box::pin(async {
-        let telescope = openrust_telescope::facades::Telescope::getFacadeRoot().unwrap();
+        let telescope = openrust_telescope::facades::Telescope::get_facade_root().unwrap();
         telescope.recordEvent(
             IncomingEntry::make(json!({"name":"probe"}).as_object().unwrap().clone()).unwrap(),
         );
@@ -211,7 +211,7 @@ fn handler(
 }
 fn application() -> openrust::testing::TestApp {
     let app = openrust::testing::TestApp::create(|builder| builder
-        .withConfig(|base, _| Ok(std::collections::BTreeMap::from([
+        .with_config(|base, _| Ok(std::collections::BTreeMap::from([
             ("app".into(), json!({"env":"testing","url":"http://localhost","debug":true,"key":"01234567890123456789012345678901","cipher":"AES-256-CBC"})),
             ("database".into(), json!({"default":"testing","connections":{"testing":database_config(base)},"redis":{"default":{"url":std::env::var("TELESCOPE_TEST_REDIS_URL").ok()},"options":{"prefix":"telescope-test:"}}})),
             ("cache".into(), json!({"default":std::env::var("TELESCOPE_TEST_CACHE_DRIVER").unwrap_or("file".into()),"stores":{"file":{"driver":"file","path":base.join("cache/data"),"lock_path":base.join("cache/data")},"database":{"driver":"database","connection":"testing","table":"cache","lock_table":"cache_locks"},"redis":{"driver":"redis","connection":"default","lock_connection":"default"}}})),
@@ -221,12 +221,12 @@ fn application() -> openrust::testing::TestApp {
             ("mail".into(),json!({"default":"array","mailers":{"array":{"transport":"array"}},"from":{"address":"sender@example.org","name":"Sender"}})),
             ("telescope".into(), json!({"ignore_paths":["api/ignore/*"]})),
         ])))
-        .withProviders(vec![Box::new(TelescopeServiceProvider)])
-        .withMiddleware(|middleware| {
+        .with_providers(vec![Box::new(TelescopeServiceProvider)])
+        .with_middleware(|middleware| {
             middleware.skipTrimStringsWhen(|request|request.path().trim_start_matches('/')=="api/unread");
             middleware.convertEmptyStringsToNull(|request|request.path().trim_start_matches('/')=="api/unread");
         })
-        .withRouting(openrust::foundation::configuration::Routing::default().api(routes).commands(commands))
+        .with_routing(openrust::foundation::configuration::Routing::default().api(routes).commands(commands))
     ).unwrap();
     std::fs::File::create(app.root().join("telescope.sqlite")).unwrap();
     app
@@ -389,7 +389,7 @@ fn native_handler(
             .await
             .unwrap();
         Ok(openrust::http::Response::from(
-            openrust::support::facades::View::getFacadeRoot()
+            openrust::support::facades::View::get_facade_root()
                 .unwrap()
                 .render("observed", &Default::default())
                 .unwrap(),
@@ -819,7 +819,7 @@ fn retry(
     _: &mut openrust::http::Request,
 ) -> openrust::http::HttpFuture<'_, Result<openrust::http::Response, openrust::http::HttpError>> {
     Box::pin(async {
-        let telescope = openrust_telescope::facades::Telescope::getFacadeRoot().unwrap();
+        let telescope = openrust_telescope::facades::Telescope::get_facade_root().unwrap();
         let entry =
             IncomingEntry::make(json!({"name":"pending"}).as_object().unwrap().clone()).unwrap();
         let id = entry.uuid;
@@ -1376,7 +1376,7 @@ fn identity_handler(
                 .unwrap()
                 .set_user(Box::new(actor));
         }
-        openrust_telescope::facades::Telescope::getFacadeRoot()
+        openrust_telescope::facades::Telescope::get_facade_root()
             .unwrap()
             .recordEvent(
                 IncomingEntry::make(json!({"name":"identity"}).as_object().unwrap().clone())

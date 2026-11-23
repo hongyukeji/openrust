@@ -299,7 +299,7 @@ pub struct ImageFacade;
 impl Facade for ImageFacade {
     type Service = ImageManager;
 
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         ServiceKey::typed::<ImageManager>()
     }
 }
@@ -307,39 +307,39 @@ impl Facade for ImageFacade {
 #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl ImageFacade {
     pub fn fromBytes(bytes: impl Into<Bytes>) -> Result<Image> {
-        Ok(Self::getFacadeRoot()?.fromBytes(bytes))
+        Ok(Self::get_facade_root()?.fromBytes(bytes))
     }
 
     pub async fn fromStream(reader: impl AsyncRead) -> Result<Image> {
-        Self::getFacadeRoot()?.fromStream(reader).await
+        Self::get_facade_root()?.fromStream(reader).await
     }
 
     pub fn fromBase64(encoded: impl Into<Arc<str>>) -> Result<Image> {
-        Ok(Self::getFacadeRoot()?.fromBase64(encoded))
+        Ok(Self::get_facade_root()?.fromBase64(encoded))
     }
 
     pub fn fromPath(path: impl Into<PathBuf>) -> Result<Image> {
-        Ok(Self::getFacadeRoot()?.fromPath(path))
+        Ok(Self::get_facade_root()?.fromPath(path))
     }
 
     pub fn fromUpload(file: &UploadedFile) -> Result<Image> {
-        Ok(Self::getFacadeRoot()?.fromUpload(file))
+        Ok(Self::get_facade_root()?.fromUpload(file))
     }
 
     pub fn fromDisk(disk: Arc<FilesystemAdapter>, path: impl Into<String>) -> Result<Image> {
-        Ok(Self::getFacadeRoot()?.fromDisk(disk, path))
+        Ok(Self::get_facade_root()?.fromDisk(disk, path))
     }
 
     pub fn fromStorage(path: impl Into<String>, disk: Option<&str>) -> Result<Image> {
-        Self::getFacadeRoot()?.fromStorage(path, disk)
+        Self::get_facade_root()?.fromStorage(path, disk)
     }
 
     pub fn fromUrl(url: impl Into<String>) -> Result<Image> {
-        Self::getFacadeRoot()?.fromUrl(url)
+        Self::get_facade_root()?.fromUrl(url)
     }
 
     pub fn driver(name: Option<&str>) -> Result<Arc<dyn Driver>> {
-        Self::getFacadeRoot()?.driver(name)
+        Self::get_facade_root()?.driver(name)
     }
 
     pub fn transformUsing(
@@ -347,30 +347,30 @@ impl ImageFacade {
         transformation: &str,
         callback: TransformationHandler,
     ) -> Result<()> {
-        Self::getFacadeRoot()?
+        Self::get_facade_root()?
             .transformUsing(driver, transformation, callback)
             .map(|_| ())
     }
 
     pub fn getDefaultDriver() -> Result<String> {
-        Ok(Self::getFacadeRoot()?.getDefaultDriver())
+        Ok(Self::get_facade_root()?.getDefaultDriver())
     }
 
     pub fn getDrivers() -> Result<HashMap<String, Arc<dyn Driver>>> {
-        Ok(Self::getFacadeRoot()?.getDrivers())
+        Ok(Self::get_facade_root()?.getDrivers())
     }
 
     pub fn getContainer() -> Result<Option<Arc<Container>>> {
-        Ok(Self::getFacadeRoot()?.getContainer())
+        Ok(Self::get_facade_root()?.getContainer())
     }
 
     pub fn setContainer(container: Arc<Container>) -> Result<()> {
-        Self::getFacadeRoot()?.setContainer(container);
+        Self::get_facade_root()?.setContainer(container);
         Ok(())
     }
 
     pub fn forgetDrivers() -> Result<()> {
-        Self::getFacadeRoot()?.forgetDrivers();
+        Self::get_facade_root()?.forgetDrivers();
         Ok(())
     }
 
@@ -378,7 +378,7 @@ impl ImageFacade {
         name: impl Into<String>,
         creator: impl Fn(&ImageManager) -> Result<Arc<dyn Driver>> + Send + Sync + 'static,
     ) -> Result<()> {
-        Self::getFacadeRoot()?.extend(name, creator).map(|_| ())
+        Self::get_facade_root()?.extend(name, creator).map(|_| ())
     }
 }
 

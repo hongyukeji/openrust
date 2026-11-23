@@ -82,7 +82,7 @@ impl ClassAttribute {
             resolve_async: Some(Arc::new(|attribute, container, parameter| match attribute
                 .downcast::<A>()
             {
-                Ok(attribute) => attribute.resolveAsync(container, parameter),
+                Ok(attribute) => attribute.resolve_async(container, parameter),
                 Err(error) => Box::pin(async move { Err(error) }),
             })),
             after: Some(Arc::new(|event, container| {
@@ -138,10 +138,9 @@ pub(super) struct Attributes {
     after: Vec<(ServiceKey, Vec<Arc<After>>)>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Container {
     /// Overrides the resolver for a contextual attribute in this container.
-    pub fn whenHasAttribute<A: ContextualAttribute>(
+    pub fn when_has_attribute<A: ContextualAttribute>(
         &self,
         handler: impl Fn(&A, &Self, AttributeParameter) -> Result<AttributeValue>
         + Send
@@ -171,7 +170,7 @@ impl Container {
             .cloned()
     }
 
-    pub fn resolveFromAttribute(
+    pub fn resolve_from_attribute(
         &self,
         attribute: &ClassAttribute,
         parameter: AttributeParameter,
@@ -189,7 +188,7 @@ impl Container {
     }
 
     /// Uses the asynchronous attribute resolver unless the container registered an override.
-    pub async fn resolveFromAttributeAsync(
+    pub async fn resolve_from_attribute_async(
         &self,
         attribute: &ClassAttribute,
         parameter: AttributeParameter,
@@ -209,7 +208,7 @@ impl Container {
     }
 
     /// Registers a callback by attribute type or by the declared service type of the result.
-    pub fn afterResolvingAttribute<A: ?Sized + 'static>(
+    pub fn after_resolving_attribute<A: ?Sized + 'static>(
         &self,
         callback: impl Fn(&AttributeEvent<'_>, &Self) -> Result<()> + Send + Sync + 'static,
     ) {
@@ -229,7 +228,7 @@ impl Container {
 
     /// Runs the post-resolution callbacks for already resolved attribute metadata and value.
     /// Pass parameter metadata for an injected argument, or `None` for a class.
-    pub fn fireAfterResolvingAttributeCallbacks(
+    pub fn fire_after_resolving_attribute_callbacks(
         &self,
         attributes: &[ClassAttribute],
         value: &AttributeValue,

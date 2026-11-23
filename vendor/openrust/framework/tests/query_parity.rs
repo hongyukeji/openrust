@@ -172,7 +172,7 @@ async fn query_sources_joins_and_havings_match_fixed_upstream_sql_and_binding_or
                     .toSql()
                     .unwrap()
             );
-            assert_eq!(query.getBindings().unwrap(), vec![7.into()]);
+            assert_eq!(query.get_bindings().unwrap(), vec![7.into()]);
         } else {
             assert_eq!(
                 query.toSql().unwrap(),
@@ -180,7 +180,7 @@ async fn query_sources_joins_and_havings_match_fixed_upstream_sql_and_binding_or
                 "{case}"
             );
             assert_eq!(
-                query.getBindings().unwrap(),
+                query.get_bindings().unwrap(),
                 case["bindings"]
                     .as_array()
                     .unwrap()

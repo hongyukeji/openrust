@@ -160,7 +160,7 @@ impl Seeder for Insert {
             let guarded = attributes.clone();
             tokio::spawn(async move {
                 assert!(matches!(
-                    SeedItem::newInstance(guarded),
+                    SeedItem::new_instance(guarded),
                     Err(DatabaseError::MassAssignment(name)) if name == "name"
                 ));
             })
@@ -183,7 +183,7 @@ impl Seeder for Failing {
                 DB::connection(None)?.getName(),
                 context.connection().getName()
             );
-            SeedItem::newInstance(Attributes::from([("name".into(), "unsaved".into())]))?;
+            SeedItem::new_instance(Attributes::from([("name".into(), "unsaved".into())]))?;
             Err(DatabaseError::InvalidSeeder("fixture failure"))
         })
     }
@@ -1880,15 +1880,15 @@ async fn seeder_command_fixture() {
         serde_json::from_str(&std::env::var("SEED_FIXTURE_ARGS").unwrap()).unwrap();
     let args: Vec<OsString> = args.into_iter().map(Into::into).collect();
     let mut app = Application::configure(root.into())
-        .withConfig(load)
-        .withProviders(vec![Box::new(Provider)])
+        .with_config(load)
+        .with_providers(vec![Box::new(Provider)])
         .create()
         .unwrap();
     app.boot().await.unwrap();
     let manager = app.container().get::<DatabaseManager>("db").unwrap();
-    let status = app.handleCommand(&args).await.unwrap();
+    let status = app.handle_command(&args).await.unwrap();
     assert!(matches!(
-        SeedItem::newInstance(Attributes::from([("name".into(), "outside".into())])),
+        SeedItem::new_instance(Attributes::from([("name".into(), "outside".into())])),
         Err(DatabaseError::MassAssignment(name)) if name == "name"
     ));
     assert_eq!(manager.getDefaultConnection().unwrap(), "sqlite");
@@ -7276,8 +7276,8 @@ async fn artisan_faker_is_shared_by_application_and_locale_on_mysql() {
     for _ in 0..2 {
         let root = Root::new();
         let mut app = Application::configure(root.0.clone())
-            .withConfig(load)
-            .withProviders(vec![Box::new(Provider)])
+            .with_config(load)
+            .with_providers(vec![Box::new(Provider)])
             .create()
             .unwrap();
         app.boot().await.unwrap();
@@ -7294,7 +7294,7 @@ async fn artisan_faker_is_shared_by_application_and_locale_on_mysql() {
             .unwrap();
         let mut arguments = args.clone();
         arguments[1] = "--database=faker_test".into();
-        assert_eq!(app.handleCommand(&arguments).await.unwrap(), 0);
+        assert_eq!(app.handle_command(&arguments).await.unwrap(), 0);
         let current = FAKER_SEEDER_GENERATOR.lock().unwrap().take().unwrap();
         if let Some((first, control)) = previous.take() {
             assert!(!Arc::ptr_eq(&current, &first));

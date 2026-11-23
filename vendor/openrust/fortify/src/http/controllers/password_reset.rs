@@ -76,7 +76,7 @@ async fn respond<T: contracts::PasswordResponse + ?Sized + 'static>(
     request: &mut Request,
     status: PasswordResetStatus,
 ) -> Result<Response, HttpError> {
-    Resolver::<T>::getFacadeRoot()
+    Resolver::<T>::get_facade_root()
         .map_err(internal)?
         .toResponse(request, status)
         .await
@@ -96,7 +96,7 @@ impl PasswordResetLinkController {
         _: ValidatedFormRequest<super::super::requests::SendPasswordResetLinkRequest>,
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
-            let fortify = Resolver::<Fortify>::getFacadeRoot().map_err(internal)?;
+            let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;
             canonicalize(request, &fortify).await?;
             let status = Password::broker(broker_name(&fortify).as_deref())?
                 .sendResetLink(&credentials(request, &fortify).await?, None)
@@ -127,7 +127,7 @@ impl NewPasswordController {
         request: &'a mut Request,
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
-            let fortify = Resolver::<Fortify>::getFacadeRoot().map_err(internal)?;
+            let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;
             Auth::sessionGuard(request, fortify.guard().as_deref())?;
             canonicalize(request, &fortify).await?;
             Validator::make(
@@ -148,7 +148,7 @@ impl NewPasswordController {
                 .and_then(|v| v.as_str().map(str::to_owned))
                 .unwrap_or_default();
             let completion =
-                Resolver::<CompletePasswordReset>::getFacadeRoot().map_err(internal)?;
+                Resolver::<CompletePasswordReset>::get_facade_root().map_err(internal)?;
             let errors = Arc::new(Mutex::new(None));
             let action_fortify = fortify.clone();
             let callback_errors = errors.clone();
@@ -168,8 +168,9 @@ impl NewPasswordController {
                             let action = match action {
                                 Some(action) => action,
                                 None => {
-                                    Resolver::<dyn contracts::ResetsUserPasswords>::getFacadeRoot()
-                                        .map_err(internal)?
+                                    Resolver::<dyn contracts::ResetsUserPasswords>::get_facade_root(
+                                    )
+                                    .map_err(internal)?
                                 }
                             };
                             action.reset(user, input.as_ref()).await?;

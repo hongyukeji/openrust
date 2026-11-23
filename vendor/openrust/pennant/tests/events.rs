@@ -9,9 +9,9 @@ use std::sync::{
 };
 
 fn app() -> TestApp {
-    TestApp::create(|builder| builder.withConfig(|_, _| Ok(std::collections::BTreeMap::from([
+    TestApp::create(|builder| builder.with_config(|_, _| Ok(std::collections::BTreeMap::from([
         ("pennant".into(), json!({"default":"array", "stores":{"array":{"driver":"array"},"custom":{"driver":"custom"}}}))
-    ]))).withProviders(vec![Box::new(PennantServiceProvider)])).unwrap()
+    ]))).with_providers(vec![Box::new(PennantServiceProvider)])).unwrap()
 }
 struct Campaign {
     override_value: Arc<AtomicBool>,

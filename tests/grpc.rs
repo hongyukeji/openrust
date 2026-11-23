@@ -46,7 +46,9 @@ fn actual_artisan_installs_grpc_registration_and_preserves_user_routes() {
     install();
     let startup = fs::read_to_string(root.0.join("bootstrap/app.rs")).unwrap();
     assert_eq!(
-        startup.matches(".withGrpc(routes::grpc::register)").count(),
+        startup
+            .matches(".with_grpc(routes::grpc::register)")
+            .count(),
         1
     );
     let modules = fs::read_to_string(root.0.join("routes/mod.rs")).unwrap();
@@ -143,8 +145,8 @@ mod process {
     #[ignore = "spawned by the gRPC process acceptance test"]
     async fn grpc_entry_fixture() {
         Application::configure(std::env::temp_dir())
-            .withConfig(configure)
-            .withGrpc(register)
+            .with_config(configure)
+            .with_grpc(register)
             .create()
             .unwrap()
             .start()
@@ -371,10 +373,10 @@ mod process {
     async fn client_fixture(peer: SocketAddr) -> Application {
         use openrust::contracts::foundation::Application as _;
         let mut app = Application::configure(std::env::temp_dir())
-            .withRouting(
+            .with_routing(
                 openrust::foundation::configuration::Routing::default().web(register_client_route),
             )
-            .withCommands(register_probe)
+            .with_commands(register_probe)
             .create()
             .unwrap();
         app.boot().await.unwrap();
@@ -446,7 +448,10 @@ mod process {
         assert_http_probe(app).await;
         let artisan = client_fixture(peer).await;
         assert_eq!(
-            artisan.handleCommand(&["grpc:probe".into()]).await.unwrap(),
+            artisan
+                .handle_command(&["grpc:probe".into()])
+                .await
+                .unwrap(),
             0
         );
     }
@@ -714,7 +719,10 @@ extendedKeyUsage=serverAuth
         assert_http_probe(app).await;
         let artisan = secure_client_fixture(&material.0, peer).await;
         assert_eq!(
-            artisan.handleCommand(&["grpc:probe".into()]).await.unwrap(),
+            artisan
+                .handle_command(&["grpc:probe".into()])
+                .await
+                .unwrap(),
             0
         );
     }

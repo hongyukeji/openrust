@@ -22,7 +22,7 @@ impl ServiceProvider for EncryptionServiceProvider {
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
             let container = app.container();
-            container.singletonNamed("encrypter", |container| {
+            container.singleton_named("encrypter", |container| {
                 let config = container.get::<dyn Repository>("config")?;
                 resolve(config.as_ref()).map(Arc::new).map_err(|source| {
                     BindingResolutionError::FactoryFailed {

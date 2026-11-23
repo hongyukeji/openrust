@@ -119,17 +119,17 @@ fn model_from_request(request: &mut Request) -> HttpFuture<'_, DatabaseResult<Ro
 #[tokio::test]
 async fn routes_return_models_and_collections_as_json_over_http() {
     let mut app = Application::configure(std::env::temp_dir())
-        .withConfig(model_config)
-        .withExceptions(|exceptions| {
+        .with_config(model_config)
+        .with_exceptions(|exceptions| {
             exceptions.shouldRenderJsonWhen(|request, _| request.expectsJson());
         })
-        .withRouting(Routing::default().web(|| {
+        .with_routing(Routing::default().web(|| {
             Route::get("/model", || RouteRecord::findOrFail(1))?;
             Route::get("/models", RouteRecord::all)?;
             Route::get("/borrowed", model_from_request)?;
             Route::get("/missing-model", || RouteRecord::findOrFail(999))?;
             Route::get("/invalid-model", || {
-                let mut record = RouteRecord::newInstance(Attributes::new()).unwrap();
+                let mut record = RouteRecord::new_instance(Attributes::new()).unwrap();
                 record.setAttribute("bad", DbValue::Bytes(vec![0xff]));
                 record
             })?;
@@ -187,10 +187,10 @@ async fn routes_return_models_and_collections_as_json_over_http() {
 #[tokio::test]
 async fn opt_in_json_responses_use_semantic_status_and_default_exception_handling() {
     let application = Application::configure(std::env::temp_dir())
-        .withExceptions(|exceptions| {
+        .with_exceptions(|exceptions| {
             exceptions.shouldRenderJsonWhen(|request, _| request.expectsJson());
         })
-        .withRouting(Routing::default().health("/up").web(|| {
+        .with_routing(Routing::default().health("/up").web(|| {
             Route::get("/created", || {
                 ApiResponse::success(json!({"id": 1})).with_status(StatusCode::CREATED)
             })?;

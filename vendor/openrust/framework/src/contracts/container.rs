@@ -19,8 +19,7 @@ pub trait ContextualAttribute: Send + Sync + 'static {
     }
 
     /// Resolves an attribute in an asynchronous construction or method invocation.
-    #[allow(non_snake_case, reason = "Async contextual attribute adapter")]
-    fn resolveAsync<'a>(
+    fn resolve_async<'a>(
         self: Arc<Self>,
         container: &'a crate::container::Container,
         parameter: crate::container::AttributeParameter,
@@ -39,8 +38,7 @@ pub trait ContextualAttribute: Send + Sync + 'static {
 
 /// A concrete class whose construction entry point is a static method.
 pub trait SelfBuilding: Sized + Send + Sync + 'static {
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn newInstance(
+    fn new_instance(
         args: crate::container::ResolvedArgs,
         container: &crate::container::Container,
     ) -> crate::container::FactoryFuture<'_, Self>;
@@ -66,20 +64,17 @@ pub trait Container: Send + Sync + Sized {
         T: ?Sized + Send + Sync + 'static;
 
     /// Register a factory under a named identity instead of a Rust type.
-    #[allow(non_snake_case, reason = "Named overload for Rust's typed bind")]
-    fn bindNamed<T, F>(&self, name: &str, factory: F) -> Result<(), BindingResolutionError>
+    fn bind_named<T, F>(&self, name: &str, factory: F) -> Result<(), BindingResolutionError>
     where
         T: ?Sized + Send + Sync + 'static,
         F: Fn(&Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static;
 
-    #[allow(non_snake_case, reason = "Named overload for Rust's typed singleton")]
-    fn singletonNamed<T, F>(&self, name: &str, factory: F) -> Result<(), BindingResolutionError>
+    fn singleton_named<T, F>(&self, name: &str, factory: F) -> Result<(), BindingResolutionError>
     where
         T: ?Sized + Send + Sync + 'static,
         F: Fn(&Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static;
 
-    #[allow(non_snake_case, reason = "Named overload for Rust's typed instance")]
-    fn instanceNamed<T: ?Sized + Send + Sync + 'static>(
+    fn instance_named<T: ?Sized + Send + Sync + 'static>(
         &self,
         name: &str,
         service: Arc<T>,
@@ -92,25 +87,21 @@ pub trait Container: Send + Sync + Sized {
         alias: impl Into<ServiceKey>,
     ) -> Result<(), BindingResolutionError>;
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn isAlias(&self, name: impl Into<ServiceKey>) -> bool;
+    fn is_alias(&self, name: impl Into<ServiceKey>) -> bool;
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn getAlias(&self, name: impl Into<ServiceKey>) -> Result<ServiceKey, BindingResolutionError>;
+    fn get_alias(&self, name: impl Into<ServiceKey>) -> Result<ServiceKey, BindingResolutionError>;
 
     /// Tests whether a typed or named entry is bound or registered as an alias.
     fn has(&self, id: impl Into<ServiceKey>) -> bool;
 
-    #[allow(non_snake_case, reason = "Typed Rust contextual array adapter")]
-    fn addContextualServices<T: ?Sized + Send + Sync + 'static>(
+    fn add_contextual_services<T: ?Sized + Send + Sync + 'static>(
         &self,
         consumer: impl Into<ServiceKey>,
         need: impl Into<ServiceKey>,
         services: Vec<ServiceKey>,
     ) -> Result<(), BindingResolutionError>;
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn registerMethod<C: ?Sized + Send + Sync + 'static, R: Send + 'static, F>(
+    fn register_method<C: ?Sized + Send + Sync + 'static, R: Send + 'static, F>(
         &self,
         name: &str,
         signature: Vec<crate::container::ConstructorParam>,
@@ -125,8 +116,7 @@ pub trait Container: Send + Sync + Sized {
             + Send
             + Sync
             + 'static;
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn registerStaticMethod<C: ?Sized + 'static, R: Send + 'static, F>(
+    fn register_static_method<C: ?Sized + 'static, R: Send + 'static, F>(
         &self,
         name: &str,
         signature: Vec<crate::container::ConstructorParam>,
@@ -140,8 +130,7 @@ pub trait Container: Send + Sync + Sized {
             + Send
             + Sync
             + 'static;
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn bindMethod<C: ?Sized + Send + Sync + 'static, R: Send + 'static, F>(
+    fn bind_method<C: ?Sized + Send + Sync + 'static, R: Send + 'static, F>(
         &self,
         name: &str,
         callback: F,
@@ -151,8 +140,7 @@ pub trait Container: Send + Sync + Sized {
             + Send
             + Sync
             + 'static;
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn bindStaticMethod<C: ?Sized + 'static, R: Send + 'static, F>(
+    fn bind_static_method<C: ?Sized + 'static, R: Send + 'static, F>(
         &self,
         name: &str,
         callback: F,
@@ -162,30 +150,24 @@ pub trait Container: Send + Sync + Sized {
             + Send
             + Sync
             + 'static;
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn hasMethodBinding<C: ?Sized + 'static>(&self, name: &str) -> bool;
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn callMethodBinding<'a, C: ?Sized + Send + Sync + 'static, R: Send + 'static>(
+    fn has_method_binding<C: ?Sized + 'static>(&self, name: &str) -> bool;
+    fn call_method_binding<'a, C: ?Sized + Send + Sync + 'static, R: Send + 'static>(
         &'a self,
         name: &'a str,
         receiver: Arc<C>,
     ) -> impl std::future::Future<Output = Result<R, BindingResolutionError>> + Send + 'a;
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn callStaticMethodBinding<'a, C: ?Sized + 'static, R: Send + 'static>(
+    fn call_static_method_binding<'a, C: ?Sized + 'static, R: Send + 'static>(
         &'a self,
         name: &'a str,
     ) -> impl std::future::Future<Output = Result<R, BindingResolutionError>> + Send + 'a;
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn resolveEnvironmentUsing(&self, callback: Option<crate::container::EnvironmentResolver>);
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn currentEnvironmentIs<'a>(
+    fn resolve_environment_using(&self, callback: Option<crate::container::EnvironmentResolver>);
+    fn current_environment_is<'a>(
         &self,
         environments: impl Into<crate::container::EnvironmentQuery<'a>>,
     ) -> Result<crate::container::EnvironmentResult, BindingResolutionError>;
 
     /// Return an owned ordered snapshot of explicit factories and their declared shared flags.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn getBindings(&self) -> crate::container::Bindings;
+    fn get_bindings(&self) -> crate::container::Bindings;
     /// Clear bindings, aliases, instances and resolution history, retaining extension rules.
     fn flush(&self);
 
@@ -193,17 +175,14 @@ pub trait Container: Send + Sync + Sized {
     fn factory<T: ?Sized + Send + Sync + 'static>(
         &self,
     ) -> impl Fn() -> Result<Arc<T>, BindingResolutionError> + Send + Sync;
-    #[allow(non_snake_case, reason = "Named Rust factory overload")]
-    fn factoryNamed<T: ?Sized + Send + Sync + 'static>(
+    fn factory_named<T: ?Sized + Send + Sync + 'static>(
         &self,
         key: ServiceKey,
     ) -> impl Fn() -> Result<Arc<T>, BindingResolutionError> + Send + Sync;
-    #[allow(non_snake_case, reason = "Async Rust factory overload")]
-    fn factoryAsync<'a, T: ?Sized + Send + Sync + 'static>(
+    fn factory_async<'a, T: ?Sized + Send + Sync + 'static>(
         &'a self,
     ) -> impl Fn() -> crate::container::FactoryFuture<'a, T> + Send + Sync;
-    #[allow(non_snake_case, reason = "Async named Rust factory overload")]
-    fn factoryAsyncNamed<'a, T: ?Sized + Send + Sync + 'static>(
+    fn factory_async_named<'a, T: ?Sized + Send + Sync + 'static>(
         &'a self,
         key: ServiceKey,
     ) -> impl Fn() -> crate::container::FactoryFuture<'a, T> + Send + Sync;
@@ -224,38 +203,31 @@ pub trait Container: Send + Sync + Sized {
     ) -> impl Future<Output = Result<R, BindingResolutionError>> + Send + 'a;
 
     /// Registers immutable constructor metadata without marking the service bound.
-    #[allow(non_snake_case, reason = "Static Rust reflection adapter")]
-    fn registerClass(
+    fn register_class(
         &self,
         descriptor: crate::container::ClassDescriptor,
     ) -> Result<(), BindingResolutionError>;
     /// Constructs directly, bypassing the target's binding, cache, extenders and resolution callbacks.
     fn build<T: ?Sized + Send + Sync + 'static>(&self) -> Result<Arc<T>, BindingResolutionError>;
-    #[allow(non_snake_case, reason = "Async Rust build adapter")]
-    fn buildAsync<T: ?Sized + Send + Sync + 'static>(
+    fn build_async<T: ?Sized + Send + Sync + 'static>(
         &self,
     ) -> impl Future<Output = Result<Arc<T>, BindingResolutionError>> + Send;
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn getLastParameterOverride(&self) -> crate::container::ParameterOverrides;
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn makeWith<T: ?Sized + Send + Sync + 'static>(
+    fn get_last_parameter_override(&self) -> crate::container::ParameterOverrides;
+    fn make_with<T: ?Sized + Send + Sync + 'static>(
         &self,
         parameters: crate::container::ParameterOverrides,
     ) -> Result<Arc<T>, BindingResolutionError>;
-    #[allow(non_snake_case, reason = "Named Rust overload")]
-    fn makeWithNamed<T: ?Sized + Send + Sync + 'static>(
+    fn make_with_named<T: ?Sized + Send + Sync + 'static>(
         &self,
         key: impl Into<ServiceKey>,
         parameters: crate::container::ParameterOverrides,
     ) -> Result<Arc<T>, BindingResolutionError>;
-    #[allow(non_snake_case, reason = "Async Rust overload")]
-    fn makeWithAsync<T: ?Sized + Send + Sync + 'static>(
+    fn make_with_async<T: ?Sized + Send + Sync + 'static>(
         &self,
         parameters: crate::container::ParameterOverrides,
     ) -> impl Future<Output = Result<Arc<T>, BindingResolutionError>> + Send;
-    #[allow(non_snake_case, reason = "Named async Rust overload")]
-    fn makeWithAsyncNamed<T: ?Sized + Send + Sync + 'static>(
+    fn make_with_async_named<T: ?Sized + Send + Sync + 'static>(
         &self,
         key: impl Into<ServiceKey> + Send,
         parameters: crate::container::ParameterOverrides,
@@ -267,63 +239,54 @@ pub trait Container: Send + Sync + Sized {
         id: impl Into<ServiceKey>,
     ) -> Result<Arc<T>, BindingResolutionError>;
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn isShared(&self, id: impl Into<ServiceKey>) -> bool;
+    fn is_shared(&self, id: impl Into<ServiceKey>) -> bool;
     fn resolved(&self, id: impl Into<ServiceKey>) -> Result<bool, BindingResolutionError>;
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn forgetInstance(&self, id: impl Into<ServiceKey>);
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn forgetInstances(&self);
+    fn forget_instance(&self, id: impl Into<ServiceKey>);
+    fn forget_instances(&self);
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn bindIf<T, F>(&self, factory: F) -> Result<(), BindingResolutionError>
+    fn bind_if<T, F>(&self, factory: F) -> Result<(), BindingResolutionError>
     where
         T: ?Sized + Send + Sync + 'static,
         F: Fn(&Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static;
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn singletonIf<T, F>(&self, factory: F) -> Result<(), BindingResolutionError>
+    fn singleton_if<T, F>(&self, factory: F) -> Result<(), BindingResolutionError>
     where
         T: ?Sized + Send + Sync + 'static,
         F: Fn(&Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static;
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn bindIfNamed<T, F>(&self, name: &str, factory: F) -> Result<(), BindingResolutionError>
+    fn bind_if_named<T, F>(&self, name: &str, factory: F) -> Result<(), BindingResolutionError>
     where
         T: ?Sized + Send + Sync + 'static,
         F: Fn(&Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static;
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn singletonIfNamed<T, F>(&self, name: &str, factory: F) -> Result<(), BindingResolutionError>
+    fn singleton_if_named<T, F>(
+        &self,
+        name: &str,
+        factory: F,
+    ) -> Result<(), BindingResolutionError>
     where
         T: ?Sized + Send + Sync + 'static,
         F: Fn(&Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static;
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn forgetScopedInstances(&self);
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
+    fn forget_scoped_instances(&self);
     fn scoped<T, F>(&self, factory: F) -> Result<(), BindingResolutionError>
     where
         T: ?Sized + Send + Sync + 'static,
         F: Fn(&Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static;
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn scopedIf<T, F>(&self, factory: F) -> Result<(), BindingResolutionError>
+    fn scoped_if<T, F>(&self, factory: F) -> Result<(), BindingResolutionError>
     where
         T: ?Sized + Send + Sync + 'static,
         F: Fn(&Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static;
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn scopedNamed<T, F>(&self, name: &str, factory: F) -> Result<(), BindingResolutionError>
+    fn scoped_named<T, F>(&self, name: &str, factory: F) -> Result<(), BindingResolutionError>
     where
         T: ?Sized + Send + Sync + 'static,
         F: Fn(&Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static;
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn scopedIfNamed<T, F>(&self, name: &str, factory: F) -> Result<(), BindingResolutionError>
+    fn scoped_if_named<T, F>(&self, name: &str, factory: F) -> Result<(), BindingResolutionError>
     where
         T: ?Sized + Send + Sync + 'static,
         F: Fn(&Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static;
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn addContextualBinding<T, F>(
+    fn add_contextual_binding<T, F>(
         &self,
         concrete: impl Into<ServiceKey>,
         r#abstract: impl Into<ServiceKey>,
@@ -346,25 +309,23 @@ pub trait Container: Send + Sync + Sized {
     fn when<T: ?Sized + 'static>(
         &self,
     ) -> Result<ContextualBindingBuilder<'_, Self>, BindingResolutionError> {
-        self.whenMany([ServiceKey::typed::<T>()])
+        self.when_many([ServiceKey::typed::<T>()])
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn whenNamed(
+    fn when_named(
         &self,
         concrete: &str,
     ) -> Result<ContextualBindingBuilder<'_, Self>, BindingResolutionError> {
-        self.whenMany([ServiceKey::named(concrete)])
+        self.when_many([ServiceKey::named(concrete)])
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn whenMany(
+    fn when_many(
         &self,
         concretes: impl IntoIterator<Item = impl Into<ServiceKey>>,
     ) -> Result<ContextualBindingBuilder<'_, Self>, BindingResolutionError> {
         let consumers = concretes
             .into_iter()
-            .map(|key| self.getAlias(key))
+            .map(|key| self.get_alias(key))
             .collect::<Result<Vec<_>, _>>()?;
         Ok(ContextualBindingBuilder::new(self, consumers))
     }
@@ -404,14 +365,12 @@ pub trait Container: Send + Sync + Sized {
         T: ?Sized + Send + Sync + 'static,
         F: Fn(Arc<T>, &Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static;
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn forgetExtenders(
+    fn forget_extenders(
         &self,
         r#abstract: impl Into<ServiceKey>,
     ) -> Result<(), BindingResolutionError>;
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn beforeResolving(
+    fn before_resolving(
         &self,
         selector: Option<ServiceKey>,
         callback: impl Fn(&ResolutionEvent, &Self) -> Result<(), BindingResolutionError>
@@ -420,7 +379,6 @@ pub trait Container: Send + Sync + Sized {
         + 'static,
     ) -> Result<(), BindingResolutionError>;
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn resolving(
         &self,
         selector: Option<ServiceKey>,
@@ -430,8 +388,7 @@ pub trait Container: Send + Sync + Sized {
         + 'static,
     ) -> Result<(), BindingResolutionError>;
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn afterResolving(
+    fn after_resolving(
         &self,
         selector: Option<ServiceKey>,
         callback: impl Fn(&ResolutionEvent, &Self) -> Result<(), BindingResolutionError>
@@ -440,8 +397,7 @@ pub trait Container: Send + Sync + Sized {
         + 'static,
     ) -> Result<(), BindingResolutionError>;
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn bindAsync<T, F>(
+    fn bind_async<T, F>(
         &self,
         factory: F,
     ) -> impl Future<Output = Result<(), BindingResolutionError>> + Send
@@ -449,8 +405,7 @@ pub trait Container: Send + Sync + Sized {
         T: ?Sized + Send + Sync + 'static,
         F: for<'a> Fn(&'a Self) -> crate::container::FactoryFuture<'a, T> + Send + Sync + 'static;
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn bindAsyncNamed<T, F>(
+    fn bind_async_named<T, F>(
         &self,
         name: &str,
         factory: F,
@@ -459,8 +414,7 @@ pub trait Container: Send + Sync + Sized {
         T: ?Sized + Send + Sync + 'static,
         F: for<'a> Fn(&'a Self) -> crate::container::FactoryFuture<'a, T> + Send + Sync + 'static;
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn bindIfAsync<T, F>(
+    fn bind_if_async<T, F>(
         &self,
         factory: F,
     ) -> impl Future<Output = Result<(), BindingResolutionError>> + Send
@@ -468,8 +422,7 @@ pub trait Container: Send + Sync + Sized {
         T: ?Sized + Send + Sync + 'static,
         F: for<'a> Fn(&'a Self) -> crate::container::FactoryFuture<'a, T> + Send + Sync + 'static;
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn bindIfAsyncNamed<T, F>(
+    fn bind_if_async_named<T, F>(
         &self,
         name: &str,
         factory: F,
@@ -478,8 +431,7 @@ pub trait Container: Send + Sync + Sized {
         T: ?Sized + Send + Sync + 'static,
         F: for<'a> Fn(&'a Self) -> crate::container::FactoryFuture<'a, T> + Send + Sync + 'static;
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn singletonAsync<T, F>(
+    fn singleton_async<T, F>(
         &self,
         factory: F,
     ) -> impl Future<Output = Result<(), BindingResolutionError>> + Send
@@ -487,8 +439,7 @@ pub trait Container: Send + Sync + Sized {
         T: ?Sized + Send + Sync + 'static,
         F: for<'a> Fn(&'a Self) -> crate::container::FactoryFuture<'a, T> + Send + Sync + 'static;
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn singletonAsyncNamed<T, F>(
+    fn singleton_async_named<T, F>(
         &self,
         name: &str,
         factory: F,
@@ -497,8 +448,7 @@ pub trait Container: Send + Sync + Sized {
         T: ?Sized + Send + Sync + 'static,
         F: for<'a> Fn(&'a Self) -> crate::container::FactoryFuture<'a, T> + Send + Sync + 'static;
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn singletonIfAsync<T, F>(
+    fn singleton_if_async<T, F>(
         &self,
         factory: F,
     ) -> impl Future<Output = Result<(), BindingResolutionError>> + Send
@@ -506,8 +456,7 @@ pub trait Container: Send + Sync + Sized {
         T: ?Sized + Send + Sync + 'static,
         F: for<'a> Fn(&'a Self) -> crate::container::FactoryFuture<'a, T> + Send + Sync + 'static;
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn singletonIfAsyncNamed<T, F>(
+    fn singleton_if_async_named<T, F>(
         &self,
         name: &str,
         factory: F,
@@ -516,8 +465,7 @@ pub trait Container: Send + Sync + Sized {
         T: ?Sized + Send + Sync + 'static,
         F: for<'a> Fn(&'a Self) -> crate::container::FactoryFuture<'a, T> + Send + Sync + 'static;
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn scopedAsync<T, F>(
+    fn scoped_async<T, F>(
         &self,
         factory: F,
     ) -> impl Future<Output = Result<(), BindingResolutionError>> + Send
@@ -525,8 +473,7 @@ pub trait Container: Send + Sync + Sized {
         T: ?Sized + Send + Sync + 'static,
         F: for<'a> Fn(&'a Self) -> crate::container::FactoryFuture<'a, T> + Send + Sync + 'static;
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn scopedAsyncNamed<T, F>(
+    fn scoped_async_named<T, F>(
         &self,
         name: &str,
         factory: F,
@@ -535,8 +482,7 @@ pub trait Container: Send + Sync + Sized {
         T: ?Sized + Send + Sync + 'static,
         F: for<'a> Fn(&'a Self) -> crate::container::FactoryFuture<'a, T> + Send + Sync + 'static;
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn scopedIfAsync<T, F>(
+    fn scoped_if_async<T, F>(
         &self,
         factory: F,
     ) -> impl Future<Output = Result<(), BindingResolutionError>> + Send
@@ -544,8 +490,7 @@ pub trait Container: Send + Sync + Sized {
         T: ?Sized + Send + Sync + 'static,
         F: for<'a> Fn(&'a Self) -> crate::container::FactoryFuture<'a, T> + Send + Sync + 'static;
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn scopedIfAsyncNamed<T, F>(
+    fn scoped_if_async_named<T, F>(
         &self,
         name: &str,
         factory: F,
@@ -554,8 +499,7 @@ pub trait Container: Send + Sync + Sized {
         T: ?Sized + Send + Sync + 'static,
         F: for<'a> Fn(&'a Self) -> crate::container::FactoryFuture<'a, T> + Send + Sync + 'static;
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn rebindingAsync<T, F>(
+    fn rebinding_async<T, F>(
         &self,
         key: impl Into<ServiceKey> + Send,
         callback: F,
@@ -564,8 +508,7 @@ pub trait Container: Send + Sync + Sized {
         T: ?Sized + Send + Sync + 'static,
         F: Fn(&Self, Arc<T>) -> Result<(), BindingResolutionError> + Send + Sync + 'static;
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn refreshAsync<T, Target, F>(
+    fn refresh_async<T, Target, F>(
         &self,
         key: impl Into<ServiceKey> + Send,
         target: Arc<Target>,
@@ -576,11 +519,10 @@ pub trait Container: Send + Sync + Sized {
         Target: ?Sized + Send + Sync + 'static,
         F: Fn(&Target, Arc<T>) -> Result<(), BindingResolutionError> + Send + Sync + 'static,
     {
-        self.rebindingAsync(key, move |_, value| setter(target.as_ref(), value))
+        self.rebinding_async(key, move |_, value| setter(target.as_ref(), value))
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn extendAsync<T, F>(
+    fn extend_async<T, F>(
         &self,
         key: impl Into<ServiceKey> + Send,
         closure: F,
@@ -589,8 +531,7 @@ pub trait Container: Send + Sync + Sized {
         T: ?Sized + Send + Sync + 'static,
         F: Fn(Arc<T>, &Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static;
 
-    #[allow(non_snake_case, reason = "Async contextual factory adapter")]
-    fn addContextualBindingAsync<T, F>(
+    fn add_contextual_binding_async<T, F>(
         &self,
         consumer: impl Into<ServiceKey>,
         need: impl Into<ServiceKey>,
@@ -601,8 +542,7 @@ pub trait Container: Send + Sync + Sized {
         F: for<'a> Fn(&'a Self) -> crate::container::FactoryFuture<'a, T> + Send + Sync + 'static;
 
     /// Resolve a service after awaiting an asynchronous deferred provider, when present.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn getAsync<T: ?Sized + Send + Sync + 'static>(
+    fn get_async<T: ?Sized + Send + Sync + 'static>(
         &self,
         id: impl Into<ServiceKey> + Send,
     ) -> impl Future<Output = Result<Arc<T>, BindingResolutionError>> + Send {
@@ -610,11 +550,10 @@ pub trait Container: Send + Sync + Sized {
     }
 
     /// Resolve a type without blocking the executor while its provider initializes.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn makeAsync<T: ?Sized + Send + Sync + 'static>(
+    fn make_async<T: ?Sized + Send + Sync + 'static>(
         &self,
     ) -> impl Future<Output = Result<Arc<T>, BindingResolutionError>> + Send {
-        self.getAsync(ServiceKey::typed::<T>())
+        self.get_async(ServiceKey::typed::<T>())
     }
 
     /// Check whether the service type has a binding.

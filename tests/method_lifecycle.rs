@@ -60,7 +60,7 @@ struct Client(String);
 struct Clients;
 impl Facade for Clients {
     type Service = Client;
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         ServiceKey::typed::<Client>()
     }
 }
@@ -69,8 +69,8 @@ struct Report(String);
 struct Reports;
 impl Facade for Reports {
     type Service = Report;
-    const cached: bool = false;
-    fn getFacadeAccessor() -> ServiceKey {
+    const CACHED: bool = false;
+    fn get_facade_accessor() -> ServiceKey {
         ServiceKey::typed::<Report>()
     }
 }
@@ -82,23 +82,23 @@ impl ServiceProvider for Registration {
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
             let c = app.container();
-            c.registerClass(ClassDescriptor::concrete::<Worker, _>(vec![], |_| {
+            c.register_class(ClassDescriptor::concrete::<Worker, _>(vec![], |_| {
                 Ok(Arc::new(Worker))
             })?)?;
             let count = self.counts.clone();
-            c.registerMethod::<Worker, String, _>(
+            c.register_method::<Worker, String, _>(
                 "run",
                 vec![
                     ConstructorParam::class::<Client>("client"),
                     ConstructorParam::scalar::<u32>("number")
-                        .withDefault(|| Ok(ParameterValue::new(7u32))),
+                        .with_default(|| Ok(ParameterValue::new(7u32))),
                 ],
                 move |_, args, _| {
                     let count = count.clone();
                     Box::pin(async move {
                         count.methods.fetch_add(1, Ordering::SeqCst);
                         tokio::task::yield_now().await;
-                        let facade = Clients::getFacadeRootAsync().await?;
+                        let facade = Clients::get_facade_root_async().await?;
                         Ok(format!(
                             "{}:{}:{}",
                             args.resolved.service::<Client>(0)?.0,
@@ -109,18 +109,21 @@ impl ServiceProvider for Registration {
                 },
             )?;
             if self.bound {
-                c.bindMethod::<Worker, String, _>("run", |_, _| {
+                c.bind_method::<Worker, String, _>("run", |_, _| {
                     Box::pin(async {
-                        Ok(format!("bound:{}", Clients::getFacadeRootAsync().await?.0))
+                        Ok(format!(
+                            "bound:{}",
+                            Clients::get_facade_root_async().await?.0
+                        ))
                     })
                 })?;
             }
             let invalid = self.bound;
-            c.bindAsync::<Report, _>(move |c| {
+            c.bind_async::<Report, _>(move |c| {
                 Box::pin(async move {
                     let lazy = c.wrap(
                         Callback::reusable(&[], move |_| async move {
-                            let receiver = c.factoryAsync::<Worker>()().await?;
+                            let receiver = c.factory_async::<Worker>()().await?;
                             let mut input = ParameterOverrides::new();
                             if invalid {
                                 input.insert(ParameterKey::name("number"), ParameterValue::null());
@@ -152,7 +155,7 @@ impl ServiceProvider for Deferred {
         Box::pin(async move {
             let (counts, name, fail) = (self.counts.clone(), self.name, self.fail);
             app.container()
-                .singletonAsync::<Client, _>(move |_| {
+                .singleton_async::<Client, _>(move |_| {
                     let counts = counts.clone();
                     Box::pin(async move {
                         tokio::task::yield_now().await;
@@ -172,7 +175,7 @@ impl ServiceProvider for Deferred {
 }
 fn read(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let report = Reports::getFacadeRootAsync().await?;
+        let report = Reports::get_facade_root_async().await?;
         Ok(Response::new(StatusCode::OK, Body::from(report.0.clone())))
     })
 }
@@ -188,8 +191,8 @@ fn application(
 ) -> Application {
     let owned = counts.clone();
     Application::configure(root.0.clone())
-        .withConfig(config)
-        .withProviders(vec![
+        .with_config(config)
+        .with_providers(vec![
             Box::new(Registration { counts, bound }),
             Box::new(DeferredProvider::new(move || Deferred {
                 counts: owned.clone(),
@@ -197,10 +200,10 @@ fn application(
                 fail,
             })),
         ])
-        .withExceptions(|exceptions| {
+        .with_exceptions(|exceptions| {
             exceptions.shouldRenderJsonWhen(|_, _| true);
         })
-        .withRouting(Routing::default().web(routes))
+        .with_routing(Routing::default().web(routes))
         .create()
         .unwrap()
 }
@@ -284,7 +287,7 @@ async fn application_call_and_direct_binding_restore_each_apps_facades_across_aw
     assert_eq!(x.unwrap(), "a:7:a");
     assert_eq!(y.unwrap(), "bound:b");
     assert_eq!(
-        b.callMethodBinding::<Worker, String>("run", Arc::new(Worker))
+        b.call_method_binding::<Worker, String>("run", Arc::new(Worker))
             .await
             .unwrap(),
         "bound:b"
@@ -302,19 +305,19 @@ async fn application_lazy_closures_restore_facades_and_use_live_application_serv
     a.container()
         .alias(ServiceKey::typed::<Client>(), "client")
         .unwrap();
-    let make_a = a.factoryNamed::<Client>("client".into());
+    let make_a = a.factory_named::<Client>("client".into());
     let make_b = b.factory::<Client>();
     let wrap_a = a.wrap(
         Callback::reusable(&[], |_| async {
             tokio::task::yield_now().await;
-            Ok(Clients::getFacadeRootAsync().await?.0.clone())
+            Ok(Clients::get_facade_root_async().await?.0.clone())
         }),
         ParameterOverrides::new(),
     );
     let wrap_b = b.wrap(
         Callback::reusable(&[], |_| async {
             tokio::task::yield_now().await;
-            Ok(Clients::getFacadeRootAsync().await?.0.clone())
+            Ok(Clients::get_facade_root_async().await?.0.clone())
         }),
         ParameterOverrides::new(),
     );

@@ -24,9 +24,9 @@ fn binding() -> BindingResolutionError {
 impl ServiceProvider for HorizonServiceProvider {
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
-            if !app.configurationIsCached() {
+            if !app.configuration_is_cached() {
                 let env = app.make::<openrust::config::Environment>().await?;
-                self.mergeConfigFrom(app, crate::configuration::load(&env)?, "horizon")?;
+                self.merge_config_from(app, crate::configuration::load(&env)?, "horizon")?;
             }
             app.container()
                 .singleton::<crate::notifications::NotificationRoutes, _>(|_| {
@@ -67,7 +67,7 @@ impl ServiceProvider for HorizonServiceProvider {
                     .map_err(|_| binding())?;
                 Ok(Arc::new(
                     Repository::new(connection, prefix, retention)
-                        .and_then(|repository| repository.withConfig(config.as_ref()))
+                        .and_then(|repository| repository.with_config(config.as_ref()))
                         .map_err(|_| binding())?,
                 ))
             })?;
@@ -90,7 +90,7 @@ impl ServiceProvider for HorizonServiceProvider {
                 "horizon-provider",
             )?;
             self.commands(app, crate::console::register);
-            self.loadRoutesFrom(app, crate::dashboard::configuredRoutes)?;
+            self.load_routes_from(app, crate::dashboard::configuredRoutes)?;
             let dispatcher = app.make::<openrust::events::Dispatcher>().await?;
             let listener = Arc::new(JobListener);
             for name in [
@@ -119,7 +119,7 @@ impl Listener for JobListener {
                 if !crate::console::isWorker() {
                     return Ok(None);
                 }
-                let repository = crate::dashboard::Store::getFacadeRoot()?;
+                let repository = crate::dashboard::Store::get_facade_root()?;
                 let state = async {
                     if repository.paused().await? {
                         return Ok::<_, Error>(true);
@@ -137,7 +137,7 @@ impl Listener for JobListener {
                 };
             }
             if let Some(event) = event.downcast_ref::<JobQueued>() {
-                let config = openrust::support::facades::Config::getFacadeRoot()?;
+                let config = openrust::support::facades::Config::get_facade_root()?;
                 if config
                     .get(&format!(
                         "queue.connections.{}.driver",
@@ -149,7 +149,7 @@ impl Listener for JobListener {
                 {
                     return Ok(None);
                 }
-                let repository = crate::dashboard::Store::getFacadeRoot()?;
+                let repository = crate::dashboard::Store::get_facade_root()?;
                 let tags =
                     crate::Tags::forPayload(&event.job).map_err(|source| EventError::Listener {
                         source: Box::new(source),
@@ -193,7 +193,7 @@ impl Listener for JobListener {
                 } else {
                     return Ok(None);
                 };
-            let config = openrust::support::facades::Config::getFacadeRoot()?;
+            let config = openrust::support::facades::Config::get_facade_root()?;
             if config
                 .get(&format!("queue.connections.{connection}.driver"))
                 .and_then(|v| v.as_str().map(str::to_owned))
@@ -202,7 +202,7 @@ impl Listener for JobListener {
             {
                 return Ok(None);
             }
-            let repository = crate::dashboard::Store::getFacadeRoot()?;
+            let repository = crate::dashboard::Store::get_facade_root()?;
             let tags =
                 crate::Tags::forPayload(&job.payload).map_err(|source| EventError::Listener {
                     source: Box::new(source),

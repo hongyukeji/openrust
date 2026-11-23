@@ -372,7 +372,7 @@ pub(crate) fn truthy(value: Option<&Value>) -> bool {
 }
 
 pub(crate) fn scope_exists_in(scope: &str, scopes: &PhpArray) -> DatabaseResult<bool> {
-    let passport = openrust::container::Container::getInstance()
+    let passport = openrust::container::Container::get_instance()
         .make::<Passport>()
         .map_err(DatabaseError::Unavailable)?;
     if !passport
@@ -389,7 +389,7 @@ pub(crate) fn scope_exists_in(scope: &str, scopes: &PhpArray) -> DatabaseResult<
 }
 
 fn client_uuids() -> bool {
-    openrust::container::Container::getInstance()
+    openrust::container::Container::get_instance()
         .make::<Passport>()
         .map(|passport| {
             passport

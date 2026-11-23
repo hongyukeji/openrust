@@ -248,7 +248,7 @@ impl<'a> NotificationSender<'a> {
             .or(self.locale.as_deref())
             .or_else(|| recipient.preferred_locale())
             .map(str::to_owned)
-            .or_else(|| Lang::getLocale().ok())
+            .or_else(|| Lang::get_locale().ok())
             .as_deref()
             .map(crate::translation::canonical_locale)
             .transpose()

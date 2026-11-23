@@ -259,8 +259,8 @@ impl Fixture {
             .unwrap();
         }
         let mut app = Application::configure(root.clone())
-            .withConfig(config)
-            .withProviders(vec![
+            .with_config(config)
+            .with_providers(vec![
                 Box::new(device_authorization::Options {
                     enabled,
                     register,
@@ -268,8 +268,8 @@ impl Fixture {
                 }),
                 Box::new(PassportServiceProvider),
             ])
-            .withMigrations(MIGRATIONS)
-            .withRouting(Routing::default().web(routes))
+            .with_migrations(MIGRATIONS)
+            .with_routing(Routing::default().web(routes))
             .create()
             .unwrap();
         app.boot().await.unwrap();
@@ -329,7 +329,7 @@ impl Fixture {
                 openrust::container::Callback::new(&[], |_| async {
                     let hash = Hash::make("password", &Default::default()).await.unwrap();
                     for (id, subject, email) in [(1, 77, "alice@test"), (2, 88, "bob@test")] {
-                        let mut user = User::newInstance(Attributes::new()).unwrap();
+                        let mut user = User::new_instance(Attributes::new()).unwrap();
                         user.forceFill(Attributes::from([
                             ("id".into(), Value::Integer(id)),
                             ("subject".into(), Value::Integer(subject)),
@@ -339,7 +339,7 @@ impl Fixture {
                         .unwrap();
                         user.save().await.unwrap();
                     }
-                    let repo = openrust::container::Container::getInstance()
+                    let repo = openrust::container::Container::get_instance()
                         .make::<ClientRepository>()
                         .unwrap();
                     let public = repo

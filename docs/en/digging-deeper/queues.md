@@ -401,7 +401,7 @@ On Windows ARM64, crash recovery has also been verified with a MySQL queue and f
 
 #### Stopping retries by exception {#stopping-retries-by-exception}
 
-Register a rule in the application's `withExceptions` callback when a queued job should fail immediately for a specific error. `dontRetry` matches the error type or one of its sources. `dontRetryWhen` evaluates a predicate against the exception.
+Register a rule in the application's `with_exceptions` callback when a queued job should fail immediately for a specific error. `dontRetry` matches the error type or one of its sources. `dontRetryWhen` evaluates a predicate against the exception.
 
 ```rust
 use std::{io, num::ParseIntError};

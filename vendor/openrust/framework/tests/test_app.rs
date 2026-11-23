@@ -34,7 +34,7 @@ async fn test_app_route_cache_fixture() -> Result<(), Box<dyn Error + Send + Syn
     use openrust::{foundation::configuration::Routing, support::facades::Route, view::view};
 
     let mut fixture = TestApp::create(|builder| {
-        builder.withRouting(Routing::default().web(|| Route::get("/probe", || view("welcome"))))
+        builder.with_routing(Routing::default().web(|| Route::get("/probe", || view("welcome"))))
     })?;
     fs::write(
         fixture.root().join(".env.testing"),
@@ -42,7 +42,10 @@ async fn test_app_route_cache_fixture() -> Result<(), Box<dyn Error + Send + Syn
     )?;
     let cache = fixture.root().canonicalize()?.join("private/fixture.json");
     fixture.artisan(["route:cache"]).await.assertSuccessful();
-    assert_eq!(fixture.app().getCachedRoutesPath(), Some(cache.as_path()));
+    assert_eq!(
+        fixture.app().get_cached_routes_path(),
+        Some(cache.as_path())
+    );
     assert!(cache.is_file());
     fixture.artisan(["route:clear"]).await.assertSuccessful();
     assert!(!cache.exists());
@@ -53,7 +56,7 @@ async fn test_app_route_cache_fixture() -> Result<(), Box<dyn Error + Send + Syn
 async fn boots_independent_apps_with_isolated_configuration_and_files()
 -> Result<(), Box<dyn Error + Send + Sync>> {
     let configure = |builder: ApplicationBuilder| {
-        builder.withConfig(|root, _| {
+        builder.with_config(|root, _| {
             Ok([(
                 "app".into(),
                 json!({"env": "testing", "name": fs::read_to_string(root.join("name")).unwrap()}),
@@ -108,15 +111,15 @@ async fn selects_local_testing_environment_on_http_and_artisan_first_boot()
         Box::pin(async {
             Response::json(
                 StatusCode::OK,
-                json!({"label": Config::stringOr("app.label", "")}),
+                json!({"label": Config::string_or("app.label", "")}),
             )
         })
     }
 
     let configure = |builder: ApplicationBuilder| {
         builder
-            .withRouting(Routing::default().web(|| Route::get("/fixture", probe)))
-            .withConfig(|_, env| {
+            .with_routing(Routing::default().web(|| Route::get("/fixture", probe)))
+            .with_config(|_, env| {
                 Ok([(
                     "app".into(),
                     json!({
@@ -194,7 +197,7 @@ async fn dispatches_http_and_captures_artisan_output_without_leaking_state()
     }
 
     let mut fixture = TestApp::create(|builder| {
-        builder.withRouting(Routing::default().web(routes).commands(commands))
+        builder.with_routing(Routing::default().web(routes).commands(commands))
     })?;
     fixture
         .get("/fixture")
@@ -243,7 +246,7 @@ async fn artisan_publishes_registered_package_assets_and_migrations()
             Box::pin(async move {
                 if ID == 1 {
                     self.publishes(app, &[("config/fixture.rs", b"config")], "fixture")?;
-                    self.publishesMigrations(
+                    self.publishes_migrations(
                         app,
                         &[(
                             "database/migrations/2000_01_01_000000_add_fixture.rs",
@@ -261,7 +264,7 @@ async fn artisan_publishes_registered_package_assets_and_migrations()
 
     let mut test = TestApp::create(|builder| {
         builder
-            .withConfig(|_, _| {
+            .with_config(|_, _| {
                 Ok([(
                     "database".into(),
                     serde_json::json!({
@@ -270,7 +273,7 @@ async fn artisan_publishes_registered_package_assets_and_migrations()
                 )]
                 .into())
             })
-            .withProviders(vec![Box::new(Package::<1>), Box::new(Package::<2>)])
+            .with_providers(vec![Box::new(Package::<1>), Box::new(Package::<2>)])
     })?;
     let root = test.root().to_owned();
     let config = root.join("config/fixture.rs");
@@ -400,7 +403,7 @@ async fn artisan_honors_migration_publish_settings_and_intersects_source_paths()
                     VendorPublishCommand::dontUpdateMigrationDates(app);
                     return Ok(());
                 }
-                self.publishesMigrationPaths(
+                self.publishes_migration_paths(
                     app,
                     &[(
                         Path::new("package/migrations"),
@@ -413,7 +416,7 @@ async fn artisan_honors_migration_publish_settings_and_intersects_source_paths()
                 } else {
                     ("public/second.txt", "shared")
                 };
-                self.publishesPaths(
+                self.publishes_paths(
                     app,
                     &[(Path::new("package/source.txt"), Path::new(target))],
                     tag,
@@ -431,14 +434,14 @@ async fn artisan_honors_migration_publish_settings_and_intersects_source_paths()
                 providers.push(Box::new(Package::<3>));
             }
             builder
-                .withConfig(|root, _| {
+                .with_config(|root, _| {
                     Ok([(
                         "database".into(),
                         json!({"migrations":{"update_date_on_publish":root.join("update-dates").is_file()}}),
                     )]
                     .into())
                 })
-                .withProviders(providers)
+                .with_providers(providers)
         })?;
         let root = app.root().to_owned();
         if enabled {
@@ -494,9 +497,9 @@ async fn artisan_publishes_directories_and_dispatches_registered_paths()
         fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
             Box::pin(async move {
                 let directory = (Path::new("package/assets"), Path::new("public/package"));
-                self.publishesPaths(app, &[directory], "package-assets")?;
-                self.publishesPaths(app, &[directory], "package-alias")?;
-                self.publishesPaths(
+                self.publishes_paths(app, &[directory], "package-assets")?;
+                self.publishes_paths(app, &[directory], "package-alias")?;
+                self.publishes_paths(
                     app,
                     &[(Path::new("package/missing"), Path::new("public/missing"))],
                     "package-missing",
@@ -506,7 +509,7 @@ async fn artisan_publishes_directories_and_dispatches_registered_paths()
         }
     }
 
-    let mut app = TestApp::create(|builder| builder.withProviders(vec![Box::new(Assets)]))?;
+    let mut app = TestApp::create(|builder| builder.with_providers(vec![Box::new(Assets)]))?;
     let source = app.root().join("package/assets");
     let target = app.root().join("public/package");
     fs::create_dir_all(source.join("nested/empty"))?;
@@ -659,7 +662,7 @@ async fn artisan_rejects_publish_paths_through_application_symlinks()
     impl ServiceProvider for Assets {
         fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
             Box::pin(async move {
-                self.publishesPaths(
+                self.publishes_paths(
                     app,
                     &[(
                         Path::new("package/link/source.txt"),
@@ -672,7 +675,7 @@ async fn artisan_rejects_publish_paths_through_application_symlinks()
                     &[("public/link/target.txt", b"overwrite")],
                     "target-link",
                 )?;
-                self.publishesMigrations(
+                self.publishes_migrations(
                     app,
                     &[(
                         "database/migrations/2000_01_01_000000_example.rs",
@@ -693,7 +696,7 @@ async fn artisan_rejects_publish_paths_through_application_symlinks()
         fs::write(outside.join(name), contents)?;
     }
 
-    let mut app = TestApp::create(|builder| builder.withProviders(vec![Box::new(Assets)]))?;
+    let mut app = TestApp::create(|builder| builder.with_providers(vec![Box::new(Assets)]))?;
     let root = app.root().to_owned();
     for directory in ["package", "public", "database"] {
         fs::create_dir_all(root.join(directory))?;
@@ -734,7 +737,7 @@ async fn package_manifest_rebuilds_clears_and_uses_linked_providers()
     struct Provider;
     impl ServiceProvider for Provider {
         fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
-            Box::pin(async { self.loadRoutesFrom(app, package_routes) })
+            Box::pin(async { self.load_routes_from(app, package_routes) })
         }
     }
     fn providers() -> Vec<Box<dyn ServiceProvider>> {
@@ -757,16 +760,16 @@ async fn package_manifest_rebuilds_clears_and_uses_linked_providers()
 
     let mut app = TestApp::create(|builder| {
         builder
-            .withPackages(PackageManifest::new(ENTRIES))
-            .withRouting(Routing::default())
+            .with_packages(PackageManifest::new(ENTRIES))
+            .with_routing(Routing::default())
     })?;
     let cache = app
         .root()
         .canonicalize()?
         .join("bootstrap/cache/packages.json");
-    assert!(app.app().getCachedPackagesPath().is_none());
+    assert!(app.app().get_cached_packages_path().is_none());
     app.get("/discovered").await?.assertOk();
-    assert_eq!(app.app().getCachedPackagesPath(), Some(cache.as_path()));
+    assert_eq!(app.app().get_cached_packages_path(), Some(cache.as_path()));
     assert!(!cache.exists());
     app.artisan(["package:discover"]).await.assertSuccessful();
     let original = fs::read(&cache)?;
@@ -786,7 +789,7 @@ async fn package_manifest_rebuilds_clears_and_uses_linked_providers()
     app.get("/discovered").await?.assertOk();
     assert!(!cache.exists());
 
-    let mut excluded = TestApp::create(|builder| builder.withRouting(Routing::default()))?;
+    let mut excluded = TestApp::create(|builder| builder.with_routing(Routing::default()))?;
     excluded
         .get("/discovered")
         .await?
@@ -827,11 +830,11 @@ async fn relative_test_requests_use_configured_origin_and_preserve_absolute_addr
     ] {
         let mut app = TestApp::create(|builder| {
             builder
-                .withConfig(|root, _| {
+                .with_config(|root, _| {
                     let url = fs::read_to_string(root.join("test-url")).ok();
                     Ok([("app".into(), json!({"env":"testing","url":url}))].into())
                 })
-                .withRouting(Routing::default().apiPrefix("").api(|| {
+                .with_routing(Routing::default().apiPrefix("").api(|| {
                     Route::get("/probe", probe)?;
                     Route::get("/sub/probe", probe)
                 }))

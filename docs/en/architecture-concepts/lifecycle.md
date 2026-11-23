@@ -1,8 +1,8 @@
 # Request Lifecycle
 
-The Tokio entry point passes `bootstrap::create_application` to `openrust::foundation::run_application`. The framework selects the entry point before creating the application. With no arguments it calls `Application::start()` for HTTP. With `artisan` as the first argument it calls [`Application::handleCommand`](../digging-deeper/artisan.md).
+The Tokio entry point passes `bootstrap::create_application` to `openrust::foundation::run_application`. The framework selects the entry point before creating the application. With no arguments it calls `Application::start()` for HTTP. With `artisan` as the first argument it calls [`Application::handle_command`](../digging-deeper/artisan.md).
 
-The application entry declares its root as `basePath` and passes it to `Application::configure(basePath)`, matching `configure(basePath: ...)`. It then calls `create()` to validate the root and create the service container. The selected kernel boots the application. Boot loads environment variables and configuration, runs every eager provider’s `register` before their `boot` hooks, and registers shared routes. Process environment variables take precedence over the environment file.
+The application entry declares its root as `base_path` and passes it to `Application::configure(base_path)`, matching `configure(base_path: ...)`. It then calls `create()` to validate the root and create the service container. The selected kernel boots the application. Boot loads environment variables and configuration, runs every eager provider’s `register` before their `boot` hooks, and registers shared routes. Process environment variables take precedence over the environment file.
 
 An absolute `APP_BASE_PATH` in the process environment takes precedence. Otherwise, source builds use the application crate directory recorded at build time, including when you run `cargo run --release`. Builds with the `standalone` feature use the executable’s directory as the application root. HTTP and Artisan both read `.env` from the selected root, regardless of the working directory.
 
@@ -12,7 +12,7 @@ The HTTP kernel configures middleware when it is created and resolves each route
 
 The HTTP kernel runs [middleware](../the-basics/middleware.md) and dispatches the request through the framework [router](../the-basics/routing.md). At `/`, the router dispatches to `WelcomeController::index`, which calls `view("welcome")`. The framework resolves the name to `resources/views/welcome.blade.html` in the application root and reads it at request time. The Blade view reads the application name and version with `config()` and the current application language with `app()->currentLocale()`, without repeating these values as controller data. Editing the HTML takes effect on the next request. The skeleton also exposes the health check at `/up`.
 
-The default application loads Web routes, console routes and the health path through `withRouting` in `bootstrap/app.rs`. Web routes use the [default Web middleware group](../the-basics/middleware.md). Console routes are registered after the Console Kernel boots. API, broadcasting and gRPC have separate optional registration paths. The `/up` handler returns `200 OK` after the application boots.
+The default application loads Web routes, console routes and the health path through `with_routing` in `bootstrap/app.rs`. Web routes use the [default Web middleware group](../the-basics/middleware.md). Console routes are registered after the Console Kernel boots. API, broadcasting and gRPC have separate optional registration paths. The `/up` handler returns `200 OK` after the application boots.
 
 When routing or middleware returns an HTTP error, the kernel applies the [exception rendering policy](../the-basics/errors.md#rendering-exceptions-as-json) declared in `bootstrap/app.rs`.
 

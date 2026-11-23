@@ -14,7 +14,7 @@ Generate event and listener modules with Artisan. Add `--event` to type the hand
 
 Pass a PascalCase event name such as `OrderPlaced`, an application-qualified name such as `App/Events/OrderPlaced`, or a Rust path such as `crate::app::events::order_placed::OrderPlaced` to `--event`.
 
-Declare the generated files in your Rust module tree and pass `openrust::foundation::events::DiscoverEvents::new(&[register_orders])` to `withEvents` in your application builder. The queued listener without `--event` takes the event type at registration. Generated events derive Serde serialization for use in the queue.
+Declare the generated files in your Rust module tree and pass `openrust::foundation::events::DiscoverEvents::new(&[register_orders])` to `with_events` in your application builder. The queued listener without `--event` takes the event type at registration. Generated events derive Serde serialization for use in the queue.
 
 ```rust
 use crate::app::{
@@ -33,11 +33,11 @@ fn register_orders(registry: &mut ListenerRegistry) -> EventResult<()> {
 
 ## Registering listeners and subscribers
 
-Declare event registration functions in your application and pass them to `withEvents(DiscoverEvents::new(&[register_orders]))`. The application loads this compiled manifest during boot. Implement `Subscriber` and call `Event::subscribe` to register related listeners together. Use `./artisan event:list --event=orders --json` to inspect the resulting registrations.
+Declare event registration functions in your application and pass them to `with_events(DiscoverEvents::new(&[register_orders]))`. The application loads this compiled manifest during boot. Implement `Subscriber` and call `Event::subscribe` to register related listeners together. Use `./artisan event:list --event=orders --json` to inspect the resulting registrations.
 
-Register a listener type with `registry.listenClass::<OrderListener>("orders.created", Delivery::Sync)?` in the manifest, or use `Event::listenClass` in the application scope. Bind the type with an application container factory, such as `bindAsync` for asynchronous dependencies. The dispatcher resolves it when the event reaches that listener, using the owning application's container. A missing binding fails the dispatch. With `Delivery::AfterCommit`, dispatch resolves the instance immediately and a successful commit invokes it.
+Register a listener type with `registry.listenClass::<OrderListener>("orders.created", Delivery::Sync)?` in the manifest, or use `Event::listenClass` in the application scope. Bind the type with an application container factory, such as `bind_async` for asynchronous dependencies. The dispatcher resolves it when the event reaches that listener, using the owning application's container. A missing binding fails the dispatch. With `Delivery::AfterCommit`, dispatch resolves the instance immediately and a successful commit invokes it.
 
-For dynamic discovery, implement `ShouldBeDiscovered` and attach the listener registration with `withListener`. Pass the resulting manifest to `withEvents(discover_events())`. During boot, the policy reads the current application and decides whether to include that listener. Returning an error aborts the manifest registration. Manual registration through `Event::listen` is independent of discovery.
+For dynamic discovery, implement `ShouldBeDiscovered` and attach the listener registration with `withListener`. Pass the resulting manifest to `with_events(discover_events())`. During boot, the policy reads the current application and decides whether to include that listener. Returning an error aborts the manifest registration. Manual registration through `Event::listen` is independent of discovery.
 
 ```rust
 use std::sync::Arc;
@@ -88,7 +88,7 @@ fn discover_events() -> DiscoverEvents {
 
 Event caching is an optional deployment optimization. On startup, the application uses cached decisions for conditional listeners when the cache matches the compiled manifest. With a missing, malformed, or mismatched cache, it evaluates the conditions again without writing a file. Manual listeners and unconditional registrations run as usual.
 
-Run `./artisan event:cache` in the deployment environment to write the discovery decisions to `storage/framework/cache/events.json`. Set `APP_EVENTS_CACHE` to an absolute path or a path relative to the application root. Export it in the service environment when using cached configuration. After boot, `getCachedEventsPath()` returns the resolved path. Refresh the cache after deploying a new build or changing discovery conditions. Run `./artisan event:clear` to delete the file and use live conditions on the next startup.
+Run `./artisan event:cache` in the deployment environment to write the discovery decisions to `storage/framework/cache/events.json`. Set `APP_EVENTS_CACHE` to an absolute path or a path relative to the application root. Export it in the service environment when using cached configuration. After boot, `get_cached_events_path()` returns the resolved path. Refresh the cache after deploying a new build or changing discovery conditions. Run `./artisan event:clear` to delete the file and use live conditions on the next startup.
 
 For model lifecycle handlers, register an [Eloquent observer](../eloquent/getting-started.md#observers) during provider boot.
 

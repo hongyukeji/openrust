@@ -31,24 +31,24 @@ async fn config_reads_current_repository_preserves_null_and_redacts_type_failure
         json!({"port": 8080, "nullable": null}),
     )])));
     container
-        .instanceNamed::<dyn ConfigRepository>("config", config.clone())
+        .instance_named::<dyn ConfigRepository>("config", config.clone())
         .unwrap();
     container
-        .registerClass(
+        .register_class(
             ClassDescriptor::concrete(
                 vec![
-                    ConstructorParam::scalar::<u16>("port").withAttribute(
+                    ConstructorParam::scalar::<u16>("port").with_attribute(
                         ClassAttribute::contextual(|| Ok(Config::<u16>::new("app.port"))),
                     ),
-                    ConstructorParam::scalar::<u16>("missing").withAttribute(
+                    ConstructorParam::scalar::<u16>("missing").with_attribute(
                         ClassAttribute::contextual(|| {
-                            Ok(Config::new("app.missing").withDefault(42_u16))
+                            Ok(Config::new("app.missing").with_default(42_u16))
                         }),
                     ),
                     ConstructorParam::scalar::<u16>("nullable")
-                        .withDefault(|| Ok(ParameterValue::new(7_u16)))
-                        .withAttribute(ClassAttribute::contextual(|| {
-                            Ok(Config::new("app.nullable").withDefault(11_u16))
+                        .with_default(|| Ok(ParameterValue::new(7_u16)))
+                        .with_attribute(ClassAttribute::contextual(|| {
+                            Ok(Config::new("app.nullable").with_default(11_u16))
                         })),
                 ],
                 |args| {
@@ -68,19 +68,19 @@ async fn config_reads_current_repository_preserves_null_and_redacts_type_failure
     config
         .set("app.port", json!("private-config-value"))
         .unwrap();
-    let error = container.makeAsync::<Settings>().await.err().unwrap();
+    let error = container.make_async::<Settings>().await.err().unwrap();
     assert!(matches!(
         error,
         BindingResolutionError::ConfigurationValueTypeMismatch { .. }
     ));
     assert!(!error.to_string().contains("private-config-value"));
     config.set("app.port", json!(9090)).unwrap();
-    assert_eq!(container.makeAsync::<Settings>().await.unwrap().0, 9090);
+    assert_eq!(container.make_async::<Settings>().await.unwrap().0, 9090);
 
     let signature = [ConstructorParam::scalar::<u16>("nullable")
         .nullable()
-        .withAttribute(ClassAttribute::contextual(|| {
-            Ok(Config::new("app.nullable").withDefault(11_u16))
+        .with_attribute(ClassAttribute::contextual(|| {
+            Ok(Config::new("app.nullable").with_default(11_u16))
         }))];
     let null = container
         .call(
@@ -109,8 +109,8 @@ struct Consumer(Arc<dyn Contract>);
 async fn give_awaits_the_selected_implementation_and_uses_its_own_parameters() {
     let container = Container::default();
     container
-        .registerClass(
-            ClassDescriptor::concreteAsync(
+        .register_class(
+            ClassDescriptor::concrete_async(
                 vec![ConstructorParam::scalar::<u32>("number")],
                 |args| {
                     Box::pin(async move {
@@ -120,23 +120,23 @@ async fn give_awaits_the_selected_implementation_and_uses_its_own_parameters() {
                 },
             )
             .unwrap()
-            .withProjection(class_projection!(Concrete => dyn Contract)),
+            .with_projection(class_projection!(Concrete => dyn Contract)),
         )
         .unwrap();
     container
         .alias(ServiceKey::typed::<Concrete>(), "implementation")
         .unwrap();
     container
-        .registerClass(
+        .register_class(
             ClassDescriptor::concrete(
                 vec![
-                    ConstructorParam::class::<dyn Contract>("contract").withAttribute(
+                    ConstructorParam::class::<dyn Contract>("contract").with_attribute(
                         ClassAttribute::contextual(|| {
                             let mut parameters = ParameterOverrides::new();
                             parameters
                                 .insert(ParameterKey::name("number"), ParameterValue::new(6_u32));
                             Ok(Give::<dyn Contract>::new("implementation")
-                                .withParameters(parameters))
+                                .with_parameters(parameters))
                         }),
                     ),
                 ],
@@ -152,8 +152,8 @@ async fn give_awaits_the_selected_implementation_and_uses_its_own_parameters() {
     let mut outer = ParameterOverrides::new();
     outer.insert(ParameterKey::name("number"), ParameterValue::new(99_u32));
     let (a, b) = tokio::join!(
-        container.makeWithAsync::<Consumer>(outer),
-        container.makeAsync::<Consumer>()
+        container.make_with_async::<Consumer>(outer),
+        container.make_async::<Consumer>()
     );
     assert_eq!(a.unwrap().0.value(), 6);
     assert_eq!(b.unwrap().0.value(), 6);
@@ -164,7 +164,7 @@ async fn tag_is_lazy_rewindable_ordered_and_container_bound() {
     let container = Container::default();
     let calls = Arc::new(AtomicUsize::new(0));
     container
-        .bindNamed::<u32, _>("first", {
+        .bind_named::<u32, _>("first", {
             let calls = calls.clone();
             move |_| {
                 calls.fetch_add(1, Ordering::Relaxed);
@@ -173,13 +173,13 @@ async fn tag_is_lazy_rewindable_ordered_and_container_bound() {
         })
         .unwrap();
     container
-        .bindAsyncNamed::<u32, _>("next", |_| Box::pin(async { Ok(Arc::new(2)) }))
+        .bind_async_named::<u32, _>("next", |_| Box::pin(async { Ok(Arc::new(2)) }))
         .await
         .unwrap();
     container.tag(["first", "first"], ["numbers"]);
     let attribute = ClassAttribute::contextual(|| Ok(Tag::<u32>::new("numbers")));
     let result = container
-        .resolveFromAttribute(
+        .resolve_from_attribute(
             &attribute,
             AttributeParameter {
                 name: "items",
@@ -199,7 +199,7 @@ async fn tag_is_lazy_rewindable_ordered_and_container_bound() {
     ));
     container.tag(["next"], ["numbers"]);
     for _ in 0..2 {
-        let values = tagged.collectAsync(&container).await.unwrap();
+        let values = tagged.collect_async(&container).await.unwrap();
         assert_eq!(
             values.iter().map(|value| **value).collect::<Vec<_>>(),
             [1, 1, 2]
@@ -216,7 +216,7 @@ async fn current_resolving_tracks_consumer_and_returns_null_outside_resolution()
     let container = Container::default();
     let attribute = ClassAttribute::contextual(|| Ok(CurrentResolving));
     let result = container
-        .resolveFromAttribute(
+        .resolve_from_attribute(
             &attribute,
             AttributeParameter {
                 name: "consumer",
@@ -226,17 +226,17 @@ async fn current_resolving_tracks_consumer_and_returns_null_outside_resolution()
         .unwrap();
     assert!(matches!(result, AttributeValue::One(value) if value.is_null()));
     container
-        .registerClass(
+        .register_class(
             ClassDescriptor::concrete(
-                vec![ConstructorParam::scalar::<ServiceKey>("consumer").withAttribute(attribute)],
+                vec![ConstructorParam::scalar::<ServiceKey>("consumer").with_attribute(attribute)],
                 |args| Ok(Arc::new(Identity((*args.get::<ServiceKey>(0)?).clone()))),
             )
             .unwrap(),
         )
         .unwrap();
     assert_eq!(
-        container.makeAsync::<Identity>().await.unwrap().0,
+        container.make_async::<Identity>().await.unwrap().0,
         ServiceKey::typed::<Identity>()
     );
-    assert!(container.currentlyResolving().is_none());
+    assert!(container.currently_resolving().is_none());
 }

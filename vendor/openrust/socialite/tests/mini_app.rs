@@ -298,14 +298,14 @@ async fn registered_manager_and_facade_work_in_json_api_without_web_session() {
         foundation::{Application, configuration::Routing, http::Kernel},
     };
     let mut app = Application::configure(std::env::temp_dir())
-        .withConfig(|_, _| {
+        .with_config(|_, _| {
             Ok(BTreeMap::from([(
                 "services".into(),
                 json!({"wechat":{"mini_app":config()}}),
             )]))
         })
-        .withProviders(vec![Box::new(openrust_socialite::SocialiteServiceProvider)])
-        .withRouting(Routing::default().api(login_routes))
+        .with_providers(vec![Box::new(openrust_socialite::SocialiteServiceProvider)])
+        .with_routing(Routing::default().api(login_routes))
         .create()
         .unwrap();
     app.boot().await.unwrap();

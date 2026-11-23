@@ -14,7 +14,7 @@
 
 `--event` 接受 `OrderPlaced` 等 PascalCase 事件名、`App/Events/OrderPlaced` 等应用限定名，或 `crate::app::events::order_placed::OrderPlaced` 等 Rust 路径。
 
-在 Rust 模块树中声明生成的文件，并在应用构建器的 `withEvents` 中传入 `openrust::foundation::events::DiscoverEvents::new(&[register_orders])`。未使用 `--event` 的队列监听器在注册时指定事件类型。生成的事件通过 Serde 派生队列所需的序列化能力。
+在 Rust 模块树中声明生成的文件，并在应用构建器的 `with_events` 中传入 `openrust::foundation::events::DiscoverEvents::new(&[register_orders])`。未使用 `--event` 的队列监听器在注册时指定事件类型。生成的事件通过 Serde 派生队列所需的序列化能力。
 
 ```rust
 use crate::app::{
@@ -33,11 +33,11 @@ fn register_orders(registry: &mut ListenerRegistry) -> EventResult<()> {
 
 ## 注册监听器与订阅者
 
-在应用中声明注册函数，通过 `withEvents(DiscoverEvents::new(&[register_orders]))` 接入。应用启动时加载编译后的清单。实现 `Subscriber` 后，可用 `Event::subscribe` 成组登记监听器。运行 `./artisan event:list --event=orders --json` 查看注册结果。
+在应用中声明注册函数，通过 `with_events(DiscoverEvents::new(&[register_orders]))` 接入。应用启动时加载编译后的清单。实现 `Subscriber` 后，可用 `Event::subscribe` 成组登记监听器。运行 `./artisan event:list --event=orders --json` 查看注册结果。
 
-在清单中调用 `registry.listenClass::<OrderListener>("orders.created", Delivery::Sync)?` 注册监听器类型，也可以在应用作用域内调用 `Event::listenClass`。在应用容器中为该类型绑定工厂，异步依赖可用 `bindAsync`。派发到该监听器时，框架从所属应用的容器解析实例。缺少绑定会使派发失败。使用 `Delivery::AfterCommit` 时，实例在派发时解析，事务成功提交后调用。
+在清单中调用 `registry.listenClass::<OrderListener>("orders.created", Delivery::Sync)?` 注册监听器类型，也可以在应用作用域内调用 `Event::listenClass`。在应用容器中为该类型绑定工厂，异步依赖可用 `bind_async`。派发到该监听器时，框架从所属应用的容器解析实例。缺少绑定会使派发失败。使用 `Delivery::AfterCommit` 时，实例在派发时解析，事务成功提交后调用。
 
-需要动态发现时，实现 `ShouldBeDiscovered`，用 `withListener` 接入监听器注册。用 `withEvents(discover_events())` 接入生成的清单。启动时，发现条件读取当前应用并决定是否注册监听器。条件返回错误时，本次清单注册失败。通过 `Event::listen` 手动注册的监听器独立于发现条件。
+需要动态发现时，实现 `ShouldBeDiscovered`，用 `withListener` 接入监听器注册。用 `with_events(discover_events())` 接入生成的清单。启动时，发现条件读取当前应用并决定是否注册监听器。条件返回错误时，本次清单注册失败。通过 `Event::listen` 手动注册的监听器独立于发现条件。
 
 ```rust
 use std::sync::Arc;
@@ -88,7 +88,7 @@ fn discover_events() -> DiscoverEvents {
 
 事件缓存是可选的部署优化。应用启动时，如果缓存与编译清单匹配，就复用有条件监听器的启用结果。缓存缺失、损坏或不匹配时，启动会重新计算条件，且不写入文件。手动监听器和无条件注册照常执行。
 
-在部署环境执行 `./artisan event:cache`，将发现结果写入 `storage/framework/cache/events.json`。用 `APP_EVENTS_CACHE` 指定绝对路径或相对应用根目录的路径。使用配置缓存时，将此项设为服务的进程环境变量。启动后可用 `getCachedEventsPath()` 查询解析后的路径。部署新构建或修改发现条件后，重新生成缓存。执行 `./artisan event:clear` 删除文件，下次启动时重新判断条件。
+在部署环境执行 `./artisan event:cache`，将发现结果写入 `storage/framework/cache/events.json`。用 `APP_EVENTS_CACHE` 指定绝对路径或相对应用根目录的路径。使用配置缓存时，将此项设为服务的进程环境变量。启动后可用 `get_cached_events_path()` 查询解析后的路径。部署新构建或修改发现条件后，重新生成缓存。执行 `./artisan event:clear` 删除文件，下次启动时重新判断条件。
 
 模型生命周期处理程序可在服务提供者启动时注册为 [Eloquent 观察者](../eloquent/getting-started.md#observers)。
 

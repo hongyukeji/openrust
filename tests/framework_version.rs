@@ -20,7 +20,7 @@ async fn application_package_version_and_env_override_do_not_change_framework_ve
             std::fs::write(root.join(".env"), format!("APP_VERSION={version}\n")).unwrap();
         }
         let mut application = Application::configure(root.clone())
-            .withConfig(|_, environment| {
+            .with_config(|_, environment| {
                 Ok(std::collections::BTreeMap::from([(
                     "app".into(),
                     app_config::load(environment)?.config,

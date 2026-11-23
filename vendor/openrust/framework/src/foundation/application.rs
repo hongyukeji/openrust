@@ -48,24 +48,22 @@ pub(crate) type PackageCommands = fn() -> Result<(), ConsoleError>;
 pub(super) type MiddlewareConfigurator = Box<dyn FnOnce(&mut Middleware) + Send + Sync>;
 
 /// Owns the application root, service container, and provider lifecycle.
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub struct Application {
     pub(super) shared: Arc<ApplicationState>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub(super) struct ApplicationState {
-    basePath: PathBuf,
+    base_path: PathBuf,
     pub(super) lifecycle: Mutex<[Vec<LifecycleCallback>; 3]>,
     pub(super) prefer_json: AtomicBool,
     pub(super) schedule_configurators: Mutex<Vec<ScheduleConfigurator>>,
-    publicPath: RwLock<Option<PathBuf>>,
+    public_path: RwLock<Option<PathBuf>>,
     paths: Arc<super::Paths>,
     load_config: ConfigLoader,
     testing_environment: AtomicBool,
     pub(super) container: Arc<Container>,
     providers: Mutex<Vec<Box<dyn ServiceProvider>>>,
-    loadedProviders: Mutex<HashSet<&'static str>>,
+    loaded_providers: Mutex<HashSet<&'static str>>,
     registered_runners: Mutex<Vec<Arc<dyn Runner>>>,
     custom_runners: Mutex<Option<RunnerRegistrar>>,
     deferred: OnceLock<Arc<super::provider_repository::ProviderRepository>>,
@@ -128,54 +126,49 @@ impl Application {
     }
 
     /// Checks a compiled provider class name after successful registration.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn providerIsLoaded(&self, provider: &str) -> bool {
+    pub fn provider_is_loaded(&self, provider: &str) -> bool {
         self.shared
-            .loadedProviders
+            .loaded_providers
             .lock()
             .expect("loaded provider registry poisoned")
             .contains(provider)
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub(super) fn markAsRegistered(&self, provider: &dyn ServiceProvider) {
-        let class = provider.providerClass();
+    pub(super) fn mark_as_registered(&self, provider: &dyn ServiceProvider) {
+        let class = provider.provider_class();
         self.shared
-            .loadedProviders
+            .loaded_providers
             .lock()
             .expect("loaded provider registry poisoned")
             .insert(class);
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn configure(basePath: PathBuf) -> ApplicationBuilder {
-        ApplicationBuilder::new(basePath)
+    pub fn configure(base_path: PathBuf) -> ApplicationBuilder {
+        ApplicationBuilder::new(base_path)
     }
 
     /// Resolves an explicit override, a source root, or the executable's directory.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn inferBasePath(source_root: Option<&str>) -> Result<PathBuf, BootstrapError> {
-        let basePath = match (std::env::var_os("APP_BASE_PATH"), source_root) {
+    pub fn infer_base_path(source_root: Option<&str>) -> Result<PathBuf, BootstrapError> {
+        let base_path = match (std::env::var_os("APP_BASE_PATH"), source_root) {
             (Some(path), _) => PathBuf::from(path),
             (None, Some(path)) => PathBuf::from(path),
             (None, None) => executable_base_path()
                 .map_err(|source| BootstrapError::ExecutablePathUnavailable { source })?,
         };
-        if !basePath.is_absolute() {
+        if !base_path.is_absolute() {
             return Err(BootstrapError::InvalidBasePath {
-                path: basePath,
+                path: base_path,
                 source: io::Error::new(
                     io::ErrorKind::InvalidInput,
                     "expected an absolute application root",
                 ),
             });
         }
-        Ok(basePath)
+        Ok(base_path)
     }
 
     /// The packages linked by this application's Cargo build.
-    #[allow(non_snake_case, reason = "Follows application accessors")]
-    pub fn packageManifest(&self) -> super::PackageManifest {
+    pub fn package_manifest(&self) -> super::PackageManifest {
         self.shared
             .package_manifest
             .get()
@@ -224,34 +217,30 @@ impl Application {
     }
 
     /// Returns the application's configured public directory.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn publicPath(&self) -> PathBuf {
+    pub fn public_path(&self) -> PathBuf {
         self.shared
-            .publicPath
+            .public_path
             .read()
             .expect("application path lock poisoned")
             .clone()
-            .unwrap_or_else(|| self.shared.basePath.join("public"))
+            .unwrap_or_else(|| self.shared.base_path.join("public"))
     }
 
     /// Overrides the public directory. Relative paths are resolved from the application root.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn usePublicPath(&mut self, path: impl AsRef<Path>) -> &mut Self {
+    pub fn use_public_path(&mut self, path: impl AsRef<Path>) -> &mut Self {
         *self
             .shared
-            .publicPath
+            .public_path
             .write()
-            .expect("application path lock poisoned") = Some(self.shared.basePath.join(path));
+            .expect("application path lock poisoned") = Some(self.shared.base_path.join(path));
         self
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn storagePath(&self, path: &str) -> PathBuf {
-        self.shared.paths.storagePath(path)
+    pub fn storage_path(&self, path: &str) -> PathBuf {
+        self.shared.paths.storage_path(path)
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn useStoragePath(
+    pub fn use_storage_path(
         &self,
         path: impl Into<PathBuf>,
     ) -> Result<&Self, crate::contracts::container::BindingResolutionError> {
@@ -259,33 +248,30 @@ impl Application {
         self.shared.paths.use_storage_path(path.clone());
         self.shared
             .container
-            .instanceNamed("path.storage", Arc::new(path))?;
+            .instance_named("path.storage", Arc::new(path))?;
         Ok(self)
     }
 
     /// 返回应用语言目录及可选后缀。
-    #[allow(non_snake_case)]
-    pub fn langPath(&self, path: &str) -> PathBuf {
-        self.shared.paths.langPath(path)
+    pub fn lang_path(&self, path: &str) -> PathBuf {
+        self.shared.paths.lang_path(path)
     }
 
     /// 覆盖语言目录；应在解析翻译加载器之前调用。
-    #[allow(non_snake_case)]
-    pub fn useLangPath(
+    pub fn use_lang_path(
         &self,
         path: impl Into<PathBuf>,
     ) -> Result<&Self, crate::contracts::container::BindingResolutionError> {
         let path = path.into();
         self.shared
             .container
-            .instanceNamed("path.lang", Arc::new(path.clone()))?;
+            .instance_named("path.lang", Arc::new(path.clone()))?;
         self.shared.paths.use_lang_path(path);
         Ok(self)
     }
 
     /// Whether bootstrap loaded an existing configuration snapshot.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn configurationIsCached(&self) -> bool {
+    pub fn configuration_is_cached(&self) -> bool {
         self.shared
             .container
             .get::<bool>("config_loaded_from_cache")
@@ -301,11 +287,10 @@ impl Application {
     }
 
     /// Checks the bound environment name, independently of the test harness.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn runningUnitTests(
+    pub fn running_unit_tests(
         &self,
     ) -> Result<bool, crate::contracts::container::BindingResolutionError> {
-        foundation::Application::runningUnitTests(self)
+        foundation::Application::running_unit_tests(self)
     }
 
     pub(crate) fn register_package_routes(&self, register: PackageRoutes) -> std::io::Result<()> {
@@ -399,8 +384,7 @@ impl Application {
     }
 
     /// Returns the route cache path after the application resolves its environment.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn getCachedRoutesPath(&self) -> Option<&Path> {
+    pub fn get_cached_routes_path(&self) -> Option<&Path> {
         self.shared
             .route_cache
             .get()
@@ -408,8 +392,7 @@ impl Application {
     }
 
     /// Reports whether this application loaded a valid route matching index during boot.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn routesAreCached(&self) -> bool {
+    pub fn routes_are_cached(&self) -> bool {
         self.shared
             .route_cache
             .get()
@@ -417,14 +400,12 @@ impl Application {
     }
 
     /// Returns the event cache path after the application's environment is resolved.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn getCachedEventsPath(&self) -> Option<&Path> {
+    pub fn get_cached_events_path(&self) -> Option<&Path> {
         self.shared.event_cache_path.get().map(PathBuf::as_path)
     }
 
     /// Returns the package manifest export path after the application's environment is resolved.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn getCachedPackagesPath(&self) -> Option<&Path> {
+    pub fn get_cached_packages_path(&self) -> Option<&Path> {
         self.shared.package_cache_path.get().map(PathBuf::as_path)
     }
 
@@ -476,8 +457,7 @@ impl Application {
     }
 
     /// Executes an Artisan invocation and terminates its console kernel.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn handleCommand(
+    pub async fn handle_command(
         self,
         arguments: &[OsString],
     ) -> Result<i32, Box<dyn Error + Send + Sync>> {
@@ -501,9 +481,8 @@ impl Application {
         }
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub(super) fn new(
-        basePath: PathBuf,
+        base_path: PathBuf,
         load_config: ConfigLoader,
         providers: Vec<Box<dyn ServiceProvider>>,
         routing: Option<Routing>,
@@ -512,15 +491,15 @@ impl Application {
         exceptions: Option<Exceptions>,
     ) -> Self {
         let container = Arc::new(Container::default());
-        let paths = Arc::new(super::Paths::new(basePath.clone()));
+        let paths = Arc::new(super::Paths::new(base_path.clone()));
         container
             .instance(paths.clone())
             .expect("application paths are initially unbound");
         container
-            .instanceNamed("path.lang", Arc::new(paths.langPath("")))
+            .instance_named("path.lang", Arc::new(paths.lang_path("")))
             .expect("初始语言路径尚未绑定");
         container
-            .instanceNamed("path.storage", Arc::new(paths.storagePath("")))
+            .instance_named("path.storage", Arc::new(paths.storage_path("")))
             .expect("the initial storage path is unbound");
         container
             .alias("config", ServiceKey::typed::<dyn config::Repository>())
@@ -559,11 +538,11 @@ impl Application {
         let providers: Vec<_> = base_providers
             .into_iter()
             .chain(providers)
-            .filter(|provider| seen.insert(provider.providerType()))
+            .filter(|provider| seen.insert(provider.provider_type()))
             .collect();
         let (deferred, providers): (Vec<_>, Vec<_>) = providers
             .into_iter()
-            .partition(|provider| provider.isDeferred());
+            .partition(|provider| provider.is_deferred());
         let exceptions = Arc::new(Handler::new(exceptions, Arc::downgrade(&container)));
         container
             .instance::<dyn ExceptionHandler>(exceptions.clone())
@@ -572,14 +551,14 @@ impl Application {
             lifecycle: Mutex::new(Default::default()),
             prefer_json: AtomicBool::new(false),
             schedule_configurators: Mutex::new(Vec::new()),
-            basePath,
-            publicPath: RwLock::new(None),
+            base_path,
+            public_path: RwLock::new(None),
             paths,
             load_config,
             testing_environment: AtomicBool::new(false),
             container,
             providers: Mutex::new(providers),
-            loadedProviders: Mutex::default(),
+            loaded_providers: Mutex::default(),
             registered_runners: Mutex::default(),
             custom_runners: Mutex::default(),
             deferred: OnceLock::new(),
@@ -607,7 +586,7 @@ impl Application {
         let owner = Arc::downgrade(&shared);
         shared
             .container
-            .bindNamed("app", move |_| {
+            .bind_named("app", move |_| {
                 owner
                     .upgrade()
                     .map(|shared| Arc::new(Application { shared }))
@@ -624,7 +603,7 @@ impl Application {
         shared
             .container
             .instance(Arc::new(super::dev_commands::Registry::new(
-                shared.basePath.clone(),
+                shared.base_path.clone(),
                 Arc::downgrade(&shared),
             )))
             .expect("development command registry is initially unbound");
@@ -644,7 +623,7 @@ impl Application {
     ) -> Result<Arc<T>, crate::contracts::container::BindingResolutionError> {
         crate::support::facades::application_scope(
             self.container_handle(),
-            self.shared.container.makeAsync::<T>(),
+            self.shared.container.make_async::<T>(),
         )
         .await
     }
@@ -655,25 +634,23 @@ impl Application {
     ) -> Result<Arc<T>, crate::contracts::container::BindingResolutionError> {
         crate::support::facades::application_scope(
             self.container_handle(),
-            self.shared.container.getAsync::<T>(key),
+            self.shared.container.get_async::<T>(key),
         )
         .await
     }
 
     /// Resolve a fresh service when explicit parameters are supplied.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn makeWith<T: ?Sized + Send + Sync + 'static>(
+    pub async fn make_with<T: ?Sized + Send + Sync + 'static>(
         &self,
         parameters: crate::container::ParameterOverrides,
     ) -> Result<Arc<T>, crate::contracts::container::BindingResolutionError> {
         crate::support::facades::application_scope(
             self.container_handle(),
-            self.shared.container.makeWithAsync::<T>(parameters),
+            self.shared.container.make_with_async::<T>(parameters),
         )
         .await
     }
-    #[allow(non_snake_case, reason = "Named Rust overload")]
-    pub async fn makeWithNamed<T: ?Sized + Send + Sync + 'static>(
+    pub async fn make_with_named<T: ?Sized + Send + Sync + 'static>(
         &self,
         key: impl Into<ServiceKey> + Send,
         parameters: crate::container::ParameterOverrides,
@@ -682,7 +659,7 @@ impl Application {
             self.container_handle(),
             self.shared
                 .container
-                .makeWithAsyncNamed::<T>(key, parameters),
+                .make_with_async_named::<T>(key, parameters),
         )
         .await
     }
@@ -694,8 +671,7 @@ impl Application {
         move || Box::pin(self.make::<T>())
     }
 
-    #[allow(non_snake_case, reason = "Named Rust application factory overload")]
-    pub fn factoryNamed<'a, T: ?Sized + Send + Sync + 'static>(
+    pub fn factory_named<'a, T: ?Sized + Send + Sync + 'static>(
         &'a self,
         key: ServiceKey,
     ) -> impl Fn() -> crate::container::FactoryFuture<'a, T> + Send + Sync {
@@ -738,8 +714,7 @@ impl Application {
         .await
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn callMethodBinding<C: ?Sized + Send + Sync + 'static, R: Send + 'static>(
+    pub async fn call_method_binding<C: ?Sized + Send + Sync + 'static, R: Send + 'static>(
         &self,
         method: &str,
         receiver: Arc<C>,
@@ -748,13 +723,12 @@ impl Application {
             self.container_handle(),
             self.shared
                 .container
-                .callMethodBinding::<C, R>(method, receiver),
+                .call_method_binding::<C, R>(method, receiver),
         )
         .await
     }
 
-    #[allow(non_snake_case, reason = "Typed Rust static method overload")]
-    pub async fn callStaticMethodBinding<C: ?Sized + 'static, R: Send + 'static>(
+    pub async fn call_static_method_binding<C: ?Sized + 'static, R: Send + 'static>(
         &self,
         method: &str,
     ) -> Result<R, crate::contracts::container::BindingResolutionError> {
@@ -762,13 +736,12 @@ impl Application {
             self.container_handle(),
             self.shared
                 .container
-                .callStaticMethodBinding::<C, R>(method),
+                .call_static_method_binding::<C, R>(method),
         )
         .await
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn isDeferredService(&self, key: impl Into<ServiceKey>) -> bool {
+    pub fn is_deferred_service(&self, key: impl Into<ServiceKey>) -> bool {
         use crate::container::deferred::DeferredServices as _;
         self.shared
             .deferred
@@ -777,8 +750,7 @@ impl Application {
             .contains(&key.into())
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn loadDeferredProviders(
+    pub async fn load_deferred_providers(
         &self,
     ) -> Result<(), crate::contracts::container::BindingResolutionError> {
         self.shared
@@ -825,8 +797,7 @@ impl Application {
             .register_load_events(dispatcher)
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn maintenanceMode(
+    pub fn maintenance_mode(
         &self,
     ) -> Result<
         Arc<dyn crate::contracts::foundation::MaintenanceMode>,
@@ -835,9 +806,10 @@ impl Application {
         self.shared.container.make()
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn isDownForMaintenance(&self) -> Result<bool, super::maintenance::MaintenanceError> {
-        self.maintenanceMode()?.active().await
+    pub async fn is_down_for_maintenance(
+        &self,
+    ) -> Result<bool, super::maintenance::MaintenanceError> {
+        self.maintenance_mode()?.active().await
     }
 
     pub async fn boot(&mut self) -> Result<(), BootstrapError> {
@@ -911,7 +883,7 @@ impl Application {
             mut environment,
             values: cached,
         } = ConfigurationCache::bootstrap(
-            &self.shared.basePath,
+            &self.shared.base_path,
             selected,
             use_cache,
             self.shared.testing_environment.load(Ordering::Relaxed),
@@ -920,7 +892,7 @@ impl Application {
         environment.paths = Arc::downgrade(&self.shared.paths);
         let environment = Arc::new(environment);
         self.shared.paths.environment(environment.clone());
-        let package_cache = self.shared.basePath.join(
+        let package_cache = self.shared.base_path.join(
             environment
                 .values
                 .get("APP_PACKAGES_CACHE")
@@ -928,7 +900,7 @@ impl Application {
                 .map_or_else(|| Path::new("bootstrap/cache/packages.json"), Path::new),
         );
         let _ = self.shared.package_cache_path.set(package_cache);
-        let route_cache_path = self.shared.basePath.join(
+        let route_cache_path = self.shared.base_path.join(
             environment
                 .values
                 .get("APP_ROUTES_CACHE")
@@ -938,7 +910,7 @@ impl Application {
                     Path::new,
                 ),
         );
-        let event_cache_path = self.shared.basePath.join(
+        let event_cache_path = self.shared.base_path.join(
             environment
                 .values
                 .get("APP_EVENTS_CACHE")
@@ -951,10 +923,10 @@ impl Application {
         let _ = self.shared.event_cache_path.set(event_cache_path);
         self.shared
             .container
-            .instanceNamed("config.cache.path", Arc::new(cache_path))?;
+            .instance_named("config.cache.path", Arc::new(cache_path))?;
         self.shared
             .container
-            .instanceNamed("config_loaded_from_cache", Arc::new(cached.is_some()))?;
+            .instance_named("config_loaded_from_cache", Arc::new(cached.is_some()))?;
         self.shared
             .container
             .scoped::<crate::config::LocaleOverrides, _>(|_| Ok(Arc::default()))?;
@@ -963,13 +935,13 @@ impl Application {
         );
         self.shared
             .container
-            .instanceNamed::<dyn config::Repository>("config", config.clone())?;
+            .instance_named::<dyn config::Repository>("config", config.clone())?;
         let grpc_options = Arc::new(grpc::GrpcServerOptions::default());
         self.shared.container.instance(grpc_options.clone())?;
         let loaded = match cached {
             Some(values) => Repository::new(values),
             None => LoadConfiguration::bootstrap(
-                &self.shared.basePath,
+                &self.shared.base_path,
                 &environment,
                 self.shared.load_config,
             )
@@ -981,7 +953,7 @@ impl Application {
             .instance(Arc::new(grpc::GrpcClients::new(config.clone())))?;
         self.shared
             .container
-            .instanceNamed("env.file", Arc::new(environment.file.clone()))?;
+            .instance_named("env.file", Arc::new(environment.file.clone()))?;
         self.shared.container.instance(environment)?;
         let name = match selected {
             Some(name) => Arc::from(name),
@@ -999,7 +971,7 @@ impl Application {
         environment_detector::install(&self.shared.container, name)?;
         if self
             .shared
-            .publicPath
+            .public_path
             .read()
             .expect("application path lock poisoned")
             .is_none()
@@ -1015,7 +987,7 @@ impl Application {
             match directory {
                 None | Some(Value::Null) => {}
                 Some(Value::String(path)) if !path.trim().is_empty() => {
-                    self.usePublicPath(path);
+                    self.use_public_path(path);
                 }
                 _ => {
                     return Err(configuration_failed(ConfigError::InvalidType {
@@ -1026,7 +998,7 @@ impl Application {
             }
         }
         if config::Repository::has(config.as_ref(), "filesystems.disks.web") {
-            let path = self.publicPath();
+            let path = self.public_path();
             let path = path.to_str().ok_or_else(|| {
                 configuration_failed(ConfigError::InvalidType {
                     key: "filesystems.disks.web.root".into(),
@@ -1059,7 +1031,7 @@ impl Application {
             .expect("provider registry initialized");
         let mut boot_positions = Vec::with_capacity(providers.len());
         for provider in &mut providers {
-            let (provider_type, name) = (provider.providerType(), provider.name());
+            let (provider_type, name) = (provider.provider_type(), provider.name());
             provider.register(self).await.map_err(|source| {
                 BootstrapError::ProviderRegistrationFailed {
                     provider: provider_type,
@@ -1067,7 +1039,7 @@ impl Application {
                     source,
                 }
             })?;
-            self.markAsRegistered(provider.as_ref());
+            self.mark_as_registered(provider.as_ref());
             boot_positions.push(deferred.registered_count());
         }
         self.run_lifecycle(0)?;
@@ -1082,7 +1054,7 @@ impl Application {
                     .await?;
                 previous_position = position;
             }
-            let (provider_type, name) = (provider.providerType(), provider.name());
+            let (provider_type, name) = (provider.provider_type(), provider.name());
             provider
                 .boot(self)
                 .await
@@ -1123,7 +1095,7 @@ impl Application {
             crate::support::facades::Route::register(&mut routes, self, register)
                 .map_err(routing_failed)?;
         }
-        routes.resolve_static_directories(&self.shared.basePath);
+        routes.resolve_static_directories(&self.shared.base_path);
         let config = self.configuration_repository()?;
         crate::filesystem::register_signed_routes(&mut routes, config.as_ref())
             .map_err(routing_failed)?;
@@ -1132,7 +1104,7 @@ impl Application {
             .route_cache
             .set((route_cache_path, loaded))
             .expect("application route cache loaded once");
-        self.shared.container.instanceNamed(
+        self.shared.container.instance_named(
             "url",
             Arc::new(crate::routing::UrlGenerator::new(
                 routes.url_routes(),
@@ -1196,7 +1168,7 @@ impl foundation::Application for Application {
     type Container = Container;
 
     fn base_path(&self) -> &Path {
-        &self.shared.basePath
+        &self.shared.base_path
     }
     fn config(
         &self,
@@ -1210,12 +1182,10 @@ impl foundation::Application for Application {
     fn is_booted(&self) -> bool {
         self.shared.state.load(Ordering::Acquire) == BOOTED
     }
-    #[allow(non_snake_case)]
-    fn langPath(&self, path: &str) -> PathBuf {
-        self.shared.paths.langPath(path)
+    fn lang_path(&self, path: &str) -> PathBuf {
+        self.shared.paths.lang_path(path)
     }
-    #[allow(non_snake_case)]
-    fn storagePath(&self, path: &str) -> PathBuf {
-        self.shared.paths.storagePath(path)
+    fn storage_path(&self, path: &str) -> PathBuf {
+        self.shared.paths.storage_path(path)
     }
 }

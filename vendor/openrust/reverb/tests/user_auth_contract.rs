@@ -25,15 +25,15 @@ fn peek(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 }
 #[tokio::test]
 async fn user_routes_use_named_connections_request_identity_signatures_and_session_reflash() {
-    let mut app = TestApp::create(|builder| builder.withConfig(|_,_|Ok([
+    let mut app = TestApp::create(|builder| builder.with_config(|_,_|Ok([
         ("app".into(),json!({"env":"testing","key":"12345678901234567890123456789012"})),
         ("session".into(),json!({"driver":"array","cookie":"user-auth-session"})),
         ("broadcasting".into(),json!({"default":"one","connections":{
             "one":{"driver":"pusher","key":"one-key","secret":"one-secret","app_id":"one","options":{"host":"127.0.0.1","scheme":"http","port":6001}},
             "two":{"driver":"reverb","key":"two-key","secret":"two-secret","app_id":"two","options":{"host":"127.0.0.1","scheme":"http","port":6001}}
         }}))
-    ].into())).withProviders(vec![Box::new(openrust_reverb::ReverbServiceProvider)])
-    .withRouting(Routing::default().web(|| {
+    ].into())).with_providers(vec![Box::new(openrust_reverb::ReverbServiceProvider)])
+    .with_routing(Routing::default().web(|| {
         Route::get("/seed",seed)?;Route::get("/peek",peek)?;
         Broadcast::userRoutes(None,None)?;
         Broadcast::userRoutes(Some(RouteGroup::new().prefix("custom").middleware_name("web")),Some("two"))

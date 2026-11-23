@@ -55,12 +55,12 @@ impl ServiceProvider for Register {
 async fn native_worker_records_job_attempts_failures_and_flushes_each_scoped_buffer() {
     let values = Arc::new(Mutex::new(Vec::new()));
     let observed = values.clone();
-    let mut app = TestApp::create(move |builder| builder.withConfig(|root, _| Ok([
+    let mut app = TestApp::create(move |builder| builder.with_config(|root, _| Ok([
         ("pulse".into(),json!({"ingest":{"driver":"storage","buffer":5000,"trim":{"lottery":[0,1]}},"recorders":{"Queues":{"sample_rate":1},"SlowJobs":{"threshold":0},"Exceptions":{},"Servers":false}})),
         ("database".into(), json!({"default":"test","connections":{"test":{"driver":"sqlite","database":root.join("worker.sqlite"),"max_connections":1}}})),
         ("cache".into(), json!({"default":"array","stores":{"array":{"driver":"array"}}})),
         ("queue".into(), json!({"default":"database","connections":{"database":{"driver":"database","table":"jobs","queue":"default","retry_after":90}},"failed":{"driver":"null"}})),
-    ].into())).withProviders(vec![Box::new(PulseServiceProvider), Box::new(Register { values: observed })])).unwrap();
+    ].into())).with_providers(vec![Box::new(PulseServiceProvider), Box::new(Register { values: observed })])).unwrap();
     std::fs::write(app.root().join("worker.sqlite"), []).unwrap();
     app.boot().await.unwrap();
     let connection = app

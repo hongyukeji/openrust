@@ -13,7 +13,7 @@ fn request() -> Request {
 }
 async fn application() -> Application {
     let mut app = Application::configure(std::env::temp_dir())
-        .withConfig(|_, _| {
+        .with_config(|_, _| {
             Ok([(
                 "auth".into(),
                 json!({"defaults":{"guard":"first"},"guards":{

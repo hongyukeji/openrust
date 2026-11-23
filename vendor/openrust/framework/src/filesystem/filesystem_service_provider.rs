@@ -17,7 +17,7 @@ impl ServiceProvider for FilesystemServiceProvider {
         Box::pin(async move {
             let root = app.base_path().to_path_buf();
             let container = app.container();
-            container.singletonNamed("filesystem", move |container| {
+            container.singleton_named("filesystem", move |container| {
                 let config = container.get::<dyn Repository>("config")?;
                 Ok(Arc::new(FilesystemManager::new(config, root.clone())))
             })?;

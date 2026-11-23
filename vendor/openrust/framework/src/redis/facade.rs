@@ -10,14 +10,14 @@ pub struct Redis;
 impl Facade for Redis {
     type Service = RedisManager;
 
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         "redis".into()
     }
 }
 
 impl Redis {
     pub fn purge(name: Option<&str>) -> RedisResult<()> {
-        Self::getFacadeRoot()?.purge(name);
+        Self::get_facade_root()?.purge(name);
         Ok(())
     }
 
@@ -25,12 +25,12 @@ impl Redis {
         driver: impl Into<String>,
         callback: impl Fn(&serde_json::Value, &str) -> RedisResult<Connection> + Send + Sync + 'static,
     ) -> RedisResult<()> {
-        Self::getFacadeRoot()?.extend(driver, callback);
+        Self::get_facade_root()?.extend(driver, callback);
         Ok(())
     }
 
     pub fn connection(name: Option<&str>) -> RedisResult<Arc<Connection>> {
-        Self::getFacadeRoot()?.connection(name)
+        Self::get_facade_root()?.connection(name)
     }
 
     pub async fn command(method: &str, parameters: &[&[u8]]) -> RedisResult<Value> {

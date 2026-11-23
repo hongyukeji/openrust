@@ -348,14 +348,14 @@ async fn verify(config: Value) {
     let root = tempfile::tempdir().unwrap();
     let application = || {
         Application::configure(root.path().to_owned())
-            .withConfig(|_, _| Ok([("app".into(), json!({"key":"a".repeat(32)}))].into()))
-            .withRouting(Routing::default().api(api).web(web))
+            .with_config(|_, _| Ok([("app".into(), json!({"key":"a".repeat(32)}))].into()))
+            .with_routing(Routing::default().api(api).web(web))
             .create()
             .unwrap()
     };
     assert_eq!(
         application()
-            .handleCommand(&["route:cache".into()])
+            .handle_command(&["route:cache".into()])
             .await
             .unwrap(),
         0

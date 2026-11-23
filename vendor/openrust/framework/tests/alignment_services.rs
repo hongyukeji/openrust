@@ -22,9 +22,9 @@ async fn builder_bindings_and_hooks_follow_provider_lifecycle_and_scopes() {
     let transient = Arc::new(AtomicUsize::new(0));
     let counter = transient.clone();
     let builder = Application::configure(root.path().to_owned())
-        .withBindings::<usize, _>(move |_| Ok(Arc::new(counter.fetch_add(1, Ordering::SeqCst))))
-        .withSingletons::<String, _>(|_| Ok(Arc::new("shared".into())))
-        .withScopedSingletons::<AtomicUsize, _>(|_| Ok(Arc::new(AtomicUsize::new(0))));
+        .with_bindings::<usize, _>(move |_| Ok(Arc::new(counter.fetch_add(1, Ordering::SeqCst))))
+        .with_singletons::<String, _>(|_| Ok(Arc::new("shared".into())))
+        .with_scoped_singletons::<AtomicUsize, _>(|_| Ok(Arc::new(AtomicUsize::new(0))));
     let o = order.clone();
     let builder = builder.registered(move |app| {
         assert!(app.container().make::<String>().is_ok());
@@ -69,7 +69,7 @@ async fn builder_bindings_and_hooks_follow_provider_lifecycle_and_scopes() {
 #[tokio::test]
 async fn filesystem_contracts_resolve_real_adapter_and_stream_and_copy_consumers() {
     let root = tempfile::tempdir().unwrap();
-    let mut app=Application::configure(root.path().to_owned()).withConfig(|_,_| Ok([("filesystems".into(),json!({"default":"local","cloud":"local","disks":{"local":{"driver":"local","root":"data"}}}))].into())).create().unwrap();
+    let mut app=Application::configure(root.path().to_owned()).with_config(|_,_| Ok([("filesystems".into(),json!({"default":"local","cloud":"local","disks":{"local":{"driver":"local","root":"data"}}}))].into())).create().unwrap();
     app.boot().await.unwrap();
     let factory = app.container().make::<dyn FsFactory>().unwrap();
     let filesystem = app.container().make::<dyn Filesystem>().unwrap();
@@ -295,33 +295,33 @@ async fn translation_contract_names_observe_nested_locales_and_fallback() {
     .unwrap();
     {
         let contract: &mut dyn Contract = &mut translator;
-        contract.setLocale("zh-CN").unwrap();
+        contract.set_locale("zh-CN").unwrap();
         contract.setFallback("en").unwrap();
-        assert_eq!(contract.getLocale(), "zh-CN");
+        assert_eq!(contract.get_locale(), "zh-CN");
         assert_eq!(contract.getFallback(), "en");
     }
     translator
         .withLocale("fr", async {
-            assert_eq!(Contract::getLocale(&translator), "fr");
+            assert_eq!(Contract::get_locale(&translator), "fr");
             translator
                 .withLocale("de", async {
-                    assert_eq!(translator.getLocale(), "de");
+                    assert_eq!(translator.get_locale(), "de");
                 })
                 .await
                 .unwrap();
-            assert_eq!(translator.getLocale(), "fr");
+            assert_eq!(translator.get_locale(), "fr");
         })
         .await
         .unwrap();
-    assert_eq!(translator.getLocale(), "zh-CN");
+    assert_eq!(translator.get_locale(), "zh-CN");
     let (one, two) = tokio::join!(
         translator.withLocale("en", async {
             tokio::task::yield_now().await;
-            translator.getLocale()
+            translator.get_locale()
         }),
         translator.withLocale("fr", async {
             tokio::task::yield_now().await;
-            translator.getLocale()
+            translator.get_locale()
         })
     );
     assert_eq!(one.unwrap(), "en");
@@ -336,14 +336,14 @@ async fn url_policies_are_owned_by_each_generator_and_affect_named_and_signed_ur
     };
     let root = tempfile::tempdir().unwrap();
     let mut app = Application::configure(root.path().to_owned())
-        .withConfig(|_, _| {
+        .with_config(|_, _| {
             Ok([(
                 "app".into(),
                 json!({"url":"http://example.test/base","key":"signing"}),
             )]
             .into())
         })
-        .withRouting(Routing::new(|_| {
+        .with_routing(Routing::new(|_| {
             let mut router = openrust::routing::Router::new();
             router
                 .add_route(
@@ -615,7 +615,7 @@ async fn builder_schedule_registers_lazily_and_long_task_thresholds_cover_succes
     let configured = Arc::new(AtomicUsize::new(0));
     let registered = configured.clone();
     let mut app = TestApp::create(|builder| {
-        builder.withSchedule(move |schedule| {
+        builder.with_schedule(move |schedule| {
             registered.fetch_add(1, Ordering::SeqCst);
             let captured = captured.clone();
             schedule
@@ -646,7 +646,7 @@ async fn builder_schedule_registers_lazily_and_long_task_thresholds_cover_succes
                         Ok(())
                     })
                     .unwrap();
-                let dispatcher = Event::getFacadeRoot().unwrap();
+                let dispatcher = Event::get_facade_root().unwrap();
                 for runtime in [
                     Duration::from_millis(500),
                     Duration::from_secs(1),
@@ -722,7 +722,7 @@ impl openrust::mail::Mailable for AddressMail {
 async fn mail_global_addresses_inherit_boot_defaults_without_leaking_between_requests() {
     use openrust::mail::MailManager;
     let root = tempfile::tempdir().unwrap();
-    let mut app=Application::configure(root.path().to_owned()).withConfig(|_,_|Ok([("mail".into(),json!({"default":"one","from":{"address":"from@example.test"},"mailers":{"one":{"transport":"array"},"two":{"transport":"array"}}}))].into())).create().unwrap();
+    let mut app=Application::configure(root.path().to_owned()).with_config(|_,_|Ok([("mail".into(),json!({"default":"one","from":{"address":"from@example.test"},"mailers":{"one":{"transport":"array"},"two":{"transport":"array"}}}))].into())).create().unwrap();
     app.boot().await.unwrap();
     let manager = app.container().make::<MailManager>().unwrap();
     let mailer = manager.mailer(None).unwrap();
@@ -899,7 +899,7 @@ async fn mail_cancellation_returns_none_through_contract_facade_and_pending_with
     use openrust::{contracts::mail::Mailer as Contract, support::facades::Mail};
     for stop in [false, true] {
         let root = tempfile::tempdir().unwrap();
-        let mut app = Application::configure(root.path().to_owned()).withConfig(|_,_|Ok([("mail".into(),json!({"default":"one","from":{"address":"from@example.test"},"mailers":{"one":{"transport":"array"}}}))].into())).create().unwrap();
+        let mut app = Application::configure(root.path().to_owned()).with_config(|_,_|Ok([("mail".into(),json!({"default":"one","from":{"address":"from@example.test"},"mailers":{"one":{"transport":"array"}}}))].into())).create().unwrap();
         app.boot().await.unwrap();
         let count = Arc::new(AtomicUsize::new(0));
         let listener = Arc::new(CancelMail {
@@ -943,7 +943,7 @@ async fn mail_cancellation_returns_none_through_contract_facade_and_pending_with
 async fn log_boot_context_is_inherited_and_request_context_is_isolated_even_with_shared_channels() {
     let root = tempfile::tempdir().unwrap();
     let mut app = Application::configure(root.path().to_owned())
-        .withConfig(|_, _| {
+        .with_config(|_, _| {
             Ok([(
                 "logging".into(),
                 json!({"default":"one","channels":{"one":{"driver":"single","path":"one.log"}}}),
@@ -1106,25 +1106,25 @@ async fn view_and_translation_facades_keep_boot_defaults_and_concurrent_scopes_s
         .container()
         .make::<openrust::translation::Translator>()
         .unwrap();
-    translator.setLocale("en").unwrap();
+    translator.set_locale("en").unwrap();
     translator.setFallback("en").unwrap();
     let [one, two] = ["fr", "de"].map(|expected| {
         let expected = expected.to_owned();
         app.container().scope(app.call(
             openrust::container::Callback::new(&[], move |_| async move {
-                assert_eq!(Lang::getLocale().unwrap(), "en");
+                assert_eq!(Lang::get_locale().unwrap(), "en");
                 assert_eq!(View::getShared().unwrap()["shared"].as_str(), Some("boot"));
-                Lang::setLocale(&expected).unwrap();
+                Lang::set_locale(&expected).unwrap();
                 Lang::setFallback("en").unwrap();
                 View::share("shared", expected.clone()).unwrap();
                 tokio::task::yield_now().await;
-                assert_eq!(Lang::getLocale().unwrap(), expected);
+                assert_eq!(Lang::get_locale().unwrap(), expected);
                 assert_eq!(Lang::getFallback().unwrap(), "en");
                 assert_eq!(
                     Lang::get("messages.only", &Default::default(), None).unwrap(),
                     "fallback"
                 );
-                assert!(Lang::setLocale("../bad").is_err());
+                assert!(Lang::set_locale("../bad").is_err());
                 assert_eq!(
                     View::renderWhen(false, "missing", &Default::default()).unwrap(),
                     ""
@@ -1145,7 +1145,7 @@ async fn view_and_translation_facades_keep_boot_defaults_and_concurrent_scopes_s
     let (one, two) = tokio::join!(one, two);
     one.unwrap();
     two.unwrap();
-    assert_eq!(translator.getLocale(), "en");
+    assert_eq!(translator.get_locale(), "en");
     assert_eq!(
         app.container()
             .make::<openrust::view::Factory>()
@@ -1184,7 +1184,7 @@ async fn translation_defaults_come_from_cached_configuration_without_reloading_e
     )
     .unwrap();
     let mut app = Application::configure(root.path().to_owned())
-        .withConfig(|_, _| panic!("缓存命中不能执行配置加载器"))
+        .with_config(|_, _| panic!("缓存命中不能执行配置加载器"))
         .create()
         .unwrap();
     app.boot().await.unwrap();
@@ -1192,16 +1192,16 @@ async fn translation_defaults_come_from_cached_configuration_without_reloading_e
         .container()
         .make::<openrust::translation::Translator>()
         .unwrap();
-    assert_eq!(translator.getLocale(), "zh-CN");
+    assert_eq!(translator.get_locale(), "zh-CN");
     assert_eq!(translator.getFallback(), "en");
     app.container()
         .scope(async {
-            translator.setLocale("fr").unwrap();
+            translator.set_locale("fr").unwrap();
             translator.setFallback("de").unwrap();
-            assert_eq!(translator.getLocale(), "fr");
+            assert_eq!(translator.get_locale(), "fr");
         })
         .await;
-    assert_eq!(translator.getLocale(), "zh-CN");
+    assert_eq!(translator.get_locale(), "zh-CN");
     assert_eq!(translator.getFallback(), "en");
 }
 

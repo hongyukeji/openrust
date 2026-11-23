@@ -37,7 +37,7 @@ impl contracts::Response for LoginResponse {
             if request.wantsJson() {
                 return Response::json(StatusCode::OK, serde_json::json!({"two_factor":false}));
             }
-            let fortify = Resolver::<Fortify>::getFacadeRoot().map_err(internal)?;
+            let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;
             Ok(Redirect::intended(
                 request,
                 &fortify.redirects("login", None),
@@ -56,7 +56,7 @@ impl contracts::Response for LogoutResponse {
             if request.wantsJson() {
                 return Ok(Response::noContent());
             }
-            let fortify = Resolver::<Fortify>::getFacadeRoot().map_err(internal)?;
+            let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;
             Ok(Redirect::to(&fortify.redirects("logout", Some("/")), Default::default())?.into())
         })
     }
@@ -70,7 +70,7 @@ impl contracts::Response for PasswordConfirmedResponse {
             if request.wantsJson() {
                 return Response::json(StatusCode::CREATED, "");
             }
-            let fortify = Resolver::<Fortify>::getFacadeRoot().map_err(internal)?;
+            let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;
             Ok(Redirect::intended(
                 request,
                 &fortify.redirects("password-confirmation", None),
@@ -108,8 +108,8 @@ impl contracts::Response for LockoutResponse {
         request: &'a mut Request,
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
-            let fortify = Resolver::<Fortify>::getFacadeRoot().map_err(internal)?;
-            let seconds = Resolver::<LoginRateLimiter>::getFacadeRoot()
+            let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;
+            let seconds = Resolver::<LoginRateLimiter>::get_facade_root()
                 .map_err(internal)?
                 .availableIn(request)
                 .await?;
@@ -173,7 +173,7 @@ pub(crate) struct ConfirmPasswordViewResponse;
 impl contracts::LoginViewResponse for LoginViewResponse {}
 impl contracts::ConfirmPasswordViewResponse for ConfirmPasswordViewResponse {}
 async fn configured_view(request: &mut Request, login: bool) -> Result<Response, HttpError> {
-    let fortify = Resolver::<Fortify>::getFacadeRoot().map_err(internal)?;
+    let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;
     let view = fortify.view(login).ok_or_else(|| {
         internal(std::io::Error::other(
             "Fortify view has not been configured",
@@ -209,7 +209,7 @@ impl contracts::Response for TwoFactorLoginResponse {
             if request.wantsJson() {
                 return Ok(Response::noContent());
             }
-            let fortify = Resolver::<Fortify>::getFacadeRoot().map_err(internal)?;
+            let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;
             Ok(Redirect::intended(
                 request,
                 &fortify.redirects("login", None),
@@ -299,7 +299,7 @@ impl contracts::Response for TwoFactorChallengeViewResponse {
         request: &'a mut Request,
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
-            let fortify = Resolver::<Fortify>::getFacadeRoot().map_err(internal)?;
+            let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;
             let view = fortify.two_factor_view().ok_or_else(|| {
                 internal(std::io::Error::other(
                     "Fortify two-factor challenge view has not been configured",
@@ -321,7 +321,7 @@ impl contracts::Response for RegisterResponse {
             if request.wantsJson() {
                 return Response::json(StatusCode::CREATED, "");
             }
-            let fortify = Resolver::<Fortify>::getFacadeRoot().map_err(internal)?;
+            let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;
             Ok(Redirect::intended(
                 request,
                 &fortify.redirects("register", None),
@@ -345,7 +345,7 @@ impl contracts::Response for RegisterViewResponse {
         request: &'a mut Request,
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
-            let fortify = Resolver::<Fortify>::getFacadeRoot().map_err(internal)?;
+            let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;
             let view = fortify.register_view().ok_or_else(|| {
                 internal(std::io::Error::other(
                     "Fortify register view has not been configured",
@@ -365,7 +365,7 @@ impl contracts::Response for VerifyEmailViewResponse {
         request: &'a mut Request,
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
-            let fortify = Resolver::<Fortify>::getFacadeRoot().map_err(internal)?;
+            let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;
             fortify
                 .verify_email_view()
                 .ok_or_else(|| {
@@ -389,7 +389,7 @@ impl contracts::Response for VerifyEmailResponse {
             if request.wantsJson() {
                 return Ok(Response::noContent());
             }
-            let fortify = Resolver::<Fortify>::getFacadeRoot().map_err(internal)?;
+            let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;
             Ok(Redirect::intended(
                 request,
                 &format!(

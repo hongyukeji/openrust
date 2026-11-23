@@ -28,9 +28,9 @@ Provider 鉤子在所屬應用的門面作用域內執行。HTTP 與 Artisan 使
 
 ## 延遲服務提供者
 
-實作 `openrust::contracts::support::DeferrableProvider`，透過 `provides()` 宣告精確服務鍵。在原有 Provider 清單中登記 `DeferredProvider::new(factory)`。編譯型工廠取代 PHP 按類名建構；靜態清單不會實例化 Provider。去重使用實際 Provider 類型。HTTP 不載入未使用的 Provider；Console Kernel 在註冊命令前呼叫 `loadDeferredProviders()`。
+實作 `openrust::contracts::support::DeferrableProvider`，透過 `provides()` 宣告精確服務鍵。在原有 Provider 清單中登記 `DeferredProvider::new(factory)`。編譯型工廠取代 PHP 按類名建構；靜態清單不會實例化 Provider。去重使用實際 Provider 類型。HTTP 不載入未使用的 Provider；Console Kernel 在註冊命令前呼叫 `load_deferred_providers()`。
 
-使用 `Application::make::<T>().await` 或 `get::<T>(key).await` 等待延遲 Provider。容器對應 `makeAsync` / `getAsync`，門面對應 `getFacadeRootAsync`。同步解析尚未初始化的延遲服務會回傳 `DeferredServiceRequiresAsync`，不會阻塞 Tokio。同步綁定工廠需接收已初始化的相依服務，不能在內部等待另一個 Provider。`register` 和 `boot` 都回傳 Future，註冊鉤子可以透過 `app.make().await` 載入另一個 Provider。
+使用 `Application::make::<T>().await` 或 `get::<T>(key).await` 等待延遲 Provider。容器對應 `make_async` / `get_async`，門面對應 `get_facade_root_async`。同步解析尚未初始化的延遲服務會回傳 `DeferredServiceRequiresAsync`，不會阻塞 Tokio。同步綁定工廠需接收已初始化的相依服務，不能在內部等待另一個 Provider。`register` 和 `boot` 都回傳 Future，註冊鉤子可以透過 `app.make().await` 載入另一個 Provider。
 
 使用[非同步工廠](container.md#非同步工廠)可在建構內自動解析延遲相依服務。
 
@@ -59,7 +59,7 @@ impl DeferrableProvider for ClientProvider {
 impl ServiceProvider for ClientProvider {
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
-            app.container().singletonAsync::<Client, _>(|_| Box::pin(async {
+            app.container().singleton_async::<Client, _>(|_| Box::pin(async {
                 tokio::task::yield_now().await;
                 Ok(Arc::new(Client))
             })).await?;
@@ -71,10 +71,10 @@ impl ServiceProvider for ClientProvider {
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let mut app = Application::configure(std::env::current_dir()?)
-        .withProviders(vec![Box::new(DeferredProvider::new(|| ClientProvider))])
+        .with_providers(vec![Box::new(DeferredProvider::new(|| ClientProvider))])
         .create()?;
     app.boot().await?;
-    assert!(app.isDeferredService(ServiceKey::typed::<Client>()));
+    assert!(app.is_deferred_service(ServiceKey::typed::<Client>()));
     let events = app.make::<Dispatcher>().await?;
     events.dispatch(Arc::new(NamedEvent::new("reports.opened", ())), &mut EventContext::new()).await?;
     let client = app.make::<Client>().await?;
@@ -85,7 +85,7 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
 已有明確實例會略過尚未使用的載入器；解析先正規化別名。並行呼叫共用一次註冊，並等待 boot 完成；boot 尚未就緒時，其他呼叫者不能取得其宣告的服務。boot 本身可以解析已經登記的本 Provider 服務。boot 失敗或取消後保留明確失敗狀態，需要建立新應用重試。這是針對 Rust 並行執行的就緒保護，超出 PHP 順序執行場景；已貢獻的容器值保留。
 
-只消耗觸發鍵，同一 Provider 的其他鍵保留到 `loadDeferredProviders()` 成功結束。註冊失敗保留貢獻並消耗該鍵；後續尚未消耗的鍵透過編譯型工廠建構新實例重試。如果直接登記已建構物件並覆寫 `isDeferred()`、`provides()`，重試使用原物件；需要重新執行建構時使用 `DeferredProvider`。
+只消耗觸發鍵，同一 Provider 的其他鍵保留到 `load_deferred_providers()` 成功結束。註冊失敗保留貢獻並消耗該鍵；後續尚未消耗的鍵透過編譯型工廠建構新實例重試。如果直接登記已建構物件並覆寫 `is_deferred()`、`provides()`，重試使用原物件；需要重新執行建構時使用 `DeferredProvider`。
 
 boot 前由服務鍵首次觸發的 Provider 同時進入 booting 回呼與已註冊 Provider 清單，因此執行兩次 boot。boot 前由事件觸發時，Provider 依註冊順序加入一般清單並執行一次 boot。在 boot 掛鉤中首次觸發的 Provider 加入啟動清單末尾。應用程式完成 boot 後，觸發入口等待註冊與 boot 都完成才回傳。
 
@@ -99,4 +99,4 @@ boot 前由服務鍵首次觸發的 Provider 同時進入 booting 回呼與已�
 
 ## 檢查已載入的 Provider
 
-使用 `app.providerIsLoaded(std::any::type_name::<MyProvider>())` 查詢 Provider 的編譯型別身分。register 成功後、boot 之前回傳 true；註冊失敗或取消不作標記。後續 boot 失敗仍保留成功註冊狀態。僅宣告延遲 Provider 不會載入它，自訂診斷用的 name() 不改變型別身分。每個應用程式獨立保存已載入集合。Rust 的 type_name 對應 PHP 的 MyProvider::class 表達式。
+使用 `app.provider_is_loaded(std::any::type_name::<MyProvider>())` 查詢 Provider 的編譯型別身分。register 成功後、boot 之前回傳 true；註冊失敗或取消不作標記。後續 boot 失敗仍保留成功註冊狀態。僅宣告延遲 Provider 不會載入它，自訂診斷用的 name() 不改變型別身分。每個應用程式獨立保存已載入集合。Rust 的 type_name 對應 PHP 的 MyProvider::class 表達式。

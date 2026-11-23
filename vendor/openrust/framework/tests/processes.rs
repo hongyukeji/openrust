@@ -121,11 +121,11 @@ async fn artisan_resolves_process_fakes_from_each_application() {
 
     async fn invoke(code: u8) -> i32 {
         Application::configure(std::env::temp_dir())
-            .withProviders(vec![Box::new(Stub(code))])
-            .withCommands(register)
+            .with_providers(vec![Box::new(Stub(code))])
+            .with_commands(register)
             .create()
             .unwrap()
-            .handleCommand(&["process:probe".into()])
+            .handle_command(&["process:probe".into()])
             .await
             .unwrap()
     }

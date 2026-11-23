@@ -67,7 +67,7 @@ pub struct RateLimiter;
 impl Facade for RateLimiter {
     type Service = crate::cache::RateLimiter;
 
-    fn getFacadeAccessor() -> crate::container::ServiceKey {
+    fn get_facade_accessor() -> crate::container::ServiceKey {
         "rateLimiter".into()
     }
 }
@@ -80,7 +80,7 @@ impl RateLimiter {
     where
         R: Into<crate::cache::rate_limiting::LimiterResponse>,
     {
-        Self::getFacadeRoot()?.r#for(name, callback);
+        Self::get_facade_root()?.r#for(name, callback);
         Ok(())
     }
 
@@ -96,7 +96,7 @@ impl RateLimiter {
         + Sync
         + 'static,
     ) -> crate::cache::CacheResult<()> {
-        Self::getFacadeRoot()?.forAsync(name, callback);
+        Self::get_facade_root()?.forAsync(name, callback);
         Ok(())
     }
 
@@ -104,7 +104,7 @@ impl RateLimiter {
     pub fn asyncLimiter(
         name: &str,
     ) -> crate::cache::CacheResult<Option<Arc<crate::cache::rate_limiting::AsyncLimiter>>> {
-        Ok(Self::getFacadeRoot()?.asyncLimiter(name))
+        Ok(Self::get_facade_root()?.asyncLimiter(name))
     }
 
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
@@ -115,7 +115,7 @@ impl RateLimiter {
     where
         R: Into<crate::cache::rate_limiting::JobLimiterResponse>,
     {
-        Self::getFacadeRoot()?.forJob(name, callback);
+        Self::get_facade_root()?.forJob(name, callback);
         Ok(())
     }
 
@@ -125,43 +125,43 @@ impl RateLimiter {
         action: impl std::future::Future<Output = crate::cache::CacheResult<T>>,
         decay_seconds: u64,
     ) -> crate::cache::CacheResult<crate::cache::rate_limiting::Attempt<T>> {
-        Self::getFacadeRoot()?
+        Self::get_facade_root()?
             .attempt(key, max_attempts, action, decay_seconds)
             .await
     }
 
     pub async fn hit(key: &str, decay_seconds: u64) -> crate::cache::CacheResult<u64> {
-        Self::getFacadeRoot()?.hit(key, decay_seconds).await
+        Self::get_facade_root()?.hit(key, decay_seconds).await
     }
 
     pub async fn attempts(key: &str) -> crate::cache::CacheResult<u64> {
-        Self::getFacadeRoot()?.attempts(key).await
+        Self::get_facade_root()?.attempts(key).await
     }
 
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn tooManyAttempts(key: &str, max_attempts: u64) -> crate::cache::CacheResult<bool> {
-        Self::getFacadeRoot()?
+        Self::get_facade_root()?
             .tooManyAttempts(key, max_attempts)
             .await
     }
 
     pub async fn remaining(key: &str, max_attempts: u64) -> crate::cache::CacheResult<u64> {
-        Self::getFacadeRoot()?.remaining(key, max_attempts).await
+        Self::get_facade_root()?.remaining(key, max_attempts).await
     }
 
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn availableIn(key: &str) -> crate::cache::CacheResult<u64> {
-        Self::getFacadeRoot()?.availableIn(key).await
+        Self::get_facade_root()?.availableIn(key).await
     }
 
     pub async fn clear(key: &str) -> crate::cache::CacheResult<()> {
-        Self::getFacadeRoot()?.clear(key).await
+        Self::get_facade_root()?.clear(key).await
     }
 
     pub fn limiter(
         name: &str,
     ) -> crate::cache::CacheResult<Option<Arc<crate::cache::rate_limiting::Limiter>>> {
-        Ok(Self::getFacadeRoot()?.limiter(name))
+        Ok(Self::get_facade_root()?.limiter(name))
     }
 }
 
@@ -171,7 +171,7 @@ pub struct View;
 impl Facade for View {
     type Service = crate::view::Factory;
 
-    fn getFacadeAccessor() -> crate::container::ServiceKey {
+    fn get_facade_accessor() -> crate::container::ServiceKey {
         crate::container::ServiceKey::typed::<Self::Service>()
     }
 }
@@ -183,7 +183,7 @@ impl View {
         view: &str,
         data: &crate::view::ViewData,
     ) -> crate::view::ViewResult<String> {
-        Self::getFacadeRoot()?.renderWhen(condition, view, data)
+        Self::get_facade_root()?.renderWhen(condition, view, data)
     }
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn renderUnless(
@@ -191,7 +191,7 @@ impl View {
         view: &str,
         data: &crate::view::ViewData,
     ) -> crate::view::ViewResult<String> {
-        Self::getFacadeRoot()?.renderUnless(condition, view, data)
+        Self::get_facade_root()?.renderUnless(condition, view, data)
     }
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn renderEach(
@@ -200,16 +200,16 @@ impl View {
         iterator: &str,
         empty: &str,
     ) -> crate::view::ViewResult<String> {
-        Self::getFacadeRoot()?.renderEach(view, data, iterator, empty)
+        Self::get_facade_root()?.renderEach(view, data, iterator, empty)
     }
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn getShared() -> crate::view::ViewResult<crate::view::ViewData> {
-        Ok(Self::getFacadeRoot()?.getShared())
+        Ok(Self::get_facade_root()?.getShared())
     }
 
     /// Resolves the application view factory through its public contract.
     pub fn contract() -> crate::view::ViewResult<Arc<dyn crate::contracts::view::Factory>> {
-        let factory = Self::getFacadeRoot()?;
+        let factory = Self::get_facade_root()?;
         Ok(factory)
     }
 
@@ -217,21 +217,21 @@ impl View {
         name: impl Into<std::borrow::Cow<'static, str>>,
         data: crate::view::ViewData,
     ) -> crate::view::ViewResult<crate::view::View> {
-        Self::getFacadeRoot()?.make(name, data)
+        Self::get_facade_root()?.make(name, data)
     }
 
     pub fn first(
         names: &[&str],
         data: crate::view::ViewData,
     ) -> crate::view::ViewResult<crate::view::View> {
-        Self::getFacadeRoot()?.first(names, data)
+        Self::get_facade_root()?.first(names, data)
     }
 
     pub fn share(
         key: impl Into<String>,
         value: impl Into<crate::view::ViewValue>,
     ) -> crate::view::ViewResult<()> {
-        Self::getFacadeRoot()?.share(key, value);
+        Self::get_facade_root()?.share(key, value);
         Ok(())
     }
 
@@ -239,7 +239,7 @@ impl View {
         name: impl Into<String>,
         callback: impl Fn(&mut crate::view::View) -> crate::view::ViewResult<()> + Send + Sync + 'static,
     ) -> crate::view::ViewResult<()> {
-        Self::getFacadeRoot()?.composer(name, callback);
+        Self::get_facade_root()?.composer(name, callback);
         Ok(())
     }
 
@@ -247,12 +247,12 @@ impl View {
         name: impl Into<String>,
         callback: impl Fn(&mut crate::view::View) -> crate::view::ViewResult<()> + Send + Sync + 'static,
     ) -> crate::view::ViewResult<()> {
-        Self::getFacadeRoot()?.creator(name, callback);
+        Self::get_facade_root()?.creator(name, callback);
         Ok(())
     }
 
     pub fn exists(name: &str) -> crate::view::ViewResult<bool> {
-        Ok(Self::getFacadeRoot()?.exists(name))
+        Ok(Self::get_facade_root()?.exists(name))
     }
 }
 
@@ -272,7 +272,7 @@ pub struct Route;
 impl Facade for Route {
     type Service = Router;
 
-    fn getFacadeAccessor() -> crate::container::ServiceKey {
+    fn get_facade_accessor() -> crate::container::ServiceKey {
         "router".into()
     }
 }
@@ -284,7 +284,9 @@ impl Route {
         name: &str,
         request: &mut crate::http::Request,
     ) -> Result<crate::http::Response, crate::http::HttpError> {
-        Self::getFacadeRoot()?.respondWithRoute(name, request).await
+        Self::get_facade_root()?
+            .respondWithRoute(name, request)
+            .await
     }
 
     /// Registers an explicit model binding in the current application's router.

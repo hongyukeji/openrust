@@ -227,12 +227,12 @@ async fn redirect_origin_uses_the_effective_trusted_proxy_origin() {
     use openrust::{http::TrustedProxyHeaders, support::facades::Route};
 
     let app = Application::configure(std::env::temp_dir())
-        .withMiddleware(|middleware| {
+        .with_middleware(|middleware| {
             middleware
                 .trustProxies(&["127.0.0.1"], TrustedProxyHeaders::DEFAULT)
                 .unwrap();
         })
-        .withRouting(
+        .with_routing(
             Routing::default().web(|| Route::get("/redirect-origin/{mode}", redirect_same_origin)),
         )
         .create()
@@ -332,14 +332,14 @@ fn routes(router: &mut Router) -> Result<(), RoutingError> {
 
 fn make() -> Application {
     Application::configure(std::env::temp_dir())
-        .withConfig(|_, _| {
+        .with_config(|_, _| {
             Ok([(
                 "app".into(),
                 json!({"url":"https://example.test","key":REFERENCE_KEY}),
             )]
             .into())
         })
-        .withRouting(Routing::new(|_| {
+        .with_routing(Routing::new(|_| {
             let mut router = Router::new();
             routes(&mut router)?;
             Ok(router)
@@ -823,11 +823,11 @@ async fn serves_private_local_files_only_with_the_matching_temporary_method() {
     std::fs::create_dir_all(root.join("public/storage")).unwrap();
     std::fs::write(root.join("public/storage/public.txt"), b"public data").unwrap();
     let app = Application::configure(root)
-        .withConfig(|_, _| Ok([
+        .with_config(|_, _| Ok([
             ("app".into(), json!({"url":"https://example.test","key":REFERENCE_KEY})),
             ("filesystems".into(), json!({"default":"local","disks":{"local":{"driver":"local","root":"private","serve":true},"custom":{"driver":"local","root":"custom"}}})),
         ].into()))
-        .withRouting(Routing::default().web(|| {
+        .with_routing(Routing::default().web(|| {
             use openrust::support::facades::Route;
             Route::get("/local-links", local_links)?;
             Route::r#static("/", "public")
@@ -972,7 +972,7 @@ fn flash_token(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpErr
 #[tokio::test]
 async fn redirects_preserve_intended_and_flash_data_in_the_encrypted_http_session() {
     let app = Application::configure(std::env::temp_dir())
-        .withConfig(|_, _| {
+        .with_config(|_, _| {
             Ok([
                 (
                     "app".into(),
@@ -985,7 +985,7 @@ async fn redirects_preserve_intended_and_flash_data_in_the_encrypted_http_sessio
             ]
             .into())
         })
-        .withRouting(Routing::default().web(|| {
+        .with_routing(Routing::default().web(|| {
             use openrust::support::facades::Route;
             Route::getWith("/guarded", guest, |route| {
                 route.name("guarded");

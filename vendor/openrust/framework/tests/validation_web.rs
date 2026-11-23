@@ -130,7 +130,7 @@ fn session_table(root: &Path) -> String {
 async fn start(root: PathBuf) -> (SocketAddr, TestServer) {
     let using_mysql = std::env::var("OPENRUST_TEST_SESSION_MYSQL_URL").is_ok();
     let app = Application::configure(root)
-        .withConfig(|base, _| {
+        .with_config(|base, _| {
             let mysql = std::env::var("OPENRUST_TEST_SESSION_MYSQL_URL").ok();
             let driver = if mysql.is_some() { "database" } else { "array" };
             let mut config = std::collections::BTreeMap::from([
@@ -144,7 +144,7 @@ async fn start(root: PathBuf) -> (SocketAddr, TestServer) {
             }
             Ok(config)
         })
-        .withExceptions(|exceptions| {
+        .with_exceptions(|exceptions| {
             exceptions.dontFlash(["profile.secret", "users.*.pin"]);
             exceptions.render::<ValidationException>(|_, request| {
                 request
@@ -158,7 +158,7 @@ async fn start(root: PathBuf) -> (SocketAddr, TestServer) {
                 )
             });
         })
-        .withRouting(Routing::default().web(web))
+        .with_routing(Routing::default().web(web))
         .create()
         .unwrap();
     let mut kernel = Kernel::new(app);

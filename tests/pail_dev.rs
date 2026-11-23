@@ -68,7 +68,7 @@ struct Early(Arc<Mutex<Vec<String>>>);
 impl ServiceProvider for Early {
     fn register<'a>(&'a mut self, app: &'a Application) -> ConsoleFuture<'a, ProviderResult> {
         Box::pin(async move {
-            assert!(!app.providerIsLoaded(type_name::<Self>()));
+            assert!(!app.provider_is_loaded(type_name::<Self>()));
             *self.0.lock().unwrap() = DevCommands::commands()?
                 .into_iter()
                 .map(|v| v.name)
@@ -78,8 +78,8 @@ impl ServiceProvider for Early {
     }
     fn boot<'a>(&'a mut self, app: &'a Application) -> ConsoleFuture<'a, ProviderResult> {
         Box::pin(async move {
-            assert!(app.providerIsLoaded(type_name::<Self>()));
-            assert!(app.providerIsLoaded(type_name::<PailServiceProvider>()));
+            assert!(app.provider_is_loaded(type_name::<Self>()));
+            assert!(app.provider_is_loaded(type_name::<PailServiceProvider>()));
             Ok(())
         })
     }
@@ -90,21 +90,21 @@ async fn defaults_use_loaded_provider_identity_and_do_not_freeze_early_absence()
     let other = Root::new();
     let early = Arc::new(Mutex::new(Vec::new()));
     let app = Application::configure(root.0.clone())
-        .withProviders(vec![
+        .with_providers(vec![
             Box::new(Early(early.clone())),
             Box::new(PailServiceProvider),
         ])
         .create()
         .unwrap();
     let other = Application::configure(other.0.clone()).create().unwrap();
-    assert!(!app.providerIsLoaded(type_name::<PailServiceProvider>()));
+    assert!(!app.provider_is_loaded(type_name::<PailServiceProvider>()));
     let ((status, entries), (_, absent)) = tokio::join!(list(&app, &[]), list(&other, &[]));
     assert_eq!(status, 0);
     assert_eq!(names(&entries), ["server", "queue", "logs"]);
     assert_eq!(*early.lock().unwrap(), ["server", "queue"]);
     assert_eq!(names(&absent), ["server", "queue"]);
-    assert!(app.providerIsLoaded(type_name::<PailServiceProvider>()));
-    assert!(!other.providerIsLoaded(type_name::<PailServiceProvider>()));
+    assert!(app.provider_is_loaded(type_name::<PailServiceProvider>()));
+    assert!(!other.provider_is_loaded(type_name::<PailServiceProvider>()));
     assert_eq!(entries[2]["command"], "./artisan pail --timeout=0");
     assert_eq!(entries[2]["priority"], 0);
     assert_eq!(list(&app, &["--only-vendor"]).await, (1, vec![]));
@@ -152,7 +152,7 @@ async fn logs_obey_default_vendor_user_priorities_and_shared_filters() {
     ] {
         let root = Root::new();
         let app = Application::configure(root.0.clone())
-            .withProviders(vec![
+            .with_providers(vec![
                 Box::new(PailServiceProvider),
                 Box::new(Configure(mode)),
             ])
@@ -192,8 +192,7 @@ impl ServiceProvider for Lazy {
     fn name(&self) -> &'static str {
         "diagnostic-only"
     }
-    #[allow(non_snake_case)]
-    fn isDeferred(&self) -> bool {
+    fn is_deferred(&self) -> bool {
         true
     }
     fn provides(&self) -> Vec<ServiceKey> {
@@ -201,7 +200,7 @@ impl ServiceProvider for Lazy {
     }
     fn register<'a>(&'a mut self, app: &'a Application) -> ConsoleFuture<'a, ProviderResult> {
         Box::pin(async move {
-            assert!(!app.providerIsLoaded(type_name::<Self>()));
+            assert!(!app.provider_is_loaded(type_name::<Self>()));
             if self.fail.swap(false, Ordering::SeqCst) {
                 return Err(std::io::Error::other("registration failed").into());
             }
@@ -212,8 +211,8 @@ impl ServiceProvider for Lazy {
     }
     fn boot<'a>(&'a mut self, app: &'a Application) -> ConsoleFuture<'a, ProviderResult> {
         Box::pin(async move {
-            assert!(app.providerIsLoaded(type_name::<Self>()));
-            assert!(!app.providerIsLoaded("diagnostic-only"));
+            assert!(app.provider_is_loaded(type_name::<Self>()));
+            assert!(!app.provider_is_loaded("diagnostic-only"));
             if self.boot_fail {
                 return Err(std::io::Error::other("boot failed").into());
             }
@@ -235,13 +234,13 @@ async fn loaded_provider_marks_successful_registration_before_boot_and_survives_
             Box::new(Lazy { fail, boot_fail })
         };
         let mut app = Application::configure(root.0.clone())
-            .withProviders(vec![provider])
+            .with_providers(vec![provider])
             .create()
             .unwrap();
         app.boot().await.unwrap();
-        assert!(!app.providerIsLoaded(type_name::<Lazy>()));
+        assert!(!app.provider_is_loaded(type_name::<Lazy>()));
         assert!(app.make::<u32>().await.is_err());
-        assert!(!app.providerIsLoaded(type_name::<Lazy>()));
+        assert!(!app.provider_is_loaded(type_name::<Lazy>()));
         // A failed consumed key does not retrigger registration; use an unconsumed key.
         let result = app.make::<u64>().await;
         if boot_fail {
@@ -249,7 +248,7 @@ async fn loaded_provider_marks_successful_registration_before_boot_and_survives_
         } else {
             assert_eq!(*result.unwrap(), 7);
         }
-        assert!(app.providerIsLoaded(type_name::<Lazy>()));
+        assert!(app.provider_is_loaded(type_name::<Lazy>()));
     }
 }
 #[test]
@@ -283,8 +282,7 @@ fn actual_binary_discovery_preserves_default_priority_and_environment_gates() {
 
 struct CancelledRegistration;
 impl ServiceProvider for CancelledRegistration {
-    #[allow(non_snake_case)]
-    fn isDeferred(&self) -> bool {
+    fn is_deferred(&self) -> bool {
         true
     }
     fn provides(&self) -> Vec<ServiceKey> {
@@ -304,18 +302,18 @@ impl ServiceProvider for RegistrationFailure {
 async fn failed_eager_and_cancelled_deferred_registrations_are_not_marked_loaded() {
     let root = Root::new();
     let mut app = Application::configure(root.0.clone())
-        .withProviders(vec![
+        .with_providers(vec![
             Box::new(PailServiceProvider),
             Box::new(RegistrationFailure),
         ])
         .create()
         .unwrap();
     assert!(app.boot().await.is_err());
-    assert!(app.providerIsLoaded(type_name::<PailServiceProvider>()));
-    assert!(!app.providerIsLoaded(type_name::<RegistrationFailure>()));
+    assert!(app.provider_is_loaded(type_name::<PailServiceProvider>()));
+    assert!(!app.provider_is_loaded(type_name::<RegistrationFailure>()));
     let other = Root::new();
     let mut app = Application::configure(other.0.clone())
-        .withProviders(vec![Box::new(CancelledRegistration)])
+        .with_providers(vec![Box::new(CancelledRegistration)])
         .create()
         .unwrap();
     app.boot().await.unwrap();
@@ -324,5 +322,5 @@ async fn failed_eager_and_cancelled_deferred_registrations_are_not_marked_loaded
             .await
             .is_err()
     );
-    assert!(!app.providerIsLoaded(type_name::<CancelledRegistration>()));
+    assert!(!app.provider_is_loaded(type_name::<CancelledRegistration>()));
 }

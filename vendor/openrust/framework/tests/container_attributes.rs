@@ -35,13 +35,13 @@ async fn constructor_attribute_selection_and_class_callbacks_follow_resolution_o
     let pick = trace.clone();
     let new = trace.clone();
     container
-        .registerClass(
+        .register_class(
             ClassDescriptor::concrete(
                 vec![
                     ConstructorParam::scalar::<u32>("number")
-                        .withDefault(|| Ok(ParameterValue::new(7_u32)))
-                        .withAttribute(ClassAttribute::contextual(move || Ok(Pick(pick.clone()))))
-                        .withAttribute(ClassAttribute::marker(|| Ok(Marker))),
+                        .with_default(|| Ok(ParameterValue::new(7_u32)))
+                        .with_attribute(ClassAttribute::contextual(move || Ok(Pick(pick.clone()))))
+                        .with_attribute(ClassAttribute::marker(|| Ok(Marker))),
                 ],
                 move |args| {
                     new.lock().unwrap().push("constructor");
@@ -49,15 +49,15 @@ async fn constructor_attribute_selection_and_class_callbacks_follow_resolution_o
                 },
             )
             .unwrap()
-            .withAttribute(ClassAttribute::marker(|| Ok(Marker))),
+            .with_attribute(ClassAttribute::marker(|| Ok(Marker))),
         )
         .unwrap();
-    container.whenHasAttribute::<Pick>(|attribute, _, parameter| {
+    container.when_has_attribute::<Pick>(|attribute, _, parameter| {
         assert_eq!(parameter.name, "number");
         attribute.0.lock().unwrap().push("registered resolver");
         Ok(ParameterValue::null().into())
     });
-    container.afterResolvingAttribute::<Pick>({
+    container.after_resolving_attribute::<Pick>({
         let trace = trace.clone();
         move |event, _| {
             assert!(
@@ -67,7 +67,7 @@ async fn constructor_attribute_selection_and_class_callbacks_follow_resolution_o
             Ok(())
         }
     });
-    container.afterResolvingAttribute::<Item>({
+    container.after_resolving_attribute::<Item>({
         let trace = trace.clone();
         move |event, _| {
             assert!(event.parameter.is_none());
@@ -87,7 +87,7 @@ async fn constructor_attribute_selection_and_class_callbacks_follow_resolution_o
         })
         .unwrap();
     container
-        .afterResolving(Some(ServiceKey::typed::<Item>()), {
+        .after_resolving(Some(ServiceKey::typed::<Item>()), {
             let trace = trace.clone();
             move |_, _| {
                 trace.lock().unwrap().push("resolved");
@@ -113,7 +113,11 @@ async fn constructor_attribute_selection_and_class_callbacks_follow_resolution_o
     let mut overrides = ParameterOverrides::new();
     overrides.insert(ParameterKey::name("number"), ParameterValue::new(30_u32));
     assert_eq!(
-        container.makeWithAsync::<Item>(overrides).await.unwrap().0,
+        container
+            .make_with_async::<Item>(overrides)
+            .await
+            .unwrap()
+            .0,
         31
     );
     assert_eq!(
@@ -137,7 +141,7 @@ impl ContextualAttribute for Null {
 async fn call_prefers_named_override_then_attribute_then_class_override_and_preserves_null() {
     let container = Container::default();
     let observed = Arc::new(Mutex::new(Vec::new()));
-    container.afterResolvingAttribute::<Null>({
+    container.after_resolving_attribute::<Null>({
         let observed = observed.clone();
         move |event, _| {
             let AttributeValue::One(value) = event.value else {
@@ -149,9 +153,12 @@ async fn call_prefers_named_override_then_attribute_then_class_override_and_pres
     });
     let signature = [ConstructorParam::class::<u32>("value")
         .nullable()
-        .withAttribute(ClassAttribute::contextual(|| Ok(Null)))];
+        .with_attribute(ClassAttribute::contextual(|| Ok(Null)))];
     let call = |args: openrust::container::CallArguments| async move {
-        Ok(args.resolved.optionalService::<u32>(0)?.map(|value| *value))
+        Ok(args
+            .resolved
+            .optional_service::<u32>(0)?
+            .map(|value| *value))
     };
     let mut parameters = ParameterOverrides::new();
     parameters.insert(
@@ -200,10 +207,10 @@ async fn constructor_variadic_attribute_reports_the_whole_list() {
     let signature = vec![
         ConstructorParam::scalar::<u32>("values")
             .variadic()
-            .withAttribute(ClassAttribute::contextual(|| Ok(Values))),
+            .with_attribute(ClassAttribute::contextual(|| Ok(Values))),
     ];
     container
-        .registerClass(
+        .register_class(
             ClassDescriptor::concrete(signature.clone(), |args| {
                 Ok(Arc::new(Item(
                     args.values(0)?.iter().try_fold(0, |sum, value| {
@@ -214,11 +221,11 @@ async fn constructor_variadic_attribute_reports_the_whole_list() {
             .unwrap(),
         )
         .unwrap();
-    container.afterResolvingAttribute::<Values>(|event, _| {
+    container.after_resolving_attribute::<Values>(|event, _| {
         assert!(matches!(event.value, AttributeValue::Many(values) if values.len() == 2));
         Ok(())
     });
-    assert_eq!(container.buildAsync::<Item>().await.unwrap().0, 3);
+    assert_eq!(container.build_async::<Item>().await.unwrap().0, 3);
     assert!(matches!(
         container
             .call(
@@ -243,14 +250,18 @@ fn missing_handlers_can_be_registered_and_default_resolvers_stay_container_local
         variadic: false,
     };
     assert!(matches!(
-        first.resolveFromAttribute(&attribute, parameter),
+        first.resolve_from_attribute(&attribute, parameter),
         Err(BindingResolutionError::AttributeHandlerMissing { .. })
     ));
-    first.whenHasAttribute::<RequiresHandler>(|_, _, _| Ok(ParameterValue::new(4_u32).into()));
+    first.when_has_attribute::<RequiresHandler>(|_, _, _| Ok(ParameterValue::new(4_u32).into()));
     assert!(
-        matches!(first.resolveFromAttribute(&attribute, parameter).unwrap(), AttributeValue::One(value) if *value.downcast::<u32>().unwrap() == 4)
+        matches!(first.resolve_from_attribute(&attribute, parameter).unwrap(), AttributeValue::One(value) if *value.downcast::<u32>().unwrap() == 4)
     );
-    assert!(second.resolveFromAttribute(&attribute, parameter).is_err());
+    assert!(
+        second
+            .resolve_from_attribute(&attribute, parameter)
+            .is_err()
+    );
 
     let trace = Arc::new(Mutex::new(Vec::new()));
     let default = ClassAttribute::contextual({
@@ -258,7 +269,7 @@ fn missing_handlers_can_be_registered_and_default_resolvers_stay_container_local
         move || Ok(Pick(trace.clone()))
     });
     assert!(
-        matches!(second.resolveFromAttribute(&default, parameter).unwrap(), AttributeValue::One(value) if *value.downcast::<u32>().unwrap() == 99)
+        matches!(second.resolve_from_attribute(&default, parameter).unwrap(), AttributeValue::One(value) if *value.downcast::<u32>().unwrap() == 99)
     );
     assert_eq!(*trace.lock().unwrap(), ["default resolver"]);
 }
@@ -288,19 +299,19 @@ struct UsesView(Arc<dyn ItemView>);
 async fn contextual_service_preserves_the_concrete_object_when_projecting_an_argument() {
     let container = Container::default();
     container
-        .registerClass(
+        .register_class(
             ClassDescriptor::concrete(vec![], |_| Ok(Arc::new(Item(0))))
                 .unwrap()
-                .withProjection(openrust::class_projection!(Item => dyn ItemView)),
+                .with_projection(openrust::class_projection!(Item => dyn ItemView)),
         )
         .unwrap();
     let item = Arc::new(Item(23));
     let register = item.clone();
     container
-        .registerClass(
+        .register_class(
             ClassDescriptor::concrete(
                 vec![
-                    ConstructorParam::class::<dyn ItemView>("item").withAttribute(
+                    ConstructorParam::class::<dyn ItemView>("item").with_attribute(
                         ClassAttribute::contextual(move || Ok(ChooseItem(register.clone()))),
                     ),
                 ],
@@ -312,7 +323,7 @@ async fn contextual_service_preserves_the_concrete_object_when_projecting_an_arg
     let concrete = item.clone();
     let hits = Arc::new(std::sync::atomic::AtomicUsize::new(0));
     let recorded = hits.clone();
-    container.afterResolvingAttribute::<Item>(move |event, container| {
+    container.after_resolving_attribute::<Item>(move |event, container| {
         assert_eq!(event.parameter.unwrap().name, "item");
         assert!(Arc::ptr_eq(
             &concrete,
@@ -333,11 +344,11 @@ async fn contextual_service_preserves_the_concrete_object_when_projecting_an_arg
         &expected
     ));
     assert!(Arc::ptr_eq(
-        &container.makeAsync::<UsesView>().await.unwrap().0,
+        &container.make_async::<UsesView>().await.unwrap().0,
         &expected
     ));
     let method = [
-        ConstructorParam::class::<dyn ItemView>("item").withAttribute(ClassAttribute::contextual(
+        ConstructorParam::class::<dyn ItemView>("item").with_attribute(ClassAttribute::contextual(
             move || Ok(ChooseItem(method_item.clone())),
         )),
     ];
@@ -362,15 +373,15 @@ fn public_dispatch_preserves_order_and_stops_on_failure_without_leaking_callback
 
     let container = Container::default();
     container
-        .registerClass(
+        .register_class(
             ClassDescriptor::concrete(vec![], |_| Ok(Arc::new(Item(0))))
                 .unwrap()
-                .withProjection(openrust::class_projection!(Item => dyn ItemView)),
+                .with_projection(openrust::class_projection!(Item => dyn ItemView)),
         )
         .unwrap();
     let log = Arc::new(Mutex::new(Vec::new()));
     let fail = AtomicBool::new(true);
-    container.afterResolvingAttribute::<dyn ItemView>({
+    container.after_resolving_attribute::<dyn ItemView>({
         let log = log.clone();
         move |event, container| {
             assert_eq!(
@@ -386,7 +397,7 @@ fn public_dispatch_preserves_order_and_stops_on_failure_without_leaking_callback
             Ok(())
         }
     });
-    container.afterResolvingAttribute::<Pick>({
+    container.after_resolving_attribute::<Pick>({
         let log = log.clone();
         move |_, _| {
             log.lock().unwrap().push("attribute");
@@ -398,15 +409,15 @@ fn public_dispatch_preserves_order_and_stops_on_failure_without_leaking_callback
     let value = ParameterValue::service(Arc::new(Item(5))).into();
     assert!(
         container
-            .fireAfterResolvingAttributeCallbacks(&attributes, &value, None)
+            .fire_after_resolving_attribute_callbacks(&attributes, &value, None)
             .is_err()
     );
     assert_eq!(*log.lock().unwrap(), ["attribute after", "view"]);
     container
-        .fireAfterResolvingAttributeCallbacks(&attributes, &value, None)
+        .fire_after_resolving_attribute_callbacks(&attributes, &value, None)
         .unwrap();
     Container::default()
-        .fireAfterResolvingAttributeCallbacks(&attributes, &value, None)
+        .fire_after_resolving_attribute_callbacks(&attributes, &value, None)
         .unwrap();
     assert_eq!(
         *log.lock().unwrap(),

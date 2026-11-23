@@ -131,7 +131,7 @@ async fn transport(
 
 async fn start(key: u8, previous: Option<u8>) -> (SocketAddr, tokio::task::JoinHandle<()>) {
     let app = Application::configure(std::env::temp_dir())
-        .withConfig(|_, _| {
+        .with_config(|_, _| {
             Ok([(
                 "session".into(),
                 json!({
@@ -140,7 +140,7 @@ async fn start(key: u8, previous: Option<u8>) -> (SocketAddr, tokio::task::JoinH
             )]
             .into())
         })
-        .withMiddleware(move |middleware| {
+        .with_middleware(move |middleware| {
             let encrypter = Encrypter::new([key; 32], Cipher::Aes256Cbc)
                 .unwrap()
                 .previousKeys(previous.into_iter().map(|byte| vec![byte; 32]).collect())
@@ -155,7 +155,7 @@ async fn start(key: u8, previous: Option<u8>) -> (SocketAddr, tokio::task::JoinH
                 ],
             );
         })
-        .withRouting(Routing::default().web(register))
+        .with_routing(Routing::default().web(register))
         .create()
         .unwrap();
     let mut kernel = Kernel::new(app);

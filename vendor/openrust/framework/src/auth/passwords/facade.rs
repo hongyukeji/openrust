@@ -15,7 +15,7 @@ pub struct Password;
 impl Facade for Password {
     type Service = PasswordBrokerManager;
 
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         "auth.password".into()
     }
 }
@@ -23,7 +23,7 @@ impl Facade for Password {
 #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Password {
     pub fn broker(name: Option<&str>) -> AuthResult<Arc<PasswordBroker>> {
-        Self::getFacadeRoot()?.broker(name)
+        Self::get_facade_root()?.broker(name)
     }
 
     pub async fn sendResetLink(

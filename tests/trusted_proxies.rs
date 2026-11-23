@@ -76,7 +76,7 @@ async fn start(
     headers: u8,
 ) -> (SocketAddr, tokio::task::JoinHandle<()>) {
     start_with(|builder| {
-        builder.withMiddleware(move |middleware| {
+        builder.with_middleware(move |middleware| {
             middleware.trustProxies(at, headers).unwrap();
         })
     })
@@ -87,7 +87,7 @@ async fn start_with(
     configure: impl FnOnce(ApplicationBuilder) -> ApplicationBuilder,
 ) -> (SocketAddr, tokio::task::JoinHandle<()>) {
     let app = configure(Application::configure(std::env::temp_dir()))
-        .withRouting(Routing::new(|_| {
+        .with_routing(Routing::new(|_| {
             let mut router = Router::new();
             router.get("/probe", proxy_info)?;
             router.get("/", request_identity)?;
@@ -253,14 +253,14 @@ async fn requires_a_trusted_peer_and_rejects_conflicting_forwarding_fields() {
 async fn validates_incoming_and_effective_hosts_against_pcre_and_application_subdomains() {
     let (address, server) = start_with(|builder| {
         builder
-            .withConfig(|_, _| {
+            .with_config(|_, _| {
                 Ok([(
                     "app".into(),
                     json!({"env":"production","url":"https://example.test"}),
                 )]
                 .into())
             })
-            .withMiddleware(|middleware| {
+            .with_middleware(|middleware| {
                 middleware
                     .trustHosts(&[r"^(?=backend\.)backend\.test$"], true)
                     .unwrap();
@@ -297,7 +297,7 @@ async fn resolves_dynamic_host_patterns_and_skips_them_in_local_environment() {
 
     let (production, first) = start_with(|builder| {
         builder
-            .withConfig(|_, _| {
+            .with_config(|_, _| {
                 Ok([
                     (
                         "app".into(),
@@ -307,7 +307,7 @@ async fn resolves_dynamic_host_patterns_and_skips_them_in_local_environment() {
                 ]
                 .into())
             })
-            .withMiddleware(|middleware| {
+            .with_middleware(|middleware| {
                 middleware.trustHostsWith(
                     || async {
                         let value = Config::get("probe.host")?.expect("host pattern");
@@ -324,8 +324,8 @@ async fn resolves_dynamic_host_patterns_and_skips_them_in_local_environment() {
 
     let (local, second) = start_with(|builder| {
         builder
-            .withConfig(|_, _| Ok([("app".into(), json!({"env":"local"}))].into()))
-            .withMiddleware(|middleware| {
+            .with_config(|_, _| Ok([("app".into(), json!({"env":"local"}))].into()))
+            .with_middleware(|middleware| {
                 middleware.trustHostsWith(|| async { panic!("disabled callback ran") }, false);
             })
     })
@@ -353,14 +353,14 @@ async fn honors_proxy_deployment_presets_and_explicit_configuration_precedence()
         "X-Forwarded-For: 203.0.113.7, 10.0.0.8\r\n",
         "X-Forwarded-Proto: https\r\nX-Forwarded-Host: ignored.test\r\nX-Forwarded-Port: 8443\r\n",
     );
-    let (configured, first) = start_with(|builder| builder.withConfig(config)).await;
+    let (configured, first) = start_with(|builder| builder.with_config(config)).await;
     let data = request(configured, "/probe", fields, 200).await;
     assert_eq!(data["url"], "https://backend.test:8443/probe");
     assert_eq!(data["ips"], json!(["203.0.113.7"]));
     first.abort();
 
     let (disabled, second) = start_with(|builder| {
-        builder.withConfig(config).withMiddleware(|middleware| {
+        builder.with_config(config).with_middleware(|middleware| {
             middleware
                 .trustProxies(&[], TrustedProxyHeaders::DEFAULT)
                 .unwrap();

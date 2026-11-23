@@ -43,7 +43,7 @@ impl Root {
     }
     fn kernel(&self) -> Kernel {
         let app = Application::configure(self.0.clone())
-            .withProviders(vec![Box::new(FortifyResourcesServiceProvider)])
+            .with_providers(vec![Box::new(FortifyResourcesServiceProvider)])
             .create()
             .unwrap();
         Kernel::new(app, Artisan::new())

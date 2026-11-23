@@ -57,7 +57,7 @@ impl Authenticatable for Account {
 
 async fn application() -> Application {
     let mut app = Application::configure(std::env::temp_dir())
-        .withConfig(|_, _| {
+        .with_config(|_, _| {
             Ok([(
                 "database".into(),
                 serde_json::json!({"default":"test", "connections":{
@@ -238,7 +238,7 @@ async fn resolved_identity_is_guard_aware_without_logging_and_cannot_escape_its_
     let foreign_app = application().await;
     let foreign = foreign_app.container().make::<AuthManager>().unwrap();
     let app = Application::configure(std::env::temp_dir())
-        .withConfig(|_, _| {
+        .with_config(|_, _| {
             Ok([(
                 "auth".into(),
                 serde_json::json!({
@@ -248,7 +248,7 @@ async fn resolved_identity_is_guard_aware_without_logging_and_cannot_escape_its_
             )]
             .into())
         })
-        .withRouting(Routing::new(identity_routes))
+        .with_routing(Routing::new(identity_routes))
         .create()
         .unwrap();
     let mut kernel = Kernel::new(app);

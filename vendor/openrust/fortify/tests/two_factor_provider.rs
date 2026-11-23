@@ -114,7 +114,7 @@ async fn fixed_php_provider_decisions_and_cache_trace() {
         let seconds = case["seconds"].as_i64().unwrap();
         let next = case["next"].as_i64().unwrap();
         let provider = TwoFactorAuthenticationProvider::new(binding)
-            .withConfig(config)
+            .with_config(config)
             .withClock(move || {
                 Ok(if count.fetch_add(1, Ordering::Relaxed) == 0 {
                     seconds
@@ -192,7 +192,7 @@ async fn replay_and_dynamic_window_use_real_cache() {
     let cache = Arc::new(Repository::new(Arc::new(ArrayStore::new())));
     let config = Arc::new(config::Repository::new(Default::default()));
     let provider = TwoFactorAuthenticationProvider::new(Some(cache))
-        .withConfig(config.clone())
+        .with_config(config.clone())
         .withClock(|| Ok(1_234_567_890));
     assert!(provider.verify("JBSWY3DPEHPK3PXP", "742275").await.unwrap());
     assert!(!provider.verify("JBSWY3DPEHPK3PXP", "742275").await.unwrap());

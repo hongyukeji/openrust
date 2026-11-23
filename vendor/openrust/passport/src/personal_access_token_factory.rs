@@ -20,7 +20,7 @@ impl PersonalAccessTokenFactory {
         scopes: &[String],
         provider: &str,
     ) -> Result<PersonalAccessTokenResult, OAuthError> {
-        AuthorizationServer::getFacadeRoot()
+        AuthorizationServer::get_facade_root()
             .map_err(|_| OAuthError::server_error("Personal grant unavailable"))?
             .issue_personal(userId.into(), name, scopes, provider)
             .await

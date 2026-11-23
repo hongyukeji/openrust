@@ -34,7 +34,7 @@ fn global_callbacks_precede_keyed_callbacks_in_each_stage_and_values_keep_identi
         (None, "before-global"),
     ] {
         let seen = trace.clone();
-        c.beforeResolving(selector, move |event, _| {
+        c.before_resolving(selector, move |event, _| {
             assert!(event.value::<u32>().is_none());
             record(&seen, label);
             Ok(())
@@ -59,7 +59,7 @@ fn global_callbacks_precede_keyed_callbacks_in_each_stage_and_values_keep_identi
         (None, "after-global"),
     ] {
         let seen = trace.clone();
-        c.afterResolving(selector, move |_, _| {
+        c.after_resolving(selector, move |_, _| {
             record(&seen, label);
             Ok(())
         })
@@ -85,15 +85,18 @@ fn global_callbacks_precede_keyed_callbacks_in_each_stage_and_values_keep_identi
 fn before_callbacks_can_supply_missing_services_and_use_the_original_canonical_alias() {
     let c = Container::default();
     c.alias("original", "alias").unwrap();
-    c.beforeResolving(Some("alias".into()), |event, app| {
+    c.before_resolving(Some("alias".into()), |event, app| {
         assert_eq!(event.key(), &ServiceKey::named("original"));
         app.alias("elsewhere", "alias")?;
-        app.instanceNamed("original", Arc::new(7_u32)).unwrap();
+        app.instance_named("original", Arc::new(7_u32)).unwrap();
         Ok(())
     })
     .unwrap();
     assert_eq!(*c.get::<u32>("alias").unwrap(), 7);
-    assert_eq!(c.getAlias("alias").unwrap(), ServiceKey::named("elsewhere"));
+    assert_eq!(
+        c.get_alias("alias").unwrap(),
+        ServiceKey::named("elsewhere")
+    );
 }
 
 #[test]
@@ -102,13 +105,13 @@ fn shared_cache_hits_run_before_callbacks_only_and_supplied_instances_skip_post_
     let before = Arc::new(AtomicUsize::new(0));
     let after = Arc::new(AtomicUsize::new(0));
     let observed = before.clone();
-    c.beforeResolving(None, move |_, _| {
+    c.before_resolving(None, move |_, _| {
         observed.fetch_add(1, Ordering::SeqCst);
         Ok(())
     })
     .unwrap();
     let observed = after.clone();
-    c.afterResolving(None, move |_, _| {
+    c.after_resolving(None, move |_, _| {
         observed.fetch_add(1, Ordering::SeqCst);
         Ok(())
     })
@@ -147,7 +150,7 @@ fn failing_post_callbacks_preserve_published_singletons_but_not_transient_histor
     assert!(c.make::<u32>().is_err());
     assert!(c.resolved(ServiceKey::typed::<u32>()).unwrap());
     assert_eq!(*c.make::<u32>().unwrap(), 7);
-    c.forgetInstance(ServiceKey::typed::<u32>());
+    c.forget_instance(ServiceKey::typed::<u32>());
     assert!(!c.resolved(ServiceKey::typed::<u32>()).unwrap());
     assert!(c.make::<u64>().is_err());
     assert!(c.make::<u64>().is_err());
@@ -158,11 +161,11 @@ fn failing_post_callbacks_preserve_published_singletons_but_not_transient_histor
 fn callback_panics_release_waiters_and_leave_the_already_published_shared_value() {
     let c = Container::default();
     c.singleton::<u32, _>(|_| Ok(Arc::new(7))).unwrap();
-    c.afterResolving(None, |_, _| panic!("post callback"))
+    c.after_resolving(None, |_, _| panic!("post callback"))
         .unwrap();
     assert!(catch_unwind(AssertUnwindSafe(|| c.make::<u32>())).is_err());
     assert_eq!(*c.make::<u32>().unwrap(), 7);
-    c.forgetInstance(ServiceKey::typed::<u32>());
+    c.forget_instance(ServiceKey::typed::<u32>());
     assert!(!c.resolved(ServiceKey::typed::<u32>()).unwrap());
     assert!(catch_unwind(AssertUnwindSafe(|| c.make::<u32>())).is_err());
 }
@@ -178,7 +181,7 @@ fn before_callback_failures_retry_without_calling_the_constructor() {
         Ok(Arc::new(7))
     })
     .unwrap();
-    c.beforeResolving(None, move |_, _| {
+    c.before_resolving(None, move |_, _| {
         match attempts.fetch_add(1, Ordering::SeqCst) {
             0 => Err(missing()),
             1 => panic!("before callback"),
@@ -195,7 +198,7 @@ fn before_callback_failures_retry_without_calling_the_constructor() {
 #[test]
 fn unbounded_before_and_transient_post_recursion_returns_a_cycle_error() {
     let c = Container::default();
-    c.beforeResolving(Some(ServiceKey::typed::<u32>()), |_, c| {
+    c.before_resolving(Some(ServiceKey::typed::<u32>()), |_, c| {
         c.make::<u32>()?;
         Ok(())
     })
@@ -205,7 +208,7 @@ fn unbounded_before_and_transient_post_recursion_returns_a_cycle_error() {
         Err(BindingResolutionError::CircularDependency { .. })
     ));
     c.bind::<u64, _>(|_| Ok(Arc::new(9))).unwrap();
-    c.afterResolving(Some(ServiceKey::typed::<u64>()), |_, c| {
+    c.after_resolving(Some(ServiceKey::typed::<u64>()), |_, c| {
         c.make::<u64>()?;
         Ok(())
     })
@@ -222,14 +225,14 @@ fn snapshots_allow_global_callbacks_to_register_keyed_callbacks_for_the_current_
     let trace = Trace::default();
     c.bind::<u32, _>(|_| Ok(Arc::new(7))).unwrap();
     let before = trace.clone();
-    c.beforeResolving(None, move |_, app| {
+    c.before_resolving(None, move |_, app| {
         let seen = before.clone();
-        app.beforeResolving(Some(ServiceKey::typed::<u32>()), move |_, _| {
+        app.before_resolving(Some(ServiceKey::typed::<u32>()), move |_, _| {
             record(&seen, "new-keyed");
             Ok(())
         })?;
         let seen = before.clone();
-        app.beforeResolving(None, move |_, _| {
+        app.before_resolving(None, move |_, _| {
             record(&seen, "next-global");
             Ok(())
         })?;
@@ -239,7 +242,7 @@ fn snapshots_allow_global_callbacks_to_register_keyed_callbacks_for_the_current_
     let after = trace.clone();
     c.resolving(None, move |_, app| {
         let seen = after.clone();
-        app.afterResolving(None, move |_, _| {
+        app.after_resolving(None, move |_, _| {
             record(&seen, "new-after");
             Ok(())
         })?;
@@ -251,7 +254,7 @@ fn snapshots_allow_global_callbacks_to_register_keyed_callbacks_for_the_current_
 
     let c = Container::default();
     let trace = Trace::default();
-    c.bindNamed::<u32, _>("number", |_| Ok(Arc::new(7)))
+    c.bind_named::<u32, _>("number", |_| Ok(Arc::new(7)))
         .unwrap();
     let seen = trace.clone();
     c.resolving(None, move |_, app| {
@@ -292,7 +295,7 @@ fn snapshots_allow_global_callbacks_to_register_keyed_callbacks_for_the_current_
 fn named_services_also_match_their_declared_output_type_without_duplicate_dispatch() {
     let c = Container::default();
     let calls = Arc::new(AtomicUsize::new(0));
-    c.bindNamed::<u32, _>("number", |_| Ok(Arc::new(7)))
+    c.bind_named::<u32, _>("number", |_| Ok(Arc::new(7)))
         .unwrap();
     c.bind::<u32, _>(|_| Ok(Arc::new(9))).unwrap();
     let count = calls.clone();
@@ -328,7 +331,7 @@ fn concurrent_shared_readers_wait_for_post_callbacks_and_callbacks_run_once() {
     .unwrap();
     let (reading, reading_rx) = channel();
     let active = stage.clone();
-    c.beforeResolving(None, move |_, _| {
+    c.before_resolving(None, move |_, _| {
         if active.load(Ordering::SeqCst) == 1 {
             reading.send(()).unwrap();
         }
@@ -359,7 +362,7 @@ async fn scoped_callbacks_run_once_per_lifecycle_and_failed_callbacks_do_not_esc
     let calls = Arc::new(AtomicUsize::new(0));
     c.scoped::<u32, _>(|_| Ok(Arc::new(7))).unwrap();
     let count = calls.clone();
-    c.afterResolving(None, move |_, _| {
+    c.after_resolving(None, move |_, _| {
         count.fetch_add(1, Ordering::SeqCst);
         Err(missing())
     })

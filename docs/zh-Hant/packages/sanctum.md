@@ -6,7 +6,7 @@
 
 預設應用程式骨架不預置 Sanctum 專屬設定或使用者模型註冊。啟用 Cargo 功能後，由套件提供預設設定。新應用程式執行 `install:api` 會發布權杖資料表遷移，並接入發布的設定和預設使用者模型。自訂使用者模型須實作 `HasApiTokens`，並在 `config/auth.rs` 中以 `openrust::auth::model!(YourUser, sanctum)` 參照；明確的執行階段擴充也可使用 `AuthManager::registerSanctumModel`。安裝器更新模型能力與設定中的類別參照，保留 `AppServiceProvider` 原樣。手動啟用功能時，可用 `vendor:publish --tag=sanctum-migrations` 發布遷移，以 `vendor:publish --tag=sanctum-config` 發布可編輯設定。手動發布後，在 `config/mod.rs` 宣告模組並將載入結果註冊至 `sanctum` 設定群組。
 
-在終端機執行 `vendor:publish` 可互動選擇服務提供者或標籤。第三方套件在服務提供者的 `boot` 中呼叫 `publishes` 或 `publishesMigrations` 註冊編譯進程式的資源。啟用 `database.migrations.update_date_on_publish` 時，新遷移會使用新的時間戳記。關閉設定，或在服務提供者中呼叫 `VendorPublishCommand::dontUpdateMigrationDates`，可保留來源檔案日期。重複發佈沿用既有檔名，維持遷移帳本穩定。遷移發佈到 `database/migrations/` 後，重新建置即可將其納入編譯清單。
+在終端機執行 `vendor:publish` 可互動選擇服務提供者或標籤。第三方套件在服務提供者的 `boot` 中呼叫 `publishes` 或 `publishes_migrations` 註冊編譯進程式的資源。啟用 `database.migrations.update_date_on_publish` 時，新遷移會使用新的時間戳記。關閉設定，或在服務提供者中呼叫 `VendorPublishCommand::dontUpdateMigrationDates`，可保留來源檔案日期。重複發佈沿用既有檔名，維持遷移帳本穩定。遷移發佈到 `database/migrations/` 後，重新建置即可將其納入編譯清單。
 
 ## 權杖資料表遷移 {#token-table-migration}
 
@@ -75,7 +75,7 @@ fn register() -> Result<(), RoutingError> {
 
 ## SPA 驗證 {#spa-authentication}
 
-在 `bootstrap/app.rs` 現有的 `withMiddleware` 閉包呼叫 `middleware.statefulApi();`。以 `SANCTUM_STATEFUL_DOMAINS` 設定以逗號分隔的第一方前端主機，非預設連接埠須一併填寫。使用預設路由設定時，先請求 `GET /sanctum/csrf-cookie`，再經由應用程式的 Web 工作階段登入入口登入。後續 API 請求攜帶 Cookie。需要 CSRF 檢查時，將 URL 解碼後的 `XSRF-TOKEN` Cookie 值放入 `X-XSRF-TOKEN` 請求標頭。
+在 `bootstrap/app.rs` 現有的 `with_middleware` 閉包呼叫 `middleware.statefulApi();`。以 `SANCTUM_STATEFUL_DOMAINS` 設定以逗號分隔的第一方前端主機，非預設連接埠須一併填寫。使用預設路由設定時，先請求 `GET /sanctum/csrf-cookie`，再經由應用程式的 Web 工作階段登入入口登入。後續 API 請求攜帶 Cookie。需要 CSRF 檢查時，將 URL 解碼後的 `XSRF-TOKEN` Cookie 值放入 `X-XSRF-TOKEN` 請求標頭。
 
 跨來源第一方前端須為指定來源啟用攜帶憑證的 CORS。符合設定的 Referer 或 Origin 會啟用 Session、Cookie 和 CSRF 中介軟體。Sanctum 優先檢查已驗證的工作階段，再檢查 Bearer 權杖。第一方工作階段會通過權杖能力檢查，使用者操作權限由應用程式授權策略決定。
 

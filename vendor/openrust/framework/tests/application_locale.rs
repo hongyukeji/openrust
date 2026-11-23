@@ -64,7 +64,7 @@ impl Root {
     }
     async fn kernel(&self, recorder: Arc<Recorder>) -> Kernel {
         let application = Application::configure(self.0.clone())
-            .withConfig(|_, env| {
+            .with_config(|_, env| {
                 Ok(BTreeMap::from([(
                     "app".into(),
                     serde_json::json!({
@@ -73,11 +73,11 @@ impl Root {
                     }),
                 )]))
             })
-            .withMiddleware(|middleware| {
-                middleware.setLocale(&[]).unwrap();
+            .with_middleware(|middleware| {
+                middleware.set_locale(&[]).unwrap();
             })
-            .withProviders(vec![Box::new(Observer(recorder))])
-            .withRouting(Routing::default().web(|| {
+            .with_providers(vec![Box::new(Observer(recorder))])
+            .with_routing(Routing::default().web(|| {
                 Route::get("/default", defaults)?;
                 Route::get("/invalid", invalid)?;
                 Route::get("/parent", parent_override)?;
@@ -111,9 +111,9 @@ impl Listener for Recorder {
         Box::pin(async move {
             let event = event.downcast_ref::<LocaleUpdated>().unwrap();
             // 与上游测试一致：监听器看到的配置和译器必须已完成切换。
-            assert_eq!(App::currentLocale().unwrap(), event.locale);
+            assert_eq!(App::current_locale().unwrap(), event.locale);
             assert_eq!(Config::string("app.locale").unwrap(), event.locale);
-            assert_eq!(Lang::getLocale().unwrap(), event.locale);
+            assert_eq!(Lang::get_locale().unwrap(), event.locale);
             self.0.lock().unwrap().push(event.clone());
             Ok(None)
         })
@@ -135,30 +135,30 @@ impl ServiceProvider for Observer {
 }
 fn defaults(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let locale = App::currentLocale()?;
-        assert_eq!(App::getLocale().unwrap(), locale);
-        assert!(App::isLocale(&locale).unwrap());
+        let locale = App::current_locale()?;
+        assert_eq!(App::get_locale().unwrap(), locale);
+        assert!(App::is_locale(&locale).unwrap());
         assert_eq!(Config::string("app.locale").unwrap(), locale);
-        assert_eq!(Lang::getLocale().unwrap(), locale);
-        assert_eq!(App::getFallbackLocale().unwrap(), "en");
+        assert_eq!(Lang::get_locale().unwrap(), locale);
+        assert_eq!(App::get_fallback_locale().unwrap(), "en");
         Response::json(StatusCode::OK, serde_json::json!({"locale":locale}))
     })
 }
 fn invalid(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let locale = App::currentLocale().unwrap();
+        let locale = App::current_locale().unwrap();
         assert!(matches!(
-            App::setLocale("../bad").await,
+            App::set_locale("../bad").await,
             Err(TranslationError::InvalidLocale)
         ));
         assert!(matches!(
-            App::setFallbackLocale("../bad"),
+            App::set_fallback_locale("../bad"),
             Err(TranslationError::InvalidLocale)
         ));
-        assert_eq!(App::currentLocale().unwrap(), locale);
+        assert_eq!(App::current_locale().unwrap(), locale);
         assert_eq!(Config::string("app.locale").unwrap(), locale);
-        assert_eq!(Lang::getLocale().unwrap(), locale);
-        assert_eq!(App::getFallbackLocale().unwrap(), "en");
+        assert_eq!(Lang::get_locale().unwrap(), locale);
+        assert_eq!(App::get_fallback_locale().unwrap(), "en");
         Ok(Response::from("unchanged"))
     })
 }
@@ -172,24 +172,24 @@ fn greeting(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
                 Default::default(),
             ));
         }
-        App::setLocale(&locale).await?;
+        App::set_locale(&locale).await?;
         tokio::task::yield_now().await;
-        assert!(App::isLocale(&locale).unwrap());
+        assert!(App::is_locale(&locale).unwrap());
         if locale == "zh-Hans" {
-            assert!(!App::isLocale("zh-CN").unwrap());
-            assert!(App::isLocale("zh-Hans").unwrap());
-            assert!(!App::isLocale("zh-Hant").unwrap());
-            assert!(App::isLocale("../bad").is_err());
+            assert!(!App::is_locale("zh-CN").unwrap());
+            assert!(App::is_locale("zh-Hans").unwrap());
+            assert!(!App::is_locale("zh-Hant").unwrap());
+            assert!(App::is_locale("../bad").is_err());
         }
         assert_eq!(Config::array("app").unwrap()["locale"], locale);
         assert_eq!(Config::all().unwrap()["app"]["locale"], locale);
-        App::setFallbackLocale("en")?;
+        App::set_fallback_locale("en")?;
         assert_eq!(Lang::getFallback().unwrap(), "en");
-        App::setFallbackLocale("zh-Hant")?;
-        assert_eq!(App::getFallbackLocale().unwrap(), "zh-Hant");
+        App::set_fallback_locale("zh-Hant")?;
+        assert_eq!(App::get_fallback_locale().unwrap(), "zh-Hant");
         assert_eq!(Config::string("app.fallback_locale").unwrap(), "zh-Hant");
         assert_eq!(Lang::getFallback().unwrap(), "zh-Hant");
-        App::setFallbackLocale("en")?;
+        App::set_fallback_locale("en")?;
         Response::view(
             StatusCode::OK,
             view("greeting").with("name", "ada"),
@@ -285,28 +285,28 @@ async fn application_instance_and_facade_share_locale_and_fallback_state() {
     let mut kernel = Kernel::new(application);
     kernel.bootstrap().await.unwrap();
     let application = kernel.get_application();
-    application.setLocale("zh-Hans").await.unwrap();
-    assert_eq!(application.currentLocale().unwrap(), "zh-Hans");
-    application.setFallbackLocale("zh-Hant").unwrap();
-    assert_eq!(application.getFallbackLocale().unwrap(), "zh-Hant");
+    application.set_locale("zh-Hans").await.unwrap();
+    assert_eq!(application.current_locale().unwrap(), "zh-Hans");
+    application.set_fallback_locale("zh-Hant").unwrap();
+    assert_eq!(application.get_fallback_locale().unwrap(), "zh-Hant");
     let translator = application
         .container()
         .get::<openrust::translation::Translator>("translator")
         .unwrap();
-    assert_eq!(translator.getLocale(), "zh-Hans");
+    assert_eq!(translator.get_locale(), "zh-Hans");
     assert_eq!(translator.getFallback(), "zh-Hant");
     application
         .container()
         .scope(async {
-            application.setLocale("en").await.unwrap();
-            application.setFallbackLocale("en").unwrap();
-            assert_eq!(application.currentLocale().unwrap(), "en");
-            assert_eq!(translator.getLocale(), "en");
+            application.set_locale("en").await.unwrap();
+            application.set_fallback_locale("en").unwrap();
+            assert_eq!(application.current_locale().unwrap(), "en");
+            assert_eq!(translator.get_locale(), "en");
         })
         .await;
-    assert_eq!(application.currentLocale().unwrap(), "zh-Hans");
-    assert_eq!(application.getFallbackLocale().unwrap(), "zh-Hant");
-    assert_eq!(translator.getLocale(), "zh-Hans");
+    assert_eq!(application.current_locale().unwrap(), "zh-Hans");
+    assert_eq!(application.get_fallback_locale().unwrap(), "zh-Hant");
+    assert_eq!(translator.get_locale(), "zh-Hans");
     assert_eq!(
         translator
             .string("messages.welcome", &BTreeMap::new(), None)
@@ -317,21 +317,21 @@ async fn application_instance_and_facade_share_locale_and_fallback_state() {
 
 fn parent_override(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        App::setLocale("ZH-cn").await?;
-        assert!(App::isLocale("zh-cn").unwrap());
-        assert!(!App::isLocale("zh-Hans").unwrap());
-        assert!(!App::isLocale("zh-Hant").unwrap());
-        assert!(App::isLocale("../bad").is_err());
+        App::set_locale("ZH-cn").await?;
+        assert!(App::is_locale("zh-cn").unwrap());
+        assert!(!App::is_locale("zh-Hans").unwrap());
+        assert!(!App::is_locale("zh-Hant").unwrap());
+        assert!(App::is_locale("../bad").is_err());
         Config::set(
             "app",
             serde_json::json!({"locale":"zh-Hant", "fallback_locale":"en", "name":"local"}),
         )
         .unwrap();
         assert_eq!(Config::string("app.locale").unwrap(), "zh-Hant");
-        assert_eq!(App::currentLocale().unwrap(), "zh-Hant");
+        assert_eq!(App::current_locale().unwrap(), "zh-Hant");
         assert_eq!(Config::array("app").unwrap()["locale"], "zh-Hant");
         assert_eq!(Config::all().unwrap()["app"]["locale"], "zh-Hant");
-        App::setLocale("zh-Hant").await?;
+        App::set_locale("zh-Hant").await?;
         Config::set("app.name", "changed".into()).unwrap();
         assert_eq!(Config::string("app.name").unwrap(), "changed");
         Config::set("app", serde_json::json!({"name":"only"})).unwrap();
@@ -341,13 +341,13 @@ fn parent_override(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError
             Config::all().unwrap()["app"],
             serde_json::json!({"name":"only"})
         );
-        App::setLocale("en").await?;
+        App::set_locale("en").await?;
         assert_eq!(Config::array("app").unwrap()["locale"], "en");
-        App::setLocale("ZH-cn").await?;
-        assert_eq!(App::currentLocale().unwrap(), "zh-CN");
-        assert!(App::isLocale("zh-cn").unwrap());
-        assert!(!App::isLocale("zh-Hans").unwrap());
-        assert!(!App::isLocale("zh-Hant").unwrap());
+        App::set_locale("ZH-cn").await?;
+        assert_eq!(App::current_locale().unwrap(), "zh-CN");
+        assert!(App::is_locale("zh-cn").unwrap());
+        assert!(!App::is_locale("zh-Hans").unwrap());
+        assert!(!App::is_locale("zh-Hant").unwrap());
         Config::push("app.candidates", "en".into()).unwrap();
         Config::prepend("app.candidates", "zh-Hans".into()).unwrap();
         assert_eq!(
@@ -376,8 +376,8 @@ impl Listener for FailingListener {
         Box::pin(async move {
             if event.downcast_ref::<LocaleUpdated>().unwrap().locale == "fr" {
                 tokio::task::yield_now().await;
-                assert_eq!(App::currentLocale().unwrap(), "fr");
-                assert_eq!(Lang::getLocale().unwrap(), "fr");
+                assert_eq!(App::current_locale().unwrap(), "fr");
+                assert_eq!(Lang::get_locale().unwrap(), "fr");
                 return Err(openrust::events::EventError::Listener {
                     source: Box::new(std::io::Error::other("语言监听器测试失败")),
                 });
@@ -388,7 +388,7 @@ impl Listener for FailingListener {
 }
 fn listener_failure(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let failure = App::setLocale("fr").await.unwrap_err();
+        let failure = App::set_locale("fr").await.unwrap_err();
         assert!(failure.to_string().contains("event listener failed"));
         let source = std::error::Error::source(&failure).unwrap();
         let event = source
@@ -399,14 +399,14 @@ fn listener_failure(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpErro
         );
         // 错误在更新后传播，不回滚本次作用域中的语言。
         assert_eq!(Config::string("app.locale").unwrap(), "fr");
-        assert_eq!(Lang::getLocale().unwrap(), "fr");
+        assert_eq!(Lang::get_locale().unwrap(), "fr");
         Err(failure.into())
     })
 }
 fn same_locale(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        App::setLocale("en").await?;
-        App::setLocale("en").await?;
+        App::set_locale("en").await?;
+        App::set_locale("en").await?;
         Ok(Response::from("twice"))
     })
 }
@@ -445,32 +445,32 @@ async fn unavailable_locale_services_fail_at_the_upstream_update_step() {
         .unwrap();
     application
         .container()
-        .instanceNamed("events", Arc::new("invalid event service".to_owned()))
+        .instance_named("events", Arc::new("invalid event service".to_owned()))
         .unwrap();
     assert!(matches!(
-        application.setLocale("zh-Hant").await,
+        application.set_locale("zh-Hant").await,
         Err(TranslationError::Unavailable(_))
     ));
-    assert_eq!(application.getLocale().unwrap(), "zh-Hant");
-    assert_eq!(translator.getLocale(), "zh-Hant");
+    assert_eq!(application.get_locale().unwrap(), "zh-Hant");
+    assert_eq!(translator.get_locale(), "zh-Hant");
 
     let other = Root::new("en");
     let kernel = other.kernel(Arc::default()).await;
     let application = kernel.get_application();
     application
         .container()
-        .instanceNamed("translator", Arc::new("invalid translator".to_owned()))
+        .instance_named("translator", Arc::new("invalid translator".to_owned()))
         .unwrap();
     assert!(matches!(
-        application.setLocale("zh-Hans").await,
+        application.set_locale("zh-Hans").await,
         Err(TranslationError::Unavailable(_))
     ));
-    assert_eq!(application.getLocale().unwrap(), "zh-Hans");
+    assert_eq!(application.get_locale().unwrap(), "zh-Hans");
     assert!(matches!(
-        application.setFallbackLocale("zh-Hant"),
+        application.set_fallback_locale("zh-Hant"),
         Err(TranslationError::Unavailable(_))
     ));
-    assert_eq!(application.getFallbackLocale().unwrap(), "zh-Hant");
+    assert_eq!(application.get_fallback_locale().unwrap(), "zh-Hant");
 }
 
 fn first_config(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
@@ -480,7 +480,7 @@ fn first_config(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
             serde_json::json!({"locale":"zh-Hant", "fallback_locale":"zh-Hans"}),
         )
         .unwrap();
-        assert_eq!(Lang::getLocale().unwrap(), "zh-Hant");
+        assert_eq!(Lang::get_locale().unwrap(), "zh-Hant");
         assert_eq!(Lang::getFallback().unwrap(), "zh-Hans");
         assert_eq!(
             Lang::get("messages.welcome", &BTreeMap::new(), None).unwrap(),
@@ -501,7 +501,7 @@ async fn first_translation_after_scoped_configuration_does_not_replace_applicati
         .container()
         .get::<openrust::translation::Translator>("translator")
         .unwrap();
-    assert_eq!(translator.getLocale(), "en");
+    assert_eq!(translator.get_locale(), "en");
     assert_eq!(translator.getFallback(), "en");
 
     // 队列等任务共用相同容器生命周期，首次解析同样不能污染默认值。
@@ -523,17 +523,17 @@ async fn first_translation_after_scoped_configuration_does_not_replace_applicati
                 .container()
                 .get::<openrust::translation::Translator>("translator")
                 .unwrap();
-            assert_eq!(translator.getLocale(), "zh-Hans");
+            assert_eq!(translator.get_locale(), "zh-Hans");
             assert_eq!(translator.getFallback(), "zh-Hant");
             tokio::task::yield_now().await;
-            assert_eq!(translator.getLocale(), "zh-Hans");
+            assert_eq!(translator.get_locale(), "zh-Hans");
         })
         .await;
-    assert_eq!(application.getLocale().unwrap(), "en");
+    assert_eq!(application.get_locale().unwrap(), "en");
     let translator = application
         .container()
         .get::<openrust::translation::Translator>("translator")
         .unwrap();
-    assert_eq!(translator.getLocale(), "en");
+    assert_eq!(translator.get_locale(), "en");
     assert_eq!(translator.getFallback(), "en");
 }

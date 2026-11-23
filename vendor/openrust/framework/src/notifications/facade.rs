@@ -13,7 +13,7 @@ pub struct NotificationFacade;
 impl Facade for NotificationFacade {
     type Service = ChannelManager;
 
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         "notifications".into()
     }
 }
@@ -21,11 +21,11 @@ impl Facade for NotificationFacade {
 #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl NotificationFacade {
     pub fn fake() -> NotificationResult<Arc<NotificationFake>> {
-        Ok(Self::getFacadeRoot().map_err(delivery)?.fake())
+        Ok(Self::get_facade_root().map_err(delivery)?.fake())
     }
 
     pub fn channel(name: Option<&str>) -> NotificationResult<Arc<dyn Channel>> {
-        Self::getFacadeRoot().map_err(delivery)?.channel(name)
+        Self::get_facade_root().map_err(delivery)?.channel(name)
     }
 
     pub fn route(
@@ -39,7 +39,7 @@ impl NotificationFacade {
         recipients: &[&dyn Notifiable],
         notification: &dyn Notification,
     ) -> NotificationResult<()> {
-        Self::getFacadeRoot()
+        Self::get_facade_root()
             .map_err(delivery)?
             .send(recipients, notification)
             .await
@@ -50,7 +50,7 @@ impl NotificationFacade {
         notification: &dyn Notification,
         channels: Option<&[&str]>,
     ) -> NotificationResult<()> {
-        Self::getFacadeRoot()
+        Self::get_facade_root()
             .map_err(delivery)?
             .sendNow(recipients, notification, channels)
             .await

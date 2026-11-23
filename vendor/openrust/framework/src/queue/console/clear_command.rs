@@ -1,5 +1,4 @@
 #![allow(non_snake_case, reason = "保留既定公开接口及命名")]
-
 use clap::{Arg, ArgAction, Command as Syntax};
 
 use crate::{
@@ -20,7 +19,7 @@ pub struct ClearCommand(CommandDefinition);
 impl ClearCommand {
     /// Controls queue clearing for the application in the current Facade scope.
     pub fn prohibit(prohibited: bool) -> QueueResult<()> {
-        Queue::getFacadeRoot()?.set_clear_prohibited(prohibited);
+        Queue::get_facade_root()?.set_clear_prohibited(prohibited);
         Ok(())
     }
 }

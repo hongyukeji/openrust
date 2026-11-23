@@ -52,7 +52,7 @@ impl Middleware for EnsureFeaturesAreActive {
                 if let Some(respond) = &self.respondUsing {
                     return respond(request, &self.features).await;
                 }
-                let debug = Config::getFacadeRoot()?
+                let debug = Config::get_facade_root()?
                     .get("app.debug")
                     .and_then(|value| value.as_bool())
                     .unwrap_or(false);

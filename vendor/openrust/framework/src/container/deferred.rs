@@ -31,7 +31,7 @@ impl Container {
         let Some(loader) = self.deferred.get() else {
             return Ok(None);
         };
-        let key = self.getAlias(key.clone())?;
+        let key = self.get_alias(key.clone())?;
         Ok(loader.in_flight(&key).then_some(key))
     }
 
@@ -66,7 +66,7 @@ impl Container {
         let Some(loader) = self.deferred.get() else {
             return Ok(key);
         };
-        let key = self.getAlias(key)?;
+        let key = self.get_alias(key)?;
         if loader.needs_loading(&key, self.explicit_instance(&key)) {
             return Err(BindingResolutionError::DeferredServiceRequiresAsync { service: key });
         }
@@ -80,7 +80,7 @@ impl Container {
         let Some(loader) = self.deferred.get() else {
             return Ok(key);
         };
-        let key = self.getAlias(key)?;
+        let key = self.get_alias(key)?;
         if loader.needs_loading(&key, self.explicit_instance(&key)) {
             loader.load(&key).await?;
         }

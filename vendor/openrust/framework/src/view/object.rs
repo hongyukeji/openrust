@@ -14,7 +14,6 @@ type ObjectResult<T> = Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
 /// Rust 服务显式公开给模板的调用接口，不依赖运行时反射。
 /// 使用现有 ClassProjection 或 dyn ViewObject 容器绑定暴露实际服务。
-#[allow(non_snake_case, reason = "与现有异步容器命名一致")]
 pub trait ViewObject: std::any::Any + Send + Sync + 'static {
     /// 对象严格比较使用服务实例身份，而非临时适配器的地址。
     fn identity(&self) -> usize {
@@ -23,7 +22,7 @@ pub trait ViewObject: std::any::Any + Send + Sync + 'static {
     fn call(&self, method: &str, arguments: &[ViewValue]) -> ViewResult<ViewValue>;
 
     /// HTTP 渲染由已有请求桥接执行异步调用；同步实现无需重复适配。
-    fn callAsync<'a>(
+    fn call_async<'a>(
         &'a self,
         method: &'a str,
         arguments: Vec<ViewValue>,
@@ -62,7 +61,7 @@ impl ObjectValue {
         arguments: Vec<ViewValue>,
     ) -> ViewResult<ViewValue> {
         self.check()?;
-        self.value.callAsync(method, arguments).await
+        self.value.call_async(method, arguments).await
     }
 }
 impl fmt::Debug for ObjectValue {
@@ -78,7 +77,7 @@ impl PartialEq for ObjectValue {
 }
 
 pub(super) fn application() -> ViewResult<ViewValue> {
-    let app = App::getFacadeRoot().map_err(|source| ViewError::RenderFailed(Box::new(source)))?;
+    let app = App::get_facade_root().map_err(|source| ViewError::RenderFailed(Box::new(source)))?;
     Ok(ViewValue::from_object(Arc::new(ApplicationObject(
         Arc::downgrade(&app),
     ))))
@@ -144,18 +143,18 @@ impl ApplicationObject {
         let parameters = parameters(arguments.get(1))?;
         let app = self.application()?;
         let container = app.container();
-        let canonical = container.getAlias(key)?;
-        if canonical == container.getAlias("app")? {
-            let _ = container.makeWithNamed::<Application>("app", parameters)?;
+        let canonical = container.get_alias(key)?;
+        if canonical == container.get_alias("app")? {
+            let _ = container.make_with_named::<Application>("app", parameters)?;
             return Ok(ViewValue::from_object(Arc::new(Self(self.0.clone()))));
         }
-        if canonical == container.getAlias("config")? {
+        if canonical == container.get_alias("config")? {
             return Ok(ViewValue::from_object(Arc::new(ConfigurationObject(
-                container.makeWithNamed("config", parameters)?,
+                container.make_with_named("config", parameters)?,
             ))));
         }
         Ok(ViewValue::from_object(
-            container.makeWithNamed::<dyn ViewObject>(key, parameters)?,
+            container.make_with_named::<dyn ViewObject>(key, parameters)?,
         ))
     }
     async fn resolve_async(&self, arguments: &[ViewValue]) -> ObjectResult<ViewValue> {
@@ -164,12 +163,13 @@ impl ApplicationObject {
         let parameters = parameters(arguments.get(1))?;
         let app = self.application()?;
         let container = app.container();
-        let canonical = container.getAlias(key)?;
-        if canonical == container.getAlias("app")? || canonical == container.getAlias("config")? {
+        let canonical = container.get_alias(key)?;
+        if canonical == container.get_alias("app")? || canonical == container.get_alias("config")? {
             return self.resolve(arguments);
         }
         Ok(ViewValue::from_object(
-            app.makeWithNamed::<dyn ViewObject>(key, parameters).await?,
+            app.make_with_named::<dyn ViewObject>(key, parameters)
+                .await?,
         ))
     }
 }
@@ -180,15 +180,15 @@ impl ApplicationObject {
             "make" | "makeWith" => self.resolve(arguments),
             "currentLocale" | "getLocale" => {
                 arity(arguments, 0, 0)?;
-                Ok(app.currentLocale()?.into())
+                Ok(app.current_locale()?.into())
             }
             "isLocale" => {
                 arity(arguments, 1, 1)?;
-                Ok(app.isLocale(string(&arguments[0])?)?.into())
+                Ok(app.is_locale(string(&arguments[0])?)?.into())
             }
             "getFallbackLocale" => {
                 arity(arguments, 0, 0)?;
-                Ok(app.getFallbackLocale()?.into())
+                Ok(app.get_fallback_locale()?.into())
             }
             "version" => {
                 arity(arguments, 0, 0)?;
@@ -202,7 +202,7 @@ impl ApplicationObject {
                 Ok(match method {
                     "bound" | "has" => container.has(key),
                     "resolved" => container.resolved(key)?,
-                    _ => container.isShared(key),
+                    _ => container.is_shared(key),
                 }
                 .into())
             }
@@ -228,8 +228,8 @@ impl ApplicationObject {
                 let path = arguments.first().map(string).transpose()?.unwrap_or("");
                 let base = match method {
                     "basePath" => app.base_path().to_path_buf(),
-                    "publicPath" => app.publicPath(),
-                    _ => app.storagePath(""),
+                    "publicPath" => app.public_path(),
+                    _ => app.storage_path(""),
                 };
                 Ok(crate::foundation::paths::join(&base, path)
                     .to_string_lossy()
@@ -239,15 +239,15 @@ impl ApplicationObject {
             "configurationIsCached" | "routesAreCached" | "runningUnitTests" => {
                 arity(arguments, 0, 0)?;
                 Ok(match method {
-                    "configurationIsCached" => app.configurationIsCached(),
-                    "routesAreCached" => app.routesAreCached(),
-                    _ => app.runningUnitTests()?,
+                    "configurationIsCached" => app.configuration_is_cached(),
+                    "routesAreCached" => app.routes_are_cached(),
+                    _ => app.running_unit_tests()?,
                 }
                 .into())
             }
             "setFallbackLocale" => {
                 arity(arguments, 1, 1)?;
-                app.setFallbackLocale(string(&arguments[0])?)?;
+                app.set_fallback_locale(string(&arguments[0])?)?;
                 Ok(ViewValue::Null)
             }
             "setLocale" => Err(render_error("异步语言切换需要通过 HTTP 响应渲染。").into()),
@@ -265,7 +265,7 @@ impl ViewObject for ApplicationObject {
         self.invoke(method, arguments)
             .map_err(ViewError::RenderFailed)
     }
-    fn callAsync<'a>(
+    fn call_async<'a>(
         &'a self,
         method: &'a str,
         arguments: Vec<ViewValue>,
@@ -277,7 +277,7 @@ impl ViewObject for ApplicationObject {
                     "setLocale" => {
                         arity(&arguments, 1, 1)?;
                         self.application()?
-                            .setLocale(string(&arguments[0])?)
+                            .set_locale(string(&arguments[0])?)
                             .await?;
                         Ok(ViewValue::Null)
                     }

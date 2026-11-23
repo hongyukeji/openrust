@@ -31,25 +31,25 @@ fn descriptor(parameters: Vec<ConstructorParam>) -> ClassDescriptor {
         Ok(Arc::new(Item(number)))
     })
     .unwrap()
-    .withProjection(class_projection!(Item => dyn View))
+    .with_projection(class_projection!(Item => dyn View))
 }
 
 fn declared(container: &Container, bind: Bind) {
     container
-        .registerBindingAttributes::<dyn View>(vec![BindWhen::new(bind, |_| Ok(true)).into()])
+        .register_binding_attributes::<dyn View>(vec![BindWhen::new(bind, |_| Ok(true)).into()])
         .unwrap();
 }
 
 #[tokio::test]
 async fn direct_class_events_match_declared_interfaces_and_expose_the_same_arc() {
     let container = Container::default();
-    container.registerClass(descriptor(vec![])).unwrap();
+    container.register_class(descriptor(vec![])).unwrap();
     let item = ServiceKey::typed::<Item>();
     let view = ServiceKey::typed::<dyn View>();
     container.alias(item.clone(), "item").unwrap();
     let observed = Arc::new(Mutex::new(Vec::new()));
     container
-        .beforeResolving(Some(view.clone()), {
+        .before_resolving(Some(view.clone()), {
             let observed = observed.clone();
             let item = item.clone();
             move |event, _| {
@@ -76,7 +76,7 @@ async fn direct_class_events_match_declared_interfaces_and_expose_the_same_arc()
         })
         .unwrap();
     container
-        .afterResolving(Some(view), {
+        .after_resolving(Some(view), {
             let observed = observed.clone();
             move |_, _| {
                 observed.lock().unwrap().push("after");
@@ -84,7 +84,7 @@ async fn direct_class_events_match_declared_interfaces_and_expose_the_same_arc()
             }
         })
         .unwrap();
-    let view = container.getAsync::<dyn View>("item").await.unwrap();
+    let view = container.get_async::<dyn View>("item").await.unwrap();
     assert!(Arc::ptr_eq(&view, output.lock().unwrap().as_ref().unwrap()));
     assert_eq!(*observed.lock().unwrap(), ["before", "resolving", "after"]);
 }
@@ -97,7 +97,7 @@ async fn binding_forwarding_suppresses_only_the_inner_concrete_events() {
     ] {
         let container = Container::default();
         container
-            .registerClass(descriptor(vec![ConstructorParam::class::<u32>("number")]))
+            .register_class(descriptor(vec![ConstructorParam::class::<u32>("number")]))
             .unwrap();
         declared(&container, bind);
         let abstract_key = ServiceKey::typed::<dyn View>();
@@ -122,9 +122,9 @@ async fn binding_forwarding_suppresses_only_the_inner_concrete_events() {
                 }
             };
             match phase {
-                0 => container.beforeResolving(None, callback),
+                0 => container.before_resolving(None, callback),
                 1 => container.resolving(None, callback),
-                _ => container.afterResolving(None, callback),
+                _ => container.after_resolving(None, callback),
             }
             .unwrap();
         }
@@ -141,13 +141,13 @@ async fn binding_forwarding_suppresses_only_the_inner_concrete_events() {
             .unwrap();
 
         assert!(matches!(
-            container.makeAsync::<dyn View>().await,
+            container.make_async::<dyn View>().await,
             Err(BindingResolutionError::NotBound { .. })
         ));
         observed.lock().unwrap().clear();
         container.bind::<u32, _>(|_| Ok(Arc::new(13))).unwrap();
         let value = if asynchronous {
-            container.makeAsync::<dyn View>().await
+            container.make_async::<dyn View>().await
         } else {
             container.make::<dyn View>()
         }
@@ -170,7 +170,7 @@ async fn binding_forwarding_suppresses_only_the_inner_concrete_events() {
 #[tokio::test]
 async fn replacing_forwarded_object_discards_its_old_concrete_view() {
     let container = Container::default();
-    container.registerClass(descriptor(vec![])).unwrap();
+    container.register_class(descriptor(vec![])).unwrap();
     declared(&container, Bind::implementation::<dyn View, Item>());
     let view = ServiceKey::typed::<dyn View>();
     container
@@ -182,14 +182,14 @@ async fn replacing_forwarded_object_discards_its_old_concrete_view() {
         })
         .unwrap();
     container
-        .afterResolving(Some(view), |event, _| {
+        .after_resolving(Some(view), |event, _| {
             assert!(event.value::<Item>().is_none());
             assert_eq!(event.value::<dyn View>().unwrap().number(), 99);
             Ok(())
         })
         .unwrap();
     assert_eq!(
-        container.makeAsync::<dyn View>().await.unwrap().number(),
+        container.make_async::<dyn View>().await.unwrap().number(),
         99
     );
 }

@@ -34,14 +34,14 @@ fn endpoint(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
 fn fixture() -> TestResult<TestApp> {
     TestApp::create(|builder| {
         builder
-            .withConfig(|_, _| {
+            .with_config(|_, _| {
                 Ok([(
                     "app".into(),
                     serde_json::json!({"env": "testing", "timezone": "Asia/Tokyo"}),
                 )]
                 .into())
             })
-            .withRouting(Routing::default().web(|| Route::get("/date", endpoint)))
+            .with_routing(Routing::default().web(|| Route::get("/date", endpoint)))
     })
 }
 

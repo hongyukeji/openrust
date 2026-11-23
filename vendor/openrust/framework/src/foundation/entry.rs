@@ -115,7 +115,7 @@ pub async fn run_application(
             .await;
             (result.map(|()| 0), "Configuration cache build failed")
         } else {
-            (app.handleCommand(&arguments).await, "Artisan failed")
+            (app.handle_command(&arguments).await, "Artisan failed")
         }
     } else {
         (app.start().await.map(|()| 0), "Application startup failed")

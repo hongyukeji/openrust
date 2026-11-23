@@ -136,7 +136,7 @@ async fn mysql_all_five_selected_models_issue_refresh_revoke_purge_and_stay_appl
         .get_application()
         .call(
             openrust::container::Callback::new(&[], |_| async {
-                let clients = openrust::container::Container::getInstance()
+                let clients = openrust::container::Container::get_instance()
                     .make::<Passport>()
                     .unwrap()
                     .clientRepository();
@@ -353,7 +353,7 @@ async fn mysql_custom_token_route_and_provider_keep_default_routes_suppressed() 
         .get_application()
         .call(
             openrust::container::Callback::new(&[], |_| async {
-                let clients = openrust::container::Container::getInstance()
+                let clients = openrust::container::Container::get_instance()
                     .make::<ClientRepository>()
                     .unwrap();
                 let client = clients

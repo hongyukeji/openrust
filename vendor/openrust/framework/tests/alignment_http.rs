@@ -21,10 +21,10 @@ fn inspect(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
 }
 #[tokio::test]
 async fn request_fingerprint_preserves_registration_order_root_uri_and_automatic_head() {
-    let mut app=TestApp::create(|builder|builder.withConfig(|_,_|Ok([
+    let mut app=TestApp::create(|builder|builder.with_config(|_,_|Ok([
   ("app".into(),json!({"env":"testing","key":"12345678901234567890123456789012","cipher":"AES-256-CBC"})),
   ("session".into(),json!({"driver":"array","cookie":"alignment-session","lifetime":120}))
- ].into())).withRouting(Routing::default().web(|| {
+ ].into())).with_routing(Routing::default().web(|| {
   Route::r#match(&[http::Method::POST,http::Method::GET],"/items/{id}",inspect)?;
   Route::get("/",inspect)
  }))).unwrap();
@@ -108,7 +108,7 @@ fn seeded(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
 async fn prefetch_filters_previous_url_and_route_using_exact_case_insensitive_headers() {
     let mut app = TestApp::create(|builder| {
         builder
-            .withConfig(|_, _| {
+            .with_config(|_, _| {
                 Ok([
                     (
                         "app".into(),
@@ -121,7 +121,7 @@ async fn prefetch_filters_previous_url_and_route_using_exact_case_insensitive_he
                 ]
                 .into())
             })
-            .withRouting(Routing::default().web(|| {
+            .with_routing(Routing::default().web(|| {
                 Route::group(openrust::routing::RouteGroup::new(), |router| {
                     router
                         .r#match(&[http::Method::GET], "/check", seeded)?
@@ -185,7 +185,7 @@ fn assertions(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpErro
 async fn response_assertions_check_real_redirect_download_and_validation_responses() {
     let mut app = TestApp::create(|builder| {
         builder
-            .withRouting(Routing::default().api(|| Route::get("/{kind}", assertions).map(|_| ())))
+            .with_routing(Routing::default().api(|| Route::get("/{kind}", assertions).map(|_| ())))
     })
     .unwrap();
     let redirect = app.get("/api/redirect").await.unwrap();
@@ -215,8 +215,8 @@ async fn response_assertions_check_real_redirect_download_and_validation_respons
 async fn broad_accept_prefers_json_and_preserves_explicit_media_types() {
     let mut app = TestApp::create(|builder| {
         builder
-            .prefersJsonResponses(true)
-            .withConfig(|_, _| {
+            .prefers_json_responses(true)
+            .with_config(|_, _| {
                 Ok([
                     (
                         "app".into(),
@@ -229,7 +229,7 @@ async fn broad_accept_prefers_json_and_preserves_explicit_media_types() {
                 ]
                 .into())
             })
-            .withRouting(Routing::default().web(|| Route::get("/check", seeded).map(|_| ())))
+            .with_routing(Routing::default().web(|| Route::get("/check", seeded).map(|_| ())))
     })
     .unwrap();
     for (accept, expected) in [
@@ -274,7 +274,7 @@ fn excluded_upload(request: &mut Request) -> HttpFuture<'_, Result<Response, Htt
 #[tokio::test]
 async fn excluded_multipart_file_is_removed_from_both_validated_data_and_file_projection() {
     let mut app = TestApp::create(|builder| {
-        builder.withRouting(
+        builder.with_routing(
             Routing::default()
                 .api(|| Route::r#match(&[http::Method::POST], "/upload", excluded_upload)),
         )
@@ -298,14 +298,14 @@ async fn excluded_multipart_file_is_removed_from_both_validated_data_and_file_pr
 async fn explicit_exception_policy_overrides_json_preference_after_middleware_replacement() {
     let mut app = TestApp::create(|builder| {
         builder
-            .prefersJsonResponses(true)
-            .withMiddleware(|middleware| {
+            .prefers_json_responses(true)
+            .with_middleware(|middleware| {
                 *middleware = Default::default();
             })
-            .withExceptions(|exceptions| {
+            .with_exceptions(|exceptions| {
                 exceptions.shouldRenderJsonWhen(|_, _| false);
             })
-            .withRouting(Routing::default().api(|| Route::get("/fail", reject_request)))
+            .with_routing(Routing::default().api(|| Route::get("/fail", reject_request)))
     })
     .unwrap();
     let response = app.get("http://example.test/api/fail").await.unwrap();
@@ -328,7 +328,7 @@ fn default_view() -> openrust::view::View {
 async fn shared_view_data_reaches_blocking_renderer_and_does_not_leak_to_next_request() {
     use openrust::contracts::{container::Container as _, foundation::Application as _};
     let mut app = TestApp::create(|builder| {
-        builder.withRouting(Routing::default().api(|| {
+        builder.with_routing(Routing::default().api(|| {
             Route::get("/one", scoped_view)?;
             Route::get("/default", default_view)
         }))

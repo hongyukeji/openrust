@@ -34,7 +34,7 @@ pub(super) fn new_default<P: Model, R: Model>(
     keys: &RelationKeys<P, R>,
     attributes: Attributes,
 ) -> DatabaseResult<Arc<R>> {
-    let mut model = R::newInstance(Attributes::new())?;
+    let mut model = R::new_instance(Attributes::new())?;
     if parent.state().connection.is_some()
         || (R::metadata().connection.is_none() && P::metadata().connection.is_some())
     {

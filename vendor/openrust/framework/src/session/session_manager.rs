@@ -294,7 +294,7 @@ impl SessionManager {
                         Some(path) => self.base.join(path),
                         None => self.paths.as_ref().map_or_else(
                             || self.base.join("storage/framework/sessions"),
-                            |paths| paths.storagePath("framework/sessions"),
+                            |paths| paths.storage_path("framework/sessions"),
                         ),
                     };
                     Box::new(FileSessionHandler::new(directory, self.lifetime)?)

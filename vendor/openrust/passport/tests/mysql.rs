@@ -67,10 +67,10 @@ fn config(_: &Path, _: &Environment) -> Result<BTreeMap<String, Value>, ConfigEr
 fn application(registered: bool) -> TestApp {
     let app = TestApp::create(|builder| {
         let builder = builder
-            .withConfig(config)
-            .withProviders(vec![Box::new(PassportServiceProvider)]);
+            .with_config(config)
+            .with_providers(vec![Box::new(PassportServiceProvider)]);
         if registered {
-            builder.withMigrations(ENTRIES)
+            builder.with_migrations(ENTRIES)
         } else {
             builder
         }

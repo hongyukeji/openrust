@@ -52,7 +52,7 @@ fn config(_: &Path, _: &Environment) -> Result<BTreeMap<String, Value>, ConfigEr
 struct Configs;
 impl Facade for Configs {
     type Service = dyn openrust::contracts::config::Repository;
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         "config".into()
     }
 }
@@ -60,8 +60,8 @@ struct Report(String);
 struct Reports;
 impl Facade for Reports {
     type Service = Report;
-    const cached: bool = false;
-    fn getFacadeAccessor() -> ServiceKey {
+    const CACHED: bool = false;
+    fn get_facade_accessor() -> ServiceKey {
         ServiceKey::typed::<Report>()
     }
 }
@@ -90,7 +90,7 @@ impl ServiceProvider for Provider {
                 .await?;
             config.set("app.env", Value::String(self.0.into()))?;
             app.container()
-                .resolveEnvironmentUsing(Some(Arc::new(move |query| {
+                .resolve_environment_using(Some(Arc::new(move |query| {
                     let Some(Value::String(current)) = config.get("app.env") else {
                         return Err(BindingResolutionError::FactoryFailed {
                             service: "environment",
@@ -104,23 +104,23 @@ impl ServiceProvider for Provider {
                     })
                 })));
             let container = app.container();
-            container.registerClass(ClassDescriptor::concrete(vec![], |_| {
+            container.register_class(ClassDescriptor::concrete(vec![], |_| {
                 Ok(Arc::new(Testing))
             })?)?;
-            container.registerClass(ClassDescriptor::concrete(vec![], |_| {
+            container.register_class(ClassDescriptor::concrete(vec![], |_| {
                 Ok(Arc::new(DefaultSelection))
             })?)?;
-            container.registerBindingAttributes::<dyn Selected>(vec![
+            container.register_binding_attributes::<dyn Selected>(vec![
                 Bind::new::<dyn Selected, DefaultSelection>(|value| value).into(),
                 Bind::new::<dyn Selected, Testing>(|value| value)
-                    .forEnvironments(["testing"])
+                    .for_environments(["testing"])
                     .into(),
             ])?;
             let selected = ServiceKey::typed::<dyn Selected>();
-            container.beforeResolving(Some(ServiceKey::typed::<Testing>()), |_, _| {
+            container.before_resolving(Some(ServiceKey::typed::<Testing>()), |_, _| {
                 panic!("the concrete lookup must not raise an inner event");
             })?;
-            container.afterResolving(Some(ServiceKey::typed::<Testing>()), {
+            container.after_resolving(Some(ServiceKey::typed::<Testing>()), {
                 let selected = selected.clone();
                 move |event, c| {
                     assert_eq!(event.key(), &selected);
@@ -129,10 +129,10 @@ impl ServiceProvider for Provider {
                         &concrete,
                         &event.value::<dyn Selected>().unwrap()
                     ));
-                    c.offsetSet("binding-event", Arc::new(concrete.label()))
+                    c.offset_set("binding-event", Arc::new(concrete.label()))
                 }
             })?;
-            container.afterResolving(
+            container.after_resolving(
                 Some(ServiceKey::typed::<DefaultSelection>()),
                 move |event, c| {
                     assert_eq!(event.key(), &selected);
@@ -141,14 +141,14 @@ impl ServiceProvider for Provider {
                         &concrete,
                         &event.value::<dyn Selected>().unwrap()
                     ));
-                    c.offsetSet("binding-event", Arc::new(concrete.label()))
+                    c.offset_set("binding-event", Arc::new(concrete.label()))
                 },
             )?;
             app.container().bind::<Report, _>(|c| {
-                let EnvironmentResult::String(current) = c.currentEnvironmentIs(&[])? else {
+                let EnvironmentResult::String(current) = c.current_environment_is(&[])? else {
                     panic!("custom resolver must return string for empty array");
                 };
-                let matches = bool::from(c.currentEnvironmentIs("testing")?);
+                let matches = bool::from(c.current_environment_is("testing")?);
                 Ok(Arc::new(Report(format!("{current}:{matches}"))))
             })?;
             Ok(())
@@ -157,13 +157,13 @@ impl ServiceProvider for Provider {
 }
 fn read(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let report = Reports::getFacadeRootAsync().await?;
+        let report = Reports::get_facade_root_async().await?;
         Ok(Response::new(StatusCode::OK, Body::from(report.0.clone())))
     })
 }
 fn bad(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
-        Configs::getFacadeRoot()?
+        Configs::get_facade_root()?
             .set("app.env", Value::Bool(false))
             .unwrap();
         read(request).await
@@ -171,7 +171,7 @@ fn bad(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 }
 fn fix(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
-        Configs::getFacadeRoot()?
+        Configs::get_facade_root()?
             .set("app.env", Value::String("testing".into()))
             .unwrap();
         read(request).await
@@ -179,8 +179,10 @@ fn fix(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 }
 fn read_binding(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let selected = Container::getInstance().makeAsync::<dyn Selected>().await?;
-        let observed = Container::getInstance().offsetGet::<&'static str>("binding-event")?;
+        let selected = Container::get_instance()
+            .make_async::<dyn Selected>()
+            .await?;
+        let observed = Container::get_instance().offset_get::<&'static str>("binding-event")?;
         assert_eq!(*observed, selected.label());
         Ok(Response::new(StatusCode::OK, Body::from(selected.label())))
     })
@@ -193,12 +195,12 @@ fn routes() -> Result<(), RoutingError> {
 }
 fn application(root: &Root, name: &'static str) -> Application {
     Application::configure(root.0.clone())
-        .withConfig(config)
-        .withProviders(vec![Box::new(Provider(name))])
-        .withExceptions(|exceptions| {
+        .with_config(config)
+        .with_providers(vec![Box::new(Provider(name))])
+        .with_exceptions(|exceptions| {
             exceptions.shouldRenderJsonWhen(|_, _| true);
         })
-        .withRouting(Routing::default().web(routes))
+        .with_routing(Routing::default().web(routes))
         .create()
         .unwrap()
 }
@@ -276,14 +278,14 @@ impl ServiceProvider for DefaultEnvironmentProvider {
             assert_eq!(app.environment(Some(current.as_ref().into()))?, true.into());
             assert_eq!(app.environment(Some("QA.*".into()))?, false.into());
             assert_eq!(app.environment(Some((&[]).into()))?, false.into());
-            assert_eq!(app.container().currentEnvironmentIs(&[])?, false.into());
+            assert_eq!(app.container().current_environment_is(&[])?, false.into());
             app.config()?
                 .set("app.env", Value::String("changed".into()))?;
             assert_eq!(app.environment(None)?, name);
 
             app.container().bind::<Report, _>(|container| {
                 let name = container.get::<str>("env")?;
-                let matches = bool::from(container.currentEnvironmentIs(&["testing", "qa.*"])?);
+                let matches = bool::from(container.current_environment_is(&["testing", "qa.*"])?);
                 Ok(Arc::new(Report(format!("{name}:{matches}"))))
             })?;
             Ok(())
@@ -296,11 +298,11 @@ async fn configured_environment_is_available_to_providers_and_isolated_across_ht
     let root = Root::new();
     let builder = || {
         Application::configure(root.0.clone())
-            .withProviders(vec![Box::new(DefaultEnvironmentProvider)])
-            .withRouting(Routing::default().web(routes))
+            .with_providers(vec![Box::new(DefaultEnvironmentProvider)])
+            .with_routing(Routing::default().web(routes))
     };
     let configured = builder()
-        .withConfig(|_, _| {
+        .with_config(|_, _| {
             Ok(BTreeMap::from([(
                 "app".into(),
                 serde_json::json!({"host":"127.0.0.1","port":0,"env":"qa.部署"}),
@@ -308,9 +310,9 @@ async fn configured_environment_is_available_to_providers_and_isolated_across_ht
         })
         .create()
         .unwrap();
-    let fallback = builder().withConfig(config).create().unwrap();
+    let fallback = builder().with_config(config).create().unwrap();
     let invalid = builder()
-        .withConfig(|_, _| {
+        .with_config(|_, _| {
             Ok(BTreeMap::from([(
                 "app".into(),
                 serde_json::json!({"env": false}),

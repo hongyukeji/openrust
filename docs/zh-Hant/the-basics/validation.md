@@ -183,7 +183,7 @@ fn mailbox_rules() -> ValidationResult<RuleSet> {
 
 ### 排除敏感輸入
 
-密碼欄位會從舊輸入排除。可在 `withExceptions` 中用 `dontFlash` 註冊額外路徑。
+密碼欄位會從舊輸入排除。可在 `with_exceptions` 中用 `dontFlash` 註冊額外路徑。
 
 ```rust
 use openrust::foundation::configuration::Exceptions;

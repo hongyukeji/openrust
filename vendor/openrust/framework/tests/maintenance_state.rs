@@ -16,14 +16,14 @@ async fn file_maintenance_is_atomic_shared_by_root_and_reports_invalid_payload()
     let first = file_application(root.path()).await;
     let second = file_application(root.path()).await;
     let unrelated_app = file_application(unrelated.path()).await;
-    let first_mode = first.maintenanceMode().unwrap();
-    let second_mode = second.maintenanceMode().unwrap();
+    let first_mode = first.maintenance_mode().unwrap();
+    let second_mode = second.maintenance_mode().unwrap();
 
     let initial = Map::from_iter([("status".into(), json!(503))]);
     first_mode.activate(&initial).await.unwrap();
-    assert!(second.isDownForMaintenance().await.unwrap());
+    assert!(second.is_down_for_maintenance().await.unwrap());
     assert_eq!(second_mode.data().await.unwrap(), Some(initial));
-    assert!(!unrelated_app.isDownForMaintenance().await.unwrap());
+    assert!(!unrelated_app.is_down_for_maintenance().await.unwrap());
 
     let next = Map::from_iter([("status".into(), json!(503)), ("retry".into(), json!(20))]);
     let alternate = Map::from_iter([("status".into(), json!(502)), ("retry".into(), json!(30))]);
@@ -34,10 +34,10 @@ async fn file_maintenance_is_atomic_shared_by_root_and_reports_invalid_payload()
     assert!(current == next || current == alternate);
 
     std::fs::write(root.path().join("storage/framework/down"), b"{").unwrap();
-    assert!(second.isDownForMaintenance().await.unwrap());
+    assert!(second.is_down_for_maintenance().await.unwrap());
     assert!(second_mode.data().await.is_err());
     first_mode.deactivate().await.unwrap();
-    assert!(!second.isDownForMaintenance().await.unwrap());
+    assert!(!second.is_down_for_maintenance().await.unwrap());
 }
 
 #[tokio::test]
@@ -45,7 +45,7 @@ async fn array_maintenance_is_application_local_even_with_the_same_root() {
     let root = tempfile::tempdir().unwrap();
     let app = || {
         Application::configure(root.path().into())
-            .withConfig(|_, _| {
+            .with_config(|_, _| {
                 Ok(BTreeMap::from([(
                     "app".into(),
                     json!({"maintenance":{"driver":"array"}}),
@@ -59,13 +59,13 @@ async fn array_maintenance_is_application_local_even_with_the_same_root() {
     first.boot().await.unwrap();
     second.boot().await.unwrap();
     first
-        .maintenanceMode()
+        .maintenance_mode()
         .unwrap()
         .activate(&Map::new())
         .await
         .unwrap();
-    assert!(first.isDownForMaintenance().await.unwrap());
-    assert!(!second.isDownForMaintenance().await.unwrap());
+    assert!(first.is_down_for_maintenance().await.unwrap());
+    assert!(!second.is_down_for_maintenance().await.unwrap());
     assert!(!root.path().join("storage/framework/down").exists());
 }
 
@@ -75,14 +75,14 @@ async fn artisan_dispatches_maintenance_events_and_http_exclusions_are_applicati
 
     let mut excluded = TestApp::create(|builder| {
         builder
-            .withRouting(Routing::default().health("/up"))
-            .withMiddleware(|middleware| {
+            .with_routing(Routing::default().health("/up"))
+            .with_middleware(|middleware| {
                 middleware.preventRequestsDuringMaintenance(["status/*"]);
             })
     })
     .unwrap();
     let mut normal =
-        TestApp::create(|builder| builder.withRouting(Routing::default().health("/ready")))
+        TestApp::create(|builder| builder.with_routing(Routing::default().health("/ready")))
             .unwrap();
     let events = excluded.fakeEvents(&[]).await.unwrap();
     let enabled = "foundation.maintenance_mode_enabled";
@@ -96,7 +96,7 @@ async fn artisan_dispatches_maintenance_events_and_http_exclusions_are_applicati
 
     let payload = excluded
         .app()
-        .maintenanceMode()
+        .maintenance_mode()
         .unwrap()
         .data()
         .await
@@ -125,12 +125,12 @@ async fn file_maintenance_follows_storage_changes_even_after_service_resolution(
     let first = root.path().join("first");
     let next = root.path().join("next");
     let app = file_application(root.path()).await;
-    app.useStoragePath(&first).unwrap();
-    let mode = app.maintenanceMode().unwrap();
+    app.use_storage_path(&first).unwrap();
+    let mode = app.maintenance_mode().unwrap();
     mode.activate(&Map::new()).await.unwrap();
     assert!(first.join("framework/down").exists());
     assert!(!root.path().join("storage/framework/down").exists());
-    app.useStoragePath(&next).unwrap();
+    app.use_storage_path(&next).unwrap();
     assert!(!mode.active().await.unwrap());
     mode.activate(&Map::new()).await.unwrap();
     assert!(next.join("framework/down").exists());

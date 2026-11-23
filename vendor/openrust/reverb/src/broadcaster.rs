@@ -29,9 +29,9 @@ pub struct ReverbServiceProvider;
 impl ServiceProvider for ReverbServiceProvider {
     fn register<'a>(&'a mut self, app: &'a Application) -> BroadcastFuture<'a, ProviderResult> {
         Box::pin(async move {
-            if !app.configurationIsCached() {
+            if !app.configuration_is_cached() {
                 let env = app.make::<openrust::config::Environment>().await?;
-                self.mergeConfigFrom(app, crate::configuration::load(&env)?, "reverb")?;
+                self.merge_config_from(app, crate::configuration::load(&env)?, "reverb")?;
             }
             Ok(())
         })

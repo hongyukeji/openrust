@@ -132,8 +132,8 @@ async fn http_reports_default_logs_with_context_and_deduplicates_only_shared_ins
     let callbacks = Arc::new(AtomicUsize::new(0));
     let observed = callbacks.clone();
     let application = Application::configure(root.0.clone())
-        .withRouting(Routing::new(routes))
-        .withExceptions(move |exceptions| {
+        .with_routing(Routing::new(routes))
+        .with_exceptions(move |exceptions| {
             exceptions
                 .dontReportDuplicates()
                 .dontReport::<io::Error>()
@@ -210,7 +210,7 @@ async fn ignored_shared_error_can_report_later_and_deduplication_is_application_
     let ignore = Arc::new(AtomicBool::new(true));
     let observed = ignore.clone();
     let mut app = Application::configure(root.0.clone())
-        .withExceptions(move |exceptions| {
+        .with_exceptions(move |exceptions| {
             exceptions
                 .dontReportDuplicates()
                 .dontReportWhen(move |_| observed.load(Ordering::Relaxed))
@@ -219,7 +219,7 @@ async fn ignored_shared_error_can_report_later_and_deduplication_is_application_
         .create()
         .unwrap();
     let mut second = Application::configure(other.0.clone())
-        .withExceptions(|exceptions| {
+        .with_exceptions(|exceptions| {
             exceptions.dontReportDuplicates();
         })
         .create()
@@ -280,9 +280,9 @@ fn commands(artisan: &mut openrust::console::Application) -> Result<(), ConsoleE
 
 async fn run_artisan(root: &Path, limited: bool) -> i32 {
     Application::configure(root.to_path_buf())
-        .withCommands(commands)
-        .withConfig(|_, _| Ok(array_cache()))
-        .withExceptions(move |exceptions| {
+        .with_commands(commands)
+        .with_config(|_, _| Ok(array_cache()))
+        .with_exceptions(move |exceptions| {
             if limited {
                 exceptions
                     .throttle::<ConsoleError>(|_| Some(ReportThrottle::Limit(Limit::perMinute(0))));
@@ -290,7 +290,7 @@ async fn run_artisan(root: &Path, limited: bool) -> i32 {
         })
         .create()
         .unwrap()
-        .handleCommand(&[OsString::from("report:probe")])
+        .handle_command(&[OsString::from("report:probe")])
         .await
         .unwrap()
 }
@@ -349,8 +349,8 @@ async fn sampling_changes_log_count_and_preserves_actual_http_error_responses() 
     let callbacks = Arc::new(AtomicUsize::new(0));
     let observed = callbacks.clone();
     let application = Application::configure(root.0.clone())
-        .withRouting(Routing::new(routes))
-        .withExceptions(move |exceptions| {
+        .with_routing(Routing::new(routes))
+        .with_exceptions(move |exceptions| {
             exceptions.throttle::<Failure>(move |failure| {
                 let lottery = if failure.0 == "conditional" {
                     winning
@@ -398,9 +398,9 @@ async fn concurrent_http_reports_use_an_atomic_budget_and_resume_after_decay() {
     let callbacks = Arc::new(AtomicUsize::new(0));
     let observed = callbacks.clone();
     let application = Application::configure(root.0.clone())
-        .withConfig(|_, _| Ok(array_cache()))
-        .withRouting(Routing::new(routes))
-        .withExceptions(move |exceptions| {
+        .with_config(|_, _| Ok(array_cache()))
+        .with_routing(Routing::new(routes))
+        .with_exceptions(move |exceptions| {
             exceptions.throttle::<Failure>(|failure| {
                 let limit = if failure.0 == "conditional" {
                     Limit::perMinute(1).by("conditional")
@@ -449,12 +449,12 @@ async fn concurrent_http_reports_use_an_atomic_budget_and_resume_after_decay() {
 async fn unavailable_throttle_store_does_not_suppress_explicit_reports() {
     let root = Root::new();
     let mut app = Application::configure(root.0.clone())
-        .withConfig(|_, _| {
+        .with_config(|_, _| {
             let mut config = array_cache();
             config.get_mut("cache").unwrap()["limiter"] = json!("missing");
             Ok(config)
         })
-        .withExceptions(|exceptions| {
+        .with_exceptions(|exceptions| {
             exceptions.throttle::<Failure>(|_| Some(ReportThrottle::Limit(Limit::perMinute(0))));
         })
         .create()
@@ -470,8 +470,8 @@ async fn unavailable_throttle_store_does_not_suppress_explicit_reports() {
 async fn explicit_keys_share_a_budget_across_error_types_within_each_application() {
     async fn application(root: &Root) -> Application {
         let mut app = Application::configure(root.0.clone())
-            .withConfig(|_, _| Ok(array_cache()))
-            .withExceptions(|exceptions| {
+            .with_config(|_, _| Ok(array_cache()))
+            .with_exceptions(|exceptions| {
                 exceptions.throttle::<Failure>(|_| {
                     Some(ReportThrottle::Limit(Limit::perMinute(1).by("shared")))
                 });

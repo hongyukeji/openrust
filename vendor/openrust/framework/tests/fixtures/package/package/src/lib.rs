@@ -41,12 +41,12 @@ impl Component for Mark {
 impl ServiceProvider for ProbeProvider {
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async {
-            self.mergeConfigFrom(
+            self.merge_config_from(
                 app,
                 json!({"enabled": true, "options": {"package": 1}}),
                 "probe.shallow",
             )?;
-            self.replaceConfigRecursivelyFrom(
+            self.replace_config_recursively_from(
                 app,
                 json!({"options": {"package": 1}, "indices": ["first", "second"]}),
                 "probe.recursive",
@@ -63,16 +63,16 @@ impl ServiceProvider for ProbeProvider {
 
     fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async {
-            self.loadRoutesFrom(app, routes)?;
-            self.loadViewsFrom(app, &self.0.join("views"), "probe")
+            self.load_routes_from(app, routes)?;
+            self.load_views_from(app, &self.0.join("views"), "probe")
                 .await?;
-            self.loadTranslationsFrom(app, &self.0.join("lang"), "probe")
+            self.load_translations_from(app, &self.0.join("lang"), "probe")
                 .await?;
-            self.loadJsonTranslationsFrom(app, &self.0.join("lang"))
+            self.load_json_translations_from(app, &self.0.join("lang"))
                 .await?;
-            self.loadViewComponentsAs(app, "probe", "mark", |_| Ok(Mark))
+            self.load_view_components_as(app, "probe", "mark", |_| Ok(Mark))
                 .await?;
-            self.loadMigrationsFrom(app, MIGRATIONS).await?;
+            self.load_migrations_from(app, MIGRATIONS).await?;
             self.commands(app, commands);
             Ok(())
         })
@@ -89,9 +89,7 @@ fn routes() -> Result<(), RoutingError> {
 
 fn messages(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let message = |key| {
-            __(key, &Default::default()).map_err(Into::into)
-        };
+        let message = |key| __(key, &Default::default()).map_err(Into::into);
         Response::json(
             StatusCode::OK,
             json!({

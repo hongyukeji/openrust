@@ -57,14 +57,14 @@ struct Report(String);
 struct Reports;
 impl Facade for Reports {
     type Service = Report;
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         ServiceKey::typed::<Report>()
     }
 }
 struct BadReports;
 impl Facade for BadReports {
     type Service = Report;
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         "bad-report".into()
     }
 }
@@ -80,11 +80,11 @@ impl ServiceProvider for Provider {
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
             app.container()
-                .singletonAsync::<u32, _>(|c| {
+                .singleton_async::<u32, _>(|c| {
                     Box::pin(async move {
                         tokio::task::yield_now().await;
                         let value = c
-                            .getLastParameterOverride()
+                            .get_last_parameter_override()
                             .get(&ParameterKey::name("number"))
                             .map(|v| v.downcast::<u32>())
                             .transpose()?
@@ -94,38 +94,38 @@ impl ServiceProvider for Provider {
                 })
                 .await?;
             app.container()
-                .bindAsyncNamed::<Report, _>("bad-report", |c| {
+                .bind_async_named::<Report, _>("bad-report", |c| {
                     Box::pin(async move {
                         let mut args = parameters(0);
                         args.insert(
                             ParameterKey::name("number"),
                             ParameterValue::new("private request argument"),
                         );
-                        let value = c.makeWithAsync::<u32>(args).await?;
+                        let value = c.make_with_async::<u32>(args).await?;
                         Ok(Arc::new(Report(value.to_string())))
                     })
                 })
                 .await?;
             let name = self.name;
             app.container()
-                .bindAsync::<Report, _>(move |c| {
+                .bind_async::<Report, _>(move |c| {
                     Box::pin(async move {
-                        let overridden = c.makeWithAsync::<u32>(parameters(7)).await?;
-                        let normal = c.makeAsync::<u32>().await?;
+                        let overridden = c.make_with_async::<u32>(parameters(7)).await?;
+                        let normal = c.make_async::<u32>().await?;
                         let failed = {
                             let mut args = parameters(0);
                             args.insert(
                                 ParameterKey::name("number"),
                                 ParameterValue::new("private bad value"),
                             );
-                            c.makeWithAsync::<u32>(args).await
+                            c.make_with_async::<u32>(args).await
                         };
                         assert!(matches!(
                             failed,
                             Err(BindingResolutionError::ParameterTypeMismatch { .. })
                         ));
-                        let retry = c.makeWithAsync::<u32>(parameters(9)).await?;
-                        assert!(Arc::ptr_eq(&normal, &c.makeAsync::<u32>().await?));
+                        let retry = c.make_with_async::<u32>(parameters(9)).await?;
+                        assert!(Arc::ptr_eq(&normal, &c.make_async::<u32>().await?));
                         Ok(Arc::new(Report(format!(
                             "{name}:{overridden}:{normal}:{retry}"
                         ))))
@@ -137,7 +137,7 @@ impl ServiceProvider for Provider {
     }
     fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
-            assert_eq!(*app.makeWith::<u32>(parameters(6)).await?, 6);
+            assert_eq!(*app.make_with::<u32>(parameters(6)).await?, 6);
             assert!(!app.container().resolved(ServiceKey::typed::<u32>())?);
             Ok(())
         })
@@ -147,9 +147,9 @@ fn read(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     let invalid = request.uri().path() == "/invalid";
     Box::pin(async move {
         let report = if invalid {
-            BadReports::getFacadeRootAsync().await
+            BadReports::get_facade_root_async().await
         } else {
-            Reports::getFacadeRootAsync().await
+            Reports::get_facade_root_async().await
         }?;
         Ok(Response::new(StatusCode::OK, Body::from(report.0.clone())))
     })
@@ -160,11 +160,11 @@ fn routes() -> Result<(), RoutingError> {
 }
 fn application(root: &Root, name: &'static str) -> Application {
     Application::configure(root.0.clone())
-        .withConfig(config)
-        .withProviders(vec![Box::new(DeferredProvider::new(move || Provider {
+        .with_config(config)
+        .with_providers(vec![Box::new(DeferredProvider::new(move || Provider {
             name,
         }))])
-        .withRouting(Routing::default().web(routes))
+        .with_routing(Routing::default().web(routes))
         .create()
         .unwrap()
 }

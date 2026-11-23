@@ -59,7 +59,7 @@ impl PreparedMail {
                 attachment_sources: mailable.attachment_sources()?,
                 inline_attachments: mailable.inline_attachments()?,
                 headers: mailable.headers()?,
-                locale: locale.clone().or_else(|| Lang::getLocale().ok()),
+                locale: locale.clone().or_else(|| Lang::get_locale().ok()),
             })
         };
         match locale.as_deref() {

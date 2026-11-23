@@ -53,7 +53,7 @@ impl ServiceProvider for HostProvider {
         Box::pin(async move {
             let config = app.config()?;
             if app
-                .packageManifest()
+                .package_manifest()
                 .packages()
                 .iter()
                 .any(|p| p.name == "package-probe")
@@ -66,7 +66,7 @@ impl ServiceProvider for HostProvider {
                     })),
                 );
             }
-            self.loadRoutesFrom(app, health)
+            self.load_routes_from(app, health)
         })
     }
 }
@@ -82,9 +82,9 @@ fn ready(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 
 fn application() -> Result<Application, Box<dyn Error + Send + Sync>> {
     Ok(Application::configure(env::current_dir()?)
-        .withConfig(config)
-        .withPackages(packages::manifest())
-        .withProviders(vec![Box::new(HostProvider)])
+        .with_config(config)
+        .with_packages(packages::manifest())
+        .with_providers(vec![Box::new(HostProvider)])
         .create()?)
 }
 

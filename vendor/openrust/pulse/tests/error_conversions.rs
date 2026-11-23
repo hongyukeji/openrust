@@ -44,14 +44,14 @@ async fn public_consumer_reports_domain_and_returns_redacted_server_error() {
     let counter = reported.clone();
     let mut app = TestApp::create(move |builder| {
         builder
-            .withConfig(|_, _| Ok([("app".into(), serde_json::json!({"debug":false}))].into()))
-            .withExceptions(move |exceptions| {
+            .with_config(|_, _| Ok([("app".into(), serde_json::json!({"debug":false}))].into()))
+            .with_exceptions(move |exceptions| {
                 exceptions.report::<openrust_pulse::Error>(move |_| {
                     counter.store(true, std::sync::atomic::Ordering::SeqCst);
                     openrust::foundation::configuration::ReportDecision::Stop
                 });
             })
-            .withRouting(Routing::default().web(|| Route::get("/failure", unavailable)))
+            .with_routing(Routing::default().web(|| Route::get("/failure", unavailable)))
     })
     .unwrap();
     let response = app.get("/failure").await.unwrap();

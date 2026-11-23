@@ -122,9 +122,9 @@ fn register() -> Result<(), ConsoleError> {
 fn application() -> Result<Application, Box<dyn std::error::Error + Send + Sync>> {
     let root = PathBuf::from(std::env::var_os("APP_BASE_PATH").unwrap());
     Ok(Application::configure(root.clone())
-        .withProviders(vec![Box::new(ProbeProvider)])
-        .withRouting(Routing::default().commands(register))
-        .withExceptions(move |exceptions| {
+        .with_providers(vec![Box::new(ProbeProvider)])
+        .with_routing(Routing::default().commands(register))
+        .with_exceptions(move |exceptions| {
             exceptions.report::<Error>(move |error| {
                 let report = if matches!(error, Error::PayloadTooLarge) {
                     "launch.report"

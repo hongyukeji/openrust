@@ -85,7 +85,7 @@ async fn async_lookup_waits_for_boot_without_blocking_the_executor_or_leaking_in
         Err(BindingResolutionError::DeferredServiceRequiresAsync { .. })
     ));
     assert_eq!(loader.calls.load(Ordering::SeqCst), 0);
-    let lookup = c.getAsync::<u32>("answer");
+    let lookup = c.get_async::<u32>("answer");
     tokio::pin!(lookup);
     tokio::select! {
         value=&mut lookup => panic!("published before boot: {value:?}"),
@@ -95,7 +95,7 @@ async fn async_lookup_waits_for_boot_without_blocking_the_executor_or_leaking_in
         c.make::<u32>(),
         Err(BindingResolutionError::DeferredServiceRequiresAsync { .. })
     ));
-    let second = c.makeAsync::<u32>();
+    let second = c.make_async::<u32>();
     tokio::pin!(second);
     std::future::poll_fn(|cx| {
         assert!(second.as_mut().poll(cx).is_pending());
@@ -114,10 +114,10 @@ async fn explicit_instances_bypass_unstarted_loaders_and_apps_do_not_share_them(
     let (first, a) = fixture();
     let (second, b) = fixture();
     first.instance(Arc::new(9_u32)).unwrap();
-    assert_eq!(*first.makeAsync::<u32>().await.unwrap(), 9);
+    assert_eq!(*first.make_async::<u32>().await.unwrap(), 9);
     assert_eq!(*first.make::<u32>().unwrap(), 9);
     second.instance(Arc::new(7_u8)).unwrap();
-    assert_eq!(*second.makeAsync::<u8>().await.unwrap(), 7);
+    assert_eq!(*second.make_async::<u8>().await.unwrap(), 7);
     assert!(matches!(
         second.make::<u32>(),
         Err(BindingResolutionError::DeferredServiceRequiresAsync { .. })
@@ -132,7 +132,7 @@ async fn boot_errors_propagate_without_returning_partially_published_services() 
     loader.fail.store(true, Ordering::Release);
     loader.release.notify_one();
     assert!(matches!(
-        c.makeAsync::<u32>().await,
+        c.make_async::<u32>().await,
         Err(BindingResolutionError::FactoryFailed { .. })
     ));
     assert!(matches!(
@@ -144,7 +144,7 @@ async fn boot_errors_propagate_without_returning_partially_published_services() 
 #[tokio::test]
 async fn cancelled_loads_keep_the_readiness_gate_closed_and_can_be_resumed() {
     let (c, loader) = fixture();
-    let mut lookup = Box::pin(c.makeAsync::<u32>());
+    let mut lookup = Box::pin(c.make_async::<u32>());
     tokio::select! {value=&mut lookup=>panic!("early service: {value:?}"),_=loader.started.notified()=>{}}
     // Dropping the caller's future must never make its already published value usable.
     drop(lookup);
@@ -153,6 +153,6 @@ async fn cancelled_loads_keep_the_readiness_gate_closed_and_can_be_resumed() {
         Err(BindingResolutionError::DeferredServiceRequiresAsync { .. })
     ));
     loader.release.notify_one();
-    assert_eq!(*c.makeAsync::<u32>().await.unwrap(), 42);
+    assert_eq!(*c.make_async::<u32>().await.unwrap(), 42);
     assert_eq!(loader.calls.load(Ordering::SeqCst), 2);
 }

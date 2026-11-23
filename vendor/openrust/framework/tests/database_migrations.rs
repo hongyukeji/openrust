@@ -359,7 +359,7 @@ async fn mysql_artisan_excludes_named_pending_migrations_per_application() {
     let create = || {
         TestApp::create(|builder| {
             builder
-                .withConfig(|_, _| {
+                .with_config(|_, _| {
                     let url = std::env::var("OPENRUST_TEST_MYSQL_URL").unwrap();
                     Ok([(
                         "database".into(),
@@ -371,7 +371,7 @@ async fn mysql_artisan_excludes_named_pending_migrations_per_application() {
                     )]
                     .into())
                 })
-                .withMigrations(EXCLUSIONS)
+                .with_migrations(EXCLUSIONS)
         })
         .unwrap()
     };
@@ -438,7 +438,7 @@ async fn mysql_artisan_status_distinguishes_initial_skips_from_pending() {
     ];
     let mut app = TestApp::create(|builder| {
         builder
-            .withConfig(|_, _| {
+            .with_config(|_, _| {
                 let url = std::env::var("OPENRUST_TEST_MYSQL_URL").unwrap();
                 Ok([(
                     "database".into(),
@@ -450,7 +450,7 @@ async fn mysql_artisan_status_distinguishes_initial_skips_from_pending() {
                 )]
                 .into())
             })
-            .withMigrations(STATUS_ENTRIES)
+            .with_migrations(STATUS_ENTRIES)
     })
     .unwrap();
 
@@ -571,7 +571,7 @@ async fn destructive_migration_prohibition_is_local_to_the_application() {
 
     let create = |prohibit| {
         TestApp::create(|builder| {
-            let builder = builder.withConfig(|_, _| {
+            let builder = builder.with_config(|_, _| {
                 Ok([(
                     "database".into(),
                     json!({
@@ -582,7 +582,7 @@ async fn destructive_migration_prohibition_is_local_to_the_application() {
                 .into())
             });
             if prohibit {
-                builder.withProviders(vec![Box::new(ProhibitDestructiveCommands)])
+                builder.with_providers(vec![Box::new(ProhibitDestructiveCommands)])
             } else {
                 builder
             }
@@ -723,7 +723,7 @@ async fn mysql_artisan_dispatches_migration_and_schema_lifecycle_events() {
                     }
                     MigrationStarted::NAME => {
                         let e = event.downcast_ref::<MigrationStarted>().unwrap();
-                        let config = <openrust::support::facades::Config as openrust::support::facades::Facade>::getFacadeRoot().unwrap();
+                        let config = <openrust::support::facades::Config as openrust::support::facades::Facade>::get_facade_root().unwrap();
                         assert!(
                             e.migration
                                 .getConnection(config.as_ref())
@@ -793,13 +793,13 @@ async fn mysql_artisan_dispatches_migration_and_schema_lifecycle_events() {
     let received = Arc::new(Mutex::new(Vec::new()));
     let run = |args: &[&str]| {
         let application = Application::configure(root.path().to_owned())
-            .withConfig(config)
-            .withMigrations(ENTRIES)
-            .withProviders(vec![Box::new(Observer(received.clone()))])
+            .with_config(config)
+            .with_migrations(ENTRIES)
+            .with_providers(vec![Box::new(Observer(received.clone()))])
             .create()
             .unwrap();
         let arguments: Vec<_> = args.iter().map(std::ffi::OsString::from).collect();
-        async move { application.handleCommand(&arguments).await.unwrap() }
+        async move { application.handle_command(&arguments).await.unwrap() }
     };
     let take = || std::mem::take(&mut *received.lock().unwrap());
 

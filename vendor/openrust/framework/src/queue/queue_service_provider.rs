@@ -41,12 +41,12 @@ impl ServiceProvider for QueueServiceProvider {
         Box::pin(async move {
             let container = app.container_handle();
             let owner = Arc::downgrade(&container);
-            container.singletonNamed("queue", move |container| {
+            container.singleton_named("queue", move |container| {
                 let config = container.get::<dyn Repository>("config")?;
                 Ok(Arc::new(QueueManager::new(config, owner.clone())))
             })?;
             container.alias("queue", ServiceKey::typed::<QueueManager>())?;
-            container.singletonNamed::<dyn FailedJobProviderInterface, _>(
+            container.singleton_named::<dyn FailedJobProviderInterface, _>(
                 "queue.failer",
                 |container| {
                     let config = container.get::<dyn Repository>("config")?;

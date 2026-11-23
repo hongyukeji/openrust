@@ -52,7 +52,7 @@ impl RateLimited {
         payload: &Payload,
         next: JobNext<'_>,
     ) -> QueueResult<()> {
-        let limiter = RateLimiter::getFacadeRoot()
+        let limiter = RateLimiter::get_facade_root()
             .map_err(CacheError::from)
             .map_err(backend)?;
         let Some(policy) = limiter.job_limiter(&self.name) else {

@@ -1,5 +1,4 @@
 #![allow(non_snake_case, reason = "保留既定公开接口及命名")]
-
 use std::sync::Arc;
 
 use ::http::{HeaderName, HeaderValue, header::RETRY_AFTER};
@@ -68,7 +67,7 @@ pub(super) async fn handle(
     let named = if name.is_empty() || name.contains(',') {
         None
     } else {
-        RateLimiter::getFacadeRoot()
+        RateLimiter::get_facade_root()
             .map_err(CacheError::Unavailable)?
             .named_limiter(name)
     };
@@ -99,7 +98,7 @@ pub(super) async fn handle(
             limiter
         })
     } else {
-        let limiter = RateLimiter::getFacadeRoot().map_err(CacheError::Unavailable)?;
+        let limiter = RateLimiter::get_facade_root().map_err(CacheError::Unavailable)?;
         Backend::Cache(limiter.repository()?)
     };
     let mut quotas: Vec<_> = limits

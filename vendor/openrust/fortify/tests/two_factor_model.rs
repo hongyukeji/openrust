@@ -130,7 +130,7 @@ struct Fixture {
 struct FixtureFacade;
 impl Facade for FixtureFacade {
     type Service = Fixture;
-    fn getFacadeAccessor() -> openrust::container::ServiceKey {
+    fn get_facade_accessor() -> openrust::container::ServiceKey {
         openrust::container::ServiceKey::typed::<Fixture>()
     }
 }
@@ -173,7 +173,7 @@ impl Listener for Observe {
 }
 fn action(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
-        let fixture = FixtureFacade::getFacadeRoot().map_err(internal)?;
+        let fixture = FixtureFacade::get_facade_root().map_err(internal)?;
         let op = request
             .input(Some("op"))
             .await?
@@ -300,7 +300,7 @@ async fn two_factor_model_actions_persist_encrypted_state_and_events_on_mysql() 
         return;
     };
     let mut app = Application::configure(std::env::temp_dir())
-        .withConfig(|_, _| {
+        .with_config(|_, _| {
             let url = std::env::var("OPENRUST_TEST_MYSQL_URL").unwrap();
             Ok([
                 (
@@ -326,8 +326,8 @@ async fn two_factor_model_actions_persist_encrypted_state_and_events_on_mysql() 
             ]
             .into())
         })
-        .withProviders(vec![Box::new(FortifyServiceProvider), Box::new(Ignore)])
-        .withRouting(Routing::default().api(routes))
+        .with_providers(vec![Box::new(FortifyServiceProvider), Box::new(Ignore)])
+        .with_routing(Routing::default().api(routes))
         .create()
         .unwrap();
     app.boot().await.unwrap();

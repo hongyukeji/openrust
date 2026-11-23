@@ -28,7 +28,7 @@ impl Listener for Record {
 fn configure(
     builder: openrust::foundation::configuration::ApplicationBuilder,
 ) -> openrust::foundation::configuration::ApplicationBuilder {
-    builder.withConfig(|_, _| {
+    builder.with_config(|_, _| {
         Ok([(
             "cache".into(),
             serde_json::json!({

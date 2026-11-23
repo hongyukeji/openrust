@@ -45,7 +45,7 @@ fn register() -> Result<(), RoutingError> {
 #[tokio::test]
 async fn exclusions_resolve_nested_aliases_without_removing_global_middleware() {
     let app = Application::configure(std::env::temp_dir())
-        .withMiddleware(|middleware| {
+        .with_middleware(|middleware| {
             let stamp = Arc::new(Stamp);
             middleware
                 .append(stamp.clone())
@@ -53,7 +53,7 @@ async fn exclusions_resolve_nested_aliases_without_removing_global_middleware() 
                 .group("inner", [MiddlewareEntry::named("stamp")])
                 .group("outer", [MiddlewareEntry::named("inner")]);
         })
-        .withRouting(Routing::default().web(register))
+        .with_routing(Routing::default().web(register))
         .create()
         .unwrap();
     let mut kernel = Kernel::new(app);

@@ -24,7 +24,7 @@ pub struct Broadcast;
 impl Facade for Broadcast {
     type Service = BroadcastManager;
 
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         "broadcast".into()
     }
 }
@@ -89,7 +89,7 @@ impl Broadcast {
     }
 
     pub fn connection(name: Option<&str>) -> BroadcastResult<Arc<dyn Broadcaster>> {
-        Self::getFacadeRoot()
+        Self::get_facade_root()
             .map_err(|error| BroadcastException::Backend(Box::new(error)))?
             .connection(name)
     }

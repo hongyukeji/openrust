@@ -51,7 +51,7 @@ impl Relation for SelfReference {
 async fn model_json_stops_at_repeated_models_and_retries_projection_errors() {
     let reference = Arc::new(OnceLock::new());
     let relation = SelfReference(reference.clone());
-    let mut model = Article::newInstance(attrs([("title", "Post".into())])).unwrap();
+    let mut model = Article::new_instance(attrs([("title", "Post".into())])).unwrap();
     model.load("selfReference", &relation).await.unwrap();
     assert!(model.toJson().is_err());
     let model = Arc::new(model);
@@ -1594,7 +1594,7 @@ async fn verify_model_reload(db: &Connection, model: &mut Article) {
         Err(DatabaseError::ModelNotFound("articles"))
     ));
     assert_eq!(model.getAttribute("title"), Some(&"Read back".into()));
-    let mut unsaved = Article::newInstance(Attributes::new()).unwrap();
+    let mut unsaved = Article::new_instance(Attributes::new()).unwrap();
     assert!(unsaved.fresh().await.unwrap().is_none());
     assert!(!unsaved.refresh().await.unwrap().state().exists());
 }

@@ -1952,7 +1952,7 @@ async fn preview_for_parent<M: HasFactory, P: Model>(parent: &P) -> DatabaseResu
 }
 ```
 
-Use `makeWithState`, `createWithState`, or `createQuietlyWithState` to apply a final state for one operation. Counted factories also accept an attribute map through `makeWith`, `createWith`, or `createQuietlyWith`. For one model, the map forms are `makeOne`, `createOne`, and `createOneQuietly`. The corresponding `On` forms select a connection.
+Use `makeWithState`, `createWithState`, or `createQuietlyWithState` to apply a final state for one operation. Counted factories also accept an attribute map through `make_with`, `createWith`, or `createQuietlyWith`. For one model, the map forms are `makeOne`, `createOne`, and `createOneQuietly`. The corresponding `On` forms select a connection.
 
 The callback receives the attributes accumulated for each model before deferred attributes and parent keys are resolved. The final state applies only to that call.
 
@@ -1963,7 +1963,7 @@ async fn seed_with_final_state<M: Model>() -> DatabaseResult<()> {
     let name = |value: &str| Attributes::from([("name".into(), value.into())]);
     let batch = Factory::<M>::new(move || name("Flight")).count(2);
 
-    let drafts = batch.makeWith(name("Preview")).await?;
+    let drafts = batch.make_with(name("Preview")).await?;
     assert!(drafts.iter().all(|model| !model.state().exists()));
 
     let saved = batch.createWithState(|attributes| {

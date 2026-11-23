@@ -68,7 +68,6 @@ pub(crate) async fn emit<E: EventContract>(
         .map_err(internal)?;
     Ok(())
 }
-#[allow(non_snake_case, reason = "Matches Fortify's login actions")]
 impl AttemptToAuthenticate {
     pub fn new(fortify: Arc<Fortify>, limiter: Arc<LoginRateLimiter>) -> Self {
         Self { fortify, limiter }
@@ -88,7 +87,7 @@ impl AttemptToAuthenticate {
                     emit(
                         Failed {
                             guard: self.fortify.guard().unwrap_or(
-                                Resolver::<openrust::auth::AuthManager>::getFacadeRoot()
+                                Resolver::<openrust::auth::AuthManager>::get_facade_root()
                                     .map_err(internal)?
                                     .getDefaultDriver(),
                             ),
@@ -127,7 +126,7 @@ impl EnsureLoginIsNotThrottled {
         emit(
             Lockout {
                 guard: self.fortify.guard().unwrap_or(
-                    Resolver::<openrust::auth::AuthManager>::getFacadeRoot()
+                    Resolver::<openrust::auth::AuthManager>::get_facade_root()
                         .map_err(internal)?
                         .getDefaultDriver(),
                 ),
@@ -136,7 +135,7 @@ impl EnsureLoginIsNotThrottled {
             &[request.parts()],
         )
         .await?;
-        let response = Resolver::<dyn contracts::LockoutResponse>::getFacadeRoot()
+        let response = Resolver::<dyn contracts::LockoutResponse>::get_facade_root()
             .map_err(internal)?
             .toResponse(request)
             .await?;

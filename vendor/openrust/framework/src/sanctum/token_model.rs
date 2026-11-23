@@ -193,7 +193,7 @@ impl<M: PersonalAccessTokenModel> ModelStore for EloquentTokenStore<M> {
         attributes: Attributes,
     ) -> DatabaseFuture<'_, DatabaseResult<PersonalAccessToken>> {
         Box::pin(async move {
-            let mut model = self.query().makeAsync(Attributes::new()).await?;
+            let mut model = self.query().make_async(Attributes::new()).await?;
             for (column, value) in attributes {
                 model.setAttributeValueAsync(&column, value).await?;
             }

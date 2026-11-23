@@ -538,13 +538,13 @@ async fn scheduler_artisan_fixture() {
         .map(OsString::from)
         .collect::<Vec<_>>();
     let app = Application::configure(root)
-        .withConfig(|base, _| {
+        .with_config(|base, _| {
             let config: serde_json::Map<String, Value> =
                 serde_json::from_slice(&std::fs::read(base.join("config.json")).unwrap()).unwrap();
             Ok(config.into_iter().collect())
         })
-        .withRouting(Routing::default().commands(routes))
-        .withExceptions(|exceptions| {
+        .with_routing(Routing::default().commands(routes))
+        .with_exceptions(|exceptions| {
             exceptions.report::<ConsoleError>(|error| {
                 if error.to_string().contains("scheduled callback error") {
                     println!("scheduled failure reported");
@@ -554,7 +554,7 @@ async fn scheduler_artisan_fixture() {
         })
         .create()
         .unwrap();
-    let status = app.handleCommand(&arguments).await.unwrap();
+    let status = app.handle_command(&arguments).await.unwrap();
     if status != 0 {
         std::process::exit(status);
     }

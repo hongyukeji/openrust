@@ -8,14 +8,14 @@ pub struct Validator;
 impl Facade for Validator {
     type Service = Factory;
 
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         "validator".into()
     }
 }
 
 impl Validator {
     pub fn make(data: Data, rules: RuleSet) -> ValidationResult<super::Validator> {
-        Self::getFacadeRoot()
+        Self::get_facade_root()
             .map_err(|source| ValidationError::Execution {
                 source: Box::new(source),
             })?
@@ -38,7 +38,7 @@ impl Validator {
         + 'static,
         message: Option<&str>,
     ) -> ValidationResult<()> {
-        Self::getFacadeRoot()
+        Self::get_facade_root()
             .map_err(|source| ValidationError::Execution {
                 source: Box::new(source),
             })?
@@ -58,7 +58,7 @@ impl Validator {
         + 'static,
         message: Option<&str>,
     ) -> ValidationResult<()> {
-        Self::getFacadeRoot()
+        Self::get_facade_root()
             .map_err(|source| ValidationError::Execution {
                 source: Box::new(source),
             })?
@@ -78,7 +78,7 @@ impl Validator {
         + 'static,
         message: Option<&str>,
     ) -> ValidationResult<()> {
-        Self::getFacadeRoot()
+        Self::get_facade_root()
             .map_err(|source| ValidationError::Execution {
                 source: Box::new(source),
             })?
@@ -92,7 +92,7 @@ impl Validator {
         + Sync
         + 'static,
     ) -> ValidationResult<()> {
-        Self::getFacadeRoot()
+        Self::get_facade_root()
             .map_err(|source| ValidationError::Execution {
                 source: Box::new(source),
             })?
@@ -105,7 +105,7 @@ impl Validator {
         + Sync
         + 'static,
     ) -> ValidationResult<()> {
-        Self::getFacadeRoot()
+        Self::get_facade_root()
             .map_err(|source| ValidationError::Execution {
                 source: Box::new(source),
             })?
@@ -117,7 +117,7 @@ impl Validator {
 #[allow(non_snake_case)]
 impl Validator {
     pub fn includeUnvalidatedArrayKeys() -> ValidationResult<()> {
-        Self::getFacadeRoot()
+        Self::get_facade_root()
             .map_err(|source| ValidationError::Execution {
                 source: Box::new(source),
             })?
@@ -125,7 +125,7 @@ impl Validator {
         Ok(())
     }
     pub fn excludeUnvalidatedArrayKeys() -> ValidationResult<()> {
-        Self::getFacadeRoot()
+        Self::get_facade_root()
             .map_err(|source| ValidationError::Execution {
                 source: Box::new(source),
             })?

@@ -33,13 +33,13 @@ impl ServiceProvider for LogServiceProvider {
                     defaults.clone()
                 })
             })?;
-            container.scopedIf::<Repository, _>(|container| {
+            container.scoped_if::<Repository, _>(|container| {
                 if !container.has_active_scope() {
                     return Err(crate::contracts::container::BindingResolutionError::ScopeClosed);
                 }
                 Ok(Arc::new(Repository::default()))
             })?;
-            container.singletonNamed("log", move |container| {
+            container.singleton_named("log", move |container| {
                 let config = container.get::<dyn crate::contracts::config::Repository>("config")?;
                 Ok(Arc::new(
                     LogManager::new(config, root.clone())

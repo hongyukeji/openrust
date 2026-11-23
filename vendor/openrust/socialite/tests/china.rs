@@ -441,7 +441,7 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
 }
 async fn rp(base: &str) -> (String, tokio::task::JoinHandle<()>) {
     let mut app = Application::configure(std::env::temp_dir())
-        .withConfig(|_, _| {
+        .with_config(|_, _| {
             Ok(BTreeMap::from([
                 ("services".into(), services()),
                 ("app".into(), json!({"key":"k".repeat(32),"env":"testing"})),
@@ -455,8 +455,8 @@ async fn rp(base: &str) -> (String, tokio::task::JoinHandle<()>) {
                 ),
             ]))
         })
-        .withProviders(vec![Box::new(SocialiteServiceProvider)])
-        .withRouting(Routing::default().web(routes))
+        .with_providers(vec![Box::new(SocialiteServiceProvider)])
+        .with_routing(Routing::default().web(routes))
         .create()
         .unwrap();
     app.boot().await.unwrap();

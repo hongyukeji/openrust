@@ -16,7 +16,7 @@ pub(crate) struct NotificationRoutes(RwLock<BTreeMap<String, NotificationRoute>>
 struct Routes;
 impl Facade for Routes {
     type Service = NotificationRoutes;
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         ServiceKey::typed::<NotificationRoutes>()
     }
 }
@@ -74,7 +74,7 @@ impl crate::Horizon {
     pub fn routeMailNotificationsTo(
         email: impl Into<String>,
     ) -> std::result::Result<(), BindingResolutionError> {
-        Routes::getFacadeRoot()?
+        Routes::get_facade_root()?
             .0
             .write()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
@@ -89,7 +89,7 @@ impl crate::Horizon {
     pub fn routeSlackNotificationsTo(
         route: impl Into<String>,
     ) -> std::result::Result<(), BindingResolutionError> {
-        Routes::getFacadeRoot()?
+        Routes::get_facade_root()?
             .0
             .write()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
@@ -102,7 +102,7 @@ impl crate::Horizon {
     pub fn routeSmsNotificationsTo(
         number: impl Into<String>,
     ) -> std::result::Result<(), BindingResolutionError> {
-        Routes::getFacadeRoot()?
+        Routes::get_facade_root()?
             .0
             .write()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
@@ -119,7 +119,7 @@ pub(crate) async fn monitor(repository: &Repository) -> Result<()> {
         return Ok(());
     }
     let config =
-        openrust::support::facades::Config::getFacadeRoot().map_err(|_| Error::Unavailable)?;
+        openrust::support::facades::Config::get_facade_root().map_err(|_| Error::Unavailable)?;
     for workload in repository.workload().get().await? {
         let Some(queue) = workload["name"].as_str() else {
             continue;
@@ -147,7 +147,7 @@ pub(crate) async fn monitor(repository: &Repository) -> Result<()> {
         if !repository.notificationLock(&name).await? {
             continue;
         }
-        let routes = Routes::getFacadeRoot()
+        let routes = Routes::get_facade_root()
             .map_err(|_| Error::Unavailable)?
             .0
             .read()

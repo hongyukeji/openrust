@@ -20,10 +20,10 @@ impl ServiceProvider for MigrationServiceProvider {
         Box::pin(async move {
             let root = application.base_path().to_path_buf();
             let container = application.container();
-            container.singletonIf::<MigrationRegistry, _>(|_| {
+            container.singleton_if::<MigrationRegistry, _>(|_| {
                 Ok(Arc::new(MigrationRegistry::default()))
             })?;
-            container.singletonNamed("migrator", move |container| {
+            container.singleton_named("migrator", move |container| {
                 let manager = container.get::<DatabaseManager>("db")?;
                 let config = container.get::<dyn crate::contracts::config::Repository>("config")?;
                 let registry =

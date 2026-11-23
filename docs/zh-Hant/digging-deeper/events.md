@@ -14,7 +14,7 @@
 
 `--event` 接受 `OrderPlaced` 等 PascalCase 事件名稱、`App/Events/OrderPlaced` 等應用程式限定名稱，或 `crate::app::events::order_placed::OrderPlaced` 等 Rust 路徑。
 
-在 Rust 模組樹中宣告產生的檔案，並在應用程式建構器的 `withEvents` 中傳入 `openrust::foundation::events::DiscoverEvents::new(&[register_orders])`。未使用 `--event` 的佇列監聽器在註冊時指定事件型別。產生的事件透過 Serde 衍生佇列所需的序列化能力。
+在 Rust 模組樹中宣告產生的檔案，並在應用程式建構器的 `with_events` 中傳入 `openrust::foundation::events::DiscoverEvents::new(&[register_orders])`。未使用 `--event` 的佇列監聽器在註冊時指定事件型別。產生的事件透過 Serde 衍生佇列所需的序列化能力。
 
 ```rust
 use crate::app::{
@@ -33,11 +33,11 @@ fn register_orders(registry: &mut ListenerRegistry) -> EventResult<()> {
 
 ## 註冊監聽器與訂閱者
 
-在應用程式中宣告註冊函式，透過 `withEvents(DiscoverEvents::new(&[register_orders]))` 接入。應用程式啟動時載入已編譯的清單。實作 `Subscriber` 後，可使用 `Event::subscribe` 成組註冊監聽器。執行 `./artisan event:list --event=orders --json` 查看註冊結果。
+在應用程式中宣告註冊函式，透過 `with_events(DiscoverEvents::new(&[register_orders]))` 接入。應用程式啟動時載入已編譯的清單。實作 `Subscriber` 後，可使用 `Event::subscribe` 成組註冊監聽器。執行 `./artisan event:list --event=orders --json` 查看註冊結果。
 
-在清單中呼叫 `registry.listenClass::<OrderListener>("orders.created", Delivery::Sync)?` 註冊監聽器型別，也可以在應用程式作用域內呼叫 `Event::listenClass`。在應用程式容器中為該型別繫結工廠，非同步依賴可用 `bindAsync`。派送到該監聽器時，框架從所屬應用程式的容器解析實例。缺少繫結會使派送失敗。使用 `Delivery::AfterCommit` 時，實例在派送時解析，交易成功提交後呼叫。
+在清單中呼叫 `registry.listenClass::<OrderListener>("orders.created", Delivery::Sync)?` 註冊監聽器型別，也可以在應用程式作用域內呼叫 `Event::listenClass`。在應用程式容器中為該型別繫結工廠，非同步依賴可用 `bind_async`。派送到該監聽器時，框架從所屬應用程式的容器解析實例。缺少繫結會使派送失敗。使用 `Delivery::AfterCommit` 時，實例在派送時解析，交易成功提交後呼叫。
 
-需要動態探索時，實作 `ShouldBeDiscovered`，用 `withListener` 接入監聽器註冊。用 `withEvents(discover_events())` 接入產生的清單。啟動時，探索條件讀取目前應用並決定是否註冊監聽器。條件回傳錯誤時，本次清單註冊失敗。透過 `Event::listen` 手動註冊的監聽器獨立於探索條件。
+需要動態探索時，實作 `ShouldBeDiscovered`，用 `withListener` 接入監聽器註冊。用 `with_events(discover_events())` 接入產生的清單。啟動時，探索條件讀取目前應用並決定是否註冊監聽器。條件回傳錯誤時，本次清單註冊失敗。透過 `Event::listen` 手動註冊的監聽器獨立於探索條件。
 
 ```rust
 use std::sync::Arc;
@@ -88,7 +88,7 @@ fn discover_events() -> DiscoverEvents {
 
 事件快取是選用的部署最佳化。應用程式啟動時，如果快取與編譯清單相符，就會重用有條件監聽器的啟用結果。快取遺失、損毀或不相符時，啟動會重新計算條件，且不寫入檔案。手動監聽器與無條件註冊照常執行。
 
-在部署環境執行 `./artisan event:cache`，將探索結果寫入 `storage/framework/cache/events.json`。用 `APP_EVENTS_CACHE` 指定絕對路徑或相對於應用程式根目錄的路徑。使用設定快取時，將此項設為服務的程序環境變數。啟動後可用 `getCachedEventsPath()` 查詢解析後的路徑。部署新版或修改探索條件後，重新產生快取。執行 `./artisan event:clear` 刪除檔案，下次啟動時重新判斷條件。
+在部署環境執行 `./artisan event:cache`，將探索結果寫入 `storage/framework/cache/events.json`。用 `APP_EVENTS_CACHE` 指定絕對路徑或相對於應用程式根目錄的路徑。使用設定快取時，將此項設為服務的程序環境變數。啟動後可用 `get_cached_events_path()` 查詢解析後的路徑。部署新版或修改探索條件後，重新產生快取。執行 `./artisan event:clear` 刪除檔案，下次啟動時重新判斷條件。
 
 模型生命週期處理程式可在服務提供者啟動時註冊為 [Eloquent 觀察者](../eloquent/getting-started.md#observers)。
 

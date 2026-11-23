@@ -8,7 +8,7 @@ A provider can resolve `BroadcastManager` and call `extend` with a driver name a
 
 ## Authorizing channels
 
-Register channel rules with `Broadcast::channel` and load them through `Routing::channels` or `withBroadcasting`. This enables GET and POST `/broadcasting/auth` in the web middleware group. The route excludes request forgery middleware and still requires the driver's authorization checks.
+Register channel rules with `Broadcast::channel` and load them through `Routing::channels` or `with_broadcasting`. This enables GET and POST `/broadcasting/auth` in the web middleware group. The route excludes request forgery middleware and still requires the driver's authorization checks.
 
 Rules such as `orders.{id}` receive the authenticated user and named parameters. Return `ChannelAuthorization::Allowed` for an authorized private subscription or `ChannelAuthorization::Presence(data)` to expose the specified member data. Use `channelWithOptions` to select the guard lookup order. Run `artisan channel:list` to inspect the registered patterns.
 

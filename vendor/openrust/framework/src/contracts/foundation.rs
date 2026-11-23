@@ -14,19 +14,16 @@ pub trait Application: Send + Sync {
     fn container(&self) -> &Self::Container;
     fn is_booted(&self) -> bool;
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn storagePath(&self, path: &str) -> std::path::PathBuf {
+    fn storage_path(&self, path: &str) -> std::path::PathBuf {
         crate::foundation::paths::join(&self.base_path().join("storage"), path)
     }
 
-    #[allow(non_snake_case)]
-    fn langPath(&self, path: &str) -> std::path::PathBuf {
+    fn lang_path(&self, path: &str) -> std::path::PathBuf {
         crate::foundation::paths::join(&crate::translation::language_path(self.base_path()), path)
     }
 
     /// Checks whether the currently bound environment is exactly `testing`.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn runningUnitTests(&self) -> Result<bool, BindingResolutionError> {
+    fn running_unit_tests(&self) -> Result<bool, BindingResolutionError> {
         if !self.container().has("env") {
             return Ok(false);
         }

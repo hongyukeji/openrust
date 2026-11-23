@@ -23,7 +23,7 @@ impl AuthorizationController {
                     .and_then(|v| v.as_object().cloned())
                     .unwrap_or_default(),
             );
-            let server = AuthorizationServer::getFacadeRoot()?;
+            let server = AuthorizationServer::get_facade_root()?;
             let validated = match server.validateAuthorizationRequest(&parameters).await {
                 Ok(value) => value,
                 Err(error) => return Ok(error.into_response().into()),
@@ -158,7 +158,7 @@ fn complete(request: &mut Request, approved: bool) -> HttpFuture<'_, Result<Resp
         if pending.user != user.getAuthIdentifier() {
             return Err(HttpError::Unauthenticated);
         }
-        let server = AuthorizationServer::getFacadeRoot()?;
+        let server = AuthorizationServer::get_facade_root()?;
         Ok(
             match server
                 .completeAuthorizationRequest(pending.request, pending.user, approved)
@@ -183,7 +183,7 @@ impl AccessTokenController {
                 .unwrap_or_default();
             let parameters = OAuthParameters::new(values);
             let header = request.headers().get("authorization").map(|h| h.as_bytes());
-            let server = AuthorizationServer::getFacadeRoot()?;
+            let server = AuthorizationServer::get_facade_root()?;
             let result = server
                 .respondToAccessTokenRequest(&parameters, header)
                 .await;
@@ -210,7 +210,7 @@ pub(super) fn select_guard(request: &mut Request) -> Result<(), HttpError> {
     Ok(())
 }
 pub(super) fn passport() -> Result<Arc<Passport>, HttpError> {
-    openrust::container::Container::getInstance()
+    openrust::container::Container::get_instance()
         .make::<Passport>()
         .map_err(Into::into)
 }

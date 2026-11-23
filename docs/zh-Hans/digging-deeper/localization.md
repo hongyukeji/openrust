@@ -9,7 +9,7 @@ APP_LOCALE=en
 APP_FALLBACK_LOCALE=en
 ```
 
-按框架教程，使用 `App::setLocale` 切换一次 HTTP 请求的语言，使用 `App::currentLocale` 读取语言，使用 `App::isLocale("en")?` 判断语言。路由示例：
+按框架教程，使用 `App::set_locale` 切换一次 HTTP 请求的语言，使用 `App::current_locale` 读取语言，使用 `App::is_locale("en")?` 判断语言。路由示例：
 
 ```rust
 use openrust::{
@@ -28,10 +28,10 @@ fn greeting(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
         if !["en", "zh-Hans", "zh-Hant"].contains(&locale.as_str()) {
             return Err(abort(StatusCode::BAD_REQUEST, "", Default::default()));
         }
-        App::setLocale(&locale).await.map_err(|source| HttpError::Internal {
+        App::set_locale(&locale).await.map_err(|source| HttpError::Internal {
             source: Box::new(source),
         })?;
-        let current = App::currentLocale().map_err(|source| HttpError::Internal {
+        let current = App::current_locale().map_err(|source| HttpError::Internal {
             source: Box::new(source),
         })?;
         Ok(Response::from(current))
@@ -39,11 +39,11 @@ fn greeting(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
 }
 ```
 
-`App::getLocale` 是 `currentLocale` 的同义入口；`getFallbackLocale`、`setFallbackLocale` 读写回退语言。`setLocale` 同步更新 `app.locale` 和译器，并发送 `foundation::events::LocaleUpdated`；事件包含 `locale` 和 `previousLocale`。Rust 的事件监听器可以异步执行，因此此方法需要 `.await`，失败通过 `Result` 返回。请求和队列任务内的修改互相隔离；启动阶段设置则作为该应用的默认值。
+`App::get_locale` 是 `current_locale` 的同义入口；`get_fallback_locale`、`set_fallback_locale` 读写回退语言。`set_locale` 同步更新 `app.locale` 和译器，并发送 `foundation::events::LocaleUpdated`；事件包含 `locale` 和 `previousLocale`。Rust 的事件监听器可以异步执行，因此此方法需要 `.await`，失败通过 `Result` 返回。请求和队列任务内的修改互相隔离；启动阶段设置则作为该应用的默认值。
 
 服务错误在实际调用步骤传播：先写配置，再更新译器，最后分发事件。常驻译器首次解析时分别读取应用默认值和当前作用域配置，避免把请求语言保存为应用默认值。监听器失败不会回滚本次已更新的配置和译器，错误保留原始来源；当前生命周期结束后仍按作用域恢复。重复设置相同语言也会分发事件，修改回退语言不分发该事件。
 
-配置、API、资源、文档 URL、HTML 和 HTTP 统一使用 BCP 47。`setLocale("zh-CN")` 后仍为 `zh-CN`；`isLocale("ZH-cn")` 为真，`isLocale("zh-Hans")` 为假。规范化保留文字体系、地区、变体和支持的扩展，资源选择单独处理。旧下划线输入会明确报错。
+配置、API、资源、文档 URL、HTML 和 HTTP 统一使用 BCP 47。`set_locale("zh-CN")` 后仍为 `zh-CN`；`is_locale("ZH-cn")` 为真，`is_locale("zh-Hans")` 为假。规范化保留文字体系、地区、变体和支持的扩展，资源选择单独处理。旧下划线输入会明确报错。
 
 `App` Facade 当前提供上述语言方法；其他框架App 方法未通过这个 Facade 暴露。模板继续使用下文的翻译助手。`Lang::withLocale` 仅用于临时译器语言作用域，不修改应用语言配置。
 
@@ -55,17 +55,17 @@ fn greeting(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
 
 `zh-Hans`、`zh-CN`、`zh-SG` 和仅 `zh` 对应简体；`zh-Hant`、`zh-TW`、`zh-HK`、`zh-MO` 对应繁体，明确的文字体系优先于地区，未知文字体系不按中文地区猜测。数字变体不作为文字体系。其他语言匹配完整标识或基础语言。此选择规则不改变公开语言标签的规范化语义。
 
-通过 [`app.supported_locales`](#available-locales) 配置即可限制语言、指定顺序或启用非文件来源。需要在代码中覆盖配置时，在 `bootstrap/app.rs` 的 `withMiddleware` 中显式指定候选：
+通过 [`app.supported_locales`](#available-locales) 配置即可限制语言、指定顺序或启用非文件来源。需要在代码中覆盖配置时，在 `bootstrap/app.rs` 的 `with_middleware` 中显式指定候选：
 
 ```rust
-.withMiddleware(|middleware| {
-    middleware.setLocale(&["en", "fr", "de"]).expect("语言标签有效");
+.with_middleware(|middleware| {
+    middleware.set_locale(&["en", "fr", "de"]).expect("语言标签有效");
 })
 ```
 
-候选按 BCP 47 规范化；非法标签返回 `TranslationError` 并保留之前的设置，重复调用使用最后一次成功设置。传入空列表 `middleware.setLocale(&[])` 关闭识别，此时不修改语言或响应头，也不触发语言更新事件，应用继续使用 `app.locale` 和手动 `App::setLocale`。仅用于特定路由时，先关闭全局识别，再通过已有路由或路由组中间件注册 `SetLocale::new(&["en", "fr"])?`。
+候选按 BCP 47 规范化；非法标签返回 `TranslationError` 并保留之前的设置，重复调用使用最后一次成功设置。传入空列表 `middleware.set_locale(&[])` 关闭识别，此时不修改语言或响应头，也不触发语言更新事件，应用继续使用 `app.locale` 和手动 `App::set_locale`。仅用于特定路由时，先关闭全局识别，再通过已有路由或路由组中间件注册 `SetLocale::new(&["en", "fr"])?`。
 
-中间件在执行下游前调用 `App::setLocale`，同步配置、译器和 `LocaleUpdated` 事件；监听器失败时交由现有异常处理，不继续执行下游。下游处理完成（包括已渲染的异常响应）后读取最终语言，在缺少时添加 `Content-Language`，将启用的语言请求头（默认 `Accept-Language`）合并到 `Vary`，保留已有值或通配符。自动选择不保存偏好，不改变其他请求、队列任务或应用默认语言。默认路由装配位于输入转换与安全 Cookie 建立之后，详见[自动与固定语言](#locale-preference)；之前已返回响应的 CORS 预检、维护模式或请求体大小检查不会经过语言选择。
+中间件在执行下游前调用 `App::set_locale`，同步配置、译器和 `LocaleUpdated` 事件；监听器失败时交由现有异常处理，不继续执行下游。下游处理完成（包括已渲染的异常响应）后读取最终语言，在缺少时添加 `Content-Language`，将启用的语言请求头（默认 `Accept-Language`）合并到 `Vary`，保留已有值或通配符。自动选择不保存偏好，不改变其他请求、队列任务或应用默认语言。默认路由装配位于输入转换与安全 Cookie 建立之后，详见[自动与固定语言](#locale-preference)；之前已返回响应的 CORS 预检、维护模式或请求体大小检查不会经过语言选择。
 
 原先应用中的 `SetLocale` 文件和 `append` 注册应移除，避免重复执行；需要关闭识别时改用上述空列表设置。
 
@@ -93,12 +93,12 @@ APP_SUPPORTED_LOCALES=en,zh-Hans,zh-Hant,ja
 
 环境变量未设置时默认 `*`，自动发现框架与应用资源中的全部可用语言。`APP_SUPPORTED_LOCALES=` 生成空列表，关闭语言选择和欢迎页菜单；逗号分隔的列表按指定顺序启用语言，也支持仅来自数据库的语言。标签规范化并按首次出现去重。显式 `null`、`(null)`（不区分大小写）、非法标签及列表空项在启动时报错。直接配置仅接受 `"*"` 或 JSON 数组，拒绝 JSON `null`、其他类型及字符串。星号不作为数组成员，也不表示所有合法 BCP 47 标签都有译文。
 
-候选优先级为显式 `middleware.setLocale(...)` → `app.supported_locales` → 资源自动发现，显式空列表同样优先。配置列表和显式列表均跳过扫描。默认中间件在 HTTP 启动时保存一次候选；修改后重启应用，使用配置缓存时同时重建缓存。本配置不改变 `app.locale`、`app.fallback_locale` 或请求来源优先级。
+候选优先级为显式 `middleware.set_locale(...)` → `app.supported_locales` → 资源自动发现，显式空列表同样优先。配置列表和显式列表均跳过扫描。默认中间件在 HTTP 启动时保存一次候选；修改后重启应用，使用配置缓存时同时重建缓存。本配置不改变 `app.locale`、`app.fallback_locale` 或请求来源优先级。
 
 
 Provider加载器包含框架内置语言；直接 `FileLoader::new(path)` 仍只加载指定的文件来源。`FileLoader::availableLocales()` 发现 `<语言>.json` 和包含分组 JSON 资源的语言目录，也支持嵌套分组。扫描路径与翻译加载一致：存在 `resources/lang` 时使用该目录，否则使用 `lang`，并包含 `addPath` 登记的应用路径和 `addJsonPath` 登记的顶层 JSON 文件。包命名空间、`vendor`、隐藏项、符号链接和空语言目录不会启用语言。文件及目录名必须已是规范 BCP 47 标签，例如使用 `zh-Hans`，不用 `zh_CN` 或 `ZH-hans`。结果去重并按标签排序；发现过程不解析词条内容，也不判断翻译是否完整。
 
-默认中间件在应用 Provider 启动完成后、接收请求前保存这份候选。每个请求不再扫描；添加或移除语言资源后需重启应用。候选发现独立于配置缓存。显式 `setLocale` 优先于配置；未显式设置时，`app.supported_locales` 数组跳过扫描。未发现语言时保留应用配置的语言并隐藏欢迎页切换菜单。仅来自数据库的语言通过显式候选启用；发现过程不查询数据库，也不自动启用所有包的语言。
+默认中间件在应用 Provider 启动完成后、接收请求前保存这份候选。每个请求不再扫描；添加或移除语言资源后需重启应用。候选发现独立于配置缓存。显式 `set_locale` 优先于配置；未显式设置时，`app.supported_locales` 数组跳过扫描。未发现语言时保留应用配置的语言并隐藏欢迎页切换菜单。仅来自数据库的语言通过显式候选启用；发现过程不查询数据库，也不自动启用所有包的语言。
 
 例如增加 `lang/ja/welcome.json`，以及内容为 `{"name":"日本語"}` 的 `lang/ja/languages.json`，即可增加日语，无需修改控制器或菜单。缺少文案继续使用正常翻译回退。模板可通过 `Lang::hasForLocale('languages.name', $choice)` 判断该语言自身是否提供名称。右至左页面在该语言的 `languages.json` 中增加 `"direction":"rtl"`，欢迎页据此设置 HTML `dir="rtl"`；菜单支持长列表滚动。未提供方向时使用文档默认的左至右布局。新增界面翻译不会创建文档目录，欢迎页文档链接仍须对应实际提供的文档。
 
@@ -163,7 +163,7 @@ Ok(Response::empty(StatusCode::NO_CONTENT))
 
 这不会自动为普通无状态 API 启用持久化；须明确接入既有有状态 Cookie 管线和写入保护，浏览器请求仍需 CSRF。辅助方法不会注册路由、启动 Session 或增加账号存储。两个辅助入口均用于管理语言偏好。
 
-每次写请求选择其中一种操作，再跳转至应用控制的站内地址。方法拒绝读取请求及不可用或未加密的偏好存储，只排队 Cookie，不改变本次语言或再次发事件，不能代替 CSRF 中间件。`LocaleSelection` 提供 `preference`、`can_store`、候选和 URL 信息；实际语言使用 `App::currentLocale()`。回调已决定语言时，不显示无法覆盖它的控件；空候选关闭整个中间件。
+每次写请求选择其中一种操作，再跳转至应用控制的站内地址。方法拒绝读取请求及不可用或未加密的偏好存储，只排队 Cookie，不改变本次语言或再次发事件，不能代替 CSRF 中间件。`LocaleSelection` 提供 `preference`、`can_store`、候选和 URL 信息；实际语言使用 `App::current_locale()`。回调已决定语言时，不显示无法覆盖它的控件；空候选关闭整个中间件。
 
 安全偏好页面通过现有响应头合并机制设置 `Cache-Control: private, no-store` 和 `Vary: Cookie`，未保存偏好时也适用。请求头识别启用时另合并实际头名，保留已有 `Vary` 和 `*`；路由缓存指令不能将这些变体公开缓存。账号等私有来源的回调仍须设置适当的应用缓存策略，尤其是未接入 Cookie 管线时。
 
@@ -191,7 +191,7 @@ Accept-Language: zh-Hans
 
 `Request::getLanguages`／`getPreferredLanguage` 始终描述标准 `Accept-Language`，不受应用配置影响。只有接入翻译资源的文案随语言变化。启用请求头识别时，`Vary` 合并实际配置的头名，保留已有项和 `*`；`null` 不添加语言头的项，仍保留 URL、回调和 `Content-Language`。依赖 Cookie 或用户资料的回调仍需应用设置适当的私有缓存策略及其他 `Vary` 项。
 
-业务、控制器和页面读取实际使用的语言时使用 `App::currentLocale()?`；URL、持久化偏好回调或下游 `App::setLocale` 都可能让它不同于请求偏好。例如配置 `APP_LOCALE_HEADER=X-Language`，同时收到 `Accept-Language: en` 和 `X-Language: zh-Hant` 时，Request 仍返回英文偏好，App 与翻译使用繁体中文。停用 SetLocale 后，配置本身不会自动执行语言选择。
+业务、控制器和页面读取实际使用的语言时使用 `App::current_locale()?`；URL、持久化偏好回调或下游 `App::set_locale` 都可能让它不同于请求偏好。例如配置 `APP_LOCALE_HEADER=X-Language`，同时收到 `Accept-Language: en` 和 `X-Language: zh-Hant` 时，Request 仍返回英文偏好，App 与翻译使用繁体中文。停用 SetLocale 后，配置本身不会自动执行语言选择。
 
 ### 自定义语言选择 {#custom-locale-selection}
 
@@ -200,7 +200,7 @@ Accept-Language: zh-Hans
 `localeUsing` 可为当前应用的中间件实例设置同步回调。例如优先读取指定请求头，缺少时依次尝试 URL、受保护的偏好 Cookie 与请求头协商：
 
 ```rust
-.withMiddleware(|middleware| {
+.with_middleware(|middleware| {
     middleware.localeUsing(|request| {
         Ok(request.header("X-Locale")?.map(str::to_owned))
     });
@@ -213,9 +213,9 @@ Accept-Language: zh-Hans
 - `Ok(None)` 先尝试配置的 URL 参数和受保护的偏好 Cookie，再使用原有浏览器协商、受支持的应用默认语言或候选首项。
 - `Err(error)` 将原错误交给现有异常处理并停止下游。非法或不受支持的选择作为内部错误处理；若值来自用户输入，可在回调内校验并返回适当的 HTTP 错误。选择失败不切换语言，也不触发 `LocaleUpdated`。
 
-未设置回调时行为不变。候选与回调独立设置，调用顺序不限；候选更新失败保留原候选及回调，重复设置回调使用最后一个。空候选关闭整个实例，不执行回调、不触发事件、不处理响应头，但保留回调以供重新启用。路由实例也提供 `setLocale` 与 `localeUsing`，候选更新与回调只属于该实例，不使用进程全局注册表；回调自身也应避免共享可变用户状态。
+未设置回调时行为不变。候选与回调独立设置，调用顺序不限；候选更新失败保留原候选及回调，重复设置回调使用最后一个。空候选关闭整个实例，不执行回调、不触发事件、不处理响应头，但保留回调以供重新启用。路由实例也提供 `set_locale` 与 `localeUsing`，候选更新与回调只属于该实例，不使用进程全局注册表；回调自身也应避免共享可变用户状态。
 
-默认实例在解析后的路由管线执行，位于直接 Cookie 解密／队列之后、普通 Web Session 和认证之前。有状态 API 包装器中则在其 Cookie／Session 保护之后执行。没有这些依赖的路由保持无状态；未匹配错误页和公开静态响应仍执行请求头／URL 选择，不启用 Web 存储。回调可以读取请求头及此时已准备的信息，不能访问后续才提供的依赖。依赖 Session 时，先在 `withMiddleware` 调用 `middleware.setLocale(&[]).expect("语言标签有效")` 关闭全局识别，再在 `routes/web.rs` 中注册同一个中间件，放到默认 `web` 组加载 Session 之后：
+默认实例在解析后的路由管线执行，位于直接 Cookie 解密／队列之后、普通 Web Session 和认证之前。有状态 API 包装器中则在其 Cookie／Session 保护之后执行。没有这些依赖的路由保持无状态；未匹配错误页和公开静态响应仍执行请求头／URL 选择，不启用 Web 存储。回调可以读取请求头及此时已准备的信息，不能访问后续才提供的依赖。依赖 Session 时，先在 `with_middleware` 调用 `middleware.set_locale(&[]).expect("语言标签有效")` 关闭全局识别，再在 `routes/web.rs` 中注册同一个中间件，放到默认 `web` 组加载 Session 之后：
 
 ```rust
 use std::sync::Arc;
@@ -242,7 +242,7 @@ pub fn register() -> Result<(), RoutingError> {
 
 示例要求已配置 Session 驱动和应用加密密钥；只读取已有的 `locale` Session 值，不保存新偏好。没有值时依次尝试 URL、受保护的偏好 Cookie 与请求头协商。依赖认证的规则同样应放到认证之后；影响本地化路由绑定的规则应在绑定替换之前执行，需要这种位置时通过现有 `Middleware::group`／`MiddlewareEntry` 显式配置组内顺序。增加回调不会自动调整执行顺序。异步查询应由前置中间件完成，再通过请求传递已准备的数据；此回调本身同步执行。
 
-这些来源统一由 `SetLocale` 调用 `App::setLocale`、派发事件并处理响应头。下游主动切换语言后，缺少的 `Content-Language` 使用最终语言，已有值保持不变。由于回调可能回退浏览器协商，仍会将启用的语言请求头（默认 `Accept-Language`）合并到 `Vary`。这**不能**完整隔离由 `X-Locale`、Cookie、Session 或用户资料选择的响应。请求头示例还需让响应按 `X-Locale` 区分；私有内容应设置 `Cache-Control: private, no-store` 或应用所需的缓存策略，并按需增加其他 `Vary` 字段。中间件保留这些响应头，不推断缓存键、不持久化回调结果，也不保证任意个性化响应可以安全进入共享缓存。安全 Cookie 偏好页面还会获得 `private, no-store` 与 `Vary: Cookie`。
+这些来源统一由 `SetLocale` 调用 `App::set_locale`、派发事件并处理响应头。下游主动切换语言后，缺少的 `Content-Language` 使用最终语言，已有值保持不变。由于回调可能回退浏览器协商，仍会将启用的语言请求头（默认 `Accept-Language`）合并到 `Vary`。这**不能**完整隔离由 `X-Locale`、Cookie、Session 或用户资料选择的响应。请求头示例还需让响应按 `X-Locale` 区分；私有内容应设置 `Cache-Control: private, no-store` 或应用所需的缓存策略，并按需增加其他 `Vary` 字段。中间件保留这些响应头，不推断缓存键、不持久化回调结果，也不保证任意个性化响应可以安全进入共享缓存。安全 Cookie 偏好页面还会获得 `private, no-store` 与 `Vary: Cookie`。
 
 ### 在 Blade 中翻译 {#blade-translations}
 
@@ -493,7 +493,7 @@ APP_LOCALE=zh-Hant ./artisan help list
 
 ## 契约语言设置
 
-Translator 契约、具体实现和 Lang Facade 均提供 `getLocale`、`setLocale`、`getFallback`、`setFallback`。启动时设置应用默认值；请求／队列作用域内设置只影响当前执行。`withLocale` 支持嵌套并在离开后恢复，回退语言独立设置。旧自定义 Loader／Translator 消费者应将契约中的 snake_case 调用迁移为上述原名。
+Translator 契约、具体实现和 Lang Facade 均提供 `get_locale`、`set_locale`、`getFallback`、`setFallback`。启动时设置应用默认值；请求／队列作用域内设置只影响当前执行。`withLocale` 支持嵌套并在离开后恢复，回退语言独立设置。旧自定义 Loader／Translator 消费者应将契约中的 snake_case 调用迁移为上述原名。
 
 ## 语言设置的所有权
 
@@ -547,16 +547,16 @@ Faker 原生 provider 键仅保留在私有边界，`locale()`、`randomLocale()
 
 ## 语言目录
 
-应用创建时，若 `resources/lang/` 已存在，优先使用它，否则选择根目录的 `lang/`。读取路径不会创建目录。应用 Contract 提供 `langPath("")`，也可传入 `langPath("en/validation.json")` 等后缀。
+应用创建时，若 `resources/lang/` 已存在，优先使用它，否则选择根目录的 `lang/`。读取路径不会创建目录。应用 Contract 提供 `lang_path("")`，也可传入 `lang_path("en/validation.json")` 等后缀。
 
 需要自定义目录时，在应用装配阶段、解析翻译加载器之前设置：
 
 ```rust
 use openrust::contracts::foundation::Application as _;
 
-app.useLangPath(app.base_path().join("translations"))?;
+app.use_lang_path(app.base_path().join("translations"))?;
 ```
 
-在 HTTP、Artisan 或队列作用域内，`App::langPath("")` 与 `openrust::support::lang_path("")` 读取同一应用路径，也可使用 `App::useLangPath(...)`。目录属于整个应用，不应逐请求切换。已经解析的加载器保留原目录，因此应在加载服务之前配置，不依赖热切换。
+在 HTTP、Artisan 或队列作用域内，`App::lang_path("")` 与 `openrust::support::lang_path("")` 读取同一应用路径，也可使用 `App::use_lang_path(...)`。目录属于整个应用，不应逐请求切换。已经解析的加载器保留原目录，因此应在加载服务之前配置，不依赖热切换。
 
-`lang:publish` 发布到此目录，默认保留已有文件；`--force` 覆盖可发布模板，`--existing` 只覆盖已经发布的模板。包资源可将 `app.langPath("vendor/package/...")` 传给 `publishesPaths` 作为目标；`vendor:publish` 支持明确配置的绝对路径，包括项目外目录，仍拒绝相对路径穿越及符号链接。包翻译的应用覆盖也从此语言目录加载。
+`lang:publish` 发布到此目录，默认保留已有文件；`--force` 覆盖可发布模板，`--existing` 只覆盖已经发布的模板。包资源可将 `app.lang_path("vendor/package/...")` 传给 `publishes_paths` 作为目标；`vendor:publish` 支持明确配置的绝对路径，包括项目外目录，仍拒绝相对路径穿越及符号链接。包翻译的应用覆盖也从此语言目录加载。

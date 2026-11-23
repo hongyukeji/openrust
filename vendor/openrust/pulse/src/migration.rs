@@ -33,8 +33,8 @@ impl Migration for CreatePulseTables {
                 return Ok(true);
             }
             use openrust::support::facades::{Config, Facade};
-            let config =
-                Config::getFacadeRoot().map_err(openrust::database::DatabaseError::Unavailable)?;
+            let config = Config::get_facade_root()
+                .map_err(openrust::database::DatabaseError::Unavailable)?;
             if config
                 .get("app.env")
                 .and_then(|v| v.as_str().map(str::to_owned))

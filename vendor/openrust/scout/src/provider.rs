@@ -9,9 +9,9 @@ pub struct ScoutServiceProvider;
 impl ServiceProvider for ScoutServiceProvider {
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
-            if !app.configurationIsCached() {
+            if !app.configuration_is_cached() {
                 let env = app.make::<openrust::config::Environment>().await?;
-                self.mergeConfigFrom(app, crate::configuration::load(&env)?, "scout")?;
+                self.merge_config_from(app, crate::configuration::load(&env)?, "scout")?;
             }
             app.container().singleton::<crate::EngineManager, _>(|c| {
                 Ok(Arc::new(crate::EngineManager::new(

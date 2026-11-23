@@ -8,7 +8,7 @@
 ./artisan make:migration create_flights_table
 ```
 
-OpenRust 在构建时自动发现 `database/migrations/` 中的 Rust 迁移。手写文件和 `make:migration` 生成的文件都使用 `YYYY_MM_DD_HHMMSS_name.rs` 命名，并提供实现 `Migration` 的 `Definition`。重新构建后，`bootstrap/app.rs` 的 `withMigrations` 会接入自动生成的清单。文件名决定迁移账本名称，`--path` 从已编译的迁移中选择。生成到自定义目录的迁移需另行接入应用。
+OpenRust 在构建时自动发现 `database/migrations/` 中的 Rust 迁移。手写文件和 `make:migration` 生成的文件都使用 `YYYY_MM_DD_HHMMSS_name.rs` 命名，并提供实现 `Migration` 的 `Definition`。重新构建后，`bootstrap/app.rs` 的 `with_migrations` 会接入自动生成的清单。文件名决定迁移账本名称，`--path` 从已编译的迁移中选择。生成到自定义目录的迁移需另行接入应用。
 
 ### 压缩迁移 {#squashing-migrations}
 

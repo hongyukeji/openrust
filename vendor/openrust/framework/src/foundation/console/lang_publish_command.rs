@@ -49,7 +49,7 @@ impl Command for LangPublish {
         output: &'a mut Output,
     ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
         Box::pin(async move {
-            let path = app.langPath("");
+            let path = app.lang_path("");
             let existing = input.matches().get_flag("existing");
             let force = input.matches().get_flag("force");
             tokio::task::spawn_blocking(move || {

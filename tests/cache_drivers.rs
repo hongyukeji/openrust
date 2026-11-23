@@ -17,7 +17,7 @@ use openrust::{
 use serde_json::{Value as Config, json};
 
 fn configure(builder: ApplicationBuilder) -> ApplicationBuilder {
-    builder.withConfig(|_, _| {
+    builder.with_config(|_, _| {
         Ok([(
             "cache".into(),
             json!({
@@ -135,7 +135,7 @@ async fn custom_driver_lifetime_dispatch_and_named_configuration() {
 #[tokio::test]
 async fn custom_driver_facade_runs_before_artisan() {
     let mut app =
-        TestApp::create(|builder| configure(builder).withProviders(vec![Box::new(ProjectCache)]))
+        TestApp::create(|builder| configure(builder).with_providers(vec![Box::new(ProjectCache)]))
             .unwrap();
     let events = app.fakeEvents(&[CacheHit::NAME]).await.unwrap();
     let store = app

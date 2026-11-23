@@ -61,7 +61,7 @@ pub(crate) fn register(app: &Application) -> ProviderResult {
         ],
         "fortify-support",
     )?;
-    provider.publishesMigrations(
+    provider.publishes_migrations(
         app,
         &[(
             "database/migrations/2024_01_01_000000_create_passkeys_table.rs",

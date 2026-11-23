@@ -24,7 +24,7 @@ impl ServiceProvider for NotificationServiceProvider {
         Box::pin(async move {
             let container = app.container_handle();
             container
-                .singletonNamed("notifications", |_| Ok(Arc::new(ChannelManager::default())))?;
+                .singleton_named("notifications", |_| Ok(Arc::new(ChannelManager::default())))?;
             container.singleton::<super::sms::SmsManager, _>(|container| {
                 Ok(Arc::new(super::sms::SmsManager::new(
                     container.get::<dyn Repository>("config")?,

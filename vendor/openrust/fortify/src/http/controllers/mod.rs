@@ -16,7 +16,7 @@ use openrust::{
 pub(crate) async fn respond<T: contracts::Response + ?Sized + 'static>(
     request: &mut Request,
 ) -> Result<Response, HttpError> {
-    Resolver::<T>::getFacadeRoot()
+    Resolver::<T>::get_facade_root()
         .map_err(internal)?
         .toResponse(request)
         .await

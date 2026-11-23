@@ -106,11 +106,11 @@ fn identity(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
 }
 #[tokio::test]
 async fn lazy_native_guard_concrete_class_morph_and_guest_scopes_are_request_local() {
-    let mut app = TestApp::create(|builder| builder.withConfig(|_, _| Ok([
+    let mut app = TestApp::create(|builder| builder.with_config(|_, _| Ok([
         ("pennant".into(), json!({"default":"array"})),
         ("database".into(), json!({"default":"test","connections":{"test":{"driver":"sqlite","database":":memory:"}}})),
         ("auth".into(), json!({"defaults":{"guard":"test"},"guards":{"test":{"driver":"pennant-header"}}})),
-    ].into())).withProviders(vec![Box::new(PennantServiceProvider), Box::new(Register)]).withRouting(Routing::default().api(routes))).unwrap();
+    ].into())).with_providers(vec![Box::new(PennantServiceProvider), Box::new(Register)]).with_routing(Routing::default().api(routes))).unwrap();
     assert_eq!(
         app.get("/api/signed").await.unwrap().assertOk().body(),
         format!("{}|7", std::any::type_name::<Account>()).as_bytes()

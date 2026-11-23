@@ -165,7 +165,7 @@ impl<P: Model, R: Model> BelongsTo<P, R> {
 
     /// Configures an unsaved owner for children without a matching owner.
     #[must_use]
-    pub fn withDefault(mut self, configure: impl Fn(&mut R, &P) + Send + Sync + 'static) -> Self {
+    pub fn with_default(mut self, configure: impl Fn(&mut R, &P) + Send + Sync + 'static) -> Self {
         self.1 = Some(Box::new(configure));
         self
     }

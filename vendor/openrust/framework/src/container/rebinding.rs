@@ -45,7 +45,7 @@ impl Container {
         T: ?Sized + Send + Sync + 'static,
         F: Fn(&Self, Arc<T>) -> Result<(), BindingResolutionError> + Send + Sync + 'static,
     {
-        let key = self.getAlias(abstract_key)?;
+        let key = self.get_alias(abstract_key)?;
         let registered = RegisteredRebinding(Arc::new(move |app, event, actual| {
             let value = event
                 .value::<T>()
@@ -92,7 +92,7 @@ impl Container {
     {
         let key = self.store_rebinding(key, callback)?;
         if self.has(key.clone()) {
-            self.getAsync(key).await.map(Some)
+            self.get_async(key).await.map(Some)
         } else {
             Ok(None)
         }

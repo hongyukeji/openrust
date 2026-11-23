@@ -105,7 +105,7 @@ impl Repository {
             snapshot_lock: 300,
         })
     }
-    pub fn withConfig(
+    pub fn with_config(
         mut self,
         config: &dyn openrust::contracts::config::Repository,
     ) -> Result<Self> {

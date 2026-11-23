@@ -33,7 +33,7 @@ async fn validate(request: &mut Request) -> Result<AccessToken, HttpError> {
     {
         return Ok(token.clone());
     }
-    let server = ResourceServer::getFacadeRoot()?;
+    let server = ResourceServer::get_facade_root()?;
     server
         .validateAuthenticatedRequest(request)
         .await

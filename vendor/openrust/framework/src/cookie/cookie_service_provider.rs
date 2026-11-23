@@ -21,7 +21,7 @@ impl ServiceProvider for CookieServiceProvider {
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
             let container = app.container();
-            container.singletonNamed("cookie", |container| {
+            container.singleton_named("cookie", |container| {
                 let config = container.get::<dyn Repository>("config")?;
                 defaults(config.as_ref()).map(Arc::new).map_err(|source| {
                     BindingResolutionError::FactoryFailed {

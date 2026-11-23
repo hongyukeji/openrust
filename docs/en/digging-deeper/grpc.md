@@ -8,7 +8,7 @@ Run the gRPC installer from the application checkout:
 ./artisan install:grpc
 ```
 
-It creates `routes/grpc.rs` and connects its registrar through `withGrpc` in `bootstrap/app.rs`. Running the installer again preserves an existing route file. Rebuild after registering your services.
+It creates `routes/grpc.rs` and connects its registrar through `with_grpc` in `bootstrap/app.rs`. Running the installer again preserves an existing route file. Rebuild after registering your services.
 
 ## Registering services
 

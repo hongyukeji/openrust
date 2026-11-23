@@ -487,7 +487,7 @@ async fn app_with_database(
     providers: Vec<Box<dyn ServiceProvider>>,
 ) -> (Application, Connection) {
     let mut app = Application::configure(std::env::temp_dir())
-        .withProviders(providers)
+        .with_providers(providers)
         .create()
         .unwrap();
     app.boot().await.unwrap();

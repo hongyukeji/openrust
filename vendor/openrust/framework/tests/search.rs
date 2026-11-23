@@ -165,7 +165,7 @@ async fn full_text_binds_the_search_string_and_rejects_unsupported_dialects() {
         "select * from `app_articles` where `published` = ? and (match (`app_articles`.`title`, `app_articles`.`body`) against (? in natural language mode) or match (`title`) against (? in boolean mode))"
     );
     assert_eq!(
-        query.getBindings().unwrap(),
+        query.get_bindings().unwrap(),
         [true.into(), "O'Reilly ?".into(), "+rust -draft".into()]
     );
     assert!(matches!(
@@ -392,7 +392,7 @@ async fn model_search_paginates_through_the_http_entry_point() {
     }
 
     let app = Application::configure(std::env::temp_dir())
-        .withConfig(|_, _| {
+        .with_config(|_, _| {
             Ok(BTreeMap::from([(
                 "database".into(),
                 json!({
@@ -401,7 +401,7 @@ async fn model_search_paginates_through_the_http_entry_point() {
                 }),
             )]))
         })
-        .withRouting(Routing::default().web(|| Route::get("/search", endpoint)))
+        .with_routing(Routing::default().web(|| Route::get("/search", endpoint)))
         .create()
         .unwrap();
     let mut kernel = Kernel::new(app);
@@ -500,7 +500,7 @@ async fn postgres_uses_gin_and_ranks_before_pagination() {
         .table("articles")
         .whereFullText(&["title", "body"], "runs");
     let sql = format!("explain {}", query.toSql().unwrap());
-    let bindings = query.getBindings().unwrap();
+    let bindings = query.get_bindings().unwrap();
     let plan = transaction.select(&sql, &bindings).await.unwrap();
     assert!(
         plan.iter().any(|row| matches!(

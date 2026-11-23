@@ -47,7 +47,7 @@ fn delayed(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 }
 fn app() -> TestApp {
     TestApp::create(|builder| {
-        builder.withRouting(Routing::default().web(|| {
+        builder.with_routing(Routing::default().web(|| {
             Route::get("/size/{size}", sized)?;
             Route::get("/pending", pending)?;
             Route::get("/delayed", delayed)

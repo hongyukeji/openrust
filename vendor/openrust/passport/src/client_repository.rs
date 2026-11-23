@@ -398,7 +398,7 @@ impl<M: ClientModel> ClientStore for EloquentClientStore<M> {
         Box::pin(async move {
             let connection = self.connection()?;
             let mut model = M::newQuery(&connection)
-                .makeAsync(Attributes::new())
+                .make_async(Attributes::new())
                 .await?;
             let columns = connection
                 .getSchemaBuilder()

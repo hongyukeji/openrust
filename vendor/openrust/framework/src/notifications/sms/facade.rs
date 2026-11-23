@@ -9,7 +9,7 @@ pub struct Sms;
 impl Facade for Sms {
     type Service = SmsManager;
 
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         ServiceKey::typed::<SmsManager>()
     }
 }
@@ -17,21 +17,23 @@ impl Facade for Sms {
 impl Sms {
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn getDefaultDriver() -> NotificationResult<String> {
-        Self::getFacadeRoot().map_err(delivery)?.getDefaultDriver()
+        Self::get_facade_root()
+            .map_err(delivery)?
+            .getDefaultDriver()
     }
 
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn forgetDrivers() -> NotificationResult<()> {
-        Self::getFacadeRoot().map_err(delivery)?.forgetDrivers();
+        Self::get_facade_root().map_err(delivery)?.forgetDrivers();
         Ok(())
     }
 
     pub fn driver(name: &str) -> NotificationResult<SmsSender> {
-        Self::getFacadeRoot().map_err(delivery)?.driver(name)
+        Self::get_facade_root().map_err(delivery)?.driver(name)
     }
 
     pub fn default_driver() -> NotificationResult<SmsSender> {
-        Self::getFacadeRoot().map_err(delivery)?.default_driver()
+        Self::get_facade_root().map_err(delivery)?.default_driver()
     }
 
     pub async fn send_text(

@@ -1,5 +1,4 @@
 #![allow(non_snake_case, reason = "保留既定公开接口及命名")]
-
 use std::{
     net::SocketAddr,
     path::{Path, PathBuf},
@@ -364,9 +363,9 @@ async fn start_with_database(
     });
     std::fs::write(root.0.join("fixture.json"), config.to_string()).unwrap();
     let mut app = Application::configure(root.0.clone())
-        .withConfig(fixture_config)
-        .withProviders(vec![Box::new(Provider(customization))])
-        .withRouting(Routing::new(routes))
+        .with_config(fixture_config)
+        .with_providers(vec![Box::new(Provider(customization))])
+        .with_routing(Routing::new(routes))
         .create()
         .unwrap();
     app.boot().await.unwrap();

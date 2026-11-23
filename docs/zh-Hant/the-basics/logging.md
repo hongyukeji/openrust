@@ -177,7 +177,7 @@ Get-WinEvent -LogName Application -FilterXPath $filter -MaxEvents 1 |
 
 設定 `formatter: "json"` 可輸出結構化記錄。可透過 `formatter_with` 設定 `append_newline`、`ignore_empty_context_and_extra` 和 `max_normalize_depth`（預設 9）。
 
-使用 `Log::logException(level, message, &error, &context)` 將錯誤寫入 `context.exception`，來源鏈記錄在 `previous` 中。在 `withExceptions` 中註冊 `exceptionContext::<E>`，為相符的錯誤型別新增欄位，來源錯誤也適用。現有 `context` 回呼會補充直接記錄的根錯誤。應用程式透過報告機制記錄時，根錯誤欄位只出現在記錄的上下文中，來源錯誤欄位仍保留在對應節點。Rust 會保留直接傳入與已註冊錯誤的型別名稱，型別被抹除的來源可能顯示為 `Error`。標準錯誤介面不提供原始檔案或呼叫堆疊。
+使用 `Log::logException(level, message, &error, &context)` 將錯誤寫入 `context.exception`，來源鏈記錄在 `previous` 中。在 `with_exceptions` 中註冊 `exceptionContext::<E>`，為相符的錯誤型別新增欄位，來源錯誤也適用。現有 `context` 回呼會補充直接記錄的根錯誤。應用程式透過報告機制記錄時，根錯誤欄位只出現在記錄的上下文中，來源錯誤欄位仍保留在對應節點。Rust 會保留直接傳入與已註冊錯誤的型別名稱，型別被抹除的來源可能顯示為 `Error`。標準錯誤介面不提供原始檔案或呼叫堆疊。
 
 ```rust
 use openrust::{config::Repository, log::{Level, LogContext, LogManager}};
@@ -269,13 +269,13 @@ fn select(line: &str) -> Result<bool, serde_json::Error> {
 
 旗標來自目前應用不可變的環境快照，處理程序變數優先於選定的環境檔案。設定快取生效時不載入環境檔案，因此檔案中的 `PAIL_TESTS` 不生效。Handler 在第一條被接受的日誌或佇列生命週期事件到來時才解析；建構失敗在該時機傳遞，原日誌驅動已接受的寫入仍保留。
 
-Pail 透過共用路徑服務解析 `Application::storagePath("pail")`。在首次擷取前設定 `useStoragePath` 或 `APP_STORAGE_PATH`，參見[應用儲存路徑](../getting-started/configuration.md#application-storage-path)。
+Pail 透過共用路徑服務解析 `Application::storage_path("pail")`。在首次擷取前設定 `use_storage_path` 或 `APP_STORAGE_PATH`，參見[應用儲存路徑](../getting-started/configuration.md#application-storage-path)。
 
 預設檔案日誌頻道和緊急回退使用應用儲存路徑。應在載入設定或解析頻道前設定路徑；已載入的頻道路徑保留其設定值，參見[應用儲存路徑](../getting-started/configuration.md#application-storage-path)。
 
 ## Pail CLI 列印器 {#pail-cli-printer}
 
-可選 Pail 套件提供 `openrust_pail::contracts::Printer` 和 `printers::CliPrinter`。在 Artisan 命令中建構 `CliPrinter::new(output, basePath)`，呼叫 `print(&messageLogged)?`。列印器讀取目前輸出的詳細程度與色彩狀態。一般模式顯示時間並縮略類型、檔案和訊息；`-v` 顯示完整日期與本文，`-vv` 或 `-vvv` 再顯示擷取的堆疊框架。
+可選 Pail 套件提供 `openrust_pail::contracts::Printer` 和 `printers::CliPrinter`。在 Artisan 命令中建構 `CliPrinter::new(output, base_path)`，呼叫 `print(&messageLogged)?`。列印器讀取目前輸出的詳細程度與色彩狀態。一般模式顯示時間並縮略類型、檔案和訊息；`-v` 顯示完整日期與本文，`-vv` 或 `-vvv` 再顯示擷取的堆疊框架。
 
 底部顯示 HTTP 方法／路徑和驗證資訊，或佇列／工作／命令，以及公開 Context。數字鍵與 null、PHP 風格值匯出、HTML 文字和多行訊息依固定 Pail 規則處理。邊框寬度上限為 150 個終端欄；原始訊息和長底部資訊可能像上游一樣溢出。Rust 的 `::` 類型命名空間及 Windows 本機路徑分隔符適配到縮略和相對來源顯示。
 

@@ -64,14 +64,14 @@ fn config(
 struct Sampler;
 impl Facade for Sampler {
     type Service = Servers;
-    fn getFacadeAccessor() -> openrust::container::ServiceKey {
+    fn get_facade_accessor() -> openrust::container::ServiceKey {
         openrust::container::ServiceKey::typed::<Servers>()
     }
 }
 fn beats(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
         let pulse = openrust_pulse::facades::Pulse::manager()?;
-        let servers = Sampler::getFacadeRoot()?;
+        let servers = Sampler::get_facade_root()?;
         for (time, instance) in [(100, "one"), (114, "one"), (115, "one"), (114, "two")] {
             servers
                 .record(
@@ -90,9 +90,9 @@ fn beats(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 async fn native_cache_driver_throttles_by_instance_and_shares_restart_signal() {
     use openrust::contracts::cache::{LockProvider as _, Repository as _};
     let mut app = TestApp::create(|b| {
-        b.withConfig(config)
-            .withProviders(vec![Box::new(PulseServiceProvider)])
-            .withRouting(Routing::default().api(|| {
+        b.with_config(config)
+            .with_providers(vec![Box::new(PulseServiceProvider)])
+            .with_routing(Routing::default().api(|| {
                 Route::get("/beats", beats)?;
                 Ok(())
             }))

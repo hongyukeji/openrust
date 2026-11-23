@@ -1,5 +1,4 @@
 #![allow(non_snake_case, reason = "保留既定公开接口及命名")]
-
 //! Application-owned type erasure for explicitly registered Eloquent models.
 use crate::{
     Fortify, FortifyError, FortifyResult, TwoFactorAuthenticatable,
@@ -110,31 +109,31 @@ impl<T: TwoFactorAuthenticatable> Account for TypedAccount<T> {
         Box::pin(async move {
             match mutation {
                 Mutation::Enable(force) => {
-                    Resolver::<EnableTwoFactorAuthentication>::getFacadeRoot()
+                    Resolver::<EnableTwoFactorAuthentication>::get_facade_root()
                         .map_err(internal)?
                         .call(&mut self.0, force)
                         .await
                 }
                 Mutation::Confirm(code) => {
-                    Resolver::<ConfirmTwoFactorAuthentication>::getFacadeRoot()
+                    Resolver::<ConfirmTwoFactorAuthentication>::get_facade_root()
                         .map_err(internal)?
                         .call(&mut self.0, code)
                         .await
                 }
                 Mutation::Disable => {
-                    Resolver::<DisableTwoFactorAuthentication>::getFacadeRoot()
+                    Resolver::<DisableTwoFactorAuthentication>::get_facade_root()
                         .map_err(internal)?
                         .call(&mut self.0)
                         .await
                 }
                 Mutation::Generate => {
-                    Resolver::<GenerateNewRecoveryCodes>::getFacadeRoot()
+                    Resolver::<GenerateNewRecoveryCodes>::get_facade_root()
                         .map_err(internal)?
                         .call(&mut self.0)
                         .await
                 }
                 Mutation::Replace(code) => {
-                    let fortify = Resolver::<Fortify>::getFacadeRoot().map_err(internal)?;
+                    let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;
                     self.0.replaceRecoveryCode(code, &fortify).await
                 }
             }

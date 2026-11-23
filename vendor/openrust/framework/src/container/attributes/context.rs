@@ -20,7 +20,6 @@ pub struct Context<T> {
     output: PhantomData<fn() -> T>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<T: DeserializeOwned + Send + Sync + 'static> Context<T> {
     pub fn new(key: impl Into<Arc<str>>) -> Self {
         Self {
@@ -38,14 +37,14 @@ impl<T: DeserializeOwned + Send + Sync + 'static> Context<T> {
     }
 
     #[must_use]
-    pub fn withDefault(mut self, value: T) -> Self {
+    pub fn with_default(mut self, value: T) -> Self {
         let value = ParameterValue::new(value);
         self.default = Box::new(move || Ok(value.clone()));
         self
     }
 
     #[must_use]
-    pub fn withDefaultUsing(
+    pub fn with_default_using(
         mut self,
         factory: impl Fn() -> Result<T> + Send + Sync + 'static,
     ) -> Self {
@@ -77,12 +76,11 @@ impl<T: DeserializeOwned + Send + Sync + 'static> ContextualAttribute for Contex
         self.read(container.make::<Repository>()?.as_ref())
     }
 
-    #[allow(non_snake_case)]
-    fn resolveAsync<'a>(
+    fn resolve_async<'a>(
         self: Arc<Self>,
         container: &'a Container,
         _: AttributeParameter,
     ) -> CallFuture<'a, AttributeValue> {
-        Box::pin(async move { self.read(container.makeAsync::<Repository>().await?.as_ref()) })
+        Box::pin(async move { self.read(container.make_async::<Repository>().await?.as_ref()) })
     }
 }

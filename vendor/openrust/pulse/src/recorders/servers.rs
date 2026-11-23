@@ -56,7 +56,7 @@ impl Servers {
             .config
             .get("pulse.cache")
             .and_then(|v| v.as_str().map(str::to_owned));
-        let cache = Cache::getFacadeRoot()
+        let cache = Cache::get_facade_root()
             .map_err(|_| Error::StateUnavailable)?
             .store(cache_name.as_deref())?;
         let key = format!("openrust:pulse:throttle:{}:Servers", event.instance);

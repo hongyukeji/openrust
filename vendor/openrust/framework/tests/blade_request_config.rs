@@ -26,14 +26,14 @@ impl Root {
     async fn kernel(&self, name: &'static str) -> Kernel {
         fs::write(self.0.join("app-name"), name).unwrap();
         let app = Application::configure(self.0.clone())
-            .withConfig(|base, _| {
+            .with_config(|base, _| {
                 let name = fs::read_to_string(base.join("app-name")).unwrap();
                 Ok(BTreeMap::from([
-                ("app".into(), serde_json::json!({"name": name,"debug":true,"env":"testing", "locale":"en", "version":"application-version", "nullable":null, "zero":0,"disabled":false})),
+                ("app".into(), serde_json::json!({"name": name,"debug":true,"env":"testing", "locale":"en", "supported_locales":[], "version":"application-version", "nullable":null, "zero":0,"disabled":false})),
                 ("view".into(),serde_json::json!({"paths":[base.join("views")],"compiled":base.join("cache")})),
             ]))
             })
-            .withRouting(Routing::new(|_| {
+            .with_routing(Routing::new(|_| {
                 let mut router = openrust::routing::Router::new();
                 router.any("/view", render)?;
                 Ok(router)

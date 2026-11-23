@@ -39,7 +39,7 @@ const TYPES: &[(&str, EntryType, &str)] = &[
     ("views", EntryType::View, "ViewWatcher"),
 ];
 pub(crate) fn register() -> Result<(), RoutingError> {
-    let config = Config::getFacadeRoot().map_err(|_| RoutingError::NoRegistrationScope)?;
+    let config = Config::get_facade_root().map_err(|_| RoutingError::NoRegistrationScope)?;
     let path = config
         .get("telescope.path")
         .and_then(|value| value.as_str().map(str::to_owned))
@@ -104,7 +104,7 @@ fn failure(error: Error) -> HttpError {
     }
 }
 fn telescope() -> Result<Arc<Telescope>, HttpError> {
-    facades::Telescope::getFacadeRoot().map_err(Into::into)
+    facades::Telescope::get_facade_root().map_err(Into::into)
 }
 fn page(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
@@ -308,7 +308,7 @@ async fn paused() -> Result<bool, HttpError> {
     ))
 }
 async fn status(watcher: &str) -> Result<&'static str, HttpError> {
-    let config = Config::getFacadeRoot()?;
+    let config = Config::get_facade_root()?;
     if config.get("telescope.enabled") != Some(json!(true)) {
         return Ok("disabled");
     }

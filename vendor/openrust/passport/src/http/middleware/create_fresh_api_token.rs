@@ -1,5 +1,4 @@
 #![allow(non_snake_case, reason = "保留既定公开接口及命名")]
-
 use crate::{ApiTokenCookieFactory, Passport};
 use openrust::{
     contracts::{container::Container as _, http::Middleware, session::Session as _},
@@ -25,7 +24,7 @@ impl Middleware for CreateFreshApiToken {
         next: Next<'a>,
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
-            let passport = openrust::container::Container::getInstance().make::<Passport>()?;
+            let passport = openrust::container::Container::get_instance().make::<Passport>()?;
             let name = passport.cookie(None);
             let initially_authenticated = if request.hasCookie(&name)? {
                 Auth::guard(request, self.guard.as_deref())?.check().await?

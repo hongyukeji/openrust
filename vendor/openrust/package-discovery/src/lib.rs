@@ -307,7 +307,7 @@ fn render(graph: &Value, manifest: &Path, active: &[&str]) -> io::Result<String>
         writeln!(generated, "], {factory}),").unwrap();
     }
     generated.push_str(
-        "]).withNativeViews(NATIVE_VIEWS);\n#[allow(unused_imports)]\npub mod package_aliases {\n",
+        "]).with_native_views(NATIVE_VIEWS);\n#[allow(unused_imports)]\npub mod package_aliases {\n",
     );
     for (alias, target) in aliases {
         writeln!(generated, "pub use {target} as {alias};").unwrap();

@@ -246,7 +246,7 @@ async fn generate_for(
         .container()
         .get::<crate::translation::Translator>("translator")
         .map_err(error)?
-        .getLocale();
+        .get_locale();
     let section = generated_section(name);
     let mut block = format!("openrust::model_fields! {{\n{section}\n    {class} {{\n");
     let table_documentation = table_comment

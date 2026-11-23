@@ -177,7 +177,7 @@ Get-WinEvent -LogName Application -FilterXPath $filter -MaxEvents 1 |
 
 设置 `formatter: "json"` 输出结构化记录。可通过 `formatter_with` 设置 `append_newline`、`ignore_empty_context_and_extra` 和 `max_normalize_depth`（默认 9）。
 
-使用 `Log::logException(level, message, &error, &context)` 将错误写入 `context.exception`，来源链记录在 `previous` 中。在 `withExceptions` 中注册 `exceptionContext::<E>`，为匹配的错误类型添加字段，来源错误也适用。现有 `context` 回调会补充直接记录的根错误。应用通过报告机制记录时，根错误的字段只出现在记录的上下文中，来源错误的字段仍留在对应节点。Rust 会保留直接传入和已注册错误的类型名，类型被擦除的来源可能显示为 `Error`。标准错误接口不提供原始文件或调用栈。
+使用 `Log::logException(level, message, &error, &context)` 将错误写入 `context.exception`，来源链记录在 `previous` 中。在 `with_exceptions` 中注册 `exceptionContext::<E>`，为匹配的错误类型添加字段，来源错误也适用。现有 `context` 回调会补充直接记录的根错误。应用通过报告机制记录时，根错误的字段只出现在记录的上下文中，来源错误的字段仍留在对应节点。Rust 会保留直接传入和已注册错误的类型名，类型被擦除的来源可能显示为 `Error`。标准错误接口不提供原始文件或调用栈。
 
 ```rust
 use openrust::{config::Repository, log::{Level, LogContext, LogManager}};
@@ -269,13 +269,13 @@ fn select(line: &str) -> Result<bool, serde_json::Error> {
 
 旗标来自当前应用不可变的环境快照，进程变量优先于选中的环境文件。配置缓存生效时不加载环境文件，因此文件中的 `PAIL_TESTS` 不生效。Handler 在第一条被接受的日志或队列生命周期事件到来时才解析；构造失败在该时机传播，原日志驱动已接受的写入仍保留。
 
-Pail 通过共享路径服务解析 `Application::storagePath("pail")`。在首次捕获前设置 `useStoragePath` 或 `APP_STORAGE_PATH`，参见[应用存储路径](../getting-started/configuration.md#application-storage-path)。
+Pail 通过共享路径服务解析 `Application::storage_path("pail")`。在首次捕获前设置 `use_storage_path` 或 `APP_STORAGE_PATH`，参见[应用存储路径](../getting-started/configuration.md#application-storage-path)。
 
 默认文件日志渠道和应急回退使用应用存储路径。应在加载配置或解析渠道前配置路径；已加载的渠道路径保留其配置值，参见[应用存储路径](../getting-started/configuration.md#application-storage-path)。
 
 ## Pail CLI 打印器 {#pail-cli-printer}
 
-可选 Pail 包提供 `openrust_pail::contracts::Printer` 和 `printers::CliPrinter`。在 Artisan 命令中构造 `CliPrinter::new(output, basePath)`，调用 `print(&messageLogged)?`。打印器读取当前输出的详细级别与颜色状态。普通模式显示时间并缩略类型、文件和消息；`-v` 显示完整日期与正文，`-vv` 或 `-vvv` 再显示捕获的堆栈帧。
+可选 Pail 包提供 `openrust_pail::contracts::Printer` 和 `printers::CliPrinter`。在 Artisan 命令中构造 `CliPrinter::new(output, base_path)`，调用 `print(&messageLogged)?`。打印器读取当前输出的详细级别与颜色状态。普通模式显示时间并缩略类型、文件和消息；`-v` 显示完整日期与正文，`-vv` 或 `-vvv` 再显示捕获的堆栈帧。
 
 底部显示 HTTP 方法／路径和认证信息，或队列／任务／命令，以及公开 Context。数字键与 null、PHP 风格值导出、HTML 文本和多行消息按固定 Pail 规则处理。边框宽度上限为 150 个终端列；原始消息和长底部信息可能像上游一样溢出。Rust 的 `::` 类型命名空间及 Windows 本机路径分隔符适配到缩略和相对来源显示。
 

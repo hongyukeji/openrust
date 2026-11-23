@@ -452,7 +452,7 @@ impl<P: Model> MorphTo<P> {
     }
 
     /// Supplies an unsaved model when this registered target has no matching row.
-    pub fn withDefault<R: Model>(
+    pub fn with_default<R: Model>(
         mut self,
         alias: &'static str,
         configure: impl Fn(&mut R, &P) + Send + Sync + 'static,

@@ -16,7 +16,7 @@ async fn boot_keeps_package_services_and_commands_in_their_application() {
     let root = release.root().to_owned();
     let resources = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources");
     let first = Application::configure(root.clone())
-        .withProviders(vec![Box::new(ProbeProvider(resources))])
+        .with_providers(vec![Box::new(ProbeProvider(resources))])
         .create()
         .unwrap();
     let second = Application::configure(root).create().unwrap();

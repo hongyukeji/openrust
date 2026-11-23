@@ -36,7 +36,6 @@ pub struct ApplicationBuilder {
     runners: Option<RunnerRegistrar>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl ApplicationBuilder {
     pub(crate) fn new(base_path: PathBuf) -> Self {
         Self {
@@ -81,7 +80,7 @@ impl ApplicationBuilder {
     }
 
     /// Rust 按类型注册单项工厂，可连续调用以声明多个绑定。
-    pub fn withBindings<T, F>(self, factory: F) -> Self
+    pub fn with_bindings<T, F>(self, factory: F) -> Self
     where
         T: ?Sized + Send + Sync + 'static,
         F: Fn(
@@ -96,7 +95,7 @@ impl ApplicationBuilder {
             Ok(())
         })
     }
-    pub fn withSingletons<T, F>(self, factory: F) -> Self
+    pub fn with_singletons<T, F>(self, factory: F) -> Self
     where
         T: ?Sized + Send + Sync + 'static,
         F: Fn(
@@ -111,7 +110,7 @@ impl ApplicationBuilder {
             Ok(())
         })
     }
-    pub fn withScopedSingletons<T, F>(self, factory: F) -> Self
+    pub fn with_scoped_singletons<T, F>(self, factory: F) -> Self
     where
         T: ?Sized + Send + Sync + 'static,
         F: Fn(
@@ -126,7 +125,7 @@ impl ApplicationBuilder {
             Ok(())
         })
     }
-    pub fn withSchedule(
+    pub fn with_schedule(
         mut self,
         callback: impl Fn(
             &mut crate::console::scheduling::Schedule,
@@ -138,7 +137,7 @@ impl ApplicationBuilder {
         self.schedule_configurators.push(Box::new(callback));
         self
     }
-    pub fn prefersJsonResponses(self, prefer: bool) -> Self {
+    pub fn prefers_json_responses(self, prefer: bool) -> Self {
         if prefer {
             self.booted(|app| {
                 app.shared
@@ -151,36 +150,36 @@ impl ApplicationBuilder {
         }
     }
 
-    pub fn withConfig(mut self, load: ConfigLoader) -> Self {
+    pub fn with_config(mut self, load: ConfigLoader) -> Self {
         self.load_config = load;
         self
     }
 
-    pub fn withProviders(mut self, providers: Vec<Box<dyn ServiceProvider>>) -> Self {
+    pub fn with_providers(mut self, providers: Vec<Box<dyn ServiceProvider>>) -> Self {
         self.providers.extend(providers);
         self
     }
 
     /// Installs the package catalog generated for this application's Cargo target.
-    pub fn withPackages(mut self, manifest: crate::foundation::PackageManifest) -> Self {
+    pub fn with_packages(mut self, manifest: crate::foundation::PackageManifest) -> Self {
         self.packages = manifest;
         self
     }
 
     /// Registers the application's compiled migration entries for Artisan.
-    pub fn withMigrations(mut self, entries: &'static [MigrationEntry]) -> Self {
+    pub fn with_migrations(mut self, entries: &'static [MigrationEntry]) -> Self {
         self.migrations = Some(entries);
         self
     }
 
     /// Registers the application's compiled seeder entries for Artisan.
-    pub fn withSeeders(mut self, entries: &'static [SeederEntry]) -> Self {
+    pub fn with_seeders(mut self, entries: &'static [SeederEntry]) -> Self {
         self.seeders = Some(entries);
         self
     }
 
     /// Adds a compiled manifest of event listeners to application boot.
-    pub fn withEvents(mut self, manifest: crate::foundation::events::DiscoverEvents) -> Self {
+    pub fn with_events(mut self, manifest: crate::foundation::events::DiscoverEvents) -> Self {
         self.providers.push(Box::new(
             crate::foundation::support::providers::EventServiceProvider::new(manifest),
         ));
@@ -188,7 +187,7 @@ impl ApplicationBuilder {
     }
 
     /// Adds custom runners after provider contributions.
-    pub fn withRunners(
+    pub fn with_runners(
         mut self,
         runners: impl FnOnce() -> Vec<Arc<dyn Runner>> + Send + 'static,
     ) -> Self {
@@ -196,25 +195,25 @@ impl ApplicationBuilder {
         self
     }
 
-    pub fn withRouting(mut self, routing: Routing) -> Self {
+    pub fn with_routing(mut self, routing: Routing) -> Self {
         self.routing = Some(routing);
         self
     }
 
     /// Enables broadcast authentication and loads the application's channel rules.
-    pub fn withBroadcasting(mut self, register: ChannelRoutes) -> Self {
+    pub fn with_broadcasting(mut self, register: ChannelRoutes) -> Self {
         self.channels = Some(register);
         self
     }
 
     /// Registers gRPC services during application boot.
-    pub fn withGrpc(mut self, register: grpc::Registrar) -> Self {
+    pub fn with_grpc(mut self, register: grpc::Registrar) -> Self {
         self.grpc = Some(register);
         self
     }
 
     /// Configures this application’s middleware when the configuration is first needed.
-    pub fn withMiddleware(
+    pub fn with_middleware(
         mut self,
         configure: impl FnOnce(&mut Middleware) + Send + Sync + 'static,
     ) -> Self {
@@ -223,13 +222,13 @@ impl ApplicationBuilder {
     }
 
     /// Registers application commands when Artisan starts.
-    pub fn withCommands(mut self, register: CommandRegistrar) -> Self {
+    pub fn with_commands(mut self, register: CommandRegistrar) -> Self {
         self.commands = register;
         self
     }
 
     /// Configures exception rendering for the HTTP kernel.
-    pub fn withExceptions(mut self, configure: impl FnOnce(&mut Exceptions)) -> Self {
+    pub fn with_exceptions(mut self, configure: impl FnOnce(&mut Exceptions)) -> Self {
         configure(self.exceptions.get_or_insert_with(Exceptions::default));
         self
     }

@@ -20,7 +20,7 @@ pub struct Cache;
 impl Facade for Cache {
     type Service = CacheManager;
 
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         "cache".into()
     }
 }
@@ -35,21 +35,21 @@ impl Cache {
         + Sync
         + 'static,
     ) -> CacheResult<()> {
-        Self::getFacadeRoot()?.extend(driver, factory)?;
+        Self::get_facade_root()?.extend(driver, factory)?;
         Ok(())
     }
 
     pub fn build(config: serde_json::Value) -> CacheResult<Repository> {
-        Self::getFacadeRoot()?.build(config)
+        Self::get_facade_root()?.build(config)
     }
 
     pub fn forgetDriver(name: Option<&str>) -> CacheResult<()> {
-        Self::getFacadeRoot()?.forgetDriver(name)?;
+        Self::get_facade_root()?.forgetDriver(name)?;
         Ok(())
     }
 
     pub fn purge(name: Option<&str>) -> CacheResult<()> {
-        Self::getFacadeRoot()?.purge(name)
+        Self::get_facade_root()?.purge(name)
     }
 
     pub fn driver(name: Option<&str>) -> CacheResult<Arc<Repository>> {
@@ -57,12 +57,12 @@ impl Cache {
     }
 
     pub fn store(name: Option<&str>) -> CacheResult<Arc<Repository>> {
-        Self::getFacadeRoot()?.store(name)
+        Self::get_facade_root()?.store(name)
     }
 
     /// Memoizes reads of the default store or a named store for this lifecycle.
     pub fn memo(name: Option<&str>) -> CacheResult<Arc<Repository>> {
-        Self::getFacadeRoot()?.memo(name)
+        Self::get_facade_root()?.memo(name)
     }
 
     pub fn tags(names: &[&str]) -> CacheResult<TaggedCache> {
@@ -105,8 +105,8 @@ impl Cache {
         Self::store(None)?.get(key).await
     }
 
-    pub async fn getOr(key: &str, default: Value) -> CacheResult<Value> {
-        Self::store(None)?.getOr(key, default).await
+    pub async fn get_or(key: &str, default: Value) -> CacheResult<Value> {
+        Self::store(None)?.get_or(key, default).await
     }
 
     pub async fn getOrElse<F>(key: &str, default: impl FnOnce() -> F) -> CacheResult<Value>

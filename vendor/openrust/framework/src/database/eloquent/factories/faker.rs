@@ -554,7 +554,7 @@ impl Faker {
             _ => return Err(DatabaseError::InvalidConfiguration("app.timezone")),
         };
         container
-            .singletonIfNamed(&key, move |_| {
+            .singleton_if_named(&key, move |_| {
                 Ok(Arc::new(Self::with_canonical_locale(
                     locale.clone(),
                     application_timezone.clone(),

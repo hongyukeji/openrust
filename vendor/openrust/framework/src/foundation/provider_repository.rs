@@ -161,7 +161,7 @@ impl ProviderRepository {
         for provider in providers {
             let keys = provider.provides();
             let events = provider.when();
-            let factory = provider.deferredFactory();
+            let factory = provider.deferred_factory();
             let name = provider.name();
             let provider = if factory.is_some() {
                 None
@@ -332,7 +332,7 @@ impl ProviderRepository {
                             .register(&app)
                             .await
                             .map_err(|source| slot.failure(source, REGISTRATION_FAILED))?;
-                        app.markAsRegistered(
+                        app.mark_as_registered(
                             provider
                                 .as_ref()
                                 .expect("deferred provider constructed")

@@ -104,7 +104,7 @@ use openrust::{support::facades::Schedule, testing::TestApp};
 #[tokio::test]
 async fn runs_a_task_with_a_frozen_clock() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut app = TestApp::create(|builder| {
-        builder.withCommands(|_| Schedule::configure(|schedule| {
+        builder.with_commands(|_| Schedule::configure(|schedule| {
             schedule.doNotAllowPausing();
             schedule.call(|_, output| Box::pin(async move {
                 output.stdout.push_str("scheduled task ran\n");

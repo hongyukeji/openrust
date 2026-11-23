@@ -14,7 +14,7 @@ pub struct Cookie;
 impl Facade for Cookie {
     type Service = CookieJar;
 
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         "cookie".into()
     }
 }
@@ -22,7 +22,7 @@ impl Facade for Cookie {
 #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Cookie {
     pub(crate) fn factory() -> Result<Arc<CookieJar>, CookieError> {
-        Self::getFacadeRoot().map_err(|_| CookieError)
+        Self::get_facade_root().map_err(|_| CookieError)
     }
 
     pub fn make(

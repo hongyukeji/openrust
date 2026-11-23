@@ -1,5 +1,4 @@
 #![allow(non_snake_case, reason = "保留既定公开接口及命名")]
-
 //! Controlled OP fixture and two native RP applications; this is not a production OP.
 #[path = "support/local_login.rs"]
 mod recipe;
@@ -412,7 +411,7 @@ struct LogoutRace(tokio::sync::Barrier);
 fn signed_out(r: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
         if r.input(Some("race")).await?.is_some() {
-            openrust::container::Container::getInstance()
+            openrust::container::Container::get_instance()
                 .make::<LogoutRace>()
                 .map_err(internal)?
                 .0
@@ -476,12 +475,12 @@ async fn rp(op: &Arc<Op>, mysql: &str, name: &str, user_id: i64) -> Rp {
     );
     let settings=[("app".into(),json!({"key":name.repeat(32),"env":"testing"})),("database".into(),json!({"default":"mysql","connections":{"mysql":{"url":mysql}}})),("session".into(),json!({"driver":"database","cookie":format!("rp_{name}_session"),"table":"sessions","lottery":[0,100]})),("cache".into(),json!({"default":"database","prefix":format!("sso-{name}:"),"stores":{"database":{"driver":"database","table":"cache"}}})),("auth".into(),json!({"defaults":{"guard":"web"},"guards":{"web":{"driver":"session","provider":"users"}},"providers":{"users":{"driver":"eloquent","model":"SsoUser"}}})),("oidc".into(),json!({"providers":{"work":{"issuer":op.base,"client_id":client,"client_secret":format!("secret-{name}"),"client_auth":"client_secret_post","redirect":redirect,"post_logout_redirect":post_logout,"leeway":1,"allow_loopback_http":true}}}))].into();
     let mut app = Application::configure(std::env::temp_dir())
-        .withConfig(|_, _| Ok(Default::default()))
-        .withProviders(vec![
+        .with_config(|_, _| Ok(Default::default()))
+        .with_providers(vec![
             Box::new(Settings(settings)),
             Box::new(OidcServiceProvider),
         ])
-        .withRouting(Routing::default().web(routes))
+        .with_routing(Routing::default().web(routes))
         .create()
         .unwrap();
     app.boot().await.unwrap();
@@ -547,7 +546,7 @@ async fn mysql_browser_two_rps_sso_reauthentication_and_logout_boundaries() {
     };
     let node =
         std::env::var("OIDC_TEST_NODE").expect("OIDC_TEST_NODE required for browser acceptance");
-    let mut admin=Application::configure(std::env::temp_dir()).withConfig(|_,_|Ok([("database".into(),json!({"default":"mysql","connections":{"mysql":{"url":std::env::var("OPENRUST_TEST_MYSQL_URL").unwrap()}}}))].into())).create().unwrap();
+    let mut admin=Application::configure(std::env::temp_dir()).with_config(|_,_|Ok([("database".into(),json!({"default":"mysql","connections":{"mysql":{"url":std::env::var("OPENRUST_TEST_MYSQL_URL").unwrap()}}}))].into())).create().unwrap();
     admin.boot().await.unwrap();
     let db = admin
         .make::<DatabaseManager>()

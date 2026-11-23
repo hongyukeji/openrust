@@ -45,7 +45,7 @@ let record = logger.on(Subject::new("settings", "1")?)
 
 模型还须实现 `Clone`，保存以 `Default::default()` 初始化的 `models::LoggingState`，并在 `activitylogState` 返回该字段。`disableLogging()`、`enableLogging()` 仅影响该实例；克隆复制当前开关值。用已登记的关系路径如 `owner.name` 选择关联属性；旧快照按原外键读取，显式事务也能读取事务内关系。应用采用不同名称时，在原生命名关系中显式登记别名。
 
-定制审计模型时，在应用 Provider 用 `app.container().instanceNamed("application.activity", value)` 登记 `Arc::new(models::ActivityModel::of::<CustomActivity>())`，并将 `activitylog.activity_model` 设为 `"application.activity"`。保留审计列与 JSON casts；模型元数据选择表及可选连接，显式 `activitylog.connection` 优先。普通写入执行原生 Eloquent 保存事件。定制动作时，以原生容器名称登记 `LogActivityAction` 或 `CleanActivityLogAction`，再通过 `actions.log_activity`、`actions.clean_log` 选择；用 `beforeLogging` 修改日志，用 `CleanActivityLogAction::using` 定制清理。
+定制审计模型时，在应用 Provider 用 `app.container().instance_named("application.activity", value)` 登记 `Arc::new(models::ActivityModel::of::<CustomActivity>())`，并将 `activitylog.activity_model` 设为 `"application.activity"`。保留审计列与 JSON casts；模型元数据选择表及可选连接，显式 `activitylog.connection` 优先。普通写入执行原生 Eloquent 保存事件。定制动作时，以原生容器名称登记 `LogActivityAction` 或 `CleanActivityLogAction`，再通过 `actions.log_activity`、`actions.clean_log` 选择；用 `beforeLogging` 修改日志，用 `CleanActivityLogAction::using` 定制清理。
 
 ## 事务边界 {#transactions}
 

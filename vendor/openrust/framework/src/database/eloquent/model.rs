@@ -444,14 +444,14 @@ pub trait Model: Sized + Send + Sync + 'static {
         async { Self::query()?.create(attributes).await }
     }
 
-    fn newInstance(attributes: Attributes) -> DatabaseResult<Self> {
+    fn new_instance(attributes: Attributes) -> DatabaseResult<Self> {
         let mut model = Self::from_state(ModelState::default());
         model.fill(attributes)?;
         Ok(model)
     }
 
     fn newInstanceOn(connection: &Connection, attributes: Attributes) -> DatabaseResult<Self> {
-        let mut model = Self::newInstance(Attributes::new())?;
+        let mut model = Self::new_instance(Attributes::new())?;
         model.state_mut().connection = Some(connection.clone());
         model.fill(attributes)?;
         Ok(model)

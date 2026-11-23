@@ -61,10 +61,10 @@ impl Root {
     }
     async fn app(&self) -> Application {
         let mut app = Application::configure(self.0.clone())
-            .withConfig(configuration)
-            .withProviders(vec![Box::new(PassportServiceProvider)])
-            .withMigrations(MIGRATIONS)
-            .withRouting(Routing::new(routes))
+            .with_config(configuration)
+            .with_providers(vec![Box::new(PassportServiceProvider)])
+            .with_migrations(MIGRATIONS)
+            .with_routing(Routing::new(routes))
             .create()
             .unwrap();
         app.boot().await.unwrap();
@@ -183,7 +183,7 @@ fn exercise(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 }
 async fn exercise_models() -> DatabaseResult<()> {
     use openrust::support::facades::Config;
-    let repo = openrust::container::Container::getInstance()
+    let repo = openrust::container::Container::get_instance()
         .make::<ClientRepository>()
         .unwrap();
     let first = repo.createClientCredentialsGrantClient("first").await?;
@@ -201,7 +201,7 @@ async fn exercise_models() -> DatabaseResult<()> {
     token.save().await?;
     assert!(token.can("orders")?);
     assert!(token.cant("orders:read")?);
-    let passport = openrust::container::Container::getInstance()
+    let passport = openrust::container::Container::get_instance()
         .make::<Passport>()
         .unwrap();
     passport.withInheritedScopes.store(true, Ordering::Relaxed);
@@ -1197,7 +1197,7 @@ fn manage(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
             .downcast_ref::<ManagementUser>()
             .unwrap();
         let owner = openrust_passport::ClientOwner::forUser(user).map_err(internal)?;
-        let repo = openrust::container::Container::getInstance()
+        let repo = openrust::container::Container::get_instance()
             .make::<ClientRepository>()
             .unwrap();
         let Some(id) = request.route("client") else {

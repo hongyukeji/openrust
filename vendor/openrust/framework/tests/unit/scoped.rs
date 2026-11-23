@@ -44,7 +44,7 @@ async fn clearing_one_scope_keeps_other_requests_and_singletons_intact() {
     let first = container.scope(async {
         let previous = container.make::<usize>().unwrap();
         gate.wait().await;
-        container.forgetScopedInstances();
+        container.forget_scoped_instances();
         let current = container.make::<usize>().unwrap();
         assert!(!Arc::ptr_eq(&previous, &current));
         assert!(Arc::ptr_eq(&singleton, &container.make::<u64>().unwrap()));
@@ -63,36 +63,36 @@ async fn clearing_one_scope_keeps_other_requests_and_singletons_intact() {
 async fn scoped_instance_overrides_and_removed_aliases_stay_in_the_current_lifecycle() {
     let container = Container::default();
     container
-        .scopedNamed::<u32, _>("service", |_| Ok(Arc::new(7)))
+        .scoped_named::<u32, _>("service", |_| Ok(Arc::new(7)))
         .unwrap();
     container.alias("service", "alias").unwrap();
     let gate = tokio::sync::Barrier::new(2);
     tokio::join!(
         container.scope(async {
-            container.instanceNamed("alias", Arc::new(99_u32)).unwrap();
+            container.instance_named("alias", Arc::new(99_u32)).unwrap();
             assert_eq!(*container.get::<u32>("alias").unwrap(), 99);
-            assert!(!container.isAlias("alias"));
+            assert!(!container.is_alias("alias"));
             gate.wait().await;
-            container.forgetInstance("alias");
+            container.forget_instance("alias");
             assert!(!container.has("alias"));
             assert!(container.get::<u32>("alias").is_err());
-            container.forgetScopedInstances();
-            assert!(!container.isAlias("alias"));
+            container.forget_scoped_instances();
+            assert!(!container.is_alias("alias"));
         }),
         container.scope(async {
             assert_eq!(*container.get::<u32>("service").unwrap(), 7);
-            assert!(container.isAlias("alias"));
+            assert!(container.is_alias("alias"));
             gate.wait().await;
         })
     );
-    assert!(container.isAlias("alias"));
+    assert!(container.is_alias("alias"));
     assert_eq!(*container.get::<u32>("alias").unwrap(), 7);
     container
         .scope(async {
-            container.instanceNamed("alias", Arc::new(99_u32)).unwrap();
-            container.forgetInstance("alias");
+            container.instance_named("alias", Arc::new(99_u32)).unwrap();
+            container.forget_instance("alias");
             container
-                .scopedIfNamed::<u32, _>("alias", |_| Ok(Arc::new(23)))
+                .scoped_if_named::<u32, _>("alias", |_| Ok(Arc::new(23)))
                 .unwrap();
             assert_eq!(*container.get::<u32>("alias").unwrap(), 23);
         })
@@ -105,19 +105,19 @@ fn scoped_if_does_not_register_existing_singletons_for_lifecycle_eviction() {
     container.singleton::<u64, _>(|_| Ok(Arc::new(5))).unwrap();
     let shared = container.make::<u64>().unwrap();
     container
-        .scopedIf::<u64, _>(|_| panic!("existing singleton replaced"))
+        .scoped_if::<u64, _>(|_| panic!("existing singleton replaced"))
         .unwrap();
     container
-        .scopedIfNamed::<u32, _>("fresh", |_| Ok(Arc::new(8)))
+        .scoped_if_named::<u32, _>("fresh", |_| Ok(Arc::new(8)))
         .unwrap();
     let first = container.get::<u32>("fresh").unwrap();
-    container.forgetScopedInstances();
+    container.forget_scoped_instances();
     assert!(!Arc::ptr_eq(
         &first,
         &container.get::<u32>("fresh").unwrap()
     ));
     assert!(Arc::ptr_eq(&shared, &container.make::<u64>().unwrap()));
-    assert!(container.isShared("fresh"));
+    assert!(container.is_shared("fresh"));
 }
 
 #[tokio::test]
@@ -140,7 +140,7 @@ async fn rebinds_evict_local_overrides_and_nested_applications_restore_their_sco
             first.scoped::<usize, _>(|_| Ok(Arc::new(3))).unwrap();
             assert_eq!(*first.make::<usize>().unwrap(), 3);
             let key = ServiceKey::typed::<usize>();
-            first.forgetInstance(key);
+            first.forget_instance(key);
             assert_eq!(*first.make::<usize>().unwrap(), 3);
         })
         .await;
@@ -218,7 +218,7 @@ fn scoped_cache_eviction_drops_values_outside_its_lock() {
             .unwrap()
             .block_on(container.scope(async {
                 drop(container.make::<Reenter>().unwrap());
-                container.forgetScopedInstances();
+                container.forget_scoped_instances();
                 assert_eq!(dropped.load(Ordering::SeqCst), 1);
             }));
         send.send(()).unwrap();
@@ -258,15 +258,15 @@ async fn panicking_constructors_can_retry_without_poisoning_the_scope_cache() {
 async fn instance_and_global_eviction_do_not_flush_another_active_scope() {
     let container = Container::default();
     container
-        .scopedNamed::<u32, _>("value", |_| Ok(Arc::new(1)))
+        .scoped_named::<u32, _>("value", |_| Ok(Arc::new(1)))
         .unwrap();
     let gate = tokio::sync::Barrier::new(2);
     tokio::join!(
         container.scope(async {
-            container.instanceNamed("value", Arc::new(99_u32)).unwrap();
+            container.instance_named("value", Arc::new(99_u32)).unwrap();
             assert_eq!(*container.get::<u32>("value").unwrap(), 99);
             gate.wait().await;
-            container.forgetInstances();
+            container.forget_instances();
             assert_eq!(*container.get::<u32>("value").unwrap(), 1);
             gate.wait().await;
         }),
@@ -285,22 +285,22 @@ async fn instance_and_global_eviction_do_not_flush_another_active_scope() {
 #[tokio::test]
 async fn forgetting_a_scoped_alias_override_does_not_resurrect_hidden_root_instances() {
     let container = Container::default();
-    container.instanceNamed("alias", Arc::new(99_u32)).unwrap();
+    container.instance_named("alias", Arc::new(99_u32)).unwrap();
     container
-        .scopedNamed::<u32, _>("value", |_| Ok(Arc::new(7)))
+        .scoped_named::<u32, _>("value", |_| Ok(Arc::new(7)))
         .unwrap();
     container.alias("value", "alias").unwrap();
     container
         .scope(async {
-            container.instanceNamed("alias", Arc::new(12_u32)).unwrap();
-            container.forgetInstance("alias");
+            container.instance_named("alias", Arc::new(12_u32)).unwrap();
+            container.forget_instance("alias");
             assert!(!container.has("alias"));
-            assert!(!container.isShared("alias"));
+            assert!(!container.is_shared("alias"));
             assert!(!container.resolved("alias").unwrap());
             assert!(container.get::<u32>("alias").is_err());
         })
         .await;
-    assert!(container.isAlias("alias"));
+    assert!(container.is_alias("alias"));
     assert_eq!(*container.get::<u32>("alias").unwrap(), 7);
 }
 
@@ -315,7 +315,7 @@ async fn root_scoped_reset_preserves_a_child_lifecycle_on_another_execution() {
             let next_root = std::thread::scope(|scope| {
                 scope
                     .spawn(|| {
-                        container.forgetScopedInstances();
+                        container.forget_scoped_instances();
                         container.make::<usize>().unwrap()
                     })
                     .join()

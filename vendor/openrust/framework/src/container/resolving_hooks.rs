@@ -254,7 +254,7 @@ impl Container {
         + Sync
         + 'static,
     ) -> Result<(), BindingResolutionError> {
-        let selector = selector.map(|key| self.getAlias(key)).transpose()?;
+        let selector = selector.map(|key| self.get_alias(key)).transpose()?;
         let callback: Arc<Callback> = Arc::new(callback);
         self.registry
             .write()

@@ -51,7 +51,7 @@ impl TwoFactorAuthenticatedSessionController {
         request: &'a mut Request,
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
-            let fortify = Resolver::<Fortify>::getFacadeRoot().map_err(internal)?;
+            let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;
             if challenged(request, &fortify).await?.is_none() {
                 return Ok(Redirect::route("login", &[], Default::default())?.into());
             }
@@ -64,7 +64,7 @@ impl TwoFactorAuthenticatedSessionController {
         _: ValidatedFormRequest<TwoFactorLoginRequest>,
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
-            let fortify = Resolver::<Fortify>::getFacadeRoot().map_err(internal)?;
+            let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;
             let Some(mut user) = challenged(request, &fortify).await? else {
                 return super::respond::<dyn contracts::FailedTwoFactorLoginResponse>(request)
                     .await;
@@ -102,7 +102,7 @@ impl TwoFactorAuthenticatedSessionController {
                             .map_err(internal)?,
                     );
                     let secret = std::str::from_utf8(&clear).map_err(internal)?;
-                    Resolver::<dyn contracts::TwoFactorAuthenticationProvider>::getFacadeRoot()
+                    Resolver::<dyn contracts::TwoFactorAuthenticationProvider>::get_facade_root()
                         .map_err(internal)?
                         .verify(secret, &code)
                         .await

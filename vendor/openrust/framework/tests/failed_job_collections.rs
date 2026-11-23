@@ -119,9 +119,10 @@ impl ServiceProvider for Provider {
         Box::pin(async move {
             let root = self.0.clone();
             app.container()
-                .singletonNamed::<dyn FailedJobProviderInterface, _>("queue.failer", move |_| {
-                    Ok(Arc::new(CollectionProvider(root.clone())))
-                })?;
+                .singleton_named::<dyn FailedJobProviderInterface, _>(
+                    "queue.failer",
+                    move |_| Ok(Arc::new(CollectionProvider(root.clone()))),
+                )?;
             Ok(())
         })
     }
@@ -129,7 +130,7 @@ impl ServiceProvider for Provider {
 
 fn application(root: &Path) -> Application {
     Application::configure(root.into())
-        .withConfig(|base, _| {
+        .with_config(|base, _| {
             let database = if base.join("mysql").is_file() {
                 json!({"url":std::env::var("OPENRUST_TEST_WORKER_MYSQL_URL").unwrap()})
             } else {
@@ -143,7 +144,7 @@ fn application(root: &Path) -> Application {
             };
             Ok(config.into_iter().collect())
         })
-        .withProviders(vec![Box::new(Provider(root.into()))])
+        .with_providers(vec![Box::new(Provider(root.into()))])
         .create()
         .unwrap()
 }
@@ -155,7 +156,7 @@ async fn collection_artisan_fixture() {
     let args: Vec<String> =
         serde_json::from_str(&std::env::var("QUEUE_COLLECTION_ARGS").unwrap()).unwrap();
     let args: Vec<OsString> = args.into_iter().map(Into::into).collect();
-    let status = application(&root).handleCommand(&args).await.unwrap();
+    let status = application(&root).handle_command(&args).await.unwrap();
     std::process::exit(status);
 }
 

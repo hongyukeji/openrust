@@ -11,7 +11,7 @@ impl Middleware for Authorize {
         next: Next<'a>,
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
-            let local = Config::getFacadeRoot()?
+            let local = Config::get_facade_root()?
                 .get("app.env")
                 .and_then(|v| v.as_str().map(str::to_owned))
                 .as_deref()

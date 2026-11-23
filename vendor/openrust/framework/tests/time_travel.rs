@@ -83,15 +83,15 @@ fn commands(artisan: &mut Artisan) -> Result<(), ConsoleError> {
 fn app() -> TestResult<TestApp> {
     TestApp::sqlite(|builder| {
         builder
-            .withConfig(|_, _| {
+            .with_config(|_, _| {
                 Ok([(
                     "app".into(),
                     serde_json::json!({"env":"testing", "timezone":"America/New_York"}),
                 )]
                 .into())
             })
-            .withCommands(commands)
-            .withRouting(Routing::default().web(|| {
+            .with_commands(commands)
+            .with_routing(Routing::default().web(|| {
                 Route::get("/clock", clock_route)?;
                 Route::get("/stamp", stamp_route)
             }))

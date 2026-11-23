@@ -173,11 +173,12 @@ async fn redis_memoized_cache_expires_between_http_requests_and_worker_jobs() {
     let Ok(port) = std::env::var("OPENRUST_TEST_REDIS_PORT") else {
         return;
     };
-    let mut fixture = TestApp::create(|builder| builder.withRouting(Routing::new(routes))).unwrap();
+    let mut fixture =
+        TestApp::create(|builder| builder.with_routing(Routing::new(routes))).unwrap();
     let mut kernel = Kernel::new(
         Application::configure(fixture.root().to_owned())
-            .withRouting(Routing::new(routes))
-            .withConfig(|base, _| {
+            .with_routing(Routing::new(routes))
+            .with_config(|base, _| {
                 let port = std::fs::read_to_string(base.join("redis-port")).unwrap();
                 Ok([
                     ("cache".into(), json!({"default":"redis","stores":{"redis":{"driver":"redis"}}})),
@@ -300,7 +301,7 @@ async fn verify_store_clear(
 async fn memo_handle_cannot_serve_a_stale_snapshot_after_its_scope_closes() -> Result<(), CacheError>
 {
     let mut fixture = TestApp::create(|builder| {
-        builder.withConfig(|_, _| {
+        builder.with_config(|_, _| {
             Ok([(
                 "cache".into(),
                 json!({"default":"array","stores":{"array":{"driver":"array"}}}),

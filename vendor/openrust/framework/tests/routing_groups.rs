@@ -100,11 +100,13 @@ async fn cached_and_invalid_indexes_preserve_http_routing() {
     let cache = root.path().join("storage/framework/cache/routes.json");
     for command in ["route:cache", "route:clear", "route:clear"] {
         let app = Application::configure(root.path().to_owned())
-            .withRouting(Routing::default().web(register))
+            .with_routing(Routing::default().web(register))
             .create()
             .unwrap();
         assert_eq!(
-            app.handleCommand(&[OsString::from(command)]).await.unwrap(),
+            app.handle_command(&[OsString::from(command)])
+                .await
+                .unwrap(),
             0
         );
         if command == "route:cache" {
@@ -124,16 +126,16 @@ async fn cached_and_invalid_indexes_preserve_http_routing() {
 
 async fn check_routes(root: &Path, cached: bool) {
     let app = Application::configure(root.to_owned())
-        .withRouting(Routing::default().web(register))
+        .with_routing(Routing::default().web(register))
         .create()
         .unwrap();
-    assert_eq!(app.getCachedRoutesPath(), None);
-    assert!(!app.routesAreCached());
+    assert_eq!(app.get_cached_routes_path(), None);
+    assert!(!app.routes_are_cached());
     let mut kernel = Kernel::new(app);
     kernel.bootstrap().await.unwrap();
-    assert_eq!(kernel.get_application().routesAreCached(), cached);
+    assert_eq!(kernel.get_application().routes_are_cached(), cached);
     assert_eq!(
-        kernel.get_application().getCachedRoutesPath(),
+        kernel.get_application().get_cached_routes_path(),
         Some(
             root.canonicalize()
                 .unwrap()

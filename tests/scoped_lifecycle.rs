@@ -40,8 +40,8 @@ impl Drop for Session {
 struct Sessions;
 impl Facade for Sessions {
     type Service = Session;
-    const cached: bool = false;
-    fn getFacadeAccessor() -> ServiceKey {
+    const CACHED: bool = false;
+    fn get_facade_accessor() -> ServiceKey {
         ServiceKey::typed::<Session>()
     }
 }
@@ -73,8 +73,8 @@ fn web() -> Result<(), RoutingError> {
 }
 fn commands() -> Result<(), ConsoleError> {
     Artisan::command("scope:probe", |output| {
-        let a = Sessions::getFacadeRoot().unwrap();
-        let b = Sessions::getFacadeRoot().unwrap();
+        let a = Sessions::get_facade_root().unwrap();
+        let b = Sessions::get_facade_root().unwrap();
         assert!(Arc::ptr_eq(&a, &b));
         output.stdout.push_str(&format!("{}:{}", a.name, a.id));
     })?;
@@ -82,9 +82,9 @@ fn commands() -> Result<(), ConsoleError> {
 }
 fn request(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let a = Sessions::getFacadeRoot().unwrap();
+        let a = Sessions::get_facade_root().unwrap();
         tokio::task::yield_now().await;
-        let b = Sessions::getFacadeRoot().unwrap();
+        let b = Sessions::get_facade_root().unwrap();
         assert!(Arc::ptr_eq(&a, &b));
         Ok(Response::new(
             StatusCode::OK,
@@ -94,8 +94,8 @@ fn request(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 }
 fn application(name: &'static str, stats: Arc<Stats>) -> Application {
     Application::configure(std::env::current_dir().unwrap())
-        .withProviders(vec![Box::new(Provider(name, stats))])
-        .withRouting(Routing::default().web(web).commands(commands))
+        .with_providers(vec![Box::new(Provider(name, stats))])
+        .with_routing(Routing::default().web(web).commands(commands))
         .create()
         .unwrap()
 }

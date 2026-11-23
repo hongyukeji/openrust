@@ -25,7 +25,7 @@ Private keys are 2048-bit RSA PKCS#8 or PKCS#1 PEM files. Platform public keys a
 
 Profiles accept `private_key`/`public_key` inline PEM instead of the corresponding path, with exactly one source per key. Resolve relative paths from the process working directory or use absolute paths. Protect configuration caches and key files with deployment access controls. Optional `endpoint` must be HTTPS; HTTP is accepted only for loopback protocol testing. Defaults are the official WeChat API v3 origin and Alipay gateway. Alipay sandbox requires the sandbox endpoint and its matching credentials and verification key.
 
-Other applications may depend on `openrust-pay` and register `PayServiceProvider`; it registers `PayServiceProvider::migrations()` through `loadMigrationsFrom`. No database access is required for gateway registration or direct operations.
+Other applications may depend on `openrust-pay` and register `PayServiceProvider`; it registers `PayServiceProvider::migrations()` through `load_migrations_from`. No database access is required for gateway registration or direct operations.
 
 ## Create a payment {#create-payment}
 

@@ -13,21 +13,22 @@ use std::sync::{
 #[test]
 fn factories_are_lazy_and_follow_live_aliases_instances_and_factories() {
     let c = Container::default();
-    let factory = c.factoryNamed::<u32>("alias".into());
+    let factory = c.factory_named::<u32>("alias".into());
     assert!(matches!(
         factory(),
         Err(BindingResolutionError::NotBound { .. })
     ));
-    c.bindNamed::<u32, _>("first", |_| Ok(Arc::new(1))).unwrap();
-    c.bindNamed::<u32, _>("second", |_| Ok(Arc::new(2)))
+    c.bind_named::<u32, _>("first", |_| Ok(Arc::new(1)))
+        .unwrap();
+    c.bind_named::<u32, _>("second", |_| Ok(Arc::new(2)))
         .unwrap();
     c.alias("first", "alias").unwrap();
     assert_eq!(*factory().unwrap(), 1);
     c.alias("second", "alias").unwrap();
     assert_eq!(*factory().unwrap(), 2);
-    c.instanceNamed("second", Arc::new(3u32)).unwrap();
+    c.instance_named("second", Arc::new(3u32)).unwrap();
     assert_eq!(*factory().unwrap(), 3);
-    c.forgetInstance("second");
+    c.forget_instance("second");
     assert_eq!(*factory().unwrap(), 2);
     let n = Arc::new(AtomicUsize::new(0));
     let seen = n.clone();
@@ -44,7 +45,7 @@ async fn factory_uses_invocation_scope_and_same_shared_cache_as_make() {
     let seen = n.clone();
     c.scoped::<u32, _>(move |_| Ok(Arc::new(seen.fetch_add(1, Ordering::SeqCst) as u32)))
         .unwrap();
-    let factory = c.factoryAsync::<u32>();
+    let factory = c.factory_async::<u32>();
     let root = factory().await.unwrap();
     c.scope(async {
         let a = factory().await.unwrap();
@@ -61,7 +62,7 @@ async fn async_factory_is_lazy_retries_errors_and_sync_factory_requires_async_re
     let c = Container::default();
     let n = Arc::new(AtomicUsize::new(0));
     let seen = n.clone();
-    c.singletonAsyncNamed::<u32, _>("number", move |_| {
+    c.singleton_async_named::<u32, _>("number", move |_| {
         let n = seen.clone();
         Box::pin(async move {
             tokio::task::yield_now().await;
@@ -77,14 +78,14 @@ async fn async_factory_is_lazy_retries_errors_and_sync_factory_requires_async_re
     })
     .await
     .unwrap();
-    let factory = c.factoryAsyncNamed::<u32>("number".into());
+    let factory = c.factory_async_named::<u32>("number".into());
     assert_eq!(n.load(Ordering::SeqCst), 0);
-    assert!(c.factoryNamed::<u32>("number".into())().is_err());
+    assert!(c.factory_named::<u32>("number".into())().is_err());
     assert!(factory().await.is_err());
     let ready = factory().await.unwrap();
     assert_eq!(*ready, 7);
     assert!(Arc::ptr_eq(&ready, &factory().await.unwrap()));
-    c.instanceNamed("number", Arc::new(9u32)).unwrap();
+    c.instance_named("number", Arc::new(9u32)).unwrap();
     assert_eq!(*factory().await.unwrap(), 9);
     assert_eq!(n.load(Ordering::SeqCst), 2);
 }
@@ -129,7 +130,7 @@ async fn repeated_wrap_shares_callback_state_and_fresh_defaults_without_requirin
     let defaults = n.clone();
     let c = Container::default();
     let signature = [ConstructorParam::scalar::<usize>("number")
-        .withDefault(move || Ok(ParameterValue::new(defaults.fetch_add(1, Ordering::SeqCst))))];
+        .with_default(move || Ok(ParameterValue::new(defaults.fetch_add(1, Ordering::SeqCst))))];
     let wrapped = c.wrap(
         Callback::reusable(&signature, move |args| {
             let count = state.0.fetch_add(1, Ordering::SeqCst);
@@ -159,7 +160,7 @@ async fn wrap_borrows_external_data_and_respects_constructor_context_and_empty_p
         .needs::<u32>()
         .give(|_| Ok(Arc::new(42)))
         .unwrap();
-    c.bindAsync::<Consumer, _>(|c| {
+    c.bind_async::<Consumer, _>(|c| {
         Box::pin(async move {
             let signature = [ConstructorParam::class::<u32>("dep")];
             let wrapped = c.wrap(
@@ -174,7 +175,7 @@ async fn wrap_borrows_external_data_and_respects_constructor_context_and_empty_p
     })
     .await
     .unwrap();
-    assert_eq!(c.makeAsync::<Consumer>().await.unwrap().0, 42);
+    assert_eq!(c.make_async::<Consumer>().await.unwrap().0, 42);
     assert!(c.factory::<u32>()().is_err());
 }
 #[tokio::test]
@@ -190,7 +191,7 @@ async fn cancelling_wrapped_future_preserves_other_calls_and_releases_own_argume
     let n = drops.clone();
     let c = Container::default();
     let signature = [ConstructorParam::scalar::<Held>("owned")
-        .withDefault(move || Ok(ParameterValue::new(Held(n.clone()))))];
+        .with_default(move || Ok(ParameterValue::new(Held(n.clone()))))];
     let calls = Arc::new(AtomicUsize::new(0));
     let seen = calls.clone();
     let wrapped = c.wrap(
@@ -222,10 +223,10 @@ async fn cancelling_wrapped_future_preserves_other_calls_and_releases_own_argume
 async fn wrapped_and_factory_futures_polled_in_closed_scope_are_rejected() {
     use std::task::Poll;
     let c = Container::default();
-    c.bindAsync::<u32, _>(|_| Box::pin(std::future::pending()))
+    c.bind_async::<u32, _>(|_| Box::pin(std::future::pending()))
         .await
         .unwrap();
-    let factory = c.factoryAsync::<u32>();
+    let factory = c.factory_async::<u32>();
     let signature = [ConstructorParam::class::<u32>("number")];
     let wrapped = c.wrap(
         Callback::reusable(&signature, |_| async { Ok(()) }),

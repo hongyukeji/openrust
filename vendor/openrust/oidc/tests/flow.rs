@@ -1,5 +1,4 @@
 #![allow(non_snake_case, reason = "保留既定公开接口及命名")]
-
 #[path = "support/local_login.rs"]
 mod recipe;
 #[path = "support/user.rs"]
@@ -258,13 +257,14 @@ fn who(r: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 struct BoundLogin;
 fn callback(r: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
-        if let Ok(barrier) = openrust::container::Container::getInstance().make::<ReplayBarrier>() {
+        if let Ok(barrier) = openrust::container::Container::get_instance().make::<ReplayBarrier>()
+        {
             barrier.0.wait().await;
         }
         let result = Oidc::provider("work", r).map_err(internal)?.user().await;
         match result {
             Ok(a) => {
-                if openrust::container::Container::getInstance()
+                if openrust::container::Container::get_instance()
                     .make::<BoundLogin>()
                     .is_ok()
                     && !recipe::login_bound_user(r, &a.identity).await?
@@ -321,12 +321,12 @@ async fn rp(
         settings.insert("cache".into(),json!({"default":"database","prefix":"oidc-test:","stores":{"database":{"driver":"database","table":"cache"}}}));
     }
     let mut app = Application::configure(std::env::temp_dir())
-        .withConfig(|_, _| Ok(Default::default()))
-        .withProviders(vec![
+        .with_config(|_, _| Ok(Default::default()))
+        .with_providers(vec![
             Box::new(Settings(settings)),
             Box::new(OidcServiceProvider),
         ])
-        .withRouting(Routing::default().web(routes))
+        .with_routing(Routing::default().web(routes))
         .create()
         .unwrap();
     app.boot().await.unwrap();
@@ -511,7 +511,7 @@ async fn mysql_shared_session_two_replicas_atomically_claim_callback() {
         assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
         return;
     };
-    let mut admin=Application::configure(std::env::temp_dir()).withConfig(|_,_|Ok([("database".into(),json!({"default":"mysql","connections":{"mysql":{"url":std::env::var("OPENRUST_TEST_MYSQL_URL").unwrap()}}}))].into())).create().unwrap();
+    let mut admin=Application::configure(std::env::temp_dir()).with_config(|_,_|Ok([("database".into(),json!({"default":"mysql","connections":{"mysql":{"url":std::env::var("OPENRUST_TEST_MYSQL_URL").unwrap()}}}))].into())).create().unwrap();
     admin.boot().await.unwrap();
     let db = admin
         .make::<DatabaseManager>()

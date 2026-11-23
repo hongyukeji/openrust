@@ -18,7 +18,7 @@ impl ServiceProvider for Ignore {
 #[tokio::test]
 async fn ignored_routes_preserve_default_features_and_engine_binding() {
     let mut app = Application::configure(std::env::temp_dir())
-        .withProviders(vec![Box::new(FortifyServiceProvider), Box::new(Ignore)])
+        .with_providers(vec![Box::new(FortifyServiceProvider), Box::new(Ignore)])
         .create()
         .unwrap();
     app.boot().await.unwrap();
@@ -49,7 +49,7 @@ async fn ignored_routes_preserve_default_features_and_engine_binding() {
 #[tokio::test]
 async fn missing_relying_party_configuration_refuses_passkey_routes() {
     let mut app = Application::configure(std::env::temp_dir())
-        .withProviders(vec![Box::new(FortifyServiceProvider)])
+        .with_providers(vec![Box::new(FortifyServiceProvider)])
         .create()
         .unwrap();
     let failure = app.boot().await.unwrap_err();
@@ -78,13 +78,13 @@ impl ServiceProvider for ConfirmationPolicy {
 async fn passkey_routes_use_fortify_prefix_guard_domain_and_confirmation_policy() {
     for confirm in [true, false] {
         let mut app = openrust::testing::TestApp::create(|builder| builder
-            .withConfig(|_, _| Ok([
+            .with_config(|_, _| Ok([
                 ("app".into(), serde_json::json!({"url":"https://example.test","key":"test-secret"})),
                 ("fortify".into(), serde_json::json!({"features":["passkeys"],"prefix":"identity","domain":"example.test","guard":"members","limiters":{"passkeys":"keys"},"views":false,"passkeys":{"allowed_origins":["https://login.example.test:8443"],"user_handle_secret":"stable-secret","timeout":1234}})),
                 ("fortify-options".into(), serde_json::json!({"passkeys":{"confirmPassword":true}})),
                 ("passkeys".into(), serde_json::json!({"allowed_origins":["https://login.example.test:8443"],"user_handle_secret":"stable-secret","timeout":1234})),
             ].into()))
-            .withProviders(vec![Box::new(FortifyServiceProvider), Box::new(ConfirmationPolicy(confirm))])
+            .with_providers(vec![Box::new(FortifyServiceProvider), Box::new(ConfirmationPolicy(confirm))])
             ).unwrap();
         app.boot().await.unwrap();
         let service = app

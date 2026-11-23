@@ -48,7 +48,7 @@ fn model_appends_label_but_icons_require_explicit_opt_in() {
         Aaguids::unknown(),
         "unrecognized",
     ] {
-        let mut passkey = Passkey::newInstance(
+        let mut passkey = Passkey::new_instance(
             [
                 ("name".into(), "Device".into()),
                 ("credential".into(), Value::Json(json!({"aaguid":id}))),

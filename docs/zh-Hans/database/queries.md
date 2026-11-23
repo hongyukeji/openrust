@@ -151,7 +151,7 @@ pub async fn latest_posts(connection: &Connection) -> DatabaseResult<Vec<Row>> {
 
 Rust 中 `where` 是关键字，使用 `r#where(column, operator, value)` 对应 `where`。`orWhere` 用 OR 连接条件，用 `whereNested` 加括号分组，用 `whereNot` 否定分组。可用 `whereNull`、`whereNotNull`、`whereIn`、`whereNotIn`、`whereBetween` 或 `whereColumn` 表达相应比较。空 IN 不匹配任何行，空 NOT IN 匹配所有行。
 
-`whereLike` 接受区分大小写参数。`whereDate` 和 `whereTime` 分别接收 `jiff::civil::Date` 和 `jiff::civil::Time`。可用 `toSql()` 和 `getBindings()` 查看 SQL 和按执行顺序排列的参数。
+`whereLike` 接受区分大小写参数。`whereDate` 和 `whereTime` 分别接收 `jiff::civil::Date` 和 `jiff::civil::Time`。可用 `toSql()` 和 `get_bindings()` 查看 SQL 和按执行顺序排列的参数。
 
 ```rust
 use openrust::database::{Connection, DatabaseResult, Row, Value};
@@ -626,7 +626,7 @@ let bindings = query.getRawBindings()?;
 assert_eq!(bindings["where"], vec![2.into(), 9.into(), true.into()]);
 ```
 
-手动替换后，新条件仍在已有绑定后追加参数。`select` 清空投影绑定，`reorder` 同时清空普通与联合排序绑定。`mergeBindings(&other)` 按类别追加绑定，不复制 SQL，须确保 SQL 中有对应占位符。所有类型化值始终使用参数绑定，包括包含 SQL 文本的值。`getBindings()` 返回编译后实际执行的参数；分组限量查询会将排序参数移至窗口投影，并追加绑定的数值限额。`getRawBindings()` 则保留原始逻辑类别。
+手动替换后，新条件仍在已有绑定后追加参数。`select` 清空投影绑定，`reorder` 同时清空普通与联合排序绑定。`mergeBindings(&other)` 按类别追加绑定，不复制 SQL，须确保 SQL 中有对应占位符。所有类型化值始终使用参数绑定，包括包含 SQL 文本的值。`get_bindings()` 返回编译后实际执行的参数；分组限量查询会将排序参数移至窗口投影，并追加绑定的数值限额。`getRawBindings()` 则保留原始逻辑类别。
 
 ## 补充查询条件 {#additional-query-conditions}
 

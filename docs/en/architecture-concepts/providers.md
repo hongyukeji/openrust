@@ -28,9 +28,9 @@ Provider hooks run inside their application's facade scope. HTTP and Artisan sha
 
 ## Deferred Providers
 
-Implement `openrust::contracts::support::DeferrableProvider` and declare exact service keys in `provides()`. Register a `DeferredProvider::new(factory)` in the existing provider list. The compiled factory replaces PHP class-name construction; static metadata does not instantiate the provider. Type deduplication uses the underlying provider type. HTTP leaves unused providers unloaded; the Console Kernel calls `loadDeferredProviders()` before registering commands.
+Implement `openrust::contracts::support::DeferrableProvider` and declare exact service keys in `provides()`. Register a `DeferredProvider::new(factory)` in the existing provider list. The compiled factory replaces PHP class-name construction; static metadata does not instantiate the provider. Type deduplication uses the underlying provider type. HTTP leaves unused providers unloaded; the Console Kernel calls `load_deferred_providers()` before registering commands.
 
-`Application::make::<T>().await` and `get::<T>(key).await` wait for a deferred provider. Container callers use `makeAsync` / `getAsync`; facades offer `getFacadeRootAsync`. Synchronous lookups of an uninitialized deferred service return `DeferredServiceRequiresAsync` rather than blocking Tokio. Synchronous binding factories must receive already initialized dependencies; they cannot await another provider. Both `register` and `boot` return futures, so a registration hook can await `app.make()` for another provider.
+`Application::make::<T>().await` and `get::<T>(key).await` wait for a deferred provider. Container callers use `make_async` / `get_async`; facades offer `get_facade_root_async`. Synchronous lookups of an uninitialized deferred service return `DeferredServiceRequiresAsync` rather than blocking Tokio. Synchronous binding factories must receive already initialized dependencies; they cannot await another provider. Both `register` and `boot` return futures, so a registration hook can await `app.make()` for another provider.
 
 Use an [asynchronous factory](container.md#asynchronous-factories) to resolve deferred dependencies automatically inside construction.
 
@@ -59,7 +59,7 @@ impl DeferrableProvider for ClientProvider {
 impl ServiceProvider for ClientProvider {
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
-            app.container().singletonAsync::<Client, _>(|_| Box::pin(async {
+            app.container().singleton_async::<Client, _>(|_| Box::pin(async {
                 tokio::task::yield_now().await;
                 Ok(Arc::new(Client))
             })).await?;
@@ -71,10 +71,10 @@ impl ServiceProvider for ClientProvider {
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let mut app = Application::configure(std::env::current_dir()?)
-        .withProviders(vec![Box::new(DeferredProvider::new(|| ClientProvider))])
+        .with_providers(vec![Box::new(DeferredProvider::new(|| ClientProvider))])
         .create()?;
     app.boot().await?;
-    assert!(app.isDeferredService(ServiceKey::typed::<Client>()));
+    assert!(app.is_deferred_service(ServiceKey::typed::<Client>()));
     let events = app.make::<Dispatcher>().await?;
     events.dispatch(Arc::new(NamedEvent::new("reports.opened", ())), &mut EventContext::new()).await?;
     let client = app.make::<Client>().await?;
@@ -85,7 +85,7 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
 An existing explicit instance bypasses an unused loader. Aliases are normalized before loading. Concurrent callers share registration and wait for boot; declared services remain inaccessible to other callers while boot is pending. The owner may resolve its own registered service during boot. A failed or cancelled boot leaves an explicit failure gate; create a new application to retry it. This concurrent readiness protection is a Rust adaptation beyond PHP’s sequential execution. Already contributed container values are retained.
 
-Loading consumes the trigger key only. Sibling keys remain in the deferred directory until `loadDeferredProviders()` completes. Registration errors retain contributions and consume that key; a later unconsumed key retries with a fresh compiled factory instance. Registering an already constructed deferred provider with `isDeferred()` and `provides()` reuses that object on retries; use `DeferredProvider` when constructor behavior matters.
+Loading consumes the trigger key only. Sibling keys remain in the deferred directory until `load_deferred_providers()` completes. Registration errors retain contributions and consume that key; a later unconsumed key retries with a fresh compiled factory instance. Registering an already constructed deferred provider with `is_deferred()` and `provides()` reuses that object on retries; use `DeferredProvider` when constructor behavior matters.
 
 When a service key triggers a provider before boot, the provider joins both the booting callbacks and the registered provider list, so its boot hook runs twice. Before boot, an event trigger instead joins the normal provider list at its registration position and boots once. Providers first used during a boot hook join the boot tail. After application boot, the trigger waits for registration and boot to finish.
 
@@ -99,4 +99,4 @@ Register compiled constructor metadata in `register` when a concrete type should
 
 ## Checking Loaded Providers
 
-Call `app.providerIsLoaded(std::any::type_name::<MyProvider>())` to check a provider's compiled class identity. The result becomes true after `register` succeeds, before `boot`; a failed or cancelled registration is not marked. A later boot failure retains the successful registration. Merely declaring a deferred provider does not load it. A custom diagnostic `name()` does not change its class identity. Each application owns its own loaded-provider set. Rust's `type_name` replaces PHP's `MyProvider::class` expression.
+Call `app.provider_is_loaded(std::any::type_name::<MyProvider>())` to check a provider's compiled class identity. The result becomes true after `register` succeeds, before `boot`; a failed or cancelled registration is not marked. A later boot failure retains the successful registration. Merely declaring a deferred provider does not load it. A custom diagnostic `name()` does not change its class identity. Each application owns its own loaded-provider set. Rust's `type_name` replaces PHP's `MyProvider::class` expression.

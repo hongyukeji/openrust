@@ -53,7 +53,7 @@ impl Languages {
     fn application(&self, locale: &str, fallback: &str) -> Application {
         let app = Application::configure(self.0.clone()).create().unwrap();
         app.container()
-            .instanceNamed(
+            .instance_named(
                 "translator",
                 Arc::new(
                     Translator::new(
@@ -231,7 +231,7 @@ async fn all_builtin_migrations_write_localized_comments_on_postgres() {
         assert!(!schema.hasTable("users").await.unwrap());
         // Failed callbacks must not execute partial DDL.
         let result = openrust::translation::Lang::withLocale("de", schema.create("invalid_catalog", |table| -> openrust::database::DatabaseResult<()> {
-            assert_eq!(openrust::translation::Lang::getLocale().unwrap(), "de");
+            assert_eq!(openrust::translation::Lang::get_locale().unwrap(), "de");
             table.id();
             table.comment(__("schema.tables.users", &Default::default())?);
             Ok(())

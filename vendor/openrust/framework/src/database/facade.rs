@@ -13,7 +13,7 @@ pub struct DB;
 impl Facade for DB {
     type Service = DatabaseManager;
 
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         "db".into()
     }
 }
@@ -37,12 +37,12 @@ impl DB {
     }
 
     pub fn connection(name: Option<&str>) -> DatabaseResult<Connection> {
-        Self::getFacadeRoot()?.connection(name)
+        Self::get_facade_root()?.connection(name)
     }
 
     /// Controls destructive database Artisan commands for the current application.
     pub fn prohibitDestructiveCommands(prohibit: bool) -> DatabaseResult<()> {
-        Self::getFacadeRoot()?.set_destructive_commands_prohibited(prohibit);
+        Self::get_facade_root()?.set_destructive_commands_prohibited(prohibit);
         Ok(())
     }
 
@@ -52,15 +52,15 @@ impl DB {
     }
 
     pub fn disconnect(name: Option<&str>) -> DatabaseResult<()> {
-        Self::getFacadeRoot()?.disconnect(name)
+        Self::get_facade_root()?.disconnect(name)
     }
 
     pub fn purge(name: Option<&str>) -> DatabaseResult<()> {
-        Self::getFacadeRoot()?.purge(name)
+        Self::get_facade_root()?.purge(name)
     }
 
     pub async fn reconnect(name: Option<&str>) -> DatabaseResult<Connection> {
-        Self::getFacadeRoot()?.reconnect(name).await
+        Self::get_facade_root()?.reconnect(name).await
     }
 
     pub fn listen(

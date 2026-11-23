@@ -105,7 +105,7 @@ impl Command for Emit {
             Log::info("provider Artisan probe", &LogContext::new()).unwrap();
             let snapshot = app.container().make::<Environment>().unwrap();
             let file = app.container().get::<PathBuf>("env.file").unwrap();
-            let state = json!({"testing":app.runningUnitTests().unwrap(),"file":file.to_string_lossy(),"pail":snapshot.get("PAIL_TESTS"),"storage":app.storagePath("").to_string_lossy(),"helper":openrust::support::storage_path("").unwrap().to_string_lossy(),"binding":app.container().get::<PathBuf>("path.storage").unwrap().to_string_lossy()});
+            let state = json!({"testing":app.running_unit_tests().unwrap(),"file":file.to_string_lossy(),"pail":snapshot.get("PAIL_TESTS"),"storage":app.storage_path("").to_string_lossy(),"helper":openrust::support::storage_path("").unwrap().to_string_lossy(),"binding":app.container().get::<PathBuf>("path.storage").unwrap().to_string_lossy()});
             std::fs::write(app.base_path().join("state.json"), state.to_string()).unwrap();
             output.comment("provider command passed");
             Ok(0)
@@ -120,13 +120,13 @@ fn commands(artisan: &mut openrust::console::Application) -> Result<(), ConsoleE
 fn application(root: PathBuf) -> Result<Application, SetupError> {
     let override_path = std::fs::read_to_string(root.join("storage-override")).ok();
     let app = Application::configure(root)
-        .withConfig(config)
-        .withProviders(vec![Box::new(PailServiceProvider)])
-        .withCommands(commands)
-        .withRouting(Routing::default().web(routes))
+        .with_config(config)
+        .with_providers(vec![Box::new(PailServiceProvider)])
+        .with_commands(commands)
+        .with_routing(Routing::default().web(routes))
         .create()?;
     if let Some(path) = override_path {
-        app.useStoragePath(path)?;
+        app.use_storage_path(path)?;
     }
     Ok(app)
 }
@@ -175,18 +175,18 @@ async fn http(root: &Root, enabled: bool, environment: &str) {
     let calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
     let observed = calls.clone();
     app.container()
-        .beforeResolving(Some("env".into()), move |_, _| {
+        .before_resolving(Some("env".into()), move |_, _| {
             observed.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             Ok(())
         })
         .unwrap();
-    assert!(!app.runningUnitTests().unwrap());
+    assert!(!app.running_unit_tests().unwrap());
     assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 0);
-    assert!(!openrust::contracts::foundation::Application::runningUnitTests(&app).unwrap());
+    assert!(!openrust::contracts::foundation::Application::running_unit_tests(&app).unwrap());
     app.boot().await.unwrap();
-    assert_eq!(app.runningUnitTests().unwrap(), environment == "testing");
+    assert_eq!(app.running_unit_tests().unwrap(), environment == "testing");
     assert_eq!(
-        openrust::contracts::foundation::Application::runningUnitTests(&app).unwrap(),
+        openrust::contracts::foundation::Application::running_unit_tests(&app).unwrap(),
         environment == "testing"
     );
     assert!(
@@ -215,7 +215,7 @@ async fn http(root: &Root, enabled: bool, environment: &str) {
             .unwrap()
             .set("app.env", json!("testing"))
             .unwrap();
-        assert!(!app.runningUnitTests().unwrap());
+        assert!(!app.running_unit_tests().unwrap());
         for (name, expected) in [
             ("testing", true),
             ("TESTING", false),
@@ -223,21 +223,21 @@ async fn http(root: &Root, enabled: bool, environment: &str) {
             ("production", false),
         ] {
             app.container()
-                .instanceNamed::<str>("env", Arc::from(name))
+                .instance_named::<str>("env", Arc::from(name))
                 .unwrap();
-            assert_eq!(app.runningUnitTests().unwrap(), expected);
+            assert_eq!(app.running_unit_tests().unwrap(), expected);
         }
         app.container()
-            .singletonNamed::<str, _>("env", |_| {
+            .singleton_named::<str, _>("env", |_| {
                 Err(openrust::contracts::container::BindingResolutionError::ScopeClosed)
             })
             .unwrap();
         assert!(matches!(
-            app.runningUnitTests(),
+            app.running_unit_tests(),
             Err(openrust::contracts::container::BindingResolutionError::ScopeClosed)
         ));
         app.container()
-            .instanceNamed::<str>("env", Arc::from(environment))
+            .instance_named::<str>("env", Arc::from(environment))
             .unwrap();
         app.config()
             .unwrap()
@@ -280,14 +280,14 @@ async fn storage_http(root: &Root, directory: &Path, late: bool) {
     let mut app = application(root.0.clone()).unwrap();
     app.boot().await.unwrap();
     if late {
-        app.useStoragePath(directory).unwrap();
+        app.use_storage_path(directory).unwrap();
         std::fs::write(
             root.0.join("storage-override"),
             directory.to_string_lossy().as_bytes(),
         )
         .unwrap();
     }
-    assert_eq!(app.storagePath(""), directory);
+    assert_eq!(app.storage_path(""), directory);
     if !late {
         assert_eq!(
             app.config().unwrap().get("app.observed_storage").unwrap(),
@@ -295,7 +295,7 @@ async fn storage_http(root: &Root, directory: &Path, late: bool) {
         );
     }
     assert_eq!(
-        openrust::contracts::foundation::Application::storagePath(&app, "pail"),
+        openrust::contracts::foundation::Application::storage_path(&app, "pail"),
         directory.join("pail")
     );
     let mut kernel = Kernel::new(app);
@@ -331,24 +331,24 @@ async fn storage_http(root: &Root, directory: &Path, late: bool) {
 async fn storage_paths() {
     let root = Root::new("local", None, None);
     let app = application(root.0.clone()).unwrap();
-    assert_eq!(app.storagePath(""), root.0.join("storage"));
+    assert_eq!(app.storage_path(""), root.0.join("storage"));
     let separator = std::path::MAIN_SEPARATOR;
     let base = format!("relative{separator}{separator}root{separator}");
-    app.useStoragePath(base.clone()).unwrap();
+    app.use_storage_path(base.clone()).unwrap();
     assert_eq!(
-        app.storagePath(&format!("{separator}child")).as_os_str(),
+        app.storage_path(&format!("{separator}child")).as_os_str(),
         std::ffi::OsStr::new(&format!("{base}{separator}child"))
     );
     assert_eq!(
-        app.storagePath(&format!("..{separator}child")).as_os_str(),
+        app.storage_path(&format!("..{separator}child")).as_os_str(),
         std::ffi::OsStr::new(&format!("{base}{separator}..{separator}child"))
     );
     assert_eq!(
-        app.storagePath("0").as_os_str(),
+        app.storage_path("0").as_os_str(),
         std::ffi::OsStr::new(&format!("{base}{separator}0"))
     );
-    app.useStoragePath("").unwrap();
-    assert_eq!(app.storagePath(""), root.0.join("storage"));
+    app.use_storage_path("").unwrap();
+    assert_eq!(app.storage_path(""), root.0.join("storage"));
     assert!(
         app.container()
             .get::<PathBuf>("path.storage")
@@ -356,18 +356,18 @@ async fn storage_paths() {
             .as_os_str()
             .is_empty()
     );
-    app.useStoragePath("0").unwrap();
-    assert_eq!(app.storagePath(""), root.0.join("storage"));
+    app.use_storage_path("0").unwrap();
+    assert_eq!(app.storage_path(""), root.0.join("storage"));
     app.container()
         .rebinding::<PathBuf, _>("path.storage", |_, _| {
             Err(openrust::contracts::container::BindingResolutionError::ScopeClosed)
         })
         .unwrap();
     assert!(matches!(
-        app.useStoragePath("after-error"),
+        app.use_storage_path("after-error"),
         Err(openrust::contracts::container::BindingResolutionError::ScopeClosed)
     ));
-    assert_eq!(app.storagePath(""), PathBuf::from("after-error"));
+    assert_eq!(app.storage_path(""), PathBuf::from("after-error"));
     let first = Root::new("local", None, None);
     let a = first.0.join("自定义-a");
     std::fs::write(
@@ -404,9 +404,12 @@ async fn storage_paths() {
         .unwrap();
         let mut app = application(native.0.clone()).unwrap();
         app.boot().await.unwrap();
-        assert_eq!(app.storagePath("").as_os_str(), std::ffi::OsStr::new(value));
         assert_eq!(
-            app.storagePath("pail").as_os_str(),
+            app.storage_path("").as_os_str(),
+            std::ffi::OsStr::new(value)
+        );
+        assert_eq!(
+            app.storage_path("pail").as_os_str(),
             std::ffi::OsStr::new(&format!("{value}{}pail", std::path::MAIN_SEPARATOR))
         );
     }

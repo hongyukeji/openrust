@@ -21,18 +21,18 @@ impl ServiceProvider for ViewServiceProvider {
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
             let base = app.base_path().to_path_buf();
-            let public = app.publicPath();
+            let public = app.public_path();
             let container = app.container();
             container.scoped::<super::factory::SharedViewData, _>(|_| Ok(Arc::default()))?;
             let owner = Arc::downgrade(&app.container_handle());
-            let native_views = app.packageManifest().native_views();
-            container.singletonNamed("view", move |container| {
+            let native_views = app.package_manifest().native_views();
+            container.singleton_named("view", move |container| {
                 let config = container.get::<dyn Repository>("config")?;
                 configured_factory(
                     &base,
                     &container
                         .make::<crate::foundation::Paths>()?
-                        .storagePath("framework/views"),
+                        .storage_path("framework/views"),
                     config.as_ref(),
                 )
                 .map(|mut factory| {
@@ -46,7 +46,7 @@ impl ServiceProvider for ViewServiceProvider {
                 })
             })?;
             container.alias("view", crate::container::ServiceKey::typed::<Factory>())?;
-            container.singletonNamed::<dyn crate::contracts::view::Factory, _>(
+            container.singleton_named::<dyn crate::contracts::view::Factory, _>(
                 "view.contract",
                 |container| {
                     let concrete = container.get::<Factory>("view")?;

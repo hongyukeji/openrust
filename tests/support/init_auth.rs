@@ -4,7 +4,7 @@ fn init_auth_tokens(
 ) -> openrust::http::HttpFuture<'_, Result<openrust::http::Response, openrust::http::HttpError>> {
     Box::pin(async move {
         use openrust::{contracts::container::Container as _, database::eloquent::Model};
-        let container = openrust::container::Container::getInstance();
+        let container = openrust::container::Container::get_instance();
         let mut query = crate::app::models::User::query().unwrap();
         query.r#where("email", "=", "alice@example.test");
         let user = query.first().await.unwrap().unwrap();

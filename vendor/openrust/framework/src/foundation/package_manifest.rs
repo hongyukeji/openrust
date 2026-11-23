@@ -55,8 +55,7 @@ impl PackageManifest {
     }
 
     /// 构建产物与包清单一同装配，避免另建运行期注册入口。
-    #[allow(non_snake_case)]
-    pub const fn withNativeViews(
+    pub const fn with_native_views(
         mut self,
         templates: &'static [crate::view::NativeTemplate],
     ) -> Self {

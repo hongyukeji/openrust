@@ -582,7 +582,7 @@ impl ServiceProvider for InjectionProvider {
                 })?;
             let forms = self.forms.clone();
             app.container()
-                .bindAsync::<Injected, _>(move |_| {
+                .bind_async::<Injected, _>(move |_| {
                     let forms = forms.clone();
                     Box::pin(async move {
                         tokio::task::yield_now().await;
@@ -655,7 +655,7 @@ async fn transport(
 
 async fn start(root: PathBuf) -> (SocketAddr, tokio::task::JoinHandle<()>) {
     let app = Application::configure(root)
-        .withRouting(Routing::default().api(register))
+        .with_routing(Routing::default().api(register))
         .create()
         .unwrap();
     serve(app).await
@@ -912,13 +912,13 @@ async fn database_validation_uses_mysql_write_connection_over_real_http() {
     let root = std::env::temp_dir().join(&prefix);
     std::fs::create_dir(&root).unwrap();
     let app = Application::configure(root.clone())
-        .withConfig(|base, _| {
+        .with_config(|base, _| {
             Ok(presence_config(
                 &std::env::var("OPENRUST_TEST_MYSQL_URL").unwrap(),
                 base.file_name().unwrap().to_str().unwrap(),
             ))
         })
-        .withRouting(Routing::default().api(register))
+        .with_routing(Routing::default().api(register))
         .create()
         .unwrap();
     let (address, server) = serve(app).await;
@@ -1972,15 +1972,15 @@ async fn route_and_controller_arguments_resolve_form_requests_before_actions() {
     let calls = Arc::new(AtomicUsize::new(0));
     let forms = Arc::new(AtomicUsize::new(0));
     let default_app = Application::configure(root.clone())
-        .withRouting(Routing::default().api(inject_routes))
+        .with_routing(Routing::default().api(inject_routes))
         .create()
         .unwrap();
     let bound_app = Application::configure(root)
-        .withProviders(vec![Box::new(InjectionProvider {
+        .with_providers(vec![Box::new(InjectionProvider {
             calls: calls.clone(),
             forms: forms.clone(),
         })])
-        .withRouting(Routing::default().api(inject_routes))
+        .with_routing(Routing::default().api(inject_routes))
         .create()
         .unwrap();
     let (default_addr, default_server) = serve(default_app).await;
@@ -2421,8 +2421,8 @@ async fn registered_validation_extensions_reach_real_http_and_remain_app_isolate
     let mut servers = Vec::new();
     for allowed in ["A", "B"] {
         let app = Application::configure(root.clone())
-            .withProviders(vec![Box::new(ExtensionProvider(allowed))])
-            .withRouting(Routing::default().api(extension_routes))
+            .with_providers(vec![Box::new(ExtensionProvider(allowed))])
+            .with_routing(Routing::default().api(extension_routes))
             .create()
             .unwrap();
         servers.push(serve(app).await);

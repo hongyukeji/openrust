@@ -677,11 +677,11 @@ impl Translator {
             change(&mut self.defaults.lock().expect("语言默认值锁中毒"));
         }
     }
-    pub fn getLocale(&self) -> String {
+    pub fn get_locale(&self) -> String {
         self.locale()
     }
-    pub fn setLocale(&self, locale: &str) -> TranslationResult<()> {
-        <Self as Contract>::setLocale(self, locale)
+    pub fn set_locale(&self, locale: &str) -> TranslationResult<()> {
+        <Self as Contract>::set_locale(self, locale)
     }
     pub fn getFallback(&self) -> String {
         self.locales().fallback
@@ -728,11 +728,11 @@ impl Contract for Translator {
         self.array(key, replacements, locale)
     }
 
-    fn getLocale(&self) -> String {
+    fn get_locale(&self) -> String {
         self.locale()
     }
 
-    fn setLocale(&self, locale: &str) -> TranslationResult<()> {
+    fn set_locale(&self, locale: &str) -> TranslationResult<()> {
         let locale = canonical_locale(locale)?;
         let active = ACTIVE_LOCALES
             .try_with(|locales| {

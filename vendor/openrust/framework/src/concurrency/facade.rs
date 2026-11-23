@@ -244,7 +244,7 @@ pub struct Concurrency;
 impl Facade for Concurrency {
     type Service = Manager;
 
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         ServiceKey::typed::<Manager>()
     }
 }
@@ -252,7 +252,7 @@ impl Facade for Concurrency {
 #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Concurrency {
     pub fn driver(name: Option<&str>) -> Result<Driver> {
-        Self::getFacadeRoot()?.driver(name)
+        Self::get_facade_root()?.driver(name)
     }
 
     pub async fn run(

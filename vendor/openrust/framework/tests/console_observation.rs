@@ -66,7 +66,7 @@ impl Listener for Recorder {
 async fn native_command_events_keep_input_output_exit_code_and_exception_boundaries() {
     let root = tempfile::tempdir().unwrap();
     let mut app = Application::configure(root.path().into())
-        .withCommands(commands)
+        .with_commands(commands)
         .create()
         .unwrap();
     app.boot().await.unwrap();

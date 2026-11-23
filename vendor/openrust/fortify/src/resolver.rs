@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 pub(crate) struct Resolver<T: ?Sized>(PhantomData<fn() -> T>);
 impl<T: ?Sized + Send + Sync + 'static> Facade for Resolver<T> {
     type Service = T;
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         ServiceKey::typed::<T>()
     }
 }

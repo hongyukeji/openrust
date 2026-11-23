@@ -22,7 +22,7 @@ use support::{DeliverySettings, Fixture, Site};
 struct SiteFacade;
 impl Facade for SiteFacade {
     type Service = Settings<Site>;
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         ServiceKey::typed::<Settings<Site>>()
     }
 }
@@ -49,7 +49,7 @@ impl ServiceProvider for Host {
 }
 fn application(f: &Fixture) -> Application {
     Application::configure(std::env::temp_dir())
-        .withProviders(vec![
+        .with_providers(vec![
             Box::new(SettingsServiceProvider),
             Box::new(Host {
                 repository: f.repository.clone(),
@@ -57,7 +57,7 @@ fn application(f: &Fixture) -> Application {
                 queue_table: format!("{}_jobs", f.table),
             }),
         ])
-        .withRouting(Routing::default().web(routes))
+        .with_routing(Routing::default().web(routes))
         .create()
         .unwrap()
 }
@@ -67,8 +67,8 @@ fn routes() -> Result<(), RoutingError> {
 }
 fn read(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let a = SiteFacade::getFacadeRootAsync().await.unwrap();
-        let b = SiteFacade::getFacadeRootAsync().await.unwrap();
+        let a = SiteFacade::get_facade_root_async().await.unwrap();
+        let b = SiteFacade::get_facade_root_async().await.unwrap();
         assert!(Arc::ptr_eq(&a, &b));
         Ok(Response::new(
             StatusCode::OK,
@@ -149,8 +149,8 @@ impl JobHandler for Probe {
         _: &'a Payload,
     ) -> QueueFuture<'a, QueueResult<()>> {
         Box::pin(async move {
-            let a = SiteFacade::getFacadeRootAsync().await.unwrap();
-            let b = SiteFacade::getFacadeRootAsync().await.unwrap();
+            let a = SiteFacade::get_facade_root_async().await.unwrap();
+            let b = SiteFacade::get_facade_root_async().await.unwrap();
             assert!(Arc::ptr_eq(&a, &b));
             let name = a.get().await.name;
             self.0.lock().unwrap().push(name);
@@ -219,7 +219,7 @@ async fn real_worker_jobs_get_new_settings_on_the_next_attempt_scope() {
         "--memory=0",
     ]
     .map(Into::into);
-    assert_eq!(app.handleCommand(&args).await.unwrap(), 0);
+    assert_eq!(app.handle_command(&args).await.unwrap(), 0);
     assert_eq!(*observed.lock().unwrap(), vec!["First", "Next"]);
     f.connection
         .getSchemaBuilder()

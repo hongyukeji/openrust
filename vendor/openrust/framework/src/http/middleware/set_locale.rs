@@ -65,7 +65,7 @@ impl SetLocale {
 
     /// 原子替换候选，保留已有回调；空列表关闭整个中间件。
     #[allow(non_snake_case, reason = "沿用中间件配置方法的命名风格")]
-    pub fn setLocale(&mut self, locales: &[&str]) -> TranslationResult<&mut Self> {
+    pub fn set_locale(&mut self, locales: &[&str]) -> TranslationResult<&mut Self> {
         self.supported = Self::new(locales)?.supported;
         self.discover = false;
         Ok(self)
@@ -302,7 +302,7 @@ impl Middleware for SetLocale {
             }
             // 最小应用可不提供 app.locale，沿用译器已有的英文默认值。
             let default = if Config::has("app.locale")? {
-                App::currentLocale()?
+                App::current_locale()?
             } else {
                 "en".to_owned()
             };
@@ -332,7 +332,7 @@ impl Middleware for SetLocale {
                 header.as_ref(),
                 preference.as_deref(),
             )?;
-            App::setLocale(&locale).await?;
+            App::set_locale(&locale).await?;
             request.parts_mut().extensions.insert(LocaleSelection {
                 // 回调已决定语言时，URL 控件无法覆盖它，因此不对页面提供可切换入口。
                 query_parameter: if from_callback { None } else { parameter },
@@ -344,7 +344,7 @@ impl Middleware for SetLocale {
             let mut response = next.run(request).await;
             // 下游可以主动切换语言，已有响应头仍由响应提供者决定。
             let language = if Config::has("app.locale")? {
-                App::currentLocale()?
+                App::current_locale()?
             } else {
                 locale
             };

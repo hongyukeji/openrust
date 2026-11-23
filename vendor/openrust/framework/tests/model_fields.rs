@@ -93,7 +93,10 @@ async fn field_references_use_existing_sql_model_and_relationship_paths() {
         .table("field_reference_people")
         .r#where("display_name", "=", "张三");
     assert_eq!(named.toSql().unwrap(), string.toSql().unwrap());
-    assert_eq!(named.getBindings().unwrap(), string.getBindings().unwrap());
+    assert_eq!(
+        named.get_bindings().unwrap(),
+        string.get_bindings().unwrap()
+    );
     let named = named
         .select([Person::ID, Person::NAME])
         .orderBy(Person::ORDER, "desc")

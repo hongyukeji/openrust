@@ -85,7 +85,7 @@ fn request(query: &str) -> Request {
     Request::from_parts(parts, body)
 }
 async fn manager(base: &str) -> (Application, Arc<SocialiteManager>) {
-    let mut app=Application::configure(std::env::temp_dir()).withConfig(|_,_|Ok([("services".into(),json!({"github":{"client_id":"app-one","client_secret":"secret-client","redirect":"/callback","scopes":["read","user:email"]}})),("app".into(),json!({"url":"https://rp.test/base"}))].into())).withProviders(vec![Box::new(SocialiteServiceProvider)]).create().unwrap();
+    let mut app=Application::configure(std::env::temp_dir()).with_config(|_,_|Ok([("services".into(),json!({"github":{"client_id":"app-one","client_secret":"secret-client","redirect":"/callback","scopes":["read","user:email"]}})),("app".into(),json!({"url":"https://rp.test/base"}))].into())).with_providers(vec![Box::new(SocialiteServiceProvider)]).create().unwrap();
     app.boot().await.unwrap();
     let manager = app.make::<SocialiteManager>().await.unwrap();
     manager.extend(
@@ -232,7 +232,7 @@ fn login(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 }
 fn callback(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
-        let manager = openrust::container::Container::getInstance()
+        let manager = openrust::container::Container::get_instance()
             .make::<SocialiteManager>()
             .unwrap();
         let pkce = request.session()?.get("code_verifier").is_some();
@@ -253,9 +253,9 @@ fn callback(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
     })
 }
 async fn rp(base: &str) -> (String, tokio::task::JoinHandle<()>) {
-    let mut app=Application::configure(std::env::temp_dir()).withConfig(|_,_|Ok([
+    let mut app=Application::configure(std::env::temp_dir()).with_config(|_,_|Ok([
  ("services".into(),json!({"github":{"client_id":"rp","client_secret":"secret","redirect":"https://rp.test/callback"}})),
- ("app".into(),json!({"key":"k".repeat(32),"env":"testing"})),("session".into(),json!({"driver":"array","cookie":"socialite_session","lottery":[0,100]})),("cache".into(),json!({"default":"array","stores":{"array":{"driver":"array"}}}))].into())).withProviders(vec![Box::new(SocialiteServiceProvider)]).withRouting(Routing::default().web(routes)).create().unwrap();
+ ("app".into(),json!({"key":"k".repeat(32),"env":"testing"})),("session".into(),json!({"driver":"array","cookie":"socialite_session","lottery":[0,100]})),("cache".into(),json!({"default":"array","stores":{"array":{"driver":"array"}}}))].into())).with_providers(vec![Box::new(SocialiteServiceProvider)]).with_routing(Routing::default().web(routes)).create().unwrap();
     app.boot().await.unwrap();
     app.make::<SocialiteManager>().await.unwrap().extend(
         "github",

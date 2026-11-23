@@ -279,8 +279,8 @@ async fn actual_http_preserves_native_numbers_json_errors_recovery_and_applicati
         root.write("part", "{{ $value }}");
         root.write("json", "@js($items)");
         let mut app = openrust::foundation::Application::configure(root.0.clone())
-            .withConfig(http_config)
-            .withRouting(openrust::foundation::configuration::Routing::new(
+            .with_config(http_config)
+            .with_routing(openrust::foundation::configuration::Routing::new(
                 http_routes,
             ))
             .create()

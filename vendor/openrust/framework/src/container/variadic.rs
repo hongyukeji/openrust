@@ -11,7 +11,7 @@ impl Container {
         let Some(consumer) = self.consumer() else {
             return Ok(None);
         };
-        let key = self.getAlias(key.clone())?;
+        let key = self.get_alias(key.clone())?;
         Ok(self
             .registry
             .read()
@@ -58,7 +58,7 @@ impl Container {
         need: ServiceKey,
         services: Vec<ServiceKey>,
     ) -> Result<()> {
-        let need = self.getAlias(need)?;
+        let need = self.get_alias(need)?;
         let services = Arc::new(services);
         let keys = services.clone();
         let mut entry = Self::entry(Binding::factory(move |c: &Container| {
@@ -231,7 +231,7 @@ pub(super) async fn classes_async<T: ?Sized + Send + Sync + 'static>(
             if let Some(keys) = direct.as_ref().and_then(|entry| entry.services.as_ref()) {
                 let mut values = Vec::with_capacity(keys.len());
                 for key in keys.iter() {
-                    values.push(ParameterValue::new(c.getAsync::<T>(key.clone()).await?));
+                    values.push(ParameterValue::new(c.get_async::<T>(key.clone()).await?));
                 }
                 return Ok(values);
             }
@@ -240,7 +240,7 @@ pub(super) async fn classes_async<T: ?Sized + Send + Sync + 'static>(
                 .is_some_and(|entry| entry.value.is::<Binding<Vec<Arc<T>>>>())
             {
                 return c
-                    .getAsync::<Vec<Arc<T>>>(key)
+                    .get_async::<Vec<Arc<T>>>(key)
                     .await
                     .map(|values| values.iter().cloned().map(ParameterValue::new).collect());
             }
@@ -249,18 +249,18 @@ pub(super) async fn classes_async<T: ?Sized + Send + Sync + 'static>(
                 .is_some_and(|entry| entry.value.is::<Binding<Vec<ParameterValue>>>())
             {
                 return c
-                    .getAsync::<Vec<ParameterValue>>(key)
+                    .get_async::<Vec<ParameterValue>>(key)
                     .await
                     .map(|values| (*values).clone());
             }
             let collection = ServiceKey::typed::<Vec<Arc<T>>>();
             if direct.is_none() && c.contextual_argument(&collection)?.is_some() {
                 return c
-                    .getAsync::<Vec<Arc<T>>>(collection)
+                    .get_async::<Vec<Arc<T>>>(collection)
                     .await
                     .map(|values| values.iter().cloned().map(ParameterValue::new).collect());
             }
-            c.getAsync::<T>(key)
+            c.get_async::<T>(key)
                 .await
                 .map(|value| vec![ParameterValue::new(value)])
         }

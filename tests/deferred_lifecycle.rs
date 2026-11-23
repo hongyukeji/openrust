@@ -61,8 +61,7 @@ struct Lazy {
     fail: bool,
 }
 impl ServiceProvider for Lazy {
-    #[allow(non_snake_case)]
-    fn isDeferred(&self) -> bool {
+    fn is_deferred(&self) -> bool {
         true
     }
     fn provides(&self) -> Vec<ServiceKey> {
@@ -84,7 +83,7 @@ impl ServiceProvider for Lazy {
         Box::pin(async move {
             self.trace.lock().unwrap().push("lazy.boot.begin");
             assert_eq!(app.make::<Service>().await?.0, self.value);
-            assert_eq!(ServiceFacade::getFacadeRoot()?.0, self.value);
+            assert_eq!(ServiceFacade::get_facade_root()?.0, self.value);
             if let Some(pause) = &self.pause {
                 pause.0.notify_one();
                 pause.1.notified().await;
@@ -105,27 +104,27 @@ fn application(
     fail: bool,
 ) -> Application {
     Application::configure(root.0.clone())
-        .withConfig(config)
-        .withProviders(vec![Box::new(Lazy {
+        .with_config(config)
+        .with_providers(vec![Box::new(Lazy {
             value,
             trace,
             pause,
             fail,
         })])
-        .withRouting(Routing::default().web(web))
+        .with_routing(Routing::default().web(web))
         .create()
         .unwrap()
 }
 struct ServiceFacade;
 impl Facade for ServiceFacade {
     type Service = Service;
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         ServiceKey::typed::<Service>()
     }
 }
 fn read(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let service = ServiceFacade::getFacadeRootAsync().await?;
+        let service = ServiceFacade::get_facade_root_async().await?;
         Ok(Response::new(
             StatusCode::OK,
             Body::from(service.0.to_string()),
@@ -171,7 +170,7 @@ async fn first_lookup_waits_for_boot_and_concurrent_readers_share_one_attempt() 
     let mut app = application(&root, 42, trace.clone(), Some(pause.clone()), false);
     app.boot().await.unwrap();
     assert!(trace.lock().unwrap().is_empty());
-    assert!(app.isDeferredService(ServiceKey::typed::<Service>()));
+    assert!(app.is_deferred_service(ServiceKey::typed::<Service>()));
     assert!(app.container().bound::<Service>());
     assert!(matches!(
         app.container().make::<Service>(),
@@ -215,7 +214,7 @@ async fn bootstrap_first_use_joins_the_boot_tail_and_explicit_values_skip_unused
             "lazy.boot.end"
         ]
     );
-    app.loadDeferredProviders().await.unwrap();
+    app.load_deferred_providers().await.unwrap();
     assert_eq!(trace.lock().unwrap().len(), 5);
     let other = application(&root, 7, Arc::new(Mutex::new(Vec::new())), None, false);
     other.container().instance(Arc::new(Service(9))).unwrap();
@@ -262,14 +261,14 @@ async fn artisan_loads_remaining_providers_and_resolves_the_ready_service() {
     let root = Root::new();
     let trace = Arc::new(Mutex::new(Vec::new()));
     let app = Application::configure(root.0.clone())
-        .withConfig(config)
-        .withProviders(vec![Box::new(Lazy {
+        .with_config(config)
+        .with_providers(vec![Box::new(Lazy {
             value: 5,
             trace: trace.clone(),
             pause: None,
             fail: false,
         })])
-        .withCommands(commands)
+        .with_commands(commands)
         .create()
         .unwrap();
     let mut kernel = console::Kernel::new(app, openrust::console::Application::new());
@@ -342,8 +341,8 @@ async fn artisan_facade_runs_commands_in_the_matching_http_application() {
     let root = Root::new();
     let build = |commands| {
         Application::configure(root.0.clone())
-            .withConfig(config)
-            .withRouting(Routing::default().web(web).commands(commands))
+            .with_config(config)
+            .with_routing(Routing::default().web(web).commands(commands))
             .create()
             .unwrap()
     };
@@ -389,8 +388,7 @@ async fn actual_http_loads_on_demand_keeps_apps_isolated_and_sanitizes_boot_fail
 struct CycleValue<const N: u8>;
 struct CycleProvider<const N: u8>(Arc<tokio::sync::Barrier>);
 impl<const N: u8> ServiceProvider for CycleProvider<N> {
-    #[allow(non_snake_case)]
-    fn isDeferred(&self) -> bool {
+    fn is_deferred(&self) -> bool {
         true
     }
     fn provides(&self) -> Vec<ServiceKey> {
@@ -414,8 +412,8 @@ async fn independently_polled_provider_boots_detect_wait_cycles_instead_of_deadl
     let root = Root::new();
     let barrier = Arc::new(tokio::sync::Barrier::new(2));
     let mut app = Application::configure(root.0.clone())
-        .withConfig(config)
-        .withProviders(vec![
+        .with_config(config)
+        .with_providers(vec![
             Box::new(CycleProvider::<1>(barrier.clone())),
             Box::new(CycleProvider::<2>(barrier)),
         ])
@@ -462,8 +460,8 @@ async fn compiled_factories_are_lazy_and_retry_fresh_instances_only_for_unconsum
     let constructions = Arc::new(AtomicUsize::new(0));
     let observed = constructions.clone();
     let mut app = Application::configure(root.0.clone())
-        .withConfig(config)
-        .withProviders(vec![Box::new(openrust::support::DeferredProvider::new(
+        .with_config(config)
+        .with_providers(vec![Box::new(openrust::support::DeferredProvider::new(
             move || {
                 let ordinal = observed.fetch_add(1, Ordering::SeqCst) + 1;
                 Retrying {
@@ -483,7 +481,7 @@ async fn compiled_factories_are_lazy_and_retry_fresh_instances_only_for_unconsum
         ("retry.second", 2),
     ] {
         assert!(app.get::<u16>(key).await.is_err());
-        assert!(!app.isDeferredService(key));
+        assert!(!app.is_deferred_service(key));
         assert_eq!(constructions.load(Ordering::SeqCst), count);
         assert_eq!(*app.make::<u16>().await.unwrap(), count as u16);
     }
@@ -502,9 +500,9 @@ impl ServiceProvider for Multiple {
     ) -> openrust::http::HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
             app.container()
-                .instanceNamed("multiple.first", Arc::new(1_u8))?;
+                .instance_named("multiple.first", Arc::new(1_u8))?;
             app.container()
-                .instanceNamed("multiple.second", Arc::new(2_u8))?;
+                .instance_named("multiple.second", Arc::new(2_u8))?;
             Ok(())
         })
     }
@@ -513,20 +511,20 @@ impl ServiceProvider for Multiple {
 async fn loading_one_key_retains_other_manifest_keys_until_explicit_load_all() {
     let root = Root::new();
     let mut app = Application::configure(root.0.clone())
-        .withConfig(config)
-        .withProviders(vec![Box::new(openrust::support::DeferredProvider::new(
+        .with_config(config)
+        .with_providers(vec![Box::new(openrust::support::DeferredProvider::new(
             || Multiple,
         ))])
         .create()
         .unwrap();
     app.boot().await.unwrap();
     assert_eq!(*app.get::<u8>("multiple.first").await.unwrap(), 1);
-    assert!(!app.isDeferredService("multiple.first"));
-    assert!(app.isDeferredService("multiple.second"));
+    assert!(!app.is_deferred_service("multiple.first"));
+    assert!(app.is_deferred_service("multiple.second"));
     assert_eq!(*app.get::<u8>("multiple.second").await.unwrap(), 2);
-    assert!(app.isDeferredService("multiple.second"));
-    app.loadDeferredProviders().await.unwrap();
-    assert!(!app.isDeferredService("multiple.second"));
+    assert!(app.is_deferred_service("multiple.second"));
+    app.load_deferred_providers().await.unwrap();
+    assert!(!app.is_deferred_service("multiple.second"));
 }
 
 struct EagerTrigger {
@@ -561,8 +559,8 @@ async fn deferred_first_use_during_register_and_boot_preserves_reference_callbac
     for during_register in [true, false] {
         let trace = Arc::new(Mutex::new(Vec::new()));
         let mut app = Application::configure(root.0.clone())
-            .withConfig(config)
-            .withProviders(vec![
+            .with_config(config)
+            .with_providers(vec![
                 Box::new(Lazy {
                     value: 4,
                     trace: trace.clone(),
@@ -615,13 +613,15 @@ async fn pending_deferred_contracts_reject_conditional_overwrites_without_constr
     let trace = Arc::new(Mutex::new(Vec::new()));
     let mut app = application(&root, 3, trace, None, false);
     app.container()
-        .bindIf::<Service, _>(|_| panic!("conditional transient replaced a deferred contract"))
+        .bind_if::<Service, _>(|_| panic!("conditional transient replaced a deferred contract"))
         .unwrap();
     app.container()
-        .singletonIf::<Service, _>(|_| panic!("conditional singleton replaced a deferred contract"))
+        .singleton_if::<Service, _>(|_| {
+            panic!("conditional singleton replaced a deferred contract")
+        })
         .unwrap();
     app.container()
-        .scopedIf::<Service, _>(|_| panic!("conditional scoped replaced a deferred contract"))
+        .scoped_if::<Service, _>(|_| panic!("conditional scoped replaced a deferred contract"))
         .unwrap();
     app.boot().await.unwrap();
     assert_eq!(app.make::<Service>().await.unwrap().0, 3);
@@ -631,21 +631,21 @@ struct Control(Arc<(Notify, Notify)>);
 struct Controls;
 impl Facade for Controls {
     type Service = Control;
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         ServiceKey::typed::<Control>()
     }
 }
 fn concurrent_facade_read(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let control = Controls::getFacadeRoot().unwrap();
-        let mut first = Box::pin(ServiceFacade::getFacadeRootAsync());
+        let control = Controls::get_facade_root().unwrap();
+        let mut first = Box::pin(ServiceFacade::get_facade_root_async());
         tokio::select! {value=&mut first=>panic!("early facade service {}",value.unwrap().0),_=control.0.0.notified()=>{}}
         ServiceFacade::swap(Arc::new(Service(99))).unwrap();
         assert!(matches!(
-            ServiceFacade::getFacadeRoot(),
+            ServiceFacade::get_facade_root(),
             Err(BindingResolutionError::DeferredServiceRequiresAsync { .. })
         ));
-        let mut second = Box::pin(ServiceFacade::getFacadeRootAsync());
+        let mut second = Box::pin(ServiceFacade::get_facade_root_async());
         std::future::poll_fn(|cx| {
             assert!(second.as_mut().poll(cx).is_pending());
             std::task::Poll::Ready(())
@@ -687,8 +687,8 @@ fn invalid_middleware_routes(_: &Application) -> Result<openrust::routing::Route
 async fn a_middleware_bootstrap_error_remains_reportable_on_repeated_kernel_bootstrap() {
     let root = Root::new();
     let app = Application::configure(root.0.clone())
-        .withConfig(config)
-        .withRouting(Routing::new(invalid_middleware_routes))
+        .with_config(config)
+        .with_routing(Routing::new(invalid_middleware_routes))
         .create()
         .unwrap();
     let mut kernel = Kernel::new(app);
@@ -717,8 +717,8 @@ impl ServiceProvider for Panicking {
 async fn a_panicking_boot_releases_waiters_without_publishing_its_partial_service() {
     let root = Root::new();
     let mut app = Application::configure(root.0.clone())
-        .withConfig(config)
-        .withProviders(vec![Box::new(openrust::support::DeferredProvider::new(
+        .with_config(config)
+        .with_providers(vec![Box::new(openrust::support::DeferredProvider::new(
             || Panicking,
         ))])
         .create()
@@ -738,8 +738,8 @@ async fn a_panicking_boot_releases_waiters_without_publishing_its_partial_servic
 async fn deferred_factory_type_deduplication_keeps_the_first_registration() {
     let root = Root::new();
     let mut app = Application::configure(root.0.clone())
-        .withConfig(config)
-        .withProviders(vec![
+        .with_config(config)
+        .with_providers(vec![
             Box::new(openrust::support::DeferredProvider::new(|| Multiple)),
             Box::new(openrust::support::DeferredProvider::new(|| -> Multiple {
                 panic!("duplicate factory invoked")
@@ -807,7 +807,7 @@ async fn dispatch_signal(dispatcher: &Dispatcher) -> Result<(), EventError> {
 
 fn load_from_event(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
-        let container = openrust::container::Container::getInstance();
+        let container = openrust::container::Container::get_instance();
         let dispatcher = container.make::<Dispatcher>().unwrap();
         dispatch_signal(&dispatcher).await?;
         let service = container.make::<Service>().unwrap();
@@ -842,9 +842,9 @@ async fn deferred_event_loads_once_per_application_and_retries_registration() {
     let second_trace = Arc::new(Mutex::new(Vec::new()));
     let application = |providers| {
         Application::configure(root.0.clone())
-            .withConfig(config)
-            .withRouting(Routing::default().web(event_routes))
-            .withProviders(providers)
+            .with_config(config)
+            .with_routing(Routing::default().web(event_routes))
+            .with_providers(providers)
             .create()
             .unwrap()
     };
@@ -893,7 +893,7 @@ impl ServiceProvider for EmitDuringRegistration {
         Box::pin(async move {
             let dispatcher = app.container().make::<Dispatcher>()?;
             dispatch_signal(&dispatcher).await?;
-            assert!(app.isDeferredService(ServiceKey::typed::<Service>()));
+            assert!(app.is_deferred_service(ServiceKey::typed::<Service>()));
             assert_eq!(app.container().make::<Service>()?.0, 7);
             self.0.lock().unwrap().push("eager registered");
             Ok(())
@@ -913,8 +913,8 @@ async fn event_registration_before_boot_joins_the_normal_boot_list_once() {
     let root = Root::new();
     let trace = Arc::new(Mutex::new(Vec::new()));
     let mut app = Application::configure(root.0.clone())
-        .withConfig(config)
-        .withProviders(vec![
+        .with_config(config)
+        .with_providers(vec![
             Box::new(EmitDuringRegistration(trace.clone())),
             signal_provider(7, trace.clone(), false),
         ])

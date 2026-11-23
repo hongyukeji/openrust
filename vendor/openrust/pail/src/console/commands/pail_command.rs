@@ -50,7 +50,7 @@ impl Command for PailCommand {
     ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
         Box::pin(async move {
             banner(output)?;
-            let session = Session::create(&app.storagePath("pail")).map_err(error)?;
+            let session = Session::create(&app.storage_path("pail")).map_err(error)?;
             let options = Options::fromCommand(input)?;
             let result = ProcessFactory::default()
                 .with_shutdown(input.shutdown().cloned())

@@ -211,7 +211,7 @@ async fn start_configured(
     settings: Json,
     configure: impl FnOnce(&Application),
 ) -> Server {
-    let mut app = Application::configure(std::env::temp_dir()).withConfig(|_,_| {
+    let mut app = Application::configure(std::env::temp_dir()).with_config(|_,_| {
         Ok([
             ("app".into(),json!({"key":"a".repeat(32),"timezone":"UTC","url":"http://localhost","name":"OpenRust Test"})),
             ("database".into(),json!({"default":"mysql","connections":{"mysql":{"url":std::env::var("OPENRUST_TEST_MYSQL_URL").unwrap()}}})),
@@ -220,7 +220,7 @@ async fn start_configured(
             ("hashing".into(),json!({"driver":"bcrypt","bcrypt":{"rounds":4}})),
             ("auth".into(),json!({"defaults":{"guard":"web"},"guards":{"web":{"driver":"session","provider":"users"}},"providers":{"users":{"driver":"eloquent","model":"FactorUser"}},"password_timeout":900})),
         ].into())
-    }).withProviders(vec![Box::new(Settings(options,settings)),Box::new(FortifyServiceProvider)]).withRouting(Routing::default().web(routes)).create().unwrap();
+    }).with_providers(vec![Box::new(Settings(options,settings)),Box::new(FortifyServiceProvider)]).with_routing(Routing::default().web(routes)).create().unwrap();
     app.boot().await.unwrap();
     let db = app
         .make::<openrust::database::DatabaseManager>()

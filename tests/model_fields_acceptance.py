@@ -308,7 +308,7 @@ async fn main() {
         assert 'ModelMetadata::new(FieldReferenceProbe::TABLE)' in nested.read_text()
         assert f'TABLE = "{table}";' in nested.read_text()
         assert f'.connection("{environment["DB_CONNECTION"]}")' in nested.read_text()
-        # 编译真实模型消费者，再经正式 Application::handleCommand 调用 Artisan。
+        # 编译真实模型消费者，再经正式 Application::handle_command 调用 Artisan。
         # 默认连接故意无效，确保同步实际使用模型保存的连接而不是碰巧命中默认库。
         artisan('linked', 'make:model', 'LinkedProbe', '--force', '--fields',
                 f'--table={table}', f'--database={environment["DB_CONNECTION"]}')
@@ -334,8 +334,8 @@ fn load(_: &std::path::Path, _: &openrust::config::Environment)
 #[tokio::main]
 async fn main() {
     let app = openrust::foundation::Application::configure(std::env::var("APP_BASE_PATH").unwrap().into())
-        .withConfig(load).create().unwrap();
-    let status = app.handleCommand(&std::env::args_os().skip(1).collect::<Vec<_>>()).await.unwrap();
+        .with_config(load).create().unwrap();
+    let status = app.handle_command(&std::env::args_os().skip(1).collect::<Vec<_>>()).await.unwrap();
     std::process::exit(status);
 }
 ''')

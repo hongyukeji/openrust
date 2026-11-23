@@ -29,7 +29,7 @@ impl ConfirmablePasswordController {
             Validator::make(data, RuleSet::parse([("password", "nullable|string")])?)?
                 .validate()
                 .await?;
-            let fortify = Resolver::<Fortify>::getFacadeRoot().map_err(internal)?;
+            let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;
             let password = request
                 .input(Some("password"))
                 .await?

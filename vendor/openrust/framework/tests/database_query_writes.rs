@@ -450,7 +450,7 @@ async fn native_query_locks_skip_and_revisit_rows() {
             sql.find(native).unwrap() < sql.find(" where ").unwrap(),
             before_where
         );
-        assert_eq!(query.getBindings().unwrap(), [0.into()]);
+        assert_eq!(query.get_bindings().unwrap(), [0.into()]);
         assert_eq!(
             tokio::time::timeout(std::time::Duration::from_secs(5), query.value("id"))
                 .await
@@ -498,7 +498,7 @@ async fn query_index_hints_follow_driver_rules() {
             .unwrap()
             .contains(r#"as "i" indexed by idx_score where"#)
     );
-    assert_eq!(query.getBindings().unwrap(), [7.into()]);
+    assert_eq!(query.get_bindings().unwrap(), [7.into()]);
     assert_eq!(query.value("i.id").await.unwrap(), 1.into());
     for mut query in [
         table().useIndex("ignored"),
@@ -569,7 +569,7 @@ async fn query_index_hints_follow_driver_rules() {
             (table().ignoreIndex("idx_score"), "ignore index (idx_score)"),
         ] {
             assert!(query.toSql().unwrap().contains(expected));
-            assert_eq!(query.getBindings().unwrap(), [7.into()]);
+            assert_eq!(query.get_bindings().unwrap(), [7.into()]);
             assert_eq!(query.value("i.id").await.unwrap(), 1.into());
         }
         for invalid in ["", "idx_score,", "idx.score", "idx_score --"] {
@@ -667,7 +667,7 @@ async fn cross_and_straight_join_variants() {
             .r#where("o.id", ">", 1)
             .orderBy("o.id", "asc");
         assert!(cross.toSql().unwrap().contains(" cross join (select"));
-        assert_eq!(cross.getBindings().unwrap(), ["blue".into(), 1.into()]);
+        assert_eq!(cross.get_bindings().unwrap(), ["blue".into(), 1.into()]);
         assert_eq!(
             cross.pluck("o.id").await.unwrap(),
             [2.into(), 2.into(), 3.into(), 3.into()]
@@ -690,7 +690,7 @@ async fn cross_and_straight_join_variants() {
             );
             assert_eq!(straight.count("*").await.unwrap(), 3);
             assert_eq!(
-                straight_sub.getBindings().unwrap(),
+                straight_sub.get_bindings().unwrap(),
                 ["blue".into(), 1.into(), 4.into()]
             );
             assert_eq!(straight_sub.pluck("o.id").await.unwrap(), [2.into()]);
@@ -930,7 +930,7 @@ async fn correlated_lateral_joins_on_postgres_and_sql_server() {
             inner_operator == "inner join lateral"
         );
         assert_eq!(
-            inner.getBindings().unwrap(),
+            inner.get_bindings().unwrap(),
             [123.into(), 5.into(), 0.into()]
         );
         assert_eq!(
@@ -1567,7 +1567,7 @@ async fn verify(db: Connection, mysql: bool) {
         })
         .r#where("i.stock", ">", 6)
         .orderBy("i.code", "asc");
-    assert_eq!(joined.getBindings().unwrap(), ["east".into(), 6.into()]);
+    assert_eq!(joined.get_bindings().unwrap(), ["east".into(), 6.into()]);
     assert_eq!(
         joined.pluck("i.code").await.unwrap(),
         ["a".into(), "c".into()]
@@ -1612,7 +1612,7 @@ async fn verify(db: Connection, mysql: bool) {
         .unionAll(&mut other)
         .unwrap()
         .orderBy("code", "desc");
-    assert_eq!(union.getBindings().unwrap(), [8.into(), "c".into()]);
+    assert_eq!(union.get_bindings().unwrap(), [8.into(), "c".into()]);
     assert_eq!(
         union.limit(2).pluck("code").await.unwrap(),
         ["c".into(), "a".into()]
@@ -1627,7 +1627,7 @@ async fn verify(db: Connection, mysql: bool) {
         .fromSub(&mut inner, "high")
         .unwrap()
         .select(["high.code"]);
-    assert_eq!(outer.getBindings().unwrap(), [8.into()]);
+    assert_eq!(outer.get_bindings().unwrap(), [8.into()]);
     assert_eq!(outer.get().await.unwrap()[0].get("code"), Some(&"c".into()));
 
     let base = db.table("q_groups as g");
@@ -2098,7 +2098,7 @@ async fn mysql_qualifies_subqueries_from_another_schema_without_executing_the_in
             .contains("`information_schema`.`COLUMNS` as `c`")
     );
     assert_eq!(
-        outer.getBindings().unwrap(),
+        outer.get_bindings().unwrap(),
         vec![db.getDatabaseName().into(), "q_cross_catalog".into()]
     );
     assert_eq!(

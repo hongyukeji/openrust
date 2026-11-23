@@ -81,7 +81,7 @@ impl SendQueuedNotifications {
             .transpose()
             .map_err(NotificationError::Queue)?;
         if let Some(name) = &name {
-            let queue = Queue::getFacadeRoot().map_err(super::delivery)?;
+            let queue = Queue::get_facade_root().map_err(super::delivery)?;
             if queue.command_handler(name).is_none() {
                 return Err(NotificationError::Queue(QueueError::UnknownJob(
                     name.clone(),
@@ -136,7 +136,7 @@ impl JobHandler for SendQueuedNotifications {
                 }
             };
             let result = async {
-                let manager = NotificationFacade::getFacadeRoot().map_err(super::delivery)?;
+                let manager = NotificationFacade::get_facade_root().map_err(super::delivery)?;
                 delivery
                     .localized(async {
                         if let Some(guard) = &delivery.guard

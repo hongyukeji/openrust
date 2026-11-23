@@ -334,7 +334,7 @@ fn default_view_data(data: &mut ViewData) -> MailResult<()> {
         );
         data.insert(
             "appName".into(),
-            Config::stringOr("app.name", "OpenRust").into(),
+            Config::string_or("app.name", "OpenRust").into(),
         );
     }
     for name in ["introLines", "outroLines"] {

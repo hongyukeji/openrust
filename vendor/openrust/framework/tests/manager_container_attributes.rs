@@ -39,21 +39,21 @@ fn descriptor() -> ClassDescriptor {
     ClassDescriptor::concrete(
         vec![
             ConstructorParam::class::<Connection>("default_db")
-                .withAttribute(ClassAttribute::contextual(|| Ok(Database::default()))),
+                .with_attribute(ClassAttribute::contextual(|| Ok(Database::default()))),
             ConstructorParam::class::<Connection>("named_db")
-                .withAttribute(ClassAttribute::contextual(|| Ok(DB::new("named")))),
+                .with_attribute(ClassAttribute::contextual(|| Ok(DB::new("named")))),
             ConstructorParam::class::<Repository>("cache")
-                .withAttribute(ClassAttribute::contextual(|| Ok(Cache::new("named")))),
-            ConstructorParam::class::<Repository>("memo").withAttribute(
+                .with_attribute(ClassAttribute::contextual(|| Ok(Cache::new("named")))),
+            ConstructorParam::class::<Repository>("memo").with_attribute(
                 ClassAttribute::contextual(|| Ok(Cache::new("named").memoized())),
             ),
             ConstructorParam::class::<FilesystemAdapter>("storage")
-                .withAttribute(ClassAttribute::contextual(|| Ok(Storage::new("private")))),
+                .with_attribute(ClassAttribute::contextual(|| Ok(Storage::new("private")))),
             ConstructorParam::class::<Logger>("logger")
-                .withAttribute(ClassAttribute::contextual(|| Ok(Log::new("audit")))),
-            ConstructorParam::class::<Logger>("renamed").withAttribute(ClassAttribute::contextual(
-                || Ok(Log::new("audit").named("injected")),
-            )),
+                .with_attribute(ClassAttribute::contextual(|| Ok(Log::new("audit")))),
+            ConstructorParam::class::<Logger>("renamed").with_attribute(
+                ClassAttribute::contextual(|| Ok(Log::new("audit").named("injected"))),
+            ),
         ],
         |args| {
             Ok(Arc::new(Probe {
@@ -96,7 +96,7 @@ fn routes() -> Result<(), RoutingError> {
 fn probe(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
         let value = request.headers().get("x-probe").unwrap().to_str().unwrap();
-        let container = Container::getInstance();
+        let container = Container::get_instance();
         let parameter = AttributeParameter {
             name: "invalid",
             variadic: false,
@@ -120,7 +120,7 @@ fn probe(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
             })
         ));
         let sync = container.make::<Probe>()?;
-        let resolved = container.makeAsync::<Probe>().await?;
+        let resolved = container.make_async::<Probe>().await?;
         assert!(Arc::ptr_eq(&sync.memo, &resolved.memo));
         assert!(Arc::ptr_eq(&sync.storage, &resolved.storage));
         assert_eq!(resolved.logger.name(), "audit");
@@ -158,7 +158,7 @@ fn probe(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 
 fn memo(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let service = Container::getInstance().makeAsync::<Probe>().await?;
+        let service = Container::get_instance().make_async::<Probe>().await?;
         let value = service.memo.get("probe").await?;
         Response::json(
             StatusCode::OK,
@@ -182,11 +182,11 @@ async fn transport(
 
 async fn server(root: &Path) -> (std::net::SocketAddr, tokio::task::JoinHandle<()>) {
     let app = Application::configure(root.to_owned())
-        .withConfig(configuration)
-        .withRouting(Routing::default().api(routes))
+        .with_config(configuration)
+        .with_routing(Routing::default().api(routes))
         .create()
         .unwrap();
-    app.container().registerClass(descriptor()).unwrap();
+    app.container().register_class(descriptor()).unwrap();
     let mut kernel = Kernel::new(app);
     kernel.bootstrap().await.unwrap();
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();

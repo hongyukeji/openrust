@@ -64,7 +64,7 @@ impl<C: Send + Sync + 'static, T: Responsable + 'static> Handler for ControllerD
                     "Controller dispatch requires an application scope.",
                 )),
             })?;
-            let controller = request.withContainer(container.makeAsync::<C>()).await?;
+            let controller = request.withContainer(container.make_async::<C>()).await?;
             if !self.form_request {
                 crate::foundation::Precognition::abort(request)?;
             }

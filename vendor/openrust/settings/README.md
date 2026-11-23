@@ -34,7 +34,7 @@ async fn example(connection: openrust::database::Connection, config: &Config) ->
 
 OpenRust package discovery registers `SettingsServiceProvider` when the optional
 package is enabled. Its boot hook registers the default table migration through
-`loadMigrationsFrom`; run `artisan migrate` before reading settings. A custom table
+`load_migrations_from`; run `artisan migrate` before reading settings. A custom table
 or connection skips this default migration: register the corresponding
 `CreateSettingsTable` yourself and run it on the intended connection.
 

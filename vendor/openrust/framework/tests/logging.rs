@@ -733,7 +733,7 @@ fn log_exception(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
                 &LogContext::new(),
             )
             .unwrap();
-        let container = openrust::container::Container::getInstance();
+        let container = openrust::container::Container::get_instance();
         container
             .make::<dyn ExceptionHandler>()
             .unwrap()
@@ -758,7 +758,7 @@ fn record(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
         );
         let context = LogContext::from_iter([("id".into(), json!(id))]);
         Log::info("request {id} {scope_only}", &context)?;
-        let container = openrust::container::Container::getInstance();
+        let container = openrust::container::Container::get_instance();
         let manager = container.make::<LogManager>().unwrap();
         #[cfg(any(unix, windows))]
         manager
@@ -799,9 +799,9 @@ async fn transport(
 
 async fn server(root: &Root) -> (std::net::SocketAddr, tokio::task::JoinHandle<()>) {
     let application = Application::configure(root.0.clone())
-        .withConfig(config)
-        .withExceptions(configure_exceptions)
-        .withRouting(Routing::default().web(routes))
+        .with_config(config)
+        .with_exceptions(configure_exceptions)
+        .with_routing(Routing::default().web(routes))
         .create()
         .unwrap();
     let mut kernel = Kernel::new(application);
@@ -984,7 +984,7 @@ fn console_routes() -> Result<(), ConsoleError> {
             .unwrap()
             .error("syslog Artisan", &LogContext::new())
             .unwrap();
-        let manager = openrust::container::Container::getInstance()
+        let manager = openrust::container::Container::get_instance()
             .make::<LogManager>()
             .unwrap();
         register_customization(&manager);
@@ -1017,7 +1017,7 @@ fn console_routes() -> Result<(), ConsoleError> {
             .unwrap()
             .notice("artisan stderr probe", &LogContext::new())
             .unwrap();
-        openrust::container::Container::getInstance()
+        openrust::container::Container::get_instance()
             .get::<dyn openrust::contracts::config::Repository>("config")
             .unwrap()
             .set(
@@ -1038,14 +1038,14 @@ async fn artisan_logs_to_file_and_stderr() {
     const CHILD_ROOT: &str = "OPENRUST_TEST_LOG_CHILD_ROOT";
     if let Some(root) = std::env::var_os(CHILD_ROOT) {
         let application = Application::configure(PathBuf::from(root))
-            .withConfig(config)
-            .withExceptions(configure_exceptions)
-            .withRouting(Routing::default().commands(console_routes))
+            .with_config(config)
+            .with_exceptions(configure_exceptions)
+            .with_routing(Routing::default().commands(console_routes))
             .create()
             .unwrap();
         assert_eq!(
             application
-                .handleCommand(&["log:probe".into()])
+                .handle_command(&["log:probe".into()])
                 .await
                 .unwrap(),
             0

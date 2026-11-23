@@ -87,7 +87,7 @@ impl ResolvesUsers for Users {
     }
     fn load<'a>(&'a self, keys: &'a [String]) -> PulseFuture<'a, ()> {
         Box::pin(async move {
-            let config = Config::getFacadeRoot()?;
+            let config = Config::get_facade_root()?;
             let auth = Auth::manager().map_err(Error::Auth)?;
             let provider = config
                 .get(&format!("auth.guards.{}.provider", auth.getDefaultDriver()))

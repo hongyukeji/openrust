@@ -30,7 +30,7 @@ impl Listener for EventListener {
             {
                 return Ok(None);
             }
-            let Ok(telescope) = facades::Telescope::getFacadeRoot() else {
+            let Ok(telescope) = facades::Telescope::get_facade_root() else {
                 return Ok(None);
             };
             if !telescope
@@ -63,7 +63,7 @@ impl Listener for EventListener {
             if !telescope.isRecording() {
                 return Ok(None);
             }
-            let dispatcher = openrust::support::facades::Event::getFacadeRoot()
+            let dispatcher = openrust::support::facades::Event::get_facade_root()
                 .map_err(openrust::events::EventError::Unavailable)?;
             let listeners = dispatcher
                 .getListeners(event.name())
@@ -90,7 +90,7 @@ fn registerLogging(
     watcher: NativeWatcher,
 ) -> openrust::log::LogResult<()> {
     manager.listen(move |event| {
-        let Ok(telescope) = facades::Telescope::getFacadeRoot() else {
+        let Ok(telescope) = facades::Telescope::get_facade_root() else {
             return Ok(());
         };
         if telescope
@@ -119,7 +119,7 @@ fn registerViews(
 ) {
     factory.composer("*", move |view| {
         use openrust::view::ViewFinder as _;
-        let Ok(telescope) = facades::Telescope::getFacadeRoot() else {
+        let Ok(telescope) = facades::Telescope::get_facade_root() else {
             return Ok(());
         };
         if !watcher.enabled("ViewWatcher")
@@ -130,7 +130,7 @@ fn registerViews(
         {
             return Ok(());
         }
-        let path = openrust::support::facades::View::getFacadeRoot()
+        let path = openrust::support::facades::View::get_facade_root()
             .ok()
             .and_then(|factory| factory.getFinder().find(view.name()).ok())
             .map(|path| {
@@ -676,7 +676,7 @@ impl Listener for NativeWatcher {
     ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
         Box::pin(async move {
             // 启动期事件没有可用于写入诊断数据的执行作用域。
-            let Ok(telescope) = facades::Telescope::getFacadeRoot() else {
+            let Ok(telescope) = facades::Telescope::get_facade_root() else {
                 return Ok(None);
             };
             if !telescope

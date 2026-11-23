@@ -6,7 +6,7 @@ use super::{Cache, CacheManager, CacheResult};
 
 /// Resolves the cache manager for the active application.
 pub fn cache() -> CacheResult<Arc<CacheManager>> {
-    Cache::getFacadeRoot().map_err(Into::into)
+    Cache::get_facade_root().map_err(Into::into)
 }
 
 /// Accesses the active cache manager, reads a value, or writes an entry.
@@ -26,7 +26,7 @@ macro_rules! cache {
         }
     };
     ($key:expr, $default:expr $(,)?) => {
-        $crate::cache::Cache::getOr($key, $default)
+        $crate::cache::Cache::get_or($key, $default)
     };
     ($key:expr $(,)?) => {
         $crate::cache::Cache::get($key)

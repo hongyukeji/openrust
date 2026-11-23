@@ -5,7 +5,7 @@
 | 单元 | 状态 | 实际范围及证据 |
 | --- | --- | --- |
 | N-01 | 验收通过 | 语法树盘点、workspace 清单、调用位置、字符串边界及碰撞检查；无运行代码改动 |
-| N-02 | 待实施 | 容器、Contracts、Application、Provider、配置、路径及其实际消费者 |
+| N-02 | 验收通过 | 177 个基础方法族及跨 crate 消费者；20 项应用、59 项框架、独立生成测试、实际 HTTP／CLI、workspace 与可选 feature 严格 Clippy |
 | N-03 | 待实施 | HTTP、路由、认证、中间件、Session、命令、安装与生成源码 |
 | N-04 | 待实施 | 数据库、集合、缓存、Redis、翻译、视图、日志和异常 |
 | N-05 | 待实施 | 异步服务、协议和全部扩展 |
@@ -37,3 +37,27 @@
 使用现有 Rust 解析器和编译器，不引入生产依赖；盘点脚本为 `.agents/project/tools/rust_naming_inventory.py`，不会自动编辑源码。迁移只使用核定的符号与语法位置；字符串候选需要单独裁决。完整计划见 `plans/rust-naming-unification.md`，历史记录保持原貌。
 
 N-01 尚未开始服务代码迁移，不表示任何运行模块重新验收通过。后续批次将追加实际命令、结果、源组合、数据格式对照、异常及剩余项。临时产物均在 `target/tmp/rust-naming/`，按构建守卫管理；不删除依赖下载、数据卷、源码或原索引。
+
+
+## N-02：基础装配与消费者
+
+N-01 已提交 `f4c755e962d50a607c02d2751fa25b3654b9f6a3`，无推送。本批按 registry 的 177 个拼写族逐项接线；同名跨 crate 定义与实现同步迁移。使用 AST 标识符位置编辑，不替换字符串或注释；三语 Rust 示例及明确的 API 引用单独处理，Blade／PHP／JS 表达式保留。
+
+- Application、Container、Contracts、Provider、Config、Facade 及根 bootstrap 改为原生命名。关联常量 `Facade::CACHED` 与实现、消费者同步；普通 `cached()` 查询辅助方法不改。
+- 7 个涉及字段均为无 Serde 的内部状态（应用与路径、Pail、Pulse），不改变外部字段。AST 字符串对照仅出现核定的生成源码／安装锚点、异步 API 提示和一处测试配置；事件、序列化、缓存、环境、CLI 名称与 Blade 表达式未做批量替换。
+- 实际编译暴露跨文件 trait／私有入口同名遮蔽：仅将原 `Container::get_async(ServiceKey)` 私有入口改为 `get_async_by_key`，公开 trait 使用 `get_async`，其委托接线同步。不是增加两套公开兼容别名。
+- 包清单生成字符串使用 `with_native_views`；安装器、测试锚点、显式编译的 Rust PROBE、两个 Python 内嵌 Rust 消费者及生成测试模板同步。`newInstance` 动态构造键、Blade 的 currentLocale／getLocale／makeWith 等字符串按原契约保留，Rust 后端使用原生命名。
+- 移除 220 处不再需要的 non_snake_case 豁免；尚为 N-03／N-05 子模块继承的 crate 级例外保留到所属单元迁完，不提前制造大量告警，也不新增全局豁免。最初过早移除的原有 crate 属性已恢复；失败日志未计为通过。
+
+### 验收与原有缺陷
+
+1. 应用 Console／Container 生命周期／Configuration／Storage Paths／Resolving 共 20 项通过。
+2. 框架 locale／Config Facade／Spy／Blade／属性注入／Offsets／管理器／请求注入／SelfBuilding 等 13 组共 59 项通过。
+3. 首轮 Blade 测试的一项 None 状态预期在原提交隔离源码上同样失败：自动语言识别已内置，而夹具意图是不启用识别。测试夹具显式设置 `supported_locales: []` 后保持原预期，生产默认值不改；原提交失败原文与 SHA 保留，不通过修改预期掩盖迁移问题。
+4. 实际最新二进制验证 GET /、/up、JSON／HTML 404、SIGINT 优雅退出，Artisan inspire、JSON list、install:grpc 及新的 with_grpc 接线均通过。测试运行时使用独立根路径、file Session／array Cache、显式关闭其他 Runner，未改生产配置或访问用户数据表。
+5. 最新二进制实际 make:test；在独立 Cargo 项目显式接入项目依赖补丁和测试目标，生成的 with_routing 测试实际编译运行 1 项通过。第一次夹具未带补丁或未声明目标的构建不计通过。
+6. `cargo clippy --workspace --all-targets -- -D warnings` 通过。根应用进一步显式组合 sanctum、reverb、pail、passport、fortify、socialite、oidc、settings、pay、cashier、activitylog、horizon、pennant、pulse、scout、telescope 的 all-targets 严格 Clippy 通过；未盲用 all-features，standalone 另属发布场景。
+7. 三语站点构建、内容与入口检查通过；Worker Control 三语在 / 与 /docs/ 的真实浏览器检查 6 组通过。Rustdoc API 引用同步，未声称全仓 Rustdoc／所有文档测试已在此批闭合。
+8. 受影响 Rust 文件格式化、git diff --check 与 117 处必要品牌标识守卫通过；后续批次继续按实际消费者复验，不以本批编译代替模块验收。
+
+证据目录 `target/tmp/rust-naming/N-02/`：root-tests-final.log、framework-tests-final.log、workspace-clippy-final.log、optional-features-clippy.log、http-cli-results.json、generated-consumer-final.log、docs-build.log、docs-worker-control.log、literal-differences.json、source-hashes.json。独立基线副本已在退出后清理，保留 Git 基线、文件 SHA 和原失败日志；生成消费者与构建缓存保留供后续复用，未删数据库、日志或下载。收尾可用约 40 GiB，大于 32 GB 停线。原暂存两项许可删除和无关改动排除。

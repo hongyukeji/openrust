@@ -31,9 +31,9 @@ fn binding() -> BindingResolutionError {
 impl ServiceProvider for TelescopeServiceProvider {
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
-            if !app.configurationIsCached() {
+            if !app.configuration_is_cached() {
                 let env = app.make::<openrust::config::Environment>().await?;
-                self.mergeConfigFrom(app, crate::configuration::load(&env)?, "telescope")?;
+                self.merge_config_from(app, crate::configuration::load(&env)?, "telescope")?;
             }
             app.container()
                 .singleton::<crate::telescope::Options, _>(|_| {
@@ -72,7 +72,7 @@ impl ServiceProvider for TelescopeServiceProvider {
                     )))
                 })?;
             app.container()
-                .scopedIf::<dyn crate::contracts::EntriesRepository, _>(|container| {
+                .scoped_if::<dyn crate::contracts::EntriesRepository, _>(|container| {
                     Ok(container.make::<DatabaseEntriesRepository>()?
                         as Arc<dyn crate::contracts::EntriesRepository>)
                 })?;
@@ -135,9 +135,9 @@ impl ServiceProvider for TelescopeServiceProvider {
                 )],
                 "telescope-provider",
             )?;
-            self.loadMigrationsFrom(app, Self::migrations()).await?;
+            self.load_migrations_from(app, Self::migrations()).await?;
             self.commands(app, crate::console::register);
-            self.loadRoutesFrom(app, crate::http::register)?;
+            self.load_routes_from(app, crate::http::register)?;
             app.make::<openrust::queue::QueueManager>()
                 .await?
                 .register(

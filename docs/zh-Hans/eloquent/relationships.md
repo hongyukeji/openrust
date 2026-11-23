@@ -66,19 +66,19 @@ pub fn is_author<P: Model, A: Model>(post: &P, author: &A) -> bool {
 
 ### 默认关联模型
 
-可在 `BelongsTo`、`HasOne`、`HasOneThrough` 或 `MorphOne` 上调用 `withDefault`，在缺少关联记录时提供一个未保存的模型。闭包接收新模型和父模型。用 `|_, _| {}` 可保留框架初始化的属性。`HasOne` 会预填外键，`MorphOne` 还会预填类型别名。可从已加载关系读取默认实例。关系存在和计数查询仍以数据库记录为准。
+可在 `BelongsTo`、`HasOne`、`HasOneThrough` 或 `MorphOne` 上调用 `with_default`，在缺少关联记录时提供一个未保存的模型。闭包接收新模型和父模型。用 `|_, _| {}` 可保留框架初始化的属性。`HasOne` 会预填外键，`MorphOne` 还会预填类型别名。可从已加载关系读取默认实例。关系存在和计数查询仍以数据库记录为准。
 
 ```rust
 use openrust::database::eloquent::{Model, relations::BelongsTo};
 
 pub fn author_with_default() -> BelongsTo<Post, Author> {
-    BelongsTo::new("author_id", "id").withDefault(|author: &mut Author, _| {
+    BelongsTo::new("author_id", "id").with_default(|author: &mut Author, _| {
         author.setAttribute("name", "Guest author");
     })
 }
 ```
 
-对 `MorphTo` 关系，为需要兜底的别名注册类型化 `withDefault`。闭包接收未保存的目标和父模型。外键为空或找不到匹配行时，已存储的别名选择自己的默认模型。用 `defaultForMissingType` 为类型为空的记录显式选择已登记的默认模型。外键存在但别名未知时仍返回错误。
+对 `MorphTo` 关系，为需要兜底的别名注册类型化 `with_default`。闭包接收未保存的目标和父模型。外键为空或找不到匹配行时，已存储的别名选择自己的默认模型。用 `defaultForMissingType` 为类型为空的记录显式选择已登记的默认模型。外键存在但别名未知时仍返回错误。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::{Model, relations::MorphTo}};
@@ -86,7 +86,7 @@ use openrust::database::{DatabaseResult, eloquent::{Model, relations::MorphTo}};
 pub fn subject_with_default<P: Model, T: Model>() -> DatabaseResult<MorphTo<P>> {
     MorphTo::new("subject_type", "subject_id")
         .target::<T>("post", "id")
-        .withDefault::<T>("post", |post, _| {
+        .with_default::<T>("post", |post, _| {
             post.setAttribute("title", "Unavailable");
         })?
         .defaultForMissingType("post")
@@ -907,7 +907,7 @@ pub fn latest_roles<U: Model, R: Model>() -> BelongsToMany<U, R> {
 
 在多对多关系中调用 `using::<Membership>()`，用类型化 Eloquent 模型加载和写入中间行。模型可声明属性转换和批量赋值字段。重命名访问器后，用 `getRelation::<Membership>("membership")` 读取。关系提供表名、连接和原始关联键，多态关系还提供类型判别列。复合键表用 `incrementing(false)`，自增模型需要实际的主键列。
 
-自定义 Pivot 新行先由模型的 `newInstance` 初始化默认属性，再写入关系键、Pivot 默认值及显式值，随后触发 `Saving` 和 `Creating`。更新时，原始属性取自数据库已有行，脏属性记录本次待写入的变更。
+自定义 Pivot 新行先由模型的 `new_instance` 初始化默认属性，再写入关系键、Pivot 默认值及显式值，随后触发 `Saving` 和 `Creating`。更新时，原始属性取自数据库已有行，脏属性记录本次待写入的变更。
 
 自定义 Pivot 水合时，已选择的数据库列覆盖模型默认值，包括 SQL NULL。未选的普通属性可保留模型默认值。关系标识取自数据库行，水合后的值用于原始属性快照、变更跟踪和 JSON 输出。
 

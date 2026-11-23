@@ -46,7 +46,7 @@ impl Handler {
         let active = self
             .owner
             .upgrade()
-            .is_some_and(|owner| Arc::ptr_eq(&owner, &Container::getInstance()));
+            .is_some_and(|owner| Arc::ptr_eq(&owner, &Container::get_instance()));
         if active
             && matches!(Origin::current(), Some(Origin::Http(_)))
             && RESOLVING_AUTH.try_with(|()| ()).is_err()
@@ -75,7 +75,7 @@ impl Handler {
         let owner = self
             .owner
             .upgrade()
-            .filter(|owner| Arc::ptr_eq(owner, &Container::getInstance()));
+            .filter(|owner| Arc::ptr_eq(owner, &Container::get_instance()));
         let mut context = event.context.clone();
         let mut origin = match owner.as_ref().and_then(|_| Origin::current()) {
             Some(Origin::Http(request)) => {

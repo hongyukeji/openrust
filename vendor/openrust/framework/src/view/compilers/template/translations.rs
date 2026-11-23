@@ -138,7 +138,7 @@ impl Translation {
             Some(ViewValue::Bool(fallback)) => *fallback,
             _ => return Err(render_error("翻译回退参数必须是布尔值。")),
         };
-        Lang::getFacadeRoot()
+        Lang::get_facade_root()
             .map_err(|source| ViewError::RenderFailed(Box::new(source)))?
             .value(key, &replacements, locale, fallback)
             .map(view_value)

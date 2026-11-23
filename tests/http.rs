@@ -69,12 +69,12 @@ fn explicit(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 #[tokio::test]
 async fn exceptions_negotiate_json_without_changing_status_or_allow() {
     let app = Application::configure(std::env::current_dir().unwrap())
-        .withRouting(Routing::new(|_| {
+        .with_routing(Routing::new(|_| {
             let mut router = Router::new();
             router.get("/api/page", explicit)?;
             Ok(router)
         }))
-        .withExceptions(|exceptions| {
+        .with_exceptions(|exceptions| {
             exceptions
                 .shouldRenderJsonWhen(|request, _| request.is("api/*") || request.expectsJson());
         })
@@ -149,13 +149,13 @@ async fn exception_callbacks_match_sources_and_finalize_custom_and_default_respo
     let events = Arc::new(Mutex::new(Vec::new()));
     let observed = events.clone();
     let app = Application::configure(std::env::current_dir().unwrap())
-        .withRouting(Routing::new(|_| {
+        .with_routing(Routing::new(|_| {
             let mut router = Router::new();
             router.get("/api/custom", fail)?;
             router.get("/api/fallback", fail)?;
             Ok(router)
         }))
-        .withExceptions(move |exceptions| {
+        .with_exceptions(move |exceptions| {
             let report_events = observed.clone();
             let render_events = observed.clone();
             exceptions
@@ -239,11 +239,11 @@ fn request(method: Method, uri: &str) -> (Request, Trace) {
 #[tokio::test]
 async fn declared_route_sources_get_their_framework_groups() {
     let application = Application::configure(std::env::current_dir().unwrap())
-        .withMiddleware(|middleware| {
+        .with_middleware(|middleware| {
             middleware.group("web", [MiddlewareEntry::Instance(record("web"))]);
             middleware.group("api", [MiddlewareEntry::Instance(record("api"))]);
         })
-        .withRouting(
+        .with_routing(
             Routing::default()
                 .web(|| openrust::support::facades::Route::get("/page", explicit))
                 .api(|| openrust::support::facades::Route::get("/page", explicit))
@@ -271,10 +271,10 @@ async fn declared_route_sources_get_their_framework_groups() {
 async fn api_prefix_can_be_overridden_without_changing_the_middleware_group() {
     for (prefix, path) in [("/v1/api/", "/v1/api/page"), ("", "/page")] {
         let application = Application::configure(std::env::current_dir().unwrap())
-            .withMiddleware(|middleware| {
+            .with_middleware(|middleware| {
                 middleware.group("api", [MiddlewareEntry::Instance(record("api"))]);
             })
-            .withRouting(
+            .with_routing(
                 Routing::default()
                     .api(|| openrust::support::facades::Route::get("/page", explicit))
                     .apiPrefix(prefix),
@@ -313,9 +313,9 @@ async fn broadcasting_loads_channel_rules_and_denies_without_a_driver() {
     ));
 
     let application = Application::configure(std::env::current_dir().unwrap())
-        .withBroadcasting(register)
-        .withRouting(Routing::default())
-        .withMiddleware(|middleware| {
+        .with_broadcasting(register)
+        .with_routing(Routing::default())
+        .with_middleware(|middleware| {
             middleware.group("web", [MiddlewareEntry::Instance(record("web"))]);
         })
         .create()
@@ -335,12 +335,12 @@ async fn broadcasting_loads_channel_rules_and_denies_without_a_driver() {
 
 async fn kernel() -> Kernel {
     let application = Application::configure(std::env::current_dir().unwrap())
-        .withMiddleware(|middleware| {
+        .with_middleware(|middleware| {
             middleware
                 .append(record("appended"))
                 .prepend(record("prepended"));
         })
-        .withRouting(Routing::new(|_| {
+        .with_routing(Routing::new(|_| {
             let mut router = Router::new();
             router.group(
                 RouteGroup::new()
@@ -605,7 +605,7 @@ fn network_application(builder: ApplicationBuilder) -> ApplicationBuilder {
     use std::any::TypeId;
 
     builder
-        .withMiddleware(|middleware| {
+        .with_middleware(|middleware| {
             middleware.append(ranked::<2>("global", false));
             middleware.alias("late", ranked::<2>("late", false));
             middleware.alias("stop", ranked::<1>("stop", true));
@@ -629,7 +629,7 @@ fn network_application(builder: ApplicationBuilder) -> ApplicationBuilder {
                 TypeId::of::<Ranked<2>>(),
             ]);
         })
-        .withRouting(Routing::new(|_| {
+        .with_routing(Routing::new(|_| {
             let mut router = Router::new();
             use openrust::routing::middleware::SubstituteBindings;
 
@@ -1007,9 +1007,9 @@ async fn middleware_configuration_errors_fail_before_serving() {
     };
 
     let configure =
-        || Application::configure(std::env::current_dir().unwrap()).withRouting(routing());
+        || Application::configure(std::env::current_dir().unwrap()).with_routing(routing());
     let missing = configure()
-        .withMiddleware(|middleware| {
+        .with_middleware(|middleware| {
             middleware.group("outer", [MiddlewareEntry::named("missing")]);
         })
         .create()
@@ -1021,7 +1021,7 @@ async fn middleware_configuration_errors_fail_before_serving() {
     );
 
     let cyclic = configure()
-        .withMiddleware(|middleware| {
+        .with_middleware(|middleware| {
             middleware.group("outer", [MiddlewareEntry::named("inner")]);
             middleware.group("inner", [MiddlewareEntry::named("outer")]);
         })
@@ -1102,13 +1102,13 @@ async fn explicit_http_abort_preserves_status_message_and_headers_over_tcp() {
     let reports = Arc::new(Mutex::new(0));
     let observed = reports.clone();
     let app = Application::configure(std::env::current_dir().unwrap())
-        .withRouting(Routing::new(|_| {
+        .with_routing(Routing::new(|_| {
             let mut router = Router::new();
             router.get("/rejected", reject)?;
             router.get("/maintenance", reject)?;
             Ok(router)
         }))
-        .withExceptions(move |exceptions| {
+        .with_exceptions(move |exceptions| {
             exceptions.report::<HttpError>(move |_| {
                 *observed.lock().unwrap() += 1;
                 ReportDecision::Stop

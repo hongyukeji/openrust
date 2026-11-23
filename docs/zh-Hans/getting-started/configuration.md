@@ -29,7 +29,7 @@ let current_framework_version = App::version()?;
 
 在应用作用域内，导入 `openrust::support::facades::Config`，通过 `Config::get("app.name")?` 读取配置。门面每次调用都解析当前应用仓储。键缺失时返回 `None`，显式空值返回 `Some(Value::Null)`。在应用作用域外或仓储注册前调用会返回绑定错误。
 
-`config` 是规范名称，`dyn openrust::contracts::config::Repository` 是其类型别名。替换应用仓储时，使用 `openrust::config::Repository::new(values)` 构造，再调用 `instanceNamed::<dyn Repository>("config", repository)?`。已经持有 `Arc` 的消费者保留原快照；需要跟随替换时重新解析，或使用重绑定/refresh 监听器。按原始类型键重新绑定会替换该别名，而不是规范配置服务，遵循容器的原键规则。
+`config` 是规范名称，`dyn openrust::contracts::config::Repository` 是其类型别名。替换应用仓储时，使用 `openrust::config::Repository::new(values)` 构造，再调用 `instance_named::<dyn Repository>("config", repository)?`。已经持有 `Arc` 的消费者保留原快照；需要跟随替换时重新解析，或使用重绑定/refresh 监听器。按原始类型键重新绑定会替换该别名，而不是规范配置服务，遵循容器的原键规则。
 
 Provider 替换的仓储用于 HTTP 监听绑定、路由/静态磁盘装配及视图路径设置。健康页 HTML 在每次请求时读取当前仓储，Artisan 使用相同应用访问器。运行时替换配置不会自动重建已经装配的路由或视图查找器。容器错误沿相应的启动、HTTP 或 Artisan 错误路径传播。参见[重绑定](../architecture-concepts/container.md#重绑定与刷新消费者)。
 
@@ -47,7 +47,7 @@ HTTP 视图渲染器按顺序查找 `view.paths` 中的目录，默认从 `resou
 use openrust::support::facades::Config;
 
 pub fn application_name() -> String {
-    Config::stringOr("app.name", "App")
+    Config::string_or("app.name", "App")
 }
 ```
 
@@ -57,7 +57,7 @@ pub fn application_name() -> String {
 
 整体替换 `app` 后，子键按调用顺序写入：替换 `app.ui` 会移除它原有的子键，之后写入 `app.ui.title` 则加入新父对象。写入数组下标保留兄弟元素；`get`、`all`、`has`、`push`、`prepend` 读取同一作用域值，稀疏数组转为带数字键的 JSON 对象。同一生命周期中的嵌套调用共享改动，其他请求或任务以及应用默认值不受影响。`push` 可把当前为 `null` 的配置初始化为列表；两种方法都接受关联数组，追加保留原键，前插会重排整数键并保留命名键。对 `null` 使用 `prepend`，或对其他标量执行这两种操作，均返回错误。
 
-用 `Config::stringOr("app.name", "App")` 直接取得字符串。键缺失、值为 `null` 或类型不符、配置仓储不可用时，均使用传入的默认值。需要严格读取并处理错误时，用 `Config::string("app.name")?`。原始值读取 `Config::getOr("app.name", Value::from("App"))?` 仅在缺键时使用默认值，并保留显式空值。`Config::getMany([("app.name", Value::from("App")), ("app.debug", Value::Bool(false))])?` 按输入顺序读取多个键，各自使用默认值。读取整组配置时，为结构体派生 `serde::Deserialize`，再用 `Config::deserialize::<MailOptions>("mail")?`。
+用 `Config::string_or("app.name", "App")` 直接取得字符串。键缺失、值为 `null` 或类型不符、配置仓储不可用时，均使用传入的默认值。需要严格读取并处理错误时，用 `Config::string("app.name")?`。原始值读取 `Config::get_or("app.name", Value::from("App"))?` 仅在缺键时使用默认值，并保留显式空值。`Config::get_many([("app.name", Value::from("App")), ("app.debug", Value::Bool(false))])?` 按输入顺序读取多个键，各自使用默认值。读取整组配置时，为结构体派生 `serde::Deserialize`，再用 `Config::deserialize::<MailOptions>("mail")?`。
 
 ## 配置缓存 {#configuration-caching}
 
@@ -117,7 +117,7 @@ use openrust::{
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut app = Application::configure(std::env::current_dir()?)
-        .withConfig(|_, _| {
+        .with_config(|_, _| {
             Ok([("app".into(), serde_json::json!({"env": "staging"}))].into())
         })
         .create()?;
@@ -125,8 +125,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     assert_eq!(app.environment(None)?, EnvironmentResult::from("staging"));
     assert!(bool::from(app.environment(Some("stag*".into()))?));
-    assert!(bool::from(app.container().currentEnvironmentIs(&["local", "staging"])?));
-    assert!(!bool::from(app.container().currentEnvironmentIs(&[])?));
+    assert!(bool::from(app.container().current_environment_is(&["local", "staging"])?));
+    assert!(!bool::from(app.container().current_environment_is(&[])?));
     Ok(())
 }
 ```
@@ -139,7 +139,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 | 环境变量 | 用途 | 默认值 |
 |---|---|---|
-| `APP_PUBLIC_PATH` | `filesystems.disks.web.root` / `Application::publicPath()` | `public` |
+| `APP_PUBLIC_PATH` | `filesystems.disks.web.root` / `Application::public_path()` | `public` |
 | `FILESYSTEM_WEB_ROOT` | 网站磁盘根目录，优先于 `APP_PUBLIC_PATH` | `app.public_path` |
 | `FILESYSTEM_WEB_URL` | `filesystems.disks.web.url` | `app.url` |
 | `FILESYSTEM_LOCAL_ROOT` | 私有本地磁盘的 `filesystems.disks.local.root` | `storage/app/private` |
@@ -148,7 +148,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 `FILESYSTEM_WEB_ROOT` 优先指定网站磁盘根目录；未设置时使用 `APP_PUBLIC_PATH`（默认 `public`）。相对路径基于应用根目录，绝对路径直接使用。空字符串或全空白值会导致配置加载失败。
 
-未设置 `APP_PUBLIC_PATH` 时，`config/app.rs` 明确将 `app.public_path` 设为 `public`，`web` 磁盘复用该值作为默认根目录。网站文件配置在 `filesystems.disks.web`，公开上传文件配置在 `filesystems.disks.public`。默认路由按顺序调用 `Route::staticDisk("web")` 和 `Route::staticDisk("public")`。引导前调用 `usePublicPath()` 会覆盖网站目录并同步 `web.root`。相对目录以应用根目录为基准。挂载前缀取磁盘 URL 的完整路径，例如 `/storage/tmp/` 挂到 `/storage/tmp`。绝对 URL 必须与 `app.url` 同源。修改挂载配置后重启应用。 显式设置为空字符串或全空白的 `APP_PUBLIC_PATH` 会导致配置加载失败。
+未设置 `APP_PUBLIC_PATH` 时，`config/app.rs` 明确将 `app.public_path` 设为 `public`，`web` 磁盘复用该值作为默认根目录。网站文件配置在 `filesystems.disks.web`，公开上传文件配置在 `filesystems.disks.public`。默认路由按顺序调用 `Route::staticDisk("web")` 和 `Route::staticDisk("public")`。引导前调用 `use_public_path()` 会覆盖网站目录并同步 `web.root`。相对目录以应用根目录为基准。挂载前缀取磁盘 URL 的完整路径，例如 `/storage/tmp/` 挂到 `/storage/tmp`。绝对 URL 必须与 `app.url` 同源。修改挂载配置后重启应用。 显式设置为空字符串或全空白的 `APP_PUBLIC_PATH` 会导致配置加载失败。
 
 ## 维护模式 {#maintenance-mode}
 
@@ -161,10 +161,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 `--retry` 接受正数秒数或重试日期，`--refresh` 指定浏览器刷新间隔。未注明时区的日期时间使用应用时区，响应头统一使用 GMT。`--redirect` 接受站内路径。`--render` 在执行 `down` 时将命名视图渲染一次，并传入 `$retryAfter`。`--status` 可覆盖默认的 503。期望 JSON 的请求沿用常规异常渲染，跳过浏览器跳转和预渲染页面。
 
-维护期间可打开 `--with-secret` 打印的 URL 检查站点。应用设置有效期为 12 小时的签名 Cookie，当前会话没有原目标时跳转至首页。可以用 `--secret` 指定自己的路径。配置的健康路径（默认 `/up`）在维护期间仍可访问。需要保留其他端点时，在 `bootstrap/app.rs` 的 `withMiddleware` 中配置。
+维护期间可打开 `--with-secret` 打印的 URL 检查站点。应用设置有效期为 12 小时的签名 Cookie，当前会话没有原目标时跳转至首页。可以用 `--secret` 指定自己的路径。配置的健康路径（默认 `/up`）在维护期间仍可访问。需要保留其他端点时，在 `bootstrap/app.rs` 的 `with_middleware` 中配置。
 
 ```rust
-.withMiddleware(|middleware| {
+.with_middleware(|middleware| {
     middleware.preventRequestsDuringMaintenance(["status/*"]);
 })
 ```
@@ -175,7 +175,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ### 共享维护状态 {#shared-maintenance-state}
 
-应用通过 `maintenanceMode()` 提供维护状态。默认 `file` 驱动把数据写入 `storage/framework/down`。选择 `cache` 和共享缓存仓库，可让多台机器上的 Worker 读取同一状态。`array` 驱动将状态保存在当前应用实例内，可用于测试。
+应用通过 `maintenance_mode()` 提供维护状态。默认 `file` 驱动把数据写入 `storage/framework/down`。选择 `cache` 和共享缓存仓库，可让多台机器上的 Worker 读取同一状态。`array` 驱动将状态保存在当前应用实例内，可用于测试。
 
 ```rust
 use openrust::foundation::Application;
@@ -185,28 +185,28 @@ async fn activate_maintenance(
     app: &Application,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let payload = Map::from_iter([("status".into(), json!(503))]);
-    app.maintenanceMode()?.activate(&payload).await?;
+    app.maintenance_mode()?.activate(&payload).await?;
     Ok(())
 }
 ```
 
-用 `isDownForMaintenance().await` 读取状态，用 `app.maintenanceMode()?.deactivate().await?` 清除。队列 Worker 在预约任务前读取此状态。
+用 `is_down_for_maintenance().await` 读取状态，用 `app.maintenance_mode()?.deactivate().await?` 清除。队列 Worker 在预约任务前读取此状态。
 
 ## 测试环境与启动快照 {#testing-environment}
 
-`Application::runningUnitTests()` 和应用契约返回 `Result<bool, BindingResolutionError>`。仅当容器中的 `env` 精确为 `testing` 时结果为 true，与是否正在运行测试程序无关。环境未绑定时返回 `Ok(false)`，不触发服务解析；解析错误沿 `Result` 传播。后续修改 `config("app.env")` 不会替换已检测的环境绑定。
+`Application::running_unit_tests()` 和应用契约返回 `Result<bool, BindingResolutionError>`。仅当容器中的 `env` 精确为 `testing` 时结果为 true，与是否正在运行测试程序无关。环境未绑定时返回 `Ok(false)`，不触发服务解析；解析错误沿 `Result` 传播。后续修改 `config("app.env")` 不会替换已检测的环境绑定。
 
 启动后，通过 `app.make::<openrust::config::Environment>().await?` 读取当前应用不可变的环境快照。既有 `get`、`get_utf8` 返回原始字符串，具体旗标仍由对应包解析。快照遵守进程变量优先、环境文件选择及配置缓存规则，不重新加载文件，也不修改进程全局变量。
 
 ## 应用存储路径 {#application-storage-path}
 
-`app.storagePath("")` 返回存储根目录，传入 `"pail"` 等字符串可获取子路径。`app.useStoragePath(path)?` 覆盖它并重绑 `path.storage`，应用契约也提供 getter。`openrust::support::storage_path(path)?` 读取当前应用作用域。只读的 `foundation::Paths` 服务让编译型包共享同一状态，避免通过容器强持有 Application。
+`app.storage_path("")` 返回存储根目录，传入 `"pail"` 等字符串可获取子路径。`app.use_storage_path(path)?` 覆盖它并重绑 `path.storage`，应用契约也提供 getter。`openrust::support::storage_path(path)?` 读取当前应用作用域。只读的 `foundation::Paths` 服务让编译型包共享同一状态，避免通过容器强持有 Application。
 
 优先级是非空且非 `0` 的显式覆盖、应用环境快照中的 `APP_STORAGE_PATH`、应用根目录下的 `storage`。环境中显式存在的空值仍会保留。Setter 传入相对路径时保持相对。拼接追加本机分隔符并去掉子路径开头的本机分隔符，保留重复分隔符和 `..`。Rust 没有默认参数，读取根目录时显式传 `""`。
 
-构造时初始化 `path.storage`，后加载的环境文件可以改变 getter，但不会自动重写该绑定；`useStoragePath` 则显式重绑，沿用 顺序。重绑错误通过 `Result` 返回，此时路径状态已经更新。
+构造时初始化 `path.storage`，后加载的环境文件可以改变 getter，但不会自动重写该绑定；`use_storage_path` 则显式重绑，沿用 顺序。重绑错误通过 `Result` 返回，此时路径状态已经更新。
 
-日志、文件 Session、文件缓存数据与锁、编译视图以及默认 local/public 磁盘在加载配置时采用存储根目录。`FILESYSTEM_LOCAL_ROOT`、`FILESYSTEM_PUBLIC_ROOT` 和 `VIEW_COMPILED_PATH` 仍可单独覆盖，公共 URL 和挂载顺序不变。`storage:link` 指向配置的公共磁盘。启动前设置绝对路径的 `APP_STORAGE_PATH`，或在加载配置前调用 `useStoragePath`。
+日志、文件 Session、文件缓存数据与锁、编译视图以及默认 local/public 磁盘在加载配置时采用存储根目录。`FILESYSTEM_LOCAL_ROOT`、`FILESYSTEM_PUBLIC_ROOT` 和 `VIEW_COMPILED_PATH` 仍可单独覆盖，公共 URL 和挂载顺序不变。`storage:link` 指向配置的公共磁盘。启动前设置绝对路径的 `APP_STORAGE_PATH`，或在加载配置前调用 `use_storage_path`。
 
 编译型配置加载器使用 `env.storage_path(base_path, subpath)` 作为 Rust 上下文适配。弱引用选取所属应用的路径，不依赖全局 Facade，也不延长应用生命周期。独立环境快照按自身变量及传入的默认根目录解析。后续更改应用路径不会回写已经加载或缓存的配置值。
 

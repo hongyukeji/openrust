@@ -983,7 +983,7 @@ async fn request_raw(
 async fn verify(config: Json) {
     let mysql = config.get("url").is_some();
     let mut app = Application::configure(std::env::temp_dir())
-        .withRouting(Routing::default().api(routes))
+        .with_routing(Routing::default().api(routes))
         .create()
         .unwrap();
     app.boot().await.unwrap();
@@ -1671,7 +1671,7 @@ async fn wrapping_server(
     json_api: JsonApi,
 ) -> (SocketAddr, tokio::task::JoinHandle<()>) {
     let mut app = Application::configure(std::env::temp_dir())
-        .withRouting(Routing::default().api(wrapping_routes))
+        .with_routing(Routing::default().api(wrapping_routes))
         .create()
         .unwrap();
     app.boot().await.unwrap();

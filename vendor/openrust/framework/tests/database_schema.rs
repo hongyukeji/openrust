@@ -34,7 +34,7 @@ impl ServiceProvider for MorphKeyProvider {
 async fn morph_columns_follow_the_current_app_and_keep_the_composite_index() {
     async fn verify(kind: Option<MorphKeyType>, expected: &str) {
         let mut app = TestApp::sqlite(|builder| match kind {
-            Some(kind) => builder.withProviders(vec![Box::new(MorphKeyProvider(kind))]),
+            Some(kind) => builder.with_providers(vec![Box::new(MorphKeyProvider(kind))]),
             None => builder,
         })
         .unwrap();
@@ -1317,12 +1317,12 @@ async fn schema_facade_uses_the_artisan_application_connection() {
     let file = root.join("database/database.sqlite");
     std::fs::File::create(&file).unwrap();
     let application = Application::configure(root.clone())
-        .withCommands(register)
+        .with_commands(register)
         .create()
         .unwrap();
     assert_eq!(
         application
-            .handleCommand(&["schema:probe".into()])
+            .handle_command(&["schema:probe".into()])
             .await
             .unwrap(),
         0
@@ -4905,7 +4905,7 @@ async fn mysql_schema_column_defaults_are_application_local() {
     }
     async fn check(use_defaults: bool, name: &str) {
         let mut app = TestApp::create(|builder| {
-            let builder = builder.withConfig(|_, _| {
+            let builder = builder.with_config(|_, _| {
                 let url = std::env::var("OPENRUST_TEST_MYSQL_URL").unwrap();
                 Ok([(
                     "database".into(),
@@ -4914,7 +4914,7 @@ async fn mysql_schema_column_defaults_are_application_local() {
                 .into())
             });
             if use_defaults {
-                builder.withProviders(vec![Box::new(Defaults)])
+                builder.with_providers(vec![Box::new(Defaults)])
             } else {
                 builder
             }

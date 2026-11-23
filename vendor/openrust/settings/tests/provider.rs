@@ -48,8 +48,8 @@ async fn discovered_provider_boots_without_database_and_owns_default_migration()
         let root = tempfile::tempdir().unwrap();
         let database = root.path().join("uncreated.sqlite");
         let application = Application::configure(root.path().to_path_buf())
-            .withPackages(PackageManifest::new(PACKAGES))
-            .withProviders(vec![Box::new(Host {
+            .with_packages(PackageManifest::new(PACKAGES))
+            .with_providers(vec![Box::new(Host {
                 database: database.clone(),
                 table,
                 connection,

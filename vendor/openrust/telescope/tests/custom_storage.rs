@@ -81,8 +81,8 @@ impl EntriesRepository for Store {
 async fn application_can_replace_storage_contract_without_resolving_the_database_driver() {
     let root = tempfile::tempdir().unwrap();
     let mut app = openrust::foundation::Application::configure(root.path().into())
-        .withProviders(vec![Box::new(TelescopeServiceProvider)])
-        .withConfig(|_, _| {
+        .with_providers(vec![Box::new(TelescopeServiceProvider)])
+        .with_config(|_, _| {
             Ok(std::collections::BTreeMap::from([(
                 "telescope".into(),
                 serde_json::json!({"driver":"custom"}),
@@ -113,12 +113,12 @@ async fn initialization_commands_do_not_initialize_or_write_diagnostic_storage()
     ] {
         let root = tempfile::tempdir().unwrap();
         let mut app = openrust::foundation::Application::configure(root.path().into())
-            .withProviders(vec![Box::new(TelescopeServiceProvider)])
-            .withCommands(|artisan| {
+            .with_providers(vec![Box::new(TelescopeServiceProvider)])
+            .with_commands(|artisan| {
                 artisan.command("diagnostic:probe", |_| {})?;
                 Ok(())
             })
-            .withConfig(|base, _| {
+            .with_config(|base, _| {
                 Ok(std::collections::BTreeMap::from([
                     ("telescope".into(), serde_json::json!({"driver":"custom"})),
                     ("logging".into(), serde_json::json!({"default":"single","channels":{"single":{"driver":"single","path":base.join("app.log"),"level":"debug"}}})),
@@ -140,7 +140,7 @@ async fn initialization_commands_do_not_initialize_or_write_diagnostic_storage()
         // 不完整的应用会由命令自身报错，诊断采集不得抢先访问存储。
         let _result = tokio::time::timeout(
             std::time::Duration::from_secs(2),
-            app.handleCommand(&arguments.into_iter().map(Into::into).collect::<Vec<_>>()),
+            app.handle_command(&arguments.into_iter().map(Into::into).collect::<Vec<_>>()),
         )
         .await
         .expect("初始化命令不应等待诊断存储");

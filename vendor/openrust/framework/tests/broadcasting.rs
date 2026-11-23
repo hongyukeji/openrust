@@ -462,7 +462,7 @@ fn application(recorder: Arc<Recorder>) -> Application {
 
 fn application_at(recorder: Arc<Recorder>, root: &Path) -> Application {
     Application::configure(root.to_path_buf())
-        .withConfig(|root, _| {
+        .with_config(|root, _| {
             let sqlite_file = root.join("broadcast-probe.sqlite");
             let database = if sqlite_file.is_file() { sqlite_file.to_string_lossy() } else { ":memory:".into() };
             Ok([
@@ -475,9 +475,9 @@ fn application_at(recorder: Arc<Recorder>, root: &Path) -> Application {
                 ("queue".into(), json!({"default":"db","connections":{"db":{"driver":"database","queue":"default","table":"jobs","retry_after":30}}})),
             ].into())
         })
-        .withRouting(Routing::new(routes))
-        .withBroadcasting(channels)
-        .withProviders(vec![Box::new(Register(recorder))])
+        .with_routing(Routing::new(routes))
+        .with_broadcasting(channels)
+        .with_providers(vec![Box::new(Register(recorder))])
         .create().unwrap()
 }
 
@@ -602,7 +602,7 @@ async fn actual_channel_requests_use_guard_rules_and_presence_payloads() {
     }
     server.abort();
     let status = application(Arc::default())
-        .handleCommand(&["channel:list".into()])
+        .handle_command(&["channel:list".into()])
         .await
         .unwrap();
     assert_eq!(status, 0);
@@ -717,7 +717,7 @@ async fn broadcast_deliveries_respect_transaction_boundaries_and_queue_retry() {
         .into_iter()
         .map(OsString::from)
         .collect();
-    assert_eq!(app.handleCommand(&arguments).await.unwrap(), 0);
+    assert_eq!(app.handle_command(&arguments).await.unwrap(), 0);
     assert_eq!(queue.size(Some("broadcasts")).await.unwrap(), 0);
     assert_eq!(
         recorder.delivered.lock().unwrap()[1],
@@ -754,7 +754,7 @@ async fn artisan_work(recorder: Arc<Recorder>, root: &Path, selected: &str, trie
     ];
     assert_eq!(
         application_at(recorder, root)
-            .handleCommand(&arguments)
+            .handle_command(&arguments)
             .await
             .unwrap(),
         0

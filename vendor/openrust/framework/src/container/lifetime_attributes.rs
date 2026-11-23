@@ -56,8 +56,7 @@ impl Registry {
 
 impl Container {
     /// Declares the cache lifetime of a compiled class or interface.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn registerLifetime<T: ?Sized + Send + Sync + 'static>(&self, lifetime: Lifetime) {
+    pub fn register_lifetime<T: ?Sized + Send + Sync + 'static>(&self, lifetime: Lifetime) {
         let retired = self
             .registry
             .write()

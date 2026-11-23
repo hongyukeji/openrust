@@ -18,9 +18,9 @@ fn config(
 async fn provider_discovery_is_lazy_preserves_custom_profiles_and_facade_uses_application_scope() {
     let server = Server::new(Provider::Stripe).await;
     let mut app = Application::configure(std::env::temp_dir())
-        .withConfig(config)
-        .withRouting(openrust::foundation::configuration::Routing::default().api(routes))
-        .withProviders(vec![Box::new(CashierServiceProvider)])
+        .with_config(config)
+        .with_routing(openrust::foundation::configuration::Routing::default().api(routes))
+        .with_providers(vec![Box::new(CashierServiceProvider)])
         .create()
         .unwrap();
     app.boot().await.unwrap();
@@ -47,8 +47,8 @@ async fn provider_discovery_is_lazy_preserves_custom_profiles_and_facade_uses_ap
     assert_eq!(server.requests().len(), 1);
     assert!(Cashier::defaultDriver().is_err());
     let mut other = Application::configure(std::env::temp_dir())
-        .withConfig(|_, _| Ok(BTreeMap::new()))
-        .withProviders(vec![Box::new(CashierServiceProvider)])
+        .with_config(|_, _| Ok(BTreeMap::new()))
+        .with_providers(vec![Box::new(CashierServiceProvider)])
         .create()
         .unwrap();
     other.boot().await.unwrap();
@@ -86,8 +86,8 @@ async fn package_environment_defaults_load_only_after_provider_registration() {
     std::fs::create_dir_all(&path).unwrap();
     std::fs::write(path.join(".env"),"CASHIER_DRIVER=paddle\nCASHIER_LIVE=true\nSTRIPE_SECRET=stripe_env_secret\nSTRIPE_WEBHOOK_SECRET=stripe_endpoint_secret\nPADDLE_API_KEY=lower_priority_secret\nPADDLE_AUTH_CODE=paddle_env_secret\nPADDLE_SANDBOX=true\nPADDLE_WEBHOOK_SECRET=paddle_endpoint_secret\n").unwrap();
     let mut app = Application::configure(path.clone())
-        .withConfig(|_, _| Ok(BTreeMap::new()))
-        .withProviders(vec![Box::new(CashierServiceProvider)])
+        .with_config(|_, _| Ok(BTreeMap::new()))
+        .with_providers(vec![Box::new(CashierServiceProvider)])
         .create()
         .unwrap();
     app.boot().await.unwrap();
@@ -107,8 +107,8 @@ async fn package_environment_defaults_load_only_after_provider_registration() {
     );
     std::fs::write(path.join(".env"), "CASHIER_LIVE=not-a-bool\n").unwrap();
     let mut invalid = Application::configure(path.clone())
-        .withConfig(|_, _| Ok(BTreeMap::new()))
-        .withProviders(vec![Box::new(CashierServiceProvider)])
+        .with_config(|_, _| Ok(BTreeMap::new()))
+        .with_providers(vec![Box::new(CashierServiceProvider)])
         .create()
         .unwrap();
     assert!(invalid.boot().await.is_err());

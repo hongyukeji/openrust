@@ -20,7 +20,7 @@ fn date(value: &str) -> Date {
 }
 
 fn configure(builder: ApplicationBuilder) -> ApplicationBuilder {
-    builder.withConfig(|_, _| {
+    builder.with_config(|_, _| {
         Ok([
             (
                 "app".into(),
@@ -80,8 +80,8 @@ fn repeating(_: &mut Artisan) -> Result<(), ConsoleError> {
 
 #[tokio::test]
 async fn schedule_commands_read_each_fixtures_clock_and_timezone() -> TestResult {
-    let mut first = TestApp::create(|builder| configure(builder).withCommands(register))?;
-    let mut second = TestApp::create(|builder| configure(builder).withCommands(register))?;
+    let mut first = TestApp::create(|builder| configure(builder).with_commands(register))?;
+    let mut second = TestApp::create(|builder| configure(builder).with_commands(register))?;
     first.travelTo(date("2024-01-01T00:30:04Z"));
     second.travelTo(date("1969-12-31T00:31:04Z"));
 
@@ -120,7 +120,7 @@ async fn schedule_commands_read_each_fixtures_clock_and_timezone() -> TestResult
 
 #[tokio::test]
 async fn explicit_scheduler_clock_takes_precedence_over_the_fixture_clock() -> TestResult {
-    let mut app = TestApp::create(|builder| configure(builder).withCommands(custom))?;
+    let mut app = TestApp::create(|builder| configure(builder).with_commands(custom))?;
     app.travelTo(date("2024-01-01T00:31:04Z"));
     app.artisan(["schedule:run"])
         .await
@@ -140,7 +140,7 @@ async fn explicit_scheduler_clock_takes_precedence_over_the_fixture_clock() -> T
 
 #[tokio::test]
 async fn sub_minute_tasks_keep_the_elapsed_time_deadline() -> TestResult {
-    let mut app = TestApp::create(|builder| configure(builder).withCommands(repeating))?;
+    let mut app = TestApp::create(|builder| configure(builder).with_commands(repeating))?;
     for (at, task, next) in [
         (
             "1969-12-31T23:59:59.900Z",
@@ -253,7 +253,7 @@ fn relative_list(_: &mut Artisan) -> Result<(), ConsoleError> {
 
 #[tokio::test]
 async fn schedule_list_json_shifts_cron_and_keeps_reference_metadata() -> TestResult {
-    let mut app = TestApp::create(|builder| configure(builder).withCommands(list_json))?;
+    let mut app = TestApp::create(|builder| configure(builder).with_commands(list_json))?;
     app.travelTo(date("2023-10-29T00:00:00Z"));
     let reply = app
         .artisan([
@@ -308,7 +308,7 @@ async fn schedule_list_json_shifts_cron_and_keeps_reference_metadata() -> TestRe
 
 #[tokio::test]
 async fn schedule_list_json_uses_complete_calendar_units_for_relative_dates() -> TestResult {
-    let mut app = TestApp::create(|builder| configure(builder).withCommands(relative_list))?;
+    let mut app = TestApp::create(|builder| configure(builder).with_commands(relative_list))?;
     app.travelTo(date("2023-01-31T00:00:00Z"));
     let reply = app.artisan(["schedule:list", "--json"]).await;
     reply.assertSuccessful();

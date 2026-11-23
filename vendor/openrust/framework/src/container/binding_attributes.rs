@@ -110,7 +110,7 @@ impl Bind {
                 let project = project.clone();
                 Box::pin(async move {
                     let value = if same_class {
-                        container.buildAsync::<C>().await?
+                        container.build_async::<C>().await?
                     } else {
                         container
                             .resolve_async_with_parameters::<C>(
@@ -178,8 +178,7 @@ impl Bind {
         }
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn forEnvironments(
+    pub fn for_environments(
         mut self,
         environments: impl IntoIterator<Item = impl Into<String>>,
     ) -> Self {
@@ -244,8 +243,7 @@ impl BindingAttribute {
 
 impl Container {
     /// Registers the ordered attributes for a compiled service type.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn registerBindingAttributes<T: ?Sized + Send + Sync + 'static>(
+    pub fn register_binding_attributes<T: ?Sized + Send + Sync + 'static>(
         &self,
         attributes: Vec<BindingAttribute>,
     ) -> Result<()> {

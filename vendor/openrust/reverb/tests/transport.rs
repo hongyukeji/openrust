@@ -472,16 +472,16 @@ async fn framework_application(
 ) -> openrust::foundation::Application {
     use openrust::{contracts::foundation::Application as _, foundation::Application};
     let mut app = Application::configure(root.to_path_buf())
-        .withConfig(|_, _| {
+        .with_config(|_, _| {
             Ok([(
                 "auth".into(),
                 json!({"guards":{"test":{"driver":"reverb-test"}}}),
             )]
             .into())
         })
-        .withBroadcasting(room_channel)
-        .withCommands(register_probe)
-        .withProviders(vec![
+        .with_broadcasting(room_channel)
+        .with_commands(register_probe)
+        .with_providers(vec![
             Box::new(openrust_reverb::ReverbServiceProvider),
             Box::new(RegisterGuard),
         ])
@@ -609,7 +609,7 @@ async fn verify_framework_broadcast(driver: &'static str) {
                             configure_tls_publishing(&artisan, port).await;
                         }
                         match artisan
-                            .handleCommand(&["pusher:probe".into(), sequence.to_string().into()])
+                            .handle_command(&["pusher:probe".into(), sequence.to_string().into()])
                             .await
                         {
                             Ok(0) => axum::http::StatusCode::NO_CONTENT,

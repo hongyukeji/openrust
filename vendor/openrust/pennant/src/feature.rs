@@ -8,13 +8,13 @@ use std::sync::Arc;
 pub struct Feature;
 impl Facade for Feature {
     type Service = FeatureManager;
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         ServiceKey::typed::<FeatureManager>()
     }
 }
 impl Feature {
     pub fn manager() -> Result<Arc<FeatureManager>> {
-        Self::getFacadeRoot().map_err(crate::Error::Binding)
+        Self::get_facade_root().map_err(crate::Error::Binding)
     }
     pub fn store(name: Option<&str>) -> Result<Arc<Decorator>> {
         Self::manager()?.store(name)

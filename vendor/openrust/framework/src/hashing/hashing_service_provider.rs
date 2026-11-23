@@ -22,7 +22,7 @@ impl ServiceProvider for HashingServiceProvider {
         Box::pin(async move {
             let container = app.container();
             let owner = Arc::downgrade(&app.container_handle());
-            container.singletonNamed("hash", move |container| {
+            container.singleton_named("hash", move |container| {
                 let config = container.get::<dyn Repository>("config")?;
                 HashManager::for_container(config, owner.clone())
                     .map(Arc::new)

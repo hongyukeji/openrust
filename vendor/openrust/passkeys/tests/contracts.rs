@@ -88,9 +88,10 @@ async fn login_authorization_and_route_configuration_are_application_local() {
 
 #[test]
 fn passkey_metadata_keeps_server_owned_foreign_key_out_of_mass_assignment() {
-    let record =
-        Passkey::newInstance([("name".into(), "Key".into()), ("user_id".into(), 99.into())].into())
-            .unwrap();
+    let record = Passkey::new_instance(
+        [("name".into(), "Key".into()), ("user_id".into(), 99.into())].into(),
+    )
+    .unwrap();
     assert_eq!(record.getAttribute("name"), Some(&Value::from("Key")));
     assert_eq!(record.getAttribute("user_id"), None);
     assert_eq!(record.getTable(), "passkeys");

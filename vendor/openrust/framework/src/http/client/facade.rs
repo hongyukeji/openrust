@@ -26,7 +26,7 @@ pub struct Http;
 impl Facade for Http {
     type Service = Factory;
 
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         ServiceKey::typed::<Factory>()
     }
 }
@@ -39,7 +39,7 @@ impl Http {
         + Sync
         + 'static,
     ) -> Result<()> {
-        Self::getFacadeRoot()
+        Self::get_facade_root()
             .map_err(Error::Unavailable)?
             .globalMiddleware(middleware);
         Ok(())
@@ -48,7 +48,7 @@ impl Http {
     pub fn globalRequestMiddleware(
         middleware: impl Fn(&mut super::Request) -> Result<()> + Send + Sync + 'static,
     ) -> Result<()> {
-        Self::getFacadeRoot()
+        Self::get_facade_root()
             .map_err(Error::Unavailable)?
             .globalRequestMiddleware(middleware);
         Ok(())
@@ -57,7 +57,7 @@ impl Http {
     pub fn globalResponseMiddleware(
         middleware: impl Fn(Response) -> Result<Response> + Send + Sync + 'static,
     ) -> Result<()> {
-        Self::getFacadeRoot()
+        Self::get_facade_root()
             .map_err(Error::Unavailable)?
             .globalResponseMiddleware(middleware);
         Ok(())
@@ -68,7 +68,7 @@ impl Http {
     }
 
     pub fn pendingRequest() -> Result<PendingRequest> {
-        Ok(Self::getFacadeRoot()
+        Ok(Self::get_facade_root()
             .map_err(Error::Unavailable)?
             .pendingRequest())
     }
@@ -151,7 +151,7 @@ impl Http {
         concurrency: NonZeroUsize,
         build: impl FnOnce(&mut Pool<'a>),
     ) -> Result<indexmap::IndexMap<String, Result<Response>>> {
-        Ok(Self::getFacadeRoot()
+        Ok(Self::get_facade_root()
             .map_err(Error::Unavailable)?
             .pool(concurrency, build)
             .await)
@@ -160,14 +160,14 @@ impl Http {
     pub async fn poolOrdered<'a>(
         build: impl FnOnce(&mut Pool<'a>),
     ) -> Result<indexmap::IndexMap<String, Result<Response>>> {
-        Ok(Self::getFacadeRoot()
+        Ok(Self::get_facade_root()
             .map_err(Error::Unavailable)?
             .poolOrdered(build)
             .await)
     }
 
     pub fn batch<'a>(build: impl FnOnce(&mut Batch<'a>)) -> Result<Batch<'a>> {
-        Ok(Self::getFacadeRoot()
+        Ok(Self::get_facade_root()
             .map_err(Error::Unavailable)?
             .batch(build))
     }
@@ -175,40 +175,40 @@ impl Http {
     pub fn fake(
         callback: impl Fn(&reqwest::Request) -> Option<Result<Response>> + Send + Sync + 'static,
     ) -> Result<()> {
-        Self::getFacadeRoot()
+        Self::get_facade_root()
             .map_err(Error::Unavailable)?
             .fake(callback);
         Ok(())
     }
 
     pub fn fakeSequence(pattern: impl Into<String>) -> Result<ResponseSequence> {
-        Ok(Self::getFacadeRoot()
+        Ok(Self::get_facade_root()
             .map_err(Error::Unavailable)?
             .fakeSequence(pattern))
     }
 
     pub fn preventStrayRequests(prevent: bool) -> Result<()> {
-        Self::getFacadeRoot()
+        Self::get_facade_root()
             .map_err(Error::Unavailable)?
             .preventStrayRequests(prevent);
         Ok(())
     }
 
     pub fn allowStrayRequests(patterns: impl IntoIterator<Item = impl Into<String>>) -> Result<()> {
-        Self::getFacadeRoot()
+        Self::get_facade_root()
             .map_err(Error::Unavailable)?
             .allowStrayRequests(patterns);
         Ok(())
     }
 
     pub fn preventingStrayRequests() -> Result<bool> {
-        Ok(Self::getFacadeRoot()
+        Ok(Self::get_facade_root()
             .map_err(Error::Unavailable)?
             .preventingStrayRequests())
     }
 
     pub fn isAllowedRequestUrl(url: &str) -> Result<bool> {
-        Ok(Self::getFacadeRoot()
+        Ok(Self::get_facade_root()
             .map_err(Error::Unavailable)?
             .isAllowedRequestUrl(url))
     }
@@ -217,7 +217,7 @@ impl Http {
     pub fn assertSent(
         predicate: impl Fn(&RecordedRequest, Option<&Response>) -> bool,
     ) -> Result<()> {
-        Self::getFacadeRoot()
+        Self::get_facade_root()
             .map_err(Error::Unavailable)?
             .assertSent(predicate);
         Ok(())
@@ -227,7 +227,7 @@ impl Http {
     pub fn assertNotSent(
         predicate: impl Fn(&RecordedRequest, Option<&Response>) -> bool,
     ) -> Result<()> {
-        Self::getFacadeRoot()
+        Self::get_facade_root()
             .map_err(Error::Unavailable)?
             .assertNotSent(predicate);
         Ok(())
@@ -235,7 +235,7 @@ impl Http {
 
     #[track_caller]
     pub fn assertSentCount(expected: usize) -> Result<()> {
-        Self::getFacadeRoot()
+        Self::get_facade_root()
             .map_err(Error::Unavailable)?
             .assertSentCount(expected);
         Ok(())
@@ -247,7 +247,7 @@ impl Http {
     }
 
     pub fn recorded() -> Result<Vec<(RecordedRequest, Option<Response>)>> {
-        Ok(Self::getFacadeRoot()
+        Ok(Self::get_facade_root()
             .map_err(Error::Unavailable)?
             .recorded())
     }

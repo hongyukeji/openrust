@@ -25,7 +25,7 @@ cargo run --features pay -- artisan migrate
 
 設定也可用 `private_key`／`public_key` 內嵌 PEM 替代對應路徑，每把金鑰只能指定一種來源。相對路徑以程序工作目錄解析，也可使用絕對路徑。設定快取及金鑰檔案須由部署權限保護。可選 `endpoint` 必須使用 HTTPS，僅回環位址允許 HTTP 協定測試；預設指向官方微信 API v3 網域和支付寶閘道。支付寶沙箱須同時使用沙箱端點及其對應憑證、公鑰。
 
-其他應用可依賴 `openrust-pay` 並登記 `PayServiceProvider`；它透過 `loadMigrationsFrom` 登記 `PayServiceProvider::migrations()`。閘道註冊及直接支付操作不要求存取本機資料庫。
+其他應用可依賴 `openrust-pay` 並登記 `PayServiceProvider`；它透過 `load_migrations_from` 登記 `PayServiceProvider::migrations()`。閘道註冊及直接支付操作不要求存取本機資料庫。
 
 ## 發起支付 {#create-payment}
 

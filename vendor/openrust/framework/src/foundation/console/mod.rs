@@ -164,7 +164,7 @@ impl Kernel {
             self.application.container_handle(),
             async move {
                 self.application.boot_with_environment(selected).await?;
-                self.application.loadDeferredProviders().await?;
+                self.application.load_deferred_providers().await?;
                 self.command_registration
                     .get_or_insert_with(|| {
                         if self.register_planned {

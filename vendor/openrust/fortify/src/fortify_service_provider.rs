@@ -27,9 +27,9 @@ impl ServiceProvider for FortifyServiceProvider {
             let config = app
                 .container()
                 .get::<dyn openrust::contracts::config::Repository>("config")?;
-            if !app.configurationIsCached() {
+            if !app.configuration_is_cached() {
                 let environment = app.make::<Environment>().await?;
-                self.mergeConfigFrom(
+                self.merge_config_from(
                     app,
                     configuration::load(config.as_ref(), &environment)?,
                     "fortify",
@@ -104,7 +104,7 @@ impl ServiceProvider for FortifyServiceProvider {
                         .map_err(binding)?;
                     Ok(Arc::new(
                         TwoFactorAuthenticationProvider::new(Some(cache))
-                            .withConfig(container.get("config")?),
+                            .with_config(container.get("config")?),
                     ))
                 },
             )?;
@@ -236,7 +236,7 @@ impl ServiceProvider for FortifyServiceProvider {
     fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
             if !app
-                .providerIsLoaded(std::any::type_name::<crate::FortifyResourcesServiceProvider>())
+                .provider_is_loaded(std::any::type_name::<crate::FortifyResourcesServiceProvider>())
             {
                 crate::resources::register(app)?;
             }
@@ -250,7 +250,7 @@ impl ServiceProvider for FortifyServiceProvider {
                     .await?
                     .webauthn()?;
             }
-            self.loadRoutesFrom(app, crate::http::routes::register)?;
+            self.load_routes_from(app, crate::http::routes::register)?;
             Ok(())
         })
     }

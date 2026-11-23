@@ -76,7 +76,7 @@ impl Pulse {
     }
     pub fn register(&self, recorders: Vec<Arc<dyn crate::recorders::Recorder>>) -> Result<&Self> {
         use openrust::support::facades::{Event, Facade};
-        let dispatcher = Event::getFacadeRoot()?;
+        let dispatcher = Event::get_facade_root()?;
         for recorder in recorders {
             crate::recorders::registerRecorder(&dispatcher, recorder, self.options.clone())?;
         }
@@ -369,7 +369,7 @@ impl Pulse {
                 contracts::events::Dispatcher as _,
                 support::facades::{Event, Facade},
             };
-            Event::getFacadeRoot()?
+            Event::get_facade_root()?
                 .dispatch(
                     Arc::new(crate::events::ExceptionReported {
                         class: class.into(),

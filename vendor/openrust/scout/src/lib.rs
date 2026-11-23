@@ -15,7 +15,7 @@ pub mod facades {
     pub struct Scout;
     impl Facade for Scout {
         type Service = crate::EngineManager;
-        fn getFacadeAccessor() -> ServiceKey {
+        fn get_facade_accessor() -> ServiceKey {
             ServiceKey::typed::<crate::EngineManager>()
         }
     }

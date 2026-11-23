@@ -59,7 +59,7 @@ impl JobHandler for Handler {
                 .checked_add(1)
                 .ok_or(QueueError::InvalidPayload)?;
             let telescope =
-                crate::facades::Telescope::getFacadeRoot().map_err(QueueError::Unavailable)?;
+                crate::facades::Telescope::get_facade_root().map_err(QueueError::Unavailable)?;
             let failed = telescope
                 .withoutRecording(telescope.repository.update(&pending.pendingUpdates))
                 .await

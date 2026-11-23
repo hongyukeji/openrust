@@ -66,11 +66,11 @@ async fn installed_password_action_checks_web_guard_independently_of_the_updated
     };
     use serde_json::json;
     let mut app=openrust::foundation::Application::configure(std::env::temp_dir())
-        .withConfig(|_,_|Ok([
+        .with_config(|_,_|Ok([
             ("hashing".into(),json!({"driver":"bcrypt","bcrypt":{"rounds":4}})),
             ("auth".into(),json!({"defaults":{"guard":"admin"},"guards":{"web":{"driver":"web-fixture"},"admin":{"driver":"admin-fixture"}}})),
         ].into()))
-        .withRouting(openrust::foundation::configuration::Routing::default().api(routes)).create().unwrap();
+        .with_routing(openrust::foundation::configuration::Routing::default().api(routes)).create().unwrap();
     app.boot().await.unwrap();
     let hasher = app
         .make::<dyn openrust::contracts::hashing::Hasher>()

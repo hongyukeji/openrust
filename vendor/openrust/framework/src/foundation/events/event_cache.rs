@@ -67,6 +67,6 @@ pub(in crate::foundation) fn clear(app: &Application) -> io::Result<()> {
 }
 
 fn path(app: &Application) -> io::Result<&Path> {
-    app.getCachedEventsPath()
+    app.get_cached_events_path()
         .ok_or_else(|| io::Error::other("Event cache path is unavailable"))
 }

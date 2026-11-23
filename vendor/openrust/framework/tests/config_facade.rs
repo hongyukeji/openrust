@@ -16,7 +16,7 @@ async fn config_reads_each_applications_canonical_repository() {
         let base = root.path().join(name);
         std::fs::create_dir(&base).unwrap();
         Application::configure(base)
-            .withConfig(|base, _| {
+            .with_config(|base, _| {
                 let name = base.file_name().unwrap().to_str().unwrap();
                 Ok([("app".into(), json!({"name": name, "nullable": null}))].into())
             })
@@ -26,12 +26,12 @@ async fn config_reads_each_applications_canonical_repository() {
     let mut first = make("First");
     let mut second = make("Second");
     assert!(Config::string("app.name").is_err());
-    assert_eq!(Config::stringOr("app.name", "Fallback"), "Fallback");
+    assert_eq!(Config::string_or("app.name", "Fallback"), "Fallback");
     first
         .call(
             Callback::new(&[], |_| async {
                 assert!(Config::string("app.name").is_err());
-                assert_eq!(Config::stringOr("app.name", "Fallback"), "Fallback");
+                assert_eq!(Config::string_or("app.name", "Fallback"), "Fallback");
                 Ok(())
             }),
             Default::default(),
@@ -47,7 +47,7 @@ async fn config_reads_each_applications_canonical_repository() {
             assert_eq!(Config::get("app.name")?, Some(json!("First")));
             assert_eq!(Config::get("app.missing")?, None);
             assert_eq!(Config::get("app.nullable")?, Some(Value::Null));
-            first.container().instanceNamed::<dyn Repository>(
+            first.container().instance_named::<dyn Repository>(
                 "config",
                 Arc::new(ConfigRepository::new(
                     [("app".into(), json!({"name": "Replaced"}))].into(),
@@ -90,8 +90,8 @@ async fn config_is_available_in_http_route_handlers() {
 
     let mut app = TestApp::create(|builder| {
         builder
-            .withConfig(|_, _| Ok([("app".into(), json!({"name": "HTTP application"}))].into()))
-            .withRouting(Routing::default().web(|| Route::get("/config", handler)))
+            .with_config(|_, _| Ok([("app".into(), json!({"name": "HTTP application"}))].into()))
+            .with_routing(Routing::default().web(|| Route::get("/config", handler)))
     })
     .unwrap();
     app.get("/config")
@@ -111,7 +111,7 @@ async fn config_defaults_and_serde_distinguish_missing_null_and_invalid_values()
 
     let root = tempfile::tempdir().unwrap();
     let mut app = Application::configure(root.path().into())
-        .withConfig(|_, _| {
+        .with_config(|_, _| {
             Ok([
                 ("mail".into(), json!({"host":"localhost","port":2525})),
                 (
@@ -126,9 +126,9 @@ async fn config_defaults_and_serde_distinguish_missing_null_and_invalid_values()
     app.boot().await.unwrap();
     app.call(
         Callback::new(&[], |_| async {
-            assert_eq!(Config::getOr("missing", json!(42))?, json!(42));
-            assert_eq!(Config::getOr("mixed.nullable", json!(42))?, Value::Null);
-            let values = Config::getMany([
+            assert_eq!(Config::get_or("missing", json!(42))?, json!(42));
+            assert_eq!(Config::get_or("mixed.nullable", json!(42))?, Value::Null);
+            let values = Config::get_many([
                 ("mixed.list.0", json!("default")),
                 ("mixed.nullable", json!(false)),
                 ("missing", json!("fallback")),
@@ -141,10 +141,10 @@ async fn config_defaults_and_serde_distinguish_missing_null_and_invalid_values()
                     ("missing".into(), json!("fallback")),
                 ]
             );
-            assert_eq!(Config::stringOr("mixed.list.0", "demo"), "first");
-            assert_eq!(Config::stringOr("mixed.empty", "demo"), "");
+            assert_eq!(Config::string_or("mixed.list.0", "demo"), "first");
+            assert_eq!(Config::string_or("mixed.empty", "demo"), "");
             for key in ["missing", "mixed.nullable", "mixed.number"] {
-                assert_eq!(Config::stringOr(key, "demo"), "demo");
+                assert_eq!(Config::string_or(key, "demo"), "demo");
                 assert!(Config::string(key).is_err());
             }
             assert_eq!(
@@ -155,9 +155,9 @@ async fn config_defaults_and_serde_distinguish_missing_null_and_invalid_values()
                 }
             );
             assert!(Config::deserialize::<Mail>("mixed").is_err());
-            assert_eq!(Config::deserializeOr::<u16>("missing", 5).unwrap(), 5);
-            assert!(Config::deserializeOr::<u16>("mixed.nullable", 5).is_err());
-            assert!(Config::deserializeOr::<u16>("mail.host", 5).is_err());
+            assert_eq!(Config::deserialize_or::<u16>("missing", 5).unwrap(), 5);
+            assert!(Config::deserialize_or::<u16>("mixed.nullable", 5).is_err());
+            assert!(Config::deserialize_or::<u16>("mail.host", 5).is_err());
             Ok(())
         }),
         Default::default(),

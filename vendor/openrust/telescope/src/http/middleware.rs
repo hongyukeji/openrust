@@ -11,7 +11,7 @@ impl Middleware for Authorize {
         next: Next<'a>,
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
-            let telescope = crate::facades::Telescope::getFacadeRoot()?;
+            let telescope = crate::facades::Telescope::get_facade_root()?;
             telescope.flushEntries();
             telescope.stopRecording();
             if telescope.check(request).await? {

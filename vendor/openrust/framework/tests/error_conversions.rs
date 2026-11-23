@@ -154,15 +154,15 @@ async fn config_facade_question_mark_preserves_failure_type_reporting_and_redact
         let counter = reported.clone();
         let mut app = TestApp::create(move |builder| {
             builder
-                .withConfig(load)
-                .withExceptions(move |exceptions| {
+                .with_config(load)
+                .with_exceptions(move |exceptions| {
                     exceptions.report::<ConfigError>(move |error| {
                         assert!(matches!(error, ConfigError::InvalidType { key, .. } if key == "app.locale_form_field"));
                         counter.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                         openrust::foundation::configuration::ReportDecision::Stop
                     });
                 })
-                .withRouting(Routing::default().web(|| Route::get("/config", config_route)))
+                .with_routing(Routing::default().web(|| Route::get("/config", config_route)))
         }).unwrap();
         let response = app.get("/config").await.unwrap();
         if valid {

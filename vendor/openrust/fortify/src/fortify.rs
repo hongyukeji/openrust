@@ -302,7 +302,7 @@ impl Fortify {
         use openrust::support::facades::Facade as _;
         Ok(crate::resolver::Resolver::<
             dyn openrust::contracts::encryption::Encrypter,
-        >::getFacadeRoot()?)
+        >::get_facade_root()?)
     }
     pub fn generateRecoveryCodesUsing(
         &self,

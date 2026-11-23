@@ -350,13 +350,13 @@ fn async_commands(artisan: &mut openrust::console::Application) -> Result<(), Co
 fn application(root: PathBuf) -> Result<Application, SetupError> {
     let storage = std::fs::read_to_string(root.join("storage-override")).ok();
     let app = Application::configure(root)
-        .withConfig(config)
-        .withCommands(async_commands)
-        .withProviders(vec![Box::new(PailServiceProvider), Box::new(Probe)])
-        .withRouting(Routing::default().web(routes).commands(commands))
+        .with_config(config)
+        .with_commands(async_commands)
+        .with_providers(vec![Box::new(PailServiceProvider), Box::new(Probe)])
+        .with_routing(Routing::default().web(routes).commands(commands))
         .create()?;
     if let Some(storage) = storage {
-        app.useStoragePath(storage)?;
+        app.use_storage_path(storage)?;
     }
     Ok(app)
 }

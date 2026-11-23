@@ -31,8 +31,8 @@ struct Probe(String);
 struct Probes;
 impl Facade for Probes {
     type Service = Probe;
-    const cached: bool = false;
-    fn getFacadeAccessor() -> ServiceKey {
+    const CACHED: bool = false;
+    fn get_facade_accessor() -> ServiceKey {
         ServiceKey::typed::<Probe>()
     }
 }
@@ -70,7 +70,7 @@ impl ServiceProvider for Provider {
                 }
             })?;
             let stats = self.stats.clone();
-            c.afterResolving(Some(ServiceKey::typed::<Probe>()), move |event, app| {
+            c.after_resolving(Some(ServiceKey::typed::<Probe>()), move |event, app| {
                 assert!(event.value::<Probe>().unwrap().0.ends_with(":one:two"));
                 stats.after.fetch_add(1, Ordering::SeqCst);
                 app.extend::<Probe, _>(event.key().clone(), |value, _| {
@@ -82,8 +82,8 @@ impl ServiceProvider for Provider {
     }
 }
 fn result() -> Result<String, BindingResolutionError> {
-    let first = Probes::getFacadeRoot()?;
-    let second = Probes::getFacadeRoot()?;
+    let first = Probes::get_facade_root()?;
+    let second = Probes::get_facade_root()?;
     assert!(!Arc::ptr_eq(&first, &second));
     Ok(format!("{}|{}", first.0, second.0))
 }
@@ -125,12 +125,12 @@ fn commands(artisan: &mut openrust::console::Application) -> Result<(), ConsoleE
 }
 fn application(name: &'static str, fail: bool, stats: Arc<Stats>) -> Application {
     Application::configure(std::env::current_dir().unwrap())
-        .withProviders(vec![Box::new(Provider { name, fail, stats })])
-        .withCommands(commands)
-        .withExceptions(|exceptions| {
+        .with_providers(vec![Box::new(Provider { name, fail, stats })])
+        .with_commands(commands)
+        .with_exceptions(|exceptions| {
             exceptions.shouldRenderJsonWhen(|_, _| true);
         })
-        .withRouting(Routing::default().web(web))
+        .with_routing(Routing::default().web(web))
         .create()
         .unwrap()
 }

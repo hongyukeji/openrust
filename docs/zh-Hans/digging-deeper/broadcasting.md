@@ -8,7 +8,7 @@ Provider 可以解析 `BroadcastManager`，用 `extend` 注册驱动名和构造
 
 ## 频道授权
 
-用 `Broadcast::channel` 注册规则，并通过 `Routing::channels` 或 `withBroadcasting` 加载。框架在 Web 中间件组启用 GET 和 POST `/broadcasting/auth`。该路由排除请求伪造防护中间件，订阅仍需通过驱动的授权检查。
+用 `Broadcast::channel` 注册规则，并通过 `Routing::channels` 或 `with_broadcasting` 加载。框架在 Web 中间件组启用 GET 和 POST `/broadcasting/auth`。该路由排除请求伪造防护中间件，订阅仍需通过驱动的授权检查。
 
 `orders.{id}` 等规则接收已认证用户和命名参数。允许私有订阅时返回 `ChannelAuthorization::Allowed`，公开在线成员资料时返回 `ChannelAuthorization::Presence(data)`。用 `channelWithOptions` 指定守卫的查找顺序。运行 `artisan channel:list` 查看注册的规则。
 

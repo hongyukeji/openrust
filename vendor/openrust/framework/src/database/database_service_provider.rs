@@ -21,7 +21,7 @@ impl ServiceProvider for DatabaseServiceProvider {
             let root = application.base_path().to_path_buf();
             let owner = Arc::downgrade(&application.container_handle());
             let container = application.container();
-            container.singletonNamed("db", move |container| {
+            container.singleton_named("db", move |container| {
                 let config = container.get::<dyn crate::contracts::config::Repository>("config")?;
                 let key = crate::container::ServiceKey::typed::<MySqlTestOwners>();
                 let mysql_test_owners = if container.has(key.clone()) {
@@ -61,7 +61,7 @@ impl ServiceProvider for DatabaseServiceProvider {
             container.singleton::<super::eloquent::relations::MorphMap, _>(|_| {
                 Ok(Arc::new(super::eloquent::relations::MorphMap::default()))
             })?;
-            container.singletonIf::<super::seeder::SeederRegistry, _>(|_| {
+            container.singleton_if::<super::seeder::SeederRegistry, _>(|_| {
                 Ok(Arc::new(super::seeder::SeederRegistry::default()))
             })?;
             Ok(())

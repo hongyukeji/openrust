@@ -162,7 +162,7 @@ impl Helper {
                 .map_err(|source| super::ViewError::RenderFailed(Box::new(source)))
         };
         match self.operation {
-            Operation::CurrentLocale => crate::support::facades::App::currentLocale()
+            Operation::CurrentLocale => crate::support::facades::App::current_locale()
                 .map(ViewValue::String)
                 .map_err(|source| super::ViewError::RenderFailed(Box::new(source))),
             Operation::Repository => Ok(crate::foundation::Application::REPOSITORY.into()),

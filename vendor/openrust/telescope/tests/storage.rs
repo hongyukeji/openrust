@@ -27,8 +27,8 @@ impl Fixture {
             .unwrap();
         std::fs::File::create(root.path().join("test.sqlite")).unwrap();
         let mut app = openrust::foundation::Application::configure(root.path().into())
-            .withConfig(config)
-            .withProviders(vec![Box::new(TelescopeServiceProvider)])
+            .with_config(config)
+            .with_providers(vec![Box::new(TelescopeServiceProvider)])
             .create()
             .unwrap();
         app.boot().await.unwrap();

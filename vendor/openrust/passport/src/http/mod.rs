@@ -37,7 +37,7 @@ pub(crate) fn routes() -> Result<(), openrust::routing::RoutingError> {
         routing::RouteGroup,
         support::facades::{Config, Route},
     };
-    let passport = openrust::container::Container::getInstance()
+    let passport = openrust::container::Container::get_instance()
         .make::<crate::Passport>()
         .map_err(|_| openrust::routing::RoutingError::InvalidAction)?;
     if !passport

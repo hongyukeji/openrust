@@ -90,12 +90,12 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
 fn create() -> Result<Application, Box<dyn std::error::Error + Send + Sync>> {
     let base = std::env::var("APP_BASE_PATH")?;
     Ok(Application::configure(base.into())
-        .withConfig(config)
-        .withProviders(vec![
+        .with_config(config)
+        .with_providers(vec![
             Box::new(HorizonServiceProvider),
             Box::new(ProbeProvider),
         ])
-        .withRouting(Routing::default().web(routes))
+        .with_routing(Routing::default().web(routes))
         .create()?)
 }
 #[tokio::main]

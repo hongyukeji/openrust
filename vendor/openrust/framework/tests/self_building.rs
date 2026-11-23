@@ -11,20 +11,19 @@ use std::sync::Arc;
 struct Item(u32);
 
 impl SelfBuilding for Item {
-    #[allow(non_snake_case)]
-    fn newInstance(args: ResolvedArgs, container: &Container) -> FactoryFuture<'_, Self> {
+    fn new_instance(args: ResolvedArgs, container: &Container) -> FactoryFuture<'_, Self> {
         Box::pin(async move {
-            let ordinary = container.makeAsync::<Self>().await?;
+            let ordinary = container.make_async::<Self>().await?;
             Ok(Arc::new(Self(ordinary.0 + *args.service::<u32>(0)?)))
         })
     }
 }
 
 fn descriptor() -> ClassDescriptor {
-    ClassDescriptor::selfBuilding::<Item>(
+    ClassDescriptor::self_building::<Item>(
         vec![
             ConstructorParam::scalar::<u32>("number")
-                .withDefault(|| Ok(ParameterValue::new(3_u32))),
+                .with_default(|| Ok(ParameterValue::new(3_u32))),
         ],
         |args| Ok(Arc::new(Item(*args.get::<u32>(0)?))),
         vec![ConstructorParam::class::<u32>("number")],
@@ -35,14 +34,14 @@ fn descriptor() -> ClassDescriptor {
 #[tokio::test]
 async fn new_instance_injects_static_dependencies_and_reentry_uses_the_ordinary_constructor() {
     let container = Container::default();
-    container.registerClass(descriptor()).unwrap();
+    container.register_class(descriptor()).unwrap();
     assert!(!container.bound::<Item>());
     assert!(matches!(
         container.make::<Item>(),
         Err(BindingResolutionError::AsyncResolutionRequired { .. })
     ));
     assert!(matches!(
-        container.makeAsync::<Item>().await,
+        container.make_async::<Item>().await,
         Err(BindingResolutionError::NotBound { .. })
     ));
     container.instance(Arc::new(8_u32)).unwrap();
@@ -50,24 +49,28 @@ async fn new_instance_injects_static_dependencies_and_reentry_uses_the_ordinary_
     let mut parameters = ParameterOverrides::new();
     parameters.insert(ParameterKey::name("number"), ParameterValue::new(99_u32));
     assert_eq!(
-        container.makeWithAsync::<Item>(parameters).await.unwrap().0,
+        container
+            .make_with_async::<Item>(parameters)
+            .await
+            .unwrap()
+            .0,
         11
     );
-    assert_eq!(container.buildAsync::<Item>().await.unwrap().0, 11);
+    assert_eq!(container.build_async::<Item>().await.unwrap().0, 11);
     assert!(container.resolved(ServiceKey::typed::<Item>()).unwrap());
 }
 
 #[tokio::test]
 async fn static_method_binding_and_explicit_service_binding_keep_their_precedence() {
     let container = Container::default();
-    container.registerClass(descriptor()).unwrap();
+    container.register_class(descriptor()).unwrap();
     container
-        .bindStaticMethod::<Item, Arc<Item>, _>("newInstance", |key, _| {
+        .bind_static_method::<Item, Arc<Item>, _>("newInstance", |key, _| {
             assert_eq!(key, ServiceKey::typed::<Item>());
             Box::pin(async { Ok(Arc::new(Item(17))) })
         })
         .unwrap();
-    assert_eq!(container.makeAsync::<Item>().await.unwrap().0, 17);
+    assert_eq!(container.make_async::<Item>().await.unwrap().0, 17);
 
     container.instance(Arc::new(8_u32)).unwrap();
     assert_eq!(
@@ -84,16 +87,16 @@ async fn static_method_binding_and_explicit_service_binding_keep_their_precedenc
     container
         .bind::<Item, _>(|_| Ok(Arc::new(Item(23))))
         .unwrap();
-    assert_eq!(container.makeAsync::<Item>().await.unwrap().0, 23);
-    assert_eq!(container.buildAsync::<Item>().await.unwrap().0, 17);
+    assert_eq!(container.make_async::<Item>().await.unwrap().0, 23);
+    assert_eq!(container.build_async::<Item>().await.unwrap().0, 17);
 }
 
 #[tokio::test]
 async fn ordinary_reentry_still_detects_constructor_cycles() {
     let container = Container::default();
     container
-        .registerClass(
-            ClassDescriptor::selfBuilding::<Item>(
+        .register_class(
+            ClassDescriptor::self_building::<Item>(
                 vec![ConstructorParam::class::<Item>("cycle")],
                 |args| args.service(0),
                 vec![ConstructorParam::class::<u32>("number")],
@@ -103,7 +106,7 @@ async fn ordinary_reentry_still_detects_constructor_cycles() {
         .unwrap();
     container.instance(Arc::new(8_u32)).unwrap();
     assert!(matches!(
-        container.makeAsync::<Item>().await,
+        container.make_async::<Item>().await,
         Err(BindingResolutionError::CircularDependency { .. })
     ));
 }
@@ -111,7 +114,7 @@ async fn ordinary_reentry_still_detects_constructor_cycles() {
 #[test]
 fn self_building_signature_and_method_declaration_are_validated() {
     assert!(matches!(
-        ClassDescriptor::selfBuilding::<Item>(
+        ClassDescriptor::self_building::<Item>(
             vec![],
             |_| Ok(Arc::new(Item(3))),
             vec![
@@ -122,12 +125,12 @@ fn self_building_signature_and_method_declaration_are_validated() {
         Err(BindingResolutionError::InvalidConstructor { .. })
     ));
     let declare = |container: &Container| {
-        container.registerStaticMethod::<Item, Arc<Item>, _>("newInstance", vec![], |_, _| {
+        container.register_static_method::<Item, Arc<Item>, _>("newInstance", vec![], |_, _| {
             Box::pin(async { Ok(Arc::new(Item(1))) })
         })
     };
     let first = Container::default();
-    first.registerClass(descriptor()).unwrap();
+    first.register_class(descriptor()).unwrap();
     assert!(matches!(
         declare(&first),
         Err(BindingResolutionError::InvalidMethod { .. })
@@ -135,7 +138,7 @@ fn self_building_signature_and_method_declaration_are_validated() {
     let second = Container::default();
     declare(&second).unwrap();
     assert!(matches!(
-        second.registerClass(descriptor()),
+        second.register_class(descriptor()),
         Err(BindingResolutionError::InvalidMethod { .. })
     ));
 }
@@ -143,20 +146,22 @@ fn self_building_signature_and_method_declaration_are_validated() {
 #[tokio::test]
 async fn reentry_does_not_wait_for_or_publish_into_the_outer_shared_factory() {
     let container = Container::default();
-    container.registerClass(descriptor()).unwrap();
+    container.register_class(descriptor()).unwrap();
     container.instance(Arc::new(8_u32)).unwrap();
     container
-        .singletonAsync::<Item, _>(|container| {
+        .singleton_async::<Item, _>(|container| {
             Box::pin(async move {
                 tokio::task::yield_now().await;
-                container.buildAsync::<Item>().await
+                container.build_async::<Item>().await
             })
         })
         .await
         .unwrap();
 
-    let (first, second) =
-        tokio::join!(container.makeAsync::<Item>(), container.makeAsync::<Item>());
+    let (first, second) = tokio::join!(
+        container.make_async::<Item>(),
+        container.make_async::<Item>()
+    );
     let (first, second) = (first.unwrap(), second.unwrap());
     assert_eq!(first.0, 11);
     assert!(Arc::ptr_eq(&first, &second));

@@ -11,7 +11,7 @@ use openrust::{
     support::facades::{Facade as _, Route},
 };
 pub(crate) fn register() -> Result<(), RoutingError> {
-    let service = Resolver::<Passkeys>::getFacadeRoot()
+    let service = Resolver::<Passkeys>::get_facade_root()
         .map_err(|source| RoutingError::ContainerFailed { source })?;
     let mut group = RouteGroup::new();
     let middleware = service

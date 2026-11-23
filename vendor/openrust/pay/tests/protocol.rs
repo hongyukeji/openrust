@@ -337,14 +337,14 @@ async fn provider_facade_http_callbacks_are_application_local_and_http_observati
     use std::{collections::BTreeMap, sync::Arc};
     let server = Server::new().await;
     let mut app = Application::configure(std::env::temp_dir())
-        .withConfig(|_, _| {
+        .with_config(|_, _| {
             Ok(BTreeMap::from([(
                 "pay".into(),
                 json!({"default":"main","drivers":{"main":profile("wechat","https://example.test/")}}),
             )]))
         })
-        .withProviders(vec![Box::new(openrust_pay::PayServiceProvider)])
-        .withRouting(Routing::default().api(payment_routes))
+        .with_providers(vec![Box::new(openrust_pay::PayServiceProvider)])
+        .with_routing(Routing::default().api(payment_routes))
         .create()
         .unwrap();
     app.boot().await.unwrap();
@@ -411,13 +411,13 @@ async fn provider_facade_http_callbacks_are_application_local_and_http_observati
         assert!(!result.headers().contains_key("set-cookie"));
     }
     let mut other = Application::configure(std::env::temp_dir())
-        .withConfig(|_, _| {
+        .with_config(|_, _| {
             Ok(BTreeMap::from([(
                 "pay".into(),
                 json!({"default":"missing","drivers":{}}),
             )]))
         })
-        .withProviders(vec![Box::new(openrust_pay::PayServiceProvider)])
+        .with_providers(vec![Box::new(openrust_pay::PayServiceProvider)])
         .create()
         .unwrap();
     other.boot().await.unwrap();

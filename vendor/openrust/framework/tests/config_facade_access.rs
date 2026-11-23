@@ -73,13 +73,13 @@ fn commands() -> Result<(), ConsoleError> {
 
 fn app(name: &'static str) -> Result<TestApp, Box<dyn Error + Send + Sync>> {
     let test = TestApp::create(|builder| {
-        builder.withConfig(|root, _| {
+        builder.with_config(|root, _| {
             let name = fs::read_to_string(root.join("name")).unwrap();
             Ok([(
                 "app".into(),
                 json!({"name":name,"empty":null,"number":7,"ratio":1.5,"active":true,"map":{"mode":"test"}}),
             )].into())
-        }).withRouting(Routing::default().api(routes).commands(commands))
+        }).with_routing(Routing::default().api(routes).commands(commands))
     })?;
     fs::write(test.root().join("name"), name)?;
     Ok(test)
@@ -115,7 +115,7 @@ async fn config_facade_follows_the_canonical_repository_in_http_and_artisan()
     first
         .app()
         .container()
-        .instanceNamed::<dyn Repository>("config", replacement)?;
+        .instance_named::<dyn Repository>("config", replacement)?;
     first
         .get("/api/configuration")
         .await?
@@ -155,10 +155,10 @@ async fn uncached_config_resolves_after_swapping_and_rebinding_in_one_scope()
                     [("app".into(), json!({"name":"Rebound"}))].into(),
                 ));
                 app.container()
-                    .instanceNamed::<dyn Repository>("config", replacement)?;
+                    .instance_named::<dyn Repository>("config", replacement)?;
                 assert_eq!(Config::string("app.name")?, "Rebound");
                 assert_eq!(
-                    Config::getFacadeRootAsync().await?.get("app.name"),
+                    Config::get_facade_root_async().await?.get("app.name"),
                     Some(json!("Rebound"))
                 );
                 Ok(())
@@ -166,7 +166,7 @@ async fn uncached_config_resolves_after_swapping_and_rebinding_in_one_scope()
         }
     }
 
-    let mut test = TestApp::create(|builder| builder.withProviders(vec![Box::new(Rebind)]))?;
+    let mut test = TestApp::create(|builder| builder.with_providers(vec![Box::new(Rebind)]))?;
     test.boot().await?;
     assert_eq!(test.app().config()?.get("app.name"), Some(json!("Rebound")));
     Ok(())

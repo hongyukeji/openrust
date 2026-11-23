@@ -28,12 +28,11 @@ impl ProcessFactory {
         self
     }
 
-    #[allow(non_snake_case, reason = "Preserves Pail's basePath argument")]
     pub async fn run(
         &self,
         file: &File,
         output: &mut Output,
-        basePath: impl Into<PathBuf>,
+        base_path: impl Into<PathBuf>,
         options: &Options,
     ) -> Result<ProcessOutcome, ConsoleError> {
         if options.timeout() < 0 {
@@ -64,7 +63,7 @@ impl ProcessFactory {
         };
         tokio::pin!(timeout, shutdown, signals);
         let mut reader = Reader::new(file.path());
-        let mut printer = CliPrinter::new(output, basePath);
+        let mut printer = CliPrinter::new(output, base_path);
         let mut remaining = Vec::new();
         loop {
             let read = tokio::task::spawn_blocking(move || {

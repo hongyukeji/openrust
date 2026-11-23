@@ -54,7 +54,7 @@ fn check(name: &str, query: &mut Builder<'_>, driver: &str, reference: &Json) {
         );
     }
     assert_eq!(
-        query.getBindings().unwrap(),
+        query.get_bindings().unwrap(),
         values(&expected["flat"]),
         "{driver}_{name}_flat"
     );
@@ -342,7 +342,7 @@ async fn changed_bindings_execute_reads_aggregates_writes_and_pagination() -> Da
         .setBindings(vec![3.into()], None)?
         .beforeQuery(|q| Ok(q.r#where("score", "=", 99)));
     callbacks.applyBeforeQueryCallbacks()?;
-    assert_eq!(callbacks.getBindings()?, [3.into(), 99.into()]);
+    assert_eq!(callbacks.get_bindings()?, [3.into(), 99.into()]);
     assert_eq!(callbacks.get().await?.len(), 1);
     let page = base()
         .r#where("group_id", "=", 1)

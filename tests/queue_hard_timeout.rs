@@ -843,7 +843,7 @@ mod acceptance {
     fn application(root: PathBuf) -> Result<Application, SetupError> {
         let report_root = root.clone();
         Ok(Application::configure(root.clone())
-            .withConfig(|base, env| {
+            .with_config(|base, env| {
                 let name = base.file_name().unwrap().to_str().unwrap();
                 let backend = name.rsplit('-').next().unwrap();
                 let database = if backend == "mysql" { "mysql" } else { "sqlite" };
@@ -901,10 +901,10 @@ mod acceptance {
                 }) else { unreachable!() };
                 Ok(config.into_iter().collect())
             })
-            .withProviders(vec![Box::new(Provider(root))])
-            .withRouting(Routing::new(routes))
-            .withCommands(register_schedule)
-            .withExceptions(move |exceptions| {
+            .with_providers(vec![Box::new(Provider(root))])
+            .with_routing(Routing::new(routes))
+            .with_commands(register_schedule)
+            .with_exceptions(move |exceptions| {
                 exceptions.dontRetry::<HardPolicyError>();
                 exceptions.report(move |error: &std::io::Error| {
                     if error.to_string() == "failure callback error" {
@@ -2098,10 +2098,10 @@ mod acceptance {
             .chain(args)
             .map(std::ffi::OsString::from)
             .collect();
-        assert_eq!(second.handleCommand(&command).await.unwrap(), 0);
+        assert_eq!(second.handle_command(&command).await.unwrap(), 0);
         assert_eq!(queue.size(Some("selection-default")).await.unwrap(), 0);
         assert_eq!(queue.size(Some("selection-priority")).await.unwrap(), 1);
-        assert_eq!(first.handleCommand(&command).await.unwrap(), 0);
+        assert_eq!(first.handle_command(&command).await.unwrap(), 0);
         assert_eq!(queue.size(Some("selection-priority")).await.unwrap(), 0);
     }
 
@@ -2110,13 +2110,13 @@ mod acceptance {
         app: &Application,
         queue: &dyn openrust::contracts::queue::Queue,
     ) {
-        let mode = app.maintenanceMode().unwrap();
-        assert!(!app.isDownForMaintenance().await.unwrap());
+        let mode = app.maintenance_mode().unwrap();
+        assert!(!app.is_down_for_maintenance().await.unwrap());
         assert!(mode.data().await.unwrap().is_none());
         let state =
             serde_json::Map::from_iter([("status".into(), json!(503)), ("retry".into(), json!(5))]);
         mode.activate(&state).await.unwrap();
-        assert!(app.isDownForMaintenance().await.unwrap());
+        assert!(app.is_down_for_maintenance().await.unwrap());
         assert_eq!(mode.data().await.unwrap(), Some(state));
 
         let payload = Payload::new("hard-timeout-probe", "maintenance-probe").unwrap();
@@ -2183,7 +2183,7 @@ mod acceptance {
 
         mode.deactivate().await.unwrap();
         mode.deactivate().await.unwrap();
-        assert!(!app.isDownForMaintenance().await.unwrap());
+        assert!(!app.is_down_for_maintenance().await.unwrap());
         assert!(mode.data().await.unwrap().is_none());
         queue.push(&payload, name).await.unwrap();
         let (status, lines) = artisan(root, &["--once", "--queue=maintenance-jobs"], false).await;

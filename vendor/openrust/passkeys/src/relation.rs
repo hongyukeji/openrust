@@ -15,7 +15,7 @@ impl<P: PasskeyUser> PasskeyRelation<P> {
         Self(PhantomData)
     }
     fn service() -> DatabaseResult<Arc<Passkeys>> {
-        crate::http::Resolver::<Passkeys>::getFacadeRoot()
+        crate::http::Resolver::<Passkeys>::get_facade_root()
             .map_err(|_| DatabaseError::InvalidQuery("Passkeys service is not bound"))
     }
     fn key(parent: &P) -> DatabaseResult<Value> {

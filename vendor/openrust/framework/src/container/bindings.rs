@@ -13,10 +13,9 @@ type Result<T> = std::result::Result<T, BindingResolutionError>;
 
 static INSTANCE: Mutex<Option<Arc<Container>>> = Mutex::new(None);
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Container {
     /// Returns the active application's container or the lazily created process default.
-    pub fn getInstance() -> Arc<Self> {
+    pub fn get_instance() -> Arc<Self> {
         crate::support::facades::current_container().unwrap_or_else(|| {
             INSTANCE
                 .lock()
@@ -27,7 +26,7 @@ impl Container {
     }
 
     /// Replaces the process default and returns the assigned value.
-    pub fn setInstance(container: Option<Arc<Self>>) -> Option<Arc<Self>> {
+    pub fn set_instance(container: Option<Arc<Self>>) -> Option<Arc<Self>> {
         let previous = std::mem::replace(
             &mut *INSTANCE.lock().expect("container instance lock poisoned"),
             container.clone(),
@@ -36,34 +35,34 @@ impl Container {
         container
     }
 
-    pub fn offsetExists(&self, key: impl Into<ServiceKey>) -> bool {
+    pub fn offset_exists(&self, key: impl Into<ServiceKey>) -> bool {
         self.has(key)
     }
 
-    pub fn offsetGet<T: ?Sized + Send + Sync + 'static>(
+    pub fn offset_get<T: ?Sized + Send + Sync + 'static>(
         &self,
         key: impl Into<ServiceKey>,
     ) -> Result<Arc<T>> {
         self.get(key)
     }
 
-    pub async fn offsetGetAsync<T: ?Sized + Send + Sync + 'static>(
+    pub async fn offset_get_async<T: ?Sized + Send + Sync + 'static>(
         &self,
         key: impl Into<ServiceKey> + Send,
     ) -> Result<Arc<T>> {
-        self.getAsync(key).await
+        self.get_async(key).await
     }
 
     /// Binds a value through a transient factory that returns the supplied object.
-    pub fn offsetSet<T: ?Sized + Send + Sync + 'static>(
+    pub fn offset_set<T: ?Sized + Send + Sync + 'static>(
         &self,
         key: impl Into<ServiceKey>,
         value: Arc<T>,
     ) -> Result<()> {
-        self.offsetSetFactory(key, move |_| Ok(value.clone()))
+        self.offset_set_factory(key, move |_| Ok(value.clone()))
     }
 
-    pub fn offsetSetFactory<T, F>(&self, key: impl Into<ServiceKey>, factory: F) -> Result<()>
+    pub fn offset_set_factory<T, F>(&self, key: impl Into<ServiceKey>, factory: F) -> Result<()>
     where
         T: ?Sized + Send + Sync + 'static,
         F: Fn(&Self) -> Result<Arc<T>> + Send + Sync + 'static,
@@ -71,7 +70,7 @@ impl Container {
         self.insert(key.into(), Binding::factory(factory))
     }
 
-    pub async fn offsetSetFactoryAsync<T, F>(
+    pub async fn offset_set_factory_async<T, F>(
         &self,
         key: impl Into<ServiceKey> + Send,
         factory: F,
@@ -85,7 +84,7 @@ impl Container {
     }
 
     /// Removes the raw key's binding, instances, and resolution record.
-    pub fn offsetUnset(&self, key: impl Into<ServiceKey>) {
+    pub fn offset_unset(&self, key: impl Into<ServiceKey>) {
         let key = key.into();
         let retired = {
             let mut registry = self.registry.write().expect("container lock poisoned");
@@ -123,7 +122,7 @@ impl FactoryHandle {
         non_snake_case,
         reason = "Rust identity adapter for original PHP closures"
     )]
-    pub fn sameFactory(&self, other: &Self) -> bool {
+    pub fn same_factory(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.entry.version, &other.entry.version)
     }
     fn typed<T: ?Sized + Send + Sync + 'static>(
@@ -165,8 +164,7 @@ impl FactoryHandle {
             }
         })
     }
-    #[allow(non_snake_case, reason = "Async Rust original-factory overload")]
-    pub async fn callAsync<T: ?Sized + Send + Sync + 'static>(
+    pub async fn call_async<T: ?Sized + Send + Sync + 'static>(
         &self,
         container: &Container,
         parameters: ParameterOverrides,

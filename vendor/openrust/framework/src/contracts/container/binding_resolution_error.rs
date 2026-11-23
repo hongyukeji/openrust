@@ -164,7 +164,7 @@ impl fmt::Display for BindingResolutionError {
             Self::DeferredServiceRequiresAsync { service } => {
                 write!(
                     f,
-                    "service {service} requires asynchronous provider initialization; use getAsync or makeAsync"
+                    "service {service} requires asynchronous provider initialization; use get_async or make_async"
                 )
             }
             Self::AsyncResolutionRequired { service } => {

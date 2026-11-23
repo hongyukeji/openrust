@@ -9,7 +9,7 @@ APP_LOCALE=en
 APP_FALLBACK_LOCALE=en
 ```
 
-Following the framework tutorial, use `App::setLocale` to change the locale for an HTTP request, `App::currentLocale` to read it, and `App::isLocale("en")?` to check it. For example:
+Following the framework tutorial, use `App::set_locale` to change the locale for an HTTP request, `App::current_locale` to read it, and `App::is_locale("en")?` to check it. For example:
 
 ```rust
 use openrust::{
@@ -28,10 +28,10 @@ fn greeting(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
         if !["en", "zh-Hans", "zh-Hant"].contains(&locale.as_str()) {
             return Err(abort(StatusCode::BAD_REQUEST, "", Default::default()));
         }
-        App::setLocale(&locale).await.map_err(|source| HttpError::Internal {
+        App::set_locale(&locale).await.map_err(|source| HttpError::Internal {
             source: Box::new(source),
         })?;
-        let current = App::currentLocale().map_err(|source| HttpError::Internal {
+        let current = App::current_locale().map_err(|source| HttpError::Internal {
             source: Box::new(source),
         })?;
         Ok(Response::from(current))
@@ -39,11 +39,11 @@ fn greeting(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
 }
 ```
 
-`App::getLocale` is an alias for `currentLocale`; `getFallbackLocale` and `setFallbackLocale` read and update the fallback locale. `setLocale` updates both `app.locale` and the translator, then dispatches `foundation::events::LocaleUpdated` with `locale` and `previousLocale`. Rust event listeners may be asynchronous, so this method requires `.await` and returns failures through `Result`. Request and queue-task changes are isolated; changes during startup become that application's defaults.
+`App::get_locale` is an alias for `current_locale`; `get_fallback_locale` and `set_fallback_locale` read and update the fallback locale. `set_locale` updates both `app.locale` and the translator, then dispatches `foundation::events::LocaleUpdated` with `locale` and `previousLocale`. Rust event listeners may be asynchronous, so this method requires `.await` and returns failures through `Result`. Request and queue-task changes are isolated; changes during startup become that application's defaults.
 
 Service failures propagate at the step where they occur: configuration is written before the translator is updated, followed by event dispatch. On first resolution, the long-lived translator reads application defaults separately from the current scope configuration, so the first request cannot become the application default. A listener failure keeps the updated configuration and translator until the current lifecycle ends; the error retains its original source. Setting the same locale again still dispatches the event, while changing the fallback locale does not.
 
-Language identifiers use BCP 47 throughout configuration, APIs, resources, documentation URLs, HTML and HTTP. `setLocale("zh-CN")` keeps `zh-CN`; `isLocale("ZH-cn")` is true and `isLocale("zh-Hans")` is false. Normalization preserves script, region, variants and supported extensions; choosing a translation resource is a separate operation. Old underscore input returns an error.
+Language identifiers use BCP 47 throughout configuration, APIs, resources, documentation URLs, HTML and HTTP. `set_locale("zh-CN")` keeps `zh-CN`; `is_locale("ZH-cn")` is true and `is_locale("zh-Hans")` is false. Normalization preserves script, region, variants and supported extensions; choosing a translation resource is a separate operation. Old underscore input returns an error.
 
 The `App` facade currently exposes these locale methods; other the framework App methods are not exposed through this facade. Templates use the translation helpers below. `Lang::withLocale` provides a temporary translator-only locale scope without changing application locale configuration.
 
@@ -55,17 +55,17 @@ Default candidates are discovered once at HTTP startup from framework and applic
 
 `zh-Hans`, `zh-CN`, `zh-SG`, and bare `zh` select Simplified Chinese; `zh-Hant`, `zh-TW`, `zh-HK`, and `zh-MO` select Traditional Chinese. An explicit script takes precedence over region; unknown scripts are not inferred from Chinese regions. Numeric variants are not scripts. Other languages match an exact tag or base language. This selection policy does not change public locale canonicalization.
 
-Use [`app.supported_locales`](#available-locales) to restrict or order languages and enable non-file sources through configuration. To override that list in code, use `withMiddleware` in `bootstrap/app.rs`:
+Use [`app.supported_locales`](#available-locales) to restrict or order languages and enable non-file sources through configuration. To override that list in code, use `with_middleware` in `bootstrap/app.rs`:
 
 ```rust
-.withMiddleware(|middleware| {
-    middleware.setLocale(&["en", "fr", "de"]).expect("Valid locale tags");
+.with_middleware(|middleware| {
+    middleware.set_locale(&["en", "fr", "de"]).expect("Valid locale tags");
 })
 ```
 
-Candidates are canonicalized as BCP 47. Invalid tags return `TranslationError` and preserve the previous setting; repeated calls use the last successful setting. Pass an empty list with `middleware.setLocale(&[])` to disable detection. The middleware then leaves the locale and response headers untouched and emits no locale update event; the application retains `app.locale` and manual `App::setLocale` calls. For specific routes only, disable global detection and attach `SetLocale::new(&["en", "fr"])?` through existing route or group middleware.
+Candidates are canonicalized as BCP 47. Invalid tags return `TranslationError` and preserve the previous setting; repeated calls use the last successful setting. Pass an empty list with `middleware.set_locale(&[])` to disable detection. The middleware then leaves the locale and response headers untouched and emits no locale update event; the application retains `app.locale` and manual `App::set_locale` calls. For specific routes only, disable global detection and attach `SetLocale::new(&["en", "fr"])?` through existing route or group middleware.
 
-Before dispatching downstream, the middleware calls `App::setLocale`, updating configuration, the translator, and the `LocaleUpdated` event. Listener errors use the existing exception handler and stop downstream dispatch. After downstream processing, including rendered exception responses, it reads the final locale, adds `Content-Language` only when absent, and merges the enabled configured language header (default `Accept-Language`) into `Vary`, preserving existing values and wildcards. Automatic selection never writes a preference or changes other requests, queue jobs, or application defaults. The default route placement follows input transformations and protected Cookie setup; see [Automatic and fixed language](#locale-preference). Earlier responses from CORS preflight, maintenance mode, or request size checks do not pass through locale selection.
+Before dispatching downstream, the middleware calls `App::set_locale`, updating configuration, the translator, and the `LocaleUpdated` event. Listener errors use the existing exception handler and stop downstream dispatch. After downstream processing, including rendered exception responses, it reads the final locale, adds `Content-Language` only when absent, and merges the enabled configured language header (default `Accept-Language`) into `Vary`, preserving existing values and wildcards. Automatic selection never writes a preference or changes other requests, queue jobs, or application defaults. The default route placement follows input transformations and protected Cookie setup; see [Automatic and fixed language](#locale-preference). Earlier responses from CORS preflight, maintenance mode, or request size checks do not pass through locale selection.
 
 Remove the previous application `SetLocale` file and its `append` registration to avoid duplicate execution. Use the empty-list setting above to disable detection.
 
@@ -93,12 +93,12 @@ APP_SUPPORTED_LOCALES=en,zh-Hans,zh-Hant,ja
 
 An unset variable defaults to `*`, discovering all available framework and application resource languages. `APP_SUPPORTED_LOCALES=` produces an empty list and disables locale selection and the welcome menu. A comma-separated list enables those languages in order, including database-only languages. Tags are canonicalized and deduplicated in their first occurrence order. Explicit `null` and `(null)` (case-insensitive), malformed tags and empty list entries fail at startup. Direct configuration accepts only `"*"` or a JSON array; JSON `null` and other types or strings are rejected. A wildcard is not a list entry and does not invent translations for every valid BCP 47 tag.
 
-Candidate precedence is explicit `middleware.setLocale(...)` → `app.supported_locales` → resource discovery. An explicit empty list also takes precedence. Configured and explicit lists skip scanning. The default middleware captures candidates once at HTTP startup; changes require restarting the application and rebuilding configuration cache when used. This setting does not alter `app.locale`, `app.fallback_locale` or request-source priority.
+Candidate precedence is explicit `middleware.set_locale(...)` → `app.supported_locales` → resource discovery. An explicit empty list also takes precedence. Configured and explicit lists skip scanning. The default middleware captures candidates once at HTTP startup; changes require restarting the application and rebuilding configuration cache when used. This setting does not alter `app.locale`, `app.fallback_locale` or request-source priority.
 
 
 The Provider loader includes embedded framework locales. `FileLoader::new(path)` alone remains a loader for explicitly supplied files. `FileLoader::availableLocales()` discovers `<locale>.json` files and locale directories containing grouped JSON resources, including nested groups. It uses the same selected application root as translation loading (`resources/lang` when present, otherwise `lang`), plus application paths registered with `addPath` and top-level JSON files registered with `addJsonPath`. Package namespaces, `vendor`, hidden entries, symbolic links and empty locale directories do not enable languages. Names must already match their canonical BCP 47 tag; for example, use `zh-Hans`, not `zh_CN` or `ZH-hans`. Results are deduplicated and sorted by tag. Discovery does not parse message contents or assess translation completeness.
 
-The default middleware captures this list after application Providers finish booting and before serving requests. It does not scan on each request; restart the application after adding or removing language files. This list is independent of the configuration cache. Explicit `setLocale` candidates override configuration; otherwise an `app.supported_locales` array skips discovery. An empty discovered list leaves the configured application locale in effect and hides the welcome switcher. Database-only languages require explicit candidates; discovery never queries the database or enables every package language.
+The default middleware captures this list after application Providers finish booting and before serving requests. It does not scan on each request; restart the application after adding or removing language files. This list is independent of the configuration cache. Explicit `set_locale` candidates override configuration; otherwise an `app.supported_locales` array skips discovery. An empty discovered list leaves the configured application locale in effect and hides the welcome switcher. Database-only languages require explicit candidates; discovery never queries the database or enables every package language.
 
 For Japanese, add `lang/ja/welcome.json` and `lang/ja/languages.json` containing `{"name":"日本語"}`; no controller or menu changes are needed. Missing messages retain the normal translation fallback. Templates can use `Lang::hasForLocale('languages.name', $choice)` to test exact-locale presence. For right-to-left pages, set `"direction":"rtl"` in that locale's `languages.json`; the welcome page sets HTML `dir="rtl"`, and its scrollable menu supports a longer language list. Missing direction uses the document's default left-to-right layout. New UI translations do not create documentation directories; keep the welcome documentation links consistent with the actual documentation available.
 
@@ -163,7 +163,7 @@ Ok(Response::empty(StatusCode::NO_CONTENT))
 
 This does not enable persistence on an ordinary stateless API. Add the existing stateful Cookie pipeline and write protection explicitly; retain CSRF for browser requests. No route, Session or account storage is registered by these helpers. Both helpers manage language preferences.
 
-Use one of these actions per write request, then redirect to an application-controlled local destination. The method rejects read requests and unavailable or unprotected preference storage; it queues a Cookie without changing the current locale or emitting a second event. It does not replace CSRF middleware. `LocaleSelection` exposes `preference`, `can_store`, supported candidates and URL selection data; read `App::currentLocale()` for the actual language. A callback selecting a language hides controls that cannot override it. Empty candidates disable the entire middleware.
+Use one of these actions per write request, then redirect to an application-controlled local destination. The method rejects read requests and unavailable or unprotected preference storage; it queues a Cookie without changing the current locale or emitting a second event. It does not replace CSRF middleware. `LocaleSelection` exposes `preference`, `can_store`, supported candidates and URL selection data; read `App::current_locale()` for the actual language. A callback selecting a language hides controls that cannot override it. Empty candidates disable the entire middleware.
 
 Protected preference pages use the existing cache-header merger to set `Cache-Control: private, no-store` and merge `Vary: Cookie`, even without a saved preference. The configured negotiation header is also merged when enabled; existing `Vary` entries and `*` remain intact. Route cache directives cannot publish these variants. Callbacks based on accounts or other private data still need an application-specific private-cache policy, especially without Cookie middleware.
 
@@ -191,7 +191,7 @@ Selection order is `localeUsing` returning `Some` → configured URL parameter �
 
 `Request::getLanguages` and `getPreferredLanguage` always describe `Accept-Language`, regardless of this application setting. Only text using translation resources changes with the locale. Enabled header negotiation adds the configured header name to `Vary`, preserving existing values and `*`; `null` adds no language-header entry and keeps URL switching, callbacks and `Content-Language`. Cookie or user-based callbacks still need an appropriate private-cache policy and any additional `Vary` fields.
 
-Use `App::currentLocale()?` in business code, controllers and pages to read the actual application locale; request preferences can differ after URL, stored-preference callbacks or downstream `App::setLocale` selection. For example, with `APP_LOCALE_HEADER=X-Language`, `Accept-Language: en` and `X-Language: zh-Hant`, Request reports English preferences while App and translated content use Traditional Chinese. With SetLocale disabled, this configuration alone performs no negotiation.
+Use `App::current_locale()?` in business code, controllers and pages to read the actual application locale; request preferences can differ after URL, stored-preference callbacks or downstream `App::set_locale` selection. For example, with `APP_LOCALE_HEADER=X-Language`, `Accept-Language: en` and `X-Language: zh-Hant`, Request reports English preferences while App and translated content use Traditional Chinese. With SetLocale disabled, this configuration alone performs no negotiation.
 
 ### Custom Locale Selection {#custom-locale-selection}
 
@@ -200,7 +200,7 @@ For a custom negotiation header, use the existing `APP_LOCALE_HEADER=X-Locale`; 
 Use `localeUsing` to configure a synchronous callback on the current application's middleware instance. For example, prefer an explicit request header and continue with URL selection, the protected preference Cookie and header negotiation when it is absent:
 
 ```rust
-.withMiddleware(|middleware| {
+.with_middleware(|middleware| {
     middleware.localeUsing(|request| {
         Ok(request.header("X-Locale")?.map(str::to_owned))
     });
@@ -213,9 +213,9 @@ The callback returns `Result<Option<String>, HttpError>`:
 - `Ok(None)` tries the configured URL parameter first, then the protected preference Cookie and existing browser negotiation and supported application default or first candidate.
 - `Err(error)` passes the original error to the existing exception handler and stops downstream execution. Invalid or unsupported selections are internal errors; validate untrusted user input in the callback and return an appropriate HTTP error if needed. Selection failures do not switch locale or emit `LocaleUpdated`.
 
-Without a callback, behavior stays unchanged. Candidate and callback configuration are independent and can be called in either order. Invalid candidate updates preserve both previous settings; the last callback replaces the previous callback. Empty candidates disable the entire instance, including callback execution, events and header handling. The callback remains stored for re-enabling candidates. Route instances expose the same `setLocale` and `localeUsing` methods; callbacks and candidate changes belong to that instance, never a process-wide registry. The callback itself must also avoid shared mutable user state.
+Without a callback, behavior stays unchanged. Candidate and callback configuration are independent and can be called in either order. Invalid candidate updates preserve both previous settings; the last callback replaces the previous callback. Empty candidates disable the entire instance, including callback execution, events and header handling. The callback remains stored for re-enabling candidates. Route instances expose the same `set_locale` and `localeUsing` methods; callbacks and candidate changes belong to that instance, never a process-wide registry. The callback itself must also avoid shared mutable user state.
 
-The default instance runs in the resolved route pipeline, after direct Cookie decryption/queue middleware and before ordinary Web Session and authentication. With the stateful API wrapper it runs inside that wrapper, after its Cookie/Session protection. Routes without these dependencies remain stateless. Unmatched error pages and public static responses still use header/URL selection without Web storage. A callback can read headers and information already prepared at that point; it cannot access dependencies provided later. For Session rules, first call `middleware.setLocale(&[]).expect("语言标签有效")` in `withMiddleware`. Then register the same middleware in `routes/web.rs`, after the default `web` group has loaded Session:
+The default instance runs in the resolved route pipeline, after direct Cookie decryption/queue middleware and before ordinary Web Session and authentication. With the stateful API wrapper it runs inside that wrapper, after its Cookie/Session protection. Routes without these dependencies remain stateless. Unmatched error pages and public static responses still use header/URL selection without Web storage. A callback can read headers and information already prepared at that point; it cannot access dependencies provided later. For Session rules, first call `middleware.set_locale(&[]).expect("语言标签有效")` in `with_middleware`. Then register the same middleware in `routes/web.rs`, after the default `web` group has loaded Session:
 
 ```rust
 use std::sync::Arc;
@@ -242,7 +242,7 @@ pub fn register() -> Result<(), RoutingError> {
 
 This example requires a configured Session driver and application encryption key. It reads an existing `locale` Session value and does not persist a new preference. If no value exists, URL selection, the protected preference Cookie and then header negotiation apply. Authentication-dependent rules likewise belong after authentication; a rule affecting localized route bindings must run before binding substitution. For that placement, use the existing `Middleware::group` / `MiddlewareEntry` configuration to explicitly order the group. Merely adding a callback does not reorder middleware. Perform asynchronous lookups in an earlier middleware and pass prepared data through the request; this callback is synchronous.
 
-The same `SetLocale` applies `App::setLocale`, events and response headers for these sources. Downstream locale changes determine a missing `Content-Language`; existing values remain intact. The configured language header is merged into `Vary` when enabled, since the callback can fall back to header negotiation. This does **not** fully vary a response selected by `X-Locale`, Cookie, Session or user data. For the header example, the response must also vary by `X-Locale`; for private content, apply `Cache-Control: private, no-store` or an appropriate application cache policy. Add other `Vary` fields when relevant. The middleware preserves those headers and does not infer cache keys, persist callback results, or make arbitrary personalized responses safe for shared caches. Protected Cookie preference pages additionally receive `private, no-store` and `Vary: Cookie`.
+The same `SetLocale` applies `App::set_locale`, events and response headers for these sources. Downstream locale changes determine a missing `Content-Language`; existing values remain intact. The configured language header is merged into `Vary` when enabled, since the callback can fall back to header negotiation. This does **not** fully vary a response selected by `X-Locale`, Cookie, Session or user data. For the header example, the response must also vary by `X-Locale`; for private content, apply `Cache-Control: private, no-store` or an appropriate application cache policy. Add other `Vary` fields when relevant. The middleware preserves those headers and does not infer cache keys, persist callback results, or make arbitrary personalized responses safe for shared caches. Protected Cookie preference pages additionally receive `private, no-store` and `Vary: Cookie`.
 
 ### Translating in Blade {#blade-translations}
 
@@ -493,7 +493,7 @@ Production confirmations and cancellation messages use the same translation grou
 
 ## Locale contract methods
 
-The Translator contract, concrete translator, and Lang facade expose `getLocale`, `setLocale`, `getFallback`, and `setFallback`. Boot-time changes configure application defaults; request/queue changes stay in the current scope. Nested `withLocale` restores its caller’s locale; fallback is set separately. Migrate old snake_case contract calls to these names.
+The Translator contract, concrete translator, and Lang facade expose `get_locale`, `set_locale`, `getFallback`, and `setFallback`. Boot-time changes configure application defaults; request/queue changes stay in the current scope. Nested `withLocale` restores its caller’s locale; fallback is set separately. Migrate old snake_case contract calls to these names.
 
 ## Locale Ownership
 
@@ -547,16 +547,16 @@ Standard translations retain the bundled MIT attribution. Additional framework t
 
 ## Language directories
 
-At creation, the application uses `resources/lang/` when that directory exists; otherwise it selects the root `lang/`. Path selection does not create directories. The application contract exposes `langPath("")` and accepts a suffix such as `langPath("en/validation.json")`.
+At creation, the application uses `resources/lang/` when that directory exists; otherwise it selects the root `lang/`. Path selection does not create directories. The application contract exposes `lang_path("")` and accepts a suffix such as `lang_path("en/validation.json")`.
 
 To override the directory, set it during application assembly, before resolving the translation loader:
 
 ```rust
 use openrust::contracts::foundation::Application as _;
 
-app.useLangPath(app.base_path().join("translations"))?;
+app.use_lang_path(app.base_path().join("translations"))?;
 ```
 
-`App::langPath("")` and `openrust::support::lang_path("")` read the same application path inside an HTTP, Artisan or queue scope. `App::useLangPath(...)` is also available. These paths are application-wide; do not switch them per request. A loader that has already been resolved keeps its original directory, so configure paths before loading services rather than expecting live reload.
+`App::lang_path("")` and `openrust::support::lang_path("")` read the same application path inside an HTTP, Artisan or queue scope. `App::use_lang_path(...)` is also available. These paths are application-wide; do not switch them per request. A loader that has already been resolved keeps its original directory, so configure paths before loading services rather than expecting live reload.
 
-`lang:publish` writes to this directory and preserves existing files by default. `--force` overwrites available templates, while `--existing` overwrites only templates already published. For package resources, use `app.langPath("vendor/package/...")` as the destination passed to `publishesPaths`; `vendor:publish` supports explicitly configured absolute paths, including directories outside the application. Relative traversal and symbolic links remain rejected. Application package overrides are loaded from this same language directory.
+`lang:publish` writes to this directory and preserves existing files by default. `--force` overwrites available templates, while `--existing` overwrites only templates already published. For package resources, use `app.lang_path("vendor/package/...")` as the destination passed to `publishes_paths`; `vendor:publish` supports explicitly configured absolute paths, including directories outside the application. Relative traversal and symbolic links remain rejected. Application package overrides are loaded from this same language directory.

@@ -51,7 +51,7 @@ impl TwoFactorAuthenticationProvider {
         self.clock = Arc::new(clock);
         self
     }
-    pub fn withConfig(mut self, config: Arc<dyn Config>) -> Self {
+    pub fn with_config(mut self, config: Arc<dyn Config>) -> Self {
         self.config = Some(config);
         self
     }

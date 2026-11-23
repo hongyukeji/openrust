@@ -73,8 +73,8 @@ async fn transport(
 
 async fn start(max: u64) -> (SocketAddr, tokio::task::JoinHandle<()>) {
     let app = Application::configure(std::env::temp_dir())
-        .withProviders(vec![Box::new(Limits(max))])
-        .withRouting(Routing::default().web(routes))
+        .with_providers(vec![Box::new(Limits(max))])
+        .with_routing(Routing::default().web(routes))
         .create()
         .unwrap();
     let mut kernel = Kernel::new(app);

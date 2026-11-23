@@ -16,11 +16,11 @@ fn suffix() -> &'static str {
 }
 
 fn application() -> Result<Application, Box<dyn Error + Send + Sync>> {
-    let root = Application::inferBasePath(
+    let root = Application::infer_base_path(
         (!cfg!(feature = "standalone")).then_some(env!("CARGO_MANIFEST_DIR")),
     )?;
     Ok(Application::configure(root)
-        .withConfig(|_, env| {
+        .with_config(|_, env| {
             Ok(std::collections::BTreeMap::from([(
                 "app".into(),
                 serde_json::json!({
@@ -30,8 +30,8 @@ fn application() -> Result<Application, Box<dyn Error + Send + Sync>> {
                 }),
             )]))
         })
-        .withPackages(compiled::PACKAGES)
-        .withRouting(Routing::default().web(|| Route::get("/native", render)))
+        .with_packages(compiled::PACKAGES)
+        .with_routing(Routing::default().web(|| Route::get("/native", render)))
         .create()?)
 }
 
@@ -63,11 +63,12 @@ impl openrust::contracts::queue::JobHandler for RenderJob {
         Box::pin(async move {
             use openrust::support::facades::Facade;
             let n = payload.data()["number"].as_i64().unwrap();
-            let factory = openrust::support::facades::View::getFacadeRoot().map_err(|source| {
-                openrust::queue::QueueError::Execution {
-                    source: Box::new(source),
-                }
-            })?;
+            let factory =
+                openrust::support::facades::View::get_facade_root().map_err(|source| {
+                    openrust::queue::QueueError::Execution {
+                        source: Box::new(source),
+                    }
+                })?;
             let data = ViewData::from_iter([("numbers".into(), vec![n].into())]);
             let rendered = factory.render("proof", &data).map_err(|source| {
                 openrust::queue::QueueError::Execution {

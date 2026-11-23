@@ -40,7 +40,7 @@ fn validator(
     rules: RuleSet,
     messages: std::collections::BTreeMap<String, String>,
 ) -> Result<NativeValidator, HttpError> {
-    Ok(Validator::getFacadeRoot()?.make(
+    Ok(Validator::get_facade_root()?.make(
         Data::fromRequestValue(input)?,
         rules,
         messages,

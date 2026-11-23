@@ -4,16 +4,16 @@ use openrust::{container::ServiceKey, http::Request, support::facades::Facade};
 pub struct Socialite;
 impl Facade for Socialite {
     type Service = SocialiteManager;
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         ServiceKey::typed::<SocialiteManager>()
     }
 }
 impl Socialite {
     pub fn miniApp() -> Result<crate::wechat::MiniApp> {
-        Self::getFacadeRoot()?.miniApp()
+        Self::get_facade_root()?.miniApp()
     }
     pub fn driver<'a>(name: &str, request: &'a mut Request) -> Result<Provider<'a>> {
-        Self::getFacadeRoot()?.driver(name, request)
+        Self::get_facade_root()?.driver(name, request)
     }
     pub fn with<'a>(name: &str, request: &'a mut Request) -> Result<Provider<'a>> {
         Self::driver(name, request)

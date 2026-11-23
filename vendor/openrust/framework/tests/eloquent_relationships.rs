@@ -245,8 +245,8 @@ async fn verify_singular_identity(
     assert!(AUTHOR.isNot(post, None));
     assert!(FIRST_POST.is(author, Some(post)).await.unwrap());
 
-    let mut child = Post::newInstance(Attributes::new()).unwrap();
-    let mut owner = Author::newInstance(Attributes::new()).unwrap();
+    let mut child = Post::new_instance(Attributes::new()).unwrap();
+    let mut owner = Author::new_instance(Attributes::new()).unwrap();
     child.setAttribute("owner_code", "+00042");
     owner.setAttribute("code", 42_i64);
     let by_code = BelongsTo::new("owner_code", "code");
@@ -260,13 +260,13 @@ async fn verify_singular_identity(
     same_name_owner.setAttribute("id", author.getKey().unwrap().clone());
     assert!(AUTHOR.isNot(post, Some(&same_name_owner)));
 
-    let mut comment = Comment::newInstance(Attributes::new()).unwrap();
+    let mut comment = Comment::new_instance(Attributes::new()).unwrap();
     comment.setAttribute("subject_id", author.getKey().unwrap().clone());
     comment.setAttribute("subject_type", "author");
     let subject = MorphTo::new("subject_type", "subject_id")
         .target::<Author>("author", "id")
         .target::<Post>("post", "id");
-    let mut detached = Author::newInstance(Attributes::new()).unwrap();
+    let mut detached = Author::new_instance(Attributes::new()).unwrap();
     detached.setAttribute("id", author.getKey().unwrap().clone());
     assert!(subject.is(&comment, Some(&detached)));
     assert!(subject.isNot(&comment, Some(post)));
@@ -935,7 +935,7 @@ async fn verify_belongs_to_cache(
     edited.setAttribute("name", "Local owner");
     let baseline = if mysql { select_count(db).await } else { 0 };
 
-    let unsaved = Author::newInstance(Attributes::new()).unwrap();
+    let unsaved = Author::new_instance(Attributes::new()).unwrap();
     assert!(matches!(
         relation.associate(&mut model, &unsaved),
         Err(DatabaseError::InvalidQuery("relationship owner key"))
@@ -1053,7 +1053,7 @@ async fn verify_belongs_to_owner_keys(
     }
 
     let fallback =
-        BelongsTo::<Post, Author>::new("score", "mentor_id").withDefault(|author, child| {
+        BelongsTo::<Post, Author>::new("score", "mentor_id").with_default(|author, child| {
             author.setAttribute("name", child.getAttribute("title").unwrap().clone());
         });
     let mut missing = Post::from_state(post.state().clone());
@@ -1319,11 +1319,11 @@ async fn verify_morph_defaults(db: &Connection, visible: &Comment, hidden: &Comm
         MorphTo::<Comment>::new("subject_type", "subject_id")
             .target::<Post>("post", "id")
             .target::<Author>("author", "id")
-            .withDefault::<Post>("post", |post, parent| {
+            .with_default::<Post>("post", |post, parent| {
                 post.setAttribute("title", parent.getAttribute("body").unwrap().clone());
             })
             .unwrap()
-            .withDefault::<Author>("author", |author, _| {
+            .with_default::<Author>("author", |author, _| {
                 author.setAttribute("name", "Guest");
             })
             .unwrap()
@@ -2533,7 +2533,7 @@ async fn verify_named_paths(db: &Connection, mysql: bool) {
     assert_eq!(models.getQueueableRelations(), ["posts"]);
     let mixed = Collection::new(vec![
         Author::from_state(models[0].state().clone()),
-        Author::newInstance(Attributes::new()).unwrap(),
+        Author::new_instance(Attributes::new()).unwrap(),
     ]);
     assert!(matches!(
         mixed.getQueueableConnection(),
@@ -3003,7 +3003,7 @@ fn verify_lazy_loading_policy(
             assert_eq!(select_count(db).await - baseline, 1);
         }
 
-        let mut fresh = StrictAuthor::newInstance(Attributes::new()).unwrap();
+        let mut fresh = StrictAuthor::new_instance(Attributes::new()).unwrap();
         assert!(
             fresh
                 .getRelationOrLoad("posts", &posts)
@@ -3284,8 +3284,8 @@ fn verify_default_models(
 ) -> openrust::database::DatabaseFuture<'_, ()> {
     Box::pin(async move {
         let empty = Author::queryOn(db).findOrFail(3).await.unwrap();
-        let blank_post = Post::newInstance(Attributes::new()).unwrap();
-        let default_owner = AUTHOR.withDefault(|owner, post| {
+        let blank_post = Post::new_instance(Attributes::new()).unwrap();
+        let default_owner = AUTHOR.with_default(|owner, post| {
             assert!(post.getAttribute("author_id").is_none());
             owner.setAttribute("name", "Guest author");
         });
@@ -3298,7 +3298,7 @@ fn verify_default_models(
         assert!(fallback.getKey().is_none());
         assert!(!fallback.state().exists());
 
-        let newest = POSTS.one().latestOfMany(None).withDefault(|post, parent| {
+        let newest = POSTS.one().latestOfMany(None).with_default(|post, parent| {
             assert_eq!(post.getAttribute("author_id"), parent.getKey());
             post.setAttribute("title", "No posts yet");
         });
@@ -3327,7 +3327,7 @@ fn verify_default_models(
         assert_eq!(newest(2).getConnectionName(), Some(db.getName()));
         assert!(!newest(2).state().exists());
 
-        let through = FIRST_COMMENT_THROUGH.withDefault(|_, _| {});
+        let through = FIRST_COMMENT_THROUGH.with_default(|_, _| {});
         let through_default = through.getResults(&empty).await.unwrap().unwrap();
         assert!(!through_default.state().exists());
         assert!(through_default.getAttribute("post_id").is_none());
@@ -3342,7 +3342,7 @@ fn verify_default_models(
                 .contains(&3.into())
         );
 
-        let morph = AUTHOR_COMMENT.withDefault(|comment, _| {
+        let morph = AUTHOR_COMMENT.with_default(|comment, _| {
             assert_eq!(comment.getAttribute("subject_type"), Some(&"author".into()));
         });
         let morph_default = morph.getResults(&empty).await.unwrap().unwrap();
@@ -3351,7 +3351,7 @@ fn verify_default_models(
 
         let mut no_owner = Post::queryOn(db).make(Attributes::new()).unwrap();
         no_owner.setAttribute("author_id", 999_999);
-        let filtered = AUTHOR.withDefault(|model, _| {
+        let filtered = AUTHOR.with_default(|model, _| {
             model.setAttribute("name", "Missing owner");
         });
         let missing = filtered.getResults(&no_owner).await.unwrap().unwrap();
@@ -4191,7 +4191,7 @@ fn verify_collection_keys<'a>(
             authors.findModelOrFail(&post),
             Err(DatabaseError::ModelNotFound("relation_authors"))
         ));
-        let mut unbound = Author::newInstance(Attributes::new()).unwrap();
+        let mut unbound = Author::new_instance(Attributes::new()).unwrap();
         unbound.setAttribute("id", reloaded.getKey().unwrap().clone());
         assert_ne!(unbound.getConnectionName(), reloaded.getConnectionName());
         assert!(authors.doesntContainModel(&unbound));
@@ -4238,10 +4238,10 @@ fn verify_collection_keys<'a>(
             .map(|model| Author::from_state(model.state().clone()))
             .collect();
         dictionary_models[3].setAttribute("id", "1");
-        let mut binary = Author::newInstance(Attributes::new()).unwrap();
+        let mut binary = Author::new_instance(Attributes::new()).unwrap();
         binary.setAttribute("id", Value::Bytes(vec![0, 255]));
         dictionary_models.push(binary);
-        dictionary_models.push(Author::newInstance(Attributes::new()).unwrap());
+        dictionary_models.push(Author::new_instance(Attributes::new()).unwrap());
         let dictionary_models = Collection::new(dictionary_models);
         let dictionary = dictionary_models.getDictionary().unwrap();
         let keys: Vec<_> = dictionary.keys().map(Vec::as_slice).collect();
@@ -6417,8 +6417,8 @@ async fn verify_many_to_many_writes(db: &Connection, parent: &Author) {
         vec![702.into(), 703.into()]
     );
     let mut batch = [
-        Post::newInstance(model("saved batch one", 704)).unwrap(),
-        Post::newInstance(model("saved batch rejected", 705)).unwrap(),
+        Post::new_instance(model("saved batch one", 704)).unwrap(),
+        Post::new_instance(model("saved batch rejected", 705)).unwrap(),
     ];
     assert!(
         relation
@@ -6690,7 +6690,7 @@ async fn verify_direct_write_variants(
     // This fixture has explicit, non-generated IDs.
     let make = |id: i64, title: &str| {
         let mut model =
-            DirectWritePost::newInstance(Attributes::from([("title".into(), title.into())]))
+            DirectWritePost::new_instance(Attributes::from([("title".into(), title.into())]))
                 .unwrap();
         model.setAttribute("id", id);
         model
@@ -7094,7 +7094,7 @@ impl Model for DefaultMembership {
         &mut self.0
     }
 
-    fn newInstance(attributes: Attributes) -> DatabaseResult<Self> {
+    fn new_instance(attributes: Attributes) -> DatabaseResult<Self> {
         let mut model = Self::from_state(ModelState::default());
         model.setAttribute("label", 7);
         model.setAttribute("note", "model fallback");
@@ -7882,7 +7882,7 @@ async fn verify_chaperone(db: &Connection, mysql: bool, parent: &Author, post: &
     absent.setAttribute("id", 999);
     let default = FIRST_POST
         .chaperone("author")
-        .withDefault(|_, _| {})
+        .with_default(|_, _| {})
         .getResults(&absent)
         .await
         .unwrap()

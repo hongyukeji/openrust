@@ -176,8 +176,8 @@ async fn default_renderer_negotiates_and_serves_status_pages_with_headers() {
     root.page("4xx.html", "<h1>App client error</h1>");
     root.page("5xx.html", "<h1>App server error family</h1>");
     let application = Application::configure(root.0.clone())
-        .withConfig(production_config)
-        .withRouting(Routing::new(routes))
+        .with_config(production_config)
+        .with_routing(Routing::new(routes))
         .create()
         .unwrap();
     let (address, task) = server(application).await;
@@ -243,9 +243,9 @@ async fn custom_renderers_precede_fallback_and_debug_sources_are_escaped() {
     let root = Root::new();
     root.page("500.html", "<h1>App production page</h1>");
     let application = Application::configure(root.0.clone())
-        .withConfig(debug_config)
-        .withRouting(Routing::new(routes))
-        .withExceptions(|exceptions| {
+        .with_config(debug_config)
+        .with_routing(Routing::new(routes))
+        .with_exceptions(|exceptions| {
             exceptions
                 .render::<PrivateSource>(|_, _| None)
                 .render::<PrivateSource>(|_, request| match request.uri().path() {
@@ -306,9 +306,9 @@ async fn prepared_responses_keep_their_payload_and_run_exception_hooks() {
     let reports = Arc::new(AtomicUsize::new(0));
     let observed = reports.clone();
     let app = Application::configure(root.0.clone())
-        .withConfig(production_config)
-        .withRouting(Routing::new(routes))
-        .withExceptions(move |exceptions| {
+        .with_config(production_config)
+        .with_routing(Routing::new(routes))
+        .with_exceptions(move |exceptions| {
             exceptions
                 .report::<HttpResponseException>(move |_| {
                     observed.fetch_add(1, Ordering::Relaxed);
@@ -393,8 +393,8 @@ async fn abort_accepts_native_and_request_aware_responses_over_http() {
 
     let root = Root::new();
     let app = Application::configure(root.0.clone())
-        .withConfig(production_config)
-        .withRouting(Routing::new(|_| {
+        .with_config(production_config)
+        .with_routing(Routing::new(|_| {
             let mut router = Router::new();
             router.get("/abort-native", || {
                 let native = http::Response::builder()
@@ -408,7 +408,7 @@ async fn abort_accepts_native_and_request_aware_responses_over_http() {
             router.get("/abort-context/{subject}", context)?;
             Ok(router)
         }))
-        .withExceptions(|exceptions| {
+        .with_exceptions(|exceptions| {
             exceptions.respond(|response, error, _| {
                 if error.downcast_ref::<HttpResponseException>().is_some() {
                     response.header("x-prepared".parse().unwrap(), "yes".parse().unwrap())
@@ -476,8 +476,8 @@ async fn collection_dd_responds_to_the_current_request_only() {
 
     let root = Root::new();
     let application = Application::configure(root.0.clone())
-        .withConfig(production_config)
-        .withRouting(Routing::new(debug_routes))
+        .with_config(production_config)
+        .with_routing(Routing::new(debug_routes))
         .create()
         .unwrap();
     let (address, task) = server(application).await;

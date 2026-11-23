@@ -338,7 +338,10 @@ impl Notice for Payment {
     fn to_mail(&self, _: &dyn Notifiable) -> NotificationResult<Option<MailDelivery>> {
         Ok(Some(MailDelivery::Message(Box::new(
             MailMessage::new()
-                .subject(format!("OpenRust payment ({})", Lang::getLocale().unwrap()))
+                .subject(format!(
+                    "OpenRust payment ({})",
+                    Lang::get_locale().unwrap()
+                ))
                 .line("Payment received")
                 .action("View payment", "https://example.test/payments/1")
                 .line("Thank you for your payment"),
@@ -501,7 +504,7 @@ fn guarded_from_http(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpErr
 fn guard_file(data: &Json) -> NotificationFuture<'_, NotificationResult<bool>> {
     Box::pin(async move {
         let flag = data.as_str().expect("serialized flag path");
-        assert_eq!(Lang::getLocale().unwrap(), "fr");
+        assert_eq!(Lang::get_locale().unwrap(), "fr");
         tokio::fs::try_exists(flag)
             .await
             .map_err(|source| NotificationError::Delivery {
@@ -581,8 +584,8 @@ impl Transport for LocaleTransport {
     fn send<'a>(&'a self, message: &'a Message) -> MailFuture<'a, MailResult<SentMessage>> {
         Box::pin(async move {
             let record = json!({
-                "locale": Lang::getLocale().unwrap(),
-                "app_locale": openrust::support::facades::App::currentLocale().unwrap(),
+                "locale": Lang::get_locale().unwrap(),
+                "app_locale": openrust::support::facades::App::current_locale().unwrap(),
                 "html": message.getHtmlBody(),
                 "subject": message.envelope().subject,
             });
@@ -718,7 +721,7 @@ impl Mailable for AssertionMail {
         let mut content = self.0.clone();
         content
             .with
-            .insert("locale".into(), json!(Lang::getLocale().unwrap()).into());
+            .insert("locale".into(), json!(Lang::get_locale().unwrap()).into());
         Ok(content)
     }
 
@@ -788,7 +791,7 @@ fn mail_assertions_from_http(_: &mut Request) -> HttpFuture<'_, Result<Response,
         })
         .assertSeeInText("Markdown proof")
         .await;
-        assert_eq!(Lang::getLocale().unwrap(), "en");
+        assert_eq!(Lang::get_locale().unwrap(), "en");
         assert!(Mail::mailer(None).unwrap().sent().unwrap().is_empty());
         Response::json(http::StatusCode::OK, json!({"asserted":true}))
     })
@@ -1475,12 +1478,12 @@ fn mail_routes() -> Result<(), ConsoleError> {
 
 fn app_builder(root: &Path) -> ApplicationBuilder {
     Application::configure(root.into())
-        .withConfig(|base, _| {
+        .with_config(|base, _| {
             let config: serde_json::Map<String, Json> =
                 serde_json::from_slice(&std::fs::read(base.join("config.json")).unwrap()).unwrap();
             Ok(config.into_iter().collect())
         })
-        .withRouting(Routing::default().commands(mail_routes).web(|| {
+        .with_routing(Routing::default().commands(mail_routes).web(|| {
             Route::get("/notify", notify_from_http)?;
             Route::get("/guarded-notify", guarded_from_http)?;
             Route::get("/attachment-mail", attachment_mail_from_http)?;
@@ -1495,7 +1498,7 @@ fn app_builder(root: &Path) -> ApplicationBuilder {
             )?;
             Route::get("/mail-events", mail_events_from_http)
         }))
-        .withProviders(vec![
+        .with_providers(vec![
             Box::new(FixtureGuardProvider),
             Box::new(FixtureMailProvider),
         ])
@@ -2856,7 +2859,7 @@ async fn mailable_preview_renders_body_over_http_without_resolving_delivery() {
         }
 
         fn content(&self) -> MailResult<Content> {
-            assert_eq!(Lang::getLocale().unwrap(), "fr");
+            assert_eq!(Lang::get_locale().unwrap(), "fr");
             Ok(self.0.clone())
         }
 
@@ -2938,7 +2941,7 @@ async fn mailable_preview_renders_body_over_http_without_resolving_delivery() {
     .unwrap();
     let mut kernel = Kernel::new(
         app_builder(&root.0)
-            .withRouting(Routing::default().web(|| {
+            .with_routing(Routing::default().web(|| {
                 Route::get("/preview", html_preview)?;
                 Route::get("/preview-text", text_preview)?;
                 Route::get("/preview-cid", html_cid_preview)?;
@@ -2954,7 +2957,7 @@ async fn mailable_preview_renders_body_over_http_without_resolving_delivery() {
             Callback::new(&[], |_| async {
                 let html = markdown().render().await.unwrap();
                 assert!(html.contains("Tous droits réservés."));
-                assert_eq!(Lang::getLocale().unwrap(), "en");
+                assert_eq!(Lang::get_locale().unwrap(), "en");
                 Ok(())
             }),
             Default::default(),
@@ -3067,7 +3070,7 @@ async fn artisan_mail_fixture() {
         result.assertSuccessful();
         print!("{}", result.stdout);
     } else {
-        assert_eq!(app(&root).handleCommand(&args).await.unwrap(), 0);
+        assert_eq!(app(&root).handle_command(&args).await.unwrap(), 0);
     }
 }
 
@@ -3266,7 +3269,7 @@ async fn database_notification_is_polymorphic_localized_and_cancellable() {
                 String::from_utf8_lossy(&sent[0].message.formatted())
                     .contains("OpenRust payment (fr)")
             );
-            assert_eq!(Lang::getLocale().unwrap(), "en");
+            assert_eq!(Lang::get_locale().unwrap(), "en");
             Event::listen(
                 "NotificationSending",
                 Arc::new(ListenerProbe {
@@ -3301,7 +3304,7 @@ async fn queued(redis: Option<u16>, mysql: Option<&str>, smtp: Option<u16>) {
     app.call(
         Callback::new(&[], |_| async {
             let user = user();
-            let notifications = Notification::getFacadeRoot().unwrap();
+            let notifications = Notification::get_facade_root().unwrap();
             let mut transaction = DB::beginTransaction().await.unwrap();
             notifications
                 .sendInTransaction(&[&user], &Payment { queued: true }, Some(&mut transaction))
@@ -5235,7 +5238,7 @@ async fn mail_and_notification_locale_labels_are_canonical_before_recording_or_q
                         &NotificationTarget::from(recipient.route),
                         notice.kind(),
                     );
-                    assert_eq!(Lang::getLocale().unwrap(), "en");
+                    assert_eq!(Lang::get_locale().unwrap(), "en");
                     Ok(())
                 }
             }),
@@ -5315,7 +5318,7 @@ async fn real_artisan_worker_preserves_bcp47_mail_and_notification_locales() {
                             .send(&[&user()], &Payment { queued: true }, None)
                             .await
                             .unwrap();
-                        assert_eq!(Lang::getLocale().unwrap(), "en");
+                        assert_eq!(Lang::get_locale().unwrap(), "en");
                     }
                     assert!(
                         Mail::to("locale@example.test")
@@ -5394,5 +5397,5 @@ async fn real_artisan_worker_preserves_bcp47_mail_and_notification_locales() {
     }
     // Lang::withLocale 只控制单次投递，App 配置仍是当前任务默认值。
     assert!(records.iter().all(|row| row["app_locale"] == "en"));
-    assert_eq!(application.currentLocale().unwrap(), "en");
+    assert_eq!(application.current_locale().unwrap(), "en");
 }

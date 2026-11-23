@@ -76,7 +76,7 @@ impl Drop for Root {
 fn translate(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     let locale = request.decodedPath().into_owned();
     Box::pin(async move {
-        let outer = Lang::getLocale()?;
+        let outer = Lang::get_locale()?;
         let body = Lang::withLocale(&locale, async {
             // Yield while the override is installed to exercise task isolation.
             tokio::task::yield_now().await;
@@ -92,14 +92,14 @@ fn translate(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError
             }))
         })
         .await??;
-        assert_eq!(Lang::getLocale()?, outer);
+        assert_eq!(Lang::get_locale()?, outer);
         Ok(Response::new(StatusCode::OK, Body::from(body.to_string())))
     })
 }
 
 fn default_locale(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let locale = Lang::getLocale()?;
+        let locale = Lang::get_locale()?;
         Ok(Response::new(StatusCode::OK, Body::from(locale)))
     })
 }
@@ -269,17 +269,17 @@ async fn transport(
 
 async fn start(root: &Root) -> (SocketAddr, tokio::task::JoinHandle<()>) {
     let application = Application::configure(root.0.clone())
-        .withConfig(|base, environment| {
+        .with_config(|base, environment| {
             let mut config = config::load(base, environment)?;
             config.get_mut("app").unwrap()["key"] = "a".repeat(32).into();
             config.get_mut("session").unwrap()["driver"] = "array".into();
             Ok(config)
         })
-        .withMiddleware(|middleware| {
+        .with_middleware(|middleware| {
             // 本组验证配置默认语言及译器钩子，不启用浏览器识别。
-            middleware.setLocale(&[]).unwrap();
+            middleware.set_locale(&[]).unwrap();
         })
-        .withRouting(Routing::default().web(|| {
+        .with_routing(Routing::default().web(|| {
             for route in ["/en", "/zh-Hans", "/ZH-hans", "/zh-Hant", "/ZH-hant"] {
                 Route::get(route, translate)?;
             }
@@ -377,14 +377,14 @@ fn normalizes_bcp47_without_merging_region_resources() {
             "你好"
         );
     }
-    translator.setLocale("zh-CN").unwrap();
-    assert_eq!(translator.getLocale(), "zh-CN");
+    translator.set_locale("zh-CN").unwrap();
+    assert_eq!(translator.get_locale(), "zh-CN");
     assert_eq!(translator.string("Hello", &args, None).unwrap(), "Hello");
-    assert!(translator.setLocale("zh_CN").is_err());
-    translator.setLocale("zh-SG").unwrap();
-    assert_eq!(translator.getLocale(), "zh-SG");
-    assert!(translator.setLocale("../zh-CN").is_err());
-    assert_eq!(translator.getLocale(), "zh-SG");
+    assert!(translator.set_locale("zh_CN").is_err());
+    translator.set_locale("zh-SG").unwrap();
+    assert_eq!(translator.get_locale(), "zh-SG");
+    assert!(translator.set_locale("../zh-CN").is_err());
+    assert_eq!(translator.get_locale(), "zh-SG");
 
     for (input, canonical) in [
         ("EN-gb", "en-GB"),
@@ -408,8 +408,8 @@ fn normalizes_bcp47_without_merging_region_resources() {
             format!(r#"{{"locale":"{canonical}"}}"#),
         )
         .unwrap();
-        translator.setLocale(input).unwrap();
-        assert_eq!(translator.getLocale(), canonical);
+        translator.set_locale(input).unwrap();
+        assert_eq!(translator.get_locale(), canonical);
         assert_eq!(
             translator
                 .string("identity.locale", &args, Some(input))

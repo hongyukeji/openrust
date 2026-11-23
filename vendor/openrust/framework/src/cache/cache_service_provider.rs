@@ -26,7 +26,7 @@ impl ServiceProvider for CacheServiceProvider {
             let base = app.base_path().to_path_buf();
             let owner = Arc::downgrade(&app.container_handle());
             container.scoped::<MemoizedRepositories, _>(|_| Ok(Arc::default()))?;
-            container.singletonNamed("cache", move |container| {
+            container.singleton_named("cache", move |container| {
                 let config = container.get::<dyn Config>("config")?;
                 let database = container.get::<DatabaseManager>("db")?;
                 let redis = container.get::<RedisManager>("redis")?;
@@ -42,7 +42,7 @@ impl ServiceProvider for CacheServiceProvider {
                 "cache",
                 crate::container::ServiceKey::typed::<CacheManager>(),
             )?;
-            container.singletonNamed("rateLimiter", |container| {
+            container.singleton_named("rateLimiter", |container| {
                 let config = container.get::<dyn Config>("config")?;
                 let store = config
                     .get("cache.limiter")

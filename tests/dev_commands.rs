@@ -78,11 +78,11 @@ async fn provider_registration_is_isolated_and_shared_by_listing_filters() {
     fs::write(second.0.join("package.json"), "{}").unwrap();
     fs::write(second.0.join("bun.lock"), "").unwrap();
     let first = Application::configure(first.0.clone())
-        .withProviders(vec![Box::new(DevelopmentProvider(false))])
+        .with_providers(vec![Box::new(DevelopmentProvider(false))])
         .create()
         .unwrap();
     let second = Application::configure(second.0.clone())
-        .withProviders(vec![Box::new(DevelopmentProvider(true))])
+        .with_providers(vec![Box::new(DevelopmentProvider(true))])
         .create()
         .unwrap();
     let ((status, processes), (other_status, other)) =
@@ -336,7 +336,7 @@ async fn dev_uses_registry_restart_and_output_settings() {
 
     let fixture = Fixture::new("settings");
     let app = Application::configure(fixture.0.clone())
-        .withProviders(vec![Box::new(InlineProvider)])
+        .with_providers(vec![Box::new(InlineProvider)])
         .create()
         .unwrap();
     let (status, out) = app

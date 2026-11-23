@@ -19,7 +19,7 @@ pub struct Event;
 impl Facade for Event {
     type Service = Dispatcher;
 
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         "events".into()
     }
 }
@@ -39,7 +39,7 @@ impl Event {
     }
 
     pub fn dispatcher() -> EventResult<Arc<Dispatcher>> {
-        Self::getFacadeRoot().map_err(Into::into)
+        Self::get_facade_root().map_err(Into::into)
     }
 
     /// Records the selected events in the current application.

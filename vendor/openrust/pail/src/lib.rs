@@ -43,10 +43,10 @@ impl ServiceProvider for PailServiceProvider {
                 Ok(Arc::new(Files::new(
                     container
                         .make::<openrust::foundation::Paths>()?
-                        .storagePath("pail"),
+                        .storage_path("pail"),
                 )))
             })?;
-            let container = openrust::container::Container::getInstance();
+            let container = openrust::container::Container::get_instance();
             let owner = Arc::downgrade(&container);
             app.container().singleton::<Handler, _>(move |container| {
                 Ok(Arc::new(Handler::new(
@@ -62,11 +62,11 @@ impl ServiceProvider for PailServiceProvider {
         Box::pin(async move {
             let environment = app.make::<Environment>().await?;
             if !self.runningPailTests(&environment)?
-                && (app.runningUnitTests()? || truthy(environment.get_utf8("VAPOR_SSM_PATH")?))
+                && (app.running_unit_tests()? || truthy(environment.get_utf8("VAPOR_SSM_PATH")?))
             {
                 return Ok(());
             }
-            let container = openrust::container::Container::getInstance();
+            let container = openrust::container::Container::get_instance();
             let owner = Arc::downgrade(&container);
             let logging_owner = owner.clone();
             let request_owner = owner.clone();

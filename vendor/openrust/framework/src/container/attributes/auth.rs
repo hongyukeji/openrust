@@ -88,7 +88,6 @@ impl Authenticated {
     }
 }
 
-#[allow(non_snake_case, reason = "Implements the container attribute API")]
 impl ContextualAttribute for Authenticated {
     fn resolve(&self, _: &Container, _: AttributeParameter) -> Result<AttributeValue> {
         Err(BindingResolutionError::AsyncResolutionRequired {
@@ -96,7 +95,7 @@ impl ContextualAttribute for Authenticated {
         })
     }
 
-    fn resolveAsync<'a>(
+    fn resolve_async<'a>(
         self: Arc<Self>,
         container: &'a Container,
         parameter: AttributeParameter,
@@ -119,7 +118,6 @@ impl CurrentUser {
     }
 }
 
-#[allow(non_snake_case, reason = "Implements the container attribute API")]
 impl ContextualAttribute for CurrentUser {
     fn resolve(&self, _: &Container, _: AttributeParameter) -> Result<AttributeValue> {
         Err(BindingResolutionError::AsyncResolutionRequired {
@@ -127,7 +125,7 @@ impl ContextualAttribute for CurrentUser {
         })
     }
 
-    fn resolveAsync<'a>(
+    fn resolve_async<'a>(
         self: Arc<Self>,
         container: &'a Container,
         parameter: AttributeParameter,
@@ -141,7 +139,7 @@ async fn resolve_user(
     parameter: AttributeParameter,
     guard: Option<&str>,
 ) -> Result<AttributeValue> {
-    let manager = container.makeAsync::<AuthManager>().await?;
+    let manager = container.make_async::<AuthManager>().await?;
     let mut request = request_context::borrow_for_resolution(container)
         .ok_or_else(|| missing_request(parameter))?;
     let user = manager

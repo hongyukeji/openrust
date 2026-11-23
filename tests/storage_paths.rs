@@ -18,7 +18,7 @@ mod config;
 #[test]
 fn canonical_windows_storage_paths_accept_portable_directory_suffixes() {
     let app = TestApp::create(|builder| builder).unwrap();
-    let path = app.app().storagePath("framework/views");
+    let path = app.app().storage_path("framework/views");
     std::fs::create_dir_all(&path).unwrap();
     let probe = path.join("probe.txt");
     std::fs::write(&probe, "canonical Windows path").unwrap();
@@ -66,12 +66,12 @@ fn assert_paths(values: &BTreeMap<String, Value>, storage: &Path) {
 
 #[tokio::test]
 async fn storage_configuration_tracks_its_own_application_without_a_global_facade() {
-    let mut first = TestApp::create(|builder| builder.withConfig(config::load)).unwrap();
-    let mut second = TestApp::create(|builder| builder.withConfig(config::load)).unwrap();
+    let mut first = TestApp::create(|builder| builder.with_config(config::load)).unwrap();
+    let mut second = TestApp::create(|builder| builder.with_config(config::load)).unwrap();
     let one = first.root().join("one");
     let two = second.root().join("two");
-    first.app().useStoragePath(&one).unwrap();
-    second.app().useStoragePath(&two).unwrap();
+    first.app().use_storage_path(&one).unwrap();
+    second.app().use_storage_path(&two).unwrap();
     tokio::try_join!(first.boot(), second.boot()).unwrap();
     let env_a = first.app().make::<Environment>().await.unwrap();
     let env_b = second.app().make::<Environment>().await.unwrap();
@@ -83,7 +83,7 @@ async fn storage_configuration_tracks_its_own_application_without_a_global_facad
         Some(json!(one.join("framework/sessions")))
     );
     let late = first.root().join("late");
-    first.app().useStoragePath(&late).unwrap();
+    first.app().use_storage_path(&late).unwrap();
     assert_paths(&config::load(first.root(), &env_a).unwrap(), &late);
     assert_eq!(
         a_config.get("session.files"),
@@ -137,7 +137,7 @@ async fn provider_fallbacks_use_the_application_paths_and_keep_explicit_log_path
     use openrust::log::{LogContext, LogManager};
     let mut app = TestApp::create(|builder| builder).unwrap();
     let storage = app.root().join("fallback-storage");
-    app.app().useStoragePath(&storage).unwrap();
+    app.app().use_storage_path(&storage).unwrap();
     std::fs::create_dir_all(app.root().join("resources/views")).unwrap();
     std::fs::write(
         app.root().join("resources/views/probe.blade.html"),
@@ -208,7 +208,7 @@ fn session_fallback_response(
 async fn file_session_fallback_tracks_path_changes_between_requests() {
     let mut app = TestApp::create(|builder| {
         builder
-            .withConfig(|_, _| {
+            .with_config(|_, _| {
                 Ok([
                     (
                         "app".into(),
@@ -218,7 +218,7 @@ async fn file_session_fallback_tracks_path_changes_between_requests() {
                 ]
                 .into())
             })
-            .withMiddleware(|middleware| {
+            .with_middleware(|middleware| {
                 middleware.group(
                     "web",
                     vec![
@@ -240,7 +240,7 @@ async fn file_session_fallback_tracks_path_changes_between_requests() {
                     ],
                 );
             })
-            .withRouting(
+            .with_routing(
                 openrust::foundation::configuration::Routing::default()
                     .web(session_fallback_routes),
             )
@@ -248,7 +248,7 @@ async fn file_session_fallback_tracks_path_changes_between_requests() {
     .unwrap();
     let first = app.root().join("session-one");
     let second = app.root().join("session-two");
-    app.app().useStoragePath(&first).unwrap();
+    app.app().use_storage_path(&first).unwrap();
     let response = app.get("/session-fallback").await.unwrap();
     assert_eq!(
         response.status(),
@@ -262,7 +262,7 @@ async fn file_session_fallback_tracks_path_changes_between_requests() {
             .next()
             .is_some()
     );
-    app.app().useStoragePath(&second).unwrap();
+    app.app().use_storage_path(&second).unwrap();
     let response = app.get("/session-fallback").await.unwrap();
     assert_eq!(
         response.status(),

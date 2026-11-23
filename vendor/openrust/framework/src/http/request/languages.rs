@@ -8,7 +8,7 @@ use super::Request;
 impl Request {
     /// 按偏好顺序读取标准 Accept-Language；合并重复头，忽略无效标签、非法权重及 q=0。
     /// 标签使用 BCP 47；通配符保留为 `*`，不受 app.locale_header 影响。
-    /// 当前实际应用语言请读取 App::currentLocale()，此方法不读取或修改应用语言。
+    /// 当前实际应用语言请读取 App::current_locale()，此方法不读取或修改应用语言。
     pub fn getLanguages(&self) -> &[String] {
         self.languages
             .get_or_init(|| self.parse_language_header(&http::header::ACCEPT_LANGUAGE))
@@ -47,7 +47,7 @@ impl Request {
     }
 
     /// 按标准 Accept-Language 偏好从有序候选中选择语言，无匹配时返回首项。
-    /// 不受 app.locale_header 影响，也不代表 App::currentLocale() 的最终应用语言。
+    /// 不受 app.locale_header 影响，也不代表 App::current_locale() 的最终应用语言。
     /// `None` 或空候选返回请求首选项；非法候选显式报错。
     pub fn getPreferredLanguage(
         &self,

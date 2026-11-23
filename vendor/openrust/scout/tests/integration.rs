@@ -187,9 +187,9 @@ impl Fixture {
     async fn new(after: bool) -> Self {
         let mut app = TestApp::create(move |builder| {
             builder
-                .withConfig(if after { config } else { immediate_config })
-                .withProviders(vec![Box::new(ScoutServiceProvider), Box::new(Register)])
-                .withRouting(Routing::default().api(routes))
+                .with_config(if after { config } else { immediate_config })
+                .with_providers(vec![Box::new(ScoutServiceProvider), Box::new(Register)])
+                .with_routing(Routing::default().api(routes))
         })
         .unwrap();
         app.boot().await.unwrap();

@@ -134,7 +134,7 @@ fn individual_installer_rejects_concurrent_source_mutation() {
     drop(lock);
     fs::write(
         root.path().join("bootstrap/app.rs"),
-        ".withMiddleware(|_| {})\n",
+        ".with_middleware(|_| {})\n",
     )
     .unwrap();
     let retry = run(root.path(), &["install:grpc"]);

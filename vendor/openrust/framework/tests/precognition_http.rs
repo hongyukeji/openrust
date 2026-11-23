@@ -140,7 +140,7 @@ impl ServiceProvider for Provider {
         Box::pin(async move {
             let counters = self.0.clone();
             app.container()
-                .bindAsync::<Controller, _>(move |_| {
+                .bind_async::<Controller, _>(move |_| {
                     let counters = counters.clone();
                     Box::pin(async move {
                         tokio::task::yield_now().await;
@@ -241,8 +241,8 @@ async fn transport(
 }
 async fn start(counters: Arc<Counters>) -> (SocketAddr, tokio::task::JoinHandle<()>) {
     let app = Application::configure(std::env::temp_dir())
-        .withProviders(vec![Box::new(Provider(counters))])
-        .withRouting(Routing::default().api(routes))
+        .with_providers(vec![Box::new(Provider(counters))])
+        .with_routing(Routing::default().api(routes))
         .create()
         .unwrap();
     serve(app).await
@@ -606,7 +606,7 @@ fn session_routes() -> Result<(), RoutingError> {
 #[tokio::test]
 async fn confirmed_precognition_preserves_session_flash_csrf_and_previous_url() {
     let app = Application::configure(std::env::temp_dir())
-        .withConfig(|_, _| {
+        .with_config(|_, _| {
             Ok(BTreeMap::from([
                 ("app".into(), json!({"key":"a".repeat(32)})),
                 (
@@ -615,7 +615,7 @@ async fn confirmed_precognition_preserves_session_flash_csrf_and_previous_url() 
                 ),
             ]))
         })
-        .withRouting(Routing::default().web(session_routes))
+        .with_routing(Routing::default().web(session_routes))
         .create()
         .unwrap();
     let (addr, server) = serve(app).await;

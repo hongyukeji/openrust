@@ -24,7 +24,7 @@ impl RegisteredUserController {
         request: &'a mut Request,
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
-            let fortify = Resolver::<Fortify>::getFacadeRoot().map_err(internal)?;
+            let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;
             super::user_updates::canonicalize(request, &fortify).await?;
             let input = request.all().await?;
             let creator = fortify
@@ -34,9 +34,8 @@ impl RegisteredUserController {
                 .clone();
             let creator = match creator {
                 Some(creator) => creator,
-                None => {
-                    Resolver::<dyn contracts::CreatesNewUsers>::getFacadeRoot().map_err(internal)?
-                }
+                None => Resolver::<dyn contracts::CreatesNewUsers>::get_facade_root()
+                    .map_err(internal)?,
             };
             let user = creator.create(&input).await?;
             let snapshot: Arc<dyn openrust::contracts::auth::Authenticatable> =

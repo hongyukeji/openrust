@@ -302,7 +302,7 @@ impl PendingRequest {
         self
     }
 
-    pub fn withMiddleware(
+    pub fn with_middleware(
         mut self,
         middleware: impl for<'a> Fn(
             reqwest::Request,
@@ -320,7 +320,7 @@ impl PendingRequest {
         self,
         middleware: impl Fn(&mut reqwest::Request) -> Result<()> + Send + Sync + 'static,
     ) -> Self {
-        self.withMiddleware(move |mut request, next| match middleware(&mut request) {
+        self.with_middleware(move |mut request, next| match middleware(&mut request) {
             Ok(()) => next.run(request),
             Err(error) => Box::pin(async move { Err(error) }),
         })
@@ -331,7 +331,7 @@ impl PendingRequest {
         middleware: impl Fn(Response) -> Result<Response> + Send + Sync + 'static,
     ) -> Self {
         let middleware = Arc::new(middleware);
-        self.withMiddleware(move |request, next| {
+        self.with_middleware(move |request, next| {
             let middleware = middleware.clone();
             Box::pin(async move {
                 let response = next.run(request).await?;

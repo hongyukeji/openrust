@@ -514,8 +514,8 @@ async fn database_explicit_provider_publishes_the_app_catalog_to_real_http() {
     let mut servers = Vec::new();
     for fixture in [&first, &second] {
         let app = Application::configure(directory.path().to_path_buf())
-            .withProviders(vec![Box::new(Publish(fixture.loader()))])
-            .withRouting(Routing::default().api(routes))
+            .with_providers(vec![Box::new(Publish(fixture.loader()))])
+            .with_routing(Routing::default().api(routes))
             .create()
             .unwrap();
         let mut kernel = Kernel::new(app);

@@ -229,7 +229,7 @@ fn failure(e: Error) -> Result<Response, HttpError> {
 }
 fn login(r: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
-        let manager = openrust::container::Container::getInstance()
+        let manager = openrust::container::Container::get_instance()
             .make::<SocialiteManager>()
             .unwrap();
         let mut p = manager.driver("twitter", r).unwrap().oauth1().unwrap();
@@ -255,7 +255,7 @@ fn callback(r: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
             r.merge(json!({"oauth_verifier":value})).await?;
         }
 
-        let manager = openrust::container::Container::getInstance()
+        let manager = openrust::container::Container::get_instance()
             .make::<SocialiteManager>()
             .unwrap();
         let result = manager.driver("twitter", r).unwrap().user().await;
@@ -278,7 +278,7 @@ fn callback(r: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 }
 fn direct(r: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
-        let manager = openrust::container::Container::getInstance()
+        let manager = openrust::container::Container::get_instance()
             .make::<SocialiteManager>()
             .unwrap();
         let mut p = manager.driver("twitter", r).unwrap().oauth1().unwrap();
@@ -306,10 +306,10 @@ fn direct(r: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     })
 }
 async fn rp(remote: &str) -> (String, Arc<Factory>, tokio::task::JoinHandle<()>) {
-    let mut app=Application::configure(std::env::temp_dir()).withConfig(|_,_|Ok([
+    let mut app=Application::configure(std::env::temp_dir()).with_config(|_,_|Ok([
         ("services".into(),json!({"twitter":{"client_id":"client","client_secret":"consumer + %25","redirect":"https://rp.test/callback","scope":"read"}})),
         ("app".into(),json!({"key":"k".repeat(32),"env":"testing"})),("session".into(),json!({"driver":"array","cookie":"one_session","lottery":[0,100]})),("cache".into(),json!({"default":"array","stores":{"array":{"driver":"array"}}}))
-    ].into())).withProviders(vec![Box::new(SocialiteServiceProvider)]).withRouting(Routing::default().web(routes)).create().unwrap();
+    ].into())).with_providers(vec![Box::new(SocialiteServiceProvider)]).with_routing(Routing::default().web(routes)).create().unwrap();
     app.boot().await.unwrap();
     let http = app.make::<Factory>().await.unwrap();
     http.fake(|_| None);

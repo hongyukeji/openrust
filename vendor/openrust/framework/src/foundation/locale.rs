@@ -13,24 +13,24 @@ use std::sync::Arc;
 
 impl Application {
     /// 读取当前应用／请求的语言配置。
-    pub fn getLocale(&self) -> TranslationResult<String> {
+    pub fn get_locale(&self) -> TranslationResult<String> {
         self.locale_config("app.locale")
     }
 
-    pub fn currentLocale(&self) -> TranslationResult<String> {
-        self.getLocale()
+    pub fn current_locale(&self) -> TranslationResult<String> {
+        self.get_locale()
     }
 
-    pub fn isLocale(&self, locale: &str) -> TranslationResult<bool> {
-        Ok(canonical_locale(&self.getLocale()?)? == canonical_locale(locale)?)
+    pub fn is_locale(&self, locale: &str) -> TranslationResult<bool> {
+        Ok(canonical_locale(&self.get_locale()?)? == canonical_locale(locale)?)
     }
 
-    pub fn getFallbackLocale(&self) -> TranslationResult<String> {
+    pub fn get_fallback_locale(&self) -> TranslationResult<String> {
         self.locale_config("app.fallback_locale")
     }
 
     /// 按配置、译器、事件的顺序切换语言，等待事件监听器完成。
-    pub async fn setLocale(&self, locale: &str) -> TranslationResult<()> {
+    pub async fn set_locale(&self, locale: &str) -> TranslationResult<()> {
         let locale = canonical_locale(locale)?;
         let config = self.container().get::<dyn Repository>("config")?;
         let previousLocale = config
@@ -43,7 +43,7 @@ impl Application {
             .map_err(source)?;
         self.container()
             .get::<Translator>("translator")?
-            .setLocale(&locale)?;
+            .set_locale(&locale)?;
         let events = self.container().get::<Dispatcher>("events")?;
         events
             .dispatch(
@@ -58,8 +58,8 @@ impl Application {
         Ok(())
     }
 
-    pub fn setFallbackLocale(&self, fallbackLocale: &str) -> TranslationResult<()> {
-        let locale = canonical_locale(fallbackLocale)?;
+    pub fn set_fallback_locale(&self, fallback_locale: &str) -> TranslationResult<()> {
+        let locale = canonical_locale(fallback_locale)?;
         let config = self.container().get::<dyn Repository>("config")?;
         config
             .set("app.fallback_locale", locale.clone().into())

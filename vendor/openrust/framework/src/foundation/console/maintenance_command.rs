@@ -37,7 +37,7 @@ impl Command for DownCommand {
         output: &'a mut Output,
     ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
         Box::pin(async move {
-            let mode = app.maintenanceMode().map_err(down_error)?;
+            let mode = app.maintenance_mode().map_err(down_error)?;
             let already_down = mode.active().await.map_err(down_error)?;
             let matches = input.matches();
             let value = |name| matches.get_one::<String>(name).map(String::as_str);
@@ -119,7 +119,7 @@ impl Command for UpCommand {
         output: &'a mut Output,
     ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
         Box::pin(async move {
-            let mode = app.maintenanceMode().map_err(up_error)?;
+            let mode = app.maintenance_mode().map_err(up_error)?;
             if !mode.active().await.map_err(up_error)? {
                 output.info("Application is already up.");
                 return Ok(0);

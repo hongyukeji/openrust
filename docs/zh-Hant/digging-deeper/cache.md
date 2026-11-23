@@ -79,7 +79,7 @@ CACHE_STORAGE_PATH=framework/cache/items
 
 ### 讀取快取項目 {#retrieving-items-from-the-cache}
 
-`getOr(key, default)` 接受預設值，`getOrElse(key, resolve)` 接受非同步後援閉包。鍵缺少或快取值為 JSON `null` 時使用預設值，命中時略過後援。後端錯誤仍回傳給呼叫端，後援計算的結果只回傳給呼叫端。
+`get_or(key, default)` 接受預設值，`getOrElse(key, resolve)` 接受非同步後援閉包。鍵缺少或快取值為 JSON `null` 時使用預設值，命中時略過後援。後端錯誤仍回傳給呼叫端，後援計算的結果只回傳給呼叫端。
 
 ```rust
 use openrust::{cache::{CacheResult, Value}, support::facades::Cache};

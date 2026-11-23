@@ -1,5 +1,4 @@
 #![allow(non_snake_case, reason = "保留既定公开接口及命名")]
-
 //! Explicit compiled models preserve the primary key independently of the auth identifier.
 use crate::resolver::internal;
 use openrust::{
@@ -66,7 +65,8 @@ impl<T: Model + MustVerifyEmail> Account for TypedAccount<T> {
 }
 pub(crate) fn account(user: &dyn Authenticatable) -> Result<Box<dyn Account>, HttpError> {
     use openrust::support::facades::Facade as _;
-    let fortify = crate::resolver::Resolver::<crate::Fortify>::getFacadeRoot().map_err(internal)?;
+    let fortify =
+        crate::resolver::Resolver::<crate::Fortify>::get_facade_root().map_err(internal)?;
     fortify
         .email_verification_models
         .read()

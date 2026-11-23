@@ -148,7 +148,7 @@ async fn artisan_facade_preserves_arguments_errors_exit_status_and_output() {
             .contains("No active Artisan application")
     );
     let app = Application::configure(std::env::current_dir().unwrap())
-        .withCommands(|commands| {
+        .with_commands(|commands| {
             commands.add_command(Box::new(Greet(CommandDefinition::new(
                 clap::Command::new("greet")
                     .visible_alias("say-hi")
@@ -161,7 +161,7 @@ async fn artisan_facade_preserves_arguments_errors_exit_status_and_output() {
                 clap::Command::new("queued-probe"),
             ))))
         })
-        .withRouting(Routing::default().commands(application_console::register))
+        .with_routing(Routing::default().commands(application_console::register))
         .create()
         .unwrap();
     let mut kernel = Kernel::new(app, Artisan::new());
@@ -241,7 +241,7 @@ async fn artisan_uses_application_provider_tasks_and_continues_after_nonzero_sta
     ] {
         RELOAD_STEPS.store(0, Ordering::Relaxed);
         let mut builder =
-            Application::configure(std::env::current_dir().unwrap()).withCommands(|artisan| {
+            Application::configure(std::env::current_dir().unwrap()).with_commands(|artisan| {
                 for (name, step, status) in [("probe:fail", 1, 7), ("probe:next", 2, 0)] {
                     artisan.add_command(Box::new(ReloadStep(
                         CommandDefinition::new(clap::Command::new(name)),
@@ -252,11 +252,11 @@ async fn artisan_uses_application_provider_tasks_and_continues_after_nonzero_sta
                 Ok(())
             });
         if with_provider {
-            builder = builder.withProviders(vec![Box::new(ReloadProbeServiceProvider)]);
+            builder = builder.with_providers(vec![Box::new(ReloadProbeServiceProvider)]);
         }
         let app = builder.create().unwrap();
         let status = app
-            .handleCommand(&[command, "-e", except].map(OsString::from))
+            .handle_command(&[command, "-e", except].map(OsString::from))
             .await
             .unwrap();
         assert_eq!(status, 0);
@@ -311,7 +311,7 @@ async fn artisan_reports_dispatch_errors_and_keeps_console_rendering() {
     let reports = Arc::new(AtomicUsize::new(0));
     let observed = reports.clone();
     let application = Application::configure(std::env::current_dir().unwrap())
-        .withExceptions(move |exceptions| {
+        .with_exceptions(move |exceptions| {
             exceptions.report::<ConsoleError>(move |error| {
                 assert!(error.to_string().contains("not implemented yet"));
                 observed.fetch_add(1, Ordering::Relaxed);
@@ -407,7 +407,7 @@ fn check_facade_application(
         .unwrap()
         .block_on(async {
             let app = Application::configure(base.clone())
-                .withRouting(Routing::default().web(web))
+                .with_routing(Routing::default().web(web))
                 .create()
                 .unwrap();
             let mut http = http::Kernel::new(app);
@@ -430,7 +430,7 @@ fn check_facade_application(
             ));
 
             let app = Application::configure(base)
-                .withRouting(Routing::default().commands(commands))
+                .with_routing(Routing::default().commands(commands))
                 .create()
                 .unwrap();
             let mut console = Kernel::new(app, Artisan::new());
@@ -454,7 +454,7 @@ fn check_facade_application(
 async fn facade_registration_errors_reach_the_kernel() {
     let base = std::env::current_dir().unwrap();
     let app = Application::configure(base.clone())
-        .withRouting(
+        .with_routing(
             Routing::default().web(|| Route::get("/items/{id?}/{id?}", || view("welcome"))),
         )
         .create()
@@ -470,10 +470,10 @@ async fn facade_registration_errors_reach_the_kernel() {
     ));
 
     let app = Application::configure(base)
-        .withCommands(|artisan| {
+        .with_commands(|artisan| {
             artisan.add_planned(clap::Command::new("existing").visible_alias("taken"))
         })
-        .withRouting(
+        .with_routing(
             Routing::default()
                 .commands(|| ArtisanFacade::command("taken", |_| {})?.purpose("Alias collision")),
         )
@@ -493,8 +493,8 @@ async fn facade_registration_errors_reach_the_kernel() {
 async fn registered_command_uses_the_same_definition_in_cli_and_programmatic_calls() {
     static PHASE: AtomicUsize = AtomicUsize::new(0);
     let app = Application::configure(std::env::current_dir().unwrap())
-        .withMiddleware(|_| panic!("console must not configure HTTP middleware"))
-        .withRouting(
+        .with_middleware(|_| panic!("console must not configure HTTP middleware"))
+        .with_routing(
             Routing::new(|_| {
                 assert_eq!(PHASE.fetch_add(1, Ordering::Relaxed), 0);
                 Ok(openrust::routing::Router::new())
@@ -504,7 +504,7 @@ async fn registered_command_uses_the_same_definition_in_cli_and_programmatic_cal
                 Ok(())
             }),
         )
-        .withCommands(|_| {
+        .with_commands(|_| {
             assert_eq!(PHASE.fetch_add(1, Ordering::Relaxed), 1);
             Ok(())
         })

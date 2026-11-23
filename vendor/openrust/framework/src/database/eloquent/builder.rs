@@ -1698,7 +1698,7 @@ impl<M: Model> Builder<'static, M> {
     }
 
     pub async fn create(self, attributes: Attributes) -> DatabaseResult<M> {
-        let mut model = self.makeAsync(attributes).await?;
+        let mut model = self.make_async(attributes).await?;
         model.save().await?;
         Ok(model)
     }
@@ -1779,7 +1779,7 @@ impl<M: Model> Builder<'static, M> {
             .await
     }
 
-    pub async fn makeAsync(&self, attributes: Attributes) -> DatabaseResult<M> {
+    pub async fn make_async(&self, attributes: Attributes) -> DatabaseResult<M> {
         self.make_with_attributes_async(self.creation_attributes(attributes))
             .await
     }

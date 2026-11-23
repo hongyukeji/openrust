@@ -8,7 +8,7 @@ Provider 可以解析 `BroadcastManager`，用 `extend` 註冊驅動名稱及建
 
 ## 頻道授權
 
-用 `Broadcast::channel` 註冊規則，並透過 `Routing::channels` 或 `withBroadcasting` 載入。框架在 Web 中介層群組啟用 GET 和 POST `/broadcasting/auth`。該路由排除防止請求偽造的中介層，訂閱仍須通過驅動程式的授權檢查。
+用 `Broadcast::channel` 註冊規則，並透過 `Routing::channels` 或 `with_broadcasting` 載入。框架在 Web 中介層群組啟用 GET 和 POST `/broadcasting/auth`。該路由排除防止請求偽造的中介層，訂閱仍須通過驅動程式的授權檢查。
 
 `orders.{id}` 等規則接收已驗證的使用者及命名參數。允許私人訂閱時回傳 `ChannelAuthorization::Allowed`，公開在線成員資料時回傳 `ChannelAuthorization::Presence(data)`。用 `channelWithOptions` 指定守衛的查找順序。執行 `artisan channel:list` 查看已註冊的規則。
 

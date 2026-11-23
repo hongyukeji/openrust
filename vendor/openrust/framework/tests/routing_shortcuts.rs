@@ -189,8 +189,8 @@ impl ServiceProvider for Views {
 
 fn application(root: &Path) -> Application {
     Application::configure(root.to_owned())
-        .withProviders(vec![Box::new(Views)])
-        .withRouting(
+        .with_providers(vec![Box::new(Views)])
+        .with_routing(
             Routing::new(router_routes)
                 .web(facade_routes)
                 .api(api_routes),
@@ -230,7 +230,7 @@ async fn public_shortcuts_preserve_matching_rendering_and_route_cache() {
         if cached {
             assert_eq!(
                 application(root.path())
-                    .handleCommand(&[OsString::from("route:cache")])
+                    .handle_command(&[OsString::from("route:cache")])
                     .await
                     .unwrap(),
                 0
@@ -238,7 +238,7 @@ async fn public_shortcuts_preserve_matching_rendering_and_route_cache() {
         }
         let mut kernel = Kernel::new(application(root.path()));
         kernel.bootstrap().await.unwrap();
-        assert_eq!(kernel.get_application().routesAreCached(), cached);
+        assert_eq!(kernel.get_application().routes_are_cached(), cached);
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let base = format!("http://{}", listener.local_addr().unwrap());
         let service = transport.with_state(Arc::new(kernel)).into_make_service();
@@ -332,7 +332,7 @@ async fn public_shortcuts_preserve_matching_rendering_and_route_cache() {
         }
         assert_eq!(
             application(root.path())
-                .handleCommand(&[OsString::from("view:cache")])
+                .handle_command(&[OsString::from("view:cache")])
                 .await
                 .unwrap(),
             0
@@ -356,7 +356,7 @@ async fn public_shortcuts_preserve_matching_rendering_and_route_cache() {
     }
     assert_eq!(
         application(root.path())
-            .handleCommand(&[OsString::from("route:clear")])
+            .handle_command(&[OsString::from("route:clear")])
             .await
             .unwrap(),
         0

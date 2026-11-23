@@ -292,12 +292,12 @@ async fn server(
     counts: Arc<Counts>,
 ) -> (std::net::SocketAddr, tokio::task::JoinHandle<()>) {
     let app = Application::configure(root.0.clone())
-        .withConfig(config)
-        .withProviders(vec![
+        .with_config(config)
+        .with_providers(vec![
             Box::new(PailServiceProvider),
             Box::new(Probe { prefix, counts }),
         ])
-        .withRouting(Routing::default().web(routes).commands(commands))
+        .with_routing(Routing::default().web(routes).commands(commands))
         .create()
         .unwrap();
     let mut kernel = Kernel::new(app);

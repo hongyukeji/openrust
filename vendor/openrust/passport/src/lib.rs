@@ -83,9 +83,9 @@ pub struct PassportServiceProvider;
 impl ServiceProvider for PassportServiceProvider {
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
-            if !app.configurationIsCached() {
+            if !app.configuration_is_cached() {
                 let env = app.make::<Environment>().await?;
-                self.mergeConfigFrom(app, configuration::load(&env)?, "passport")?;
+                self.merge_config_from(app, configuration::load(&env)?, "passport")?;
             }
             app.container().singleton::<Passport, _>(|container| {
                 Ok(Arc::new(Passport::new(
@@ -104,7 +104,7 @@ impl ServiceProvider for PassportServiceProvider {
                     let paths = container.make::<openrust::foundation::Paths>()?;
                     let domain = format!(
                         "{:x}",
-                        Sha256::digest(paths.storagePath("").to_string_lossy().as_bytes())
+                        Sha256::digest(paths.storage_path("").to_string_lossy().as_bytes())
                     );
                     Ok(Arc::new(AuthorizationServer::new(
                         container.make::<Passport>()?,
@@ -148,7 +148,7 @@ impl ServiceProvider for PassportServiceProvider {
                 .make::<openrust::foundation::console::installation::ExtensionInstallers>()?
                 .register("passport", console::commands::install_command::initialize);
             // the framework publishes these migrations; it does not silently run package schema.
-            self.publishesMigrations(app, migrations::SOURCES, "passport-migrations")?;
+            self.publishes_migrations(app, migrations::SOURCES, "passport-migrations")?;
             self.publishes(
                 app,
                 &[(
@@ -161,7 +161,7 @@ impl ServiceProvider for PassportServiceProvider {
             app.make::<openrust::auth::AuthManager>()
                 .await?
                 .extend("passport", guards::TokenGuard::resolve);
-            self.loadRoutesFrom(app, http::routes)?;
+            self.load_routes_from(app, http::routes)?;
             Ok(())
         })
     }

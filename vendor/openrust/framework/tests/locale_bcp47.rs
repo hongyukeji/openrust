@@ -138,7 +138,7 @@ fn file_catalogs_keep_exact_regions_scripts_and_full_tags() {
         translator.string("Identity", &args, Some("zh-TW")).unwrap(),
         "Identity"
     );
-    assert_eq!(translator.getLocale(), "zh-Hans");
+    assert_eq!(translator.get_locale(), "zh-Hans");
     assert!(
         translator
             .string("messages.identity", &args, Some("zh_CN"))
@@ -179,18 +179,18 @@ async fn nested_locale_scopes_restore_after_errors_cancellation_and_unwind() {
     .unwrap();
     translator
         .withLocale("ZH-hans", async {
-            assert_eq!(translator.getLocale(), "zh-Hans");
+            assert_eq!(translator.get_locale(), "zh-Hans");
             let result: Result<(), &str> = translator
                 .withLocale("zh-Hant", async {
-                    assert_eq!(translator.getLocale(), "zh-Hant");
+                    assert_eq!(translator.get_locale(), "zh-Hant");
                     Err("模拟任务失败")
                 })
                 .await
                 .unwrap();
             assert!(result.is_err());
-            assert_eq!(translator.getLocale(), "zh-Hans");
+            assert_eq!(translator.get_locale(), "zh-Hans");
             let pending = translator.withLocale("zh-Hant-HK", async {
-                assert_eq!(translator.getLocale(), "zh-Hant-HK");
+                assert_eq!(translator.get_locale(), "zh-Hant-HK");
                 std::future::pending::<()>().await;
             });
             assert!(
@@ -198,18 +198,18 @@ async fn nested_locale_scopes_restore_after_errors_cancellation_and_unwind() {
                     .await
                     .is_err()
             );
-            assert_eq!(translator.getLocale(), "zh-Hans");
+            assert_eq!(translator.get_locale(), "zh-Hans");
             let unwound = AssertUnwindSafe(translator.withLocale("zh-CN", async {
-                assert_eq!(translator.getLocale(), "zh-CN");
+                assert_eq!(translator.get_locale(), "zh-CN");
                 panic!("模拟任务展开");
             }))
             .catch_unwind()
             .await;
             assert!(unwound.is_err());
-            assert_eq!(translator.getLocale(), "zh-Hans");
+            assert_eq!(translator.get_locale(), "zh-Hans");
         })
         .await
         .unwrap();
-    assert_eq!(translator.getLocale(), "en");
+    assert_eq!(translator.get_locale(), "en");
     assert_eq!(translator.getFallback(), "en");
 }

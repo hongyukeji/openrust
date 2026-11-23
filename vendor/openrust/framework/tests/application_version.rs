@@ -21,13 +21,13 @@ async fn facade_and_artisan_keep_framework_version_when_application_version_chan
     let root = tempfile::tempdir().unwrap();
     std::fs::write(root.path().join(".env"), "APP_VERSION=9.8.7-app\n").unwrap();
     let application = Application::configure(root.path().into())
-        .withConfig(|_, environment| {
+        .with_config(|_, environment| {
             Ok(BTreeMap::from([(
                 "app".into(),
                 serde_json::json!({"version": environment.get_utf8("APP_VERSION")?.unwrap_or("9.0.0")}),
             )]))
         })
-        .withCommands(|artisan| {
+        .with_commands(|artisan| {
             artisan.command("version:probe", |output| {
                 assert_eq!(Config::get("app.version").unwrap(), Some("9.8.7-app".into()));
                 Config::set("app.version", "10.0.0-app".into()).unwrap();

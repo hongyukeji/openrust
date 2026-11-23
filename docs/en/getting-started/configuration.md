@@ -29,7 +29,7 @@ Configuration becomes available during boot, before providers register. As in Lo
 
 Inside an application scope, import `openrust::support::facades::Config` and call `Config::get("app.name")?`. The facade resolves the same application repository on each call. It returns `None` for a missing key and `Some(Value::Null)` for an explicit null. Calling it outside an application scope or before the repository is registered returns a binding error.
 
-`config` is the canonical name; `dyn openrust::contracts::config::Repository` is its typed alias. To replace the application repository, construct `openrust::config::Repository::new(values)` and call `instanceNamed::<dyn Repository>("config", repository)?`. Consumers already holding an `Arc` keep that snapshot; resolve again or use a rebinding/refresh listener when they must follow replacements. Rebinding the typed alias as a raw key replaces that alias rather than the canonical configuration service, matching the container's raw-key rules.
+`config` is the canonical name; `dyn openrust::contracts::config::Repository` is its typed alias. To replace the application repository, construct `openrust::config::Repository::new(values)` and call `instance_named::<dyn Repository>("config", repository)?`. Consumers already holding an `Arc` keep that snapshot; resolve again or use a rebinding/refresh listener when they must follow replacements. Rebinding the typed alias as a raw key replaces that alias rather than the canonical configuration service, matching the container's raw-key rules.
 
 Provider replacements are used by HTTP listener binding, route/static-disk assembly and view-path setup. Health HTML reads the current repository on each request, and Artisan uses the same application accessor. Already assembled routes and view finders are not automatically rebuilt after a runtime configuration replacement. Container errors propagate through the relevant bootstrap, HTTP or Artisan error path. See [rebinding](../architecture-concepts/container.md#rebinding-and-refreshing-consumers).
 
@@ -47,7 +47,7 @@ Process environment variables take precedence over values in the file. Set `APP_
 use openrust::support::facades::Config;
 
 pub fn application_name() -> String {
-    Config::stringOr("app.name", "App")
+    Config::string_or("app.name", "App")
 }
 ```
 
@@ -57,7 +57,7 @@ Use the [App locale methods](../digging-deeper/localization.md#configuring-the-l
 
 After replacing `app`, subsequent writes follow call order: replacing `app.ui` removes earlier children, and writing `app.ui.title` afterward adds that child to the new parent. Array-index writes preserve sibling entries. `get`, `all`, `has`, `push`, and `prepend` observe the same scoped value; a sparse array becomes a keyed JSON object. Nested calls within the same lifecycle share these changes; another request or task and the application defaults remain isolated. `push` initializes a currently null configuration entry as a list. Both list methods accept associative arrays: appending preserves keys and prepending renumbers integer keys while retaining named keys. `prepend` on null and either operation on other scalar values return an error.
 
-Use `Config::stringOr("app.name", "App")` to get a `String` directly. It returns the default if the key is absent, the value is null or another type, or the repository is unavailable. Use `Config::string("app.name")?` for strict reads. Raw `Config::getOr("app.name", Value::from("App"))?` defaults only when the key is absent and preserves an explicit null. `Config::getMany([("app.name", Value::from("App")), ("app.debug", Value::Bool(false))])?` reads keys with individual defaults in input order. To read an entire section as a struct, derive `serde::Deserialize` and use `Config::deserialize::<MailOptions>("mail")?`.
+Use `Config::string_or("app.name", "App")` to get a `String` directly. It returns the default if the key is absent, the value is null or another type, or the repository is unavailable. Use `Config::string("app.name")?` for strict reads. Raw `Config::get_or("app.name", Value::from("App"))?` defaults only when the key is absent and preserves an explicit null. `Config::get_many([("app.name", Value::from("App")), ("app.debug", Value::Bool(false))])?` reads keys with individual defaults in input order. To read an entire section as a struct, derive `serde::Deserialize` and use `Config::deserialize::<MailOptions>("mail")?`.
 
 ## Configuration Caching {#configuration-caching}
 
@@ -117,7 +117,7 @@ use openrust::{
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut app = Application::configure(std::env::current_dir()?)
-        .withConfig(|_, _| {
+        .with_config(|_, _| {
             Ok([("app".into(), serde_json::json!({"env": "staging"}))].into())
         })
         .create()?;
@@ -125,8 +125,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     assert_eq!(app.environment(None)?, EnvironmentResult::from("staging"));
     assert!(bool::from(app.environment(Some("stag*".into()))?));
-    assert!(bool::from(app.container().currentEnvironmentIs(&["local", "staging"])?));
-    assert!(!bool::from(app.container().currentEnvironmentIs(&[])?));
+    assert!(bool::from(app.container().current_environment_is(&["local", "staging"])?));
+    assert!(!bool::from(app.container().current_environment_is(&[])?));
     Ok(())
 }
 ```
@@ -139,7 +139,7 @@ During bootstrap the detected name is stored in the `env` service as `Arc<str>`.
 
 | Environment setting | Purpose | Default |
 |---|---|---|
-| `APP_PUBLIC_PATH` | `filesystems.disks.web.root` / `Application::publicPath()` | `public` |
+| `APP_PUBLIC_PATH` | `filesystems.disks.web.root` / `Application::public_path()` | `public` |
 | `FILESYSTEM_WEB_ROOT` | Website disk root; overrides `APP_PUBLIC_PATH` | `app.public_path` |
 | `FILESYSTEM_WEB_URL` | `filesystems.disks.web.url` | `app.url` |
 | `FILESYSTEM_LOCAL_ROOT` | `filesystems.disks.local.root` for the private local disk | `storage/app/private` |
@@ -148,7 +148,7 @@ During bootstrap the detected name is stored in the `env` service as `Arc<str>`.
 
 `FILESYSTEM_WEB_ROOT` overrides the website disk root; when unset, it uses `APP_PUBLIC_PATH` (default `public`). Relative paths are resolved from the application root; absolute paths are used directly. Empty or whitespace-only values fail configuration loading.
 
-When `APP_PUBLIC_PATH` is omitted, `config/app.rs` explicitly sets `app.public_path` to `public`. The `web` disk reuses that value as its default root. Configure website files under `filesystems.disks.web` and uploaded public files under `filesystems.disks.public`. The default routes mount them in that order using `Route::staticDisk("web")` and `Route::staticDisk("public")`. Calling `usePublicPath()` before boot overrides the website directory and updates `web.root`. Relative paths use the application root. A disk mount uses the full path of its URL, so `/storage/tmp/` mounts at `/storage/tmp`. Absolute URLs must have the same origin as `app.url`. Restart the application after changing mount settings. An explicitly empty or whitespace-only `APP_PUBLIC_PATH` fails configuration loading.
+When `APP_PUBLIC_PATH` is omitted, `config/app.rs` explicitly sets `app.public_path` to `public`. The `web` disk reuses that value as its default root. Configure website files under `filesystems.disks.web` and uploaded public files under `filesystems.disks.public`. The default routes mount them in that order using `Route::staticDisk("web")` and `Route::staticDisk("public")`. Calling `use_public_path()` before boot overrides the website directory and updates `web.root`. Relative paths use the application root. A disk mount uses the full path of its URL, so `/storage/tmp/` mounts at `/storage/tmp`. Absolute URLs must have the same origin as `app.url`. Restart the application after changing mount settings. An explicitly empty or whitespace-only `APP_PUBLIC_PATH` fails configuration loading.
 
 ## Maintenance mode {#maintenance-mode}
 
@@ -161,10 +161,10 @@ Run Artisan `down` to return HTTP 503 while you deploy. Use `up` to reopen the a
 
 Use `--retry` for a positive delay in seconds or a retry date, and `--refresh` to tell a browser when to reload. Local date-times use the application timezone and are sent in GMT. `--redirect` takes a local path. `--render` prerenders a named view once when you run `down`, passing it `$retryAfter`. `--status` overrides the default 503. Requests that expect JSON follow the usual exception renderer and skip the browser redirect and prerendered view.
 
-To check the site during maintenance, open the URL printed by `--with-secret`. The application sets a signed browser cookie valid for 12 hours and redirects to the home page when no intended session URL is available. Use `--secret` to supply your own path. The configured health path (default `/up`) stays accessible during maintenance mode. Use `withMiddleware` in `bootstrap/app.rs` to leave additional endpoints available.
+To check the site during maintenance, open the URL printed by `--with-secret`. The application sets a signed browser cookie valid for 12 hours and redirects to the home page when no intended session URL is available. Use `--secret` to supply your own path. The configured health path (default `/up`) stays accessible during maintenance mode. Use `with_middleware` in `bootstrap/app.rs` to leave additional endpoints available.
 
 ```rust
-.withMiddleware(|middleware| {
+.with_middleware(|middleware| {
     middleware.preventRequestsDuringMaintenance(["status/*"]);
 })
 ```
@@ -175,7 +175,7 @@ During startup, use the exact bypass URL printed by Artisan. The early handler c
 
 ### Shared maintenance state {#shared-maintenance-state}
 
-The application exposes maintenance state through `maintenanceMode()`. The default `file` driver stores the payload in `storage/framework/down`. Choose `cache` and a shared cache store to make the state visible to workers on multiple hosts. The `array` driver keeps state inside a single application instance for testing.
+The application exposes maintenance state through `maintenance_mode()`. The default `file` driver stores the payload in `storage/framework/down`. Choose `cache` and a shared cache store to make the state visible to workers on multiple hosts. The `array` driver keeps state inside a single application instance for testing.
 
 ```rust
 use openrust::foundation::Application;
@@ -185,28 +185,28 @@ async fn activate_maintenance(
     app: &Application,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let payload = Map::from_iter([("status".into(), json!(503))]);
-    app.maintenanceMode()?.activate(&payload).await?;
+    app.maintenance_mode()?.activate(&payload).await?;
     Ok(())
 }
 ```
 
-Read the state with `isDownForMaintenance().await` and clear it with `app.maintenanceMode()?.deactivate().await?`. Queue workers read this state before reserving jobs.
+Read the state with `is_down_for_maintenance().await` and clear it with `app.maintenance_mode()?.deactivate().await?`. Queue workers read this state before reserving jobs.
 
 ## Testing Environment and Bootstrap Snapshot {#testing-environment}
 
-`Application::runningUnitTests()` and the application contract return `Result<bool, BindingResolutionError>`. The result is true only when the bound `env` is exactly `testing`, regardless of whether a test harness is running. Before the environment is bound it returns `Ok(false)` without resolving a service. Resolution errors propagate. Changing `config("app.env")` later does not replace the detected environment binding.
+`Application::running_unit_tests()` and the application contract return `Result<bool, BindingResolutionError>`. The result is true only when the bound `env` is exactly `testing`, regardless of whether a test harness is running. Before the environment is bound it returns `Ok(false)` without resolving a service. Resolution errors propagate. Changing `config("app.env")` later does not replace the detected environment binding.
 
 After boot, use `app.make::<openrust::config::Environment>().await?` to read the immutable environment snapshot for that application. Existing `get` and `get_utf8` methods return raw strings; package-specific flag parsing remains the package's responsibility. The snapshot follows process precedence, environment-file selection and configuration-cache rules. It neither reloads files nor mutates process-global variables.
 
 ## Application Storage Path {#application-storage-path}
 
-`app.storagePath("")` returns the storage root; pass a string such as `"pail"` for a subpath. `app.useStoragePath(path)?` overrides it and rebinds `path.storage`. The getter is also in the application contract. `openrust::support::storage_path(path)?` reads the current application scope. The readonly `foundation::Paths` service shares the same state with compiled packages, without retaining Application through its container.
+`app.storage_path("")` returns the storage root; pass a string such as `"pail"` for a subpath. `app.use_storage_path(path)?` overrides it and rebinds `path.storage`. The getter is also in the application contract. `openrust::support::storage_path(path)?` reads the current application scope. The readonly `foundation::Paths` service shares the same state with compiled packages, without retaining Application through its container.
 
 Precedence is a nonempty override other than `0`, then `APP_STORAGE_PATH` from the application environment snapshot, then the application's `storage` directory. An explicitly present empty environment value is retained. Setter values stay relative when supplied as relative paths. Joining appends the native separator and strips leading native separators from the subpath; it preserves duplicate separators and `..`. There is no default Rust argument, so pass `""` for the root.
 
-The constructor initializes `path.storage`; a later environment-file value changes the getter without automatically rewriting that binding. Calling `useStoragePath` explicitly rebinds it, following order. Rebinding errors return `Result` after updating path state.
+The constructor initializes `path.storage`; a later environment-file value changes the getter without automatically rewriting that binding. Calling `use_storage_path` explicitly rebinds it, following order. Rebinding errors return `Result` after updating path state.
 
-Logging, file sessions, file cache data and locks, compiled views, and default local/public disks use the storage root when configuration loads. `FILESYSTEM_LOCAL_ROOT`, `FILESYSTEM_PUBLIC_ROOT`, and `VIEW_COMPILED_PATH` retain their own overrides; the public URL and mount order are unchanged. `storage:link` targets the configured public disk. Set an absolute `APP_STORAGE_PATH` before startup, or call `useStoragePath` before configuration loads.
+Logging, file sessions, file cache data and locks, compiled views, and default local/public disks use the storage root when configuration loads. `FILESYSTEM_LOCAL_ROOT`, `FILESYSTEM_PUBLIC_ROOT`, and `VIEW_COMPILED_PATH` retain their own overrides; the public URL and mount order are unchanged. `storage:link` targets the configured public disk. Set an absolute `APP_STORAGE_PATH` before startup, or call `use_storage_path` before configuration loads.
 
 The compiled configuration loader uses `env.storage_path(base_path, subpath)` as its Rust context adapter. Its weak reference selects the owning application's paths without using a global Facade or retaining the application. Standalone environment snapshots resolve their own variable against the supplied default base. Later changes to the application path do not rewrite already loaded or cached configuration values.
 

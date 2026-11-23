@@ -30,9 +30,9 @@ fn main() -> Result<(), BindingResolutionError> {
 
 ### Named Bindings and Aliases
 
-Use `bindNamed::<T, _>(name, factory)`, `singletonNamed::<T, _>(name, factory)` or `instanceNamed::<T>(name, instance)` for named entries. These are the named forms of the same operations: Rust cannot overload a method by its argument count. `get::<T>(name)` resolves a named entry and checks its output type before invoking the factory. Typed and named entries remain distinct even when their displayed names match.
+Use `bind_named::<T, _>(name, factory)`, `singleton_named::<T, _>(name, factory)` or `instance_named::<T>(name, instance)` for named entries. These are the named forms of the same operations: Rust cannot overload a method by its argument count. `get::<T>(name)` resolves a named entry and checks its output type before invoking the factory. Typed and named entries remain distinct even when their displayed names match.
 
-`alias(abstract, alias)` accepts a `ServiceKey::typed::<T>()`, `ServiceKey::named(name)` or a string. Aliases may point to other aliases or to entries registered later. `isAlias` tests the original key; `getAlias` follows the chain; `has` checks a binding or alias without constructing it. Names are exact and case-sensitive. Binding or supplying an instance at an alias key replaces that alias. Rebinding the target affects subsequent resolutions; already returned `Arc` values remain valid.
+`alias(abstract, alias)` accepts a `ServiceKey::typed::<T>()`, `ServiceKey::named(name)` or a string. Aliases may point to other aliases or to entries registered later. `is_alias` tests the original key; `get_alias` follows the chain; `has` checks a binding or alias without constructing it. Names are exact and case-sensitive. Binding or supplying an instance at an alias key replaces that alias. Rebinding the target affects subsequent resolutions; already returned `Arc` values remain valid.
 
 A direct self-alias is rejected. Alias cycles and factory dependency cycles return errors. A failed or panicking singleton constructor does not cache a value; a later call may retry. Concurrent resolutions share the first successful singleton. Container locks are released before invoking user factories.
 
@@ -40,15 +40,15 @@ A direct self-alias is rejected. Alias cycles and factory dependency cycles retu
 
 Use `make::<T>()` for a Rust type and `get::<T>(key)` for a named or explicit key. During boot, the configuration repository is bound under `config`, with `dyn openrust::contracts::config::Repository` as its typed alias. Every application owns its container; bindings and instances are not process-global.
 
-Use `makeWith` to supply explicit construction arguments. Use `makeAsync` to await dependencies provided by a deferred provider or an asynchronous factory. See [Parameter Overrides](#parameter-overrides) and [Service Providers](./providers.md).
+Use `make_with` to supply explicit construction arguments. Use `make_async` to await dependencies provided by a deferred provider or an asynchronous factory. See [Parameter Overrides](#parameter-overrides) and [Service Providers](./providers.md).
 
 ## Conditional Bindings and Instance State
 
-`bindIf` and `singletonIf` register a typed factory only when the key has no binding, instance or alias. Their named forms are `bindIfNamed` and `singletonIfNamed`. The existence check and insertion are atomic; a rejected factory is not executed and is dropped outside the registry lock. Even an alias pointing to a missing service counts as an existing entry.
+`bind_if` and `singleton_if` register a typed factory only when the key has no binding, instance or alias. Their named forms are `bind_if_named` and `singleton_if_named`. The existence check and insertion are atomic; a rejected factory is not executed and is dropped outside the registry lock. Even an alias pointing to a missing service counts as an existing entry.
 
-`isShared(key)` examines the original key without following aliases. `resolved(key)` follows aliases and returns true for an existing instance or a successfully resolved factory. Resolution history survives instance eviction. Supplying an instance does not execute or discard the original factory.
+`is_shared(key)` examines the original key without following aliases. `resolved(key)` follows aliases and returns true for an existing instance or a successfully resolved factory. Resolution history survives instance eviction. Supplying an instance does not execute or discard the original factory.
 
-`forgetInstance(key)` removes the instance for that exact key. It does not follow aliases. A previously registered singleton factory can then construct a fresh instance. `forgetInstances()` clears all existing instances while preserving factories, aliases and resolution history. Instances without a backing factory become unbound; previously returned `Arc` values stay valid.
+`forget_instance(key)` removes the instance for that exact key. It does not follow aliases. A previously registered singleton factory can then construct a fresh instance. `forget_instances()` clears all existing instances while preserving factories, aliases and resolution history. Instances without a backing factory become unbound; previously returned `Arc` values stay valid.
 
 ```rust
 use std::sync::Arc;
@@ -56,14 +56,14 @@ use openrust::{container::Container, contracts::container::{Container as _, Bind
 
 fn main() -> Result<(), BindingResolutionError> {
     let app = Container::default();
-    app.singletonIfNamed::<u32, _>("counter", |_| Ok(Arc::new(7))).unwrap();
-    app.bindIfNamed::<u32, _>("counter", |_| Ok(Arc::new(8))).unwrap();
-    assert!(app.isShared("counter"));
+    app.singleton_if_named::<u32, _>("counter", |_| Ok(Arc::new(7))).unwrap();
+    app.bind_if_named::<u32, _>("counter", |_| Ok(Arc::new(8))).unwrap();
+    assert!(app.is_shared("counter"));
     assert!(!app.resolved("counter")?);
     let original = app.get::<u32>("counter")?;
-    app.instanceNamed("counter", Arc::new(99_u32)).unwrap();
+    app.instance_named("counter", Arc::new(99_u32)).unwrap();
     assert_eq!(*app.get::<u32>("counter")?, 99);
-    app.forgetInstance("counter");
+    app.forget_instance("counter");
     let rebuilt = app.get::<u32>("counter")?;
     assert_eq!(*rebuilt, 7);
     assert!(!Arc::ptr_eq(&original, &rebuilt));
@@ -75,7 +75,7 @@ These operations do not clear a facade's own cached root; use its cache-clearing
 
 ## Scoped Bindings
 
-`scoped::<T, _>` shares a service within one execution lifecycle. Its named form is `scopedNamed::<T, _>(name, factory)`. Use `scopedIf` or `scopedIfNamed` to register only when the original key is unbound. HTTP handler execution and each Artisan dispatch automatically enter a lifecycle. Ordinary `singleton` instances remain shared by the application.
+`scoped::<T, _>` shares a service within one execution lifecycle. Its named form is `scoped_named::<T, _>(name, factory)`. Use `scoped_if` or `scoped_if_named` to register only when the original key is unbound. HTTP handler execution and each Artisan dispatch automatically enter a lifecycle. Ordinary `singleton` instances remain shared by the application.
 
 Use the Rust lifecycle helper `Container::scope(future)` for manual execution. Nested calls for the same container reuse its current scope. Concurrent executions have independent caches, including when they run on the same Tokio thread. Different applications keep their own service bindings and instances.
 
@@ -101,19 +101,19 @@ fn main() {
 
 Lifecycle futures own the cached references. Completion, failure or cancellation releases them when the owning futures are dropped. Callers may retain an `Arc` beyond the scope; the value is destroyed when its last reference is released. New scopes start with fresh scoped instances, without taking an instance cached in the container's root lifecycle.
 
-`forgetScopedInstances()` clears the current lifecycle's scoped cache while preserving other active lifecycles and ordinary singletons. Outside an execution scope it clears the root scoped instances. `forgetInstance(key)` still uses the original key, and `forgetInstances()` clears current scoped instances as well as the application's ordinary instance caches. A scoped `instance` override stays local to that lifecycle. Rebinding remains an application-level registration operation.
+`forget_scoped_instances()` clears the current lifecycle's scoped cache while preserving other active lifecycles and ordinary singletons. Outside an execution scope it clears the root scoped instances. `forget_instance(key)` still uses the original key, and `forget_instances()` clears current scoped instances as well as the application's ordinary instance caches. A scoped `instance` override stays local to that lifecycle. Rebinding remains an application-level registration operation.
 
 Container eviction does not clear a facade's separately cached root. Clear that facade cache when you need to re-resolve it within the same execution. Application-created Tokio tasks do not inherit ambient scopes; pass services explicitly or start the intended lifecycle around the task. Streaming bodies can retain already resolved services through owned `Arc` values.
 
 ## Contextual binding and tagged services
 
-`when::<Consumer>()?.needs::<Dependency>().give(factory)?` selects a dependency for the currently constructed consumer. `whenNamed(name)` and `whenMany(keys)` cover named and multiple consumers; `needsNamed::<T>("$parameter")` covers explicitly named constructor inputs. Factories resolve their dependencies explicitly because Rust does not provide PHP constructor reflection. The registered consumer identity takes the place of the reflected PHP class.
+`when::<Consumer>()?.needs::<Dependency>().give(factory)?` selects a dependency for the currently constructed consumer. `when_named(name)` and `when_many(keys)` cover named and multiple consumers; `needs_named::<T>("$parameter")` covers explicitly named constructor inputs. Factories resolve their dependencies explicitly because Rust does not provide PHP constructor reflection. The registered consumer identity takes the place of the reflected PHP class.
 
 Contextual rules apply only to the nearest consumer. They take precedence over default instances, singletons and scoped caches, without replacing those caches or marking the dependency globally resolved. A contextual factory can resolve the same dependency again to use its default binding. Actual recursive factories still produce a circular-dependency error. Consumer aliases are normalized when `when` is called; dependency aliases are normalized when `give` is called, and later direct aliases are considered during lookup.
 
-`give` accepts a typed factory. `giveService(key)` is the Rust overload of service-name `give`: the implementation must be registered with the expected output contract. Use a factory to explicitly coerce `Arc<Concrete>` to `Arc<dyn Trait>`. `giveConfig(key, default)` reads the current `config` service when the dependency is resolved. Pass `None` for omitted default. Missing keys use the default; an explicit JSON null stays null. Deserialization checks the declared Rust type and returns an error on mismatch; it does not silently coerce PHP scalar values.
+`give` accepts a typed factory. `give_service(key)` is the Rust overload of service-name `give`: the implementation must be registered with the expected output contract. Use a factory to explicitly coerce `Arc<Concrete>` to `Arc<dyn Trait>`. `give_config(key, default)` reads the current `config` service when the dependency is resolved. Pass `None` for omitted default. Missing keys use the default; an explicit JSON null stays null. Deserialization checks the declared Rust type and returns an error on mismatch; it does not silently coerce PHP scalar values.
 
-`tag(keys, tags)` preserves registration order and duplicates. `tagged::<T>(tag)` resolves services lazily on iteration; each iteration resolves them anew using their registered lifetimes. An unknown tag yields an empty sequence. Existing sequences see services added before their next iteration; `len()` returns the count captured when the sequence was created, as rewindable generator does. `giveTagged` collects the tagged services as `Vec<Arc<T>>`; an unresolved or mismatched entry propagates its error.
+`tag(keys, tags)` preserves registration order and duplicates. `tagged::<T>(tag)` resolves services lazily on iteration; each iteration resolves them anew using their registered lifetimes. An unknown tag yields an empty sequence. Existing sequences see services added before their next iteration; `len()` returns the count captured when the sequence was created, as rewindable generator does. `give_tagged` collects the tagged services as `Vec<Arc<T>>`; an unresolved or mismatched entry propagates its error.
 
 ```rust
 use std::sync::Arc;
@@ -126,18 +126,18 @@ struct Report {
 fn main() {
     let container = Container::default();
     let config: Arc<dyn openrust::contracts::config::Repository> = Arc::new(openrust::config::Repository::new(Default::default()));
-    container.instanceNamed("config", config.clone()).unwrap();
+    container.instance_named("config", config.clone()).unwrap();
     config.set("reports.port", 8080.into()).unwrap();
     container.singleton::<String, _>(|_| Ok(Arc::new("default".into()))).unwrap();
-    container.instanceNamed("local", Arc::new(String::from("local"))).unwrap();
+    container.instance_named("local", Arc::new(String::from("local"))).unwrap();
     container.tag(["local"], ["reports"]);
     container.bind::<Report, _>(|c| Ok(Arc::new(Report {
         channel: c.make()?, port: c.get("$port")?, services: c.make()?,
     }))).unwrap();
     container.when::<Report>().unwrap()
-        .needs::<String>().giveService("local").unwrap()
-        .needsNamed::<u16>("$port").giveConfig("reports.port", None).unwrap()
-        .needs::<Vec<Arc<String>>>().giveTagged("reports").unwrap();
+        .needs::<String>().give_service("local").unwrap()
+        .needs_named::<u16>("$port").give_config("reports.port", None).unwrap()
+        .needs::<Vec<Arc<String>>>().give_tagged("reports").unwrap();
     let report = container.make::<Report>().unwrap();
     assert_eq!(&*report.channel, "local");
     assert_eq!(*report.port, 8080);
@@ -148,7 +148,7 @@ fn main() {
 
 ## Container resolution events
 
-`beforeResolving`, `resolving` and `afterResolving` accept `None` for a global callback or `Some(ServiceKey)` for a selected identity. Aliases are normalized when registering the callback. The callback receives a `ResolutionEvent` and the current container, and returns `Result<(), BindingResolutionError>`.
+`before_resolving`, `resolving` and `after_resolving` accept `None` for a global callback or `Some(ServiceKey)` for a selected identity. Aliases are normalized when registering the callback. The callback receives a `ResolutionEvent` and the current container, and returns `Result<(), BindingResolutionError>`.
 
 The sequence is global before → selected before → construction → global resolving → selected resolving → global after → selected after. Before callbacks can register a missing service and execute on every lookup, including cache hits. Existing instances and shared cache hits skip post-construction callbacks. Each stage snapshots the global callbacks first, then reads selected callbacks after the globals have run: a global callback may register a selected callback for that same stage. A callback registered for a later stage can run during the current construction.
 
@@ -163,7 +163,7 @@ fn main() {
     let app = Container::default();
     let trace = Arc::new(Mutex::new(Vec::new()));
     let before = trace.clone();
-    app.beforeResolving(None, move |event, _| {
+    app.before_resolving(None, move |event, _| {
         assert!(event.value::<String>().is_none());
         before.lock().unwrap().push("before");
         Ok(())
@@ -177,7 +177,7 @@ fn main() {
         Ok(())
     }).unwrap();
     let after = trace.clone();
-    app.afterResolving(None, move |_, _| {
+    app.after_resolving(None, move |_, _| {
         after.lock().unwrap().push("after");
         Ok(())
     }).unwrap();
@@ -193,7 +193,7 @@ fn main() {
 
 If no instance is cached, `extend` saves the closure for future construction without eagerly making the service. These decorators run in registration order after construction and before resolving callbacks, including contextual constructions. A shared service caches the decorated value. A supplied `instance` bypasses the pending chain; forgetting it restores the original factory and that chain.
 
-If an instance is already cached, `extend` immediately replaces that cached value. This closure is not added to the future chain. Existing callers retain their original `Arc`; the next lookup gets the replacement. As in the framework, forgetting a cached instance discards an immediate-only decoration. `forgetExtenders(key)` removes future decorators, without undoing a decorated cached instance.
+If an instance is already cached, `extend` immediately replaces that cached value. This closure is not added to the future chain. Existing callers retain their original `Arc`; the next lookup gets the replacement. As in the framework, forgetting a cached instance discards an immediate-only decoration. `forget_extenders(key)` removes future decorators, without undoing a decorated cached instance.
 
 Construction and cached replacement run user code without the registry lock. A decorator registered while a constructor is pending is included before publication. Updates of the same cache slot serialize, and other readers wait until the update finishes; a decorator can read its own slot's old value. An in-flight update of a retired slot does not overwrite a newly rebound service. Recursive extension or dependency cycles return a circular-dependency error. An error or panic before publication leaves a shared constructor retryable; a failed cached update keeps its previous pointer. Mutations made inside a shared object are not rolled back.
 
@@ -221,10 +221,10 @@ fn main() {
         Ok(Arc::new(Decorated("cached", service)))
     }).unwrap();
     assert_eq!(app.make::<dyn Service>().unwrap().name(), "cached:decorated:base");
-    app.forgetInstance(key.clone());
+    app.forget_instance(key.clone());
     assert_eq!(app.make::<dyn Service>().unwrap().name(), "decorated:base");
-    app.forgetExtenders(key.clone()).unwrap();
-    app.forgetInstance(key);
+    app.forget_extenders(key.clone()).unwrap();
+    app.forget_instance(key);
     assert_eq!(app.make::<dyn Service>().unwrap().name(), "base");
 }
 ```
@@ -235,7 +235,7 @@ fn main() {
 
 Replacing an already resolved binding triggers its listeners. Supplying an instance triggers listeners only if that raw key was already bound before the replacement. First bindings, rejected conditional bindings and instance eviction do not notify. A future decorator added to an already resolved transient or an evicted shared service rebuilds it for listeners; a cached decoration notifies with the replacement value. Each event holds its own committed value and ordered callback snapshot, so concurrent updates do not deliver a later value for an earlier event. A listener registered during dispatch participates in later events.
 
-Callbacks run after the new binding or cache is committed. Their errors and panics propagate without rolling that state back. Later listeners in the failed event are skipped. Recursive same-service notification returns a cycle error after the nested change has committed. Binding registration methods therefore return `Result`; propagate errors with `?`. `instance` and `instanceNamed` return the supplied `Arc` on success.
+Callbacks run after the new binding or cache is committed. Their errors and panics propagate without rolling that state back. Later listeners in the failed event are skipped. Recursive same-service notification returns a cycle error after the nested change has committed. Binding registration methods therefore return `Result`; propagate errors with `?`. `instance` and `instance_named` return the supplied `Arc` on success.
 
 `refresh::<T, _, _>(key, target, setter)` is the Rust form of target/method refresh. It accepts an explicit `Arc` target and setter instead of a PHP method-name string. Registration returns the current service without initially calling the setter; later rebindings call it. Callbacks use explicit output contracts, execute outside registry locks, and preserve application and scoped-instance isolation. A facade swap updates its facade cache before rebinding the container; a listener failure leaves both committed values in place.
 
@@ -244,7 +244,7 @@ use std::sync::{Arc, Mutex};
 use openrust::{container::Container, contracts::container::{BindingResolutionError, Container as _}};
 fn main() -> Result<(), BindingResolutionError> {
     let app = Container::default();
-    app.instanceNamed("service", Arc::new(String::from("first")))?;
+    app.instance_named("service", Arc::new(String::from("first")))?;
     let target = Arc::new(Mutex::new(String::new()));
     let current = app.refresh::<String, _, _>("service", target.clone(), |target, value| {
         *target.lock().unwrap() = (*value).clone();
@@ -252,7 +252,7 @@ fn main() -> Result<(), BindingResolutionError> {
     })?.unwrap();
     assert_eq!(&*current, "first");
     assert!(target.lock().unwrap().is_empty());
-    app.instanceNamed("service", Arc::new(String::from("second")))?;
+    app.instance_named("service", Arc::new(String::from("second")))?;
     assert_eq!(&*target.lock().unwrap(), "second");
     Ok(())
 }
@@ -264,11 +264,11 @@ Use an asynchronous factory when constructing a service requires I/O or a deferr
 
 | Lifetime | Typed factory | Named factory |
 | --- | --- | --- |
-| Transient | `bindAsync` | `bindAsyncNamed` |
-| Singleton | `singletonAsync` | `singletonAsyncNamed` |
-| Scoped | `scopedAsync` | `scopedAsyncNamed` |
+| Transient | `bind_async` | `bind_async_named` |
+| Singleton | `singleton_async` | `singleton_async_named` |
+| Scoped | `scoped_async` | `scoped_async_named` |
 
-Conditional variants put `If` before `Async`: for example, `bindIfAsync`, `singletonIfAsyncNamed`, and `scopedIfAsync`. Await registration, including rebinding notifications. A rejected conditional registration never invokes its factory. A factory receives the current container and returns `Box::pin(async move { ... })` with `Result<Arc<T>, BindingResolutionError>`; the public alias is `openrust::container::FactoryFuture`.
+Conditional variants put `If` before `Async`: for example, `bind_if_async`, `singleton_if_async_named`, and `scoped_if_async`. Await registration, including rebinding notifications. A rejected conditional registration never invokes its factory. A factory receives the current container and returns `Box::pin(async move { ... })` with `Result<Arc<T>, BindingResolutionError>`; the public alias is `openrust::container::FactoryFuture`.
 
 ```rust
 use std::sync::Arc;
@@ -278,27 +278,27 @@ struct Worker(Arc<Client>);
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), BindingResolutionError> {
     let app = Container::default();
-    app.singletonAsync::<Client, _>(|_| Box::pin(async {
+    app.singleton_async::<Client, _>(|_| Box::pin(async {
         tokio::task::yield_now().await;
         Ok(Arc::new(Client))
     })).await?;
-    app.scopedAsync::<Worker, _>(|container| Box::pin(async move {
-        Ok(Arc::new(Worker(container.makeAsync::<Client>().await?)))
+    app.scoped_async::<Worker, _>(|container| Box::pin(async move {
+        Ok(Arc::new(Worker(container.make_async::<Client>().await?)))
     })).await?;
     app.scope(async {
-        let a = app.makeAsync::<Worker>().await?;
-        let b = app.makeAsync::<Worker>().await?;
+        let a = app.make_async::<Worker>().await?;
+        let b = app.make_async::<Worker>().await?;
         assert!(Arc::ptr_eq(&a, &b));
-        assert!(Arc::ptr_eq(&a.0, &app.makeAsync::<Client>().await?));
+        assert!(Arc::ptr_eq(&a.0, &app.make_async::<Client>().await?));
         Ok::<(), BindingResolutionError>(())
     }).await?;
     Ok(())
 }
 ```
 
-Inside a factory, `makeAsync` and `getAsync` automatically load a dependency's deferred provider and wait for readiness. The same consumer context, aliases, output contracts, decorators, and resolution callbacks apply to synchronous and asynchronous bindings. A synchronous lookup of an uncached asynchronous factory returns `AsyncResolutionRequired`; a ready shared cache is readable synchronously.
+Inside a factory, `make_async` and `get_async` automatically load a dependency's deferred provider and wait for readiness. The same consumer context, aliases, output contracts, decorators, and resolution callbacks apply to synchronous and asynchronous bindings. A synchronous lookup of an uncached asynchronous factory returns `AsyncResolutionRequired`; a ready shared cache is readable synchronously.
 
-Use contextual `giveAsync`, `giveServiceAsync`, `giveConfigAsync`, or `giveTaggedAsync` when the selected value needs asynchronous resolution. `tagged(...).collectAsync().await` resolves a collection; `iter().nextAsync().await` resolves one entry at a time. Cancelling the latter leaves that entry available for the next call. `rebindingAsync`, `refreshAsync`, and `extendAsync` await required construction and notification, while their callbacks and decorators remain synchronous. Perform awaited initialization in a factory, not a synchronous callback.
+Use contextual `give_async`, `give_service_async`, `give_config_async`, or `give_tagged_async` when the selected value needs asynchronous resolution. `tagged(...).collect_async().await` resolves a collection; `iter().next_async().await` resolves one entry at a time. Cancelling the latter leaves that entry available for the next call. `rebinding_async`, `refresh_async`, and `extend_async` await required construction and notification, while their callbacks and decorators remain synchronous. Perform awaited initialization in a factory, not a synchronous callback.
 
 ```rust
 use std::sync::{Arc, Mutex};
@@ -307,22 +307,22 @@ struct Worker(Arc<String>);
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), BindingResolutionError> {
     let app = Container::default();
-    app.bindAsyncNamed::<String, _>("message", |_| Box::pin(async {
+    app.bind_async_named::<String, _>("message", |_| Box::pin(async {
         Ok(Arc::new(String::from("first")))
     })).await?;
-    app.when::<Worker>()?.needs::<String>().giveServiceAsync("message")?;
-    app.bindAsync::<Worker, _>(|container| Box::pin(async move {
-        Ok(Arc::new(Worker(container.makeAsync::<String>().await?)))
+    app.when::<Worker>()?.needs::<String>().give_service_async("message")?;
+    app.bind_async::<Worker, _>(|container| Box::pin(async move {
+        Ok(Arc::new(Worker(container.make_async::<String>().await?)))
     })).await?;
     app.tag([ServiceKey::typed::<Worker>()], ["workers"]);
-    let workers = app.tagged::<Worker>("workers").collectAsync().await?;
+    let workers = app.tagged::<Worker>("workers").collect_async().await?;
     assert_eq!(&*workers[0].0, "first");
     let target = Arc::new(Mutex::new(String::new()));
-    app.refreshAsync::<String, _, _>("message", target.clone(), |target, value| {
+    app.refresh_async::<String, _, _>("message", target.clone(), |target, value| {
         *target.lock().unwrap() = (*value).clone();
         Ok(())
     }).await?;
-    app.bindAsyncNamed::<String, _>("message", |_| Box::pin(async {
+    app.bind_async_named::<String, _>("message", |_| Box::pin(async {
         Ok(Arc::new(String::from("second")))
     })).await?;
     assert_eq!(&*target.lock().unwrap(), "second");
@@ -336,11 +336,11 @@ The framework restores construction context on each poll, so a suspended factory
 
 ## Parameter Overrides
 
-Use `Application::makeWith::<T>(parameters).await` to supply explicit construction arguments. Container callers use synchronous `makeWith` or `makeWithAsync`; named keys use `makeWithNamed` and `makeWithAsyncNamed`. The application provides `makeWithNamed(...).await` for named keys.
+Use `Application::make_with::<T>(parameters).await` to supply explicit construction arguments. Container callers use synchronous `make_with` or `make_with_async`; named keys use `make_with_named` and `make_with_async_named`. The application provides `make_with_named(...).await` for named keys.
 
 An empty set follows normal resolution and may reuse a shared instance. A nonempty set selects the registered factory, bypasses supplied instances and shared caches, and constructs a separate value. It applies contextual selection, decorators and resolving callbacks without replacing the ordinary shared value or recording ordinary resolved history. Supplying parameters to an instance-only service with no factory returns `NotBound`.
 
-PHP passes its factory an argument array. Rust factories retain their explicit container argument and read the current immutable snapshot through `getLastParameterOverride()`. `ResolutionEvent::parameters()` exposes the snapshot to before-resolving callbacks. Ordinary nested lookups receive an empty set; forward the snapshot explicitly when a dependency should use it. Each async poll restores its own frame, including when an ordinary pending lookup resumes inside another parameterized construction.
+PHP passes its factory an argument array. Rust factories retain their explicit container argument and read the current immutable snapshot through `get_last_parameter_override()`. `ResolutionEvent::parameters()` exposes the snapshot to before-resolving callbacks. Ordinary nested lookups receive an empty set; forward the snapshot explicitly when a dependency should use it. Each async poll restores its own frame, including when an ordinary pending lookup resumes inside another parameterized construction.
 
 ```rust
 use std::sync::Arc;
@@ -356,19 +356,19 @@ fn arguments(number: u32) -> ParameterOverrides {
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), BindingResolutionError> {
     let app = Container::default();
-    app.singletonAsync::<u32, _>(|container| Box::pin(async move {
+    app.singleton_async::<u32, _>(|container| Box::pin(async move {
         tokio::task::yield_now().await;
-        let value = container.getLastParameterOverride()
+        let value = container.get_last_parameter_override()
             .get(&ParameterKey::name("number"))
             .map(|value| value.downcast::<u32>()).transpose()?;
         Ok(Arc::new(value.map_or(0, |value| *value)))
     })).await?;
-    assert_eq!(*app.makeWithAsync::<u32>(arguments(7)).await?, 7);
+    assert_eq!(*app.make_with_async::<u32>(arguments(7)).await?, 7);
     assert!(!app.resolved(ServiceKey::typed::<u32>())?);
-    let normal = app.makeAsync::<u32>().await?;
+    let normal = app.make_async::<u32>().await?;
     assert_eq!(*normal, 0);
-    assert_eq!(*app.makeWithAsync::<u32>(arguments(9)).await?, 9);
-    assert!(Arc::ptr_eq(&normal, &app.makeAsync::<u32>().await?));
+    assert_eq!(*app.make_with_async::<u32>(arguments(9)).await?, 9);
+    assert!(Arc::ptr_eq(&normal, &app.make_async::<u32>().await?));
     Ok(())
 }
 ```
@@ -379,9 +379,9 @@ async fn main() -> Result<(), BindingResolutionError> {
 
 ## Automatic Constructor Injection
 
-Rust has no PHP runtime constructor reflection. Register `ClassDescriptor` metadata in a provider's `register` hook through `app.container().registerClass(...)`. A descriptor declares named parameter types and a compiled constructor, replacing reflection's inspection and dynamic invocation. Once registered, normal `make` / `makeAsync` automatically resolve its dependencies; no service factory binding is required. Types with neither metadata nor a binding return `NotBound`.
+Rust has no PHP runtime constructor reflection. Register `ClassDescriptor` metadata in a provider's `register` hook through `app.container().register_class(...)`. A descriptor declares named parameter types and a compiled constructor, replacing reflection's inspection and dynamic invocation. Once registered, normal `make` / `make_async` automatically resolve its dependencies; no service factory binding is required. Types with neither metadata nor a binding return `NotBound`.
 
-`ClassDescriptor::concrete::<T, _>` accepts a synchronous constructor; `concreteAsync` accepts an awaited constructor. Synchronous lookup cannot initialize an async constructor or dependency and returns the existing async-required error. The async path automatically loads deferred dependency providers. Metadata is application-local and immutable: registering the same descriptor clone is idempotent, while a different definition for the same type is rejected. Metadata alone does not make `bound` or `isShared` true. Ordinary successful resolution records history, while explicit nonempty parameter overrides do not.
+`ClassDescriptor::concrete::<T, _>` accepts a synchronous constructor; `concrete_async` accepts an awaited constructor. Synchronous lookup cannot initialize an async constructor or dependency and returns the existing async-required error. The async path automatically loads deferred dependency providers. Metadata is application-local and immutable: registering the same descriptor clone is idempotent, while a different definition for the same type is rejected. Metadata alone does not make `bound` or `is_shared` true. Ordinary successful resolution records history, while explicit nonempty parameter overrides do not.
 
 ```rust
 use std::sync::Arc;
@@ -394,27 +394,27 @@ struct Service { client: Arc<Client>, name: String }
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), BindingResolutionError> {
     let app = Container::default();
-    app.registerClass(ClassDescriptor::concreteAsync::<Client, _>(vec![], |_| Box::pin(async {
+    app.register_class(ClassDescriptor::concrete_async::<Client, _>(vec![], |_| Box::pin(async {
         tokio::task::yield_now().await;
         Ok(Arc::new(Client))
     }))?)?;
-    app.registerClass(ClassDescriptor::concrete::<Service, _>(vec![
+    app.register_class(ClassDescriptor::concrete::<Service, _>(vec![
         ConstructorParam::class::<Client>("client"),
         ConstructorParam::scalar::<String>("name")
-            .withDefault(|| Ok(ParameterValue::new(String::from("default")))),
+            .with_default(|| Ok(ParameterValue::new(String::from("default")))),
     ], |args| Ok(Arc::new(Service {
         client: args.service(0)?, name: (*args.get::<String>(1)?).clone(),
     })))?)?;
     assert!(!app.bound::<Service>());
     let mut parameters = ParameterOverrides::new();
     parameters.insert(ParameterKey::name("name"), ParameterValue::new(String::from("custom")));
-    assert_eq!(app.makeWithAsync::<Service>(parameters).await?.name, "custom");
-    app.singletonAsync::<Service, _>(|container| Box::pin(async move {
-        container.buildAsync::<Service>().await
+    assert_eq!(app.make_with_async::<Service>(parameters).await?.name, "custom");
+    app.singleton_async::<Service, _>(|container| Box::pin(async move {
+        container.build_async::<Service>().await
     })).await?;
-    let service = app.makeAsync::<Service>().await?;
+    let service = app.make_async::<Service>().await?;
     assert_eq!(service.name, "default");
-    let cached = app.makeAsync::<Service>().await?;
+    let cached = app.make_async::<Service>().await?;
     assert!(Arc::ptr_eq(&service.client, &cached.client));
     assert!(Arc::ptr_eq(&service, &cached));
     Ok(())
@@ -423,11 +423,11 @@ async fn main() -> Result<(), BindingResolutionError> {
 
 `ConstructorParam::scalar::<T>("name")` selects a value of the declared Rust type. `class::<T>("name")` selects an `Arc<T>`, including `dyn Trait` contracts. `ResolvedArgs::get` reads scalar slots, `service` returns the original service `Arc`, and `value` exposes the typed carrier. Slots follow declaration order; duplicate or empty names are rejected before registration.
 
-A matching explicit named override wins. The first [contextual attribute](#contextual-attributes) is evaluated next. A null attribute result falls back to ordinary resolution. A primitive then uses its `$name` contextual binding, `withDefault`, or a null value if `nullable` is enabled. A class default applies when that class has no explicit binding or direct contextual binding. Otherwise the container resolves the class. A nullable class without a default still attempts dependency resolution. Use `nullable().withDefault(|| Ok(ParameterValue::null()))` for an optional default. Read nullable slots through `optional` or `optionalService`.
+A matching explicit named override wins. The first [contextual attribute](#contextual-attributes) is evaluated next. A null attribute result falls back to ordinary resolution. A primitive then uses its `$name` contextual binding, `with_default`, or a null value if `nullable` is enabled. A class default applies when that class has no explicit binding or direct contextual binding. Otherwise the container resolves the class. A nullable class without a default still attempts dependency resolution. Use `nullable().with_default(|| Ok(ParameterValue::null()))` for an optional default. Read nullable slots through `optional` or `optional_service`.
 
 Dependencies and defaults are evaluated in declaration order, then the selected arguments are type-checked before invoking the constructor. Default functions are lazy and evaluated afresh when selected. Constructor arguments retain strict Rust types; this adapter does not implement PHP weak scalar coercion. Nested ordinary dependency resolution starts with empty overrides. The normal context, extenders, resolution callbacks and readiness protection remain in effect.
 
-`build::<T>()` / `buildAsync::<T>().await` directly invoke the compiled constructor, bypassing the target binding, cache, extenders, container resolving callbacks and resolved history. Parameter and class attribute callbacks still run. Dependencies use ordinary container resolution. Use `singleton(|container| container.build::<T>())`, `scoped`, or their async equivalents to give a described class a shared lifetime. `build` uses the active parameter snapshot, so a parameterized factory can forward arguments within the current resolution.
+`build::<T>()` / `build_async::<T>().await` directly invoke the compiled constructor, bypassing the target binding, cache, extenders, container resolving callbacks and resolved history. Parameter and class attribute callbacks still run. Dependencies use ordinary container resolution. Use `singleton(|container| container.build::<T>())`, `scoped`, or their async equivalents to give a described class a shared lifetime. `build` uses the active parameter snapshot, so a parameterized factory can forward arguments within the current resolution.
 
 Register compiled adapters for [method invocation](#method-invocation), [SelfBuilding](#self-building-classes) and [interface views](#compiled-interface-views) as needed. Each declaration supplies the type information the container uses in place of PHP runtime reflection.
 
@@ -449,14 +449,14 @@ impl Filter for Named { fn name(&self) -> &str { self.0 } }
 struct Pipeline(Vec<Arc<dyn Filter>>);
 fn main() -> Result<(), BindingResolutionError> {
     let app = Container::default();
-    app.bindNamed::<dyn Filter, _>("first", |_| Ok(Arc::new(Named("first"))))?;
-    app.bindNamed::<dyn Filter, _>("second", |_| Ok(Arc::new(Named("second"))))?;
-    app.registerClass(ClassDescriptor::concrete::<Pipeline, _>(
+    app.bind_named::<dyn Filter, _>("first", |_| Ok(Arc::new(Named("first"))))?;
+    app.bind_named::<dyn Filter, _>("second", |_| Ok(Arc::new(Named("second"))))?;
+    app.register_class(ClassDescriptor::concrete::<Pipeline, _>(
         vec![ConstructorParam::class::<dyn Filter>("filters").variadic()],
         |args| Ok(Arc::new(Pipeline(args.services(0)?))),
     )?)?;
     app.when::<Pipeline>()?.needs::<dyn Filter>()
-        .giveServices(["first", "second", "first"])?;
+        .give_services(["first", "second", "first"])?;
     let pipeline = app.make::<Pipeline>()?;
     let names: Vec<_> = pipeline.0.iter().map(|filter| filter.name()).collect();
     assert_eq!(names, ["first", "second", "first"]);
@@ -464,11 +464,11 @@ fn main() -> Result<(), BindingResolutionError> {
 }
 ```
 
-Use `needs::<T>().giveServices(keys)` for `give(array)` class-service list. Keys resolve in order, including duplicates, within the original consumer context. Registration is lazy, normalizes dependency aliases, and uses an immutable key snapshot for an in-flight construction. The asynchronous constructor channel waits for deferred or async services without requiring a separate registration method.
+Use `needs::<T>().give_services(keys)` for `give(array)` class-service list. Keys resolve in order, including duplicates, within the original consumer context. Registration is lazy, normalizes dependency aliases, and uses an immutable key snapshot for an in-flight construction. The asynchronous constructor channel waits for deferred or async services without requiring a separate registration method.
 
-Tagged or computed collection factories use the existing typed collection contract: `needs::<Vec<Arc<T>>>().giveTagged(tag)` or `giveTaggedAsync(tag)`. The variadic constructor can consume that collection. A direct contextual binding for `T` takes precedence over the collection adapter. Collection factories execute as their own resolution, so items do not inherit the consuming class's contextual bindings; direct `giveServices` arrays preserve that class context. Collection callbacks use the `Vec<Arc<T>>` identity, reflecting the Rust list contract.
+Tagged or computed collection factories use the existing typed collection contract: `needs::<Vec<Arc<T>>>().give_tagged(tag)` or `give_tagged_async(tag)`. The variadic constructor can consume that collection. A direct contextual binding for `T` takes precedence over the collection adapter. Collection factories execute as their own resolution, so items do not inherit the consuming class's contextual bindings; direct `give_services` arrays preserve that class context. Collection callbacks use the `Vec<Arc<T>>` identity, reflecting the Rust list contract.
 
-For primitives, bind `$name` to `Vec<Arc<T>>` or `Vec<ParameterValue>`. For example, `needsNamed::<Vec<Arc<String>>>("$names").giveConfig("app.names", None)` reads the current configuration array. The framework enables Serde's `rc` feature for these typed lists. Shared item references support values without `Clone`; heterogeneous carriers preserve null and are checked individually. These ownership representations add argument wrappers and reference counting.
+For primitives, bind `$name` to `Vec<Arc<T>>` or `Vec<ParameterValue>`. For example, `needs_named::<Vec<Arc<String>>>("$names").give_config("app.names", None)` reads the current configuration array. The framework enables Serde's `rc` feature for these typed lists. Shared item references support values without `Clone`; heterogeneous carriers preserve null and are checked individually. These ownership representations add argument wrappers and reference counting.
 
 Primitive contextual closures execute inline in the constructor context, as in primitive resolver. They keep the constructor's parameter snapshot and do not create an additional service event/cache/history for `$name`. Normal dependency lookups inside the closure still follow ordinary container behavior. Async primitive closures can await initialization in that same context.
 
@@ -476,7 +476,7 @@ A class variadic catches missing bindings and unresolved primitive dependency er
 
 ## Method Invocation
 
-Use `call(target, parameters).await` on a Container or Application. Rust has no PHP runtime reflection: `Callback` supplies closure parameter metadata, while `registerMethod` and `registerStaticMethod` register compiled method adapters. The callback can borrow data and return a generic future. Registered method results require `Send + 'static`, but do not require `Sync`; anonymous callbacks may return borrowed results.
+Use `call(target, parameters).await` on a Container or Application. Rust has no PHP runtime reflection: `Callback` supplies closure parameter metadata, while `register_method` and `register_static_method` register compiled method adapters. The callback can borrow data and return a generic future. Registered method results require `Send + 'static`, but do not require `Sync`; anonymous callbacks may return borrowed results.
 
 ```rust
 use openrust::{
@@ -500,7 +500,7 @@ async fn main() {
 }
 ```
 
-BoundMethod has its own parameter policy. A matching name wins, then `ParameterKey::class::<T>()`, then class injection. Each explicit key is consumed once. A class default applies when that class is not bound, even if a contextual-only entry exists. Scalar defaults apply; nullable alone does not supply a missing value, and scalar method parameters do not use `$name` contextual bindings. Integer keys and other unconsumed inputs are retained in insertion order in `CallArguments.remaining`; they do not replace missing named parameters. A final variadic slot receives those remaining values. An explicit array remains one value; computed class collections are spread, constructor `giveServices` arrays are not, and missing class dependencies propagate errors.
+BoundMethod has its own parameter policy. A matching name wins, then `ParameterKey::class::<T>()`, then class injection. Each explicit key is consumed once. A class default applies when that class is not bound, even if a contextual-only entry exists. Scalar defaults apply; nullable alone does not supply a missing value, and scalar method parameters do not use `$name` contextual bindings. Integer keys and other unconsumed inputs are retained in insertion order in `CallArguments.remaining`; they do not replace missing named parameters. A final variadic slot receives those remaining values. An explicit array remains one value; computed class collections are spread, constructor `give_services` arrays are not, and missing class dependencies propagate errors.
 
 ```rust
 use openrust::{
@@ -517,7 +517,7 @@ async fn main() {
     let container = Container::default();
     container.instance(Arc::new(Worker)).unwrap();
     container.instance(Arc::new(Client("ready"))).unwrap();
-    container.registerMethod::<Worker, String, _>("run",
+    container.register_method::<Worker, String, _>("run",
         vec![ConstructorParam::class::<Client>("client")],
         |_, args, _| Box::pin(async move {
             Ok(args.resolved.service::<Client>(0)?.0.to_owned())
@@ -527,18 +527,18 @@ async fn main() {
         MethodCall::<Worker>::class("run"), ParameterOverrides::new(),
     ).await.unwrap();
     assert_eq!(value, "ready");
-    container.bindMethod::<Worker, String, _>("run", |_, _| {
+    container.bind_method::<Worker, String, _>("run", |_, _| {
         Box::pin(async { Ok("replacement".to_owned()) })
     }).unwrap();
-    assert!(container.hasMethodBinding::<Worker>("run"));
+    assert!(container.has_method_binding::<Worker>("run"));
     let value: String = container.call(
         MethodCall::on(Arc::new(Worker), "run"), ParameterOverrides::new(),
     ).await.unwrap();
     assert_eq!(value, "replacement");
-    container.registerStaticMethod::<Worker, u32, _>("version", vec![], |_, _| {
+    container.register_static_method::<Worker, u32, _>("version", vec![], |_, _| {
         Box::pin(async { Ok(1) })
     }).unwrap();
-    container.bindStaticMethod::<Worker, u32, _>("version", |_, _| {
+    container.bind_static_method::<Worker, u32, _>("version", |_, _| {
         Box::pin(async { Ok(2) })
     }).unwrap();
     assert_eq!(container.call::<u32, _>(StaticCall::<Worker>::qualified("version"),
@@ -548,9 +548,9 @@ async fn main() {
 }
 ```
 
-`MethodCall::on(receiver, method)` represents an object array callable. `class(method)` represents `Class@method`: it resolves the receiver before looking up an override. `defaultMethod(method)` and `invokable()` represent the class default and declared `__invoke`; a binding alone does not establish that declaration. Empty and "0" default method names use the invokable path. Registered declarations use ASCII case-insensitive lookup; method bindings use the exact caller spelling.
+`MethodCall::on(receiver, method)` represents an object array callable. `class(method)` represents `Class@method`: it resolves the receiver before looking up an override. `default_method(method)` and `invokable()` represent the class default and declared `__invoke`; a binding alone does not establish that declaration. Empty and "0" default method names use the invokable path. Registered declarations use ASCII case-insensitive lookup; method bindings use the exact caller spelling.
 
-`bindMethod` replaces the declared body and skips its parameter injection and validation. `hasMethodBinding` checks the override; `callMethodBinding` invokes it directly without adding a class context. Static adapters use `bindStaticMethod` and `callStaticMethodBinding`. `StaticCall::qualified` corresponds to a `Class::method` string and ignores method bindings, while `StaticCall::array` corresponds to a class-array callable and consults them. Invalid receiver forms or result contracts return typed errors.
+`bind_method` replaces the declared body and skips its parameter injection and validation. `has_method_binding` checks the override; `call_method_binding` invokes it directly without adding a class context. Static adapters use `bind_static_method` and `call_static_method_binding`. `StaticCall::qualified` corresponds to a `Class::method` string and ignores method bindings, while `StaticCall::array` corresponds to a class-array callable and consults them. Invalid receiver forms or result contracts return typed errors.
 
 An actual callable object or static method establishes a class context only if that class is absent from the logical build stack. `Class@method` retains the parent context, as in the framework BoundMethod.callClass. Dependencies still enter their own normal construction contexts. Contexts are restored on every async poll and cancellation; separate applications and concurrent calls remain isolated. Application entry methods also establish the application Facade context. Running calls keep their selected override, original parameter ownership and receiver alive until completion or cancellation.
 
@@ -558,7 +558,7 @@ The compiled type `C` replaces PHP class-name reflection; Rust trait aliases and
 
 ## Lazy Closures
 
-`factory::<T>()` returns a closure that calls `make::<T>()` each time. `factoryNamed::<T>(key)` keeps the original owned ServiceKey and performs live alias lookup. Creation does not check or resolve the service. Later registrations, replacements and instance eviction are visible; singleton/scoped behavior is exactly the ordinary resolver behavior. The asynchronous container overloads are `factoryAsync` and `factoryAsyncNamed`. Application exposes asynchronous `factory` and `factoryNamed`, establishing its Facade context for each resolution.
+`factory::<T>()` returns a closure that calls `make::<T>()` each time. `factory_named::<T>(key)` keeps the original owned ServiceKey and performs live alias lookup. Creation does not check or resolve the service. Later registrations, replacements and instance eviction are visible; singleton/scoped behavior is exactly the ordinary resolver behavior. The asynchronous container overloads are `factory_async` and `factory_async_named`. Application exposes asynchronous `factory` and `factory_named`, establishing its Facade context for each resolution.
 
 `wrap(Callback::reusable(signature, callback), parameters)` returns a reusable asynchronous closure around `call`. The input parameter map is retained as a copy-on-write snapshot, while dependencies and defaults are selected again on every invocation. The same callback state is shared; neither the callback nor its results are cloned or cached. Errors and cancellation do not consume the wrapper. Scope and class context follow execution, rather than being frozen when the wrapper is created.
 
@@ -590,7 +590,7 @@ async fn main() {
     container.instance(Arc::new(5u32)).unwrap();
     assert_eq!(wrapped().await.unwrap(), 7);
 
-    let async_factory = container.factoryAsyncNamed::<u32>(
+    let async_factory = container.factory_async_named::<u32>(
         openrust::container::ServiceKey::typed::<u32>(),
     );
     assert_eq!(*async_factory().await.unwrap(), 5);
@@ -601,9 +601,9 @@ async fn main() {
 
 ## Binding Directory and Flush
 
-`getBindings()` returns an owned insertion-ordered `Bindings` snapshot. `get(&ServiceKey)` performs exact lookup, while `iter`, `keys` and owned iteration preserve registration order. Replacing a binding keeps its position. Each `BindingDefinition` exposes the original `concrete` factory and declared `shared` flag; an explicit instance override does not change that flag. Alias-only keys, instance-only keys, contextual bindings and automatic class metadata are excluded. Reading or modifying the snapshot does not resolve services or mutate the container.
+`get_bindings()` returns an owned insertion-ordered `Bindings` snapshot. `get(&ServiceKey)` performs exact lookup, while `iter`, `keys` and owned iteration preserve registration order. Replacing a binding keeps its position. Each `BindingDefinition` exposes the original `concrete` factory and declared `shared` flag; an explicit instance override does not change that flag. Alias-only keys, instance-only keys, contextual bindings and automatic class metadata are excluded. Reading or modifying the snapshot does not resolve services or mutate the container.
 
-The retained `FactoryHandle` corresponds to invoking the concrete closure from binding array. `call::<T>(&container, parameters)` and `callAsync::<T>(...)` use the supplied container and explicit parameter frame, without adding the target class context. They bypass the target cache, decorators, events and resolution history; dependency lookups still use ordinary behavior with fresh parameter frames. A raw shared factory therefore constructs a fresh result every time. Wrong output types fail before executing user code, and synchronous invocation rejects an asynchronous factory even if normal resolution has already cached its result. `sameFactory` compares retained recipe identity.
+The retained `FactoryHandle` corresponds to invoking the concrete closure from binding array. `call::<T>(&container, parameters)` and `call_async::<T>(...)` use the supplied container and explicit parameter frame, without adding the target class context. They bypass the target cache, decorators, events and resolution history; dependency lookups still use ordinary behavior with fresh parameter frames. A raw shared factory therefore constructs a fresh result every time. Wrong output types fail before executing user code, and synchronous invocation rejects an asynchronous factory even if normal resolution has already cached its result. `same_factory` compares retained recipe identity.
 
 ```rust
 use openrust::{
@@ -619,17 +619,17 @@ async fn main() {
     container.extend::<u32, _>(ServiceKey::typed::<u32>(), |value, _| {
         Ok(Arc::new(*value + 10))
     }).unwrap();
-    let definitions = container.getBindings();
+    let definitions = container.get_bindings();
     let definition = definitions.get(&ServiceKey::typed::<u32>()).unwrap();
     assert!(definition.shared);
-    assert_eq!(*definition.concrete.callAsync::<u32>(
+    assert_eq!(*definition.concrete.call_async::<u32>(
         &container, ParameterOverrides::new(),
     ).await.unwrap(), 1);
     assert!(!container.resolved(ServiceKey::typed::<u32>()).unwrap());
     assert_eq!(*container.make::<u32>().unwrap(), 11);
 
     container.flush();
-    assert!(container.getBindings().is_empty());
+    assert!(container.get_bindings().is_empty());
     assert!(!container.bound::<u32>());
     assert_eq!(*definition.concrete.call::<u32>(
         &container, ParameterOverrides::new(),
@@ -647,7 +647,7 @@ Rust uses typed definitions and owned ServiceKeys instead of a dynamically typed
 
 ## Environment Resolver
 
-`resolveEnvironmentUsing(Some(Arc::new(callback)))` installs the base container's environment resolver; `None` clears it. Without a resolver, `currentEnvironmentIs(query)` returns `Ok(EnvironmentResult::Boolean(false))`. The base container does not parse environment files, match wildcards or reinterpret empty arguments. It forwards `EnvironmentQuery::Name` or `Names` exactly, preserving array order, duplicates and empty strings. Query strings are borrowed for the synchronous callback rather than copied.
+`resolve_environment_using(Some(Arc::new(callback)))` installs the base container's environment resolver; `None` clears it. Without a resolver, `current_environment_is(query)` returns `Ok(EnvironmentResult::Boolean(false))`. The base container does not parse environment files, match wildcards or reinterpret empty arguments. It forwards `EnvironmentQuery::Name` or `Names` exactly, preserving array order, duplicates and empty strings. Query strings are borrowed for the synchronous callback rather than copied.
 
 The resolver may return `EnvironmentResult::Boolean` or `String`, exactly preserving the supported PHP result shapes. `Result` propagates callback exceptions as container errors. `bool::from(result)` or `bool::from(&result)` applies PHP truthiness: only false, the empty string and the string "0" are false. The example deliberately defines an explicit custom policy that returns a name for an empty array; it does not describe the framework Application's default environment matcher.
 
@@ -660,22 +660,22 @@ use std::sync::Arc;
 
 fn main() {
     let container = Container::default();
-    assert_eq!(container.currentEnvironmentIs("local").unwrap(), false.into());
-    container.resolveEnvironmentUsing(Some(Arc::new(|query| {
+    assert_eq!(container.current_environment_is("local").unwrap(), false.into());
+    container.resolve_environment_using(Some(Arc::new(|query| {
         Ok(match query {
             EnvironmentQuery::Name(name) => (name == "testing").into(),
             EnvironmentQuery::Names([]) => "testing".into(),
             EnvironmentQuery::Names(names) => names.contains(&"testing").into(),
         })
     })));
-    assert!(bool::from(container.currentEnvironmentIs("testing").unwrap()));
-    assert!(bool::from(container.currentEnvironmentIs(&["local", "testing"]).unwrap()));
-    assert_eq!(container.currentEnvironmentIs(&[]).unwrap(),
+    assert!(bool::from(container.current_environment_is("testing").unwrap()));
+    assert!(bool::from(container.current_environment_is(&["local", "testing"]).unwrap()));
+    assert_eq!(container.current_environment_is(&[]).unwrap(),
         EnvironmentResult::from("testing"));
     container.flush();
-    assert!(bool::from(container.currentEnvironmentIs("testing").unwrap()));
-    container.resolveEnvironmentUsing(None);
-    assert_eq!(container.currentEnvironmentIs("testing").unwrap(), false.into());
+    assert!(bool::from(container.current_environment_is("testing").unwrap()));
+    container.resolve_environment_using(None);
+    assert_eq!(container.current_environment_is("testing").unwrap(), false.into());
 }
 ```
 
@@ -687,33 +687,33 @@ For an application, the configuration bootstrap installs the default matcher. Se
 
 ## Current Container and Offset Access
 
-`Container::getInstance()` returns the current application's container during provider boot, HTTP handling, Artisan execution and application-scoped resolution. Outside an application scope it lazily creates a process default. `Container::setInstance(Some(container))` replaces that default and returns the assigned handle. `Container::setInstance(None)` clears the default. An active application keeps its own container.
+`Container::get_instance()` returns the current application's container during provider boot, HTTP handling, Artisan execution and application-scoped resolution. Outside an application scope it lazily creates a process default. `Container::set_instance(Some(container))` replaces that default and returns the assigned handle. `Container::set_instance(None)` clears the default. An active application keeps its own container.
 
-`offsetExists` checks whether a key is bound, and `offsetGet::<T>` resolves it as `Arc<T>`. Use `offsetSet` to bind an existing value or `offsetSetFactory` to register a transient factory. The asynchronous equivalents are `offsetGetAsync` and `offsetSetFactoryAsync`.
+`offset_exists` checks whether a key is bound, and `offset_get::<T>` resolves it as `Arc<T>`. Use `offset_set` to bind an existing value or `offset_set_factory` to register a transient factory. The asynchronous equivalents are `offset_get_async` and `offset_set_factory_async`.
 
 ```rust
 use openrust::container::Container;
 use std::sync::Arc;
 
 fn main() {
-    let container = Container::getInstance();
+    let container = Container::get_instance();
     let greeting: Arc<str> = Arc::from("hello");
-    container.offsetSet("greeting", greeting).unwrap();
-    assert!(container.offsetExists("greeting"));
-    assert_eq!(&*container.offsetGet::<str>("greeting").unwrap(), "hello");
+    container.offset_set("greeting", greeting).unwrap();
+    assert!(container.offset_exists("greeting"));
+    assert_eq!(&*container.offset_get::<str>("greeting").unwrap(), "hello");
 
-    container.offsetSetFactory("answer", |_| Ok(Arc::new(42_u32))).unwrap();
-    assert_eq!(*container.offsetGet::<u32>("answer").unwrap(), 42);
-    container.offsetUnset("answer");
-    assert!(!container.offsetExists("answer"));
+    container.offset_set_factory("answer", |_| Ok(Arc::new(42_u32))).unwrap();
+    assert_eq!(*container.offset_get::<u32>("answer").unwrap(), 42);
+    container.offset_unset("answer");
+    assert!(!container.offset_exists("answer"));
 }
 ```
 
-`offsetUnset` removes the exact key's binding, shared instances and resolution record, including cached values in live scopes. Aliases remain registered. Reading an alias whose target was removed returns a resolution error until the target is bound again. Rust uses named methods for fallible, typed lookup and mutation. An in-flight caller can still receive its result after deletion, while subsequent lookups use the current registry.
+`offset_unset` removes the exact key's binding, shared instances and resolution record, including cached values in live scopes. Aliases remain registered. Reading an alias whose target was removed returns a resolution error until the target is bound again. Rust uses named methods for fallible, typed lookup and mutation. An in-flight caller can still receive its result after deletion, while subsequent lookups use the current registry.
 
 ## Self-building Classes
 
-Implement `SelfBuilding::newInstance` and register a `ClassDescriptor::selfBuilding` when a type needs a static construction method. The descriptor declares independent parameter lists for the ordinary constructor and for `newInstance`. The container calls `newInstance` with the static method's injected arguments.
+Implement `SelfBuilding::new_instance` and register a `ClassDescriptor::self_building` when a type needs a static construction method. The descriptor declares independent parameter lists for the ordinary constructor and for `new_instance`. The container calls `new_instance` with the static method's injected arguments.
 
 ```rust
 use openrust::{
@@ -726,7 +726,7 @@ struct Report(u32);
 
 impl SelfBuilding for Report {
     #[allow(non_snake_case)]
-    fn newInstance(args: ResolvedArgs, container: &Container) -> FactoryFuture<'_, Self> {
+    fn new_instance(args: ResolvedArgs, container: &Container) -> FactoryFuture<'_, Self> {
         Box::pin(async move {
             let base = container.build::<Self>()?;
             Ok(Arc::new(Self(base.0 + *args.service::<u32>(0)?)))
@@ -739,8 +739,8 @@ async fn main() {
     let container = Container::default();
     container.instance(Arc::new(7_u32)).unwrap();
     container
-        .registerClass(
-            ClassDescriptor::selfBuilding::<Report>(
+        .register_class(
+            ClassDescriptor::self_building::<Report>(
                 vec![],
                 |_| Ok(Arc::new(Report(1))),
                 vec![ConstructorParam::class::<u32>("increment")],
@@ -748,15 +748,15 @@ async fn main() {
             .unwrap(),
         )
         .unwrap();
-    assert_eq!(container.makeAsync::<Report>().await.unwrap().0, 8);
+    assert_eq!(container.make_async::<Report>().await.unwrap().0, 8);
 }
 ```
 
-Use `makeAsync` or `buildAsync` for self-building classes. Constructor overrides supplied to `makeWithAsync` do not become method arguments. If `newInstance` resolves the same type during construction, the ordinary constructor handles that nested build. An ordinary constructor cycle still produces a resolution error. Use `bindStaticMethod` with the name `newInstance` to replace the static method for container-driven construction.
+Use `make_async` or `build_async` for self-building classes. Constructor overrides supplied to `make_with_async` do not become method arguments. If `new_instance` resolves the same type during construction, the ordinary constructor handles that nested build. An ordinary constructor cycle still produces a resolution error. Use `bind_static_method` with the name `new_instance` to replace the static method for container-driven construction.
 
 ## Contextual Attributes
 
-Use `ConstructorParam::withAttribute` to attach a contextual attribute to a constructor, method, or `newInstance` parameter. Implement `ContextualAttribute` to define how it resolves a value. `whenHasAttribute` overrides that resolver for a particular container.
+Use `ConstructorParam::with_attribute` to attach a contextual attribute to a constructor, method, or `new_instance` parameter. Implement `ContextualAttribute` to define how it resolves a value. `when_has_attribute` overrides that resolver for a particular container.
 
 ```rust
 use openrust::{
@@ -783,24 +783,24 @@ struct Server(u16);
 fn main() {
     let container = Container::default();
     let port = ConstructorParam::scalar::<u16>("port")
-        .withAttribute(ClassAttribute::contextual(|| Ok(Port)));
+        .with_attribute(ClassAttribute::contextual(|| Ok(Port)));
     let descriptor = ClassDescriptor::concrete(vec![port], |args| {
         Ok(Arc::new(Server(*args.get::<u16>(0)?)))
     })
     .unwrap();
 
-    container.registerClass(descriptor).unwrap();
+    container.register_class(descriptor).unwrap();
     assert_eq!(container.make::<Server>().unwrap().0, 8080);
 }
 ```
 
 Constructors check explicit named overrides first, then the first contextual attribute. A null attribute result falls back to ordinary constructor resolution. Method calls check the named override, then the attribute, then the class-name override or normal resolution. Methods preserve an attribute's null result for a nullable slot.
 
-Attach a marker with `ClassAttribute::marker` and use `afterResolvingAttribute` to observe attributes, concrete service types or declared trait views. Parameter callbacks run before construction or invocation. Explicit constructor overrides skip those callbacks. Class callbacks run after construction and before extenders and service resolving callbacks. Attribute callbacks are synchronous Rust functions and also run in asynchronous resolution.
+Attach a marker with `ClassAttribute::marker` and use `after_resolving_attribute` to observe attributes, concrete service types or declared trait views. Parameter callbacks run before construction or invocation. Explicit constructor overrides skip those callbacks. Class callbacks run after construction and before extenders and service resolving callbacks. Attribute callbacks are synchronous Rust functions and also run in asynchronous resolution.
 
 ### Dispatching Attribute Callbacks
 
-A component that resolves its own arguments can call `fireAfterResolvingAttributeCallbacks` with the compiled attributes and the resolved value. Pass `Some(AttributeParameter { .. })` for a parameter, or `None` for a class. Each attribute's `after` runs before registered callbacks. An error stops dispatch and propagates to the caller.
+A component that resolves its own arguments can call `fire_after_resolving_attribute_callbacks` with the compiled attributes and the resolved value. Pass `Some(AttributeParameter { .. })` for a parameter, or `None` for a class. Each attribute's `after` runs before registered callbacks. An error stops dispatch and propagates to the caller.
 
 Wrap an object with `ParameterValue::service(arc)` to retain its concrete type. Callbacks can use `event.service::<T>(container)` to obtain the original object or a registered trait view of the same allocation. A value already erased to a trait retains the supplied trait type. Constructors and method calls can apply a declared projection when a contextual attribute supplies the concrete service.
 
@@ -813,14 +813,14 @@ struct Service(AtomicBool);
 
 fn main() {
     let container = Container::default();
-    container.afterResolvingAttribute::<Audited>(|event, container| {
+    container.after_resolving_attribute::<Audited>(|event, container| {
         let service = event.service::<Service>(container)?.unwrap();
         service.0.store(true, Ordering::Relaxed);
         Ok(())
     });
 
     let service = Arc::new(Service(AtomicBool::new(false)));
-    container.fireAfterResolvingAttributeCallbacks(
+    container.fire_after_resolving_attribute_callbacks(
         &[ClassAttribute::marker(|| Ok(Audited))],
         &ParameterValue::service(service.clone()).into(),
         None,
@@ -831,7 +831,7 @@ fn main() {
 
 ## Conditional Binding Attributes
 
-Register ordered binding metadata with `registerBindingAttributes`. `Bind` matches the application environment, and `BindWhen` evaluates a synchronous predicate with the current container. Use a typed Rust coercion to declare which concrete class implements a service.
+Register ordered binding metadata with `register_binding_attributes`. `Bind` matches the application environment, and `BindWhen` evaluates a synchronous predicate with the current container. Use a typed Rust coercion to declare which concrete class implements a service.
 
 ```rust
 use openrust::{
@@ -854,12 +854,12 @@ impl Reporter for LocalReporter {
 fn main() {
     let container = Container::default();
     container
-        .registerClass(
+        .register_class(
             ClassDescriptor::concrete(vec![], |_| Ok(Arc::new(LocalReporter))).unwrap(),
         )
         .unwrap();
     container
-        .registerBindingAttributes::<dyn Reporter>(vec![
+        .register_binding_attributes::<dyn Reporter>(vec![
             BindWhen::new(
                 Bind::new::<dyn Reporter, LocalReporter>(|reporter| reporter),
                 |_| Ok(true),
@@ -875,7 +875,7 @@ The first matching declaration wins. A wildcard `Bind` is the fallback after all
 
 ## Singleton and Scoped Attributes
 
-Declare a class lifetime with `ClassDescriptor::withLifetime`. Use `Container::registerLifetime` to declare the lifetime of a service key, including an interface configured with `Bind` or `BindWhen`. If both lifetimes are declared on the same type, the singleton declaration takes precedence.
+Declare a class lifetime with `ClassDescriptor::with_lifetime`. Use `Container::register_lifetime` to declare the lifetime of a service key, including an interface configured with `Bind` or `BindWhen`. If both lifetimes are declared on the same type, the singleton declaration takes precedence.
 
 ```rust
 use openrust::{
@@ -890,23 +890,23 @@ fn main() {
     let container = Container::default();
     let report = ClassDescriptor::concrete(vec![], |_| Ok(Arc::new(Report)))
         .unwrap()
-        .withLifetime(Lifetime::Scoped);
-    container.registerClass(report).unwrap();
+        .with_lifetime(Lifetime::Scoped);
+    container.register_class(report).unwrap();
 
     let first = container.make::<Report>().unwrap();
     assert!(Arc::ptr_eq(&first, &container.make::<Report>().unwrap()));
-    container.forgetScopedInstances();
+    container.forget_scoped_instances();
     assert!(!Arc::ptr_eq(&first, &container.make::<Report>().unwrap()));
 }
 ```
 
-`Lifetime::Singleton` reuses the instance in its application container. `Lifetime::Scoped` reuses it within the active request or command lifecycle. Outside an active lifecycle, scoped instances use the container's root cache, which `forgetScopedInstances` can clear.
+`Lifetime::Singleton` reuses the instance in its application container. `Lifetime::Scoped` reuses it within the active request or command lifecycle. Outside an active lifecycle, scoped instances use the container's root cache, which `forget_scoped_instances` can clear.
 
-Sync and async resolution share the same cache. Use async resolution if construction needs asynchronous dependencies. `build` and `buildAsync` construct directly, and explicit constructor overrides use a fresh instance. An implicit concrete class appears as bound after its instance has been cached. `getBindings` lists registered bindings, including those selected by `Bind` and `BindWhen`.
+Sync and async resolution share the same cache. Use async resolution if construction needs asynchronous dependencies. `build` and `build_async` construct directly, and explicit constructor overrides use a fresh instance. An implicit concrete class appears as bound after its instance has been cached. `get_bindings` lists registered bindings, including those selected by `Bind` and `BindWhen`.
 
 ## Compiled Interface Views
 
-Declare a trait view on its concrete class with `withProjection(class_projection!(Concrete => dyn Contract))`. Rust checks the coercion at compile time. When a named key or alias selects a binding of that concrete type, `get::<dyn Contract>` and `getAsync::<dyn Contract>` can return the same object through its trait view.
+Declare a trait view on its concrete class with `with_projection(class_projection!(Concrete => dyn Contract))`. Rust checks the coercion at compile time. When a named key or alias selects a binding of that concrete type, `get::<dyn Contract>` and `get_async::<dyn Contract>` can return the same object through its trait view.
 
 ```rust
 use openrust::{
@@ -924,14 +924,14 @@ fn main() {
     let container = Container::default();
     let descriptor = ClassDescriptor::concrete(vec![], |_| Ok(Arc::new(DailyReport)))
         .unwrap()
-        .withProjection(class_projection!(DailyReport => dyn Report))
-        .withLifetime(Lifetime::Singleton);
-    container.registerClass(descriptor).unwrap();
+        .with_projection(class_projection!(DailyReport => dyn Report))
+        .with_lifetime(Lifetime::Singleton);
+    container.register_class(descriptor).unwrap();
     container
         .alias(ServiceKey::typed::<DailyReport>(), "daily")
         .unwrap();
     container
-        .registerBindingAttributes::<dyn Report>(vec![
+        .register_binding_attributes::<dyn Report>(vec![
             BindWhen::new(Bind::implementation::<dyn Report, DailyReport>(), |_| Ok(true))
                 .into(),
         ])
@@ -963,18 +963,18 @@ impl Report for DailyReport {}
 
 fn main() {
     let container = Container::default();
-    container.registerClass(
+    container.register_class(
         ClassDescriptor::concrete(vec![], |_| Ok(Arc::new(DailyReport)))
             .unwrap()
-            .withProjection(class_projection!(DailyReport => dyn Report)),
+            .with_projection(class_projection!(DailyReport => dyn Report)),
     ).unwrap();
-    container.registerBindingAttributes::<dyn Report>(vec![
+    container.register_binding_attributes::<dyn Report>(vec![
         BindWhen::new(Bind::implementation::<dyn Report, DailyReport>(), |_| Ok(true)).into(),
     ]).unwrap();
 
     let events = Arc::new(Mutex::new(Vec::new()));
     let observed = events.clone();
-    container.afterResolving(Some(ServiceKey::typed::<DailyReport>()), move |event, _| {
+    container.after_resolving(Some(ServiceKey::typed::<DailyReport>()), move |event, _| {
         let concrete: Arc<dyn Report> = event.value::<DailyReport>().unwrap();
         let view = event.value::<dyn Report>().unwrap();
         assert!(Arc::ptr_eq(&concrete, &view));
@@ -990,10 +990,10 @@ For `Bind` and `BindWhen`, the internal lookup of the concrete implementation sk
 
 ## Built-in Contextual Attributes
 
-- `Config::<T>::new(key)` reads the current application's configuration. `withDefault(value)` applies when the key is missing. An explicit null follows the parameter's normal null handling. Values must deserialize to the declared Rust type.
-- `Give::<T>::new(key)` selects a concrete service or a declared trait view. `withParameters` passes a separate set of constructor arguments to that service. Use asynchronous resolution for implementations that need it.
-- `Tag::<T>::new(tag)` injects `TaggedServices<T>`. It resolves entries lazily and preserves registration order and duplicates. Supply the original container to `iter` or `collectAsync` to resolve in the active lifecycle.
-- OpenRust's `CurrentResolving` attribute exposes `currentlyResolving()` as a typed `ServiceKey`. It supplies null outside a constructor or method context.
+- `Config::<T>::new(key)` reads the current application's configuration. `with_default(value)` applies when the key is missing. An explicit null follows the parameter's normal null handling. Values must deserialize to the declared Rust type.
+- `Give::<T>::new(key)` selects a concrete service or a declared trait view. `with_parameters` passes a separate set of constructor arguments to that service. Use asynchronous resolution for implementations that need it.
+- `Tag::<T>::new(tag)` injects `TaggedServices<T>`. It resolves entries lazily and preserves registration order and duplicates. Supply the original container to `iter` or `collect_async` to resolve in the active lifecycle.
+- OpenRust's `CurrentResolving` attribute exposes `currently_resolving()` as a typed `ServiceKey`. It supplies null outside a constructor or method context.
 
 ```rust
 use openrust::{
@@ -1011,23 +1011,23 @@ struct Reports(u16, Arc<TaggedServices<u32>>);
 fn main() {
     let container = Container::default();
     container
-        .instanceNamed::<dyn ConfigRepository>("config", Arc::new(Repository::new(BTreeMap::new())))
+        .instance_named::<dyn ConfigRepository>("config", Arc::new(Repository::new(BTreeMap::new())))
         .unwrap();
-    container.instanceNamed("daily", Arc::new(7_u32)).unwrap();
+    container.instance_named("daily", Arc::new(7_u32)).unwrap();
     container.tag(["daily"], ["reports"]);
 
     let descriptor = ClassDescriptor::concrete(
         vec![
-            ConstructorParam::scalar::<u16>("port").withAttribute(
-                ClassAttribute::contextual(|| Ok(Config::new("reports.port").withDefault(8080_u16))),
+            ConstructorParam::scalar::<u16>("port").with_attribute(
+                ClassAttribute::contextual(|| Ok(Config::new("reports.port").with_default(8080_u16))),
             ),
-            ConstructorParam::scalar::<TaggedServices<u32>>("services").withAttribute(
+            ConstructorParam::scalar::<TaggedServices<u32>>("services").with_attribute(
                 ClassAttribute::contextual(|| Ok(Tag::<u32>::new("reports"))),
             ),
         ],
         |args| Ok(Arc::new(Reports(*args.get(0)?, args.get(1)?))),
     ).unwrap();
-    container.registerClass(descriptor).unwrap();
+    container.register_class(descriptor).unwrap();
 
     let reports = container.make::<Reports>().unwrap();
     assert_eq!(reports.0, 8080);
@@ -1035,7 +1035,7 @@ fn main() {
 }
 ```
 
-Custom attributes can implement `resolveAsync` when they need to await a dependency. An existing `whenHasAttribute` override retains precedence in both resolution modes.
+Custom attributes can implement `resolve_async` when they need to await a dependency. An existing `when_has_attribute` override retains precedence in both resolution modes.
 
 ### Service Manager Attributes {#service-manager-attributes}
 
@@ -1051,7 +1051,7 @@ use openrust::{
 
 pub fn private_disk_parameter() -> ConstructorParam {
     ConstructorParam::class::<FilesystemAdapter>("disk")
-        .withAttribute(ClassAttribute::contextual(|| Ok(Storage::new("private"))))
+        .with_attribute(ClassAttribute::contextual(|| Ok(Storage::new("private"))))
 }
 ```
 
@@ -1068,12 +1068,12 @@ use openrust::{
 pub fn current_user_parameter() -> ConstructorParam {
     ConstructorParam::class::<dyn Authenticatable>("user")
         .nullable()
-        .withDefault(|| Ok(ParameterValue::null()))
-        .withAttribute(ClassAttribute::contextual(|| Ok(CurrentUser::new("api"))))
+        .with_default(|| Ok(ParameterValue::null()))
+        .with_attribute(ClassAttribute::contextual(|| Ok(CurrentUser::new("api"))))
 }
 ```
 
-Controller construction can resolve these attributes directly. For asynchronous container calls in a closure handler, use `request.withContainer(container.makeAsync::<T>()).await` to make the same request available to the resolver. Bind the injected guard with `guard.bind(request)?` to run its operations against the live session and cached identity. The handle is valid during the originating HTTP dispatch.
+Controller construction can resolve these attributes directly. For asynchronous container calls in a closure handler, use `request.withContainer(container.make_async::<T>()).await` to make the same request available to the resolver. Bind the injected guard with `guard.bind(request)?` to run its operations against the live session and cached identity. The handle is valid during the originating HTTP dispatch.
 
 ### Request and Route Parameters
 
@@ -1100,12 +1100,12 @@ struct ProjectContext {
 
 fn main() {
     let container = Container::default();
-    container.registerClass(ClassDescriptor::concrete(
+    container.register_class(ClassDescriptor::concrete(
         vec![
-            ConstructorParam::scalar::<String>("principal").nullable().withAttribute(
+            ConstructorParam::scalar::<String>("principal").nullable().with_attribute(
                 ClassAttribute::contextual(|| Ok(RequestAttribute::new("principal"))),
             ),
-            ConstructorParam::scalar::<String>("project").nullable().withAttribute(
+            ConstructorParam::scalar::<String>("project").nullable().with_attribute(
                 ClassAttribute::contextual(|| Ok(RouteParameter::default())),
             ),
         ],

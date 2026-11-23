@@ -28,8 +28,8 @@ impl Fixture {
         let path = root.path().join("test.sqlite");
         std::fs::File::create(&path).unwrap();
         let mut app = openrust::foundation::Application::configure(root.path().into())
-            .withConfig(fixtureConfig)
-            .withProviders(vec![Box::new(ActivitylogServiceProvider)])
+            .with_config(fixtureConfig)
+            .with_providers(vec![Box::new(ActivitylogServiceProvider)])
             .create()
             .unwrap();
         app.boot().await.unwrap();

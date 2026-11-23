@@ -326,7 +326,7 @@ impl Container {
         })
         .await
     }
-    pub(super) async fn get_async<T: ?Sized + Send + Sync + 'static>(
+    pub(super) async fn get_async_by_key<T: ?Sized + Send + Sync + 'static>(
         &self,
         id: ServiceKey,
     ) -> Result<Arc<T>, BindingResolutionError> {
@@ -375,7 +375,7 @@ impl Container {
             }
             Err(error) => return Err(error),
         };
-        let key = self.getAlias(key)?;
+        let key = self.get_alias(key)?;
         if raise_events {
             self.fire_hooks(
                 &ResolutionEvent::before_with(key.clone(), super::parameters::current(self)),

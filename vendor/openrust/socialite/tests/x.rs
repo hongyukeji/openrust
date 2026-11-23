@@ -143,7 +143,7 @@ fn login(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
             .unwrap();
         let stateless = request.query(Some("stateless"))?.is_some();
         let parameters = request.query(Some("parameters"))?.is_some();
-        let manager = openrust::container::Container::getInstance()
+        let manager = openrust::container::Container::get_instance()
             .make::<SocialiteManager>()
             .unwrap();
         let mut p = manager.driver(&name, request).unwrap().oauth2().unwrap();
@@ -169,7 +169,7 @@ fn callback(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
             .unwrap();
         let stateless = request.query(Some("stateless"))?.is_some();
         let refresh = request.query(Some("refresh"))?.is_some();
-        let manager = openrust::container::Container::getInstance()
+        let manager = openrust::container::Container::get_instance()
             .make::<SocialiteManager>()
             .unwrap();
         let mut p = manager.driver(&name, request).unwrap().oauth2().unwrap();
@@ -195,9 +195,9 @@ fn callback(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
     })
 }
 async fn rp(remote: &str) -> (String, tokio::task::JoinHandle<()>) {
-    let mut app=Application::configure(std::env::temp_dir()).withConfig(|_,_|Ok([
+    let mut app=Application::configure(std::env::temp_dir()).with_config(|_,_|Ok([
  ("services".into(),json!({"x":{"client_id":"client","client_secret":"secret","redirect":"https://rp.test/callback"},"twitter":{"client_id":"client","client_secret":"secret","redirect":"https://rp.test/callback","oauth":2}})),
- ("app".into(),json!({"key":"k".repeat(32),"env":"testing"})),("session".into(),json!({"driver":"array","cookie":"x_session","lottery":[0,100]})),("cache".into(),json!({"default":"array","stores":{"array":{"driver":"array"}}}))].into())).withProviders(vec![Box::new(SocialiteServiceProvider)]).withRouting(Routing::default().web(routes)).create().unwrap();
+ ("app".into(),json!({"key":"k".repeat(32),"env":"testing"})),("session".into(),json!({"driver":"array","cookie":"x_session","lottery":[0,100]})),("cache".into(),json!({"default":"array","stores":{"array":{"driver":"array"}}}))].into())).with_providers(vec![Box::new(SocialiteServiceProvider)]).with_routing(Routing::default().web(routes)).create().unwrap();
     app.boot().await.unwrap();
     let manager = app.make::<SocialiteManager>().await.unwrap();
     for name in ["twitter", "x"] {

@@ -47,7 +47,7 @@ async fn exact_text_compiles_with_bound_values_for_each_database_family() {
         let expected = std::iter::once(Value::Integer(7))
             .chain(std::iter::repeat_n(Value::from(text), binds))
             .collect::<Vec<_>>();
-        assert_eq!(query.getBindings().unwrap(), expected);
+        assert_eq!(query.get_bindings().unwrap(), expected);
     }
 }
 
@@ -240,7 +240,7 @@ async fn compiles_dialect_identifiers_and_bindings_in_clause_order() {
             ),
         );
         assert_eq!(
-            builder.getBindings().unwrap(),
+            builder.get_bindings().unwrap(),
             [10, 20, 30, 40, 50, 60, 70, 80].map(Value::from),
         );
         assert_eq!(
@@ -619,7 +619,7 @@ async fn value_ranges_and_explicit_ordering_run_on_mysql_8_4() {
         "select * from `app_order_ranges` where ? between `lower_bound` and `upper_bound` order by case when `status` = ? then 0 when `status` = ? then 1 else 2 end, `id` asc"
     );
     assert_eq!(
-        visible.getBindings().unwrap(),
+        visible.get_bindings().unwrap(),
         [5.into(), "active".into(), "pending".into()]
     );
     assert_eq!(
@@ -670,7 +670,7 @@ async fn value_ranges_and_explicit_ordering_run_on_mysql_8_4() {
         )
         .orderBy("id", "asc");
     assert_eq!(
-        expressed.getBindings().unwrap(),
+        expressed.get_bindings().unwrap(),
         [
             4.into(),
             0.into(),
@@ -695,7 +695,7 @@ async fn value_ranges_and_explicit_ordering_run_on_mysql_8_4() {
         .unwrap()
         .inOrderOf("status", vec!["active".into()]);
     assert_eq!(
-        union.getBindings().unwrap(),
+        union.get_bindings().unwrap(),
         [1.into(), 2.into(), "active".into()]
     );
     let rows = union.get().await.unwrap();
@@ -747,7 +747,7 @@ async fn group_limits_rank_each_partition_on_mysql_8_4() {
         "select * from (select `id`, `category`, `score`, row_number() over (partition by `category` order by case when score >= ? then 0 else 1 end, `score` desc) as `laravel_row` from `app_group_items` where `active` = ?) as `laravel_table` where `laravel_row` <= ? and `laravel_row` > ? order by `laravel_row`"
     );
     assert_eq!(
-        ranked().getBindings().unwrap(),
+        ranked().get_bindings().unwrap(),
         [70.into(), true.into(), 2.into(), 1.into()]
     );
     for rows in [
@@ -880,7 +880,7 @@ async fn verify_json_predicates(db: Connection, mysql: bool) {
         );
     }
     bindings.extend([expected_path, 0.into()]);
-    assert_eq!(query.getBindings().unwrap(), bindings);
+    assert_eq!(query.get_bindings().unwrap(), bindings);
     assert_eq!(
         query.orderBy("id", "asc").pluck("id").await.unwrap(),
         ids(&[1, 3])
@@ -975,7 +975,7 @@ async fn verify_json_predicates(db: Connection, mysql: bool) {
         ));
         let path = Value::from(r#"$."settings"."tags""#);
         assert_eq!(
-            overlap.getBindings().unwrap(),
+            overlap.get_bindings().unwrap(),
             vec![
                 0.into(),
                 path.clone(),
@@ -1158,7 +1158,7 @@ async fn json_predicates_run_on_sql_server() {
         .r#where("j.id", ">", 0);
     let path = Value::from(r#"$."settings"."tags""#);
     assert_eq!(
-        query.getBindings().unwrap(),
+        query.get_bindings().unwrap(),
         ["de".into(), path.clone(), path, 0.into(), 0.into()]
     );
     assert_eq!(
@@ -1342,7 +1342,7 @@ async fn json_predicates_run_on_postgres_in_both_prepare_modes() {
             })
             .r#where("j.id", ">", 0);
         assert_eq!(
-            query.getBindings().unwrap(),
+            query.get_bindings().unwrap(),
             [Value::Json(json!(["en", "de"])), 0.into(), 0.into(),]
         );
         assert_eq!(

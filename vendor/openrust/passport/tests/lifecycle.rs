@@ -34,8 +34,8 @@ impl Root {
     }
     fn application(&self) -> Application {
         Application::configure(self.0.clone())
-            .withConfig(configuration)
-            .withProviders(vec![Box::new(PassportServiceProvider)])
+            .with_config(configuration)
+            .with_providers(vec![Box::new(PassportServiceProvider)])
             .create()
             .unwrap()
     }
@@ -161,8 +161,8 @@ async fn publication_is_explicit_preserves_overrides_and_only_implemented_comman
 {
     let mut app = openrust::testing::TestApp::create(|builder| {
         builder
-            .withConfig(configuration)
-            .withProviders(vec![Box::new(PassportServiceProvider)])
+            .with_config(configuration)
+            .with_providers(vec![Box::new(PassportServiceProvider)])
     })
     .unwrap();
     app.artisan(["vendor:publish", "--tag=passport-config"])
@@ -323,7 +323,7 @@ fn probe(
 ) -> openrust::http::HttpFuture<'_, Result<openrust::http::Response, openrust::http::HttpError>> {
     Box::pin(async {
         use openrust::contracts::container::Container as _;
-        let container = openrust::container::Container::getInstance();
+        let container = openrust::container::Container::get_instance();
         let key = container.make::<PrivateKey>()?;
         assert!(!format!("{key:?}").contains("BEGIN"));
         Ok(openrust::http::Response::new(
@@ -350,13 +350,13 @@ impl openrust::contracts::http::Middleware for CustomMiddleware {
 }
 async fn serve(root: &Root) -> (std::net::SocketAddr, tokio::task::JoinHandle<()>) {
     let app = Application::configure(root.0.clone())
-        .withConfig(configuration)
-        .withProviders(vec![Box::new(PassportServiceProvider)])
-        .withRouting(openrust::foundation::configuration::Routing::new(routes))
-        .withMiddleware(|middleware| {
+        .with_config(configuration)
+        .with_providers(vec![Box::new(PassportServiceProvider)])
+        .with_routing(openrust::foundation::configuration::Routing::new(routes))
+        .with_middleware(|middleware| {
             middleware.alias("custom", std::sync::Arc::new(CustomMiddleware));
         })
-        .withExceptions(|exceptions| {
+        .with_exceptions(|exceptions| {
             exceptions.shouldRenderJsonWhen(|request, _| request.expectsJson());
         })
         .create()

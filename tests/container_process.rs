@@ -32,7 +32,7 @@ struct Greeting(String);
 struct Greetings;
 impl Facade for Greetings {
     type Service = Greeting;
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         "greeting".into()
     }
 }
@@ -40,7 +40,7 @@ struct ScopedProbe;
 struct ReboundResults;
 impl Facade for ReboundResults {
     type Service = u32;
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         "rebind-result".into()
     }
 }
@@ -48,7 +48,7 @@ struct ExtendedProbe(u32);
 struct ExtendedProbes;
 impl Facade for ExtendedProbes {
     type Service = ExtendedProbe;
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         ServiceKey::typed::<ExtendedProbe>()
     }
 }
@@ -56,7 +56,7 @@ struct ContextProbe(Arc<Greeting>);
 struct ContextProbes;
 impl Facade for ContextProbes {
     type Service = ContextProbe;
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         ServiceKey::typed::<ContextProbe>()
     }
 }
@@ -64,14 +64,14 @@ struct ScopedProbes;
 struct HookResults;
 impl Facade for HookResults {
     type Service = String;
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         "hook-result".into()
     }
 }
 impl Facade for ScopedProbes {
     type Service = ScopedProbe;
-    const cached: bool = false;
-    fn getFacadeAccessor() -> ServiceKey {
+    const CACHED: bool = false;
+    fn get_facade_accessor() -> ServiceKey {
         ServiceKey::typed::<ScopedProbe>()
     }
 }
@@ -111,7 +111,7 @@ impl FrameworkCommand for ParametersProbeCommand {
             let mut parameters = ParameterOverrides::new();
             parameters.insert(ParameterKey::name("number"), ParameterValue::new(12u32));
             let value = app
-                .makeWithNamed::<u32>("parameter-number", parameters)
+                .make_with_named::<u32>("parameter-number", parameters)
                 .await
                 .map_err(|e| ConsoleError::new(e.to_string()))?;
             let cached = app
@@ -146,8 +146,7 @@ impl CompiledProbeView for CompiledProbe {
     }
 }
 impl SelfBuilding for CompiledProbe {
-    #[allow(non_snake_case)]
-    fn newInstance(args: ResolvedArgs, _: &Container) -> FactoryFuture<'_, Self> {
+    fn new_instance(args: ResolvedArgs, _: &Container) -> FactoryFuture<'_, Self> {
         Box::pin(async move {
             assert_eq!(*args.get::<ServiceKey>(1)?, ServiceKey::typed::<Self>());
             assert!(args.value(2)?.is_null());
@@ -174,11 +173,11 @@ impl FrameworkCommand for ConstructionCommand {
                 .map_err(|e| ConsoleError::new(e.to_string()))?;
             let event = app
                 .container()
-                .offsetGet::<dyn CompiledProbeView>("projection.event")
+                .offset_get::<dyn CompiledProbeView>("projection.event")
                 .map_err(|error| ConsoleError::new(error.to_string()))?;
             assert!(Arc::ptr_eq(&event, &value));
             app.container()
-                .fireAfterResolvingAttributeCallbacks(
+                .fire_after_resolving_attribute_callbacks(
                     &[ClassAttribute::marker(|| Ok(ObserveConstruction))],
                     &ParameterValue::service(value.clone()).into(),
                     None,
@@ -186,7 +185,7 @@ impl FrameworkCommand for ConstructionCommand {
                 .map_err(|source| ConsoleError::new(source.to_string()))?;
             let observed = app
                 .container()
-                .offsetGet::<dyn CompiledProbeView>("projection.attribute")
+                .offset_get::<dyn CompiledProbeView>("projection.attribute")
                 .map_err(|source| ConsoleError::new(source.to_string()))?;
             assert!(Arc::ptr_eq(&observed, &value));
             output
@@ -209,28 +208,28 @@ impl FrameworkCommand for EnvironmentCommand {
     ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
         Box::pin(async move {
             let c = app.container();
-            c.resolveEnvironmentUsing(Some(Arc::new(|query| {
+            c.resolve_environment_using(Some(Arc::new(|query| {
                 Ok(match query {
                     EnvironmentQuery::Name(name) => (name == "local").into(),
                     EnvironmentQuery::Names([]) => "local".into(),
                     EnvironmentQuery::Names(names) => names.contains(&"local").into(),
                 })
             })));
-            c.registerClass(
+            c.register_class(
                 ClassDescriptor::concrete(vec![], |_| Ok(Arc::new(16_u16)))
                     .map_err(|error| ConsoleError::new(error.to_string()))?,
             )
             .map_err(|error| ConsoleError::new(error.to_string()))?;
-            c.registerLifetime::<u16>(Lifetime::Singleton);
-            c.registerBindingAttributes::<u16>(vec![
+            c.register_lifetime::<u16>(Lifetime::Singleton);
+            c.register_binding_attributes::<u16>(vec![
                 BindWhen::new(Bind::new::<u16, u16>(|value| value), |container| {
-                    container.currentEnvironmentIs("local").map(bool::from)
+                    container.current_environment_is("local").map(bool::from)
                 })
                 .into(),
             ])
             .map_err(|error| ConsoleError::new(error.to_string()))?;
             let shared = c
-                .makeAsync::<u16>()
+                .make_async::<u16>()
                 .await
                 .map_err(|error| ConsoleError::new(error.to_string()))?;
             assert_eq!(*shared, 16);
@@ -240,13 +239,13 @@ impl FrameworkCommand for EnvironmentCommand {
                     .map_err(|error| ConsoleError::new(error.to_string()))?
             ));
             let EnvironmentResult::String(name) = c
-                .currentEnvironmentIs(&[])
+                .current_environment_is(&[])
                 .map_err(|e| ConsoleError::new(e.to_string()))?
             else {
                 panic!("custom resolver result");
             };
             let matches = bool::from(
-                c.currentEnvironmentIs("local")
+                c.current_environment_is("local")
                     .map_err(|e| ConsoleError::new(e.to_string()))?,
             );
             output
@@ -268,18 +267,18 @@ impl FrameworkCommand for DirectoryCommand {
         output: &'a mut Output,
     ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
         Box::pin(async move {
-            let current = Container::getInstance();
+            let current = Container::get_instance();
             assert!(std::ptr::eq(current.as_ref(), app.container()));
             current
-                .offsetSet("directory.probe", Arc::new(2_u32))
+                .offset_set("directory.probe", Arc::new(2_u32))
                 .map_err(|e| ConsoleError::new(e.to_string()))?;
-            let definitions = current.getBindings();
+            let definitions = current.get_bindings();
             let original = &definitions
                 .get(&ServiceKey::typed::<Greeting>())
                 .expect("provider factory")
                 .concrete;
             let value = original
-                .callAsync::<Greeting>(app.container(), ParameterOverrides::new())
+                .call_async::<Greeting>(app.container(), ParameterOverrides::new())
                 .await
                 .map_err(|e| ConsoleError::new(e.to_string()))?;
             let directory = Container::default();
@@ -292,11 +291,11 @@ impl FrameworkCommand for DirectoryCommand {
                 "directory:{}:{}",
                 value.0,
                 current
-                    .offsetGet::<u32>("directory.probe")
+                    .offset_get::<u32>("directory.probe")
                     .map_err(|e| ConsoleError::new(e.to_string()))?
             ));
-            current.offsetUnset("directory.probe");
-            assert!(!current.offsetExists("directory.probe"));
+            current.offset_unset("directory.probe");
+            assert!(!current.offset_exists("directory.probe"));
             Ok(0)
         })
     }
@@ -323,7 +322,7 @@ impl FrameworkCommand for LazyCommand {
                         Ok(format!(
                             "lazy:{}:{}",
                             value.0,
-                            Greetings::getFacadeRootAsync().await?.0
+                            Greetings::get_facade_root_async().await?.0
                         ))
                     }
                 }),
@@ -397,84 +396,85 @@ impl ServiceProvider for Provider {
         app: &'a Application,
     ) -> openrust::http::HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
-            app.container().registerMethod::<CompiledProbe, String, _>(
-                "describe",
-                vec![ConstructorParam::class::<Greeting>("greeting")],
-                |receiver, args, _| {
-                    Box::pin(async move {
-                        tokio::task::yield_now().await;
-                        Ok(format!(
-                            "called:{}:{}",
-                            receiver.0.0,
-                            args.resolved.service::<Greeting>(0)?.0
-                        ))
-                    })
-                },
-            )?;
             app.container()
-                .bindNamed::<Greeting, _>("variadic-first", |_| {
+                .register_method::<CompiledProbe, String, _>(
+                    "describe",
+                    vec![ConstructorParam::class::<Greeting>("greeting")],
+                    |receiver, args, _| {
+                        Box::pin(async move {
+                            tokio::task::yield_now().await;
+                            Ok(format!(
+                                "called:{}:{}",
+                                receiver.0.0,
+                                args.resolved.service::<Greeting>(0)?.0
+                            ))
+                        })
+                    },
+                )?;
+            app.container()
+                .bind_named::<Greeting, _>("variadic-first", |_| {
                     Ok(Arc::new(Greeting("first".into())))
                 })?;
             app.container()
-                .bindNamed::<Greeting, _>("variadic-second", |_| {
+                .bind_named::<Greeting, _>("variadic-second", |_| {
                     Ok(Arc::new(Greeting("second".into())))
                 })?;
             app.container()
-                .registerClass(ClassDescriptor::concrete::<VariadicProbe, _>(
+                .register_class(ClassDescriptor::concrete::<VariadicProbe, _>(
                     vec![ConstructorParam::class::<Greeting>("greetings").variadic()],
                     |args| Ok(Arc::new(VariadicProbe(args.services(0)?))),
                 )?)?;
             app.container()
                 .when::<VariadicProbe>()?
                 .needs::<Greeting>()
-                .giveServices(["variadic-first", "variadic-second"])?;
-            app.container().registerClass(
-                ClassDescriptor::selfBuilding::<CompiledProbe>(
+                .give_services(["variadic-first", "variadic-second"])?;
+            app.container().register_class(
+                ClassDescriptor::self_building::<CompiledProbe>(
                     vec![ConstructorParam::class::<Greeting>("greeting")],
                     |args| Ok(Arc::new(CompiledProbe(args.service(0)?))),
                     vec![
                         ConstructorParam::class::<Greeting>("greeting")
-                            .withAttribute(ClassAttribute::contextual(|| Ok(ProbeGreeting))),
+                            .with_attribute(ClassAttribute::contextual(|| Ok(ProbeGreeting))),
                         ConstructorParam::scalar::<ServiceKey>("current")
-                            .withAttribute(ClassAttribute::contextual(|| Ok(CurrentResolving))),
+                            .with_attribute(ClassAttribute::contextual(|| Ok(CurrentResolving))),
                         ConstructorParam::scalar::<String>("principal")
                             .nullable()
-                            .withAttribute(ClassAttribute::contextual(|| {
+                            .with_attribute(ClassAttribute::contextual(|| {
                                 Ok(RequestAttribute::new("principal"))
                             })),
                         ConstructorParam::scalar::<String>("project")
                             .nullable()
-                            .withAttribute(ClassAttribute::contextual(|| {
+                            .with_attribute(ClassAttribute::contextual(|| {
                                 Ok(RouteParameter::default())
                             })),
                     ],
                 )?
-                .withProjection(class_projection!(CompiledProbe => dyn CompiledProbeView)),
+                .with_projection(class_projection!(CompiledProbe => dyn CompiledProbeView)),
             )?;
             app.container()
                 .alias(ServiceKey::typed::<CompiledProbe>(), "compiled.probe")?;
             app.container()
-                .afterResolvingAttribute::<ObserveConstruction>(|event, container| {
+                .after_resolving_attribute::<ObserveConstruction>(|event, container| {
                     let view = event
                         .service::<dyn CompiledProbeView>(container)?
                         .expect("probe view");
-                    container.offsetSet("projection.attribute", view)
+                    container.offset_set("projection.attribute", view)
                 });
-            app.container().afterResolving(
+            app.container().after_resolving(
                 Some(ServiceKey::typed::<dyn CompiledProbeView>()),
                 |event, container| {
                     let view = event
                         .value::<dyn CompiledProbeView>()
                         .expect("projected event value");
-                    container.offsetSet("projection.event", view)
+                    container.offset_set("projection.event", view)
                 },
             )?;
             app.container()
-                .singletonAsyncNamed::<u32, _>("parameter-number", |c| {
+                .singleton_async_named::<u32, _>("parameter-number", |c| {
                     Box::pin(async move {
                         tokio::task::yield_now().await;
                         let value = c
-                            .getLastParameterOverride()
+                            .get_last_parameter_override()
                             .get(&ParameterKey::name("number"))
                             .map(|v| v.downcast::<u32>())
                             .transpose()?
@@ -484,7 +484,7 @@ impl ServiceProvider for Provider {
                 })
                 .await?;
             app.container()
-                .bindAsyncNamed::<u32, _>("async-number", |_| {
+                .bind_async_named::<u32, _>("async-number", |_| {
                     Box::pin(async {
                         tokio::task::yield_now().await;
                         Ok(Arc::new(3))
@@ -492,21 +492,21 @@ impl ServiceProvider for Provider {
                 })
                 .await?;
             app.container()
-                .bindAsyncNamed::<u32, _>("async-sum", |c| {
+                .bind_async_named::<u32, _>("async-sum", |c| {
                     Box::pin(
-                        async move { Ok(Arc::new(*c.getAsync::<u32>("async-number").await? + 4)) },
+                        async move { Ok(Arc::new(*c.get_async::<u32>("async-number").await? + 4)) },
                     )
                 })
                 .await?;
             app.container()
-                .instanceNamed("rebind-probe", Arc::new(1_u32))?;
+                .instance_named("rebind-probe", Arc::new(1_u32))?;
             app.container()
                 .rebinding::<u32, _>("rebind-probe", |container, value| {
-                    container.instanceNamed("rebind-result", value)?;
+                    container.instance_named("rebind-result", value)?;
                     Ok(())
                 })?;
             app.container()
-                .instanceNamed("rebind-probe", Arc::new(2_u32))?;
+                .instance_named("rebind-probe", Arc::new(2_u32))?;
             app.container()
                 .bind::<ExtendedProbe, _>(|_| Ok(Arc::new(ExtendedProbe(1))))
                 .unwrap();
@@ -517,29 +517,29 @@ impl ServiceProvider for Provider {
             app.container()
                 .scoped::<ScopedProbe, _>(|_| Ok(Arc::new(ScopedProbe)))
                 .unwrap();
-            app.container().afterResolving(
+            app.container().after_resolving(
                 Some(ServiceKey::typed::<ScopedProbe>()),
                 |event, c| {
                     assert!(Arc::ptr_eq(
                         &event.value::<ScopedProbe>().unwrap(),
                         &c.make::<ScopedProbe>()?
                     ));
-                    c.instanceNamed("hook-result", Arc::new(String::from("hooked")))
+                    c.instance_named("hook-result", Arc::new(String::from("hooked")))
                         .unwrap();
                     Ok(())
                 },
             )?;
             app.container()
-                .bindIf::<Greeting, _>(|_| Ok(Arc::new(Greeting("from provider".into()))))
+                .bind_if::<Greeting, _>(|_| Ok(Arc::new(Greeting("from provider".into()))))
                 .unwrap();
             let key = ServiceKey::typed::<Greeting>();
-            assert!(!app.container().isShared(key.clone()));
+            assert!(!app.container().is_shared(key.clone()));
             assert!(!app.container().resolved(key.clone())?);
             app.container()
                 .instance(Arc::new(Greeting("temporary override".into())))
                 .unwrap();
             assert_eq!(app.container().make::<Greeting>()?.0, "temporary override");
-            app.container().forgetInstance(key.clone());
+            app.container().forget_instance(key.clone());
             assert_eq!(app.container().make::<Greeting>()?.0, "from provider");
             assert!(app.container().resolved(key)?);
             app.container()
@@ -557,35 +557,35 @@ impl ServiceProvider for Provider {
 }
 fn routes() -> Result<(), ConsoleError> {
     Artisan::command("context:probe", |output| {
-        let contextual = ContextProbes::getFacadeRoot().unwrap();
+        let contextual = ContextProbes::get_facade_root().unwrap();
         output.stdout.push_str(&contextual.0.0);
-        assert_eq!(Greetings::getFacadeRoot().unwrap().0, "from provider");
+        assert_eq!(Greetings::get_facade_root().unwrap().0, "from provider");
     })?;
     Artisan::command("rebind:probe", |output| {
         output
             .stdout
-            .push_str(&ReboundResults::getFacadeRoot().unwrap().to_string());
+            .push_str(&ReboundResults::get_facade_root().unwrap().to_string());
     })?;
     Artisan::command("extend:probe", |output| {
         output
             .stdout
-            .push_str(&ExtendedProbes::getFacadeRoot().unwrap().0.to_string());
+            .push_str(&ExtendedProbes::get_facade_root().unwrap().0.to_string());
     })?;
     Artisan::command("hooks:probe", |output| {
-        ScopedProbes::getFacadeRoot().unwrap();
+        ScopedProbes::get_facade_root().unwrap();
         output
             .stdout
-            .push_str(&HookResults::getFacadeRoot().unwrap());
+            .push_str(&HookResults::get_facade_root().unwrap());
     })?;
     Artisan::command("scope:probe", |output: &mut Output| {
-        let first = ScopedProbes::getFacadeRoot().unwrap();
-        let second = ScopedProbes::getFacadeRoot().unwrap();
+        let first = ScopedProbes::get_facade_root().unwrap();
+        let second = ScopedProbes::get_facade_root().unwrap();
         assert!(Arc::ptr_eq(&first, &second));
         output.stdout.push_str("scoped");
     })?;
     Artisan::command("probe", |output: &mut Output| {
-        let first = Greetings::getFacadeRoot().unwrap();
-        let second = Greetings::getFacadeRoot().unwrap();
+        let first = Greetings::get_facade_root().unwrap();
+        let second = Greetings::get_facade_root().unwrap();
         assert!(Arc::ptr_eq(&first, &second));
         output.stdout.push_str(&first.0);
     })?;
@@ -593,9 +593,9 @@ fn routes() -> Result<(), ConsoleError> {
 }
 fn create() -> Result<Application, Box<dyn Error + Send + Sync>> {
     Ok(Application::configure(env!("CARGO_MANIFEST_DIR").into())
-        .withConfig(|_, _| Ok(BTreeMap::new()))
-        .withProviders(vec![Box::new(Provider)])
-        .withCommands(|artisan| {
+        .with_config(|_, _| Ok(BTreeMap::new()))
+        .with_providers(vec![Box::new(Provider)])
+        .with_commands(|artisan| {
             artisan.add_command(Box::new(EnvironmentCommand(CommandDefinition::new(
                 clap::Command::new("environment:probe"),
             ))))?;
@@ -621,7 +621,7 @@ fn create() -> Result<Application, Box<dyn Error + Send + Sync>> {
                 clap::Command::new("async:probe"),
             ))))
         })
-        .withRouting(Routing::default().commands(routes))
+        .with_routing(Routing::default().commands(routes))
         .create()?)
 }
 #[tokio::main(flavor = "current_thread")]

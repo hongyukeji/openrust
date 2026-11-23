@@ -19,7 +19,7 @@ impl ServiceProvider for EventServiceProvider {
             container.scoped::<super::dispatcher::PushedEvents, _>(|_| Ok(Arc::default()))?;
             let dispatcher = Arc::new(Dispatcher::for_application(Arc::downgrade(&container)));
             app.register_deferred_load_events(&dispatcher)?;
-            container.instanceNamed("events", dispatcher)?;
+            container.instance_named("events", dispatcher)?;
             container.alias("events", ServiceKey::typed::<Dispatcher>())?;
             Ok(())
         })

@@ -10,7 +10,7 @@ use openrust::{foundation::configuration::Routing, testing::TestApp};
 #[tokio::test]
 async fn health_route_responds() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut test = TestApp::create(|builder| {
-        builder.withRouting(Routing::default().health("/up"))
+        builder.with_routing(Routing::default().health("/up"))
     })?;
     test.get("/up").await?.assertOk();
     Ok(())

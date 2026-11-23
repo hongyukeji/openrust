@@ -508,7 +508,7 @@ impl<M: Model> Factory<M> {
 
     /// Constructs an unsaved model from caller attributes using normal mass assignment.
     pub fn newModel(&self, attributes: Attributes) -> DatabaseResult<M> {
-        M::newInstance(attributes)
+        M::new_instance(attributes)
     }
 
     pub fn getConnectionName(&self) -> Option<&str> {
@@ -2496,7 +2496,7 @@ impl<M: Model> FactoryBatch<M> {
     }
 
     /// Applies the same final attributes to every model in this operation.
-    pub async fn makeWith(&self, attributes: Attributes) -> DatabaseResult<Collection<M>> {
+    pub async fn make_with(&self, attributes: Attributes) -> DatabaseResult<Collection<M>> {
         self.makeWithOn(&self.factory.resolve_connection()?, attributes)
             .await
     }

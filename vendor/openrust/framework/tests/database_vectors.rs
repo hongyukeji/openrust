@@ -81,7 +81,7 @@ async fn vector_queries_compile_native_expressions_and_keep_binding_order() {
         assert!(sql.contains(&format!("or {expression} <= ?")));
         assert!(sql.ends_with(&format!("order by {expression} asc")));
         assert_eq!(
-            query.getBindings().unwrap(),
+            query.get_bindings().unwrap(),
             [
                 "[0.5,0.5]".into(),
                 4.into(),
@@ -100,7 +100,10 @@ async fn vector_queries_compile_native_expressions_and_keep_binding_order() {
             .orderByVectorDistance("embedding", &[1.0, 0.0])
             .unwrap();
         assert!(union.toSql().unwrap().contains("union all"));
-        assert_eq!(union.getBindings().unwrap(), [3.into(), "[1.0,0.0]".into()]);
+        assert_eq!(
+            union.get_bindings().unwrap(),
+            [3.into(), "[1.0,0.0]".into()]
+        );
     }
 }
 
@@ -153,7 +156,7 @@ async fn nested_vector_predicates_compile_with_the_outer_query_grammar() {
         assert!(sql.contains(" <= ? or "));
         assert!(sql.ends_with(" <= ?)"));
         assert_eq!(
-            query.getBindings().unwrap(),
+            query.get_bindings().unwrap(),
             [
                 3.into(),
                 "[1.0,0.0]".into(),

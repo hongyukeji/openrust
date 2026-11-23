@@ -72,11 +72,11 @@ impl ServiceProvider for Worker {
 #[ignore = "launched as a real Artisan worker by the process driver tests"]
 async fn artisan_worker_fixture() {
     let app = Application::configure(std::env::current_dir().unwrap())
-        .withProviders(vec![Box::new(Worker)])
+        .with_providers(vec![Box::new(Worker)])
         .create()
         .unwrap();
     let exit = app
-        .handleCommand(&["invoke-serialized-closure".into()])
+        .handle_command(&["invoke-serialized-closure".into()])
         .await
         .unwrap();
     assert_eq!(exit, 0);
@@ -209,7 +209,7 @@ async fn wait_for_started(marker: &std::path::Path) {
 async fn sync_driver_uses_registered_tasks_without_spawning() {
     let root = TestDirectory::new();
     let mut application = Application::configure(root.0.clone())
-        .withProviders(vec![Box::new(Worker)])
+        .with_providers(vec![Box::new(Worker)])
         .create()
         .unwrap();
     application.boot().await.unwrap();
@@ -326,11 +326,11 @@ async fn defer_runs_after_the_actual_http_response_and_respects_failure() {
     let (started, mut observed) = mpsc::unbounded_channel();
     let release = Arc::new(Notify::new());
     let application = Application::configure(root.0.clone())
-        .withProviders(vec![Box::new(DeferredWorker {
+        .with_providers(vec![Box::new(DeferredWorker {
             started,
             release: release.clone(),
         })])
-        .withRouting(Routing::default().web(|| {
+        .with_routing(Routing::default().web(|| {
             Route::get("/ok", enqueue)?;
             Route::get("/failed", enqueue_failed)
         }))
@@ -431,7 +431,7 @@ async fn artisan_calls_run_defers_after_the_command_and_gate_them_on_exit_status
 
     let root = TestDirectory::new();
     let app = Application::configure(root.0.clone())
-        .withProviders(vec![Box::new(Worker)])
+        .with_providers(vec![Box::new(Worker)])
         .create()
         .unwrap();
     let mut kernel = Kernel::new(app, Artisan::new());

@@ -7,7 +7,7 @@ use serde_json::json;
 #[tokio::test]
 async fn environment_defaults_and_provider_routes_follow_configuration_without_redis() {
     let mut app =
-        TestApp::create(|builder| builder.withProviders(vec![Box::new(HorizonServiceProvider)]))
+        TestApp::create(|builder| builder.with_providers(vec![Box::new(HorizonServiceProvider)]))
             .unwrap();
     std::fs::write(app.root().join(".env"), "APP_NAME=My-Shop\nHORIZON_PATH=operations/queue\nHORIZON_DOMAIN=ops.example.test\nHORIZON_PREFIX=shop_queue:\n").unwrap();
     app.boot().await.unwrap();
@@ -33,7 +33,7 @@ async fn environment_defaults_and_provider_routes_follow_configuration_without_r
         .unwrap();
     response.assertStatus(http::StatusCode::FORBIDDEN);
     let mut default_app =
-        TestApp::create(|builder| builder.withProviders(vec![Box::new(HorizonServiceProvider)]))
+        TestApp::create(|builder| builder.with_providers(vec![Box::new(HorizonServiceProvider)]))
             .unwrap();
     default_app.boot().await.unwrap();
     let env = default_app.app().make::<Environment>().await.unwrap();
@@ -45,7 +45,7 @@ async fn environment_defaults_and_provider_routes_follow_configuration_without_r
 #[tokio::test]
 async fn application_name_derives_prefix_and_empty_path_mounts_at_root() {
     let mut app =
-        TestApp::create(|builder| builder.withProviders(vec![Box::new(HorizonServiceProvider)]))
+        TestApp::create(|builder| builder.with_providers(vec![Box::new(HorizonServiceProvider)]))
             .unwrap();
     std::fs::write(
         app.root().join(".env"),
@@ -79,8 +79,8 @@ fn explicit() -> Result<(), openrust::routing::RoutingError> {
 #[tokio::test]
 async fn explicit_routes_take_precedence_and_automatic_routes_can_be_disabled() {
     let mut explicit = TestApp::create(|b| {
-        b.withProviders(vec![Box::new(HorizonServiceProvider)])
-            .withRouting(Routing::default().api(explicit))
+        b.with_providers(vec![Box::new(HorizonServiceProvider)])
+            .with_routing(Routing::default().api(explicit))
     })
     .unwrap();
     explicit
@@ -99,13 +99,13 @@ async fn explicit_routes_take_precedence_and_automatic_routes_can_be_disabled() 
         .unwrap()
         .assertStatus(http::StatusCode::NOT_FOUND);
     let mut disabled = TestApp::create(|b| {
-        b.withConfig(|_, _| {
+        b.with_config(|_, _| {
             Ok(std::collections::BTreeMap::from([(
                 "horizon".into(),
                 json!({"routes":false}),
             )]))
         })
-        .withProviders(vec![Box::new(HorizonServiceProvider)])
+        .with_providers(vec![Box::new(HorizonServiceProvider)])
     })
     .unwrap();
     disabled
@@ -135,16 +135,16 @@ impl openrust::contracts::http::Middleware for Stamp {
 #[tokio::test]
 async fn configured_named_middleware_runs_on_automatically_registered_routes() {
     let mut app = TestApp::create(|b| {
-        b.withConfig(|_, _| {
+        b.with_config(|_, _| {
             Ok(std::collections::BTreeMap::from([(
                 "horizon".into(),
                 json!({"middleware":["stamp"]}),
             )]))
         })
-        .withMiddleware(|m| {
+        .with_middleware(|m| {
             m.alias("stamp", std::sync::Arc::new(Stamp));
         })
-        .withProviders(vec![Box::new(HorizonServiceProvider)])
+        .with_providers(vec![Box::new(HorizonServiceProvider)])
     })
     .unwrap();
     app.get("/horizon")
@@ -171,8 +171,8 @@ async fn environment_prefixes_isolate_two_apps_on_one_global_redis_prefix() {
     let mut apps = Vec::new();
     for prefix in ["application_one:", "application_two:"] {
         let mut app = TestApp::create(|b| {
-            b.withConfig(config)
-                .withProviders(vec![Box::new(HorizonServiceProvider)])
+            b.with_config(config)
+                .with_providers(vec![Box::new(HorizonServiceProvider)])
         })
         .unwrap();
         std::fs::write(

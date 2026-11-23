@@ -10,7 +10,7 @@ async fn health_negotiates_content_and_preserves_application_isolation() {
     let mut kernels = Vec::new();
     for name in ["<First & 'app'>", "Second"] {
         let application = Application::configure(std::env::current_dir().unwrap())
-            .withRouting(Routing::default().health("/up"))
+            .with_routing(Routing::default().health("/up"))
             .create()
             .unwrap();
         let mut kernel = Kernel::new(application);

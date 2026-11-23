@@ -153,12 +153,12 @@ pub(crate) fn context_identity() -> Option<Arc<()>> {
 )]
 pub trait Facade {
     type Service: ?Sized + Send + Sync + 'static;
-    const cached: bool = true;
-    fn getFacadeAccessor() -> ServiceKey;
-    fn getFacadeRoot() -> Result<Arc<Self::Service>, BindingResolutionError> {
+    const CACHED: bool = true;
+    fn get_facade_accessor() -> ServiceKey;
+    fn get_facade_root() -> Result<Arc<Self::Service>, BindingResolutionError> {
         with_context(|context| {
-            let key = Self::getFacadeAccessor();
-            if !Self::cached {
+            let key = Self::get_facade_accessor();
+            if !Self::CACHED {
                 return context.container.get::<Self::Service>(key);
             }
             let cached = context
@@ -205,14 +205,14 @@ pub trait Facade {
         })
     }
     /// Await the underlying service without overwriting a newer cache entry or scope.
-    fn getFacadeRootAsync()
+    fn get_facade_root_async()
     -> impl Future<Output = Result<Arc<Self::Service>, BindingResolutionError>> + Send {
         async {
             let identity = context_identity().ok_or(BindingResolutionError::FacadeNotSet)?;
             let mut lookup = std::pin::pin!(async {
-                let key = Self::getFacadeAccessor();
+                let key = Self::get_facade_accessor();
                 let (container, cached) = with_context(|context| {
-                    let cached = if Self::cached {
+                    let cached = if Self::CACHED {
                         context
                             .resolved
                             .lock()
@@ -250,12 +250,12 @@ pub trait Facade {
                         Err(error) => return Err(error),
                     }
                 }
-                let service = container.getAsync::<Self::Service>(key.clone()).await?;
+                let service = container.get_async::<Self::Service>(key.clone()).await?;
                 with_context(|context| {
                     if !Arc::ptr_eq(&container, &context.container) {
                         return Err(BindingResolutionError::FacadeNotSet);
                     }
-                    if Self::cached {
+                    if Self::CACHED {
                         let mut cache = context.resolved.lock().expect("facade cache poisoned");
                         cache.entry(key).or_insert_with(|| Cached {
                             value: Arc::new(service.clone()),
@@ -275,18 +275,18 @@ pub trait Facade {
             .await
         }
     }
-    fn clearResolvedInstance(name: Option<ServiceKey>) -> Result<(), BindingResolutionError> {
+    fn clear_resolved_instance(name: Option<ServiceKey>) -> Result<(), BindingResolutionError> {
         with_context(|context| {
             let previous = context
                 .resolved
                 .lock()
                 .expect("facade cache poisoned")
-                .remove(&name.unwrap_or_else(Self::getFacadeAccessor));
+                .remove(&name.unwrap_or_else(Self::get_facade_accessor));
             drop(previous);
             Ok(())
         })
     }
-    fn clearResolvedInstances() -> Result<(), BindingResolutionError> {
+    fn clear_resolved_instances() -> Result<(), BindingResolutionError> {
         with_context(|context| {
             let previous =
                 std::mem::take(&mut *context.resolved.lock().expect("facade cache poisoned"));
@@ -296,7 +296,7 @@ pub trait Facade {
     }
     fn swap(instance: Arc<Self::Service>) -> Result<(), BindingResolutionError> {
         with_context(|context| {
-            let key = Self::getFacadeAccessor();
+            let key = Self::get_facade_accessor();
             let provisional = context.container.provisional_cache_key(&key).ok().flatten();
             let previous = context
                 .resolved

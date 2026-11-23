@@ -182,7 +182,7 @@ async fn mysql_refresh_mutes_only_selected_connection_events_during_preparation(
         return Ok(());
     };
     let mut app = TestApp::mysqlConnections(&[("mysql", &url), ("reports", &url)], |builder| {
-        builder.withProviders(vec![Box::new(InventoryProvider)])
+        builder.with_providers(vec![Box::new(InventoryProvider)])
     })
     .await?;
     let events = app
@@ -273,7 +273,7 @@ async fn migrations_and_seeders_only_change_their_own_sqlite_fixture()
 -> Result<(), Box<dyn Error + Send + Sync>> {
     let configure = |builder: ApplicationBuilder| {
         builder
-            .withConfig(|_, _| {
+            .with_config(|_, _| {
                 Ok([
                     ("app".into(), json!({"env": "testing"})),
                     (
@@ -287,7 +287,7 @@ async fn migrations_and_seeders_only_change_their_own_sqlite_fixture()
                 ]
                 .into())
             })
-            .withProviders(vec![Box::new(InventoryProvider)])
+            .with_providers(vec![Box::new(InventoryProvider)])
     };
 
     let mut first = TestApp::sqlite(configure)?;
@@ -356,7 +356,7 @@ async fn mysql_test_transaction_shares_http_artisan_and_nested_writes()
     }
     let configure = |builder: ApplicationBuilder| {
         builder
-            .withConfig(|_, _| {
+            .with_config(|_, _| {
                 let url = std::env::var("OPENRUST_TEST_MYSQL_URL").unwrap();
                 Ok([(
                     "database".into(),
@@ -366,8 +366,8 @@ async fn mysql_test_transaction_shares_http_artisan_and_nested_writes()
                 )]
                 .into())
             })
-            .withProviders(vec![Box::new(InventoryProvider)])
-            .withRouting(Routing::default().web(|| {
+            .with_providers(vec![Box::new(InventoryProvider)])
+            .with_routing(Routing::default().web(|| {
                 Route::get("/write", write_item)?;
                 Ok(())
             }))
@@ -480,7 +480,7 @@ async fn managed_mysql_test_schemas_keep_ownership_and_close_their_pools()
         return Ok(());
     };
     let configure =
-        |builder: ApplicationBuilder| builder.withProviders(vec![Box::new(InventoryProvider)]);
+        |builder: ApplicationBuilder| builder.with_providers(vec![Box::new(InventoryProvider)]);
     let mut server = MySqlConnection::connect(&url).await?;
     let (first, second) = tokio::join!(
         TestApp::mysql(&url, configure),
@@ -553,7 +553,7 @@ async fn mysql_recovers_a_fixture_after_process_kill() -> Result<(), Box<dyn Err
         return Ok(());
     };
     let configure =
-        |builder: ApplicationBuilder| builder.withProviders(vec![Box::new(InventoryProvider)]);
+        |builder: ApplicationBuilder| builder.with_providers(vec![Box::new(InventoryProvider)]);
     const CHILD_DIRECTORY: &str = "OPENRUST_TEST_MYSQL_RECOVERY_CHILD";
     if let Some(directory) = std::env::var_os(CHILD_DIRECTORY) {
         let directory = Path::new(&directory);
@@ -719,7 +719,7 @@ async fn mysql_database_truncation_preserves_schema_filters_and_reseeds()
         return Ok(());
     };
     let mut test = TestApp::mysqlConnections(&[("mysql", &url), ("reports", &url)], |builder| {
-        builder.withProviders(vec![
+        builder.with_providers(vec![
             Box::new(InventoryProvider),
             Box::new(TruncationConfig),
         ])
@@ -867,8 +867,8 @@ async fn mysql_database_migrations_rebuilds_and_rolls_back_the_owned_schema()
     };
     let mut test = TestApp::mysqlConnections(&[("mysql", &url), ("reports", &url)], |builder| {
         builder
-            .withProviders(vec![Box::new(InventoryProvider)])
-            .withRouting(Routing::default().web(|| {
+            .with_providers(vec![Box::new(InventoryProvider)])
+            .with_routing(Routing::default().web(|| {
                 Route::get("/write", write_item)?;
                 Ok(())
             }))
@@ -984,7 +984,7 @@ async fn mysql_database_migrations_closes_an_interrupted_test_after_rollback()
         return Ok(());
     };
     let mut test = TestApp::mysql(&url, |builder| {
-        builder.withProviders(vec![Box::new(InventoryProvider)])
+        builder.with_providers(vec![Box::new(InventoryProvider)])
     })
     .await?;
     let events = test.fakeEvents(&[MigrationsEnded::NAME]).await?;
@@ -1026,7 +1026,7 @@ async fn mysql_test_seeders_follow_artisan_order_and_rollback_boundaries()
         return Ok(());
     };
     let mut app = TestApp::mysqlConnections(&[("primary", &url), ("reports", &url)], |builder| {
-        builder.withProviders(vec![Box::new(InventoryProvider)])
+        builder.with_providers(vec![Box::new(InventoryProvider)])
     })
     .await?;
     app.artisan(["migrate"]).await.assertSuccessful();
@@ -1113,8 +1113,8 @@ async fn mysql_counts_queries_through_teardown_on_the_selected_connections()
 
     let mut app = TestApp::mysqlConnections(&[("primary", &url), ("reports", &url)], |builder| {
         builder
-            .withProviders(vec![Box::new(InventoryProvider)])
-            .withRouting(Routing::default().web(|| {
+            .with_providers(vec![Box::new(InventoryProvider)])
+            .with_routing(Routing::default().web(|| {
                 Route::get("/write", write_item)?;
                 Ok(())
             }))
@@ -1236,7 +1236,7 @@ async fn mysql_database_assertions_select_connections_and_include_soft_deleted_m
         return Ok(());
     };
     let mut app = TestApp::mysqlConnections(&[("primary", &url), ("reports", &url)], |builder| {
-        builder.withProviders(vec![Box::new(InventoryProvider)])
+        builder.with_providers(vec![Box::new(InventoryProvider)])
     })
     .await?;
     app.artisan(["migrate"]).await.assertSuccessful();
@@ -1330,8 +1330,8 @@ async fn mysql_refresh_rolls_back_every_selected_connection()
     };
     let mut app = TestApp::mysqlConnections(&[("primary", &url), ("reports", &url)], |builder| {
         builder
-            .withProviders(vec![Box::new(InventoryProvider)])
-            .withRouting(Routing::default().web(|| {
+            .with_providers(vec![Box::new(InventoryProvider)])
+            .with_routing(Routing::default().web(|| {
                 Route::get("/write", write_item)?;
                 Ok(())
             }))
@@ -1471,8 +1471,8 @@ async fn mysql_refresh_database_prepares_once_and_retries_after_interruption()
     };
     let mut test = TestApp::mysql(&url, |builder| {
         builder
-            .withProviders(vec![Box::new(InventoryProvider)])
-            .withRouting(Routing::default().web(|| {
+            .with_providers(vec![Box::new(InventoryProvider)])
+            .with_routing(Routing::default().web(|| {
                 Route::get("/write", write_item)?;
                 Ok(())
             }))

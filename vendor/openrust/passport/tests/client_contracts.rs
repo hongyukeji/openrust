@@ -67,7 +67,7 @@ fn routes(_: &Application) -> Result<openrust::routing::Router, openrust::routin
 }
 fn contracts(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let container = openrust::container::Container::getInstance();
+        let container = openrust::container::Container::get_instance();
         let hasher = container.make::<dyn Hasher>().unwrap();
         let cases = reference();
         for case in cases["secrets"].as_array().unwrap() {
@@ -161,8 +161,8 @@ fn contracts(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 #[tokio::test]
 async fn fixed_php_secret_coercion_failure_order_and_hash_input_run_over_http() {
     let mut app = Application::configure(std::env::temp_dir())
-        .withProviders(vec![Box::new(PassportServiceProvider)])
-        .withRouting(Routing::new(routes))
+        .with_providers(vec![Box::new(PassportServiceProvider)])
+        .with_routing(Routing::new(routes))
         .create()
         .unwrap();
     app.boot().await.unwrap();

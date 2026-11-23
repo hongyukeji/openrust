@@ -22,15 +22,15 @@ impl ServiceProvider for TranslationServiceProvider {
         Box::pin(async move {
             let container = app.container();
             let paths = container.make::<crate::foundation::Paths>()?;
-            container.singletonNamed("translation.loader", move |_| {
-                Ok(Arc::new(FileLoader::with_defaults(paths.langPath(""))))
+            container.singleton_named("translation.loader", move |_| {
+                Ok(Arc::new(FileLoader::with_defaults(paths.lang_path(""))))
             })?;
             container.singleton::<dyn Loader, _>(|container| {
                 Ok(container.get::<FileLoader>("translation.loader")?)
             })?;
             container.scoped::<super::translator::LocaleState, _>(|_| Ok(Arc::default()))?;
             let owner = Arc::downgrade(&app.container_handle());
-            container.singletonNamed("translator", move |container| {
+            container.singleton_named("translator", move |container| {
                 let config = container.get::<dyn Repository>("config")?;
                 let loader = container.get::<FileLoader>("translation.loader")?;
                 let make = || -> Result<Translator, TranslationError> {
@@ -47,7 +47,7 @@ impl ServiceProvider for TranslationServiceProvider {
                     let translator =
                         Translator::with_loader(loader, default_locale, default_fallback)?
                             .with_owner(owner.clone());
-                    translator.setLocale(&selected)?;
+                    translator.set_locale(&selected)?;
                     translator.setFallback(&fallback)?;
                     Ok(translator)
                 };

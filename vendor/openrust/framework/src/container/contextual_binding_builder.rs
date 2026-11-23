@@ -27,8 +27,7 @@ impl<'a, C: Container> ContextualBindingBuilder<'a, C> {
         self.needs_key(ServiceKey::typed::<T>())
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn needsNamed<T: ?Sized + Send + Sync + 'static>(
+    pub fn needs_named<T: ?Sized + Send + Sync + 'static>(
         self,
         name: &str,
     ) -> ContextualBinding<'a, C, T> {
@@ -55,7 +54,7 @@ impl<'a, C: Container, T: ?Sized + Send + Sync + 'static> ContextualBinding<'a, 
         let factory = Arc::new(factory);
         for consumer in &self.builder.consumers {
             let factory = factory.clone();
-            self.builder.container.addContextualBinding(
+            self.builder.container.add_contextual_binding(
                 consumer.clone(),
                 self.need.clone(),
                 move |container| factory(container),
@@ -65,8 +64,7 @@ impl<'a, C: Container, T: ?Sized + Send + Sync + 'static> ContextualBinding<'a, 
     }
 
     /// Resolves an explicitly registered implementation using the same output contract.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn giveService(
+    pub fn give_service(
         self,
         service: impl Into<ServiceKey>,
     ) -> Result<ContextualBindingBuilder<'a, C>, BindingResolutionError> {
@@ -79,8 +77,7 @@ impl<'a, C: Container, T: serde::de::DeserializeOwned + Send + Sync + 'static>
     ContextualBinding<'a, C, T>
 {
     /// Reads the current configuration repository at resolution time.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn giveConfig(
+    pub fn give_config(
         self,
         key: impl Into<String>,
         default: Option<serde_json::Value>,
@@ -102,8 +99,7 @@ impl<'a, C: Container, T: serde::de::DeserializeOwned + Send + Sync + 'static>
 }
 
 impl<'a, C: Container, T: ?Sized + Send + Sync + 'static> ContextualBinding<'a, C, Vec<Arc<T>>> {
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn giveTagged(
+    pub fn give_tagged(
         self,
         tag: impl Into<String>,
     ) -> Result<ContextualBindingBuilder<'a, C>, BindingResolutionError> {
@@ -119,8 +115,7 @@ impl<'a, C: Container, T: ?Sized + Send + Sync + 'static> ContextualBinding<'a, 
 }
 
 impl<'a, C: Container, T: ?Sized + Send + Sync + 'static> ContextualBinding<'a, C, T> {
-    #[allow(non_snake_case, reason = "Async contextual factory adapter")]
-    pub fn giveAsync<F>(
+    pub fn give_async<F>(
         self,
         factory: F,
     ) -> Result<ContextualBindingBuilder<'a, C>, BindingResolutionError>
@@ -130,7 +125,7 @@ impl<'a, C: Container, T: ?Sized + Send + Sync + 'static> ContextualBinding<'a, 
         let factory = Arc::new(factory);
         for consumer in &self.builder.consumers {
             let factory = factory.clone();
-            self.builder.container.addContextualBindingAsync(
+            self.builder.container.add_contextual_binding_async(
                 consumer.clone(),
                 self.need.clone(),
                 move |container| factory(container),
@@ -138,34 +133,32 @@ impl<'a, C: Container, T: ?Sized + Send + Sync + 'static> ContextualBinding<'a, 
         }
         Ok(self.builder)
     }
-    #[allow(non_snake_case, reason = "Async contextual service adapter")]
-    pub fn giveServiceAsync(
+    pub fn give_service_async(
         self,
         service: impl Into<ServiceKey>,
     ) -> Result<ContextualBindingBuilder<'a, C>, BindingResolutionError> {
         let service = service.into();
-        self.giveAsync(move |container| {
+        self.give_async(move |container| {
             let service = service.clone();
-            Box::pin(async move { container.getAsync(service).await })
+            Box::pin(async move { container.get_async(service).await })
         })
     }
 }
 impl<'a, C: Container, T: serde::de::DeserializeOwned + Send + Sync + 'static>
     ContextualBinding<'a, C, T>
 {
-    #[allow(non_snake_case, reason = "Async contextual config adapter")]
-    pub fn giveConfigAsync(
+    pub fn give_config_async(
         self,
         key: impl Into<String>,
         default: Option<serde_json::Value>,
     ) -> Result<ContextualBindingBuilder<'a, C>, BindingResolutionError> {
         let key = key.into();
-        self.giveAsync(move |container| {
+        self.give_async(move |container| {
             let key = key.clone();
             let default = default.clone();
             Box::pin(async move {
                 let config = container
-                    .getAsync::<dyn crate::contracts::config::Repository>("config")
+                    .get_async::<dyn crate::contracts::config::Repository>("config")
                     .await?;
                 let value = config
                     .get(&key)
@@ -181,18 +174,17 @@ impl<'a, C: Container, T: serde::de::DeserializeOwned + Send + Sync + 'static>
     }
 }
 impl<'a, C: Container, T: ?Sized + Send + Sync + 'static> ContextualBinding<'a, C, Vec<Arc<T>>> {
-    #[allow(non_snake_case, reason = "Async contextual tagged adapter")]
-    pub fn giveTaggedAsync(
+    pub fn give_tagged_async(
         self,
         tag: impl Into<String>,
     ) -> Result<ContextualBindingBuilder<'a, C>, BindingResolutionError> {
         let tag = tag.into();
-        self.giveAsync(move |container| {
+        self.give_async(move |container| {
             let tag = tag.clone();
             Box::pin(async move {
                 container
                     .tagged::<T>(&tag)
-                    .collectAsync()
+                    .collect_async()
                     .await
                     .map(Arc::new)
             })
@@ -202,14 +194,13 @@ impl<'a, C: Container, T: ?Sized + Send + Sync + 'static> ContextualBinding<'a, 
 
 impl<'a, C: Container, T: ?Sized + Send + Sync + 'static> ContextualBinding<'a, C, T> {
     /// Rust array overload of give: resolve these service keys in the consumer context.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn giveServices(
+    pub fn give_services(
         self,
         services: impl IntoIterator<Item = impl Into<ServiceKey>>,
     ) -> Result<ContextualBindingBuilder<'a, C>, BindingResolutionError> {
         let services: Vec<ServiceKey> = services.into_iter().map(Into::into).collect();
         for consumer in &self.builder.consumers {
-            self.builder.container.addContextualServices::<T>(
+            self.builder.container.add_contextual_services::<T>(
                 consumer.clone(),
                 self.need.clone(),
                 services.clone(),

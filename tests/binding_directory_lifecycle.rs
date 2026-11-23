@@ -57,7 +57,7 @@ struct ScopeCleanup(Arc<AtomicUsize>);
 impl Drop for ScopeCleanup {
     fn drop(&mut self) {
         assert!(
-            Directories::getFacadeRoot().is_err(),
+            Directories::get_facade_root().is_err(),
             "cached values must not inherit the flushing request Facade context"
         );
         self.0.fetch_add(1, Ordering::SeqCst);
@@ -66,7 +66,7 @@ impl Drop for ScopeCleanup {
 struct Directories;
 impl Facade for Directories {
     type Service = Directory;
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         ServiceKey::typed::<Directory>()
     }
 }
@@ -78,14 +78,14 @@ struct Provider {
 impl ServiceProvider for Provider {
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
-            let current = Container::getInstance();
+            let current = Container::get_instance();
             assert!(std::ptr::eq(current.as_ref(), app.container()));
-            current.offsetSet("application.name", Arc::new(self.name))?;
+            current.offset_set("application.name", Arc::new(self.name))?;
             let container = Container::default();
             let calls = self.calls.clone();
             let fail = self.fail;
             container
-                .singletonAsync::<u32, _>(move |_| {
+                .singleton_async::<u32, _>(move |_| {
                     let calls = calls.clone();
                     Box::pin(async move {
                         tokio::task::yield_now().await;
@@ -104,7 +104,7 @@ impl ServiceProvider for Provider {
             container
                 .scoped::<ScopeCleanup, _>(move |_| Ok(Arc::new(ScopeCleanup(observed.clone()))))?;
             let original = container
-                .getBindings()
+                .get_bindings()
                 .get(&ServiceKey::typed::<u32>())
                 .unwrap()
                 .concrete
@@ -121,12 +121,12 @@ impl ServiceProvider for Provider {
 }
 fn read(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let directory = Directories::getFacadeRootAsync().await?;
+        let directory = Directories::get_facade_root_async().await?;
         let raw = directory
             .original
-            .callAsync::<u32>(&directory.container, ParameterOverrides::new())
+            .call_async::<u32>(&directory.container, ParameterOverrides::new())
             .await?;
-        let normal = directory.container.makeAsync::<u32>().await?;
+        let normal = directory.container.make_async::<u32>().await?;
         Ok(Response::new(
             StatusCode::OK,
             Body::from(format!("{}:{raw}:{normal}", directory.name)),
@@ -135,7 +135,7 @@ fn read(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 }
 fn reset(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let directory = Directories::getFacadeRootAsync().await?;
+        let directory = Directories::get_facade_root_async().await?;
         directory
             .container
             .scope(async {
@@ -145,7 +145,7 @@ fn reset(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
             })
             .await?;
         assert_eq!(directory.cleaned.load(Ordering::SeqCst), 1);
-        assert!(directory.container.getBindings().is_empty());
+        assert!(directory.container.get_bindings().is_empty());
         directory
             .container
             .singleton::<u32, _>(|_| Ok(Arc::new(42)))?;
@@ -161,9 +161,9 @@ fn routes() -> Result<(), RoutingError> {
 
 fn current(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let current = Container::getInstance();
+        let current = Container::get_instance();
         let name = current
-            .offsetGetAsync::<&'static str>("application.name")
+            .offset_get_async::<&'static str>("application.name")
             .await
             .map_err(|_| HttpError::NotFound)?;
         Ok(Response::new(StatusCode::OK, Body::from(*name)))
@@ -172,7 +172,7 @@ fn current(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 
 fn remove_current(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        Container::getInstance().offsetUnset("application.name");
+        Container::get_instance().offset_unset("application.name");
         Ok(Response::empty(StatusCode::NO_CONTENT))
     })
 }
@@ -183,12 +183,12 @@ fn application(
     calls: Arc<AtomicUsize>,
 ) -> Application {
     Application::configure(root.0.clone())
-        .withConfig(config)
-        .withProviders(vec![Box::new(Provider { name, fail, calls })])
-        .withExceptions(|exceptions| {
+        .with_config(config)
+        .with_providers(vec![Box::new(Provider { name, fail, calls })])
+        .with_exceptions(|exceptions| {
             exceptions.shouldRenderJsonWhen(|_, _| true);
         })
-        .withRouting(Routing::default().web(routes))
+        .with_routing(Routing::default().web(routes))
         .create()
         .unwrap()
 }

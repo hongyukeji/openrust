@@ -65,15 +65,15 @@ fn auth_descriptor() -> ClassDescriptor {
     ClassDescriptor::concrete(
         vec![
             ConstructorParam::class::<GuardHandle>("guard")
-                .withAttribute(ClassAttribute::contextual(|| Ok(Auth::default()))),
+                .with_attribute(ClassAttribute::contextual(|| Ok(Auth::default()))),
             ConstructorParam::class::<dyn Authenticatable>("user")
                 .nullable()
-                .withDefault(|| Ok(ParameterValue::null()))
-                .withAttribute(ClassAttribute::contextual(|| Ok(Authenticated::default()))),
+                .with_default(|| Ok(ParameterValue::null()))
+                .with_attribute(ClassAttribute::contextual(|| Ok(Authenticated::default()))),
             ConstructorParam::class::<dyn Authenticatable>("api_user")
                 .nullable()
-                .withDefault(|| Ok(ParameterValue::null()))
-                .withAttribute(ClassAttribute::contextual(|| Ok(CurrentUser::new("api")))),
+                .with_default(|| Ok(ParameterValue::null()))
+                .with_attribute(ClassAttribute::contextual(|| Ok(CurrentUser::new("api")))),
         ],
         |args| {
             let user = |index| {
@@ -117,15 +117,15 @@ fn descriptor() -> ClassDescriptor {
     ClassDescriptor::concrete(
         vec![
             ConstructorParam::scalar::<Item>("item")
-                .withAttribute(ClassAttribute::contextual(|| Ok(RouteParameter::new("id")))),
+                .with_attribute(ClassAttribute::contextual(|| Ok(RouteParameter::new("id")))),
             ConstructorParam::scalar::<String>("slug")
-                .withAttribute(ClassAttribute::contextual(|| Ok(RouteParameter::default()))),
-            ConstructorParam::scalar::<String>("user").withAttribute(ClassAttribute::contextual(
+                .with_attribute(ClassAttribute::contextual(|| Ok(RouteParameter::default()))),
+            ConstructorParam::scalar::<String>("user").with_attribute(ClassAttribute::contextual(
                 || Ok(RequestAttribute::new("trusted")),
             )),
             ConstructorParam::scalar::<String>("missing")
                 .nullable()
-                .withAttribute(ClassAttribute::contextual(|| {
+                .with_attribute(ClassAttribute::contextual(|| {
                     Ok(RequestAttribute::new("missing"))
                 })),
         ],
@@ -158,7 +158,7 @@ impl Middleware for Attach {
                 .attributes()
                 .insert("missing", ParameterValue::null());
             if request.is("selected/*") {
-                let container = Container::getInstance();
+                let container = Container::get_instance();
                 container
                     .make::<AuthManager>()
                     .unwrap()
@@ -189,7 +189,7 @@ fn routes(_: &Application) -> Result<Router, RoutingError> {
     let mut router = Router::new();
     router.bind("id", |binding| {
         Box::pin(async move {
-            let current = Container::getInstance();
+            let current = Container::get_instance();
             let raw = route_value(&current, "id").downcast::<String>().unwrap();
             assert_eq!(raw.as_str(), binding.value());
             tokio::task::yield_now().await;
@@ -209,10 +209,10 @@ fn routes(_: &Application) -> Result<Router, RoutingError> {
 
 fn invalid_guard(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
-        let container = Container::getInstance();
+        let container = Container::get_instance();
         let attribute = ClassAttribute::contextual(|| Ok(Auth::new("unknown")));
         request
-            .withContainer(container.resolveFromAttributeAsync(
+            .withContainer(container.resolve_from_attribute_async(
                 &attribute,
                 AttributeParameter {
                     name: "guard",
@@ -226,14 +226,14 @@ fn invalid_guard(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpE
 
 fn resolve_auth(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
-        let container = Container::getInstance();
+        let container = Container::get_instance();
         if request.is("cancel/*") {
             let started = Arc::new(tokio::sync::Notify::new());
             request
                 .attributes()
                 .insert("block-auth", ParameterValue::service(started.clone()));
             tokio::select! {
-                result = request.withContainer(container.makeAsync::<AuthProbe>()) => {
+                result = request.withContainer(container.make_async::<AuthProbe>()) => {
                     panic!("expected the request driver to block, resolved={}", result.is_ok());
                 }
                 () = started.notified() => {}
@@ -241,7 +241,7 @@ fn resolve_auth(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
             request.attributes().remove("block-auth");
         }
         let probe = request
-            .withContainer(container.makeAsync::<AuthProbe>())
+            .withContainer(container.make_async::<AuthProbe>())
             .await?;
         probe.show(request).await
     })
@@ -249,9 +249,9 @@ fn resolve_auth(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
 
 fn probe(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
-        let current = Container::getInstance();
+        let current = Container::get_instance();
         let sync = current.make::<Probe>()?;
-        let injected = current.makeAsync::<Probe>().await?;
+        let injected = current.make_async::<Probe>().await?;
         assert!(Arc::ptr_eq(&sync.0, &injected.0));
         assert!(std::ptr::eq(
             injected.0.as_ref(),
@@ -281,7 +281,7 @@ async fn transport(
 
 async fn server(label: &'static str) -> (SocketAddr, tokio::task::JoinHandle<()>) {
     let app = Application::configure(std::env::temp_dir())
-        .withConfig(|_, _| {
+        .with_config(|_, _| {
             Ok([(
                 "auth".into(),
                 json!({
@@ -294,17 +294,17 @@ async fn server(label: &'static str) -> (SocketAddr, tokio::task::JoinHandle<()>
             )]
             .into())
         })
-        .withMiddleware(move |middleware| {
+        .with_middleware(move |middleware| {
             middleware.append(Arc::new(Attach(label)));
         })
-        .withRouting(Routing::new(routes))
-        .withExceptions(|exceptions| {
+        .with_routing(Routing::new(routes))
+        .with_exceptions(|exceptions| {
             exceptions.shouldRenderJsonWhen(|_, _| true);
         })
         .create()
         .unwrap();
-    app.container().registerClass(descriptor()).unwrap();
-    app.container().registerClass(auth_descriptor()).unwrap();
+    app.container().register_class(descriptor()).unwrap();
+    app.container().register_class(auth_descriptor()).unwrap();
     let mut kernel = Kernel::new(app);
     kernel.bootstrap().await.unwrap();
     let auth = kernel

@@ -15,7 +15,7 @@ let preferred = request.getPreferredLanguage(Some(&["en", "fr-FR"]))?;
 
 `getPreferredLanguage` checks each preference against ordered candidates, starting with the full tag, then language/script/region combinations and the base language. A wildcard or no match selects the first candidate. With `None` or an empty candidate list, it returns the first request range, or `None` when absent. Candidates use the same BCP 47 validation as other locale APIs; an invalid candidate returns a translation error, even if an earlier candidate matches. The returned value is an owned `Option<String>` inside a `Result`. This is a preference helper, not a 406 rejection mechanism: ignored `q=0` ranges do not form a persistent exclusion list, and the ordered fallback still applies.
 
-These methods always read standard `Accept-Language`, independently of `app.locale_header`, and do not change the application locale or infer Chinese script from region. Use `App::currentLocale()?` for the actual language used by business code, translation and pages. The global `SetLocale` middleware separately chooses a language from the configured sources; changing its header does not change these Request methods. Applications may override or disable its candidates with `middleware.setLocale(...)`; see [Application language negotiation](../digging-deeper/localization.md#locale-header). Parsed standard ranges are cached per request; changing headers through `parts_mut()` invalidates that cache. Custom negotiation headers share the parser without using this standard-header cache.
+These methods always read standard `Accept-Language`, independently of `app.locale_header`, and do not change the application locale or infer Chinese script from region. Use `App::current_locale()?` for the actual language used by business code, translation and pages. The global `SetLocale` middleware separately chooses a language from the configured sources; changing its header does not change these Request methods. Applications may override or disable its candidates with `middleware.set_locale(...)`; see [Application language negotiation](../digging-deeper/localization.md#locale-header). Parsed standard ranges are cached per request; changing headers through `parts_mut()` invalidates that cache. Custom negotiation headers share the parser without using this standard-header cache.
 
 ## Request Path, Host and URL {#request-path-host-and-method}
 
@@ -130,7 +130,7 @@ The global middleware trims string values in query, JSON and form inputs, then c
 Configure field patterns or skip either middleware for selected requests in `bootstrap/app.rs`:
 
 ```rust
-.withMiddleware(|middleware| {
+.with_middleware(|middleware| {
     middleware
         .trimStrings(["rows.*.secret"])
         .skipTrimStringsWhen(|request| request.is("hooks/*"))
@@ -159,7 +159,7 @@ Configure trusted proxy addresses during application assembly. Forwarding header
 ```rust
 use openrust::http::TrustedProxyHeaders;
 
-.withMiddleware(|middleware| {
+.with_middleware(|middleware| {
     middleware
         .trustProxies(&["192.0.2.10", "10.20.0.0/16"], TrustedProxyHeaders::DEFAULT)
         .expect("valid trusted proxy policy");
@@ -177,7 +177,7 @@ When application assembly does not supply a proxy policy, HTTP startup reads `tr
 Enable `trustHosts` to restrict the original and effective hosts. Patterns are case-insensitive PCRE expressions matched against the hostname without its port. A rejected host returns HTTP 400 before routing.
 
 ```rust
-.withMiddleware(|middleware| {
+.with_middleware(|middleware| {
     middleware
         .trustHosts(&[r"^edge\.example\.com$"], true)
         .expect("valid host patterns");

@@ -14,7 +14,7 @@ async fn callable_consumes_named_then_type_keys_and_keeps_remaining_values_in_in
     let signature = [
         ConstructorParam::class::<Dependency>("first"),
         ConstructorParam::class::<Dependency>("second"),
-        ConstructorParam::scalar::<u32>("number").withDefault(|| Ok(ParameterValue::new(1u32))),
+        ConstructorParam::scalar::<u32>("number").with_default(|| Ok(ParameterValue::new(1u32))),
     ];
     let mut parameters = ParameterOverrides::new();
     parameters.insert(
@@ -54,13 +54,13 @@ async fn method_primitive_policy_ignores_context_and_nullable_does_not_supply_re
     let c = Container::default();
     c.when::<Caller>()
         .unwrap()
-        .needsNamed::<u32>("$number")
+        .needs_named::<u32>("$number")
         .give(|_| panic!("method primitives must not read contextual values"))
         .unwrap();
-    c.bindAsync::<Caller, _>(|c| {
+    c.bind_async::<Caller, _>(|c| {
         Box::pin(async move {
             let signature = [ConstructorParam::scalar::<u32>("number")
-                .withDefault(|| Ok(ParameterValue::new(1u32)))];
+                .with_default(|| Ok(ParameterValue::new(1u32)))];
             let n = c
                 .call(
                     Callback::new(&signature, |args| async move {
@@ -74,7 +74,7 @@ async fn method_primitive_policy_ignores_context_and_nullable_does_not_supply_re
     })
     .await
     .unwrap();
-    assert_eq!(c.makeAsync::<Caller>().await.unwrap().0, 1);
+    assert_eq!(c.make_async::<Caller>().await.unwrap().0, 1);
     let signature = [ConstructorParam::scalar::<String>("required").nullable()];
     assert!(matches!(
         c.call(

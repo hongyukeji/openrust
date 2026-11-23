@@ -1,6 +1,6 @@
+#![allow(non_snake_case, reason = "保留既定公开接口及命名")]
 #![doc = include_str!("../README.md")]
 #![forbid(unsafe_code)]
-#![allow(non_snake_case, reason = "保留既定公开接口及命名")]
 mod billing;
 mod client;
 #[path = "../config/cashier.rs"]
@@ -41,9 +41,9 @@ impl CashierServiceProvider {
 impl ServiceProvider for CashierServiceProvider {
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
-            if !app.configurationIsCached() {
+            if !app.configuration_is_cached() {
                 let env = app.make::<openrust::config::Environment>().await?;
-                self.mergeConfigFrom(app, configuration::load(&env)?, "cashier")?;
+                self.merge_config_from(app, configuration::load(&env)?, "cashier")?;
             }
             app.container().singleton::<CashierManager, _>(|c| {
                 Ok(Arc::new(CashierManager::new(
@@ -61,7 +61,7 @@ impl ServiceProvider for CashierServiceProvider {
                 &[("config/cashier.rs", include_bytes!("../config/cashier.rs"))],
                 "cashier-config",
             )?;
-            self.loadMigrationsFrom(app, Self::migrations()).await?;
+            self.load_migrations_from(app, Self::migrations()).await?;
             Ok(())
         })
     }

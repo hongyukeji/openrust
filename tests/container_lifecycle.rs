@@ -31,7 +31,7 @@ struct Message {
 struct Messages;
 impl Facade for Messages {
     type Service = Message;
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         "message".into()
     }
 }
@@ -40,22 +40,22 @@ impl Drop for Reenter {
     fn drop(&mut self) {
         // A cached service may use another facade while it is being disposed.
         if !std::thread::panicking() {
-            let _ = Messages::getFacadeRoot();
+            let _ = Messages::get_facade_root();
         }
     }
 }
 struct ReentrantFacade;
 impl Facade for ReentrantFacade {
     type Service = Reenter;
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         ServiceKey::typed::<Reenter>()
     }
 }
 struct FreshMessages;
 impl Facade for FreshMessages {
     type Service = Message;
-    const cached: bool = false;
-    fn getFacadeAccessor() -> ServiceKey {
+    const CACHED: bool = false;
+    fn get_facade_accessor() -> ServiceKey {
         "message".into()
     }
 }
@@ -72,7 +72,7 @@ impl ServiceProvider for Services {
             let name = self.0;
             let sequence = AtomicUsize::new(0);
             app.container()
-                .bindIf::<Message, _>(move |_| {
+                .bind_if::<Message, _>(move |_| {
                     Ok(Arc::new(Message {
                         name,
                         sequence: sequence.fetch_add(1, Ordering::SeqCst) + 1,
@@ -81,15 +81,15 @@ impl ServiceProvider for Services {
                 .unwrap();
             app.container()
                 .alias(ServiceKey::typed::<Message>(), "message")?;
-            assert_eq!(Messages::getFacadeRoot()?.name, name);
+            assert_eq!(Messages::get_facade_root()?.name, name);
             assert!(app.container().resolved("message")?);
-            assert!(!app.container().isShared(ServiceKey::typed::<Message>()));
+            assert!(!app.container().is_shared(ServiceKey::typed::<Message>()));
             Ok(())
         })
     }
     fn boot<'a>(&'a mut self, _: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
-            assert_eq!(Messages::getFacadeRoot()?.sequence, 1);
+            assert_eq!(Messages::get_facade_root()?.sequence, 1);
             Ok(())
         })
     }
@@ -97,8 +97,8 @@ impl ServiceProvider for Services {
 
 fn application(name: &'static str) -> Application {
     Application::configure(std::env::current_dir().unwrap())
-        .withProviders(vec![Box::new(Services(name))])
-        .withRouting(Routing::default().web(web).commands(commands))
+        .with_providers(vec![Box::new(Services(name))])
+        .with_routing(Routing::default().web(web).commands(commands))
         .create()
         .unwrap()
 }
@@ -109,8 +109,8 @@ fn web() -> Result<(), RoutingError> {
 }
 fn commands() -> Result<(), ConsoleError> {
     Artisan::command("probe", |output| {
-        let first = Messages::getFacadeRoot().unwrap();
-        let second = Messages::getFacadeRoot().unwrap();
+        let first = Messages::get_facade_root().unwrap();
+        let second = Messages::get_facade_root().unwrap();
         assert!(Arc::ptr_eq(&first, &second));
         output
             .stdout
@@ -120,9 +120,9 @@ fn commands() -> Result<(), ConsoleError> {
 }
 fn probe(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let first = Messages::getFacadeRoot().unwrap();
+        let first = Messages::get_facade_root().unwrap();
         tokio::task::yield_now().await;
-        let second = Messages::getFacadeRoot().unwrap();
+        let second = Messages::get_facade_root().unwrap();
         assert!(Arc::ptr_eq(&first, &second));
         Ok(Response::new(
             StatusCode::OK,
@@ -132,19 +132,19 @@ fn probe(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 }
 fn cache(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let reentrant = ReentrantFacade::getFacadeRoot().unwrap();
+        let reentrant = ReentrantFacade::get_facade_root().unwrap();
         drop(reentrant);
-        ReentrantFacade::clearResolvedInstance(None).unwrap();
-        let reentrant = ReentrantFacade::getFacadeRoot().unwrap();
+        ReentrantFacade::clear_resolved_instance(None).unwrap();
+        let reentrant = ReentrantFacade::get_facade_root().unwrap();
         drop(reentrant);
-        ReentrantFacade::clearResolvedInstances().unwrap();
-        let first = Messages::getFacadeRoot().unwrap();
-        Messages::clearResolvedInstance(None).unwrap();
-        let second = Messages::getFacadeRoot().unwrap();
+        ReentrantFacade::clear_resolved_instances().unwrap();
+        let first = Messages::get_facade_root().unwrap();
+        Messages::clear_resolved_instance(None).unwrap();
+        let second = Messages::get_facade_root().unwrap();
         assert!(!Arc::ptr_eq(&first, &second));
-        Messages::clearResolvedInstances().unwrap();
-        let uncached = FreshMessages::getFacadeRoot().unwrap();
-        let another = FreshMessages::getFacadeRoot().unwrap();
+        Messages::clear_resolved_instances().unwrap();
+        let uncached = FreshMessages::get_facade_root().unwrap();
+        let another = FreshMessages::get_facade_root().unwrap();
         assert!(!Arc::ptr_eq(&uncached, &another));
         let replacement = Arc::new(Message {
             name: "swapped",
@@ -152,7 +152,7 @@ fn cache(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         });
         Messages::swap(replacement.clone()).unwrap();
         assert!(Arc::ptr_eq(
-            &Messages::getFacadeRoot().unwrap(),
+            &Messages::get_facade_root().unwrap(),
             &replacement
         ));
         Ok(Response::new(
@@ -203,7 +203,7 @@ fn send(address: std::net::SocketAddr, path: &str) -> String {
 #[tokio::test]
 async fn providers_and_facades_isolate_real_http_requests_and_clear_the_cache() {
     assert!(matches!(
-        Messages::getFacadeRoot(),
+        Messages::get_facade_root(),
         Err(BindingResolutionError::FacadeNotSet)
     ));
     let ((a, first), (b, second)) = tokio::join!(serve(application("A")), serve(application("B")));
@@ -237,7 +237,7 @@ async fn providers_and_facades_isolate_real_http_requests_and_clear_the_cache() 
     first.abort();
     second.abort();
     assert!(matches!(
-        Messages::getFacadeRoot(),
+        Messages::get_facade_root(),
         Err(BindingResolutionError::FacadeNotSet)
     ));
 }
@@ -257,7 +257,7 @@ async fn artisan_facades_use_their_application_and_start_a_fresh_command_scope()
     assert_eq!(a.handle(&args, &mut next).await, 0);
     assert_eq!(next.stdout, "CLI-A:2");
     assert!(matches!(
-        Messages::getFacadeRoot(),
+        Messages::get_facade_root(),
         Err(BindingResolutionError::FacadeNotSet)
     ));
 }
@@ -267,7 +267,7 @@ impl ServiceProvider for EmptyProvider {}
 #[tokio::test]
 async fn providers_may_omit_both_hooks_and_configuration_keeps_its_contract_alias() {
     let mut app = Application::configure(std::env::current_dir().unwrap())
-        .withProviders(vec![Box::new(EmptyProvider)])
+        .with_providers(vec![Box::new(EmptyProvider)])
         .create()
         .unwrap();
     app.boot().await.unwrap();
@@ -297,7 +297,7 @@ async fn failed_provider_registration_stops_boot_and_preserves_the_error_source(
         }
     }
     let mut app = Application::configure(std::env::current_dir().unwrap())
-        .withProviders(vec![Box::new(Fail)])
+        .with_providers(vec![Box::new(Fail)])
         .create()
         .unwrap();
     let failure = app.boot().await.unwrap_err();
@@ -318,7 +318,7 @@ async fn failed_provider_registration_stops_boot_and_preserves_the_error_source(
         Err(openrust::foundation::BootstrapError::PreviousBootFailed)
     ));
     assert!(matches!(
-        Messages::getFacadeRoot(),
+        Messages::get_facade_root(),
         Err(BindingResolutionError::FacadeNotSet)
     ));
 }

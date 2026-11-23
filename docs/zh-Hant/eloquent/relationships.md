@@ -66,19 +66,19 @@ pub fn is_author<P: Model, A: Model>(post: &P, author: &A) -> bool {
 
 ### 預設關聯模型
 
-可在 `BelongsTo`、`HasOne`、`HasOneThrough` 或 `MorphOne` 上呼叫 `withDefault`，在缺少關聯記錄時提供未儲存的模型。閉包接收新模型和父模型。用 `|_, _| {}` 可保留框架初始化的屬性。`HasOne` 會預填外鍵，`MorphOne` 還會預填型別別名。可從已載入關聯讀取預設實例。關聯存在與計數查詢仍以資料庫記錄為準。
+可在 `BelongsTo`、`HasOne`、`HasOneThrough` 或 `MorphOne` 上呼叫 `with_default`，在缺少關聯記錄時提供未儲存的模型。閉包接收新模型和父模型。用 `|_, _| {}` 可保留框架初始化的屬性。`HasOne` 會預填外鍵，`MorphOne` 還會預填型別別名。可從已載入關聯讀取預設實例。關聯存在與計數查詢仍以資料庫記錄為準。
 
 ```rust
 use openrust::database::eloquent::{Model, relations::BelongsTo};
 
 pub fn author_with_default() -> BelongsTo<Post, Author> {
-    BelongsTo::new("author_id", "id").withDefault(|author: &mut Author, _| {
+    BelongsTo::new("author_id", "id").with_default(|author: &mut Author, _| {
         author.setAttribute("name", "Guest author");
     })
 }
 ```
 
-對 `MorphTo` 關聯，為需要預設值的別名登記型別化 `withDefault`。閉包接收未儲存的目標和父模型。外鍵為空或找不到相符資料列時，已儲存的別名選擇自己的預設模型。用 `defaultForMissingType` 為型別為空的記錄明確選擇已登記的預設模型。外鍵存在但別名未知時仍回傳錯誤。
+對 `MorphTo` 關聯，為需要預設值的別名登記型別化 `with_default`。閉包接收未儲存的目標和父模型。外鍵為空或找不到相符資料列時，已儲存的別名選擇自己的預設模型。用 `defaultForMissingType` 為型別為空的記錄明確選擇已登記的預設模型。外鍵存在但別名未知時仍回傳錯誤。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::{Model, relations::MorphTo}};
@@ -86,7 +86,7 @@ use openrust::database::{DatabaseResult, eloquent::{Model, relations::MorphTo}};
 pub fn subject_with_default<P: Model, T: Model>() -> DatabaseResult<MorphTo<P>> {
     MorphTo::new("subject_type", "subject_id")
         .target::<T>("post", "id")
-        .withDefault::<T>("post", |post, _| {
+        .with_default::<T>("post", |post, _| {
             post.setAttribute("title", "Unavailable");
         })?
         .defaultForMissingType("post")
@@ -907,7 +907,7 @@ pub fn latest_roles<U: Model, R: Model>() -> BelongsToMany<U, R> {
 
 在多對多關聯呼叫 `using::<Membership>()`，以具型別的 Eloquent 模型載入及寫入中介資料列。模型可宣告屬性轉換與批次賦值欄位。重新命名存取器後，以 `getRelation::<Membership>("membership")` 讀取。關聯提供資料表、連線與原始關聯鍵，多型關聯也提供型別判別欄位。複合鍵資料表使用 `incrementing(false)`，自動遞增模型需要實際的主鍵欄位。
 
-自訂 Pivot 新列先由模型的 `newInstance` 初始化預設屬性，再寫入關聯鍵、Pivot 預設值及明確指定的值，隨後觸發 `Saving` 和 `Creating`。更新時，原始屬性取自資料庫既有列，髒屬性記錄本次待寫入的變更。
+自訂 Pivot 新列先由模型的 `new_instance` 初始化預設屬性，再寫入關聯鍵、Pivot 預設值及明確指定的值，隨後觸發 `Saving` 和 `Creating`。更新時，原始屬性取自資料庫既有列，髒屬性記錄本次待寫入的變更。
 
 自訂 Pivot 水合時，已選取的資料庫欄位會覆寫模型預設值，包括 SQL NULL。未選取的一般屬性可保留模型預設值。關聯識別取自資料庫列，水合後的值用於原始屬性快照、變更追蹤及 JSON 輸出。
 

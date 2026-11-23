@@ -25,8 +25,8 @@ fn authorized_routes() -> Result<(), openrust::routing::RoutingError> {
 fn app(authorized: bool) -> TestApp {
     TestApp::create(|builder| {
         builder
-            .withProviders(vec![Box::new(HorizonServiceProvider)])
-            .withRouting(Routing::default().api(if authorized {
+            .with_providers(vec![Box::new(HorizonServiceProvider)])
+            .with_routing(Routing::default().api(if authorized {
                 authorized_routes
             } else {
                 routes
@@ -249,8 +249,8 @@ impl openrust::contracts::queue::JobHandler for Handler {
 async fn native_worker_hooks_count_success_release_failure_and_hide_payloads() {
     let mut app = TestApp::create(|builder| {
         builder
-            .withConfig(config)
-            .withProviders(vec![Box::new(HorizonServiceProvider)])
+            .with_config(config)
+            .with_providers(vec![Box::new(HorizonServiceProvider)])
     })
     .unwrap();
     app.boot().await.unwrap();
@@ -556,8 +556,8 @@ async fn native_retries_keep_transport_ids_separate_from_the_failed_payload_uuid
     use openrust::contracts::{container::Container as _, foundation::Application as _};
     let mut app = TestApp::create(|builder| {
         builder
-            .withConfig(retry_config)
-            .withProviders(vec![Box::new(HorizonServiceProvider)])
+            .with_config(retry_config)
+            .with_providers(vec![Box::new(HorizonServiceProvider)])
     })
     .unwrap();
     app.boot().await.unwrap();
@@ -675,9 +675,9 @@ async fn native_retries_keep_transport_ids_separate_from_the_failed_payload_uuid
 async fn redis_jobs_outside_the_deployment_plan_keep_pending_and_lifecycle_metadata() {
     let mut app = TestApp::create(|builder| {
         builder
-            .withConfig(config)
-            .withProviders(vec![Box::new(HorizonServiceProvider)])
-            .withRouting(Routing::default().api(authorized_routes))
+            .with_config(config)
+            .with_providers(vec![Box::new(HorizonServiceProvider)])
+            .with_routing(Routing::default().api(authorized_routes))
     })
     .unwrap();
     app.boot().await.unwrap();
@@ -847,9 +847,9 @@ async fn native_failure_replacement_during_lookup_preserves_the_new_delivery() {
     for operation in ["forget", "console-retry", "dashboard-retry"] {
         let mut app = TestApp::create(|builder| {
             builder
-                .withConfig(config)
-                .withProviders(vec![Box::new(HorizonServiceProvider)])
-                .withRouting(Routing::default().api(authorized_routes))
+                .with_config(config)
+                .with_providers(vec![Box::new(HorizonServiceProvider)])
+                .with_routing(Routing::default().api(authorized_routes))
         })
         .unwrap();
         app.boot().await.unwrap();
@@ -884,7 +884,7 @@ async fn native_failure_replacement_during_lookup_preserves_the_new_delivery() {
         });
         app.app()
             .container()
-            .instanceNamed::<dyn openrust::queue::failed::FailedJobProviderInterface>(
+            .instance_named::<dyn openrust::queue::failed::FailedJobProviderInterface>(
                 "queue.failer",
                 provider.clone(),
             )

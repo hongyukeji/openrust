@@ -25,7 +25,7 @@ cargo run --features pay -- artisan migrate
 
 配置也可用 `private_key`／`public_key` 内联 PEM 替代对应路径，每把密钥只能指定一种来源。相对路径以进程工作目录解析，也可使用绝对路径。配置缓存及密钥文件须由部署权限保护。可选 `endpoint` 必须使用 HTTPS，仅回环地址允许 HTTP 协议测试；默认指向官方微信 API v3 域名和支付宝网关。支付宝沙箱须同时使用沙箱端点及其对应凭据、公钥。
 
-其他应用可依赖 `openrust-pay` 并登记 `PayServiceProvider`；它通过 `loadMigrationsFrom` 登记 `PayServiceProvider::migrations()`。网关注册及直接支付操作不要求访问本地数据库。
+其他应用可依赖 `openrust-pay` 并登记 `PayServiceProvider`；它通过 `load_migrations_from` 登记 `PayServiceProvider::migrations()`。网关注册及直接支付操作不要求访问本地数据库。
 
 ## 发起支付 {#create-payment}
 

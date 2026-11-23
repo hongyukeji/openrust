@@ -200,7 +200,7 @@ async fn sms_builtin_drivers_use_the_provider_protocol_and_market() {
     }}});
     std::fs::write(root.path().join("config.json"), config.to_string()).unwrap();
     let mut app = Application::configure(root.path().into())
-        .withConfig(|base, _| {
+        .with_config(|base, _| {
             Ok(serde_json::from_slice(&std::fs::read(base.join("config.json")).unwrap()).unwrap())
         })
         .create()

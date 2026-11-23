@@ -133,7 +133,7 @@ fn passport_install_probe(_: &mut openrust::http::Request) -> openrust::http::Ht
         use openrust_passport::HasApiTokens;
         let mut query=crate::app::models::User::query().unwrap();query.r#where("email","=","installed@test");
         let user=if let Some(user)=query.first().await.unwrap(){user}else{
-            let mut user=crate::app::models::User::newInstance(Attributes::new()).unwrap();
+            let mut user=crate::app::models::User::new_instance(Attributes::new()).unwrap();
             user.forceFillAsync(Attributes::from([("name".into(),Value::Text("Installed".into())),("email".into(),Value::Text("installed@test".into())),("password".into(),Value::Text("password".into()))])).await.unwrap();
             assert!(user.save().await.unwrap());user
         };
@@ -146,7 +146,7 @@ fn sanctum_install_probe(_: &mut openrust::http::Request) -> openrust::http::Htt
     Box::pin(async move {
         use openrust::database::eloquent::Model;
         use openrust::contracts::container::Container as _;
-        let app = openrust::container::Container::getInstance();
+        let app = openrust::container::Container::get_instance();
         let sanctum = app.make::<openrust::sanctum::Sanctum>().unwrap();
         let database = app.make::<openrust::database::DatabaseManager>().unwrap();
         let mut query = crate::app::models::User::query().unwrap();
@@ -161,7 +161,7 @@ fn sanctum_install_revoke(request:&mut openrust::http::Request)->openrust::http:
     Box::pin(async move {
         let Some(openrust::sanctum::AccessToken::Personal(token)) = openrust::sanctum::AccessToken::currentAccessToken(request) else {panic!("Sanctum token expected")};
         use openrust::contracts::container::Container as _;
-        let app = openrust::container::Container::getInstance();
+        let app = openrust::container::Container::get_instance();
         let sanctum = app.make::<openrust::sanctum::Sanctum>().unwrap();
         let database = app.make::<openrust::database::DatabaseManager>().unwrap();
         assert!(sanctum.personalAccessTokens(&database, "").unwrap().revokeToken(&token.tokenable_type, token.tokenable_id.clone(), token.id.clone()).await.unwrap());

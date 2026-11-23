@@ -1,5 +1,4 @@
 #![allow(non_snake_case, reason = "保留既定公开接口及命名")]
-
 use super::Facade;
 use crate::{
     container::ServiceKey, contracts::container::BindingResolutionError, foundation::Application,
@@ -11,7 +10,7 @@ pub struct App;
 
 impl Facade for App {
     type Service = Application;
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         "app".into()
     }
 }
@@ -19,42 +18,42 @@ impl Facade for App {
 impl App {
     /// 从当前应用解析框架版本；未进入应用作用域时返回绑定错误。
     pub fn version() -> Result<&'static str, BindingResolutionError> {
-        Ok(Self::getFacadeRoot()?.version())
+        Ok(Self::get_facade_root()?.version())
     }
 
-    pub fn langPath(path: &str) -> Result<std::path::PathBuf, BindingResolutionError> {
-        Ok(Self::getFacadeRoot()?.langPath(path))
+    pub fn lang_path(path: &str) -> Result<std::path::PathBuf, BindingResolutionError> {
+        Ok(Self::get_facade_root()?.lang_path(path))
     }
 
-    pub fn useLangPath(
+    pub fn use_lang_path(
         path: impl Into<std::path::PathBuf>,
     ) -> Result<std::sync::Arc<Application>, BindingResolutionError> {
-        let app = Self::getFacadeRoot()?;
-        app.useLangPath(path)?;
+        let app = Self::get_facade_root()?;
+        app.use_lang_path(path)?;
         Ok(app)
     }
 
-    pub fn getLocale() -> TranslationResult<String> {
-        Self::application()?.getLocale()
+    pub fn get_locale() -> TranslationResult<String> {
+        Self::application()?.get_locale()
     }
     /// 当前作用域实际使用的应用语言；不重新读取请求偏好或执行协商。
-    pub fn currentLocale() -> TranslationResult<String> {
-        Self::application()?.currentLocale()
+    pub fn current_locale() -> TranslationResult<String> {
+        Self::application()?.current_locale()
     }
-    pub fn isLocale(locale: &str) -> TranslationResult<bool> {
-        Self::application()?.isLocale(locale)
+    pub fn is_locale(locale: &str) -> TranslationResult<bool> {
+        Self::application()?.is_locale(locale)
     }
-    pub async fn setLocale(locale: &str) -> TranslationResult<()> {
-        Self::application()?.setLocale(locale).await
+    pub async fn set_locale(locale: &str) -> TranslationResult<()> {
+        Self::application()?.set_locale(locale).await
     }
-    pub fn getFallbackLocale() -> TranslationResult<String> {
-        Self::application()?.getFallbackLocale()
+    pub fn get_fallback_locale() -> TranslationResult<String> {
+        Self::application()?.get_fallback_locale()
     }
-    pub fn setFallbackLocale(fallbackLocale: &str) -> TranslationResult<()> {
-        Self::application()?.setFallbackLocale(fallbackLocale)
+    pub fn set_fallback_locale(fallback_locale: &str) -> TranslationResult<()> {
+        Self::application()?.set_fallback_locale(fallback_locale)
     }
 
     fn application() -> TranslationResult<std::sync::Arc<Application>> {
-        Self::getFacadeRoot().map_err(Into::into)
+        Self::get_facade_root().map_err(Into::into)
     }
 }

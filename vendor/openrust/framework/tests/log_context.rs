@@ -141,28 +141,30 @@ async fn application_tasks_use_distinct_repository_instances() {
         let hidden =
             ClassAttribute::contextual(|| Ok(ContextAttribute::<String>::new("task").hidden()));
         let missing = ClassAttribute::contextual(|| {
-            Ok(ContextAttribute::<u32>::new("missing").withDefaultUsing(|| Ok(3)))
+            Ok(ContextAttribute::<u32>::new("missing").with_default_using(|| Ok(3)))
         });
         let parameter = AttributeParameter {
             name: "task",
             variadic: false,
         };
-        let AttributeValue::One(value) =
-            container.resolveFromAttribute(&public, parameter).unwrap()
+        let AttributeValue::One(value) = container
+            .resolve_from_attribute(&public, parameter)
+            .unwrap()
         else {
             panic!("expected one value")
         };
         assert_eq!(*value.downcast::<u32>().unwrap(), 1);
         let AttributeValue::One(value) = container
-            .resolveFromAttributeAsync(&hidden, parameter)
+            .resolve_from_attribute_async(&hidden, parameter)
             .await
             .unwrap()
         else {
             panic!("expected one value")
         };
         assert_eq!(value.downcast::<String>().unwrap().as_str(), "private-task");
-        let AttributeValue::One(value) =
-            container.resolveFromAttribute(&missing, parameter).unwrap()
+        let AttributeValue::One(value) = container
+            .resolve_from_attribute(&missing, parameter)
+            .unwrap()
         else {
             panic!("expected one value")
         };
@@ -171,7 +173,7 @@ async fn application_tasks_use_distinct_repository_instances() {
             ClassAttribute::contextual(|| Ok(ContextAttribute::<u32>::new("task").hidden()));
         assert!(
             !container
-                .resolveFromAttribute(&invalid, parameter)
+                .resolve_from_attribute(&invalid, parameter)
                 .unwrap_err()
                 .to_string()
                 .contains("private-task")

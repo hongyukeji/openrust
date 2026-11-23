@@ -26,7 +26,7 @@ use std::sync::Arc;
 pub(crate) struct Resolver<T: ?Sized>(std::marker::PhantomData<fn() -> T>);
 impl<T: ?Sized + Send + Sync + 'static> Facade for Resolver<T> {
     type Service = T;
-    fn getFacadeAccessor() -> openrust::container::ServiceKey {
+    fn get_facade_accessor() -> openrust::container::ServiceKey {
         openrust::container::ServiceKey::typed::<T>()
     }
 }
@@ -82,7 +82,7 @@ async fn consume<T: serde::de::DeserializeOwned>(
     // Session pull alone cannot exclude concurrent requests that loaded the same
     // session. An atomic cache add makes the issued challenge single-use across
     // those requests and, with a shared cache, across application processes.
-    let cache = Resolver::<openrust::cache::CacheManager>::getFacadeRoot()
+    let cache = Resolver::<openrust::cache::CacheManager>::get_facade_root()
         .map_err(internal)?
         .store(None)
         .map_err(internal)?;
@@ -119,7 +119,7 @@ async fn credential(request: &mut Request, registration: bool) -> Result<Value, 
     } else {
         rules = rules.field("remember", [Rule::boolean()])?;
     }
-    Validator::getFacadeRoot()
+    Validator::get_facade_root()
         .map_err(internal)?
         .make(
             Data::fromRequest(request).await?,
@@ -153,7 +153,7 @@ async fn respond<T: contracts::Response + ?Sized + 'static>(
     request: &mut Request,
     passkey: Option<&PasskeyRecord>,
 ) -> Result<Response, HttpError> {
-    Resolver::<T>::getFacadeRoot()
+    Resolver::<T>::get_facade_root()
         .map_err(internal)?
         .toResponse(request, passkey)
         .await
@@ -166,7 +166,7 @@ impl PasskeyRegistrationController {
         request: &'a mut Request,
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
-            let service = Resolver::<Passkeys>::getFacadeRoot().map_err(internal)?;
+            let service = Resolver::<Passkeys>::get_facade_root().map_err(internal)?;
             let user = user(request, &service).await?;
             let state = GenerateRegistrationOptions(service.clone())
                 .call(user.as_ref())
@@ -187,7 +187,7 @@ impl PasskeyRegistrationController {
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
             let value = credential(request, true).await?;
-            let service = Resolver::<Passkeys>::getFacadeRoot().map_err(internal)?;
+            let service = Resolver::<Passkeys>::get_facade_root().map_err(internal)?;
             let user = user(request, &service).await?;
             let state =
                 consume::<RegistrationOptions>(request, "passkey.registration_options").await?;
@@ -207,7 +207,7 @@ impl PasskeyRegistrationController {
         request: &'a mut Request,
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
-            let service = Resolver::<Passkeys>::getFacadeRoot().map_err(internal)?;
+            let service = Resolver::<Passkeys>::get_facade_root().map_err(internal)?;
             let user = user(request, &service).await?;
             let key = request
                 .route("passkey")
@@ -243,7 +243,7 @@ impl PasskeyLoginController {
         request: &'a mut Request,
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
-            let service = Resolver::<Passkeys>::getFacadeRoot().map_err(internal)?;
+            let service = Resolver::<Passkeys>::get_facade_root().map_err(internal)?;
             let state = GenerateVerificationOptions(service.clone())
                 .call(None)
                 .await?;
@@ -265,7 +265,7 @@ impl PasskeyLoginController {
             let value = credential(request, false).await?;
             let state =
                 consume::<AuthenticationOptions>(request, "passkey.verification_options").await?;
-            let service = Resolver::<Passkeys>::getFacadeRoot().map_err(internal)?;
+            let service = Resolver::<Passkeys>::get_facade_root().map_err(internal)?;
             let passkey = VerifyPasskey(service.clone())
                 .call(value, &state, None)
                 .await?;
@@ -302,7 +302,7 @@ impl PasskeyConfirmationController {
         request: &'a mut Request,
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
-            let service = Resolver::<Passkeys>::getFacadeRoot().map_err(internal)?;
+            let service = Resolver::<Passkeys>::get_facade_root().map_err(internal)?;
             let user = user(request, &service).await?;
             let state = GenerateVerificationOptions(service.clone())
                 .call(Some(user.as_ref()))
@@ -323,7 +323,7 @@ impl PasskeyConfirmationController {
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
             let value = credential(request, false).await?;
-            let service = Resolver::<Passkeys>::getFacadeRoot().map_err(internal)?;
+            let service = Resolver::<Passkeys>::get_facade_root().map_err(internal)?;
             let user = user(request, &service).await?;
             let state =
                 consume::<AuthenticationOptions>(request, "passkey.verification_options").await?;
@@ -347,7 +347,7 @@ impl contracts::PasskeyDeletedResponse for PasskeyDeletedResponse {}
 macro_rules! redirect_response {
     ($name:ident,$fallback:expr)=>{impl contracts::Response for $name {
         fn toResponse<'a>(&'a self,request:&'a mut Request,_:Option<&'a PasskeyRecord>)->HttpFuture<'a,Result<Response,HttpError>> {Box::pin(async move {
-            let service=Resolver::<Passkeys>::getFacadeRoot().map_err(internal)?;
+            let service=Resolver::<Passkeys>::get_facade_root().map_err(internal)?;
             let response:Response=Redirect::intended(request,&service.string($fallback.0,$fallback.1),Default::default())?.into();
             if request.wantsJson() {let target=response.headers().get("location").and_then(|v|v.to_str().ok()).unwrap_or("/");return Response::json(StatusCode::OK,json!({"redirect":target}));}
             Ok(response)
@@ -375,24 +375,25 @@ pub(crate) fn register(
 ) -> openrust::support::ProviderResult {
     use openrust::contracts::foundation::Application as _;
     let container = app.container();
-    container.singletonIf::<Passkeys, _>(|c| Ok(Arc::new(Passkeys::new(c.get("config")?))))?;
-    container.singletonIf::<PasskeyLoginController, _>(|_| Ok(Arc::new(PasskeyLoginController)))?;
-    container.singletonIf::<PasskeyRegistrationController, _>(|_| {
+    container.singleton_if::<Passkeys, _>(|c| Ok(Arc::new(Passkeys::new(c.get("config")?))))?;
+    container
+        .singleton_if::<PasskeyLoginController, _>(|_| Ok(Arc::new(PasskeyLoginController)))?;
+    container.singleton_if::<PasskeyRegistrationController, _>(|_| {
         Ok(Arc::new(PasskeyRegistrationController))
     })?;
-    container.singletonIf::<PasskeyConfirmationController, _>(|_| {
+    container.singleton_if::<PasskeyConfirmationController, _>(|_| {
         Ok(Arc::new(PasskeyConfirmationController))
     })?;
-    container.singletonIf::<dyn contracts::PasskeyLoginResponse, _>(|_| {
+    container.singleton_if::<dyn contracts::PasskeyLoginResponse, _>(|_| {
         Ok(Arc::new(PasskeyLoginResponse))
     })?;
-    container.singletonIf::<dyn contracts::PasskeyRegistrationResponse, _>(|_| {
+    container.singleton_if::<dyn contracts::PasskeyRegistrationResponse, _>(|_| {
         Ok(Arc::new(PasskeyRegistrationResponse))
     })?;
-    container.singletonIf::<dyn contracts::PasskeyConfirmationResponse, _>(|_| {
+    container.singleton_if::<dyn contracts::PasskeyConfirmationResponse, _>(|_| {
         Ok(Arc::new(PasskeyConfirmationResponse))
     })?;
-    container.singletonIf::<dyn contracts::PasskeyDeletedResponse, _>(|_| {
+    container.singleton_if::<dyn contracts::PasskeyDeletedResponse, _>(|_| {
         Ok(Arc::new(PasskeyDeletedResponse))
     })?;
     Ok(())

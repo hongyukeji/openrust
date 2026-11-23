@@ -121,11 +121,11 @@ async fn current_password_matches_php_with_real_named_guards_and_hasher() {
         fastrand::u64(..)
     ));
     std::fs::create_dir_all(&root).unwrap();
-    let mut app=Application::configure(root.clone()).withConfig(|_,_|Ok([
+    let mut app=Application::configure(root.clone()).with_config(|_,_|Ok([
         ("app".into(),json!({"debug":false,"key":"a".repeat(32)})),
         ("hashing".into(),json!({"driver":"bcrypt","bcrypt":{"rounds":4}})),
         ("auth".into(),json!({"defaults":{"guard":"web"},"guards":{"web":{"driver":"current-web"},"admin":{"driver":"current-admin"}}})),
-    ].into())).withRouting(Routing::default().api(routes)).create().unwrap();
+    ].into())).with_routing(Routing::default().api(routes)).create().unwrap();
     app.boot().await.unwrap();
     let hasher = app.make::<dyn Hasher>().await.unwrap();
     let mut hashes = std::collections::BTreeMap::new();

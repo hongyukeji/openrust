@@ -15,7 +15,7 @@ pub struct Schema;
 impl Schema {
     /// Sets the default for subsequent polymorphic columns in this application.
     pub fn defaultMorphKeyType(kind: MorphKeyType) -> DatabaseResult<()> {
-        DB::getFacadeRoot()?.set_morph_key_type(kind);
+        DB::get_facade_root()?.set_morph_key_type(kind);
         Ok(())
     }
 
@@ -24,7 +24,7 @@ impl Schema {
         if !(1..=65_535).contains(&length) {
             return Err(DatabaseError::InvalidSchema("default string length"));
         }
-        DB::getFacadeRoot()?.update_schema_defaults(|defaults| defaults.string_length = length);
+        DB::get_facade_root()?.update_schema_defaults(|defaults| defaults.string_length = length);
         Ok(())
     }
 
@@ -34,7 +34,8 @@ impl Schema {
         if precision > 6 {
             return Err(DatabaseError::InvalidSchema("time precision"));
         }
-        DB::getFacadeRoot()?.update_schema_defaults(|defaults| defaults.time_precision = precision);
+        DB::get_facade_root()?
+            .update_schema_defaults(|defaults| defaults.time_precision = precision);
         Ok(())
     }
 

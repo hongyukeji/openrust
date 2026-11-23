@@ -13,11 +13,10 @@ pub struct Paths {
     state: RwLock<State>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 #[derive(Default)]
 struct State {
-    storagePath: Option<PathBuf>,
-    langPath: PathBuf,
+    storage_path: Option<PathBuf>,
+    lang_path: PathBuf,
     environment: Option<Arc<Environment>>,
 }
 
@@ -28,20 +27,19 @@ impl Paths {
             base,
             initial_storage: std::env::var_os("APP_STORAGE_PATH"),
             state: RwLock::new(State {
-                langPath: lang,
+                lang_path: lang,
                 ..State::default()
             }),
         }
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn storagePath(&self, path: &str) -> PathBuf {
+    pub fn storage_path(&self, path: &str) -> PathBuf {
         let state = self
             .state
             .read()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         let override_path = state
-            .storagePath
+            .storage_path
             .as_ref()
             .filter(|value| !value.as_os_str().is_empty() && value.as_os_str() != "0");
         let base = match override_path {
@@ -60,27 +58,26 @@ impl Paths {
     }
 
     /// 返回应用级语言目录，不创建目录。
-    #[allow(non_snake_case)]
-    pub fn langPath(&self, path: &str) -> PathBuf {
+    pub fn lang_path(&self, path: &str) -> PathBuf {
         let state = self
             .state
             .read()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        join(&state.langPath, path)
+        join(&state.lang_path, path)
     }
 
     pub(crate) fn use_lang_path(&self, path: PathBuf) {
         self.state
             .write()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .langPath = path;
+            .lang_path = path;
     }
 
     pub(crate) fn use_storage_path(&self, path: PathBuf) {
         self.state
             .write()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .storagePath = Some(path);
+            .storage_path = Some(path);
     }
 
     pub(crate) fn environment(&self, environment: Arc<Environment>) {

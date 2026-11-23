@@ -17,7 +17,7 @@ pub struct Storage;
 impl Facade for Storage {
     type Service = FilesystemManager;
 
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         "filesystem".into()
     }
 }
@@ -37,7 +37,7 @@ impl Storage {
 
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn getDefaultCloudDriver() -> FilesystemResult<String> {
-        Self::getFacadeRoot()?.getDefaultCloudDriver()
+        Self::get_facade_root()?.getDefaultCloudDriver()
     }
 
     pub async fn copy(from: &str, to: &str) -> FilesystemResult<bool> {
@@ -57,11 +57,11 @@ impl Storage {
     }
 
     pub fn disk(name: Option<&str>) -> FilesystemResult<Arc<FilesystemAdapter>> {
-        Self::getFacadeRoot()?.disk(name)
+        Self::get_facade_root()?.disk(name)
     }
 
     pub fn build(config: LocalDiskConfig) -> FilesystemResult<Arc<FilesystemAdapter>> {
-        Self::getFacadeRoot()?.build(config)
+        Self::get_facade_root()?.build(config)
     }
 
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
@@ -69,12 +69,12 @@ impl Storage {
         config: LocalDiskConfig,
         permissions: LocalPermissions,
     ) -> FilesystemResult<Arc<FilesystemAdapter>> {
-        Self::getFacadeRoot()?.buildWithPermissions(config, permissions)
+        Self::get_facade_root()?.buildWithPermissions(config, permissions)
     }
 
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn buildS3(config: S3DiskConfig) -> FilesystemResult<Arc<FilesystemAdapter>> {
-        Self::getFacadeRoot()?.buildS3(config)
+        Self::get_facade_root()?.buildS3(config)
     }
 
     pub async fn put(path: &str, contents: impl AsRef<[u8]>) -> FilesystemResult<bool> {

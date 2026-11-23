@@ -18,11 +18,11 @@ Windows 上使用 `artisan.bat`。编译后的应用通过 `main artisan` 接收
 
 列表和帮助成功时返回退出码 0。未知命令和非法参数返回 1。标记为 `Planned` 的条目可以查看帮助，执行时返回 1。
 
-通过 `withCommands` 接入 `app/console/commands/mod.rs` 中的命令类型。在 `bootstrap/app.rs` 的 `withRouting` 中声明 `routes/console.rs` 的控制台路由。应用命令可以替换同名占位项。
+通过 `with_commands` 接入 `app/console/commands/mod.rs` 中的命令类型。在 `bootstrap/app.rs` 的 `with_routing` 中声明 `routes/console.rs` 的控制台路由。应用命令可以替换同名占位项。
 
 `routes/console.rs` 导入 `openrust::support::facades::Artisan`，通过 `Artisan::command("inspire", …)` 向 `register()` 执行期间绑定的控制台注册闭包，通过 `purpose()` 设置帮助和命令列表中的说明。闭包接收命令输出对象，正常返回时退出码为 0。
 
-`Application::handleCommand` 调用 Console Kernel 的 `handle` 和 `terminate`。Kernel 完成引导后加载延迟 Provider，再登记命令清单、框架内置命令和应用命令，最后分派。
+`Application::handle_command` 调用 Console Kernel 的 `handle` 和 `terminate`。Kernel 完成引导后加载延迟 Provider，再登记命令清单、框架内置命令和应用命令，最后分派。
 
 
 ## 源码与发布入口 {#source-and-release-entrypoints}

@@ -351,7 +351,7 @@ impl Repository {
     }
 
     /// Reads a non-null value, returning the supplied default on a miss.
-    pub async fn getOr(&self, key: &str, default: Value) -> CacheResult<Value> {
+    pub async fn get_or(&self, key: &str, default: Value) -> CacheResult<Value> {
         self.getOrElse(key, || async { Ok(default) }).await
     }
 

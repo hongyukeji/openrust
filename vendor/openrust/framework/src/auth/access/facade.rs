@@ -18,7 +18,7 @@ pub struct Gate;
 impl Facade for Gate {
     type Service = GateRegistry;
 
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         "gate".into()
     }
 }
@@ -26,7 +26,7 @@ impl Facade for Gate {
 #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Gate {
     pub fn registry() -> AuthResult<Arc<GateRegistry>> {
-        Self::getFacadeRoot().map_err(AuthError::backend)
+        Self::get_facade_root().map_err(AuthError::backend)
     }
 
     pub fn define(

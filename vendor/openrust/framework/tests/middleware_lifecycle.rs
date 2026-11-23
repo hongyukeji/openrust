@@ -77,7 +77,7 @@ fn data(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 #[tokio::test]
 async fn cors_uses_host_paths_and_wraps_real_http_errors() {
     let app = Application::configure(std::env::temp_dir())
-        .withConfig(|_, _| {
+        .with_config(|_, _| {
             Ok([(
                 "cors".into(),
                 json!({
@@ -93,13 +93,13 @@ async fn cors_uses_host_paths_and_wraps_real_http_errors() {
             )]
             .into())
         })
-        .withMiddleware(|middleware| {
-            middleware.setLocale(&["en"]).unwrap();
+        .with_middleware(|middleware| {
+            middleware.set_locale(&["en"]).unwrap();
         })
-        .withExceptions(|exceptions| {
+        .with_exceptions(|exceptions| {
             exceptions.shouldRenderJsonWhen(|request, _| request.expectsJson());
         })
-        .withRouting(Routing::default().api(routes))
+        .with_routing(Routing::default().api(routes))
         .create()
         .unwrap();
     let mut kernel = Kernel::new(app);
@@ -148,13 +148,13 @@ async fn cors_uses_host_paths_and_wraps_real_http_errors() {
     let callbacks = Arc::new(AtomicUsize::new(0));
     let calls = callbacks.clone();
     let disabled = Application::configure(std::env::temp_dir())
-        .withMiddleware(move |middleware| {
+        .with_middleware(move |middleware| {
             middleware.skipCorsWhen(move |_| {
                 calls.fetch_add(1, Ordering::Relaxed);
                 false
             });
         })
-        .withRouting(Routing::default().api(routes))
+        .with_routing(Routing::default().api(routes))
         .create()
         .unwrap();
     let mut disabled = Kernel::new(disabled);
@@ -172,21 +172,21 @@ async fn cors_uses_host_paths_and_wraps_real_http_errors() {
 async fn cors_skip_callbacks_apply_only_to_the_configured_application() {
     let application = || {
         Application::configure(std::env::temp_dir())
-            .withConfig(|_, _| {
+            .with_config(|_, _| {
                 Ok([(
                     "cors".into(),
                     json!({"paths": ["api/*"], "allowed_origins": ["*"]}),
                 )]
                 .into())
             })
-            .withMiddleware(|middleware| {
-                middleware.setLocale(&["en"]).unwrap();
+            .with_middleware(|middleware| {
+                middleware.set_locale(&["en"]).unwrap();
             })
-            .withRouting(Routing::default().api(routes))
+            .with_routing(Routing::default().api(routes))
     };
     let mut skipped = Kernel::new(
         application()
-            .withMiddleware(|middleware| {
+            .with_middleware(|middleware| {
                 middleware
                     .skipCorsWhen(|request| request.is("api/internal/*"))
                     .skipCorsWhen(|request| request.headers().contains_key("x-skip-cors"));
@@ -228,7 +228,7 @@ async fn cors_skip_callbacks_apply_only_to_the_configured_application() {
 #[tokio::test]
 async fn invalid_cors_configuration_fails_consistently_on_bootstrap_retry() {
     let app = Application::configure(std::env::temp_dir())
-        .withConfig(|_, _| {
+        .with_config(|_, _| {
             Ok([(
                 "cors".into(),
                 json!({
@@ -338,7 +338,7 @@ async fn termination_waits_for_the_stream_and_follows_resolved_route_order() {
         gate: Some(gate.clone()),
     });
     let app = Application::configure(std::env::temp_dir())
-        .withMiddleware(move |middleware| {
+        .with_middleware(move |middleware| {
             middleware
                 .appendTerminable(global)
                 .aliasTerminable("later", later.clone())
@@ -352,7 +352,7 @@ async fn termination_waits_for_the_stream_and_follows_resolved_route_order() {
                 )
                 .priority([TypeId::of::<Record<1>>(), TypeId::of::<Record<2>>()]);
         })
-        .withRouting(Routing::default().api(lifecycle_routes))
+        .with_routing(Routing::default().api(lifecycle_routes))
         .create()
         .unwrap();
     let mut kernel = Kernel::new(app);

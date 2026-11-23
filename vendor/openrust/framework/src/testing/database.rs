@@ -95,7 +95,7 @@ impl TestApp {
         configure: impl FnOnce(ApplicationBuilder) -> ApplicationBuilder,
     ) -> Result<Self, Box<dyn Error + Send + Sync>> {
         let fixture =
-            Self::create(|builder| configure(builder.withProviders(vec![Box::new(Sqlite)])))?;
+            Self::create(|builder| configure(builder.with_providers(vec![Box::new(Sqlite)])))?;
         File::options()
             .write(true)
             .create_new(true)
@@ -186,7 +186,7 @@ impl TestApp {
             default: default.into(),
         });
         let mut fixture =
-            match Self::create(|builder| configure(builder.withProviders(vec![provider]))) {
+            match Self::create(|builder| configure(builder.with_providers(vec![provider]))) {
                 Ok(fixture) => fixture,
                 Err(error) => {
                     close_mysql(databases).await?;

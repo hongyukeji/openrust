@@ -35,7 +35,7 @@ impl Sandbox {
 
     async fn cache(&self, name: Option<&str>) -> Arc<Repository> {
         let mut app = Application::configure(self.0.clone())
-            .withConfig(config::load)
+            .with_config(config::load)
             .create()
             .unwrap();
         app.boot().await.unwrap();
@@ -263,7 +263,7 @@ async fn file_lock_process_fixture() {
     let root = PathBuf::from(std::env::var_os("OPENRUST_FILE_LOCK_FIXTURE").unwrap());
     let owner = std::env::var("OPENRUST_FILE_LOCK_OWNER").unwrap();
     let mut app = Application::configure(root)
-        .withConfig(config::load)
+        .with_config(config::load)
         .create()
         .unwrap();
     app.boot().await.unwrap();
@@ -454,7 +454,7 @@ async fn mysql_and_redis_failover_retries_errors_and_prefers_the_recovered_prima
         ),
     );
     let mut app = Application::configure(root.0.clone())
-        .withConfig(failover_config)
+        .with_config(failover_config)
         .create()
         .unwrap();
     app.boot().await.unwrap();
@@ -750,8 +750,8 @@ async fn cache_tags_facade_writes_reads_and_flushes_over_http() {
         let root = Sandbox::new("tags-http", env);
         let mut kernel = Kernel::new(
             Application::configure(root.0.clone())
-                .withConfig(config::load)
-                .withRouting(Routing::new(routes))
+                .with_config(config::load)
+                .with_routing(Routing::new(routes))
                 .create()
                 .unwrap(),
         );
@@ -827,7 +827,7 @@ async fn redis_tags_physically_flush_values_and_prune_stale_indexes() {
         ),
     );
     let mut app = Application::configure(root.0.clone())
-        .withConfig(config::load)
+        .with_config(config::load)
         .create()
         .unwrap();
     app.boot().await.unwrap();
@@ -1138,11 +1138,11 @@ async fn redis_lock_flush_distinguishes_servers_from_aliases() {
     .unwrap();
 
     let mut separate_app = Application::configure(separate.0.clone())
-        .withConfig(configure)
+        .with_config(configure)
         .create()
         .unwrap();
     let mut shared_app = Application::configure(shared.0.clone())
-        .withConfig(configure)
+        .with_config(configure)
         .create()
         .unwrap();
     separate_app.boot().await.unwrap();
@@ -1276,7 +1276,7 @@ async fn null_results_end_failover_and_emit_reference_event_payloads() {
 
     let root = Sandbox::new("null-failover-cache", "CACHE_STORE=failover\n");
     let mut app = Application::configure(root.0.clone())
-        .withConfig(|base, env| {
+        .with_config(|base, env| {
             let mut values = config::load(base, env)?;
             values.get_mut("cache").unwrap()["stores"]["failover"]["stores"] =
                 serde_json::json!(["null", "array"]);
@@ -1325,7 +1325,7 @@ async fn storage_cache_reuses_disk_and_preserves_files_outside_its_directory() {
         "CACHE_STORE=storage\nCACHE_STORAGE_DISK=local\nCACHE_STORAGE_PATH=/framework/cache/items/\nCACHE_PREFIX=fixture-\n",
     );
     let mut app = Application::configure(root.0.clone())
-        .withConfig(config::load)
+        .with_config(config::load)
         .create()
         .unwrap();
     app.boot().await.unwrap();
@@ -1442,7 +1442,7 @@ async fn storage_cache_s3_flush_keeps_adjacent_prefixes() {
         ),
     );
     let mut app = Application::configure(root.0.clone())
-        .withConfig(config::load)
+        .with_config(config::load)
         .create()
         .unwrap();
     app.boot().await.unwrap();
@@ -1649,7 +1649,7 @@ async fn memcached_weighted_servers_and_persistent_id_are_application_scoped() {
     let second = second.parse::<u16>().unwrap();
     let root = Sandbox::new("memcached-routing", "CACHE_STORE=array\n");
     let mut app = Application::configure(root.0.clone())
-        .withConfig(config::load)
+        .with_config(config::load)
         .create()
         .unwrap();
     app.boot().await.unwrap();
@@ -1941,7 +1941,7 @@ async fn dynamodb_cache_uses_custom_attributes_for_conditions_and_batch_keys() {
     };
     let root = Sandbox::new("dynamodb-attributes", "CACHE_STORE=array\n");
     let mut app = Application::configure(root.0.clone())
-        .withConfig(config::load)
+        .with_config(config::load)
         .create()
         .unwrap();
     app.boot().await.unwrap();
@@ -2570,8 +2570,8 @@ async fn verify_flexible(root: &Sandbox) {
 
     let mut kernel = Kernel::new(
         Application::configure(root.0.clone())
-            .withConfig(config::load)
-            .withRouting(Routing::new(routes))
+            .with_config(config::load)
+            .with_routing(Routing::new(routes))
             .create()
             .unwrap(),
     );
@@ -2692,7 +2692,7 @@ async fn verify_cache_defaults(first: &Repository, second: &Repository) {
     let null = Value::from(serde_json::Value::Null);
     first.forever("null", &null).await.unwrap();
     assert_eq!(
-        first.getOr("null", "default".into()).await.unwrap(),
+        first.get_or("null", "default".into()).await.unwrap(),
         "default".into()
     );
     assert_eq!(first.get("null").await.unwrap(), Some(null));
@@ -2834,8 +2834,8 @@ async fn cache_helper_resolves_the_current_application_and_writes_first_entry() 
     let application = || {
         Kernel::new(
             Application::configure(root.0.clone())
-                .withConfig(config::load)
-                .withRouting(Routing::new(routes))
+                .with_config(config::load)
+                .with_routing(Routing::new(routes))
                 .create()
                 .unwrap(),
         )

@@ -13,7 +13,7 @@ pub(crate) struct TagManager {
 struct TagStore;
 impl Facade for TagStore {
     type Service = TagManager;
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         ServiceKey::typed::<TagManager>()
     }
 }
@@ -21,7 +21,7 @@ impl Facade for TagStore {
 pub struct Tags;
 impl Tags {
     pub fn forPayload(payload: &Payload) -> Result<Vec<String>> {
-        let manager = TagStore::getFacadeRoot().map_err(|_| Error::Unavailable)?;
+        let manager = TagStore::get_facade_root().map_err(|_| Error::Unavailable)?;
         let mut tags = Vec::new();
         for callback in manager
             .callbacks
@@ -49,7 +49,7 @@ impl Tags {
 }
 impl crate::Horizon {
     pub fn tag(callback: TagCallback) -> std::result::Result<(), BindingResolutionError> {
-        TagStore::getFacadeRoot()?
+        TagStore::get_facade_root()?
             .callbacks
             .write()
             .unwrap_or_else(std::sync::PoisonError::into_inner)

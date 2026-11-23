@@ -11,9 +11,9 @@ pub struct PennantServiceProvider;
 impl ServiceProvider for PennantServiceProvider {
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
-            if !app.configurationIsCached() {
+            if !app.configuration_is_cached() {
                 let env = app.make::<openrust::config::Environment>().await?;
-                self.mergeConfigFrom(app, crate::configuration::load(&env)?, "pennant")?;
+                self.merge_config_from(app, crate::configuration::load(&env)?, "pennant")?;
             }
             app.container()
                 .singleton::<FeatureRegistry, _>(|_| Ok(Arc::new(FeatureRegistry::default())))?;
@@ -47,7 +47,7 @@ impl ServiceProvider for PennantServiceProvider {
                     .get("pennant.stores.database.connection")
                     .is_none_or(|value| value.is_null())
             {
-                self.loadMigrationsFrom(app, Self::migrations()).await?;
+                self.load_migrations_from(app, Self::migrations()).await?;
             }
             Ok(())
         })

@@ -44,10 +44,10 @@ impl Command for ManifestCommand {
         Box::pin(async move {
             let root = app.base_path().to_owned();
             let path = app
-                .getCachedPackagesPath()
+                .get_cached_packages_path()
                 .map(std::path::Path::to_owned)
                 .ok_or_else(|| ConsoleError::new("package cache path is unavailable"))?;
-            let manifest = app.packageManifest();
+            let manifest = app.package_manifest();
             let clear = self.clear;
             if !clear {
                 output.info("Discovering packages");

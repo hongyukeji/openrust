@@ -22,8 +22,8 @@ impl ServiceProvider for Settings {
 
     fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
-            app.setLocale("zh-Hans").await?;
-            app.setFallbackLocale("zh-Hant")?;
+            app.set_locale("zh-Hans").await?;
+            app.set_fallback_locale("zh-Hant")?;
             Config::set("app.provider_boot", true.into())?;
             Ok(())
         })
@@ -34,12 +34,12 @@ impl ServiceProvider for Settings {
 async fn bootstrap_configuration_survives_register_boot_and_booted_callbacks() {
     let root = tempfile::tempdir().unwrap();
     let mut app = Application::configure(root.path().to_owned())
-        .withConfig(|_, _| Ok(BTreeMap::new()))
-        .withProviders(vec![Box::new(Settings)])
+        .with_config(|_, _| Ok(BTreeMap::new()))
+        .with_providers(vec![Box::new(Settings)])
         .booted(|app| {
             assert!(app.is_booted());
             assert_eq!(Config::string("app.locale")?, "zh-Hans");
-            app.setFallbackLocale("en")?;
+            app.set_fallback_locale("en")?;
             Config::set("app.booted", true.into())?;
             Ok(())
         })
@@ -50,10 +50,10 @@ async fn bootstrap_configuration_survives_register_boot_and_booted_callbacks() {
     assert_eq!(config.get("app.key").unwrap(), "k".repeat(32));
     assert_eq!(config.get("app.provider_boot").unwrap(), true);
     assert_eq!(config.get("app.booted").unwrap(), true);
-    assert_eq!(app.getLocale().unwrap(), "zh-Hans");
-    assert_eq!(app.getFallbackLocale().unwrap(), "en");
+    assert_eq!(app.get_locale().unwrap(), "zh-Hans");
+    assert_eq!(app.get_fallback_locale().unwrap(), "en");
     let translator = app.container().get::<Translator>("translator").unwrap();
-    assert_eq!(translator.getLocale(), "zh-Hans");
+    assert_eq!(translator.get_locale(), "zh-Hans");
     assert_eq!(translator.getFallback(), "en");
 
     // 启动结束后，显式任务作用域仍隔离父对象与译器语言。
@@ -65,15 +65,15 @@ async fn bootstrap_configuration_survives_register_boot_and_booted_callbacks() {
                     serde_json::json!({"locale":"en", "fallback_locale":"zh-Hant"}),
                 )
                 .unwrap();
-            app.setLocale("en").await.unwrap();
-            app.setFallbackLocale("zh-Hant").unwrap();
+            app.set_locale("en").await.unwrap();
+            app.set_fallback_locale("zh-Hant").unwrap();
             assert!(config.get("app.key").is_none());
-            assert_eq!(translator.getLocale(), "en");
+            assert_eq!(translator.get_locale(), "en");
             assert_eq!(translator.getFallback(), "zh-Hant");
         })
         .await;
     assert_eq!(config.get("app.key").unwrap(), "k".repeat(32));
-    assert_eq!(app.getLocale().unwrap(), "zh-Hans");
-    assert_eq!(translator.getLocale(), "zh-Hans");
+    assert_eq!(app.get_locale().unwrap(), "zh-Hans");
+    assert_eq!(translator.get_locale(), "zh-Hans");
     assert_eq!(translator.getFallback(), "en");
 }

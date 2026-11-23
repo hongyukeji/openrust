@@ -421,7 +421,9 @@ async fn discovered_policies_authorize_real_http_in_independent_applications() {
     fn app(allowed: bool) -> TestApp {
         TestApp::create(move |builder| {
             builder
-                .withRouting(Routing::default().api(|| Route::get("/discovered-policy", authorize)))
+                .with_routing(
+                    Routing::default().api(|| Route::get("/discovered-policy", authorize)),
+                )
                 .booted(move |app| {
                     app.container()
                         .bind::<app::policies::ArticlePolicy, _>(|_| {

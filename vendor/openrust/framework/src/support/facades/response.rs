@@ -15,7 +15,7 @@ pub struct Response;
 impl Facade for Response {
     type Service = ResponseFactory;
 
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         ServiceKey::typed::<ResponseFactory>()
     }
 }
@@ -29,7 +29,7 @@ impl Response {
     where
         Fut: Future<Output = Result<HttpResponse, HttpError>> + Send + 'static,
     {
-        Self::getFacadeRoot()?.r#macro(name, callback);
+        Self::get_facade_root()?.r#macro(name, callback);
         Ok(())
     }
 
@@ -37,20 +37,20 @@ impl Response {
         macros: impl IntoIterator<Item = (K, ResponseMacro)>,
         replace: bool,
     ) -> Result<(), BindingResolutionError> {
-        Self::getFacadeRoot()?.mixin(macros, replace);
+        Self::get_facade_root()?.mixin(macros, replace);
         Ok(())
     }
 
     pub fn hasMacro(name: &str) -> Result<bool, BindingResolutionError> {
-        Ok(Self::getFacadeRoot()?.hasMacro(name))
+        Ok(Self::get_facade_root()?.hasMacro(name))
     }
 
     pub fn flushMacros() -> Result<(), BindingResolutionError> {
-        Self::getFacadeRoot()?.flushMacros();
+        Self::get_facade_root()?.flushMacros();
         Ok(())
     }
 
     pub async fn call(name: &str, arguments: Vec<Value>) -> Result<HttpResponse, HttpError> {
-        Self::getFacadeRoot()?.call(name, arguments).await
+        Self::get_facade_root()?.call(name, arguments).await
     }
 }

@@ -8,7 +8,7 @@ Use the `_token` form field, the `X-CSRF-TOKEN` header, or the decoded value of 
 
 ## Excluding URIs
 
-Use `preventRequestForgery` in `withMiddleware` to exclude paths such as a third-party webhook. The second argument selects origin-only mode, which rejects origin mismatches with HTTP 403 and suppresses the XSRF cookie. The third argument permits same-site fetch metadata.
+Use `preventRequestForgery` in `with_middleware` to exclude paths such as a third-party webhook. The second argument selects origin-only mode, which rejects origin mismatches with HTTP 403 and suppresses the XSRF cookie. The third argument permits same-site fetch metadata.
 
 ```rust
 use openrust::foundation::configuration::Middleware;

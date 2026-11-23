@@ -13,7 +13,7 @@ pub struct Mail;
 impl Facade for Mail {
     type Service = MailManager;
 
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         "mail.manager".into()
     }
 }
@@ -23,7 +23,7 @@ impl Mail {
     pub(crate) async fn render_for_assertions(
         mailable: &dyn Mailable,
     ) -> MailResult<(String, String)> {
-        Self::getFacadeRoot()
+        Self::get_facade_root()
             .map_err(super::composition)?
             .render_for_assertions(mailable)
             .await
@@ -31,7 +31,7 @@ impl Mail {
 
     /// Renders a mailable's body using the current application.
     pub async fn render(mailable: &dyn Mailable) -> MailResult<String> {
-        match Self::getFacadeRoot()
+        match Self::get_facade_root()
             .map_err(super::composition)?
             .preview(mailable)
             .await?
@@ -48,7 +48,7 @@ impl Mail {
         let error = |source| crate::http::HttpError::Internal {
             source: Box::new(source),
         };
-        let preview = Self::getFacadeRoot()
+        let preview = Self::get_facade_root()
             .map_err(super::composition)
             .map_err(error)?
             .preview(mailable)
@@ -65,7 +65,7 @@ impl Mail {
     }
 
     pub fn fake() -> MailResult<Arc<MailFake>> {
-        Ok(Self::getFacadeRoot().map_err(super::transport)?.fake())
+        Ok(Self::get_facade_root().map_err(super::transport)?.fake())
     }
 
     pub fn extend(
@@ -75,20 +75,22 @@ impl Mail {
         + Sync
         + 'static,
     ) -> MailResult<()> {
-        Self::getFacadeRoot()
+        Self::get_facade_root()
             .map_err(super::transport)?
             .extend(name, creator);
         Ok(())
     }
 
     pub fn mailer(name: Option<&str>) -> MailResult<Arc<Mailer>> {
-        Self::getFacadeRoot()
+        Self::get_facade_root()
             .map_err(super::transport)?
             .mailer(name)
     }
 
     pub fn to(address: impl Into<Address>) -> MailResult<PendingMail> {
-        Ok(Self::getFacadeRoot().map_err(super::transport)?.to(address))
+        Ok(Self::get_facade_root()
+            .map_err(super::transport)?
+            .to(address))
     }
 
     pub fn alwaysFrom(address: impl Into<Address>) -> MailResult<()> {

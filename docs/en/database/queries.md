@@ -151,7 +151,7 @@ Call `union(&other)?` to remove duplicate rows, or `unionAll(&other)?` to keep t
 
 Use `r#where(column, operator, value)` for `where`, since `where` is reserved in Rust. `orWhere` combines predicates with OR. Group them with `whereNested` or negate the group with `whereNot`. Use `whereNull`, `whereNotNull`, `whereIn`, `whereNotIn`, `whereBetween`, or `whereColumn` for those comparisons. An empty IN matches no rows. An empty NOT IN matches all rows.
 
-`whereLike` accepts a case-sensitivity flag. `whereDate` and `whereTime` use `jiff::civil::Date` and `jiff::civil::Time`. Use `toSql()` and `getBindings()` to inspect the SQL and parameters in execution order.
+`whereLike` accepts a case-sensitivity flag. `whereDate` and `whereTime` use `jiff::civil::Date` and `jiff::civil::Time`. Use `toSql()` and `get_bindings()` to inspect the SQL and parameters in execution order.
 
 ```rust
 use openrust::database::{Connection, DatabaseResult, Row, Value};
@@ -626,7 +626,7 @@ let bindings = query.getRawBindings()?;
 assert_eq!(bindings["where"], vec![2.into(), 9.into(), true.into()]);
 ```
 
-Later conditions append their values after a manual replacement. `select` clears projection bindings, and `reorder` clears both regular and union order bindings. `mergeBindings(&other)` appends each category without copying SQL; ensure the SQL contains the matching placeholders. The typed values remain bound parameters, including values that contain SQL text. `getBindings()` reports the parameters used by the compiled query; grouped limits move ordering parameters into the window projection and add bound numeric limits. `getRawBindings()` reports the original logical categories.
+Later conditions append their values after a manual replacement. `select` clears projection bindings, and `reorder` clears both regular and union order bindings. `mergeBindings(&other)` appends each category without copying SQL; ensure the SQL contains the matching placeholders. The typed values remain bound parameters, including values that contain SQL text. `get_bindings()` reports the parameters used by the compiled query; grouped limits move ordering parameters into the window projection and add bound numeric limits. `getRawBindings()` reports the original logical categories.
 
 ## Additional Query Conditions {#additional-query-conditions}
 

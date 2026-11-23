@@ -219,7 +219,7 @@ impl Registry {
         // A package can register after a provider's early registry query. Do not
         // freeze its loaded status into the filesystem/default-command snapshot.
         if self.application.upgrade().is_some_and(|shared| {
-            Application { shared }.providerIsLoaded("openrust_pail::PailServiceProvider")
+            Application { shared }.provider_is_loaded("openrust_pail::PailServiceProvider")
         }) {
             entries.shift_insert(
                 2,

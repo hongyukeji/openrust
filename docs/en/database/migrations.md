@@ -8,7 +8,7 @@ Use `make:migration` to create a timestamped Rust source file in `database/migra
 ./artisan make:migration create_flights_table
 ```
 
-During a build, OpenRust discovers Rust migrations in `database/migrations/`. Use the `YYYY_MM_DD_HHMMSS_name.rs` filename format and expose a `Definition` implementing `Migration`. This applies to both handwritten migrations and files created by `make:migration`. Rebuild the application to include them. The generated list is passed to `withMigrations` in `bootstrap/app.rs`. The filename still determines the ledger name, and `--path` selects from the compiled migrations. For generation into a custom directory, register those entries with the application separately.
+During a build, OpenRust discovers Rust migrations in `database/migrations/`. Use the `YYYY_MM_DD_HHMMSS_name.rs` filename format and expose a `Definition` implementing `Migration`. This applies to both handwritten migrations and files created by `make:migration`. Rebuild the application to include them. The generated list is passed to `with_migrations` in `bootstrap/app.rs`. The filename still determines the ledger name, and `--path` selects from the compiled migrations. For generation into a custom directory, register those entries with the application separately.
 
 ### Squashing Migrations {#squashing-migrations}
 

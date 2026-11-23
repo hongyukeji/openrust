@@ -17,8 +17,7 @@ impl<P: ServiceProvider + DeferrableProvider> ServiceProvider for DeferredProvid
     fn name(&self) -> &'static str {
         std::any::type_name::<P>()
     }
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn isDeferred(&self) -> bool {
+    fn is_deferred(&self) -> bool {
         true
     }
     fn provides(&self) -> Vec<ServiceKey> {
@@ -27,12 +26,10 @@ impl<P: ServiceProvider + DeferrableProvider> ServiceProvider for DeferredProvid
     fn when(&self) -> Vec<&'static str> {
         <P as DeferrableProvider>::when()
     }
-    #[allow(non_snake_case, reason = "Rust provider type identity adapter")]
-    fn providerType(&self) -> TypeId {
+    fn provider_type(&self) -> TypeId {
         TypeId::of::<P>()
     }
-    #[allow(non_snake_case, reason = "Rust compiled provider constructor adapter")]
-    fn deferredFactory(&self) -> Option<Arc<ProviderFactory>> {
+    fn deferred_factory(&self) -> Option<Arc<ProviderFactory>> {
         let factory = self.factory.clone();
         Some(Arc::new(move || Box::new(factory())))
     }

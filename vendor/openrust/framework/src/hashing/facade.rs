@@ -10,7 +10,7 @@ pub struct Hash;
 impl Facade for Hash {
     type Service = HashManager;
 
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         "hash".into()
     }
 }
@@ -21,17 +21,17 @@ impl Hash {
         name: impl Into<String>,
         factory: impl Fn(&HashManager) -> HashResult<Arc<dyn Hasher>> + Send + Sync + 'static,
     ) -> HashResult<()> {
-        Self::getFacadeRoot()?.extend(name, factory);
+        Self::get_facade_root()?.extend(name, factory);
         Ok(())
     }
 
     pub fn forgetDrivers() -> HashResult<()> {
-        Self::getFacadeRoot()?.forgetDrivers();
+        Self::get_facade_root()?.forgetDrivers();
         Ok(())
     }
 
     pub fn driver(name: Option<&str>) -> HashResult<Arc<dyn Hasher>> {
-        Self::getFacadeRoot()?.driver(name)
+        Self::get_facade_root()?.driver(name)
     }
 
     pub async fn make(value: impl AsRef<[u8]>, options: &HashOptions) -> HashResult<String> {
@@ -57,7 +57,7 @@ impl Hash {
     }
 
     pub fn isHashed(value: &str) -> HashResult<bool> {
-        Self::getFacadeRoot()?.isHashed(value)
+        Self::get_facade_root()?.isHashed(value)
     }
 
     pub fn verifyConfiguration(hashed: &str) -> HashResult<bool> {

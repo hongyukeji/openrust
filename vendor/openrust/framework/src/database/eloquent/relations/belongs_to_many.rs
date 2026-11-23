@@ -907,7 +907,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         let mut model = self
             .keys
             .configure(R::queryOn(&connection))?
-            .makeAsync(attributes)
+            .make_async(attributes)
             .await?;
         self.save_and_attach(parent, &mut model, joining, touch)
             .await?;
@@ -2451,7 +2451,7 @@ impl PivotTouchIdentity<'_> {
         }
         let mut left = self.constraints.apply(connection.table(self.pivot.table));
         let mut right = other.constraints.apply(connection.table(other.pivot.table));
-        Ok(left.toSql()? == right.toSql()? && left.getBindings()? == right.getBindings()?)
+        Ok(left.toSql()? == right.toSql()? && left.get_bindings()? == right.get_bindings()?)
     }
 }
 

@@ -405,7 +405,7 @@ impl Passport {
             .as_ref()
         {
             Some(path) => path.join(file),
-            None => self.paths.storagePath(file),
+            None => self.paths.storage_path(file),
         }
     }
     pub(crate) fn make_crypt_key(&self, kind: &str) -> Result<CryptKey, KeyError> {

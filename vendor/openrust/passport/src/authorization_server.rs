@@ -129,7 +129,7 @@ pub struct AuthorizationServer {
 }
 impl Facade for AuthorizationServer {
     type Service = Self;
-    fn getFacadeAccessor() -> openrust::container::ServiceKey {
+    fn get_facade_accessor() -> openrust::container::ServiceKey {
         openrust::container::ServiceKey::typed::<Self>()
     }
 }
@@ -782,7 +782,7 @@ impl AuthorizationServer {
             pkcs1::DecodeRsaPrivateKey,
             pkcs8::{DecodePrivateKey, EncodePrivateKey},
         };
-        let key = openrust::container::Container::getInstance()
+        let key = openrust::container::Container::get_instance()
             .make::<crate::PrivateKey>()
             .map_err(internal)?;
         let key = rsa::PrivateKey::from_pkcs8_pem(key.getKeyContents())

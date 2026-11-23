@@ -8,10 +8,11 @@ use openrust::{
 pub struct LoginRequest;
 impl FormRequest for LoginRequest {
     fn rules(&self) -> ValidationResult<RuleSet> {
-        let fortify =
-            Resolver::<Fortify>::getFacadeRoot().map_err(|source| ValidationError::Execution {
+        let fortify = Resolver::<Fortify>::get_facade_root().map_err(|source| {
+            ValidationError::Execution {
                 source: Box::new(source),
-            })?;
+            }
+        })?;
         RuleSet::parse([
             (fortify.username().as_str(), "required|string"),
             ("password", "required|string"),
@@ -87,10 +88,11 @@ impl FormRequest for VerifyEmailRequest {
 pub struct SendPasswordResetLinkRequest;
 impl FormRequest for SendPasswordResetLinkRequest {
     fn rules(&self) -> ValidationResult<RuleSet> {
-        let fortify =
-            Resolver::<Fortify>::getFacadeRoot().map_err(|source| ValidationError::Execution {
+        let fortify = Resolver::<Fortify>::get_facade_root().map_err(|source| {
+            ValidationError::Execution {
                 source: Box::new(source),
-            })?;
+            }
+        })?;
         RuleSet::parse([(fortify.email().as_str(), "required|email")])
     }
 }

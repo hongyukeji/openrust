@@ -482,7 +482,7 @@ async fn facade_resolves_the_factory_for_each_serving_application() {
 
     async fn start(side: &str) -> (String, tokio::task::JoinHandle<()>) {
         let application = Application::configure(std::env::temp_dir())
-            .withRouting(Routing::default().web(|| Route::get("/upstream", upstream)))
+            .with_routing(Routing::default().web(|| Route::get("/upstream", upstream)))
             .create()
             .unwrap();
         let mut kernel = Kernel::new(application);
@@ -1198,7 +1198,7 @@ async fn global_middleware_wraps_each_redirect_and_retry_with_network_transfer_s
     let observed = phases.clone();
     let response = factory
         .pendingRequest()
-        .withMiddleware(move |request, next| {
+        .with_middleware(move |request, next| {
             let observed = observed.clone();
             Box::pin(async move {
                 observed.lock().unwrap().push("local:enter".into());

@@ -401,7 +401,7 @@ Windows ARM64 已補驗 MySQL 佇列搭配檔案快取、Redis 佇列搭配 Redi
 
 #### 依例外停止重試 {#stopping-retries-by-exception}
 
-佇列工作遇到特定錯誤需要直接失敗時，在應用程式的 `withExceptions` 回呼中註冊規則。`dontRetry` 比對例外本身或來源鏈中的型別。`dontRetryWhen` 依條件函式判斷例外。
+佇列工作遇到特定錯誤需要直接失敗時，在應用程式的 `with_exceptions` 回呼中註冊規則。`dontRetry` 比對例外本身或來源鏈中的型別。`dontRetryWhen` 依條件函式判斷例外。
 
 ```rust
 use std::{io, num::ParseIntError};

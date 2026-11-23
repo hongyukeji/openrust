@@ -1952,7 +1952,7 @@ async fn preview_for_parent<M: HasFactory, P: Model>(parent: &P) -> DatabaseResu
 }
 ```
 
-用 `makeWithState`、`createWithState` 或 `createQuietlyWithState` 為這次操作附加末尾狀態。計數工廠也可以用 `makeWith`、`createWith` 或 `createQuietlyWith` 接收屬性映射。單筆模型的映射入口為 `makeOne`、`createOne` 和 `createOneQuietly`。對應的 `On` 方法可以指定連線。
+用 `makeWithState`、`createWithState` 或 `createQuietlyWithState` 為這次操作附加末尾狀態。計數工廠也可以用 `make_with`、`createWith` 或 `createQuietlyWith` 接收屬性映射。單筆模型的映射入口為 `makeOne`、`createOne` 和 `createOneQuietly`。對應的 `On` 方法可以指定連線。
 
 回呼會逐筆讀取已累積的屬性，此時尚未解析延遲屬性和父模型鍵。末尾狀態只作用於這次呼叫。
 
@@ -1963,7 +1963,7 @@ async fn seed_with_final_state<M: Model>() -> DatabaseResult<()> {
     let name = |value: &str| Attributes::from([("name".into(), value.into())]);
     let batch = Factory::<M>::new(move || name("Flight")).count(2);
 
-    let drafts = batch.makeWith(name("Preview")).await?;
+    let drafts = batch.make_with(name("Preview")).await?;
     assert!(drafts.iter().all(|model| !model.state().exists()));
 
     let saved = batch.createWithState(|attributes| {

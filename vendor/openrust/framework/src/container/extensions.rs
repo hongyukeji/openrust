@@ -245,7 +245,7 @@ impl Container {
         T: ?Sized + Send + Sync + 'static,
         F: Fn(Arc<T>, &Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static,
     {
-        let key = self.getAlias(key)?;
+        let key = self.get_alias(key)?;
         let extender = Self::extender(closure);
         loop {
             match self.extend_change::<T>(key.clone(), extender.clone(), false)? {
@@ -272,7 +272,7 @@ impl Container {
         T: ?Sized + Send + Sync + 'static,
         F: Fn(Arc<T>, &Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static,
     {
-        let key = self.getAlias(key)?;
+        let key = self.get_alias(key)?;
         let extender = Self::extender(closure);
         loop {
             match self.extend_change::<T>(key.clone(), extender.clone(), true)? {
@@ -440,7 +440,7 @@ impl Container {
         &self,
         abstract_key: impl Into<ServiceKey>,
     ) -> Result<(), BindingResolutionError> {
-        let key = self.getAlias(abstract_key)?;
+        let key = self.get_alias(abstract_key)?;
         let previous = {
             let mut registry = self.registry.write().expect("container lock poisoned");
             let previous = registry.extenders.remove(&key);

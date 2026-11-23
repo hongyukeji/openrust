@@ -36,7 +36,7 @@ impl UserRepository {
                     OAuthError::server_error("Unable to determine authentication provider")
                 })?,
         };
-        let container = openrust::container::Container::getInstance();
+        let container = openrust::container::Container::get_instance();
         let passport = container.make::<Passport>().map_err(internal)?;
         if let Some(resolver) = passport.password_resolver(&provider) {
             return resolver(username, password, clientEntity)

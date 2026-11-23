@@ -94,7 +94,7 @@ impl MasterSupervisor {
         result.and(cleanup).and(forget)
     }
     async fn tick(&mut self, generation: &Option<String>) -> Result<bool> {
-        let memoryLimit = openrust::support::facades::Config::getFacadeRoot()
+        let memoryLimit = openrust::support::facades::Config::get_facade_root()
             .map_err(|_| Error::Unavailable)?
             .get("horizon.memory_limit")
             .and_then(|value| value.as_u64())

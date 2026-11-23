@@ -8,7 +8,7 @@ mod configuration;
 #[tokio::test]
 async fn standalone_publishing_uses_native_tags_without_booting_authentication() {
     let mut app = TestApp::create(|builder| {
-        builder.withProviders(vec![Box::new(PasskeysResourcesServiceProvider)])
+        builder.with_providers(vec![Box::new(PasskeysResourcesServiceProvider)])
     })
     .unwrap();
     for tag in ["passkeys-config", "passkeys-migrations"] {

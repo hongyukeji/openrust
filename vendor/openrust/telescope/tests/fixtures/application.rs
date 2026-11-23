@@ -30,21 +30,21 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
 }
 fn probe(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        openrust_telescope::facades::Telescope::getFacadeRoot().unwrap().recordEvent(IncomingEntry::make(json!({"name":"<img src=x onerror=window.compromised=true>","payload":{"actual":"observed"}}).as_object().unwrap().clone()).unwrap());
+        openrust_telescope::facades::Telescope::get_facade_root().unwrap().recordEvent(IncomingEntry::make(json!({"name":"<img src=x onerror=window.compromised=true>","payload":{"actual":"observed"}}).as_object().unwrap().clone()).unwrap());
         Ok(Response::from("observed"))
     })
 }
 fn create() -> Result<Application, Box<dyn std::error::Error + Send + Sync>> {
     Ok(Application::configure(std::env::var("APP_BASE_PATH")?.into())
-        .withConfig(|base, _| Ok(std::collections::BTreeMap::from([
+        .with_config(|base, _| Ok(std::collections::BTreeMap::from([
             ("app".into(),json!({"env":"local","debug":false,"key":"01234567890123456789012345678901","cipher":"AES-256-CBC"})),
             ("database".into(),json!({"default":"sqlite","connections":{"sqlite":{"driver":"sqlite","database":base.join("database.sqlite")}}})),
             ("cache".into(),json!({"default":"file","stores":{"file":{"driver":"file","path":base.join("cache")}}})),
             ("session".into(),json!({"driver":"file","files":base.join("sessions"),"cookie":"telescope-acceptance","secure":false})),
             ("telescope".into(),json!({"path":"diagnostics/telescope","domain":"127.0.0.1","enabled":std::env::var("TELESCOPE_PROBE_DISABLED").as_deref()!=Ok("1")})),
         ])))
-        .withProviders(vec![Box::new(TelescopeServiceProvider),Box::new(ProbeProvider)])
-        .withRouting(Routing::default().api(routes))
+        .with_providers(vec![Box::new(TelescopeServiceProvider),Box::new(ProbeProvider)])
+        .with_routing(Routing::default().api(routes))
         .create()?)
 }
 #[tokio::main]

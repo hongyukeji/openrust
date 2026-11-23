@@ -145,7 +145,7 @@ async fn start(
     configure: impl FnOnce(&Application),
 ) -> (SocketAddr, tokio::task::JoinHandle<()>) {
     let mut app = Application::configure(std::env::temp_dir())
-        .withConfig(|_, _| {
+        .with_config(|_, _| {
             Ok([
                 ("app".into(), json!({"key":"a".repeat(32)})),
                 (
@@ -171,7 +171,7 @@ async fn start(
             ]
             .into())
         })
-        .withRouting(Routing::default().web(web).api(api))
+        .with_routing(Routing::default().web(web).api(api))
         .create()
         .unwrap();
     app.boot().await.unwrap();

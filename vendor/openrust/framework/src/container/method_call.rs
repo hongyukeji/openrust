@@ -99,7 +99,6 @@ pub struct MethodCall<'a, C: ?Sized> {
     receiver: Option<Arc<C>>,
     implicit: bool,
 }
-#[allow(non_snake_case, reason = "Typed Rust method target adapter")]
 impl<'a, C: ?Sized> MethodCall<'a, C> {
     pub fn on(receiver: Arc<C>, name: &'a str) -> Self {
         Self {
@@ -115,7 +114,7 @@ impl<'a, C: ?Sized> MethodCall<'a, C> {
             implicit: false,
         }
     }
-    pub fn defaultMethod(name: &'a str) -> Self {
+    pub fn default_method(name: &'a str) -> Self {
         if name.is_empty() || name == "0" {
             Self::invokable()
         } else {
@@ -337,7 +336,7 @@ impl Container {
                     target.receiver.is_some() && self.selected::<C>(target.name).0.is_some();
                 let receiver = match target.receiver {
                     Some(receiver) => receiver,
-                    None => self.makeAsync::<C>().await?,
+                    None => self.make_async::<C>().await?,
                 };
                 let stack = if callable_object {
                     context(self, &class)

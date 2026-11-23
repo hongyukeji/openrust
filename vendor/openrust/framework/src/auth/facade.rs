@@ -14,7 +14,7 @@ pub struct Auth;
 
 impl Facade for Auth {
     type Service = AuthManager;
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         "auth".into()
     }
 }
@@ -22,7 +22,7 @@ impl Facade for Auth {
 #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Auth {
     pub fn manager() -> AuthResult<Arc<AuthManager>> {
-        Self::getFacadeRoot().map_err(AuthError::backend)
+        Self::get_facade_root().map_err(AuthError::backend)
     }
 
     /// Resolves a request's selected guard name, including shouldUse overrides.

@@ -773,7 +773,7 @@ fn find_related_many(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpErr
             });
         assert!(invalid.findMany(&parent, &[]).await?.is_empty());
         assert!(invalid.findMany(&parent, &keys).await.is_err());
-        let unsaved = Article::newInstance(Attributes::new())?;
+        let unsaved = Article::new_instance(Attributes::new())?;
         assert!(children.findMany(&unsaved, &keys).await?.is_empty());
 
         let morph =
@@ -1181,7 +1181,7 @@ fn relationship_cursor_page(_: &mut Request) -> HttpFuture<'_, Result<Response, 
                     query.r#where("visible", "=", 0);
                     query
                 })
-                .withDefault::<Label>("label", |_, _| {})?
+                .with_default::<Label>("label", |_, _| {})?
                 .defaultForMissingType("label")?;
             let activities = Activity::query()?.orderBy("id", "asc").get().await?;
             let mut rows = subject.cursor(&activities[0]);
@@ -1197,7 +1197,7 @@ fn relationship_cursor_page(_: &mut Request) -> HttpFuture<'_, Result<Response, 
             drop(rows);
             assert!(subject.cursor(&activities[4]).try_next().await?.is_none());
 
-            let mut draft = Activity::newInstance(Attributes::new())?;
+            let mut draft = Activity::new_instance(Attributes::new())?;
             draft
                 .setAttribute("subject_type", "comment")
                 .setAttribute("subject_id", 11);
@@ -1261,7 +1261,7 @@ fn relationship_cursor_page(_: &mut Request) -> HttpFuture<'_, Result<Response, 
             assert_eq!(only.len(), 1);
             assert_eq!(id(only[0].getKey()), 103);
 
-            let unsaved = Article::newInstance(Attributes::new())?;
+            let unsaved = Article::new_instance(Attributes::new())?;
             assert!(direct.cursor(&unsaved).try_next().await?.is_none());
             Ok(json!({
                 "comments": comments.iter().map(|model| id(model.getKey())).collect::<Vec<_>>(),
@@ -1435,7 +1435,7 @@ fn inverse_chunk_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
 
         async fn verify_batches() -> DatabaseResult<Json> {
             let article_association = BelongsTo::<Activity, Article>::new("subject_id", "id")
-                .withDefault(|_, _| panic!("query should not create a default model"));
+                .with_default(|_, _| panic!("query should not create a default model"));
             let activities = Activity::query()?.orderBy("id", "asc").get().await?;
             assert!(
                 !article_association
@@ -1471,7 +1471,7 @@ fn inverse_chunk_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
                     query.r#where("visible", "=", 0);
                     query
                 })
-                .withDefault::<KeyedLabel>("label", |_, _| {
+                .with_default::<KeyedLabel>("label", |_, _| {
                     panic!("query should not create a default model")
                 })?
                 .defaultForMissingType("label")?;
@@ -1480,7 +1480,7 @@ fn inverse_chunk_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
                     .chunk(&activities[4], 1, |_, _| unexpected_batch())
                     .await?
             );
-            let mut draft = Activity::newInstance(Attributes::new())?;
+            let mut draft = Activity::new_instance(Attributes::new())?;
             draft
                 .setAttribute("subject_type", "article")
                 .setAttribute("subject_id", "a");
@@ -1819,7 +1819,7 @@ fn chunk_by_id_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpErro
                 .target::<Article>("article", "category")
                 .target::<KeyedLabel>("label", "id")
                 .target::<Comment>("comment", "id");
-            let mut draft = Activity::newInstance(Attributes::new())?;
+            let mut draft = Activity::new_instance(Attributes::new())?;
             draft
                 .setAttribute("subject_type", "article")
                 .setAttribute("subject_id", "a");
@@ -2217,7 +2217,7 @@ fn singular_relation_pages(_: &mut Request) -> HttpFuture<'_, Result<Response, H
 
             let activities = Activity::query()?.orderBy("id", "asc").get().await?;
             let belongs_to = BelongsTo::<Activity, Article>::new("subject_id", "id")
-                .withDefault(|_, _| panic!("paginators must read only persisted owners"));
+                .with_default(|_, _| panic!("paginators must read only persisted owners"));
             assert_eq!(
                 id(belongs_to.simplePaginate(&activities[0], 1).await?.items()[0].getKey()),
                 1
@@ -2268,7 +2268,7 @@ fn singular_relation_pages(_: &mut Request) -> HttpFuture<'_, Result<Response, H
                     .items()
                     .is_empty()
             );
-            let mut draft = Activity::newInstance(Attributes::new())?;
+            let mut draft = Activity::new_instance(Attributes::new())?;
             draft
                 .setAttribute("subject_type", "comment")
                 .setAttribute("subject_id", 16);
@@ -2444,7 +2444,7 @@ fn page_resolvers(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
 
             let morph = MorphTo::<Activity>::new("subject_type", "subject_id")
                 .target::<IndexedArticle>("article", "category");
-            let mut draft = Activity::newInstance(Attributes::new())?;
+            let mut draft = Activity::new_instance(Attributes::new())?;
             draft
                 .setAttribute("subject_type", "article")
                 .setAttribute("subject_id", "a");
@@ -2541,7 +2541,7 @@ async fn verify(config: Json) -> DatabaseResult<()> {
         r#"{{ $title }}:{{ $paginator->total }} @foreach ($elements as $element){{ $element->label }}@endforeach"#
     ).unwrap();
     let mut app = Application::configure(base.path().to_path_buf())
-        .withRouting(Routing::default().api(routes))
+        .with_routing(Routing::default().api(routes))
         .create()
         .unwrap();
     app.boot().await.unwrap();
@@ -3328,8 +3328,8 @@ async fn styled_server_with_config(
     )
     .unwrap();
     let mut app = Application::configure(base.path().to_path_buf())
-        .withProviders(vec![Box::new(StyleProvider(style))])
-        .withRouting(Routing::default().api(routes))
+        .with_providers(vec![Box::new(StyleProvider(style))])
+        .with_routing(Routing::default().api(routes))
         .create()
         .unwrap();
     app.boot().await.unwrap();

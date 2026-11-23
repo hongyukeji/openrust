@@ -38,7 +38,7 @@ impl ViewObject for Greeter {
             )),
         }
     }
-    fn callAsync<'a>(
+    fn call_async<'a>(
         &'a self,
         method: &'a str,
         arguments: Vec<ViewValue>,
@@ -68,29 +68,29 @@ impl ServiceProvider for Services {
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
             let container = app.container();
-            container.registerClass(
+            container.register_class(
                 ClassDescriptor::concrete::<Greeter, _>(
                     vec![
                         ConstructorParam::scalar::<String>("name")
-                            .withDefault(|| Ok(ParameterValue::new("Default".to_owned()))),
+                            .with_default(|| Ok(ParameterValue::new("Default".to_owned()))),
                     ],
                     |args| Ok(Arc::new(Greeter::new((*args.get::<String>(0)?).clone()))),
                 )?
-                .withProjection(class_projection!(Greeter => dyn ViewObject)),
+                .with_projection(class_projection!(Greeter => dyn ViewObject)),
             )?;
             container.scoped::<Greeter, _>(|c| c.build::<Greeter>())?;
             container.alias(ServiceKey::typed::<Greeter>(), "greeter")?;
             container.alias("greeter", "greeting")?;
             container
-                .scopedAsyncNamed::<dyn ViewObject, _>("async", |_| {
+                .scoped_async_named::<dyn ViewObject, _>("async", |_| {
                     Box::pin(async {
                         tokio::task::yield_now().await;
                         Ok(Arc::new(Greeter::new("Async".into())) as Arc<dyn ViewObject>)
                     })
                 })
                 .await?;
-            container.instanceNamed("opaque", Arc::new(42_i64))?;
-            container.instanceNamed::<dyn ViewObject>(
+            container.instance_named("opaque", Arc::new(42_i64))?;
+            container.instance_named::<dyn ViewObject>(
                 "keeper",
                 Arc::new(Keeper(std::sync::Mutex::default())),
             )?;
@@ -114,10 +114,10 @@ impl Root {
     }
     async fn kernel(&self, name: &str) -> Kernel {
         fs::write(self.0.join("name"), name).unwrap();
-        let app=Application::configure(self.0.clone()).withConfig(|base,_| { let name=fs::read_to_string(base.join("name")).unwrap(); Ok(BTreeMap::from([
+        let app=Application::configure(self.0.clone()).with_config(|base,_| { let name=fs::read_to_string(base.join("name")).unwrap(); Ok(BTreeMap::from([
             ("app".into(),serde_json::json!({"name":name,"locale":"en","fallback_locale":"en","debug":true,"env":"testing"})),
             ("view".into(),serde_json::json!({"paths":[base.join("views")],"compiled":base.join("compiled")})),
-        ])) }).withProviders(vec![Box::new(Services), Box::new(Deferred)]).withRouting(Routing::new(|_| {
+        ])) }).with_providers(vec![Box::new(Services), Box::new(Deferred)]).with_routing(Routing::new(|_| {
             let mut router=openrust::routing::Router::new();
             router.get("/",render)?; Ok(router)
         })).create().unwrap();
@@ -305,19 +305,19 @@ async fn objects_retained_by_a_service_cannot_cross_request_boundaries() {
 
 struct Deferred;
 impl ServiceProvider for Deferred {
-    fn isDeferred(&self) -> bool {
+    fn is_deferred(&self) -> bool {
         true
     }
     fn provides(&self) -> Vec<ServiceKey> {
         vec!["deferred-greeting".into()]
     }
-    fn deferredFactory(&self) -> Option<Arc<openrust::support::ProviderFactory>> {
+    fn deferred_factory(&self) -> Option<Arc<openrust::support::ProviderFactory>> {
         Some(Arc::new(|| Box::new(Self)))
     }
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
             app.container()
-                .singletonNamed::<dyn ViewObject, _>("deferred-greeting", |_| {
+                .singleton_named::<dyn ViewObject, _>("deferred-greeting", |_| {
                     Ok(Arc::new(Greeter::new("Deferred".into())) as Arc<dyn ViewObject>)
                 })?;
             Ok(())
@@ -353,7 +353,7 @@ impl openrust::contracts::events::Listener for FailingLocale {
                 .unwrap();
             assert_eq!(Config::string("app.locale").unwrap(), event.locale);
             assert_eq!(
-                openrust::support::facades::Lang::getLocale().unwrap(),
+                openrust::support::facades::Lang::get_locale().unwrap(),
                 event.locale
             );
             if event.locale == "fr" {

@@ -18,7 +18,7 @@ async fn account(request: &mut Request, fortify: &Fortify) -> Result<Box<dyn Acc
         .ok_or_else(|| internal(FortifyError::UnregisteredTwoFactorModel))
 }
 async fn mutate(request: &mut Request, mutation: Mutation<'_>) -> Result<(), HttpError> {
-    let fortify = Resolver::<Fortify>::getFacadeRoot().map_err(internal)?;
+    let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;
     let mut user = account(request, &fortify).await?;
     let enabling = matches!(mutation, Mutation::Enable(_));
     user.mutate(mutation).await?;
@@ -93,7 +93,7 @@ impl RecoveryCodeController {
         request: &'a mut Request,
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
-            let fortify = Resolver::<Fortify>::getFacadeRoot().map_err(internal)?;
+            let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;
             let user = account(request, &fortify).await?;
             if !truthy(user.attribute("two_factor_secret").map_err(internal)?)
                 || !truthy(
@@ -130,7 +130,7 @@ impl TwoFactorSecretKeyController {
         request: &'a mut Request,
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
-            let fortify = Resolver::<Fortify>::getFacadeRoot().map_err(internal)?;
+            let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;
             let user = account(request, &fortify).await?;
             let encrypted = text(user.attribute("two_factor_secret").map_err(internal)?)
                 .map_err(internal)?
@@ -160,13 +160,13 @@ impl TwoFactorQrCodeController {
         request: &'a mut Request,
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
-            let fortify = Resolver::<Fortify>::getFacadeRoot().map_err(internal)?;
+            let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;
             let user = account(request, &fortify).await?;
             if !present(user.attribute("two_factor_secret").map_err(internal)?) {
                 return Response::json(StatusCode::OK, serde_json::json!([]));
             }
             let provider =
-                Resolver::<dyn contracts::TwoFactorAuthenticationProvider>::getFacadeRoot()
+                Resolver::<dyn contracts::TwoFactorAuthenticationProvider>::get_facade_root()
                     .map_err(internal)?;
             let svg = user.qr_svg(&fortify, provider.as_ref()).map_err(internal)?;
             let url = user.qr_url(&fortify, provider.as_ref()).map_err(internal)?;

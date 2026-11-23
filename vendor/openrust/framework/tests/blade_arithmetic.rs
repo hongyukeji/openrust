@@ -174,9 +174,9 @@ fn config(
 async fn actual_http_preserves_outputs_errors_json_html_and_recovery() {
     let root = Root::new();
     let app = openrust::foundation::Application::configure(root.0.clone())
-        .withConfig(config)
-        .withRouting(openrust::foundation::configuration::Routing::new(routes))
-        .withExceptions(|e| {
+        .with_config(config)
+        .with_routing(openrust::foundation::configuration::Routing::new(routes))
+        .with_exceptions(|e| {
             e.shouldRenderJsonWhen(|r, _| r.expectsJson());
         })
         .create()
@@ -266,8 +266,8 @@ async fn deprecations_continue_rendering_log_per_application_and_respect_testing
         let root = Root::new();
         fs::write(root.0.join(".env"), format!("APP_ENV={environment}\nLOG_DEPRECATIONS_CHANNEL={channel}\nLOG_DEPRECATIONS_TRACE={trace}\nLOG_DEPRECATIONS_WHILE_TESTING={}\n", enabled)).unwrap();
         let app = openrust::foundation::Application::configure(root.0.clone())
-            .withConfig(config)
-            .withRouting(openrust::foundation::configuration::Routing::new(routes))
+            .with_config(config)
+            .with_routing(openrust::foundation::configuration::Routing::new(routes))
             .create()
             .unwrap();
         let mut kernel = openrust::foundation::http::Kernel::new(app);

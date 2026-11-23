@@ -10,7 +10,7 @@ pub struct Crypt;
 impl Facade for Crypt {
     type Service = Encrypter;
 
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         "encrypter".into()
     }
 }
@@ -18,13 +18,13 @@ impl Facade for Crypt {
 #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Crypt {
     pub fn encrypt(value: impl AsRef<[u8]>, serialize: bool) -> Result<String, EncryptException> {
-        Self::getFacadeRoot()
+        Self::get_facade_root()
             .map_err(encrypter_error)?
             .encrypt(value.as_ref(), serialize)
     }
 
     pub fn decrypt(payload: &str, unserialize: bool) -> Result<Vec<u8>, DecryptException> {
-        Self::getFacadeRoot()
+        Self::get_facade_root()
             .map_err(DecryptException::Unavailable)?
             .decrypt(payload, unserialize)
     }

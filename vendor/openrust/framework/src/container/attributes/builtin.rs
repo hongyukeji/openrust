@@ -28,8 +28,7 @@ impl<T: DeserializeOwned + Send + Sync + 'static> Config<T> {
         }
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn withDefault(mut self, value: T) -> Self {
+    pub fn with_default(mut self, value: T) -> Self {
         self.default = ParameterValue::new(value);
         self
     }
@@ -54,7 +53,7 @@ impl<T: DeserializeOwned + Send + Sync + 'static> ContextualAttribute for Config
         self.read(container.get::<dyn Repository>("config")?.as_ref())
     }
 
-    fn resolveAsync<'a>(
+    fn resolve_async<'a>(
         self: Arc<Self>,
         container: &'a Container,
         _: AttributeParameter,
@@ -62,7 +61,7 @@ impl<T: DeserializeOwned + Send + Sync + 'static> ContextualAttribute for Config
         Box::pin(async move {
             self.read(
                 container
-                    .getAsync::<dyn Repository>("config")
+                    .get_async::<dyn Repository>("config")
                     .await?
                     .as_ref(),
             )
@@ -85,8 +84,7 @@ impl<T: ?Sized + Send + Sync + 'static> Give<T> {
         }
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn withParameters(mut self, parameters: ParameterOverrides) -> Self {
+    pub fn with_parameters(mut self, parameters: ParameterOverrides) -> Self {
         self.parameters = parameters;
         self
     }
@@ -95,18 +93,18 @@ impl<T: ?Sized + Send + Sync + 'static> Give<T> {
 impl<T: ?Sized + Send + Sync + 'static> ContextualAttribute for Give<T> {
     fn resolve(&self, container: &Container, _: AttributeParameter) -> Result<AttributeValue> {
         container
-            .makeWithNamed::<T>(self.key.clone(), self.parameters.clone())
+            .make_with_named::<T>(self.key.clone(), self.parameters.clone())
             .map(|value| ParameterValue::service(value).into())
     }
 
-    fn resolveAsync<'a>(
+    fn resolve_async<'a>(
         self: Arc<Self>,
         container: &'a Container,
         _: AttributeParameter,
     ) -> CallFuture<'a, AttributeValue> {
         Box::pin(async move {
             container
-                .makeWithAsyncNamed::<T>(self.key.clone(), self.parameters.clone())
+                .make_with_async_named::<T>(self.key.clone(), self.parameters.clone())
                 .await
                 .map(|value| ParameterValue::service(value).into())
         })
@@ -138,7 +136,7 @@ pub struct CurrentResolving;
 impl ContextualAttribute for CurrentResolving {
     fn resolve(&self, container: &Container, _: AttributeParameter) -> Result<AttributeValue> {
         Ok(container
-            .currentlyResolving()
+            .currently_resolving()
             .map_or_else(ParameterValue::null, ParameterValue::new)
             .into())
     }

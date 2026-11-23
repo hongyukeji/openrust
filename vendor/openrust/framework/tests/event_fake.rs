@@ -43,7 +43,7 @@ struct GreetingFacade;
 impl Facade for GreetingFacade {
     type Service = dyn Greeting;
 
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         ServiceKey::typed::<dyn Greeting>()
     }
 }
@@ -65,7 +65,7 @@ impl Listener for Count {
 
 fn greet(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let greeting = GreetingFacade::getFacadeRoot()?;
+        let greeting = GreetingFacade::get_facade_root()?;
         Event::dispatch(NamedEvent::new("greeting.sent", 42_u64)).await?;
         Event::dispatch(NamedEvent::new("greeting.done", ())).await?;
         Response::json(StatusCode::OK, greeting.message())
@@ -89,7 +89,7 @@ fn fake_inside_http(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpErro
 async fn test_app_replaces_a_service_and_fakes_events_in_one_application() -> TestResult {
     let fixture = || {
         TestApp::create(|builder| {
-            builder.withRouting(Routing::default().web(|| {
+            builder.with_routing(Routing::default().web(|| {
                 Route::get("/greeting", greet)?;
                 Route::get("/fake", fake_inside_http)
             }))
@@ -222,7 +222,7 @@ fn fake_for_request(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpErro
 #[tokio::test]
 async fn scoped_event_fakes_restore_after_errors_and_cancellation() -> TestResult {
     let mut app = TestApp::create(|builder| {
-        builder.withRouting(Routing::default().web(|| Route::get("/scoped", fake_for_request)))
+        builder.with_routing(Routing::default().web(|| Route::get("/scoped", fake_for_request)))
     })?;
     app.boot().await?;
     let dispatcher = app.app().make::<Dispatcher>().await?;
@@ -331,7 +331,7 @@ fn fake_matching_events(_: &mut Request) -> HttpFuture<'_, Result<Response, Http
 #[tokio::test]
 async fn predicates_select_payloads_without_hiding_other_events() -> TestResult {
     let mut app = TestApp::sqlite(|builder| {
-        builder.withRouting(Routing::default().web(|| Route::get("/filter", fake_matching_events)))
+        builder.with_routing(Routing::default().web(|| Route::get("/filter", fake_matching_events)))
     })?;
     app.boot().await?;
     let dispatcher = app.app().make::<Dispatcher>().await?;
@@ -369,7 +369,7 @@ async fn event_fake_respects_mysql_commit_and_rollback() -> TestResult {
         return Ok(());
     }
     let app = TestApp::create(|builder| {
-        builder.withConfig(|_, env| {
+        builder.with_config(|_, env| {
             let url = env
                 .get_utf8("OPENRUST_TEST_ELOQUENT_MYSQL_URL")?
                 .ok_or_else(|| ConfigError::InvalidType {

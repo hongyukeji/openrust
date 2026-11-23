@@ -15,15 +15,15 @@ impl openrust::support::ServiceProvider for PackageProvider {
     ) -> openrust::http::HttpFuture<'a, openrust::support::ProviderResult> {
         Box::pin(async move {
             let source = app.base_path().join("package/en/messages.json");
-            self.publishesPaths(
+            self.publishes_paths(
                 app,
                 &[(
                     source.as_path(),
-                    app.langPath("vendor/probe/en/messages.json").as_path(),
+                    app.lang_path("vendor/probe/en/messages.json").as_path(),
                 )],
                 "probe-lang",
             )?;
-            self.loadTranslationsFrom(app, &app.base_path().join("package"), "probe")
+            self.load_translations_from(app, &app.base_path().join("package"), "probe")
                 .await
         })
     }
@@ -43,18 +43,18 @@ fn language_path_initialization_and_contract_preserve_legacy_priority() {
             .base_path()
             .join(if legacy { "resources/lang" } else { "lang" });
         assert_eq!(
-            app.langPath("en/messages.json"),
+            app.lang_path("en/messages.json"),
             expected.join("en/messages.json")
         );
-        assert_eq!(Contract::langPath(&app, ""), expected);
+        assert_eq!(Contract::lang_path(&app, ""), expected);
         assert_eq!(
             *app.container().get::<PathBuf>("path.lang").unwrap(),
             expected
         );
         assert!(!app.base_path().join("lang").exists());
         let custom = root.path().join("custom/languages");
-        app.useLangPath(custom.clone()).unwrap();
-        assert_eq!(Contract::langPath(&app, "en"), custom.join("en"));
+        app.use_lang_path(custom.clone()).unwrap();
+        assert_eq!(Contract::lang_path(&app, "en"), custom.join("en"));
         assert_eq!(
             *app.container().get::<PathBuf>("path.lang").unwrap(),
             custom
@@ -67,16 +67,16 @@ async fn custom_language_path_connects_loader_publisher_facade_and_package_overr
     for external in [false, true] {
         let external_root = tempfile::tempdir().unwrap();
         let mut app = TestApp::create(|b| {
-            b.withProviders(vec![Box::new(PackageProvider)])
-                .withConfig(|_, _| {
+            b.with_providers(vec![Box::new(PackageProvider)])
+                .with_config(|_, _| {
                     Ok(BTreeMap::from([(
                         "app".into(),
                         serde_json::json!({"locale":"en","fallback_locale":"en"}),
                     )]))
                 })
-                .withCommands(|artisan| {
+                .with_commands(|artisan| {
                     artisan.command("path:probe", |output| {
-                        assert_eq!(App::langPath("").unwrap(), lang_path("").unwrap());
+                        assert_eq!(App::lang_path("").unwrap(), lang_path("").unwrap());
                         assert_eq!(
                             openrust::support::facades::Lang::get(
                                 "messages.greeting",
@@ -91,8 +91,8 @@ async fn custom_language_path_connects_loader_publisher_facade_and_package_overr
                                 .unwrap(),
                             "custom"
                         );
-                        let current = App::useLangPath(lang_path("").unwrap()).unwrap();
-                        assert_eq!(current.langPath(""), App::langPath("").unwrap());
+                        let current = App::use_lang_path(lang_path("").unwrap()).unwrap();
+                        assert_eq!(current.lang_path(""), App::lang_path("").unwrap());
                         output
                             .stdout
                             .push_str(&lang_path("").unwrap().to_string_lossy());
@@ -111,7 +111,7 @@ async fn custom_language_path_connects_loader_publisher_facade_and_package_overr
         let package = app.root().join("package/en");
         fs::create_dir_all(&package).unwrap();
         fs::write(package.join("messages.json"), r#"{"greeting":"package"}"#).unwrap();
-        app.app().useLangPath(custom.clone()).unwrap();
+        app.app().use_lang_path(custom.clone()).unwrap();
         let command = app.artisan(["path:probe"]).await;
         command.assertSuccessful();
         assert_eq!(command.stdout, custom.to_string_lossy());
@@ -200,7 +200,7 @@ async fn publish_uses_default_and_legacy_roots_without_overwriting_custom_files(
                 .create()
                 .unwrap();
             let status = app
-                .handleCommand(
+                .handle_command(
                     &arguments
                         .iter()
                         .map(std::ffi::OsString::from)

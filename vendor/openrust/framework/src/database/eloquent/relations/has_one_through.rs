@@ -44,7 +44,7 @@ impl<P: Model, I: Model, R: Model> HasOneThrough<P, I, R> {
 
     /// Configures an unsaved related model when the through relation is missing.
     #[must_use]
-    pub fn withDefault(mut self, configure: impl Fn(&mut R, &P) + Send + Sync + 'static) -> Self {
+    pub fn with_default(mut self, configure: impl Fn(&mut R, &P) + Send + Sync + 'static) -> Self {
         self.1 = Some(Box::new(configure));
         self
     }

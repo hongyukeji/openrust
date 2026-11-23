@@ -24,12 +24,12 @@ fn binding() -> BindingResolutionError {
 impl ServiceProvider for ActivitylogServiceProvider {
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
-            if !app.configurationIsCached() {
+            if !app.configuration_is_cached() {
                 let env = app.make::<openrust::config::Environment>().await?;
-                self.mergeConfigFrom(app, crate::configuration::load(&env)?, "activitylog")?;
+                self.merge_config_from(app, crate::configuration::load(&env)?, "activitylog")?;
             }
             app.container()
-                .singletonNamed::<crate::models::ActivityModel, _>(
+                .singleton_named::<crate::models::ActivityModel, _>(
                     "openrust_activitylog::models::Activity",
                     |_| {
                         Ok(Arc::new(crate::models::ActivityModel::of::<
@@ -37,12 +37,12 @@ impl ServiceProvider for ActivitylogServiceProvider {
                         >()))
                     },
                 )?;
-            app.container().singletonNamed::<LogActivityAction, _>(
+            app.container().singleton_named::<LogActivityAction, _>(
                 "openrust_activitylog::actions::LogActivityAction",
                 |_| Ok(Arc::new(LogActivityAction::default())),
             )?;
             app.container()
-                .singletonNamed::<crate::actions::CleanActivityLogAction, _>(
+                .singleton_named::<crate::actions::CleanActivityLogAction, _>(
                     "openrust_activitylog::actions::CleanActivityLogAction",
                     |container| {
                         Ok(Arc::new(crate::actions::CleanActivityLogAction::new(
@@ -268,7 +268,7 @@ impl ServiceProvider for ActivitylogServiceProvider {
                 .as_ref()
                 .is_none_or(serde_json::Value::is_null)
             {
-                self.loadMigrationsFrom(app, Self::migrations()).await?;
+                self.load_migrations_from(app, Self::migrations()).await?;
             }
             self.commands(app, register_commands);
             Ok(())

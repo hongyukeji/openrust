@@ -45,9 +45,9 @@ pub(crate) fn duration(value: &serde_json::Value) -> crate::Result<i64> {
 impl ServiceProvider for PulseServiceProvider {
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
-            if !app.configurationIsCached() {
+            if !app.configuration_is_cached() {
                 let env = app.make::<openrust::config::Environment>().await?;
-                self.mergeConfigFrom(app, crate::configuration::load(&env)?, "pulse")?;
+                self.merge_config_from(app, crate::configuration::load(&env)?, "pulse")?;
             }
             app.container()
                 .singleton::<crate::recorders::Servers, _>(|c| {
@@ -57,16 +57,16 @@ impl ServiceProvider for PulseServiceProvider {
                 })?;
             app.container()
                 .singleton::<crate::pulse::Options, _>(|_| Ok(Arc::default()))?;
-            app.container().scopedIf::<crate::Users, _>(|c| {
+            app.container().scoped_if::<crate::Users, _>(|c| {
                 let mut users = crate::Users::default();
                 users.fields = c.make::<crate::pulse::Options>()?.userFields.clone();
                 Ok(Arc::new(users))
             })?;
             app.container()
-                .scopedIf::<dyn crate::ResolvesUsers, _>(|c| {
+                .scoped_if::<dyn crate::ResolvesUsers, _>(|c| {
                     Ok(c.make::<crate::Users>()? as Arc<dyn crate::ResolvesUsers>)
                 })?;
-            app.container().scopedIf::<DatabaseStorage, _>(|c| {
+            app.container().scoped_if::<DatabaseStorage, _>(|c| {
                 let config = c.get::<dyn openrust::contracts::config::Repository>("config")?;
                 if config
                     .get("pulse.storage.driver")
@@ -100,10 +100,10 @@ impl ServiceProvider for PulseServiceProvider {
                         .withKeep(keep),
                 ))
             })?;
-            app.container().scopedIf::<dyn Storage, _>(|c| {
+            app.container().scoped_if::<dyn Storage, _>(|c| {
                 Ok(c.make::<DatabaseStorage>()? as Arc<dyn Storage>)
             })?;
-            app.container().scopedIf::<dyn Ingest, _>(|c| {
+            app.container().scoped_if::<dyn Ingest, _>(|c| {
                 let config = c.get::<dyn openrust::contracts::config::Repository>("config")?;
                 match config
                     .get("pulse.ingest.driver")
@@ -211,14 +211,14 @@ impl ServiceProvider for PulseServiceProvider {
     }
     fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
-            self.loadViewsFrom(
+            self.load_views_from(
                 app,
                 &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("resources/views"),
                 "pulse",
             )
             .await?;
             self.commands(app, crate::commands::register);
-            self.loadRoutesFrom(app, crate::http::routes)?;
+            self.load_routes_from(app, crate::http::routes)?;
             self.publishes(
                 app,
                 &[(
@@ -232,7 +232,7 @@ impl ServiceProvider for PulseServiceProvider {
                 &[("config/pulse.rs", include_bytes!("../config/pulse.rs"))],
                 "pulse-config",
             )?;
-            self.loadMigrationsFrom(app, Self::migrations()).await?;
+            self.load_migrations_from(app, Self::migrations()).await?;
             if app.config()?.get("pulse.enabled").and_then(|v| v.as_bool()) != Some(false) {
                 crate::recorders::register(
                     app.make::<openrust::events::Dispatcher>().await?.as_ref(),

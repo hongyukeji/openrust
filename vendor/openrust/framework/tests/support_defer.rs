@@ -26,7 +26,7 @@ struct Buffer {
 struct BufferFacade;
 impl Facade for BufferFacade {
     type Service = Buffer;
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         ServiceKey::typed::<Buffer>()
     }
 }
@@ -47,7 +47,7 @@ fn schedule(buffer: Arc<Buffer>, label: &'static str, name: Option<&str>, always
 }
 fn handle(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
-        let buffer = BufferFacade::getFacadeRoot().unwrap();
+        let buffer = BufferFacade::get_facade_root().unwrap();
         schedule(buffer.clone(), "ordinary", None, false);
         schedule(buffer.clone(), "replaced", Some("buffer"), false);
         schedule(buffer.clone(), "always", Some("buffer"), true);
@@ -126,7 +126,7 @@ fn routes(_: &Application) -> Result<Router, RoutingError> {
 async fn kernel() -> (Kernel, Events) {
     let events: Events = Arc::default();
     let app = Application::configure(std::env::temp_dir())
-        .withRouting(Routing::new(routes).commands(register_nested))
+        .with_routing(Routing::new(routes).commands(register_nested))
         .create()
         .unwrap();
     let counter = AtomicUsize::new(0);
@@ -247,7 +247,7 @@ impl openrust::console::Command for ProbeCommand {
         _: &'a mut openrust::console::Output,
     ) -> openrust::console::ConsoleFuture<'a, Result<i32, openrust::console::ConsoleError>> {
         Box::pin(async move {
-            let buffer = BufferFacade::getFacadeRoot().unwrap();
+            let buffer = BufferFacade::get_facade_root().unwrap();
             schedule(buffer.clone(), "ordinary", None, false);
             schedule(buffer.clone(), "always", None, true);
             buffer.value.store(42, Ordering::SeqCst);
@@ -295,7 +295,7 @@ async fn artisan_flushes_success_nonzero_and_errors_and_reports_failures_without
     let reports = Arc::new(AtomicUsize::new(0));
     let report_count = reports.clone();
     let app = Application::configure(std::env::temp_dir())
-        .withExceptions(move |exceptions| {
+        .with_exceptions(move |exceptions| {
             exceptions.report::<std::io::Error>(move |_| {
                 report_count.fetch_add(1, Ordering::SeqCst);
                 ReportDecision::Stop
@@ -352,7 +352,7 @@ impl openrust::console::Command for NestedCommand {
         _: &'a mut openrust::console::Output,
     ) -> openrust::console::ConsoleFuture<'a, Result<i32, openrust::console::ConsoleError>> {
         Box::pin(async {
-            let buffer = BufferFacade::getFacadeRoot().unwrap();
+            let buffer = BufferFacade::get_facade_root().unwrap();
             schedule(buffer.clone(), "nested", None, true);
             buffer.value.store(84, Ordering::SeqCst);
             Ok(0)
@@ -372,7 +372,7 @@ impl openrust::contracts::queue::JobHandler for NestedJob {
         _: &'a openrust::queue::Payload,
     ) -> openrust::queue::QueueFuture<'a, openrust::queue::QueueResult<()>> {
         Box::pin(async {
-            let buffer = BufferFacade::getFacadeRoot().unwrap();
+            let buffer = BufferFacade::get_facade_root().unwrap();
             schedule(buffer.clone(), "nested", None, true);
             buffer.value.store(84, Ordering::SeqCst);
             Ok(())

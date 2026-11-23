@@ -59,7 +59,7 @@ impl ConstructorParam {
             check: |value| value.downcast::<Arc<T>>().map(drop),
             resolve: Arc::new(|c, key| c.get::<T>(key).map(ParameterValue::new)),
             resolve_async: Arc::new(|c, key| {
-                Box::pin(async move { c.getAsync::<T>(key).await.map(ParameterValue::new) })
+                Box::pin(async move { c.get_async::<T>(key).await.map(ParameterValue::new) })
             }),
             variadic: false,
             call_many: Arc::new(|c, key| {
@@ -79,8 +79,7 @@ impl ConstructorParam {
         self.nullable = true;
         self
     }
-    #[allow(non_snake_case, reason = "Static reflection adapter")]
-    pub fn withDefault(
+    pub fn with_default(
         mut self,
         default: impl Fn() -> Result<ParameterValue> + Send + Sync + 'static,
     ) -> Self {
@@ -90,8 +89,7 @@ impl ConstructorParam {
     pub fn name(&self) -> &'static str {
         self.name
     }
-    #[allow(non_snake_case, reason = "Compiled attribute declaration")]
-    pub fn withAttribute(mut self, attribute: ClassAttribute) -> Self {
+    pub fn with_attribute(mut self, attribute: ClassAttribute) -> Self {
         self.attributes.push(attribute);
         self
     }
@@ -107,7 +105,9 @@ impl ConstructorParam {
         self.attributes
             .iter()
             .find(|attribute| attribute.is_contextual())
-            .map(|attribute| container.resolveFromAttribute(attribute, self.attribute_parameter()))
+            .map(|attribute| {
+                container.resolve_from_attribute(attribute, self.attribute_parameter())
+            })
             .transpose()
     }
 
@@ -121,7 +121,7 @@ impl ConstructorParam {
             .find(|attribute| attribute.is_contextual())
         {
             Some(attribute) => container
-                .resolveFromAttributeAsync(attribute, self.attribute_parameter())
+                .resolve_from_attribute_async(attribute, self.attribute_parameter())
                 .await
                 .map(Some),
             None => Ok(None),
@@ -145,7 +145,7 @@ impl ConstructorParam {
             }
             _ => None,
         };
-        container.fireAfterResolvingAttributeCallbacks(
+        container.fire_after_resolving_attribute_callbacks(
             &self.attributes,
             typed.as_ref().unwrap_or(value),
             Some(self.attribute_parameter()),
@@ -154,7 +154,7 @@ impl ConstructorParam {
 
     fn override_value(&self, container: &Container) -> Option<ParameterValue> {
         container
-            .getLastParameterOverride()
+            .get_last_parameter_override()
             .get(&ParameterKey::name(self.name))
             .cloned()
     }
@@ -277,8 +277,7 @@ impl ResolvedArgs {
             value.downcast().map(Some)
         }
     }
-    #[allow(non_snake_case, reason = "Static reflection adapter")]
-    pub fn optionalService<T: ?Sized + Send + Sync + 'static>(
+    pub fn optional_service<T: ?Sized + Send + Sync + 'static>(
         &self,
         index: usize,
     ) -> Result<Option<Arc<T>>> {
@@ -421,8 +420,7 @@ impl ClassDescriptor {
             self_building: None,
         })
     }
-    #[allow(non_snake_case, reason = "Asynchronous Rust constructor adapter")]
-    pub fn concreteAsync<T, F>(parameters: Vec<ConstructorParam>, construct: F) -> Result<Self>
+    pub fn concrete_async<T, F>(parameters: Vec<ConstructorParam>, construct: F) -> Result<Self>
     where
         T: Send + Sync + 'static,
         F: Fn(ResolvedArgs) -> FactoryFuture<'static, T> + Send + Sync + 'static,
@@ -445,8 +443,7 @@ impl ClassDescriptor {
     }
 
     /// Declares an ordinary constructor and an independent static newInstance signature.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn selfBuilding<T: SelfBuilding>(
+    pub fn self_building<T: SelfBuilding>(
         parameters: Vec<ConstructorParam>,
         construct: impl Fn(ResolvedArgs) -> Result<Arc<T>> + Send + Sync + 'static,
         method_parameters: Vec<ConstructorParam>,
@@ -471,15 +468,14 @@ impl ClassDescriptor {
         }));
         let method = RegisteredMethod::static_declaration::<T, Arc<T>>(
             method_parameters,
-            |args, container| T::newInstance(args.resolved, container),
+            |args, container| T::new_instance(args.resolved, container),
         );
         descriptor.self_building = Some(SelfBuildingDescriptor { entry, method });
         Ok(descriptor)
     }
 
     /// Attaches an attribute to objects produced by this class descriptor.
-    #[allow(non_snake_case, reason = "Compiled attribute declaration")]
-    pub fn withAttribute(mut self, attribute: ClassAttribute) -> Self {
+    pub fn with_attribute(mut self, attribute: ClassAttribute) -> Self {
         let mut attributes = self.sync.class_attributes.clone().unwrap_or_default();
         Arc::make_mut(&mut attributes).push(attribute);
         self.sync.class_attributes = Some(attributes.clone());
@@ -491,8 +487,7 @@ impl ClassDescriptor {
     }
 
     /// Declares the lifetime of automatic resolutions of this class.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn withLifetime(mut self, lifetime: Lifetime) -> Self {
+    pub fn with_lifetime(mut self, lifetime: Lifetime) -> Self {
         if self.lifetime != Some(Lifetime::Singleton) {
             self.lifetime = Some(lifetime);
         }
@@ -509,8 +504,7 @@ impl ClassDescriptor {
     }
 
     /// Attaches a trait view to this concrete class.
-    #[allow(non_snake_case, reason = "Compiled class metadata")]
-    pub fn withProjection(mut self, projection: ClassProjection) -> Self {
+    pub fn with_projection(mut self, projection: ClassProjection) -> Self {
         Arc::make_mut(self.projections.get_or_insert_with(Arc::default)).push(projection);
         self
     }
@@ -591,7 +585,7 @@ impl Container {
         let Some(consumer) = self.consumer() else {
             return Ok(false);
         };
-        let key = self.getAlias(key.clone())?;
+        let key = self.get_alias(key.clone())?;
         Ok(self
             .registry
             .read()
@@ -736,7 +730,7 @@ impl Container {
         value: &Arc<T>,
     ) -> Result<()> {
         if let Some(attributes) = &entry.class_attributes {
-            self.fireAfterResolvingAttributeCallbacks(
+            self.fire_after_resolving_attribute_callbacks(
                 attributes,
                 &ParameterValue::service(value.clone()).into(),
                 None,

@@ -15,7 +15,7 @@ let preferred = request.getPreferredLanguage(Some(&["en", "fr-FR"]))?;
 
 `getPreferredLanguage` 依請求偏好逐一比對有序候選：先完整標籤，再語言／文字體系／地區組合及基礎語言。萬用字元或沒有相符項目時選擇首個候選。傳入 `None` 或空候選時，傳回請求的首選範圍，沒有則為 `None`。候選使用其他語言介面相同的 BCP 47 驗證；任意候選無效都會傳回翻譯錯誤，即使前面的候選已相符。傳回值是 `Result` 包裝的獨立 `Option<String>`。 這是偏好選擇助手，不會自動傳回 406；忽略的 `q=0` 項目不形成永久排除清單，沒有相符項目時仍使用有序候選的首項。
 
-這兩個方法始終讀取標準 `Accept-Language`，不受 `app.locale_header` 影響，不改變應用程式語言，也不依中文地區推斷文字體系。業務、翻譯與頁面需要目前實際語言時使用 `App::currentLocale()?`。全域 `SetLocale` 另按配置來源選擇語言，更換其標頭不會改變 Request 標準方法；可透過 `middleware.setLocale(...)` 覆寫候選或關閉辨識，見[應用程式語言協商](../digging-deeper/localization.md#locale-header)。標準解析結果依請求快取，透過 `parts_mut()` 修改標頭時失效；自訂協商標頭共用解析器，但不使用該標準標頭快取。
+這兩個方法始終讀取標準 `Accept-Language`，不受 `app.locale_header` 影響，不改變應用程式語言，也不依中文地區推斷文字體系。業務、翻譯與頁面需要目前實際語言時使用 `App::current_locale()?`。全域 `SetLocale` 另按配置來源選擇語言，更換其標頭不會改變 Request 標準方法；可透過 `middleware.set_locale(...)` 覆寫候選或關閉辨識，見[應用程式語言協商](../digging-deeper/localization.md#locale-header)。標準解析結果依請求快取，透過 `parts_mut()` 修改標頭時失效；自訂協商標頭共用解析器，但不使用該標準標頭快取。
 
 ## 請求路徑、主機和 URL {#request-path-host-and-method}
 
@@ -130,7 +130,7 @@ JSON 請求更新 JSON 輸入。非 JSON 的 GET 或 HEAD 更新查詢資料。�
 在 `bootstrap/app.rs` 設定欄位模式，或為特定請求略過某一層中介層：
 
 ```rust
-.withMiddleware(|middleware| {
+.with_middleware(|middleware| {
     middleware
         .trimStrings(["rows.*.secret"])
         .skipTrimStringsWhen(|request| request.is("hooks/*"))
@@ -159,7 +159,7 @@ JSON 請求更新 JSON 輸入。非 JSON 的 GET 或 HEAD 更新查詢資料。�
 ```rust
 use openrust::http::TrustedProxyHeaders;
 
-.withMiddleware(|middleware| {
+.with_middleware(|middleware| {
     middleware
         .trustProxies(&["192.0.2.10", "10.20.0.0/16"], TrustedProxyHeaders::DEFAULT)
         .expect("valid trusted proxy policy");
@@ -177,7 +177,7 @@ use openrust::http::TrustedProxyHeaders;
 啟用 `trustHosts` 可限制原始和轉送後的主機名稱。模式使用不區分大小寫的 PCRE 運算式，比對移除連接埠的主機名稱。驗證失敗時，在進入路由前回傳 HTTP 400。
 
 ```rust
-.withMiddleware(|middleware| {
+.with_middleware(|middleware| {
     middleware
         .trustHosts(&[r"^edge\.example\.com$"], true)
         .expect("valid host patterns");

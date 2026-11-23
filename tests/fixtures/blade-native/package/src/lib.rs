@@ -11,7 +11,7 @@ struct Provider;
 impl ServiceProvider for Provider {
     fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
-            self.loadViewsFrom(
+            self.load_views_from(
                 app,
                 &app.base_path().join("packages/native/views"),
                 "native",

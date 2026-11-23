@@ -1230,7 +1230,7 @@ fn dispatch(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
         Context::addHidden("secret", json!("remove")).unwrap();
         Context::addHidden("protected", json!("hidden")).unwrap();
         if matches!(kind, "missing-chain" | "missing-sync") {
-            let model = QueuedModel::newInstance(Default::default())?;
+            let model = QueuedModel::new_instance(Default::default())?;
             let id = ModelIdentifier::capture(&model)?;
             let jobs = [
                 Payload::new("restore-required", id)?.deleteWhenMissingModels(),
@@ -1338,7 +1338,7 @@ fn routes(_: &Application) -> Result<Router, RoutingError> {
 
 fn application(root: &Path) -> Application {
     Application::configure(root.into())
-        .withConfig(|base, _| {
+        .with_config(|base, _| {
             let mut config: serde_json::Map<String, Json> =
                 serde_json::from_slice(&std::fs::read(base.join("queue-fixture.json")).unwrap())
                     .unwrap();
@@ -1376,9 +1376,9 @@ fn application(root: &Path) -> Application {
             }
             Ok(config.into_iter().collect())
         })
-        .withProviders(vec![Box::new(Providers)])
-        .withEvents(DiscoverEvents::new(&[listeners]))
-        .withExceptions(|exceptions| {
+        .with_providers(vec![Box::new(Providers)])
+        .with_events(DiscoverEvents::new(&[listeners]))
+        .with_exceptions(|exceptions| {
             if std::env::var_os("QUEUE_WORKER_POLICY_DISABLED").is_none() {
                 exceptions
                     .dontRetryWhen(|exception| {
@@ -1422,7 +1422,7 @@ fn application(root: &Path) -> Application {
                 }
             });
         })
-        .withRouting(Routing::new(routes))
+        .with_routing(Routing::new(routes))
         .create()
         .unwrap()
 }
@@ -1449,7 +1449,7 @@ async fn worker_artisan_fixture() {
     } else {
         None
     };
-    let status = app.handleCommand(&args).await.unwrap();
+    let status = app.handle_command(&args).await.unwrap();
     assert_eq!(status, expected);
     if std::env::var_os("QUEUE_WORKER_TEST_REAL_EXIT").is_some() {
         std::process::exit(status);

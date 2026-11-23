@@ -2,7 +2,7 @@ use openrust::{container::ServiceKey, support::facades::Facade};
 pub struct Pulse;
 impl Facade for Pulse {
     type Service = crate::Pulse;
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         ServiceKey::typed::<crate::Pulse>()
     }
 }
@@ -10,7 +10,7 @@ impl Facade for Pulse {
 pub(crate) struct Options;
 impl Facade for Options {
     type Service = crate::pulse::Options;
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         ServiceKey::typed::<crate::pulse::Options>()
     }
 }
@@ -38,7 +38,7 @@ impl Pulse {
     }
 
     pub fn manager() -> crate::Result<std::sync::Arc<crate::Pulse>> {
-        Ok(Self::getFacadeRoot()?)
+        Ok(Self::get_facade_root()?)
     }
     pub async fn record(
         r#type: impl Into<String>,

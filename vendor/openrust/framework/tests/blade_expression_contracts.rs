@@ -326,8 +326,8 @@ async fn actual_http_unpacks_native_data_recovers_from_failures_and_isolates_app
         );
         root.write("php", "@php $value = 1; @endphp");
         let mut app = openrust::foundation::Application::configure(root.0.clone())
-            .withConfig(http_config)
-            .withRouting(openrust::foundation::configuration::Routing::new(
+            .with_config(http_config)
+            .with_routing(openrust::foundation::configuration::Routing::new(
                 http_routes,
             ))
             .create()

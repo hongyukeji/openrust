@@ -2,7 +2,7 @@
 
 在 `routes/web.rs` 声明 Web 路由。应用启动时通过 `openrust::routing::Router` 注册这些路由和 `/up` 健康检查。需要读取请求的处理器接收可变的 `Request` 并返回异步 HTTP 结果。框架调用 Web 路由模块的 `register()` 时绑定当前应用的 Router。导入 `openrust::support::facades::Route` 后，可以用 `Route::get("/", || view("welcome"))` 声明命名视图。
 
-运行 `./artisan install:api` 按需生成并注册 `routes/api.rs` 和 `config/api.rs`。在 `routes/api.rs` 中定义 API 路由。应用从 `config/api.rs` 加载 `api.prefix`，并应用 `api` 中间件组。默认前缀为 `/api`。在 `.env` 中设置 `API_PREFIX=api/admin` 可挂载到 `/api/admin`，设置 `API_PREFIX=` 可省略前缀。在 `withRouting` 中显式调用 `Routing::apiPrefix(...)` 时，以该调用为准。 重复安装时保留已有的 `config/api.rs`，包括使用 `--force` 时。
+运行 `./artisan install:api` 按需生成并注册 `routes/api.rs` 和 `config/api.rs`。在 `routes/api.rs` 中定义 API 路由。应用从 `config/api.rs` 加载 `api.prefix`，并应用 `api` 中间件组。默认前缀为 `/api`。在 `.env` 中设置 `API_PREFIX=api/admin` 可挂载到 `/api/admin`，设置 `API_PREFIX=` 可省略前缀。在 `with_routing` 中显式调用 `Routing::apiPrefix(...)` 时，以该调用为准。 重复安装时保留已有的 `config/api.rs`，包括使用 `--force` 时。
 
 在 `routes/api.rs` 的无参 `register() -> Result<(), RoutingError>` 中使用 `Route` Facade 声明 API 端点。路由路径相对于 API 前缀。GET 路由需要命名、模型绑定或路由级中间件时，可使用 `Route::getWith`。
 
@@ -141,7 +141,7 @@ curl -i -H 'Accept: application/json' http://localhost:8000/up
 
 默认路径为 `storage/framework/cache/routes.json`。用 `APP_ROUTES_CACHE` 指定绝对路径或相对应用根目录的路径。使用配置缓存时，将此项设为服务的进程环境变量，因为启动时可能跳过 `.env`。
 
-启动后，`getCachedRoutesPath()` 返回解析后的路径，`routesAreCached()` 表示本次启动是否加载了有效索引。
+启动后，`get_cached_routes_path()` 返回解析后的路径，`routes_are_cached()` 表示本次启动是否加载了有效索引。
 
 ## 路由参数
 
@@ -180,7 +180,7 @@ fn register() -> Result<(), RoutingError> {
 
 未设置 `CORS_PATHS` 时，`cors.paths` 沿用 默认路径 `api/*` 和 `sanctum/csrf-cookie`。API 路由前缀与 CORS 路径独立配置。若 API 挂载到 `/v1`，可设置 `CORS_PATHS=v1/*,sanctum/csrf-cookie` 为这些路径启用 CORS。设置 `CORS_PATHS=*` 可覆盖所有路径，设置 `CORS_PATHS=` 可关闭 CORS。跨域凭据默认关闭。路径映射可按主机覆盖路径，用数字字符串键表示共用路径。`allowed_origins_patterns` 使用 Rust 正则引擎支持的模式。HTTP 内核在启动时加载并校验策略。
 
-在 `withMiddleware` 中调用 `middleware.skipCorsWhen(|request| request.is("api/internal/*"));`，可在当前应用中按请求跳过 CORS。任一回调返回 `true` 时，`HandleCors` 将请求交给后续中间件并保留原有响应头。预检 `OPTIONS` 同样适用。
+在 `with_middleware` 中调用 `middleware.skipCorsWhen(|request| request.is("api/internal/*"));`，可在当前应用中按请求跳过 CORS。任一回调返回 `true` 时，`HandleCors` 将请求交给后续中间件并保留原有响应头。预检 `OPTIONS` 同样适用。
 
 ```bash
 curl -i -X OPTIONS http://127.0.0.1:8000/api/example \
@@ -222,7 +222,7 @@ fn upload(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 
 ### 使用 Redis 节流
 
-在 `withMiddleware` 中调用 `middleware.throttleWithRedis()`，让命名和数字节流别名使用默认 Redis 连接。使用相同 Redis 连接设置和键前缀的进程共享配额。Redis 原子检查并消耗各项额度。使用 `after` 的规则在响应返回后计数。
+在 `with_middleware` 中调用 `middleware.throttleWithRedis()`，让命名和数字节流别名使用默认 Redis 连接。使用相同 Redis 连接设置和键前缀的进程共享配额。Redis 原子检查并消耗各项额度。使用 `after` 的规则在响应返回后计数。
 
 使用[默认 Redis 集群](../database/redis.md#clusters)时，同一命名策略的计数器位于同一哈希槽，Redis 可以一起检查和计数。不同命名策略可以使用不同的槽。从旧集群键格式升级后，命名策略开启新的计数窗口，旧计数器按原到期时间清理。
 

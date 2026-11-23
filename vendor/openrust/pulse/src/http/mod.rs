@@ -6,14 +6,14 @@ use openrust::{
 };
 use std::sync::Arc;
 pub(crate) fn routes() -> Result<(), RoutingError> {
-    if !crate::facades::Options::getFacadeRoot()
+    if !crate::facades::Options::get_facade_root()
         .map_err(|_| RoutingError::NoRegistrationScope)?
         .registersRoutes
         .load(std::sync::atomic::Ordering::Relaxed)
     {
         return Ok(());
     }
-    let config = Config::getFacadeRoot().map_err(|_| RoutingError::NoRegistrationScope)?;
+    let config = Config::get_facade_root().map_err(|_| RoutingError::NoRegistrationScope)?;
     let path = config
         .get("pulse.path")
         .and_then(|v| v.as_str().map(str::to_owned))
@@ -46,7 +46,7 @@ pub(crate) fn routes() -> Result<(), RoutingError> {
 }
 fn page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let factory = openrust::support::facades::View::getFacadeRoot()?;
+        let factory = openrust::support::facades::View::get_facade_root()?;
         let html = match factory.render("pulse::dashboard", &Default::default()) {
             Ok(html) => html,
             Err(openrust::view::ViewError::NotFound) => {
@@ -54,7 +54,7 @@ fn page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
             }
             Err(e) => return Err(e.into()),
         };
-        let pulse = crate::facades::Pulse::getFacadeRoot()?;
+        let pulse = crate::facades::Pulse::get_facade_root()?;
         let html = if html.contains("<!-- PULSE_STYLES -->") {
             html.replace("<!-- PULSE_STYLES -->", &pulse.css()?)
         } else {
@@ -86,7 +86,7 @@ fn metrics(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
             "7d" => 604800,
             _ => return Err(HttpError::InvalidRequest),
         };
-        let pulse = crate::facades::Pulse::getFacadeRoot()?;
+        let pulse = crate::facades::Pulse::get_facade_root()?;
         let mut cards = serde_json::Map::new();
         for (name, types) in [
             ("slow_requests", vec!["slow_request"]),

@@ -122,15 +122,15 @@ async fn provider_and_custom_runners_filter_start_and_shutdown_in_priority_group
     let state = Arc::new(State::default());
     let custom = state.clone();
     let app = Application::configure(std::env::temp_dir().canonicalize().unwrap())
-        .withConfig(|_, _| {
+        .with_config(|_, _| {
             Ok(BTreeMap::from([(
                 "app".into(),
                 json!({"disabled_runners": ["app:skip/*", r"app:literal\*", "app:[x-z]", "[broken"]}),
             )]))
         })
-        .withProviders(vec![Box::new(Provider(state.clone()))])
-        .withRunners(|| panic!("replaced custom runner registration was evaluated"))
-        .withRunners(move || {
+        .with_providers(vec![Box::new(Provider(state.clone()))])
+        .with_runners(|| panic!("replaced custom runner registration was evaluated"))
+        .with_runners(move || {
             vec![
                 Arc::new(probe(&custom, "queue", Role::Filtered, 0)),
                 Arc::new(probe(&custom, "app:first", Role::Filtered, 0)),

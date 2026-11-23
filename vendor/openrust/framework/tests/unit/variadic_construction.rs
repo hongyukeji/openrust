@@ -20,7 +20,7 @@ impl Filter for Base {
 }
 struct Filters(Vec<Arc<dyn Filter>>);
 fn describe(c: &Container) {
-    c.registerClass(
+    c.register_class(
         ClassDescriptor::concrete::<Filters, _>(
             vec![ConstructorParam::class::<dyn Filter>("filters").variadic()],
             |args| Ok(Arc::new(Filters(args.services(0)?))),
@@ -38,7 +38,7 @@ fn absent_primitive_and_class_variadics_are_empty_and_slot_shapes_are_explicit()
     describe(&c);
     assert!(c.make::<Filters>().unwrap().0.is_empty());
     struct Scalars;
-    c.registerClass(
+    c.register_class(
         ClassDescriptor::concrete::<Scalars, _>(
             vec![
                 ConstructorParam::scalar::<u32>("numbers")
@@ -65,11 +65,11 @@ fn concrete_class_variadic_falls_back_to_one_automatic_instance() {
     struct Concrete;
     struct List(Vec<Arc<Concrete>>);
     let c = Container::default();
-    c.registerClass(
+    c.register_class(
         ClassDescriptor::concrete::<Concrete, _>(vec![], |_| Ok(Arc::new(Concrete))).unwrap(),
     )
     .unwrap();
-    c.registerClass(
+    c.register_class(
         ClassDescriptor::concrete::<List, _>(
             vec![ConstructorParam::class::<Concrete>("items").variadic()],
             |args| Ok(Arc::new(List(args.services(0)?))),
@@ -83,23 +83,23 @@ fn concrete_class_variadic_falls_back_to_one_automatic_instance() {
 fn service_arrays_preserve_order_duplicates_and_the_original_consumer_context() {
     let c = Container::default();
     describe(&c);
-    c.bindNamed::<dyn Filter, _>("first", |_| Ok(Arc::new(Base(1))))
+    c.bind_named::<dyn Filter, _>("first", |_| Ok(Arc::new(Base(1))))
         .unwrap();
-    c.bindNamed::<dyn Filter, _>("second", |_| Ok(Arc::new(Base(2))))
+    c.bind_named::<dyn Filter, _>("second", |_| Ok(Arc::new(Base(2))))
         .unwrap();
     c.when::<Filters>()
         .unwrap()
-        .needsNamed::<dyn Filter>("first")
+        .needs_named::<dyn Filter>("first")
         .give(|_| Ok(Arc::new(Base(7))))
         .unwrap();
     c.when::<Filters>()
         .unwrap()
         .needs::<dyn Filter>()
-        .giveServices(["first", "second", "first"])
+        .give_services(["first", "second", "first"])
         .unwrap();
     let before = Arc::new(AtomicUsize::new(0));
     let count = before.clone();
-    c.beforeResolving(Some(ServiceKey::typed::<dyn Filter>()), move |_, _| {
+    c.before_resolving(Some(ServiceKey::typed::<dyn Filter>()), move |_, _| {
         count.fetch_add(1, Ordering::SeqCst);
         Ok(())
     })
@@ -112,20 +112,20 @@ fn tagged_collection_expansion_runs_as_a_closure_and_does_not_reuse_the_consumer
 {
     let c = Container::default();
     describe(&c);
-    c.bindNamed::<dyn Filter, _>("first", |_| Ok(Arc::new(Base(1))))
+    c.bind_named::<dyn Filter, _>("first", |_| Ok(Arc::new(Base(1))))
         .unwrap();
-    c.bindNamed::<dyn Filter, _>("second", |_| Ok(Arc::new(Base(2))))
+    c.bind_named::<dyn Filter, _>("second", |_| Ok(Arc::new(Base(2))))
         .unwrap();
     c.tag(["first", "second"], ["filters"]);
     c.when::<Filters>()
         .unwrap()
-        .needsNamed::<dyn Filter>("first")
+        .needs_named::<dyn Filter>("first")
         .give(|_| Ok(Arc::new(Base(7))))
         .unwrap();
     c.when::<Filters>()
         .unwrap()
         .needs::<Vec<Arc<dyn Filter>>>()
-        .giveTagged("filters")
+        .give_tagged("filters")
         .unwrap();
     assert_eq!(values(&c.make::<Filters>().unwrap()), [1, 2]);
     c.tag(["first"], ["filters"]);
@@ -139,11 +139,11 @@ fn primitive_vectors_preserve_arc_identity_order_and_nullable_carriers() {
     let same = shared.clone();
     c.when::<List>()
         .unwrap()
-        .needsNamed::<Vec<Arc<u32>>>("$numbers")
+        .needs_named::<Vec<Arc<u32>>>("$numbers")
         .give(move |_| Ok(Arc::new(vec![same.clone(), Arc::new(1), Arc::new(2)])))
         .unwrap();
     let expected = shared.clone();
-    c.registerClass(
+    c.register_class(
         ClassDescriptor::concrete::<List, _>(
             vec![ConstructorParam::scalar::<u32>("numbers").variadic()],
             move |args| {
@@ -166,7 +166,7 @@ fn primitive_vectors_preserve_arc_identity_order_and_nullable_carriers() {
     struct Nullable;
     c.when::<Nullable>()
         .unwrap()
-        .needsNamed::<Vec<ParameterValue>>("$numbers")
+        .needs_named::<Vec<ParameterValue>>("$numbers")
         .give(|_| {
             Ok(Arc::new(vec![
                 ParameterValue::new(1u32),
@@ -174,7 +174,7 @@ fn primitive_vectors_preserve_arc_identity_order_and_nullable_carriers() {
             ]))
         })
         .unwrap();
-    c.registerClass(
+    c.register_class(
         ClassDescriptor::concrete::<Nullable, _>(
             vec![
                 ConstructorParam::scalar::<u32>("numbers")
@@ -196,7 +196,7 @@ fn primitive_vectors_preserve_arc_identity_order_and_nullable_carriers() {
 fn explicit_named_overrides_are_one_argument_and_integer_keys_do_not_replace_the_named_slot() {
     struct List(usize);
     let c = Container::default();
-    c.registerClass(
+    c.register_class(
         ClassDescriptor::concrete::<List, _>(
             vec![ConstructorParam::scalar::<Vec<u32>>("items").variadic()],
             |args| {
@@ -212,9 +212,9 @@ fn explicit_named_overrides_are_one_argument_and_integer_keys_do_not_replace_the
         ParameterKey::name("items"),
         ParameterValue::new(vec![3u32, 1, 2]),
     );
-    assert_eq!(c.makeWith::<List>(args).unwrap().0, 1);
+    assert_eq!(c.make_with::<List>(args).unwrap().0, 1);
     struct Numbers(usize);
-    c.registerClass(
+    c.register_class(
         ClassDescriptor::concrete::<Numbers, _>(
             vec![ConstructorParam::scalar::<u32>("items").variadic()],
             |args| Ok(Arc::new(Numbers(args.values(0)?.len()))),
@@ -228,12 +228,12 @@ fn explicit_named_overrides_are_one_argument_and_integer_keys_do_not_replace_the
         ParameterValue::new(vec![1u32, 2]),
     );
     assert!(matches!(
-        c.makeWith::<Numbers>(args),
+        c.make_with::<Numbers>(args),
         Err(BindingResolutionError::ParameterTypeMismatch { .. })
     ));
     let mut args = ParameterOverrides::new();
     args.insert(ParameterKey::Index(0), ParameterValue::new(5u32));
-    assert_eq!(c.makeWith::<Numbers>(args).unwrap().0, 0);
+    assert_eq!(c.make_with::<Numbers>(args).unwrap().0, 0);
 }
 #[test]
 fn explicit_class_overrides_preserve_one_arc_and_nullable_null_is_one_item() {
@@ -245,11 +245,11 @@ fn explicit_class_overrides_preserve_one_arc_and_nullable_null_is_one_item() {
         ParameterKey::name("filters"),
         ParameterValue::new(filter.clone()),
     );
-    let list = c.makeWith::<Filters>(args).unwrap();
+    let list = c.make_with::<Filters>(args).unwrap();
     assert_eq!(list.0.len(), 1);
     assert!(Arc::ptr_eq(&filter, &list.0[0]));
     struct Nullable;
-    c.registerClass(
+    c.register_class(
         ClassDescriptor::concrete::<Nullable, _>(
             vec![
                 ConstructorParam::class::<dyn Filter>("filters")
@@ -267,7 +267,7 @@ fn explicit_class_overrides_preserve_one_arc_and_nullable_null_is_one_item() {
     .unwrap();
     let mut args = ParameterOverrides::new();
     args.insert(ParameterKey::name("filters"), ParameterValue::null());
-    c.makeWith::<Nullable>(args).unwrap();
+    c.make_with::<Nullable>(args).unwrap();
 }
 #[test]
 fn variadic_signatures_reject_defaults_multiple_slots_and_nonfinal_positions() {
@@ -284,7 +284,7 @@ fn variadic_signatures_reject_defaults_multiple_slots_and_nonfinal_positions() {
         vec![
             ConstructorParam::scalar::<u32>("a")
                 .variadic()
-                .withDefault(|| panic!("invalid default must not run")),
+                .with_default(|| panic!("invalid default must not run")),
         ],
     ] {
         assert!(matches!(
@@ -299,15 +299,15 @@ fn variadic_signatures_reject_defaults_multiple_slots_and_nonfinal_positions() {
 fn missing_class_list_items_empty_the_whole_list_but_business_and_type_errors_propagate() {
     let c = Container::default();
     describe(&c);
-    c.bindNamed::<dyn Filter, _>("ok", |_| Ok(Arc::new(Base(1))))
+    c.bind_named::<dyn Filter, _>("ok", |_| Ok(Arc::new(Base(1))))
         .unwrap();
     c.when::<Filters>()
         .unwrap()
         .needs::<dyn Filter>()
-        .giveServices(["ok", "missing"])
+        .give_services(["ok", "missing"])
         .unwrap();
     assert!(c.make::<Filters>().unwrap().0.is_empty());
-    c.bindNamed::<dyn Filter, _>("bad", |_| {
+    c.bind_named::<dyn Filter, _>("bad", |_| {
         Err(BindingResolutionError::FactoryFailed {
             service: "bad",
             source: std::io::Error::other("private business failure").into(),
@@ -317,18 +317,18 @@ fn missing_class_list_items_empty_the_whole_list_but_business_and_type_errors_pr
     c.when::<Filters>()
         .unwrap()
         .needs::<dyn Filter>()
-        .giveServices(["ok", "bad"])
+        .give_services(["ok", "bad"])
         .unwrap();
     assert!(matches!(
         c.make::<Filters>(),
         Err(BindingResolutionError::FactoryFailed { .. })
     ));
-    c.instanceNamed("wrong", Arc::new(String::from("wrong output")))
+    c.instance_named("wrong", Arc::new(String::from("wrong output")))
         .unwrap();
     c.when::<Filters>()
         .unwrap()
         .needs::<dyn Filter>()
-        .giveServices(["wrong"])
+        .give_services(["wrong"])
         .unwrap();
     assert!(matches!(
         c.make::<Filters>(),
@@ -342,7 +342,7 @@ async fn async_service_arrays_wait_for_dependencies_and_keep_the_registration_sn
     let entered = Arc::new(tokio::sync::Notify::new());
     let release = Arc::new(tokio::sync::Notify::new());
     let (a, b) = (entered.clone(), release.clone());
-    c.bindAsyncNamed::<dyn Filter, _>("first", move |_| {
+    c.bind_async_named::<dyn Filter, _>("first", move |_| {
         let (a, b) = (a.clone(), b.clone());
         Box::pin(async move {
             a.notify_one();
@@ -352,29 +352,29 @@ async fn async_service_arrays_wait_for_dependencies_and_keep_the_registration_sn
     })
     .await
     .unwrap();
-    c.bindNamed::<dyn Filter, _>("second", |_| Ok(Arc::new(Base(2))))
+    c.bind_named::<dyn Filter, _>("second", |_| Ok(Arc::new(Base(2))))
         .unwrap();
-    c.bindNamed::<dyn Filter, _>("new", |_| Ok(Arc::new(Base(9))))
+    c.bind_named::<dyn Filter, _>("new", |_| Ok(Arc::new(Base(9))))
         .unwrap();
     c.when::<Filters>()
         .unwrap()
         .needs::<dyn Filter>()
-        .giveServices(["first", "second"])
+        .give_services(["first", "second"])
         .unwrap();
     assert!(matches!(
         c.make::<Filters>(),
         Err(BindingResolutionError::AsyncResolutionRequired { .. })
     ));
-    let mut pending = Box::pin(c.makeAsync::<Filters>());
+    let mut pending = Box::pin(c.make_async::<Filters>());
     tokio::select! {value=&mut pending=>panic!("unexpected {}",value.unwrap().0.len()),_=entered.notified()=>{}}
     c.when::<Filters>()
         .unwrap()
         .needs::<dyn Filter>()
-        .giveServices(["new"])
+        .give_services(["new"])
         .unwrap();
     release.notify_one();
     assert_eq!(values(&pending.await.unwrap()), [1, 2]);
-    assert_eq!(values(&c.makeAsync::<Filters>().await.unwrap()), [9]);
+    assert_eq!(values(&c.make_async::<Filters>().await.unwrap()), [9]);
 }
 #[test]
 fn primitive_context_runs_inline_without_service_events_and_keeps_constructor_parameters() {
@@ -382,22 +382,22 @@ fn primitive_context_runs_inline_without_service_events_and_keeps_constructor_pa
     let c = Container::default();
     let events = Arc::new(AtomicUsize::new(0));
     let count = events.clone();
-    c.beforeResolving(Some(ServiceKey::named("$value")), move |_, _| {
+    c.before_resolving(Some(ServiceKey::named("$value")), move |_, _| {
         count.fetch_add(1, Ordering::SeqCst);
         Ok(())
     })
     .unwrap();
     c.when::<Item>()
         .unwrap()
-        .needsNamed::<u32>("$value")
+        .needs_named::<u32>("$value")
         .give(|c| {
-            c.getLastParameterOverride()
+            c.get_last_parameter_override()
                 .get(&ParameterKey::name("other"))
                 .unwrap()
                 .downcast::<u32>()
         })
         .unwrap();
-    c.registerClass(
+    c.register_class(
         ClassDescriptor::concrete::<Item, _>(
             vec![ConstructorParam::scalar::<u32>("value")],
             |args| Ok(Arc::new(Item(*args.get::<u32>(0)?))),
@@ -407,15 +407,15 @@ fn primitive_context_runs_inline_without_service_events_and_keeps_constructor_pa
     .unwrap();
     let mut args = ParameterOverrides::new();
     args.insert(ParameterKey::name("other"), ParameterValue::new(8u32));
-    assert_eq!(c.makeWith::<Item>(args).unwrap().0, 8);
+    assert_eq!(c.make_with::<Item>(args).unwrap().0, 8);
     assert_eq!(events.load(Ordering::SeqCst), 0);
     struct Nullable;
     c.when::<Nullable>()
         .unwrap()
-        .needsNamed::<ParameterValue>("$value")
+        .needs_named::<ParameterValue>("$value")
         .give(|_| Ok(Arc::new(ParameterValue::null())))
         .unwrap();
-    c.registerClass(
+    c.register_class(
         ClassDescriptor::concrete::<Nullable, _>(
             vec![ConstructorParam::scalar::<String>("value").nullable()],
             |args| {
@@ -435,7 +435,7 @@ fn missing_nested_primitive_dependencies_empty_class_variadics_but_not_primitive
     struct List(usize);
     struct Numbers;
     let c = Container::default();
-    c.registerClass(
+    c.register_class(
         ClassDescriptor::concrete::<NeedsNumber, _>(
             vec![ConstructorParam::scalar::<u32>("number")],
             |_| Ok(Arc::new(NeedsNumber)),
@@ -443,7 +443,7 @@ fn missing_nested_primitive_dependencies_empty_class_variadics_but_not_primitive
         .unwrap(),
     )
     .unwrap();
-    c.registerClass(
+    c.register_class(
         ClassDescriptor::concrete::<List, _>(
             vec![ConstructorParam::class::<NeedsNumber>("items").variadic()],
             |args| Ok(Arc::new(List(args.values(0)?.len()))),
@@ -454,14 +454,14 @@ fn missing_nested_primitive_dependencies_empty_class_variadics_but_not_primitive
     assert_eq!(c.make::<List>().unwrap().0, 0);
     c.when::<Numbers>()
         .unwrap()
-        .needsNamed::<Vec<Arc<u32>>>("$numbers")
+        .needs_named::<Vec<Arc<u32>>>("$numbers")
         .give(|_| {
             Err(BindingResolutionError::NotBound {
                 service: "explicit primitive failure".into(),
             })
         })
         .unwrap();
-    c.registerClass(
+    c.register_class(
         ClassDescriptor::concrete::<Numbers, _>(
             vec![ConstructorParam::scalar::<u32>("numbers").variadic()],
             |_| Ok(Arc::new(Numbers)),
@@ -478,23 +478,23 @@ fn missing_nested_primitive_dependencies_empty_class_variadics_but_not_primitive
 fn circular_and_closed_lifecycle_failures_are_not_converted_to_empty_class_lists() {
     let c = Container::default();
     describe(&c);
-    c.bindNamed::<dyn Filter, _>("cycle", |c| c.get("cycle"))
+    c.bind_named::<dyn Filter, _>("cycle", |c| c.get("cycle"))
         .unwrap();
     c.when::<Filters>()
         .unwrap()
         .needs::<dyn Filter>()
-        .giveServices(["cycle"])
+        .give_services(["cycle"])
         .unwrap();
     assert!(matches!(
         c.make::<Filters>(),
         Err(BindingResolutionError::CircularDependency { .. })
     ));
-    c.bindNamed::<dyn Filter, _>("closed", |_| Err(BindingResolutionError::ScopeClosed))
+    c.bind_named::<dyn Filter, _>("closed", |_| Err(BindingResolutionError::ScopeClosed))
         .unwrap();
     c.when::<Filters>()
         .unwrap()
         .needs::<dyn Filter>()
-        .giveServices(["closed"])
+        .give_services(["closed"])
         .unwrap();
     assert!(matches!(
         c.make::<Filters>(),
@@ -507,12 +507,12 @@ async fn asynchronous_primitive_context_waits_inline_and_validates_all_vector_va
     let c = Container::default();
     c.when::<Item>()
         .unwrap()
-        .needsNamed::<Vec<ParameterValue>>("$numbers")
-        .giveAsync(|c| {
+        .needs_named::<Vec<ParameterValue>>("$numbers")
+        .give_async(|c| {
             Box::pin(async move {
                 tokio::task::yield_now().await;
                 let n = c
-                    .getLastParameterOverride()
+                    .get_last_parameter_override()
                     .get(&ParameterKey::name("other"))
                     .unwrap()
                     .downcast::<u32>()?;
@@ -523,7 +523,7 @@ async fn asynchronous_primitive_context_waits_inline_and_validates_all_vector_va
             })
         })
         .unwrap();
-    c.registerClass(
+    c.register_class(
         ClassDescriptor::concrete::<Item, _>(
             vec![ConstructorParam::scalar::<u32>("numbers").variadic()],
             |args| {
@@ -542,14 +542,14 @@ async fn asynchronous_primitive_context_waits_inline_and_validates_all_vector_va
     .unwrap();
     let mut args = ParameterOverrides::new();
     args.insert(ParameterKey::name("other"), ParameterValue::new(8u32));
-    assert_eq!(c.makeWithAsync::<Item>(args).await.unwrap().0, 10);
+    assert_eq!(c.make_with_async::<Item>(args).await.unwrap().0, 10);
     c.when::<Item>()
         .unwrap()
-        .needsNamed::<Vec<ParameterValue>>("$numbers")
+        .needs_named::<Vec<ParameterValue>>("$numbers")
         .give(|_| Ok(Arc::new(vec![ParameterValue::new("private invalid value")])))
         .unwrap();
     assert!(matches!(
-        c.makeAsync::<Item>().await,
+        c.make_async::<Item>().await,
         Err(BindingResolutionError::ParameterTypeMismatch { .. })
     ));
 }
@@ -565,7 +565,7 @@ async fn cancelling_a_partial_service_array_releases_values_in_the_original_para
         fn drop(&mut self) {
             let c = self.0.upgrade().unwrap();
             let value = c
-                .getLastParameterOverride()
+                .get_last_parameter_override()
                 .get(&ParameterKey::name("marker"))
                 .unwrap()
                 .downcast::<u32>()
@@ -578,13 +578,13 @@ async fn cancelling_a_partial_service_array_releases_values_in_the_original_para
     let seen = Arc::new(Mutex::new(Vec::new()));
     let weak = Arc::downgrade(&c);
     let log = seen.clone();
-    c.bindNamed::<dyn Filter, _>("first", move |_| {
+    c.bind_named::<dyn Filter, _>("first", move |_| {
         Ok(Arc::new(Probe(weak.clone(), log.clone())))
     })
     .unwrap();
     let entered = Arc::new(tokio::sync::Notify::new());
     let start = entered.clone();
-    c.bindAsyncNamed::<dyn Filter, _>("second", move |_| {
+    c.bind_async_named::<dyn Filter, _>("second", move |_| {
         let start = start.clone();
         Box::pin(async move {
             start.notify_one();
@@ -596,15 +596,15 @@ async fn cancelling_a_partial_service_array_releases_values_in_the_original_para
     c.when::<Filters>()
         .unwrap()
         .needs::<dyn Filter>()
-        .giveServices(["first", "second"])
+        .give_services(["first", "second"])
         .unwrap();
     let mut args = ParameterOverrides::new();
     args.insert(ParameterKey::name("marker"), ParameterValue::new(7u32));
-    let mut pending = Box::pin(c.makeWithAsync::<Filters>(args));
+    let mut pending = Box::pin(c.make_with_async::<Filters>(args));
     tokio::select! {value=&mut pending=>panic!("unexpected {}",value.unwrap().0.len()),_=entered.notified()=>{}}
     drop(pending);
     assert_eq!(*seen.lock().unwrap(), [7]);
-    assert!(c.getLastParameterOverride().is_empty());
+    assert!(c.get_last_parameter_override().is_empty());
 }
 
 #[tokio::test]
@@ -617,13 +617,13 @@ async fn variadic_primitive_config_arrays_use_the_current_repository() {
         .set("app.names", serde_json::json!(["first", "second"]))
         .unwrap();
     let repository: Arc<dyn openrust::contracts::config::Repository> = config.clone();
-    c.instanceNamed("config", repository).unwrap();
+    c.instance_named("config", repository).unwrap();
     c.when::<Names>()
         .unwrap()
-        .needsNamed::<Vec<Arc<String>>>("$names")
-        .giveConfig("app.names", None)
+        .needs_named::<Vec<Arc<String>>>("$names")
+        .give_config("app.names", None)
         .unwrap();
-    c.registerClass(
+    c.register_class(
         ClassDescriptor::concrete::<Names, _>(
             vec![ConstructorParam::scalar::<String>("names").variadic()],
             |args| {
@@ -642,7 +642,7 @@ async fn variadic_primitive_config_arrays_use_the_current_repository() {
     config
         .set("app.names", serde_json::json!(["updated"]))
         .unwrap();
-    assert_eq!(c.makeAsync::<Names>().await.unwrap().0, ["updated"]);
+    assert_eq!(c.make_async::<Names>().await.unwrap().0, ["updated"]);
 }
 
 #[test]
@@ -654,10 +654,10 @@ fn nonclone_scalars_and_parameter_value_objects_keep_their_declared_types() {
     let shared = lock.clone();
     c.when::<Locks>()
         .unwrap()
-        .needsNamed::<Vec<Arc<Mutex<u32>>>>("$locks")
+        .needs_named::<Vec<Arc<Mutex<u32>>>>("$locks")
         .give(move |_| Ok(Arc::new(vec![shared.clone()])))
         .unwrap();
-    c.registerClass(
+    c.register_class(
         ClassDescriptor::concrete::<Locks, _>(
             vec![ConstructorParam::scalar::<Mutex<u32>>("locks").variadic()],
             |args| Ok(Arc::new(Locks(args.values(0)?[0].downcast()?))),
@@ -668,10 +668,10 @@ fn nonclone_scalars_and_parameter_value_objects_keep_their_declared_types() {
     assert!(Arc::ptr_eq(&lock, &c.make::<Locks>().unwrap().0));
     c.when::<Carriers>()
         .unwrap()
-        .needsNamed::<Vec<ParameterValue>>("$items")
+        .needs_named::<Vec<ParameterValue>>("$items")
         .give(|_| Ok(Arc::new(vec![ParameterValue::new(5u32)])))
         .unwrap();
-    c.registerClass(
+    c.register_class(
         ClassDescriptor::concrete::<Carriers, _>(
             vec![ConstructorParam::scalar::<ParameterValue>("items").variadic()],
             |args| {

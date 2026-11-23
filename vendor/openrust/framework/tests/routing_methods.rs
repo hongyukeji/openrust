@@ -96,7 +96,7 @@ fn facade_routes() -> Result<(), RoutingError> {
 
 fn application(root: &std::path::Path) -> Application {
     Application::configure(root.to_owned())
-        .withRouting(Routing::new(router_routes).api(facade_routes))
+        .with_routing(Routing::new(router_routes).api(facade_routes))
         .create()
         .unwrap()
 }
@@ -121,7 +121,7 @@ async fn method_dispatch_and_registration_order_survive_route_cache() {
         if cached {
             assert_eq!(
                 application(root.path())
-                    .handleCommand(&[OsString::from("route:cache")])
+                    .handle_command(&[OsString::from("route:cache")])
                     .await
                     .unwrap(),
                 0
@@ -129,7 +129,7 @@ async fn method_dispatch_and_registration_order_survive_route_cache() {
         }
         let mut kernel = Kernel::new(application(root.path()));
         kernel.bootstrap().await.unwrap();
-        assert_eq!(kernel.get_application().routesAreCached(), cached);
+        assert_eq!(kernel.get_application().routes_are_cached(), cached);
         // CONNECT 的网络请求目标使用 authority；在 Kernel 边界核对路径路由契约。
         for prefix in ["router", "api"] {
             let (parts, body) = axum::http::Request::builder()

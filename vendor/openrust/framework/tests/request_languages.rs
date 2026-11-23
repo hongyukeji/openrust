@@ -214,7 +214,7 @@ fn inspect(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
             json!({
                 "languages":request.getLanguages(),
                 "preferred":preferred,
-                "application_locale":App::currentLocale().unwrap(),
+                "application_locale":App::current_locale().unwrap(),
             }),
         )
     })
@@ -224,10 +224,10 @@ fn inspect(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
 async fn actual_kernel_consumers_negotiate_without_changing_application_locale() {
     let mut app = TestApp::create(|builder| {
         builder
-            .withConfig(|_, _| {
+            .with_config(|_, _| {
                 Ok([("app".into(), json!({"locale":"en","fallback_locale":"en"}))].into())
             })
-            .withRouting(Routing::default().web(|| Route::get("/languages", inspect)))
+            .with_routing(Routing::default().web(|| Route::get("/languages", inspect)))
     })
     .unwrap();
     let response = app

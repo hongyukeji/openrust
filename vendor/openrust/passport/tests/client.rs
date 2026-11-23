@@ -140,7 +140,7 @@ async fn secrets_use_existing_eloquent_hashing_and_plaintext_remains_instance_lo
     let (app, db) = application(4).await;
     let hasher = app.container().make::<dyn Hasher>().unwrap();
     let mut client = Client::queryOn(&db)
-        .makeAsync(Attributes::from([
+        .make_async(Attributes::from([
             ("name".into(), "native client".into()),
             ("secret".into(), "plain secret".into()),
             (
@@ -216,7 +216,7 @@ async fn secret_failure_keeps_the_existing_hash_and_applications_keep_their_hash
     let query1 = Client::queryOn(&first);
     let query2 = Client::queryOn(&second);
     let attrs = || Attributes::from([("secret".into(), "same input".into())]);
-    let (a, b) = tokio::join!(query1.makeAsync(attrs()), query2.makeAsync(attrs()));
+    let (a, b) = tokio::join!(query1.make_async(attrs()), query2.make_async(attrs()));
     let mut a = a.unwrap();
     let b = b.unwrap();
     assert!(

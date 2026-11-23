@@ -15,7 +15,7 @@ type TestResult = Result<(), Box<dyn std::error::Error + Send + Sync>>;
 async fn transactional_pipeline_defers_execution_and_commits_or_rolls_back_on_selected_connection()
 -> TestResult {
     let mut app = TestApp::create(|builder| {
-        builder.withConfig(|_,_| {
+        builder.with_config(|_,_| {
         let connection = if let Ok(url)=std::env::var("OPENRUST_TEST_PIPELINE_URL") { json!({"url":url}) } else {
             assert!(std::env::var_os("OPENRUST_REQUIRE_PIPELINE").is_none(),"必须提供隔离数据库连接");
             json!({"driver":"sqlite","database":":memory:"})

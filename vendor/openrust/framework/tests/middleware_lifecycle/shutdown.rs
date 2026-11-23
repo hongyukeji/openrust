@@ -60,9 +60,11 @@ impl TerminableMiddleware for WaitForRelease {
 async fn graceful_shutdown_waits_for_termination_after_closing_the_listener() {
     if let Some(root) = std::env::var_os(ROOT).map(PathBuf::from) {
         Application::configure(root.clone())
-            .withConfig(|_, _| Ok([("app".into(), json!({"host": "127.0.0.1", "port": 0}))].into()))
-            .withRouting(Routing::default().api(routes))
-            .withMiddleware(move |middleware| {
+            .with_config(
+                |_, _| Ok([("app".into(), json!({"host": "127.0.0.1", "port": 0}))].into()),
+            )
+            .with_routing(Routing::default().api(routes))
+            .with_middleware(move |middleware| {
                 middleware.appendTerminable(Arc::new(WaitForRelease(root)));
             })
             .create()

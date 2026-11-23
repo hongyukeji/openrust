@@ -86,7 +86,7 @@ use openrust_socialite::SocialiteManager;
 
 pub fn redirect(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
-        let manager = openrust::container::Container::getInstance()
+        let manager = openrust::container::Container::get_instance()
             .make::<SocialiteManager>().map_err(|_| HttpError::InvalidRequest)?;
         let response = manager.driver("github", request)
             .map_err(|_| HttpError::InvalidRequest)?
@@ -97,7 +97,7 @@ pub fn redirect(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
 
 pub fn callback(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
-        let manager = openrust::container::Container::getInstance()
+        let manager = openrust::container::Container::get_instance()
             .make::<SocialiteManager>().map_err(|_| HttpError::InvalidRequest)?;
         let user = manager.driver("github", request)
             .map_err(|_| HttpError::InvalidRequest)?

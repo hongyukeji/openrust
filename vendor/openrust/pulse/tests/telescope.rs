@@ -68,7 +68,7 @@ impl ServiceProvider for ProbeProvider {
 #[tokio::test]
 async fn long_running_check_stores_telescope_each_iteration_and_exits_on_shared_restart() {
     let mut app = TestApp::create(|b| {
-        b.withConfig(config).withProviders(vec![
+        b.with_config(config).with_providers(vec![
             Box::new(openrust_pulse::PulseServiceProvider),
             Box::new(openrust_telescope::TelescopeServiceProvider),
             Box::new(ProbeProvider),

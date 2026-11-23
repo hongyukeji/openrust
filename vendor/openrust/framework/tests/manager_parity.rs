@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 #[tokio::test]
 async fn forgetting_mailers_releases_resolved_instances_and_recreates_all_names() {
-    let mut app=TestApp::create(|builder| builder.withConfig(|_,_| Ok([
+    let mut app=TestApp::create(|builder| builder.with_config(|_,_| Ok([
         ("app".into(),json!({"env":"testing"})),
         ("mail".into(),json!({"default":"first","mailers":{"first":{"transport":"array"},"second":{"transport":"array"}}})),
     ].into()))).unwrap();
@@ -46,7 +46,7 @@ async fn session_introspection_matches_defaults_overrides_and_application_isolat
         let expected = config.clone();
         let mut app = TestApp::create(|builder| {
             if config.is_none() { return builder; }
-            builder.withConfig(|_, _| Ok([
+            builder.with_config(|_, _| Ok([
                 ("app".into(), json!({"env":"testing"})),
                 ("session".into(), json!({"driver":"array","block":true,"block_store":"file","block_lock_seconds":7,"block_wait_seconds":3,"custom":{"retained":true}})),
             ].into()))

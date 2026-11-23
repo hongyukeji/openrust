@@ -1,6 +1,6 @@
+#![allow(non_snake_case, reason = "保留既定公开接口及命名")]
 //! OpenID Connect relying-party client: authorization code, PKCE and verified identities.
 #![forbid(unsafe_code)]
-#![allow(non_snake_case, reason = "保留既定公开接口及命名")]
 mod config;
 mod identity;
 mod provider;
@@ -97,8 +97,8 @@ pub struct OidcServiceProvider;
 impl ServiceProvider for OidcServiceProvider {
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
-            if !app.configurationIsCached() {
-                self.mergeConfigFrom(app, serde_json::json!({"providers":{}}), "oidc")?;
+            if !app.configuration_is_cached() {
+                self.merge_config_from(app, serde_json::json!({"providers":{}}), "oidc")?;
             }
             app.container().singleton::<OidcManager, _>(|c| {
                 Ok(Arc::new(OidcManager::new(
@@ -133,13 +133,13 @@ pub mod facades {
     pub struct Oidc;
     impl Facade for Oidc {
         type Service = OidcManager;
-        fn getFacadeAccessor() -> ServiceKey {
+        fn get_facade_accessor() -> ServiceKey {
             ServiceKey::typed::<OidcManager>()
         }
     }
     impl Oidc {
         pub fn provider<'a>(name: &str, request: &'a mut Request) -> Result<Provider<'a>> {
-            Self::getFacadeRoot()?.provider(name, request)
+            Self::get_facade_root()?.provider(name, request)
         }
     }
 }

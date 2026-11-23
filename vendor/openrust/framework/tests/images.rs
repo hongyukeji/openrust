@@ -372,7 +372,7 @@ async fn transforms_a_real_http_upload_and_reads_it_from_storage_and_url() {
 
     let directory = Directory::new();
     let application = Application::configure(directory.0.clone())
-        .withConfig(|base, _| {
+        .with_config(|base, _| {
             Ok(std::collections::BTreeMap::from([("filesystems".into(), json!({
                 "default": "public",
                 "disks": {"public": {
@@ -380,7 +380,7 @@ async fn transforms_a_real_http_upload_and_reads_it_from_storage_and_url() {
                 }}
             }))]))
         })
-        .withRouting(Routing::default().web(|| {
+        .with_routing(Routing::default().web(|| {
             Route::staticDisk("public")?;
             Route::post("/upload", upload)
         }))
@@ -1472,7 +1472,7 @@ fn image_response(
 async fn image_facade_and_responsable_return_real_image_response() {
     use openrust::{foundation::configuration::Routing, support::facades::Route, testing::TestApp};
     let mut app = TestApp::create(|builder| {
-        builder.withConfig(|base, _|Ok(std::collections::BTreeMap::from([("filesystems".into(),serde_json::json!({"default":"test","disks":{"test":{"driver":"local","root":base.join("images"),"throw":true}}}))]))).withRouting(Routing::default().web(|| {
+        builder.with_config(|base, _|Ok(std::collections::BTreeMap::from([("filesystems".into(),serde_json::json!({"default":"test","disks":{"test":{"driver":"local","root":base.join("images"),"throw":true}}}))]))).with_routing(Routing::default().web(|| {
             Route::get("/image", image_response)?;
             Ok(())
         }))
@@ -1724,7 +1724,7 @@ async fn image_manager_rebinding_resolves_storage_and_http_when_sources_are_load
         )])));
         let container = Arc::new(Container::default());
         container
-            .instanceNamed(
+            .instance_named(
                 "filesystem",
                 Arc::new(FilesystemManager::new(config, root.to_owned())),
             )
@@ -1828,14 +1828,14 @@ async fn image_driver_registration_in_provider_boot_uses_default_config_and_appl
     fn app(width: u32, calls: Arc<std::sync::atomic::AtomicUsize>) -> TestApp {
         TestApp::create(|builder| {
             builder
-                .withConfig(|_, _| {
+                .with_config(|_, _| {
                     Ok(std::collections::BTreeMap::from([(
                         "images".into(),
                         serde_json::json!({"default":"thumbnail"}),
                     )]))
                 })
-                .withProviders(vec![Box::new(ThumbnailImages(width, calls))])
-                .withRouting(Routing::default().web(|| Route::get("/thumbnail", thumbnail)))
+                .with_providers(vec![Box::new(ThumbnailImages(width, calls))])
+                .with_routing(Routing::default().web(|| Route::get("/thumbnail", thumbnail)))
         })
         .unwrap()
     }

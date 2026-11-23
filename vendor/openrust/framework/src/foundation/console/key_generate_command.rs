@@ -74,11 +74,11 @@ impl Command for KeyGenerateCommand {
             config
                 .set("app.key", serde_json::Value::String(key.to_string()))
                 .map_err(console_error)?;
-            container.forgetInstance("encrypter");
-            container.forgetInstance(crate::container::ServiceKey::typed::<
+            container.forget_instance("encrypter");
+            container.forget_instance(crate::container::ServiceKey::typed::<
                 dyn crate::contracts::encryption::Encrypter,
             >());
-            let _ = Crypt::clearResolvedInstance(None);
+            let _ = Crypt::clear_resolved_instance(None);
             output.info("Application key set successfully.");
             Ok(0)
         })

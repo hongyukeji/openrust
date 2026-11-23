@@ -289,7 +289,7 @@ async fn assert_session_user(
 
 async fn verify(database: Json, database_sessions: bool) {
     let mut app = Application::configure(std::env::temp_dir())
-        .withConfig(|_, _| Ok([
+        .with_config(|_, _| Ok([
             ("app".into(), json!({"key":"a".repeat(32)})),
             ("session".into(), json!({"driver":"array","cookie":"auth_session","lottery":[0,100]})),
             ("cache".into(), json!({"default":"array","stores":{"array":{"driver":"array"}}})),
@@ -307,7 +307,7 @@ async fn verify(database: Json, database_sessions: bool) {
                 }
             })),
         ].into()))
-        .withRouting(Routing::default().web(web).api(api)).create().unwrap();
+        .with_routing(Routing::default().web(web).api(api)).create().unwrap();
     app.boot().await.unwrap();
     let config = app.container().get::<dyn Repository>("config").unwrap();
     config.set("database.default", json!("test")).unwrap();

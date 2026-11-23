@@ -263,7 +263,7 @@ async fn transport(
 
 async fn start(redis: bool) -> (SocketAddr, tokio::task::JoinHandle<()>) {
     let app = Application::configure(std::env::temp_dir())
-        .withConfig(|_, _| {
+        .with_config(|_, _| {
             let mut config = std::collections::BTreeMap::from([
                 (
                     "cache".into(),
@@ -292,13 +292,13 @@ async fn start(redis: bool) -> (SocketAddr, tokio::task::JoinHandle<()>) {
             }
             Ok(config)
         })
-        .withProviders(vec![Box::new(Limits), Box::new(Authentication)])
-        .withMiddleware(move |middleware| {
+        .with_providers(vec![Box::new(Limits), Box::new(Authentication)])
+        .with_middleware(move |middleware| {
             if redis {
                 middleware.throttleWithRedis();
             }
         })
-        .withRouting(Routing::default().web(routes))
+        .with_routing(Routing::default().web(routes))
         .create()
         .unwrap();
     let mut kernel = Kernel::new(app);

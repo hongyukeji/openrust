@@ -8,8 +8,8 @@ use serde_json::json;
 async fn package_boot_is_lazy_defaults_are_isolated_and_application_configuration_wins() {
     let root = tempfile::tempdir().unwrap();
     let mut app = Application::configure(root.path().to_owned())
-        .withProviders(vec![Box::new(ActivitylogServiceProvider)])
-        .withConfig(|_, _| {
+        .with_providers(vec![Box::new(ActivitylogServiceProvider)])
+        .with_config(|_, _| {
             Ok(std::collections::BTreeMap::from([(
                 "activitylog".into(),
                 json!({"enabled":false,"properties":["project"]}),
@@ -36,7 +36,7 @@ async fn package_boot_is_lazy_defaults_are_isolated_and_application_configuratio
             .is_none()
     );
     let mut other = Application::configure(root.path().to_owned())
-        .withProviders(vec![Box::new(ActivitylogServiceProvider)])
+        .with_providers(vec![Box::new(ActivitylogServiceProvider)])
         .create()
         .unwrap();
     other.boot().await.unwrap();
@@ -86,12 +86,12 @@ fn handler(
 }
 fn application() -> openrust::testing::TestApp {
     let app=openrust::testing::TestApp::create(|builder|builder
-        .withConfig(|base,_|Ok(std::collections::BTreeMap::from([
+        .with_config(|base,_|Ok(std::collections::BTreeMap::from([
             ("app".into(),json!({"env":"testing"})),
             ("database".into(),json!({"default":"testing","connections":{"testing":{"driver":"sqlite","database":base.join("activity.sqlite")}}})),
         ])))
-        .withProviders(vec![Box::new(ActivitylogServiceProvider)])
-        .withRouting(openrust::foundation::configuration::Routing::default().api(routes).commands(buffer_commands))
+        .with_providers(vec![Box::new(ActivitylogServiceProvider)])
+        .with_routing(openrust::foundation::configuration::Routing::default().api(routes).commands(buffer_commands))
     ).unwrap();
     std::fs::File::create(app.root().join("activity.sqlite")).unwrap();
     app
@@ -350,14 +350,14 @@ fn authenticated_routes() -> Result<(), openrust::routing::RoutingError> {
 async fn default_auth_causer_uses_configured_guard_real_morph_and_request_isolation() {
     use openrust::database::eloquent::relations::{MorphMap, MorphMapEntry};
     let mut app = openrust::testing::TestApp::create(|builder| builder
-        .withConfig(|base, _| Ok(std::collections::BTreeMap::from([
+        .with_config(|base, _| Ok(std::collections::BTreeMap::from([
             ("app".into(), json!({"env":"testing"})),
             ("database".into(), json!({"default":"testing","connections":{"testing":{"driver":"sqlite","database":base.join("activity.sqlite")}}})),
             ("activitylog".into(), json!({"default_auth_driver":"second"})),
             ("auth".into(), json!({"defaults":{"guard":"first"},"guards":{"first":{"driver":"cached"},"second":{"driver":"cached","provider":"actors"}},"providers":{"actors":{"driver":"eloquent","model":"actors"}}})),
         ])))
-        .withProviders(vec![Box::new(ActivitylogServiceProvider)])
-        .withRouting(openrust::foundation::configuration::Routing::default().api(authenticated_routes))
+        .with_providers(vec![Box::new(ActivitylogServiceProvider)])
+        .with_routing(openrust::foundation::configuration::Routing::default().api(authenticated_routes))
     ).unwrap();
     std::fs::File::create(app.root().join("activity.sqlite")).unwrap();
     app.artisan(["migrate", "--force"]).await.assertSuccessful();
@@ -547,7 +547,7 @@ async fn configured_model_and_actions_resolve_native_named_bindings() {
         .unwrap();
     app.app()
         .container()
-        .instanceNamed(
+        .instance_named(
             "application.activity",
             std::sync::Arc::new(ActivityModel::of::<CustomActivity>()),
         )
@@ -559,7 +559,7 @@ async fn configured_model_and_actions_resolve_native_named_bindings() {
     });
     app.app()
         .container()
-        .instanceNamed("application.log", std::sync::Arc::new(action))
+        .instance_named("application.log", std::sync::Arc::new(action))
         .unwrap();
     app.get("/api/activity")
         .await
@@ -588,7 +588,7 @@ async fn configured_model_and_actions_resolve_native_named_bindings() {
         });
     app.app()
         .container()
-        .instanceNamed("application.clean", std::sync::Arc::new(cleaner))
+        .instance_named("application.clean", std::sync::Arc::new(cleaner))
         .unwrap();
     app.artisan(["activitylog:clean", "--days=1"])
         .await

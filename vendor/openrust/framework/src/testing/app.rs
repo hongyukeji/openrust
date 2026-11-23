@@ -71,7 +71,7 @@ impl TestApp {
             .prefix("openrust-test-")
             .tempdir()?;
         let builder = Application::configure(directory.path().canonicalize()?)
-            .withConfig(|_, _| Ok([("app".into(), serde_json::json!({"env": "testing"}))].into()));
+            .with_config(|_, _| Ok([("app".into(), serde_json::json!({"env": "testing"}))].into()));
         let app = configure(builder).create()?;
         app.use_testing_environment();
         let query_counts = Arc::new(TestQueryCounts::default());

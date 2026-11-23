@@ -460,7 +460,7 @@ impl Request {
     }
 
     /// 当前请求实际执行的语言中间件选择状态；未启用时为空。
-    /// 当前实际语言请使用 App::currentLocale。
+    /// 当前实际语言请使用 App::current_locale。
     #[allow(non_snake_case, reason = "沿用请求方法命名")]
     pub fn localeSelection(&self) -> Option<&super::middleware::LocaleSelection> {
         self.extensions()

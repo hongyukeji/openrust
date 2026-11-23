@@ -15,7 +15,7 @@ let preferred = request.getPreferredLanguage(Some(&["en", "fr-FR"]))?;
 
 `getPreferredLanguage` 按请求偏好依次匹配有序候选：先完整标签，再语言／文字体系／地区组合及基础语言。通配符或没有匹配时选择首个候选。传入 `None` 或空候选时，返回请求的首选范围，没有则为 `None`。候选使用其他语言接口相同的 BCP 47 校验；任意候选无效都会返回翻译错误，即使前面的候选已匹配。返回值是 `Result` 包装的独立 `Option<String>`。 这是偏好选择助手，不会自动返回 406；忽略的 `q=0` 条目不形成永久排除清单，无匹配时仍使用有序候选的首项。
 
-这两个方法始终读取标准 `Accept-Language`，不受 `app.locale_header` 影响，不改变应用语言，也不依中文地区推断文字体系。业务、翻译和页面需要当前实际语言时使用 `App::currentLocale()?`。全局 `SetLocale` 另按配置来源选择语言，更换其请求头不会改变 Request 标准方法；可通过 `middleware.setLocale(...)` 覆盖候选或关闭识别，见[应用语言协商](../digging-deeper/localization.md#locale-header)。标准解析结果按请求缓存，通过 `parts_mut()` 修改请求头时失效；自定义协商头复用解析器，但不使用该标准头缓存。
+这两个方法始终读取标准 `Accept-Language`，不受 `app.locale_header` 影响，不改变应用语言，也不依中文地区推断文字体系。业务、翻译和页面需要当前实际语言时使用 `App::current_locale()?`。全局 `SetLocale` 另按配置来源选择语言，更换其请求头不会改变 Request 标准方法；可通过 `middleware.set_locale(...)` 覆盖候选或关闭识别，见[应用语言协商](../digging-deeper/localization.md#locale-header)。标准解析结果按请求缓存，通过 `parts_mut()` 修改请求头时失效；自定义协商头复用解析器，但不使用该标准头缓存。
 
 ## 请求路径、主机和 URL {#request-path-host-and-method}
 
@@ -130,7 +130,7 @@ JSON 请求更新 JSON 输入。非 JSON 的 GET 或 HEAD 更新查询数据。�
 在 `bootstrap/app.rs` 配置字段模式，或为特定请求跳过某一层中间件：
 
 ```rust
-.withMiddleware(|middleware| {
+.with_middleware(|middleware| {
     middleware
         .trimStrings(["rows.*.secret"])
         .skipTrimStringsWhen(|request| request.is("hooks/*"))
@@ -159,7 +159,7 @@ JSON 请求更新 JSON 输入。非 JSON 的 GET 或 HEAD 更新查询数据。�
 ```rust
 use openrust::http::TrustedProxyHeaders;
 
-.withMiddleware(|middleware| {
+.with_middleware(|middleware| {
     middleware
         .trustProxies(&["192.0.2.10", "10.20.0.0/16"], TrustedProxyHeaders::DEFAULT)
         .expect("valid trusted proxy policy");
@@ -177,7 +177,7 @@ use openrust::http::TrustedProxyHeaders;
 启用 `trustHosts` 可限制原始和转发后的主机名。模式使用不区分大小写的 PCRE 表达式，匹配去掉端口的主机名。未通过校验时，在进入路由前返回 HTTP 400。
 
 ```rust
-.withMiddleware(|middleware| {
+.with_middleware(|middleware| {
     middleware
         .trustHosts(&[r"^edge\.example\.com$"], true)
         .expect("valid host patterns");

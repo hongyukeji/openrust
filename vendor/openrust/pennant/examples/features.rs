@@ -17,8 +17,8 @@ impl FeatureDefinition for NewApi {
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let directory = tempfile::tempdir()?;
     let mut app = Application::configure(directory.path().to_owned())
-        .withConfig(|_, _| Ok([("pennant".into(), json!({"default":"array"}))].into()))
-        .withProviders(vec![Box::new(PennantServiceProvider)])
+        .with_config(|_, _| Ok([("pennant".into(), json!({"default":"array"}))].into()))
+        .with_providers(vec![Box::new(PennantServiceProvider)])
         .create()?;
     app.boot().await?;
     let store = app.make::<FeatureManager>().await?.store(None)?;

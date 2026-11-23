@@ -183,7 +183,7 @@ fn mailbox_rules() -> ValidationResult<RuleSet> {
 
 ### 排除敏感输入
 
-密码字段会从旧输入中排除。可在 `withExceptions` 中用 `dontFlash` 注册额外路径。
+密码字段会从旧输入中排除。可在 `with_exceptions` 中用 `dontFlash` 注册额外路径。
 
 ```rust
 use openrust::foundation::configuration::Exceptions;

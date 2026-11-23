@@ -31,13 +31,13 @@ impl Facade for StateFacade {
     type Service = PaginationState;
 
     #[allow(non_snake_case)]
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         ServiceKey::typed::<PaginationState>()
     }
 }
 
 fn state() -> ViewResult<Arc<PaginationState>> {
-    StateFacade::getFacadeRoot().map_err(Into::into)
+    StateFacade::get_facade_root().map_err(Into::into)
 }
 
 fn query() -> Option<Vec<(String, String)>> {
@@ -143,7 +143,7 @@ macro_rules! offset_resolvers {
                     .and_then(|state| state.view.read().expect("分页视图解析器锁").clone());
                 match callback {
                     Some(callback) => callback(),
-                    None => ViewFacade::getFacadeRoot().map_err(Into::into),
+                    None => ViewFacade::get_facade_root().map_err(Into::into),
                 }
             }
         }

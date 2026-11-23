@@ -80,7 +80,7 @@ impl MaintenanceMode for Backend {
         Box::pin(async move {
             match self {
                 Self::File(path) => {
-                    let path = path.storagePath("framework/down");
+                    let path = path.storage_path("framework/down");
                     let payload =
                         serde_json::to_vec_pretty(payload).map_err(MaintenanceError::Json)?;
                     tokio::task::spawn_blocking(move || {
@@ -121,7 +121,7 @@ impl MaintenanceMode for Backend {
         Box::pin(async move {
             match self {
                 Self::File(path) => {
-                    match tokio::fs::remove_file(path.storagePath("framework/down")).await {
+                    match tokio::fs::remove_file(path.storage_path("framework/down")).await {
                         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
                         result => result.map_err(MaintenanceError::Io),
                     }
@@ -144,7 +144,7 @@ impl MaintenanceMode for Backend {
     fn active(&self) -> MaintenanceFuture<'_, bool> {
         Box::pin(async move {
             match self {
-                Self::File(path) => tokio::fs::try_exists(path.storagePath("framework/down"))
+                Self::File(path) => tokio::fs::try_exists(path.storage_path("framework/down"))
                     .await
                     .map_err(MaintenanceError::Io),
                 Self::Cache(cache) => cache.has(CACHE_KEY).await.map_err(MaintenanceError::Cache),
@@ -159,7 +159,7 @@ impl MaintenanceMode for Backend {
     fn data(&self) -> MaintenanceFuture<'_, Option<MaintenancePayload>> {
         Box::pin(async move {
             match self {
-                Self::File(path) => read_file(&path.storagePath("framework/down")).await,
+                Self::File(path) => read_file(&path.storage_path("framework/down")).await,
                 Self::Cache(cache) => match cache
                     .get(CACHE_KEY)
                     .await

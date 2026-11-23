@@ -49,7 +49,7 @@ impl Fixture {
         let root = tempfile::tempdir().unwrap();
         std::fs::write(root.path().join("test.sqlite"), []).unwrap();
         let mut app = openrust::foundation::Application::configure(root.path().into())
-            .withConfig(fixture_config)
+            .with_config(fixture_config)
             .create()
             .unwrap();
         app.boot().await.unwrap();

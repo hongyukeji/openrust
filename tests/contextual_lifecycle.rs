@@ -23,16 +23,16 @@ struct Defaulted(Arc<String>);
 struct SelectedFacade;
 impl Facade for SelectedFacade {
     type Service = Selected;
-    const cached: bool = false;
-    fn getFacadeAccessor() -> ServiceKey {
+    const CACHED: bool = false;
+    fn get_facade_accessor() -> ServiceKey {
         ServiceKey::typed::<Selected>()
     }
 }
 struct DefaultFacade;
 impl Facade for DefaultFacade {
     type Service = Defaulted;
-    const cached: bool = false;
-    fn getFacadeAccessor() -> ServiceKey {
+    const CACHED: bool = false;
+    fn get_facade_accessor() -> ServiceKey {
         ServiceKey::typed::<Defaulted>()
     }
 }
@@ -59,10 +59,10 @@ impl ServiceProvider for Provider {
     }
 }
 fn result() -> String {
-    let first = DefaultFacade::getFacadeRoot().unwrap();
-    let selected = SelectedFacade::getFacadeRoot().unwrap();
-    let second = SelectedFacade::getFacadeRoot().unwrap();
-    let last = DefaultFacade::getFacadeRoot().unwrap();
+    let first = DefaultFacade::get_facade_root().unwrap();
+    let selected = SelectedFacade::get_facade_root().unwrap();
+    let second = SelectedFacade::get_facade_root().unwrap();
+    let last = DefaultFacade::get_facade_root().unwrap();
     assert!(!Arc::ptr_eq(&selected.0, &second.0));
     assert!(Arc::ptr_eq(&first.0, &last.0));
     format!("{}|{}|{}", first.0, selected.0, last.0)
@@ -85,8 +85,8 @@ fn request(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 }
 fn application(name: &'static str) -> Application {
     Application::configure(std::env::current_dir().unwrap())
-        .withProviders(vec![Box::new(Provider(name))])
-        .withRouting(Routing::default().web(web).commands(commands))
+        .with_providers(vec![Box::new(Provider(name))])
+        .with_routing(Routing::default().web(web).commands(commands))
         .create()
         .unwrap()
 }

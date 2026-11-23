@@ -78,24 +78,22 @@ impl<'a, C: Container, T: ?Sized + Send + Sync + 'static> IntoIterator for &Tagg
 }
 
 impl<C: Container, T: ?Sized + Send + Sync + 'static> Tagged<'_, C, T> {
-    #[allow(non_snake_case, reason = "Async lazy tagged resolution")]
-    pub async fn collectAsync(&self) -> Result<Vec<Arc<T>>, BindingResolutionError> {
+    pub async fn collect_async(&self) -> Result<Vec<Arc<T>>, BindingResolutionError> {
         let mut values = Vec::new();
         let mut iter = self.iter();
-        while let Some(value) = iter.nextAsync().await {
+        while let Some(value) = iter.next_async().await {
             values.push(value?);
         }
         Ok(values)
     }
 }
 impl<C: Container, T: ?Sized + Send + Sync + 'static> TaggedIter<'_, C, T> {
-    #[allow(non_snake_case, reason = "Async lazy tagged resolution")]
-    pub async fn nextAsync(&mut self) -> Option<Result<Arc<T>, BindingResolutionError>> {
+    pub async fn next_async(&mut self) -> Option<Result<Arc<T>, BindingResolutionError>> {
         if self.pending.is_none() {
             self.pending = self.keys.next();
         }
         let key = self.pending.clone()?;
-        let result = self.container.getAsync(key).await;
+        let result = self.container.get_async(key).await;
         self.pending = None;
         Some(result)
     }
@@ -135,12 +133,11 @@ impl<T: ?Sized + Send + Sync + 'static> TaggedServices<T> {
         Ok(self.borrow(container)?.iter())
     }
 
-    #[allow(non_snake_case, reason = "Async lazy tagged resolution")]
-    pub async fn collectAsync(
+    pub async fn collect_async(
         &self,
         container: &super::Container,
     ) -> Result<Vec<Arc<T>>, BindingResolutionError> {
-        self.borrow(container)?.collectAsync().await
+        self.borrow(container)?.collect_async().await
     }
 
     fn borrow<'a>(

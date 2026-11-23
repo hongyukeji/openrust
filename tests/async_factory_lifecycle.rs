@@ -70,7 +70,7 @@ struct Worker {
 struct Clients;
 impl Facade for Clients {
     type Service = Client;
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         ServiceKey::typed::<Client>()
     }
 }
@@ -78,14 +78,14 @@ struct Label(&'static str);
 struct Labels;
 impl Facade for Labels {
     type Service = Label;
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         ServiceKey::typed::<Label>()
     }
 }
 struct DropProbe(Arc<Control>);
 impl Drop for DropProbe {
     fn drop(&mut self) {
-        let value = Labels::getFacadeRoot()
+        let value = Labels::get_facade_root()
             .map(|label| label.0)
             .unwrap_or("missing");
         self.0.drops.lock().unwrap().push(value);
@@ -94,7 +94,7 @@ impl Drop for DropProbe {
 struct Workers;
 impl Facade for Workers {
     type Service = Worker;
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         ServiceKey::typed::<Worker>()
     }
 }
@@ -109,7 +109,7 @@ struct Control {
 struct Controls;
 impl Facade for Controls {
     type Service = Control;
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         ServiceKey::typed::<Control>()
     }
 }
@@ -129,7 +129,7 @@ impl ServiceProvider for ClientProvider {
             self.counts.register.fetch_add(1, Ordering::SeqCst);
             let (name, counts, fail) = (self.name.clone(), self.counts.clone(), self.fail_first);
             app.container()
-                .singletonAsync::<Client, _>(move |_| {
+                .singleton_async::<Client, _>(move |_| {
                     let (name, counts) = (name.clone(), counts.clone());
                     Box::pin(async move {
                         let attempt = counts.client.fetch_add(1, Ordering::SeqCst) + 1;
@@ -164,14 +164,16 @@ impl ServiceProvider for WorkerProvider {
             app.container()
                 .scoped::<Label, _>(|_| Ok(Arc::new(Label("root"))))?;
             let counts = self.counts.clone();
-            app.container()
-                .beforeResolving(Some(ServiceKey::typed::<Worker>()), move |_, _| {
+            app.container().before_resolving(
+                Some(ServiceKey::typed::<Worker>()),
+                move |_, _| {
                     counts.before.fetch_add(1, Ordering::SeqCst);
                     Ok(())
-                })?;
+                },
+            )?;
             let (counts, pause) = (self.counts.clone(), self.pause.clone());
             app.container()
-                .scopedAsync::<Worker, _>(move |c| {
+                .scoped_async::<Worker, _>(move |c| {
                     let (counts, pause) = (counts.clone(), pause.clone());
                     Box::pin(async move {
                         let sequence = counts.worker.fetch_add(1, Ordering::SeqCst) + 1;
@@ -180,8 +182,8 @@ impl ServiceProvider for WorkerProvider {
                             pause.entered.notify_one();
                             pause.release.notified().await;
                         }
-                        let client = c.makeAsync::<Client>().await?;
-                        let via_facade = Clients::getFacadeRootAsync().await?;
+                        let client = c.make_async::<Client>().await?;
+                        let via_facade = Clients::get_facade_root_async().await?;
                         assert!(Arc::ptr_eq(&client, &via_facade));
                         tokio::task::yield_now().await;
                         Ok(Arc::new(Worker { client, sequence }))
@@ -197,8 +199,8 @@ fn json(worker: &Worker) -> String {
 }
 fn read(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let a = Workers::getFacadeRootAsync().await?;
-        let b = Workers::getFacadeRootAsync().await?;
+        let a = Workers::get_facade_root_async().await?;
+        let b = Workers::get_facade_root_async().await?;
         assert!(Arc::ptr_eq(&a, &b));
         Ok(Response::new(StatusCode::OK, Body::from(json(&a))))
     })
@@ -206,8 +208,9 @@ fn read(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 fn stash(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
         Labels::swap(Arc::new(Label("a")))?;
-        let control = Controls::getFacadeRoot()?;
-        let mut pending: FactoryFuture<'static, Worker> = Box::pin(Workers::getFacadeRootAsync());
+        let control = Controls::get_facade_root()?;
+        let mut pending: FactoryFuture<'static, Worker> =
+            Box::pin(Workers::get_facade_root_async());
         tokio::select! {value=&mut pending=>panic!("worker unexpectedly ready: {}",value.unwrap().sequence),_=control.entered.notified()=>{}}
         *control.pending.lock().unwrap() = Some(pending);
         Ok(Response::new(StatusCode::OK, Body::from("stored")))
@@ -216,7 +219,7 @@ fn stash(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 fn resume(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
         Labels::swap(Arc::new(Label("b")))?;
-        let control = Controls::getFacadeRoot()?;
+        let control = Controls::get_facade_root()?;
         let pending = control.pending.lock().unwrap().take().unwrap();
         control.release.notify_one();
         assert!(matches!(
@@ -224,7 +227,7 @@ fn resume(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
             Err(BindingResolutionError::FacadeNotSet)
         ));
         assert_eq!(*control.drops.lock().unwrap(), ["missing"]);
-        let worker = Workers::getFacadeRootAsync().await?;
+        let worker = Workers::get_facade_root_async().await?;
         assert_eq!(worker.sequence, 2);
         Ok(Response::new(StatusCode::OK, Body::from(json(&worker))))
     })
@@ -232,14 +235,15 @@ fn resume(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 fn cancel_live(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
         Labels::swap(Arc::new(Label("a")))?;
-        let control = Controls::getFacadeRoot()?;
-        let mut pending: FactoryFuture<'static, Worker> = Box::pin(Workers::getFacadeRootAsync());
+        let control = Controls::get_facade_root()?;
+        let mut pending: FactoryFuture<'static, Worker> =
+            Box::pin(Workers::get_facade_root_async());
         tokio::select! {value=&mut pending=>panic!("unexpected {}",value.unwrap().sequence),_=control.entered.notified()=>{}}
         *control.pending.lock().unwrap() = Some(pending);
         let other = control.other.lock().unwrap().take().unwrap();
         other.make::<Killer>().await?;
         assert_eq!(*control.drops.lock().unwrap(), ["a"]);
-        assert_eq!(Labels::getFacadeRoot()?.0, "a");
+        assert_eq!(Labels::get_facade_root()?.0, "a");
         Ok(Response::new(StatusCode::OK, Body::from("cancelled")))
     })
 }
@@ -285,8 +289,8 @@ fn application(
 ) -> Application {
     let (label, client_counts) = (name.to_owned(), counts.clone());
     let app = Application::configure(root.0.clone())
-        .withConfig(config)
-        .withProviders(vec![
+        .with_config(config)
+        .with_providers(vec![
             Box::new(WorkerProvider {
                 counts,
                 pause: pause.clone(),
@@ -297,9 +301,9 @@ fn application(
                 fail_first,
             })),
         ])
-        .withCommands(commands)
-        .withRouting(Routing::default().web(routes))
-        .withExceptions(|exceptions| {
+        .with_commands(commands)
+        .with_routing(Routing::default().web(routes))
+        .with_exceptions(|exceptions| {
             exceptions.shouldRenderJsonWhen(|_, _| true);
         })
         .create()
@@ -443,17 +447,17 @@ async fn cancelling_a_live_factory_restores_its_application_during_cleanup() {
     let owned = control.clone();
     other
         .container()
-        .bindAsync::<Killer, _>(move |_| {
+        .bind_async::<Killer, _>(move |_| {
             let control = owned.clone();
             Box::pin(async move {
                 assert!(matches!(
-                    Labels::getFacadeRoot(),
+                    Labels::get_facade_root(),
                     Err(BindingResolutionError::NotBound { .. })
                 ));
                 let retired = control.pending.lock().unwrap().take().unwrap();
                 drop(retired);
                 assert!(matches!(
-                    Labels::getFacadeRoot(),
+                    Labels::get_facade_root(),
                     Err(BindingResolutionError::NotBound { .. })
                 ));
                 Ok(Arc::new(Killer))

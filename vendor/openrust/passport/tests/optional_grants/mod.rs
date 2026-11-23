@@ -18,8 +18,8 @@ impl Fixture {
             .get_application()
             .call(
                 openrust::container::Callback::new(&[], move |_| async move {
-                    let repo =
-                        openrust::container::Container::getInstance().make::<ClientRepository>()?;
+                    let repo = openrust::container::Container::get_instance()
+                        .make::<ClientRepository>()?;
                     let record = if implicit {
                         repo.createImplicitGrantClient("Implicit", &[CALLBACK.into()])
                             .await
@@ -785,7 +785,7 @@ async fn mysql_password_compiled_user_provider_uses_real_lookup_validation_and_i
         .get_application()
         .call(
             openrust::container::Callback::new(&[], move |_| async move {
-                let container = openrust::container::Container::getInstance();
+                let container = openrust::container::Container::get_instance();
                 let manager = container.make::<AuthManager>()?;
                 manager.provider("native-password", move |container, _| {
                     Ok(Arc::new(NativeProvider {

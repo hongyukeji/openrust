@@ -74,9 +74,9 @@ impl openrust::support::ServiceProvider for AuthProvider {
 }
 fn app() -> TestApp {
     TestApp::create(|b| {
-        b.withConfig(config)
-            .withProviders(vec![Box::new(PulseServiceProvider), Box::new(AuthProvider)])
-            .withRouting(Routing::default().api(routes))
+        b.with_config(config)
+            .with_providers(vec![Box::new(PulseServiceProvider), Box::new(AuthProvider)])
+            .with_routing(Routing::default().api(routes))
     })
     .unwrap()
 }
@@ -335,7 +335,7 @@ fn observed(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
                 .into_iter()
                 .collect(),
         )?;
-        let config = Config::getFacadeRoot()?;
+        let config = Config::get_facade_root()?;
         let url = config
             .get("probe.url")
             .and_then(|v| v.as_str().map(str::to_owned))
@@ -377,9 +377,9 @@ async fn native_recorders_capture_real_client_sql_cache_and_typed_errors_without
         }
     });
     let mut app = TestApp::create(|b| {
-        b.withConfig(recorder_config)
-            .withProviders(vec![Box::new(PulseServiceProvider), Box::new(AuthProvider)])
-            .withRouting(Routing::default().api(routes))
+        b.with_config(recorder_config)
+            .with_providers(vec![Box::new(PulseServiceProvider), Box::new(AuthProvider)])
+            .with_routing(Routing::default().api(routes))
     })
     .unwrap();
     app.artisan(["migrate", "--force"]).await.assertSuccessful();
@@ -543,12 +543,12 @@ fn probe(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 #[tokio::test]
 async fn compiled_custom_recorders_register_native_event_listeners_in_each_application() {
     let mut fixture = TestApp::create(|b| {
-        b.withConfig(config)
-            .withProviders(vec![
+        b.with_config(config)
+            .with_providers(vec![
                 Box::new(PulseServiceProvider),
                 Box::new(CustomProvider),
             ])
-            .withRouting(Routing::default().api(|| {
+            .with_routing(Routing::default().api(|| {
                 Route::get("/probe", probe)?;
                 Ok(())
             }))

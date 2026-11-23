@@ -103,7 +103,7 @@ fn discovery_does_not_follow_resource_or_group_symlinks() {
 fn inspect(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
         Ok(Response::from(serde_json::json!({
-            "locale": App::currentLocale().unwrap(),
+            "locale": App::current_locale().unwrap(),
             "supported": request.extensions().get::<LocaleSelection>().map(|selection| &selection.supported),
         }).to_string()))
     })
@@ -111,18 +111,18 @@ fn inspect(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
 
 fn application(root: &Path, candidates: Option<Vec<&'static str>>) -> Application {
     Application::configure(root.to_owned())
-        .withConfig(|_, _| {
+        .with_config(|_, _| {
             Ok(BTreeMap::from([(
                 "app".into(),
                 serde_json::json!({"locale":"en", "fallback_locale":"en"}),
             )]))
         })
-        .withMiddleware(move |middleware| {
+        .with_middleware(move |middleware| {
             if let Some(candidates) = candidates {
-                middleware.setLocale(&candidates).unwrap();
+                middleware.set_locale(&candidates).unwrap();
             }
         })
-        .withRouting(Routing::default().web(|| Route::get("/", inspect)))
+        .with_routing(Routing::default().web(|| Route::get("/", inspect)))
         .create()
         .unwrap()
 }
@@ -226,11 +226,11 @@ async fn discovery_uses_selected_language_root_and_provider_registered_sources()
     write(root.path(), "resources/lang/en/messages.json");
     write(root.path(), "extra/ja/messages.json");
     let app = Application::configure(root.path().to_owned())
-        .withProviders(vec![Box::new(ExtraSource(root.path().join("extra")))])
-        .withMiddleware(|middleware| {
+        .with_providers(vec![Box::new(ExtraSource(root.path().join("extra")))])
+        .with_middleware(|middleware| {
             middleware.localeUsing(|_| Ok(Some("ja".into())));
         })
-        .withRouting(Routing::default().web(|| Route::get("/", inspect)))
+        .with_routing(Routing::default().web(|| Route::get("/", inspect)))
         .create()
         .unwrap();
     let mut selected = Kernel::new(app);
@@ -253,10 +253,10 @@ async fn failed_explicit_configuration_retains_automatic_discovery() {
     let root = tempfile::tempdir().unwrap();
     write(root.path(), "lang/ja/messages.json");
     let app = Application::configure(root.path().to_owned())
-        .withMiddleware(|middleware| {
-            assert!(middleware.setLocale(&["zh_CN"]).is_err());
+        .with_middleware(|middleware| {
+            assert!(middleware.set_locale(&["zh_CN"]).is_err());
         })
-        .withRouting(Routing::default().web(|| Route::get("/", inspect)))
+        .with_routing(Routing::default().web(|| Route::get("/", inspect)))
         .create()
         .unwrap();
     let mut selected = Kernel::new(app);
@@ -274,14 +274,14 @@ fn configured_application(
 ) -> Application {
     fs::write(root.join("supported.json"), value.to_string()).unwrap();
     Application::configure(root.to_owned())
-        .withConfig(|base, _| {
+        .with_config(|base, _| {
             let value: serde_json::Value = serde_json::from_slice(&fs::read(base.join("supported.json")).unwrap()).unwrap();
             Ok(BTreeMap::from([("app".into(), serde_json::json!({"locale":"en", "fallback_locale":"en", "supported_locales":value}))]))
         })
-        .withMiddleware(move |middleware| {
-            if let Some(candidates) = explicit { middleware.setLocale(&candidates).unwrap(); }
+        .with_middleware(move |middleware| {
+            if let Some(candidates) = explicit { middleware.set_locale(&candidates).unwrap(); }
         })
-        .withRouting(Routing::default().web(|| Route::get("/", inspect)))
+        .with_routing(Routing::default().web(|| Route::get("/", inspect)))
         .create().unwrap()
 }
 

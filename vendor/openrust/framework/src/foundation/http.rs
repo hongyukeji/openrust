@@ -196,7 +196,7 @@ impl Kernel {
                         .container()
                         .get::<Factory>(crate::container::ServiceKey::typed::<Factory>())?,
                 );
-                let maintenance = self.application.maintenanceMode()?;
+                let maintenance = self.application.maintenance_mode()?;
                 if self.routes.is_none() {
                     let mut routes = self
                         .application
@@ -220,7 +220,7 @@ impl Kernel {
                     }
                     self.routes = Some(Arc::new(routes));
                 }
-                self.application.container().instanceNamed(
+                self.application.container().instance_named(
                     "router",
                     self.routes
                         .as_ref()

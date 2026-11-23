@@ -48,7 +48,7 @@ impl Root {
     }
     async fn kernel(&self) -> Kernel {
         let application = Application::configure(self.0.clone())
-            .withRouting(Routing::default().web(|| Route::get("/test", render)))
+            .with_routing(Routing::default().web(|| Route::get("/test", render)))
             .create()
             .unwrap();
         let mut kernel = Kernel::new(application);
@@ -110,7 +110,7 @@ fn render(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
             )
             .await;
             // 模板内显式语言覆盖不应改变外层语言。
-            assert_eq!(Lang::getLocale().unwrap(), locale);
+            assert_eq!(Lang::get_locale().unwrap(), locale);
             rendered
         })
         .await?

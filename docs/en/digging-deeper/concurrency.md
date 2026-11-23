@@ -29,7 +29,7 @@ impl ServiceProvider for Tasks {
 }
 
 let mut app = Application::configure(std::env::current_dir()?)
-    .withProviders(vec![Box::new(Tasks)])
+    .with_providers(vec![Box::new(Tasks)])
     .create()?;
 app.boot().await?;
 

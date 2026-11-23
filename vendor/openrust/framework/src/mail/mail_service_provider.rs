@@ -24,7 +24,7 @@ impl ServiceProvider for MailServiceProvider {
                 .scoped::<super::address_defaults::AddressOverrides, _>(|_| Ok(Arc::default()))?;
             let owner = Arc::downgrade(&container);
             let base = app.base_path().to_owned();
-            container.singletonNamed("mail.manager", move |container| {
+            container.singleton_named("mail.manager", move |container| {
                 let config = container.get::<dyn Repository>("config")?;
                 Ok(Arc::new(MailManager::new(
                     config,

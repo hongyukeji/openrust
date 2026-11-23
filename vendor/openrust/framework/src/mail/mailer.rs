@@ -181,7 +181,7 @@ impl Mailer {
                 kind: mailable.kind().into(),
                 mailer: self.name.clone(),
                 envelope: sent.message.1.envelope.clone(),
-                locale: locale.clone().or_else(|| Lang::getLocale().ok()),
+                locale: locale.clone().or_else(|| Lang::get_locale().ok()),
                 message: Some(sent.clone()),
                 queue: None,
             });

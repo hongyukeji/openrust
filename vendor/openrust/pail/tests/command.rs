@@ -83,9 +83,9 @@ fn probe(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 }
 fn application(root: PathBuf) -> Result<Application, Box<dyn std::error::Error + Send + Sync>> {
     Ok(Application::configure(root)
-        .withConfig(config)
-        .withProviders(vec![Box::new(PailServiceProvider)])
-        .withRouting(Routing::default().web(routes))
+        .with_config(config)
+        .with_providers(vec![Box::new(PailServiceProvider)])
+        .with_routing(Routing::default().web(routes))
         .create()?)
 }
 fn create() -> Result<Application, Box<dyn std::error::Error + Send + Sync>> {

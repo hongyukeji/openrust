@@ -112,15 +112,15 @@ fn app(root: PathBuf, origin_only: bool, same_site: bool) -> Application {
     }
 
     Application::configure(root)
-        .withConfig(if origin_only {
+        .with_config(if origin_only {
             |_, _| Ok(config("production"))
         } else {
             |_, _| Ok(config("staging-view"))
         })
-        .withMiddleware(move |middleware| {
+        .with_middleware(move |middleware| {
             middleware.preventRequestForgery(["hooks/*"], origin_only, same_site);
         })
-        .withRouting(Routing::new(binding).web(web).api(api))
+        .with_routing(Routing::new(binding).web(web).api(api))
         .create()
         .unwrap()
 }
@@ -448,14 +448,14 @@ async fn origin_only_and_session_errors_are_application_and_request_scoped() {
 #[tokio::test]
 async fn default_web_rejects_excluded_session_cookies_before_serving() {
     let app = Application::configure(std::env::temp_dir())
-        .withConfig(|_, _| {
+        .with_config(|_, _| {
             Ok([(
                 "session".into(),
                 json!({"driver":"array","cookie":"csrf_session"}),
             )]
             .into())
         })
-        .withMiddleware(|middleware| {
+        .with_middleware(|middleware| {
             middleware.encryptCookies(["csrf_session"]);
         })
         .create()

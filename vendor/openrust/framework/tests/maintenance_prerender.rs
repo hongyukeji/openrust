@@ -84,23 +84,23 @@ async fn verify_startup(
 
     let release = Arc::new(Notify::new());
     let app = Application::configure(directory.path().to_path_buf())
-        .withConfig(|base, _| {
+        .with_config(|base, _| {
             let port: u16 = std::fs::read_to_string(base.join("port"))
                 .unwrap()
                 .parse()
                 .unwrap();
             Ok([("app".to_owned(), json!({"host":"127.0.0.1","port":port}))].into())
         })
-        .withProviders(vec![Box::new(BootstrapGate {
+        .with_providers(vec![Box::new(BootstrapGate {
             release: release.clone(),
             fail,
         })])
-        .withRouting(Routing::default().health(health))
+        .with_routing(Routing::default().health(health))
         .create()
         .unwrap();
 
     if custom_storage {
-        app.useStoragePath(&storage).unwrap();
+        app.use_storage_path(&storage).unwrap();
     }
     let service = tokio::task::spawn_local(app.start());
     let html = request(address, "GET", "/offline", "text/html").await;

@@ -1,5 +1,4 @@
 #![allow(non_snake_case, reason = "保留既定公开接口及命名")]
-
 use std::time::Duration;
 
 use clap::{Arg, ArgAction, Command as Syntax, value_parser};
@@ -81,7 +80,7 @@ impl Command for WorkCommand {
             }
             let once = args.get_flag("once");
             let force = args.get_flag("force");
-            if once && !force && app.isDownForMaintenance().await.map_err(error)? {
+            if once && !force && app.is_down_for_maintenance().await.map_err(error)? {
                 let shutdown = CancellationToken::new();
                 let listener = crate::console::monitor_signals(shutdown.clone()).map_err(error)?;
                 let sleep = *args.get_one::<u32>("sleep").expect("Clap default");

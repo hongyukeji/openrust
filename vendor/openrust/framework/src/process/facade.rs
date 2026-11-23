@@ -19,7 +19,7 @@ pub struct Process;
 impl Facade for Process {
     type Service = Factory;
 
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         ServiceKey::typed::<Factory>()
     }
 }
@@ -27,7 +27,7 @@ impl Facade for Process {
 #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Process {
     pub fn command(command: impl Into<Command>) -> Result<PendingProcess> {
-        Ok(Self::getFacadeRoot()?.command(command))
+        Ok(Self::get_facade_root()?.command(command))
     }
 
     pub async fn run(command: impl Into<Command>) -> Result<ProcessResult> {
@@ -39,7 +39,7 @@ impl Process {
     }
 
     pub fn pool(configure: impl FnOnce(&mut Pool)) -> Result<Pool> {
-        Ok(Self::getFacadeRoot()?.pool(configure))
+        Ok(Self::get_facade_root()?.pool(configure))
     }
 
     pub async fn concurrently(configure: impl FnOnce(&mut Pool)) -> Result<ProcessPoolResults> {
@@ -49,7 +49,7 @@ impl Process {
     pub async fn pipe<C: Into<Command>>(
         commands: impl IntoIterator<Item = C>,
     ) -> Result<ProcessResult> {
-        Self::getFacadeRoot()?.pipe(commands).await
+        Self::get_facade_root()?.pipe(commands).await
     }
 
     pub fn describe() -> FakeProcessDescription {
@@ -67,12 +67,12 @@ impl Process {
     pub fn fake(
         callback: impl Fn(&RecordedProcess) -> Option<Result<ProcessResult>> + Send + Sync + 'static,
     ) -> Result<()> {
-        Self::getFacadeRoot()?.fake(callback);
+        Self::get_facade_root()?.fake(callback);
         Ok(())
     }
 
     pub fn preventStrayProcesses(prevent: bool) -> Result<()> {
-        Self::getFacadeRoot()?.preventStrayProcesses(prevent);
+        Self::get_facade_root()?.preventStrayProcesses(prevent);
         Ok(())
     }
 
@@ -80,7 +80,7 @@ impl Process {
     pub fn assertRan(
         predicate: impl Fn(&RecordedProcess, Option<&ProcessResult>) -> bool,
     ) -> Result<()> {
-        Self::getFacadeRoot()?.assertRan(predicate);
+        Self::get_facade_root()?.assertRan(predicate);
         Ok(())
     }
 
@@ -89,7 +89,7 @@ impl Process {
         predicate: impl Fn(&RecordedProcess, Option<&ProcessResult>) -> bool,
         expected: usize,
     ) -> Result<()> {
-        Self::getFacadeRoot()?.assertRanTimes(predicate, expected);
+        Self::get_facade_root()?.assertRanTimes(predicate, expected);
         Ok(())
     }
 
@@ -97,19 +97,19 @@ impl Process {
     pub fn assertNotRan(
         predicate: impl Fn(&RecordedProcess, Option<&ProcessResult>) -> bool,
     ) -> Result<()> {
-        Self::getFacadeRoot()?.assertNotRan(predicate);
+        Self::get_facade_root()?.assertNotRan(predicate);
         Ok(())
     }
 
     #[track_caller]
     pub fn assertNothingRan() -> Result<()> {
-        Self::getFacadeRoot()?.assertNothingRan();
+        Self::get_facade_root()?.assertNothingRan();
         Ok(())
     }
 
     #[track_caller]
     pub fn assertRanInOrder(callbacks: &[&super::ProcessAssertion<'_>]) -> Result<()> {
-        Self::getFacadeRoot()?.assertRanInOrder(callbacks);
+        Self::get_facade_root()?.assertRanInOrder(callbacks);
         Ok(())
     }
 
@@ -117,7 +117,7 @@ impl Process {
     pub fn assertDidntRun(
         predicate: impl Fn(&RecordedProcess, Option<&ProcessResult>) -> bool,
     ) -> Result<()> {
-        Self::getFacadeRoot()?.assertDidntRun(predicate);
+        Self::get_facade_root()?.assertDidntRun(predicate);
         Ok(())
     }
 }

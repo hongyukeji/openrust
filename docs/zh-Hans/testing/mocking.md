@@ -41,7 +41,7 @@ struct Reports;
 impl Facade for Reports {
     type Service = dyn Reporter;
 
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         ServiceKey::typed::<dyn Reporter>()
     }
 }

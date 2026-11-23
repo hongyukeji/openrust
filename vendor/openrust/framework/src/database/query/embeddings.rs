@@ -169,7 +169,7 @@ pub(super) async fn cached_for(connection: Connection, text: &str) -> DatabaseRe
         ))?;
     application_scope(owner.clone(), async move {
         owner
-            .makeAsync::<Embeddings>()
+            .make_async::<Embeddings>()
             .await
             .map_err(embedding_error)?
             .cached(text)

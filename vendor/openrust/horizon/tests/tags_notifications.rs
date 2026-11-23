@@ -37,8 +37,8 @@ fn untagged_routes() -> Result<(), openrust::routing::RoutingError> {
 fn app(tagged: bool) -> TestApp {
     TestApp::create(|builder| {
         builder
-            .withProviders(vec![Box::new(HorizonServiceProvider)])
-            .withRouting(Routing::default().api(if tagged {
+            .with_providers(vec![Box::new(HorizonServiceProvider)])
+            .with_routing(Routing::default().api(if tagged {
                 tagged_routes
             } else {
                 untagged_routes
@@ -191,8 +191,8 @@ fn notification_response(_: &mut Request) -> HttpFuture<'_, Result<Response, Htt
 async fn long_wait_notifications_use_the_native_notification_fake() {
     let mut app = TestApp::create(|builder| {
         builder
-            .withProviders(vec![Box::new(HorizonServiceProvider)])
-            .withRouting(
+            .with_providers(vec![Box::new(HorizonServiceProvider)])
+            .with_routing(
                 Routing::default().api(|| Route::get("/notification", notification_response)),
             )
     })

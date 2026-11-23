@@ -513,7 +513,9 @@ impl ScheduleRunCommand {
         };
         let mut due = Vec::new();
         for (index, event) in self.schedule.event_handles().enumerate() {
-            if !event.runsInMaintenanceMode() && app.isDownForMaintenance().await.map_err(error)? {
+            if !event.runsInMaintenanceMode()
+                && app.is_down_for_maintenance().await.map_err(error)?
+            {
                 continue;
             }
             if event.due(
@@ -598,7 +600,7 @@ impl ScheduleRunCommand {
                         && entry.next_run <= Instant::now()
                     {
                         has_entered_maintenance = has_entered_maintenance
-                            || app.isDownForMaintenance().await.map_err(error)?;
+                            || app.is_down_for_maintenance().await.map_err(error)?;
                         if has_entered_maintenance && !entry.event.runsInMaintenanceMode() {
                             entry.next_run = Instant::now() + interval;
                             continue;

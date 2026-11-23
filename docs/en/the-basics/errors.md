@@ -24,9 +24,9 @@ Keep `map_err` when it adds a path, operation, request, or phase context, or per
 
 ## Reporting Exceptions
 
-Configure reporting in the `withExceptions` closure in `bootstrap/app.rs`. Use `report::<E>` to observe an exception type or a matching source. Callbacks run in registration order. `ReportDecision::Stop` stops later callbacks and the default report.
+Configure reporting in the `with_exceptions` closure in `bootstrap/app.rs`. Use `report::<E>` to observe an exception type or a matching source. Callbacks run in registration order. `ReportDecision::Stop` stops later callbacks and the default report.
 
-Configure [when queued jobs should stop retrying](../digging-deeper/queues.md#stopping-retries-by-exception) through the same `withExceptions` callback.
+Configure [when queued jobs should stop retrying](../digging-deeper/queues.md#stopping-retries-by-exception) through the same `with_exceptions` callback.
 
 By default, reportable errors go through the application's configured log channel at `Level::Error`. HTTP reports include the status and omit source details from the default message. Artisan keeps its stderr message and exit status. Use `level::<E>` to choose a level and `context` to attach fields to the record. Public [Context](../digging-deeper/context.md) fields are written as separate metadata.
 
@@ -48,7 +48,7 @@ use openrust::{
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut app = Application::configure(std::env::current_dir()?)
-        .withExceptions(|exceptions| {
+        .with_exceptions(|exceptions| {
             exceptions
                 .level::<std::io::Error>(Level::Warning)
                 .dontReportDuplicates();
@@ -64,9 +64,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## Throttling Reported Exceptions
 
-Register a policy in `withExceptions` with `throttle::<E>`. The first matching callback that returns a policy takes effect. Use `ReportThrottle::Lottery(Lottery::odds(1, 100)?)` for sampling, `ReportThrottle::Limit` for a fixed attempt budget, or `ReportThrottle::Unlimited` to report without throttling.
+Register a policy in `with_exceptions` with `throttle::<E>`. The first matching callback that returns a policy takes effect. Use `ReportThrottle::Lottery(Lottery::odds(1, 100)?)` for sampling, `ReportThrottle::Limit` for a fixed attempt budget, or `ReportThrottle::Unlimited` to report without throttling.
 
-This example passes `configure` to `withExceptions` and allows two I/O error reports per minute.
+This example passes `configure` to `with_exceptions` and allows two I/O error reports per minute.
 
 ```rust
 use openrust::{
@@ -103,7 +103,7 @@ use openrust::{
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = Application::configure(std::env::current_dir()?)
-        .withExceptions(|exceptions| {
+        .with_exceptions(|exceptions| {
             exceptions
                 .render::<HttpError>(|error, request| {
                     if matches!(error, HttpError::NotFound) && request.uri().path() == "/example" {
@@ -132,7 +132,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## Rendering Exceptions as JSON
 
-The framework uses the request's JSON preference by default. The application skeleton configures `withExceptions` to render JSON for the effective API namespace and for requests that expect JSON. Use `shouldRenderJsonWhen` to set a different policy.
+The framework uses the request's JSON preference by default. The application skeleton configures `with_exceptions` to render JSON for the effective API namespace and for requests that expect JSON. Use `shouldRenderJsonWhen` to set a different policy.
 
 Set `APP_DEBUG=false` in production. The default JSON response uses `Server Error` for a generic 500, and the default HTML page omits exception sources. In debug mode, built-in server-error responses include a bounded list of source messages, escaped when displayed as HTML. Custom callbacks control the contents of responses they return.
 
@@ -140,7 +140,7 @@ For example, a missing API route returns `404` with a JSON `message` field. A mi
 
 ## Missing Routes
 
-The application's `withExceptions` policy returns JSON for the effective API namespace or requests expecting JSON. Other missing routes return HTML. This changes the response format, not the 404 status. The same policy applies to missing static files; HEAD preserves the status and content type with an empty body.
+The application's `with_exceptions` policy returns JSON for the effective API namespace or requests expecting JSON. Other missing routes return HTML. This changes the response format, not the 404 status. The same policy applies to missing static files; HEAD preserves the status and content type with an empty body.
 
 The path rule matches descendants of the effective prefix, such as `/v1/internal/users` for `/v1/internal`. With an empty prefix, the skeleton uses the request’s JSON preference.
 

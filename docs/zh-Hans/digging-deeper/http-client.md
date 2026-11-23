@@ -162,7 +162,7 @@ assert_eq!(failures[0].downcast_ref::<ConnectionFailed>().unwrap().request.url.a
 
 在应用 Provider 中使用 `Http::globalMiddleware` 包裹每一跳出站请求；独立客户端可用 `Factory::globalMiddleware`。回调接收拥有所有权的请求和续体 `next`，返回 `Box::pin(async move { ... })`；`next.run(request).await` 返回响应或包括超时在内的传输错误。中间件按注册顺序进入、反序返回，重定向和重试都会再次经过。注册作用于随后创建的 PendingRequest，同一 Factory 的克隆共享注册，应用之间隔离。
 
-`globalRequestMiddleware` 通过 `&mut Request` 修改请求并返回 `Result<()>`；`globalResponseMiddleware` 将 `Response` 映射为 `Result<Response>`。单个 PendingRequest 使用 `withMiddleware`、`withRequestMiddleware`、`withResponseMiddleware`；现有 `beforeSending` 与 `afterResponse` 仍可使用。
+`globalRequestMiddleware` 通过 `&mut Request` 修改请求并返回 `Result<()>`；`globalResponseMiddleware` 将 `Response` 映射为 `Result<Response>`。单个 PendingRequest 使用 `with_middleware`、`withRequestMiddleware`、`withResponseMiddleware`；现有 `beforeSending` 与 `afterResponse` 仍可使用。
 
 ```rust
 use openrust::http::client::Http;

@@ -422,7 +422,7 @@ fn passkeys_acceptance_policy(request: &mut openrust::http::Request) -> openrust
     Box::pin(async move {
         use openrust::support::facades::Facade as _;
         let mode=request.route("mode").unwrap_or_default();
-        let config=openrust::support::facades::Config::getFacadeRoot().map_err(|e|openrust::http::HttpError::Internal{source:Box::new(e)})?;
+        let config=openrust::support::facades::Config::get_facade_root().map_err(|e|openrust::http::HttpError::Internal{source:Box::new(e)})?;
         config.set("passkeys.timeout",if mode=="expire" {1.into()} else {60000.into()}).map_err(|e|openrust::http::HttpError::Internal{source:Box::new(e)})?;
         openrust::http::Response::json(openrust::http::StatusCode::OK,true)
     })

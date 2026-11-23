@@ -2,7 +2,7 @@
 
 ## 編寫 Seeder
 
-用 `make:seeder` 在 `database/seeders/` 產生 Rust Seeder。產生器會寫入具名的 `ENTRY: SeederEntry`，手寫 Seeder 也提供相同的常數。OpenRust 建置時會自動探索該目錄和子目錄中的檔案，並透過 `bootstrap/app.rs` 的 `withSeeders` 接入清單。此目錄中的每個 Rust 檔案提供一個項目，`mod.rs` 用於模組宣告。`run` 接受 `SeederContext`，可取得所選連線和應用程式服務。
+用 `make:seeder` 在 `database/seeders/` 產生 Rust Seeder。產生器會寫入具名的 `ENTRY: SeederEntry`，手寫 Seeder 也提供相同的常數。OpenRust 建置時會自動探索該目錄和子目錄中的檔案，並透過 `bootstrap/app.rs` 的 `with_seeders` 接入清單。此目錄中的每個 Rust 檔案提供一個項目，`mod.rs` 用於模組宣告。`run` 接受 `SeederContext`，可取得所選連線和應用程式服務。
 
 Artisan 執行 Seeder 及其子 Seeder 時會暫時停用 Eloquent 的批次賦值保護。`Model::create` 和 `fill` 等方法可以設定受保護的屬性，仍會套用修改器與型別轉換。指令成功或失敗時都會恢復保護。獨立的 Tokio 工作（包括透過 `tokio::spawn` 建立的工作）保留各自的保護。
 

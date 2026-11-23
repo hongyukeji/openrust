@@ -29,14 +29,14 @@ fn setup() -> Container {
 #[tokio::test]
 async fn object_methods_establish_class_context_but_class_at_method_preserves_parent_context() {
     let c = setup();
-    c.registerMethod::<Receiver, _, _>(
+    c.register_method::<Receiver, _, _>(
         "read",
         vec![ConstructorParam::class::<Dependency>("dep")],
         |receiver, args, c| {
             Box::pin(async move {
                 let injected = args.resolved.service::<Dependency>(0)?.0;
                 tokio::task::yield_now().await;
-                Ok((receiver, injected, c.makeAsync::<Dependency>().await?.0))
+                Ok((receiver, injected, c.make_async::<Dependency>().await?.0))
             })
         },
     )
@@ -59,23 +59,23 @@ async fn object_methods_establish_class_context_but_class_at_method_preserves_pa
         .await
         .unwrap();
     assert_eq!(injected, "root");
-    assert_eq!(c.makeAsync::<Dependency>().await.unwrap().0, "root");
+    assert_eq!(c.make_async::<Dependency>().await.unwrap().0, "root");
     assert!(
-        c.registerMethod::<Receiver, (), _>("READ", vec![], |_, _, _| Box::pin(async { Ok(()) }))
+        c.register_method::<Receiver, (), _>("READ", vec![], |_, _, _| Box::pin(async { Ok(()) }))
             .is_err()
     );
 }
 #[tokio::test]
 async fn receiver_construction_precedes_binding_lookup_and_binding_bypasses_original_signature() {
     let c = Container::default();
-    c.registerMethod::<Receiver, u32, _>(
+    c.register_method::<Receiver, u32, _>(
         "run",
         vec![ConstructorParam::scalar::<String>("required")],
         |_, _, _| panic!("must skip original"),
     )
     .unwrap();
     c.bind::<Receiver, _>(|c| {
-        c.bindMethod::<Receiver, u32, _>("run", |_, _| Box::pin(async { Ok(42) }))?;
+        c.bind_method::<Receiver, u32, _>("run", |_, _| Box::pin(async { Ok(42) }))?;
         Ok(Arc::new(Receiver))
     })
     .unwrap();
@@ -86,8 +86,8 @@ async fn receiver_construction_precedes_binding_lookup_and_binding_bypasses_orig
         .await
         .unwrap();
     assert_eq!(result, 42);
-    assert!(c.hasMethodBinding::<Receiver>("run"));
-    assert!(!c.hasMethodBinding::<Receiver>("RUN"));
+    assert!(c.has_method_binding::<Receiver>("run"));
+    assert!(!c.has_method_binding::<Receiver>("RUN"));
     let error = c
         .call::<u32, _>(
             MethodCall::<Receiver>::class("RUN"),
@@ -102,16 +102,16 @@ async fn receiver_construction_precedes_binding_lookup_and_binding_bypasses_orig
 #[tokio::test]
 async fn direct_binding_keeps_parent_context_while_normal_method_establishes_class_context() {
     let c = setup();
-    c.registerMethod::<Receiver, &str, _>("read", vec![], |_, _, _| {
+    c.register_method::<Receiver, &str, _>("read", vec![], |_, _, _| {
         Box::pin(async { Ok("unused") })
     })
     .unwrap();
-    c.bindMethod::<Receiver, _, _>("read", |_, c| {
-        Box::pin(async move { Ok(c.makeAsync::<Dependency>().await?.0) })
+    c.bind_method::<Receiver, _, _>("read", |_, c| {
+        Box::pin(async move { Ok(c.make_async::<Dependency>().await?.0) })
     })
     .unwrap();
     assert_eq!(
-        c.callMethodBinding::<Receiver, &str>("read", Arc::new(Receiver))
+        c.call_method_binding::<Receiver, &str>("read", Arc::new(Receiver))
             .await
             .unwrap(),
         "root"
@@ -134,11 +134,11 @@ async fn default_class_argument_uses_bound_not_contextual_and_class_alias_key_is
         .needs::<Dependency>()
         .give(|_| Ok(Arc::new(Dependency("context"))))
         .unwrap();
-    c.registerMethod::<Receiver, &str, _>(
+    c.register_method::<Receiver, &str, _>(
         "read",
         vec![
             ConstructorParam::class::<Dependency>("dep")
-                .withDefault(|| Ok(ParameterValue::new(Arc::new(Dependency("default"))))),
+                .with_default(|| Ok(ParameterValue::new(Arc::new(Dependency("default"))))),
         ],
         |_, args, _| Box::pin(async move { Ok(args.resolved.service::<Dependency>(0)?.0) }),
     )
@@ -181,7 +181,7 @@ async fn invokable_requires_declaration_before_construction_and_falsy_default_na
         Ok(Arc::new(Receiver))
     })
     .unwrap();
-    c.bindMethod::<Receiver, u32, _>("__invoke", |_, _| Box::pin(async { Ok(7) }))
+    c.bind_method::<Receiver, u32, _>("__invoke", |_, _| Box::pin(async { Ok(7) }))
         .unwrap();
     assert!(matches!(
         c.call::<u32, _>(
@@ -192,12 +192,12 @@ async fn invokable_requires_declaration_before_construction_and_falsy_default_na
         Err(BindingResolutionError::InvalidMethod { .. })
     ));
     assert_eq!(count.load(Ordering::SeqCst), 0);
-    c.registerMethod::<Receiver, u32, _>("__invoke", vec![], |_, _, _| Box::pin(async { Ok(1) }))
+    c.register_method::<Receiver, u32, _>("__invoke", vec![], |_, _, _| Box::pin(async { Ok(1) }))
         .unwrap();
     for target in [
         MethodCall::<Receiver>::invokable(),
-        MethodCall::defaultMethod(""),
-        MethodCall::defaultMethod("0"),
+        MethodCall::default_method(""),
+        MethodCall::default_method("0"),
     ] {
         assert_eq!(
             c.call::<u32, _>(target, ParameterOverrides::new())
@@ -211,11 +211,11 @@ async fn invokable_requires_declaration_before_construction_and_falsy_default_na
 #[tokio::test]
 async fn qualified_static_ignores_binding_array_consults_it_and_wrong_contracts_fail() {
     let c = Container::default();
-    c.registerStaticMethod::<Receiver, _, _>("read", vec![], |_, _| {
+    c.register_static_method::<Receiver, _, _>("read", vec![], |_, _| {
         Box::pin(async { Ok(Cell::new(1u32)) })
     })
     .unwrap();
-    c.bindStaticMethod::<Receiver, _, _>("read", |key, _| {
+    c.bind_static_method::<Receiver, _, _>("read", |key, _| {
         Box::pin(async move {
             assert_eq!(key, ServiceKey::typed::<Receiver>());
             Ok(Cell::new(2u32))
@@ -243,7 +243,7 @@ async fn qualified_static_ignores_binding_array_consults_it_and_wrong_contracts_
         2
     );
     assert_eq!(
-        c.callStaticMethodBinding::<Receiver, Cell<u32>>("read")
+        c.call_static_method_binding::<Receiver, Cell<u32>>("read")
             .await
             .unwrap()
             .get(),
@@ -266,7 +266,7 @@ async fn qualified_static_ignores_binding_array_consults_it_and_wrong_contracts_
         Err(BindingResolutionError::MethodContractMismatch { .. })
     ));
     assert!(!c.resolved(ServiceKey::typed::<Receiver>()).unwrap());
-    c.registerMethod::<Receiver, (), _>("instance", vec![], |_, _, _| Box::pin(async { Ok(()) }))
+    c.register_method::<Receiver, (), _>("instance", vec![], |_, _, _| Box::pin(async { Ok(()) }))
         .unwrap();
     assert!(matches!(
         c.call::<(), _>(
@@ -277,7 +277,7 @@ async fn qualified_static_ignores_binding_array_consults_it_and_wrong_contracts_
         Err(BindingResolutionError::MethodContractMismatch { .. })
     ));
     assert!(matches!(
-        c.callMethodBinding::<Receiver, ()>("absent", Arc::new(Receiver))
+        c.call_method_binding::<Receiver, ()>("absent", Arc::new(Receiver))
             .await,
         Err(BindingResolutionError::MethodBindingNotFound { .. })
     ));
@@ -293,7 +293,7 @@ async fn object_can_call_static_declaration_and_retains_receiver_until_callback_
     let c = Container::default();
     let drops = Arc::new(AtomicUsize::new(0));
     let seen = drops.clone();
-    c.registerStaticMethod::<Owned, (), _>("run", vec![], move |_, _| {
+    c.register_static_method::<Owned, (), _>("run", vec![], move |_, _| {
         let seen = seen.clone();
         Box::pin(async move {
             tokio::task::yield_now().await;
@@ -321,7 +321,7 @@ async fn method_inputs_remain_owned_when_binding_skips_arguments_and_callback_di
     let c = Container::default();
     let drops = Arc::new(AtomicUsize::new(0));
     let seen = drops.clone();
-    c.bindMethod::<Held, (), _>("run", move |_, _| {
+    c.bind_method::<Held, (), _>("run", move |_, _| {
         let seen = seen.clone();
         Box::pin(async move {
             tokio::task::yield_now().await;
@@ -369,11 +369,11 @@ async fn recursive_calls_do_not_create_resolution_cycles_or_move_existing_class_
         .needs::<Dependency>()
         .give(|_| Ok(Arc::new(Dependency("other"))))
         .unwrap();
-    c.registerMethod::<Receiver, &str, _>("leaf", vec![], |_, _, c| {
-        Box::pin(async move { Ok(c.makeAsync::<Dependency>().await?.0) })
+    c.register_method::<Receiver, &str, _>("leaf", vec![], |_, _, c| {
+        Box::pin(async move { Ok(c.make_async::<Dependency>().await?.0) })
     })
     .unwrap();
-    c.registerMethod::<Other, &str, _>("middle", vec![], |_, _, c| {
+    c.register_method::<Other, &str, _>("middle", vec![], |_, _, c| {
         Box::pin(async move {
             c.call(
                 MethodCall::on(Arc::new(Receiver), "leaf"),
@@ -383,7 +383,7 @@ async fn recursive_calls_do_not_create_resolution_cycles_or_move_existing_class_
         })
     })
     .unwrap();
-    c.registerMethod::<Receiver, &str, _>("outer", vec![], |_, _, c| {
+    c.register_method::<Receiver, &str, _>("outer", vec![], |_, _, c| {
         Box::pin(async move {
             c.call(
                 MethodCall::on(Arc::new(Other), "middle"),
@@ -413,24 +413,24 @@ async fn concurrent_calls_restore_own_context_after_each_await_and_anonymous_cal
         .needs::<Dependency>()
         .give(|_| Ok(Arc::new(Dependency("other"))))
         .unwrap();
-    c.registerMethod::<Receiver, &str, _>("read", vec![], |_, _, c| {
+    c.register_method::<Receiver, &str, _>("read", vec![], |_, _, c| {
         Box::pin(async move {
             tokio::task::yield_now().await;
-            Ok(c.makeAsync::<Dependency>().await?.0)
+            Ok(c.make_async::<Dependency>().await?.0)
         })
     })
     .unwrap();
-    c.registerMethod::<Other, &str, _>("read", vec![], |_, _, c| {
+    c.register_method::<Other, &str, _>("read", vec![], |_, _, c| {
         Box::pin(async move {
             tokio::task::yield_now().await;
-            Ok(c.makeAsync::<Dependency>().await?.0)
+            Ok(c.make_async::<Dependency>().await?.0)
         })
     })
     .unwrap();
     let root = c.call(
         Callback::new(&[], |_| async {
             tokio::task::yield_now().await;
-            Ok(c.makeAsync::<Dependency>().await?.0)
+            Ok(c.make_async::<Dependency>().await?.0)
         }),
         ParameterOverrides::new(),
     );
@@ -457,11 +457,11 @@ async fn binding_replacement_preserves_running_callback_and_allows_reentry() {
     let entered = Arc::new(AtomicUsize::new(0));
     let gate = wait.clone();
     let seen = entered.clone();
-    c.bindMethod::<Receiver, u32, _>("run", move |_, c| {
+    c.bind_method::<Receiver, u32, _>("run", move |_, c| {
         let gate = gate.clone();
         let seen = seen.clone();
         Box::pin(async move {
-            c.bindMethod::<Receiver, u32, _>("next", |_, _| Box::pin(async { Ok(3) }))?;
+            c.bind_method::<Receiver, u32, _>("next", |_, _| Box::pin(async { Ok(3) }))?;
             seen.fetch_add(1, Ordering::SeqCst);
             gate.notified().await;
             Ok(1)
@@ -478,18 +478,18 @@ async fn binding_replacement_preserves_running_callback_and_allows_reentry() {
     })
     .await;
     assert_eq!(entered.load(Ordering::SeqCst), 1);
-    c.bindMethod::<Receiver, u32, _>("run", |_, _| Box::pin(async { Ok(2) }))
+    c.bind_method::<Receiver, u32, _>("run", |_, _| Box::pin(async { Ok(2) }))
         .unwrap();
     wait.notify_one();
     assert_eq!(running.await.unwrap(), 1);
     assert_eq!(
-        c.callMethodBinding::<Receiver, u32>("run", Arc::new(Receiver))
+        c.call_method_binding::<Receiver, u32>("run", Arc::new(Receiver))
             .await
             .unwrap(),
         2
     );
     assert_eq!(
-        c.callMethodBinding::<Receiver, u32>("next", Arc::new(Receiver))
+        c.call_method_binding::<Receiver, u32>("next", Arc::new(Receiver))
             .await
             .unwrap(),
         3
@@ -517,7 +517,7 @@ async fn dropped_method_future_restores_consumer_during_cleanup_and_closed_scope
     let seen = Arc::new(Mutex::new(vec![]));
     let saved = seen.clone();
     let captured = Arc::downgrade(&c);
-    c.registerMethod::<Receiver, (), _>("wait", vec![], move |_, _, _| {
+    c.register_method::<Receiver, (), _>("wait", vec![], move |_, _, _| {
         let held = Cleanup {
             c: captured.clone(),
             seen: saved.clone(),
@@ -566,9 +566,9 @@ async fn class_variadics_accept_computed_lists_but_raw_constructor_service_array
     c.when::<Receiver>()
         .unwrap()
         .needs::<Dependency>()
-        .giveServices(vec![ServiceKey::typed::<Dependency>()])
+        .give_services(vec![ServiceKey::typed::<Dependency>()])
         .unwrap();
-    c.registerMethod::<Receiver, usize, _>(
+    c.register_method::<Receiver, usize, _>(
         "many",
         vec![ConstructorParam::class::<Dependency>("items").variadic()],
         |_, args, _| Box::pin(async move { Ok(args.resolved.services::<Dependency>(0)?.len()) }),
@@ -607,7 +607,7 @@ async fn class_variadics_accept_computed_lists_but_raw_constructor_service_array
             ]))
         })
         .unwrap();
-    c.registerMethod::<Receiver, usize, _>(
+    c.register_method::<Receiver, usize, _>(
         "many",
         vec![ConstructorParam::class::<Dependency>("items").variadic()],
         |_, args, _| Box::pin(async move { Ok(args.resolved.services::<Dependency>(0)?.len()) }),
@@ -639,7 +639,7 @@ async fn computed_variadic_collections_are_spread_and_errors_allow_explicit_retr
             ]))
         })
         .unwrap();
-    c.registerMethod::<Receiver, Vec<&str>, _>(
+    c.register_method::<Receiver, Vec<&str>, _>(
         "many",
         vec![ConstructorParam::class::<Dependency>("items").variadic()],
         |_, args, _| {
@@ -665,7 +665,7 @@ async fn computed_variadic_collections_are_spread_and_errors_allow_explicit_retr
     );
     let n = Arc::new(AtomicUsize::new(0));
     let seen = n.clone();
-    c.bindMethod::<Receiver, u32, _>("retry", move |_, _| {
+    c.bind_method::<Receiver, u32, _>("retry", move |_, _| {
         let n = seen.fetch_add(1, Ordering::SeqCst);
         Box::pin(async move {
             if n == 0 {
@@ -701,9 +701,9 @@ async fn computed_variadic_collections_are_spread_and_errors_allow_explicit_retr
 #[tokio::test]
 async fn panicking_method_leaves_no_class_context_and_binding_can_be_replaced() {
     let c = setup();
-    c.registerMethod::<Receiver, (), _>("panic", vec![], |_, _, c| {
+    c.register_method::<Receiver, (), _>("panic", vec![], |_, _, c| {
         Box::pin(async move {
-            assert_eq!(c.makeAsync::<Dependency>().await?.0, "receiver");
+            assert_eq!(c.make_async::<Dependency>().await?.0, "receiver");
             panic!("test method panic");
         })
     })
@@ -721,8 +721,8 @@ async fn panicking_method_leaves_no_class_context_and_binding_can_be_replaced() 
     })
     .await;
     drop(future);
-    assert_eq!(c.makeAsync::<Dependency>().await.unwrap().0, "root");
-    c.bindMethod::<Receiver, (), _>("panic", |_, _| Box::pin(async { Ok(()) }))
+    assert_eq!(c.make_async::<Dependency>().await.unwrap().0, "root");
+    c.bind_method::<Receiver, (), _>("panic", |_, _| Box::pin(async { Ok(()) }))
         .unwrap();
     c.call::<(), _>(
         MethodCall::on(Arc::new(Receiver), "panic"),

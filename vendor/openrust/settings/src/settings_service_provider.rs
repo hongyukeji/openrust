@@ -31,9 +31,9 @@ fn binding(error: impl std::error::Error + Send + Sync + 'static) -> BindingReso
 impl ServiceProvider for SettingsServiceProvider {
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
-            if !app.configurationIsCached() {
+            if !app.configuration_is_cached() {
                 let env = app.make::<openrust::config::Environment>().await?;
-                self.mergeConfigFrom(app, crate::configuration::load(&env)?, "settings")?;
+                self.merge_config_from(app, crate::configuration::load(&env)?, "settings")?;
             }
             app.container()
                 .singleton::<RegisteredGroups, _>(|_| Ok(Arc::new(RegisteredGroups::default())))?;
@@ -90,7 +90,7 @@ impl ServiceProvider for SettingsServiceProvider {
             if table.as_ref().and_then(|value| value.as_str()) == Some("settings")
                 && connection.as_ref().is_none_or(serde_json::Value::is_null)
             {
-                self.loadMigrationsFrom(app, Self::migrations()).await?;
+                self.load_migrations_from(app, Self::migrations()).await?;
             }
             Ok(())
         })
@@ -117,9 +117,9 @@ impl SettingsServiceProvider {
         }
         if let Err(error) = app
             .container()
-            .scopedAsync::<Settings<T>, _>(|container| {
+            .scoped_async::<Settings<T>, _>(|container| {
                 Box::pin(async move {
-                    let repository = container.makeAsync::<dyn SettingsRepository>().await?;
+                    let repository = container.make_async::<dyn SettingsRepository>().await?;
                     let config =
                         container.get::<dyn openrust::contracts::config::Repository>("config")?;
                     let encrypter = if T::encrypted().is_empty() {
@@ -127,7 +127,7 @@ impl SettingsServiceProvider {
                     } else {
                         Some(
                             container
-                                .makeAsync::<dyn openrust::contracts::encryption::Encrypter>()
+                                .make_async::<dyn openrust::contracts::encryption::Encrypter>()
                                 .await?,
                         )
                     };

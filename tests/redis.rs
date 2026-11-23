@@ -36,13 +36,13 @@ impl Drop for Root {
 
 fn application(path: PathBuf) -> Application {
     Application::configure(path)
-        .withConfig(|base, environment| {
+        .with_config(|base, environment| {
             let mut config = config::load(base, environment)?;
             config.get_mut("app").unwrap()["key"] = "a".repeat(32).into();
             config.get_mut("session").unwrap()["driver"] = "array".into();
             Ok(config)
         })
-        .withRouting(Routing::default().web(|| Route::get("/cache", cache_http)))
+        .with_routing(Routing::default().web(|| Route::get("/cache", cache_http)))
         .create()
         .unwrap()
 }
@@ -376,7 +376,7 @@ async fn redis_cluster_routes_commands_and_cache_locks_across_shards() {
     fs::create_dir(&root.0).unwrap();
     fs::write(root.0.join(".env"), "CACHE_STORE=redis\nREDIS_CACHE_CONNECTION=sharded\nREDIS_CACHE_LOCK_CONNECTION=sharded\nCACHE_PREFIX=cache:\nREDIS_PREFIX=fixture:\n").unwrap();
     let app = || {
-        Application::configure(root.0.clone()).withConfig(|base, env| {
+        Application::configure(root.0.clone()).with_config(|base, env| {
         let mut config = config::load(base, env)?;
         let cluster_port: u16 = std::env::var("OPENRUST_TEST_REDIS_CLUSTER_PORT").unwrap().parse().unwrap();
         config.get_mut("database").unwrap()["redis"]["clusters"] = json!({

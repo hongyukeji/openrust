@@ -68,14 +68,14 @@ struct Missing(Vec<Arc<dyn Filter>>);
 struct Groups;
 impl Facade for Groups {
     type Service = Filters;
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         ServiceKey::typed::<Filters>()
     }
 }
 struct MissingGroups;
 impl Facade for MissingGroups {
     type Service = Missing;
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         ServiceKey::typed::<Missing>()
     }
 }
@@ -88,13 +88,13 @@ impl ServiceProvider for Registration {
         Box::pin(async move {
             let (counts, name) = (self.counts.clone(), self.name);
             app.container()
-                .bindNamed::<dyn Filter, _>("first", move |_| {
+                .bind_named::<dyn Filter, _>("first", move |_| {
                     counts.first.fetch_add(1, Ordering::SeqCst);
                     Ok(Arc::new(Named(format!("{name}-1"))))
                 })?;
             let counts = self.counts.clone();
             app.container()
-                .registerClass(ClassDescriptor::concrete::<Filters, _>(
+                .register_class(ClassDescriptor::concrete::<Filters, _>(
                     vec![ConstructorParam::class::<dyn Filter>("filters").variadic()],
                     move |args| {
                         counts.groups.fetch_add(1, Ordering::SeqCst);
@@ -104,16 +104,16 @@ impl ServiceProvider for Registration {
             app.container()
                 .when::<Filters>()?
                 .needs::<dyn Filter>()
-                .giveServices(["first", "second"])?;
+                .give_services(["first", "second"])?;
             app.container()
-                .registerClass(ClassDescriptor::concrete::<Missing, _>(
+                .register_class(ClassDescriptor::concrete::<Missing, _>(
                     vec![ConstructorParam::class::<dyn Filter>("filters").variadic()],
                     |args| Ok(Arc::new(Missing(args.services(0)?))),
                 )?)?;
             app.container()
                 .when::<Missing>()?
                 .needs::<dyn Filter>()
-                .giveServices(["missing"])?;
+                .give_services(["missing"])?;
             Ok(())
         })
     }
@@ -133,7 +133,7 @@ impl ServiceProvider for Deferred {
         Box::pin(async move {
             let (counts, name, fail) = (self.counts.clone(), self.name, self.fail);
             app.container()
-                .singletonAsyncNamed::<dyn Filter, _>("second", move |_| {
+                .singleton_async_named::<dyn Filter, _>("second", move |_| {
                     let counts = counts.clone();
                     Box::pin(async move {
                         tokio::task::yield_now().await;
@@ -154,8 +154,8 @@ impl ServiceProvider for Deferred {
 }
 fn read(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let a = Groups::getFacadeRootAsync().await?;
-        let b = Groups::getFacadeRootAsync().await?;
+        let a = Groups::get_facade_root_async().await?;
+        let b = Groups::get_facade_root_async().await?;
         assert!(Arc::ptr_eq(&a, &b));
         Ok(Response::new(
             StatusCode::OK,
@@ -165,7 +165,7 @@ fn read(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 }
 fn missing(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let group = MissingGroups::getFacadeRootAsync().await?;
+        let group = MissingGroups::get_facade_root_async().await?;
         Ok(Response::new(
             StatusCode::OK,
             Body::from(format!("empty:{}", group.0.len())),
@@ -179,8 +179,8 @@ fn routes() -> Result<(), RoutingError> {
 fn application(root: &Root, name: &'static str, counts: Arc<Counts>, fail: bool) -> Application {
     let owned = counts.clone();
     Application::configure(root.0.clone())
-        .withConfig(config)
-        .withProviders(vec![
+        .with_config(config)
+        .with_providers(vec![
             Box::new(Registration { counts, name }),
             Box::new(DeferredProvider::new(move || Deferred {
                 counts: owned.clone(),
@@ -188,10 +188,10 @@ fn application(root: &Root, name: &'static str, counts: Arc<Counts>, fail: bool)
                 fail,
             })),
         ])
-        .withExceptions(|exceptions| {
+        .with_exceptions(|exceptions| {
             exceptions.shouldRenderJsonWhen(|_, _| true);
         })
-        .withRouting(Routing::default().web(routes))
+        .with_routing(Routing::default().web(routes))
         .create()
         .unwrap()
 }

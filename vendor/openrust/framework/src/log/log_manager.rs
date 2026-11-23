@@ -434,7 +434,7 @@ impl LogManager {
     fn settings(&self) -> Settings<'_> {
         let default_file = self.paths.as_ref().map_or_else(
             || PathBuf::from(DEFAULT_FILE),
-            |paths| paths.storagePath("logs/app.log"),
+            |paths| paths.storage_path("logs/app.log"),
         );
         let config = self
             .config
@@ -447,7 +447,7 @@ impl LogManager {
                 || {
                     self.paths.as_ref().map_or_else(
                         || self.root.join(DEFAULT_FILE),
-                        |paths| paths.storagePath("logs/app.log"),
+                        |paths| paths.storage_path("logs/app.log"),
                     )
                 },
                 |path| self.root.join(path),

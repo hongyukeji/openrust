@@ -48,14 +48,14 @@ fn handler(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 }
 fn application() -> TestApp {
     let app = TestApp::create(|builder| builder
-        .withConfig(|base, _| Ok(std::collections::BTreeMap::from([
+        .with_config(|base, _| Ok(std::collections::BTreeMap::from([
             ("app".into(), json!({"env":"testing"})),
             ("database".into(), json!({"default":"test","connections":{"test":database_config(base)}})),
             ("cache".into(),json!({"default":"file","stores":{"file":{"driver":"file","path":base.join("cache"),"lock_path":base.join("locks")}}})),
             ("telescope".into(),json!({"watchers":{"QueryWatcher":false,"EventWatcher":false,"RequestWatcher":{"size_limit":1},"ClientRequestWatcher":true}})),
         ])))
-        .withProviders(vec![Box::new(TelescopeServiceProvider)])
-        .withRouting(Routing::default().api(routes))
+        .with_providers(vec![Box::new(TelescopeServiceProvider)])
+        .with_routing(Routing::default().api(routes))
     ).unwrap();
     std::fs::write(app.root().join("watchers.sqlite"), []).unwrap();
     app
@@ -260,7 +260,7 @@ async fn client_watcher_handles_closed_streams_and_uses_character_kilobytes() {
     use openrust::http::client::{Factory, Response as ClientResponse};
     let mut app = TestApp::create(|builder| {
         builder
-            .withConfig(|base, _| {
+            .with_config(|base, _| {
                 Ok(std::collections::BTreeMap::from([
                     ("app".into(), json!({"env":"testing"})),
                     (
@@ -273,8 +273,8 @@ async fn client_watcher_handles_closed_streams_and_uses_character_kilobytes() {
                     ),
                 ]))
             })
-            .withProviders(vec![Box::new(TelescopeServiceProvider)])
-            .withRouting(Routing::default().api(client_routes))
+            .with_providers(vec![Box::new(TelescopeServiceProvider)])
+            .with_routing(Routing::default().api(client_routes))
     })
     .unwrap();
     std::fs::write(app.root().join("watchers.sqlite"), []).unwrap();

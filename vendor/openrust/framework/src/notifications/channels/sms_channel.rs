@@ -36,7 +36,7 @@ impl SmsChannel {
         let Some(message) = notification.to_sms(recipient, to)? else {
             return Ok(None);
         };
-        let profile = Sms::getFacadeRoot()
+        let profile = Sms::get_facade_root()
             .map_err(delivery)?
             .select_profile(self.profile.as_deref())?;
         Ok(Some(PreparedSms { profile, message }))

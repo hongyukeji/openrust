@@ -166,7 +166,7 @@ async fn session_cache_route(request: &mut Request, action: &str) -> Result<Resp
     let cache = request.session()?.cache()?;
     let other = Cache::build(json!({"driver": "session", "key": "other.cache"}))?;
     let named = Cache::store(Some("session"))?;
-    let owner = Cache::getFacadeRoot()
+    let owner = Cache::get_facade_root()
         .map_err(CacheError::Unavailable)?
         .getContainer()
         .ok_or(CacheError::SessionUnavailable)?;
@@ -329,8 +329,8 @@ async fn start(
         |_: &std::path::Path, _: &openrust::config::Environment| Ok(config("array"))
     };
     let app = Application::configure(std::env::temp_dir())
-        .withConfig(load)
-        .withMiddleware(move |middleware| {
+        .with_config(load)
+        .with_middleware(move |middleware| {
             let mut entries = Vec::new();
             if protected {
                 let encrypt = EncryptCookies::new(Arc::new(
@@ -344,7 +344,7 @@ async fn start(
             entries.push(MiddlewareEntry::Instance(Arc::new(StartSession)));
             middleware.group("web", entries);
         })
-        .withRouting(Routing::default().web(register))
+        .with_routing(Routing::default().web(register))
         .create()
         .unwrap();
     let mut kernel = Kernel::new(app);
@@ -528,15 +528,15 @@ async fn start_local_driver(
     }
     let builder = Application::configure(root.to_path_buf());
     let app = match driver {
-        "file" => builder.withConfig(|_, _| Ok(config("file"))),
-        "native" => builder.withConfig(|_, _| Ok(config("native"))),
-        "null" => builder.withConfig(|_, _| Ok(config("null"))),
-        "cookie" => builder.withConfig(|_, _| Ok(config("cookie"))),
-        "cookie-clear" => builder.withConfig(|_, _| Ok(config("cookie-clear"))),
-        "cookie-lock" => builder.withConfig(|_, _| Ok(config("cookie-lock"))),
+        "file" => builder.with_config(|_, _| Ok(config("file"))),
+        "native" => builder.with_config(|_, _| Ok(config("native"))),
+        "null" => builder.with_config(|_, _| Ok(config("null"))),
+        "cookie" => builder.with_config(|_, _| Ok(config("cookie"))),
+        "cookie-clear" => builder.with_config(|_, _| Ok(config("cookie-clear"))),
+        "cookie-lock" => builder.with_config(|_, _| Ok(config("cookie-lock"))),
         _ => unreachable!(),
     }
-    .withRouting(Routing::default().web(register))
+    .with_routing(Routing::default().web(register))
     .create()
     .unwrap();
     let mut kernel = Kernel::new(app);
@@ -742,13 +742,13 @@ async fn redis_sessions_override_the_named_cache_connection_and_prefix() {
     let start = async || {
         let app =
             Application::configure(root.path().to_path_buf())
-                .withConfig(|base, _| {
+                .with_config(|base, _| {
                     Ok(serde_json::from_slice(
                         &std::fs::read(base.join("configuration.json")).unwrap(),
                     )
                     .unwrap())
                 })
-                .withRouting(Routing::default().web(register))
+                .with_routing(Routing::default().web(register))
                 .create()
                 .unwrap();
         let mut kernel = Kernel::new(app);
@@ -989,12 +989,12 @@ async fn verify_blocking(mysql_redis: bool, global: bool) {
 
     let root = tempfile::tempdir().unwrap();
     let app = Application::configure(root.path().to_owned())
-        .withConfig(match (mysql_redis, global) {
+        .with_config(match (mysql_redis, global) {
             (true, _) => |root, _| Ok(config(root, true, false)),
             (false, true) => |root, _| Ok(config(root, false, true)),
             (false, false) => |root, _| Ok(config(root, false, false)),
         })
-        .withRouting(Routing::default().web(register_blocked))
+        .with_routing(Routing::default().web(register_blocked))
         .create()
         .unwrap();
     let mut kernel = Kernel::new(app);
@@ -1194,7 +1194,7 @@ async fn provider_registers_a_request_bound_session_driver_per_application() {
             let resolutions = Arc::new(AtomicUsize::new(0));
             let app =
                 Application::configure(root.path().to_path_buf())
-                    .withConfig(|_, _| {
+                    .with_config(|_, _| {
                         Ok([
                 ("app".into(), json!({"key": "a".repeat(32)})),
                 ("session".into(), json!({
@@ -1203,11 +1203,11 @@ async fn provider_registers_a_request_bound_session_driver_per_application() {
                 })),
             ].into())
                     })
-                    .withProviders(vec![Box::new(Custom {
+                    .with_providers(vec![Box::new(Custom {
                         storage: storage.clone(),
                         resolutions: resolutions.clone(),
                     }) as Box<dyn ServiceProvider>])
-                    .withRouting(Routing::default().web(register))
+                    .with_routing(Routing::default().web(register))
                     .create()
                     .unwrap();
             let mut kernel = Kernel::new(app);

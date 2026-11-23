@@ -13,7 +13,7 @@ use openrust::{
 };
 
 pub(crate) fn register() -> Result<(), RoutingError> {
-    let fortify = Resolver::<Fortify>::getFacadeRoot()
+    let fortify = Resolver::<Fortify>::get_facade_root()
         .map_err(|source| RoutingError::ContainerFailed { source })?;
     let mut group = RouteGroup::new().prefix(fortify.string("fortify.prefix", ""));
     if let Some(domain) = fortify

@@ -37,7 +37,7 @@ fn future_extenders_follow_aliases_and_registration_order_without_eager_construc
     assert_eq!(*c.make::<u32>().unwrap(), 9);
     assert_eq!(*c.get::<u32>("number").unwrap(), 9);
     assert_eq!(calls.load(Ordering::SeqCst), 2);
-    c.forgetExtenders("number").unwrap();
+    c.forget_extenders("number").unwrap();
     assert_eq!(*c.make::<u32>().unwrap(), 1);
 }
 
@@ -56,7 +56,7 @@ fn cached_singletons_are_updated_immediately_without_persisting_the_new_extender
     .unwrap();
     assert_eq!(*c.make::<u32>().unwrap(), 20);
     assert_eq!(*original, 2);
-    c.forgetInstance(key::<u32>());
+    c.forget_instance(key::<u32>());
     assert_eq!(*c.make::<u32>().unwrap(), 2);
 }
 
@@ -74,9 +74,9 @@ fn supplied_instances_bypass_pending_extenders_and_keep_the_original_factory() {
     })
     .unwrap();
     assert_eq!(*c.make::<u32>().unwrap(), 100);
-    c.forgetExtenders(key::<u32>()).unwrap();
+    c.forget_extenders(key::<u32>()).unwrap();
     assert_eq!(*c.make::<u32>().unwrap(), 100);
-    c.forgetInstance(key::<u32>());
+    c.forget_instance(key::<u32>());
     assert_eq!(*c.make::<u32>().unwrap(), 1);
 }
 
@@ -87,7 +87,7 @@ fn extender_contracts_are_checked_before_factories_or_mismatched_decorators_exec
     c.extend::<u64, _>("number", |_, _| panic!("wrong decorator must not run"))
         .unwrap();
     let count = calls.clone();
-    c.bindNamed::<u32, _>("number", move |_| {
+    c.bind_named::<u32, _>("number", move |_| {
         count.fetch_add(1, Ordering::SeqCst);
         Ok(Arc::new(1))
     })
@@ -170,7 +170,7 @@ fn decorators_run_before_resolution_callbacks_and_contextual_values_do_not_repla
     })
     .unwrap();
     let seen = trace.clone();
-    c.afterResolving(Some(key::<u32>()), move |_, _| {
+    c.after_resolving(Some(key::<u32>()), move |_, _| {
         seen.lock().unwrap().push("after");
         Ok(())
     })
@@ -248,7 +248,7 @@ fn concurrent_cached_extensions_are_serialized_and_other_readers_wait() {
     let (release, release_rx) = channel();
     let receiver = Mutex::new(release_rx);
     let (reading, read_rx) = channel();
-    c.beforeResolving(Some(key::<u32>()), move |_, _| {
+    c.before_resolving(Some(key::<u32>()), move |_, _| {
         reading.send(()).unwrap();
         Ok(())
     })
@@ -317,7 +317,7 @@ async fn cached_scoped_extensions_stay_local_and_future_chains_survive_scope_evi
         c.extend::<u32, _>(key::<u32>(), |value, _| Ok(Arc::new(*value * 10)))
             .unwrap();
         assert_eq!(*c.make::<u32>().unwrap(), 20);
-        c.forgetScopedInstances();
+        c.forget_scoped_instances();
         assert_eq!(*c.make::<u32>().unwrap(), 2);
     })
     .await;
@@ -342,7 +342,7 @@ fn forgetting_extenders_drops_captures_outside_the_registry_lock() {
         Ok(value)
     })
     .unwrap();
-    c.forgetExtenders(key::<u32>()).unwrap();
+    c.forget_extenders(key::<u32>()).unwrap();
     assert_eq!(*c.make::<u16>().unwrap(), 42);
 }
 
@@ -359,7 +359,7 @@ fn retired_extender_captures_are_dropped_before_publishing_the_constructed_value
     let capture = PanicDrop;
     c.extend::<u32, _>(key::<u32>(), move |value, app| {
         let _ = &capture;
-        app.forgetExtenders(key::<u32>())?;
+        app.forget_extenders(key::<u32>())?;
         Ok(value)
     })
     .unwrap();

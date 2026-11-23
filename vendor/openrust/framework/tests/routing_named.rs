@@ -53,9 +53,9 @@ fn report(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
             .map(|trace| trace.0.clone())
             .unwrap_or_default();
         use openrust::contracts::{container::Container as _, foundation::Application as _};
-        let current = openrust::support::facades::App::getFacadeRoot()?;
+        let current = openrust::support::facades::App::get_facade_root()?;
         assert!(Arc::ptr_eq(
-            &Route::getFacadeRoot()?,
+            &Route::get_facade_root()?,
             &current.container().make::<Router>()?
         ));
         let app = Config::get("app.name")?.unwrap();
@@ -122,13 +122,13 @@ fn routes(_: &Application) -> Result<Router, RoutingError> {
 
 fn application(root: &Path) -> Application {
     Application::configure(root.to_owned())
-        .withConfig(|base, _| {
+        .with_config(|base, _| {
             Ok(BTreeMap::from([(
                 "app".into(),
                 serde_json::json!({"name":base.file_name().unwrap().to_str().unwrap()}),
             )]))
         })
-        .withRouting(Routing::new(routes))
+        .with_routing(Routing::new(routes))
         .create()
         .unwrap()
 }
@@ -166,7 +166,7 @@ async fn named_routes_use_default_runtime_binding_and_preserve_cache_and_applica
             if cached {
                 assert_eq!(
                     application(root.path())
-                        .handleCommand(&[OsString::from("route:cache")])
+                        .handle_command(&[OsString::from("route:cache")])
                         .await
                         .unwrap(),
                     0
@@ -229,7 +229,7 @@ async fn named_routes_use_default_runtime_binding_and_preserve_cache_and_applica
         right_task.abort();
         let _ = tokio::join!(left_task, right_task);
     }
-    assert!(Route::getFacadeRoot().is_err());
+    assert!(Route::get_facade_root().is_err());
     let mut outside = request("/target/outside");
     assert!(
         Route::respondWithRoute("target", &mut outside)
@@ -378,8 +378,8 @@ async fn named_dispatch_replaces_terminators_and_cancellation_releases_runtime_s
     let root = tempfile::tempdir().unwrap();
     let lifecycle = Arc::new(Lifecycle::default());
     let app = Application::configure(root.path().to_owned())
-        .withProviders(vec![Box::new(LifecycleProvider(lifecycle.clone()))])
-        .withRouting(Routing::new(lifecycle_routes))
+        .with_providers(vec![Box::new(LifecycleProvider(lifecycle.clone()))])
+        .with_routing(Routing::new(lifecycle_routes))
         .create()
         .unwrap();
     let mut kernel = Kernel::new(app);
@@ -388,7 +388,7 @@ async fn named_dispatch_replaces_terminators_and_cancellation_releases_runtime_s
     let mut future = Box::pin(kernel.handle(&mut suspended));
     assert!(futures_util::poll!(&mut future).is_pending());
     drop(future);
-    assert!(Route::getFacadeRoot().is_err());
+    assert!(Route::get_facade_root().is_err());
     let mut entry = request("/entry/original");
     let response = kernel.handle(&mut entry).await;
     assert_eq!(response.status(), 403);
@@ -403,5 +403,5 @@ async fn named_dispatch_replaces_terminators_and_cancellation_releases_runtime_s
             "target.terminate"
         ]
     );
-    assert!(Route::getFacadeRoot().is_err());
+    assert!(Route::get_facade_root().is_err());
 }

@@ -359,9 +359,9 @@ async fn custom_hash_driver_resolves_its_own_application_over_http() {
         selected: &'static str,
     ) -> (SocketAddr, tokio::task::JoinHandle<()>) {
         let app = Application::configure(path.to_path_buf())
-            .withConfig(config)
-            .withProviders(vec![Box::new(HashDriver(selected))])
-            .withRouting(Routing::default().web(|| Route::get("/hash", hash)))
+            .with_config(config)
+            .with_providers(vec![Box::new(HashDriver(selected))])
+            .with_routing(Routing::default().web(|| Route::get("/hash", hash)))
             .create()
             .unwrap();
         let mut kernel = Kernel::new(app);

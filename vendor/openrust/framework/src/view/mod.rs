@@ -129,7 +129,7 @@ pub fn view(name: impl Into<Cow<'static, str>>) -> View {
         creation_error: None,
         options: None,
     };
-    if let Ok(factory) = ViewFacade::getFacadeRoot() {
+    if let Ok(factory) = ViewFacade::get_facade_root() {
         view.creation_error = factory.callCreator(&mut view).err();
     }
     view
@@ -212,7 +212,7 @@ impl View {
 
         let formatted = match &self.binding {
             Some(binding) => binding.factory.compiler().applyEchoHandler(value)?,
-            None => ViewFacade::getFacadeRoot()?
+            None => ViewFacade::get_facade_root()?
                 .compiler()
                 .applyEchoHandler(value)?,
         };

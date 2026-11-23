@@ -18,7 +18,7 @@ impl Fixture {
             .get_application()
             .call(
                 openrust::container::Callback::new(&[], move |_| async move {
-                    let repo = openrust::container::Container::getInstance()
+                    let repo = openrust::container::Container::get_instance()
                         .make::<ClientRepository>()
                         .unwrap();
                     let client = repo

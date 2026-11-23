@@ -24,9 +24,9 @@ fn locale_form_field() -> Result<String, HttpError> {
 
 ## 报告异常
 
-在 `bootstrap/app.rs` 的 `withExceptions` 闭包中配置报告。使用 `report::<E>` 匹配异常类型或其来源。回调按注册顺序执行，`ReportDecision::Stop` 停止后续回调和默认报告。
+在 `bootstrap/app.rs` 的 `with_exceptions` 闭包中配置报告。使用 `report::<E>` 匹配异常类型或其来源。回调按注册顺序执行，`ReportDecision::Stop` 停止后续回调和默认报告。
 
-通过同一 `withExceptions` 回调配置[队列任务按异常停止重试](../digging-deeper/queues.md#stopping-retries-by-exception)。
+通过同一 `with_exceptions` 回调配置[队列任务按异常停止重试](../digging-deeper/queues.md#stopping-retries-by-exception)。
 
 默认以 `Level::Error` 将可报告的异常写入应用配置的日志渠道。HTTP 报告记录状态码，默认消息省略来源详情。Artisan 保留 stderr 输出和退出状态。用 `level::<E>` 设定级别，用 `context` 向记录附加字段。公开的 [Context](../digging-deeper/context.md) 字段作为独立元数据写入。
 
@@ -48,7 +48,7 @@ use openrust::{
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut app = Application::configure(std::env::current_dir()?)
-        .withExceptions(|exceptions| {
+        .with_exceptions(|exceptions| {
             exceptions
                 .level::<std::io::Error>(Level::Warning)
                 .dontReportDuplicates();
@@ -64,9 +64,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## 限流异常报告
 
-在 `withExceptions` 中通过 `throttle::<E>` 注册策略。第一个匹配且返回策略的回调生效。`ReportThrottle::Lottery(Lottery::odds(1, 100)?)` 用于采样，`ReportThrottle::Limit` 用于固定窗口配额，`ReportThrottle::Unlimited` 允许直接报告。
+在 `with_exceptions` 中通过 `throttle::<E>` 注册策略。第一个匹配且返回策略的回调生效。`ReportThrottle::Lottery(Lottery::odds(1, 100)?)` 用于采样，`ReportThrottle::Limit` 用于固定窗口配额，`ReportThrottle::Unlimited` 允许直接报告。
 
-把下面的 `configure` 传给 `withExceptions`，每分钟最多报告两次 I/O 异常。
+把下面的 `configure` 传给 `with_exceptions`，每分钟最多报告两次 I/O 异常。
 
 ```rust
 use openrust::{
@@ -103,7 +103,7 @@ use openrust::{
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = Application::configure(std::env::current_dir()?)
-        .withExceptions(|exceptions| {
+        .with_exceptions(|exceptions| {
             exceptions
                 .render::<HttpError>(|error, request| {
                     if matches!(error, HttpError::NotFound) && request.uri().path() == "/example" {
@@ -132,7 +132,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## 将异常渲染为 JSON
 
-框架默认根据请求对 JSON 的偏好选择响应。应用骨架在 `withExceptions` 中为 最终生效的 API 路径 和期望 JSON 的请求启用 JSON 异常响应。可用 `shouldRenderJsonWhen` 自定义策略。
+框架默认根据请求对 JSON 的偏好选择响应。应用骨架在 `with_exceptions` 中为 最终生效的 API 路径 和期望 JSON 的请求启用 JSON 异常响应。可用 `shouldRenderJsonWhen` 自定义策略。
 
 生产环境设为 `APP_DEBUG=false`。通用 500 的默认 JSON 消息为 `Server Error`，默认 HTML 页面省略异常来源。调试模式下，内置服务端错误响应包含有数量及长度上限的来源消息，输出到 HTML 时会转义。自定义回调负责控制所返回的响应内容。
 
@@ -140,7 +140,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## 路由不存在
 
-应用的 `withExceptions` 策略对最终生效的 API 路径或期望 JSON 的请求返回 JSON，其他缺失路由返回 HTML。响应格式改变，404 状态保持。缺失静态文件也使用此策略；HEAD 保留状态和内容类型，正文为空。
+应用的 `with_exceptions` 策略对最终生效的 API 路径或期望 JSON 的请求返回 JSON，其他缺失路由返回 HTML。响应格式改变，404 状态保持。缺失静态文件也使用此策略；HEAD 保留状态和内容类型，正文为空。
 
 路径规则匹配生效前缀下的路径，如前缀 `/v1/internal` 下的 `/v1/internal/users`。前缀为空时，应用骨架根据请求对 JSON 的偏好选择异常响应。
 

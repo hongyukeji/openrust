@@ -12,15 +12,15 @@ use crate::{
 #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub struct CliPrinter<'a> {
     output: &'a mut Output,
-    basePath: PathBuf,
+    base_path: PathBuf,
 }
 
 #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'a> CliPrinter<'a> {
-    pub fn new(output: &'a mut Output, basePath: impl Into<PathBuf>) -> Self {
+    pub fn new(output: &'a mut Output, base_path: impl Into<PathBuf>) -> Self {
         Self {
             output,
-            basePath: basePath.into(),
+            base_path: base_path.into(),
         }
     }
 
@@ -32,7 +32,7 @@ impl<'a> CliPrinter<'a> {
     }
 
     fn relative(&self, file: &str) -> String {
-        let base = self.basePath.to_string_lossy();
+        let base = self.base_path.to_string_lossy();
         #[cfg(windows)]
         let (base, file) = (base.replace('\\', "/"), file.replace('\\', "/"));
         file.replace(&format!("{base}/"), "")

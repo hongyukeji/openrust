@@ -25,7 +25,6 @@ pub type ProviderResult = Result<(), Box<dyn Error + Send + Sync>>;
 pub type ProviderFactory = dyn Fn() -> Box<dyn ServiceProvider> + Send + Sync;
 
 /// Registers service bindings before starting application services.
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub trait ServiceProvider: Any + Send + Sync {
     /// Names the provider in startup diagnostics.
     fn name(&self) -> &'static str {
@@ -33,26 +32,22 @@ pub trait ServiceProvider: Any + Send + Sync {
     }
 
     #[doc(hidden)]
-    #[allow(non_snake_case, reason = "Rust provider class-name adapter")]
-    fn providerClass(&self) -> &'static str {
+    fn provider_class(&self) -> &'static str {
         type_name::<Self>()
     }
 
     #[doc(hidden)]
-    #[allow(non_snake_case, reason = "Rust provider type identity adapter")]
-    fn providerType(&self) -> TypeId {
+    fn provider_type(&self) -> TypeId {
         self.type_id()
     }
 
     #[doc(hidden)]
-    #[allow(non_snake_case, reason = "Rust compiled provider constructor adapter")]
-    fn deferredFactory(&self) -> Option<Arc<ProviderFactory>> {
+    fn deferred_factory(&self) -> Option<Arc<ProviderFactory>> {
         None
     }
 
     /// Declare deferred service keys instead of eagerly registering this provider.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn isDeferred(&self) -> bool {
+    fn is_deferred(&self) -> bool {
         false
     }
 
@@ -88,12 +83,12 @@ pub trait ServiceProvider: Any + Send + Sync {
     }
 
     /// Add package defaults during registration. Existing application keys win at the top level.
-    fn mergeConfigFrom(&self, app: &Application, defaults: Value, key: &str) -> ProviderResult {
+    fn merge_config_from(&self, app: &Application, defaults: Value, key: &str) -> ProviderResult {
         merge_config(app, defaults, key, false)
     }
 
     /// Add nested defaults during registration. Application keys and array indices win.
-    fn replaceConfigRecursivelyFrom(
+    fn replace_config_recursively_from(
         &self,
         app: &Application,
         defaults: Value,
@@ -103,7 +98,7 @@ pub trait ServiceProvider: Any + Send + Sync {
     }
 
     /// Load a compiled route registrar during eager provider boot.
-    fn loadRoutesFrom(
+    fn load_routes_from(
         &self,
         app: &Application,
         register: fn() -> Result<(), RoutingError>,
@@ -140,7 +135,7 @@ pub trait ServiceProvider: Any + Send + Sync {
     }
 
     /// Register package views, preceded by application overrides under each view root.
-    fn loadViewsFrom<'a>(
+    fn load_views_from<'a>(
         &'a self,
         app: &'a Application,
         path: &'a Path,
@@ -156,7 +151,7 @@ pub trait ServiceProvider: Any + Send + Sync {
     }
 
     /// Register namespaced translations with application override support.
-    fn loadTranslationsFrom<'a>(
+    fn load_translations_from<'a>(
         &'a self,
         app: &'a Application,
         path: &'a Path,
@@ -171,7 +166,7 @@ pub trait ServiceProvider: Any + Send + Sync {
     }
 
     /// Register a package's anonymous JSON translations.
-    fn loadJsonTranslationsFrom<'a>(
+    fn load_json_translations_from<'a>(
         &'a self,
         app: &'a Application,
         path: &'a Path,
@@ -185,7 +180,7 @@ pub trait ServiceProvider: Any + Send + Sync {
     }
 
     /// Register a compiled Blade component under a package prefix and alias.
-    fn loadViewComponentsAs<'a, C: Component + 'static>(
+    fn load_view_components_as<'a, C: Component + 'static>(
         &'a self,
         app: &'a Application,
         prefix: &'a str,
@@ -217,7 +212,7 @@ pub trait ServiceProvider: Any + Send + Sync {
     }
 
     /// 注册包文件或目录，目标支持应用内相对路径及明确指定的绝对路径。
-    fn publishesPaths(
+    fn publishes_paths(
         &self,
         app: &Application,
         paths: &[(&Path, &Path)],
@@ -227,7 +222,7 @@ pub trait ServiceProvider: Any + Send + Sync {
     }
 
     /// Register migration files or directories supplied by a package.
-    fn publishesMigrationPaths(
+    fn publishes_migration_paths(
         &self,
         app: &Application,
         paths: &[(&Path, &Path)],
@@ -237,7 +232,7 @@ pub trait ServiceProvider: Any + Send + Sync {
     }
 
     /// Publish package migration sources with fresh timestamps on first copy.
-    fn publishesMigrations(
+    fn publishes_migrations(
         &self,
         app: &Application,
         files: &[(&str, &'static [u8])],
@@ -247,7 +242,7 @@ pub trait ServiceProvider: Any + Send + Sync {
     }
 
     /// Add compiled package migrations to the application's existing migration ledger.
-    fn loadMigrationsFrom<'a>(
+    fn load_migrations_from<'a>(
         &'a self,
         app: &'a Application,
         migrations: &'static [MigrationEntry],
@@ -279,7 +274,7 @@ fn merge_config(
     key: &str,
     recursive: bool,
 ) -> ProviderResult {
-    if app.configurationIsCached() {
+    if app.configuration_is_cached() {
         return Ok(());
     }
     let repository = app.configuration_repository()?;

@@ -116,7 +116,7 @@ async fn email_form_request_runs_over_real_tcp() {
     let root = std::env::temp_dir().join(format!("openrust-email-{:016x}", fastrand::u64(..)));
     std::fs::create_dir_all(&root).unwrap();
     let app = Application::configure(root.clone())
-        .withRouting(Routing::default().api(routes))
+        .with_routing(Routing::default().api(routes))
         .create()
         .unwrap();
     let mut kernel = Kernel::new(app);

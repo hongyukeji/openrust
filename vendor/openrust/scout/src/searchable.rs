@@ -55,7 +55,7 @@ pub trait Searchable: Model + Clone {
     }
     fn scoutManager() -> Result<Arc<EngineManager>> {
         use openrust::support::facades::Facade;
-        Ok(crate::facades::Scout::getFacadeRoot()?)
+        Ok(crate::facades::Scout::get_facade_root()?)
     }
     fn searchableUsing(&self) -> Result<Arc<dyn crate::engines::Engine<Self>>> {
         Self::scoutManager()?.engine::<Self>(self.scoutDriver().as_deref())

@@ -96,8 +96,8 @@ impl Fixture {
             .get_application()
             .call(
                 openrust::container::Callback::new(&[], move |_| async move {
-                    let repo =
-                        openrust::container::Container::getInstance().make::<ClientRepository>()?;
+                    let repo = openrust::container::Container::get_instance()
+                        .make::<ClientRepository>()?;
                     let client = repo
                         .createClientCredentialsGrantClient("Machine")
                         .await
@@ -145,8 +145,8 @@ impl Fixture {
             .get_application()
             .call(
                 openrust::container::Callback::new(&[], move |_| async move {
-                    let repo =
-                        openrust::container::Container::getInstance().make::<ClientRepository>()?;
+                    let repo = openrust::container::Container::get_instance()
+                        .make::<ClientRepository>()?;
                     let client = repo
                         .createPersonalAccessGrantClient("Personal", provider.as_deref())
                         .await
@@ -912,7 +912,7 @@ async fn mysql_native_user_token_trait_and_testing_substitutions_stay_in_one_req
         .get_application()
         .call(
             openrust::container::Callback::new(&[], |_| async move {
-                let passport = openrust::container::Container::getInstance().make::<Passport>()?;
+                let passport = openrust::container::Container::get_instance().make::<Passport>()?;
                 let mut query = User::query().unwrap();
                 query.r#where("subject", "=", 77);
                 let user = query.first().await.unwrap().unwrap();
@@ -949,7 +949,7 @@ async fn mysql_native_user_token_trait_and_testing_substitutions_stay_in_one_req
                 assert!(token.cant("write").unwrap());
                 assert!(!token.transient());
                 let repo =
-                    openrust::container::Container::getInstance().make::<ClientRepository>()?;
+                    openrust::container::Container::get_instance().make::<ClientRepository>()?;
                 let client = repo
                     .createClientCredentialsGrantClient("Test")
                     .await
@@ -967,7 +967,7 @@ async fn mysql_native_user_token_trait_and_testing_substitutions_stay_in_one_req
                     .actingAsClient(&mut second, &client, &["write".into()], "api")
                     .await
                     .unwrap();
-                let server = openrust_passport::ResourceServer::getFacadeRoot().unwrap();
+                let server = openrust_passport::ResourceServer::get_facade_root().unwrap();
                 let token = server
                     .validateAuthenticatedRequest(&mut second)
                     .await
@@ -1035,7 +1035,7 @@ async fn mysql_public_scope_queries_and_default_scope_string_conversion() {
         .get_application()
         .call(
             openrust::container::Callback::new(&[], |_| async move {
-                let passport = openrust::container::Container::getInstance().make::<Passport>()?;
+                let passport = openrust::container::Container::get_instance().make::<Passport>()?;
                 passport.tokensCan(std::collections::BTreeMap::from([
                     ("read".into(), "Read".into()),
                     ("write".into(), "Write".into()),

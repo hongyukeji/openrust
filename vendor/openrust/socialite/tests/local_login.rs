@@ -110,7 +110,7 @@ fn login<'a>(
 ) -> HttpFuture<'a, Result<Response, HttpError>> {
     Box::pin(async move {
         r.session_mut()?.put("socialite.provider", driver.into())?;
-        let manager = openrust::container::Container::getInstance()
+        let manager = openrust::container::Container::get_instance()
             .make::<SocialiteManager>()
             .map_err(internal)?;
         Ok(manager
@@ -144,7 +144,7 @@ fn callback<'a>(
                 json!({"message":"Invalid provider attempt"}),
             );
         }
-        let manager = openrust::container::Container::getInstance()
+        let manager = openrust::container::Container::get_instance()
             .make::<SocialiteManager>()
             .map_err(internal)?;
         let remote = match manager.driver(driver, r).map_err(internal)?.user().await {
@@ -259,12 +259,12 @@ async fn app(remote: &str, url: &str, letter: &str) -> App {
         ("auth".into(),json!({"defaults":{"guard":"web"},"guards":{"web":{"driver":"session","provider":"users"}},"providers":{"users":{"driver":"eloquent","model":"SocialiteLocalUser"}}})),
     ].into();
     let mut app = Application::configure(std::env::temp_dir())
-        .withConfig(|_, _| Ok(Default::default()))
-        .withProviders(vec![
+        .with_config(|_, _| Ok(Default::default()))
+        .with_providers(vec![
             Box::new(Settings(settings)),
             Box::new(SocialiteServiceProvider),
         ])
-        .withRouting(Routing::default().web(routes))
+        .with_routing(Routing::default().web(routes))
         .create()
         .unwrap();
     app.boot().await.unwrap();
@@ -424,7 +424,7 @@ async fn native_mysql_bound_identity_login_restores_rotates_isolates_and_rejects
         return;
     };
     let mut admin = Application::configure(std::env::temp_dir())
-        .withConfig(|_, _| Ok([("database".into(),json!({"default":"mysql","connections":{"mysql":{"url":std::env::var("OPENRUST_TEST_MYSQL_URL").unwrap()}}}))].into()))
+        .with_config(|_, _| Ok([("database".into(),json!({"default":"mysql","connections":{"mysql":{"url":std::env::var("OPENRUST_TEST_MYSQL_URL").unwrap()}}}))].into()))
         .create()
         .unwrap();
     admin.boot().await.unwrap();

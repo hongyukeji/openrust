@@ -96,14 +96,14 @@ fn arrays(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 fn test_app() -> TestApp {
     TestApp::create(|builder| {
         builder
-            .withConfig(|_, _| {
+            .with_config(|_, _| {
                 Ok([(
                     "app".into(),
                     json!({"locale":"en", "fallback_locale":"en", "ui":{"title":"default"}}),
                 )]
                 .into())
             })
-            .withRouting(Routing::default().web(|| {
+            .with_routing(Routing::default().web(|| {
                 Route::get("/replace", replace)?;
                 Route::get("/arrays", arrays)?;
                 Route::get("/mixed-arrays", mixed_arrays)

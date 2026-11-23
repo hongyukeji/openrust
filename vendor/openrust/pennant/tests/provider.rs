@@ -70,10 +70,10 @@ fn counter(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     })
 }
 fn application() -> TestApp {
-    TestApp::create(|builder| builder.withConfig(|_, _| Ok(std::collections::BTreeMap::from([
+    TestApp::create(|builder| builder.with_config(|_, _| Ok(std::collections::BTreeMap::from([
         ("app".into(), json!({"debug":false})), ("auth".into(), json!({"defaults":{"guard":"test"},"guards":{"test":{"driver":"pennant-test"}}})), ("pennant".into(), json!({"default":"array"}))
-    ]))).withProviders(vec![Box::new(PennantServiceProvider), Box::new(Definitions(Arc::new(AtomicUsize::new(0))))])
-        .withRouting(Routing::default().api(routes))).unwrap()
+    ]))).with_providers(vec![Box::new(PennantServiceProvider), Box::new(Definitions(Arc::new(AtomicUsize::new(0))))])
+        .with_routing(Routing::default().api(routes))).unwrap()
 }
 
 #[tokio::test]

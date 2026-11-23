@@ -469,7 +469,7 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
         let connection = self.keys.connection(parent)?;
         self.keys
             .configure(R::queryOn(&connection))?
-            .makeAsync(attributes)
+            .make_async(attributes)
             .await
     }
 
@@ -593,7 +593,7 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
         let mut model = self
             .keys
             .configure(R::queryOn(&connection))?
-            .makeAsync(insert)
+            .make_async(insert)
             .await?;
         match model.save().await {
             Ok(true) => Ok(model),

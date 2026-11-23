@@ -14,7 +14,7 @@ pub struct EmailVerificationNotificationController;
 pub struct VerifyEmailController;
 
 pub(crate) fn intended(request: &mut Request) -> Result<Response, HttpError> {
-    let fortify = Resolver::<Fortify>::getFacadeRoot().map_err(internal)?;
+    let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;
     Ok(Redirect::intended(
         request,
         &fortify.redirects("email-verification", None),
@@ -75,7 +75,7 @@ impl VerifyEmailController {
             let user = Auth::user(request).await?.ok_or(HttpError::NotFound)?;
             let mut account = crate::email_verification_model::account(user.as_ref())?;
             account.verify().await?;
-            let fortify = Resolver::<Fortify>::getFacadeRoot().map_err(internal)?;
+            let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;
             Auth::sessionGuard(request, fortify.guard().as_deref())?.set_user(account.into_user());
             super::respond::<dyn contracts::VerifyEmailResponse>(request).await
         })

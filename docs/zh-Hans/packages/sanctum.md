@@ -6,7 +6,7 @@
 
 默认应用骨架不预置 Sanctum 专属配置或用户模型注册。启用 Cargo 功能后，由包提供默认配置。新应用执行 `install:api` 会发布令牌表迁移，并接入发布的配置和默认用户模型。自定义用户模型须实现 `HasApiTokens`，并在 `config/auth.rs` 中用 `openrust::auth::model!(YourUser, sanctum)` 引用；显式运行时扩展也可用 `AuthManager::registerSanctumModel`。安装器更新模型能力和配置中的类引用，保留 `AppServiceProvider` 原样。手动启用功能时，可用 `vendor:publish --tag=sanctum-migrations` 发布迁移，用 `vendor:publish --tag=sanctum-config` 发布可编辑配置。手动发布后，在 `config/mod.rs` 声明模块并将载入结果注册到 `sanctum` 配置组。
 
-在终端运行 `vendor:publish` 可交互选择服务提供者或标签。第三方包在服务提供者的 `boot` 中调用 `publishes` 或 `publishesMigrations` 注册编译进程序的资源。启用 `database.migrations.update_date_on_publish` 时，新迁移会使用新的时间戳。关闭配置，或在服务提供者中调用 `VendorPublishCommand::dontUpdateMigrationDates`，可保留源文件日期。重复发布沿用已有文件名，保持迁移账本稳定。迁移发布到 `database/migrations/` 后，重新构建即可将其纳入编译清单。
+在终端运行 `vendor:publish` 可交互选择服务提供者或标签。第三方包在服务提供者的 `boot` 中调用 `publishes` 或 `publishes_migrations` 注册编译进程序的资源。启用 `database.migrations.update_date_on_publish` 时，新迁移会使用新的时间戳。关闭配置，或在服务提供者中调用 `VendorPublishCommand::dontUpdateMigrationDates`，可保留源文件日期。重复发布沿用已有文件名，保持迁移账本稳定。迁移发布到 `database/migrations/` 后，重新构建即可将其纳入编译清单。
 
 ## 令牌表迁移 {#token-table-migration}
 
@@ -75,7 +75,7 @@ fn register() -> Result<(), RoutingError> {
 
 ## SPA 认证 {#spa-authentication}
 
-在 `bootstrap/app.rs` 现有的 `withMiddleware` 闭包内调用 `middleware.statefulApi();`。用 `SANCTUM_STATEFUL_DOMAINS` 配置以逗号分隔的第一方前端主机，非默认端口须一并写入。使用默认路由配置时，先请求 `GET /sanctum/csrf-cookie`，再通过应用的 Web 会话登录入口登录。后续 API 请求携带 Cookie。需要 CSRF 校验时，把 URL 解码后的 `XSRF-TOKEN` Cookie 值放入 `X-XSRF-TOKEN` 请求头。
+在 `bootstrap/app.rs` 现有的 `with_middleware` 闭包内调用 `middleware.statefulApi();`。用 `SANCTUM_STATEFUL_DOMAINS` 配置以逗号分隔的第一方前端主机，非默认端口须一并写入。使用默认路由配置时，先请求 `GET /sanctum/csrf-cookie`，再通过应用的 Web 会话登录入口登录。后续 API 请求携带 Cookie。需要 CSRF 校验时，把 URL 解码后的 `XSRF-TOKEN` Cookie 值放入 `X-XSRF-TOKEN` 请求头。
 
 跨源第一方前端需要为具体来源开启带凭据的 CORS。匹配的 Referer 或 Origin 会启用 Session、Cookie 和 CSRF 中间件。Sanctum 优先检查已认证的会话，再检查 Bearer 令牌。第一方会话会通过令牌能力检查，用户操作权限由应用授权策略决定。
 

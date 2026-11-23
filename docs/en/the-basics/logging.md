@@ -177,7 +177,7 @@ Get-WinEvent -LogName Application -FilterXPath $filter -MaxEvents 1 |
 
 Select `formatter: "json"` to emit structured records. Use `formatter_with` to set `append_newline`, `ignore_empty_context_and_extra`, or `max_normalize_depth` (default 9).
 
-Pass an error to `Log::logException(level, message, &error, &context)` to include `context.exception` and its `previous` chain. Register `exceptionContext::<E>` in `withExceptions` to add fields to each matching error type, including sources. The existing `context` callbacks enrich a directly logged root error. When the application reports an error, its root fields appear only in the record context, and source-specific fields remain with their source. Rust can name the directly supplied type and registered source types. A type-erased source can appear as `Error`. Rust's standard error contract does not supply the original file or stack trace.
+Pass an error to `Log::logException(level, message, &error, &context)` to include `context.exception` and its `previous` chain. Register `exceptionContext::<E>` in `with_exceptions` to add fields to each matching error type, including sources. The existing `context` callbacks enrich a directly logged root error. When the application reports an error, its root fields appear only in the record context, and source-specific fields remain with their source. Rust can name the directly supplied type and registered source types. A type-erased source can appear as `Error`. Rust's standard error contract does not supply the original file or stack trace.
 
 ```rust
 use openrust::{config::Repository, log::{Level, LogContext, LogManager}};
@@ -269,13 +269,13 @@ Pail still registers Files and Handler when capture is disabled. During boot it 
 
 Flags come from the current application's immutable environment snapshot. Process variables take precedence over the selected environment file. With configuration cached, environment files are not loaded, so a file-only `PAIL_TESTS` does not apply. Handler is resolved on the first accepted log or queue lifecycle event. Its construction error propagates then, after the original accepted log has been written.
 
-Pail resolves `Application::storagePath("pail")` through the shared path service. Configure `useStoragePath` or `APP_STORAGE_PATH` before the first capture. See [Application Storage Path](../getting-started/configuration.md#application-storage-path).
+Pail resolves `Application::storage_path("pail")` through the shared path service. Configure `use_storage_path` or `APP_STORAGE_PATH` before the first capture. See [Application Storage Path](../getting-started/configuration.md#application-storage-path).
 
 Default file log channels and the emergency fallback follow the application storage path. Configure the path before loading configuration or resolving channels. Loaded channel paths retain their configured values; see [Application Storage Path](../getting-started/configuration.md#application-storage-path).
 
 ## Pail CLI Printer {#pail-cli-printer}
 
-The optional Pail package exposes `openrust_pail::contracts::Printer` and `printers::CliPrinter`. In an Artisan command, construct `CliPrinter::new(output, basePath)` and call `print(&messageLogged)?`. It reads the current output's verbose and decoration flags. Normal output shows the time and abbreviated class/file/message; `-v` shows the date and full text, and `-vv` or `-vvv` adds captured trace frames.
+The optional Pail package exposes `openrust_pail::contracts::Printer` and `printers::CliPrinter`. In an Artisan command, construct `CliPrinter::new(output, base_path)` and call `print(&messageLogged)?`. It reads the current output's verbose and decoration flags. Normal output shows the time and abbreviated class/file/message; `-v` shows the date and full text, and `-vv` or `-vvv` adds captured trace frames.
 
 HTTP method/path and authentication, queue/job/command, and public context appear in the footer. Numeric/null context entries, PHP-style value exports, literal HTML text and multiline messages follow the pinned Pail rendering rules. The frame is limited to 150 terminal columns; source messages and long footers can overflow as in upstream. Rust `::` class namespaces and native Windows path separators are adapted for abbreviation and relative source display.
 

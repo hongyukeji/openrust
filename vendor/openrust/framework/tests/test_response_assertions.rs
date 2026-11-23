@@ -38,10 +38,10 @@ fn response(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
 
 fn app() -> TestApp {
     TestApp::create(|builder| {
-        builder.withConfig(|_,_|Ok([
+        builder.with_config(|_,_|Ok([
             ("app".into(),serde_json::json!({"env":"testing","debug":true,"key":"12345678901234567890123456789012","cipher":"AES-256-CBC"})),
             ("session".into(),serde_json::json!({"driver":"array","cookie":"assertion-session","lifetime":120}))
-        ].into())).withMiddleware(|middleware| { middleware.preventRequestForgery(["fixture"], false, false); }).withRouting(Routing::default().web(|| {
+        ].into())).with_middleware(|middleware| { middleware.preventRequestForgery(["fixture"], false, false); }).with_routing(Routing::default().web(|| {
             Route::post("/fixture",
                 fixture_response,
             )?;

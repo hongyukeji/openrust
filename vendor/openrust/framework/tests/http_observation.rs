@@ -67,7 +67,7 @@ fn routes(_: &Application) -> Result<Router, RoutingError> {
 }
 async fn kernel() -> (Kernel, Arc<Dispatcher>) {
     let app = Application::configure(std::env::temp_dir())
-        .withRouting(Routing::new(routes))
+        .with_routing(Routing::new(routes))
         .create()
         .unwrap();
     let mut kernel = Kernel::new(app);

@@ -176,9 +176,9 @@ fn config(
 async fn actual_http_preserves_outputs_errors_json_html_and_recovery() {
     let root = Root::new();
     let mut app = openrust::foundation::Application::configure(root.0.clone())
-        .withConfig(config)
-        .withRouting(openrust::foundation::configuration::Routing::new(routes))
-        .withExceptions(|e| {
+        .with_config(config)
+        .with_routing(openrust::foundation::configuration::Routing::new(routes))
+        .with_exceptions(|e| {
             e.shouldRenderJsonWhen(|r, _| r.expectsJson());
         })
         .create()

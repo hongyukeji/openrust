@@ -22,7 +22,7 @@ use tokio::{
 struct Engine;
 impl openrust::support::facades::Facade for Engine {
     type Service = TwoFactorAuthenticationProvider;
-    fn getFacadeAccessor() -> openrust::container::ServiceKey {
+    fn get_facade_accessor() -> openrust::container::ServiceKey {
         openrust::container::ServiceKey::typed::<TwoFactorAuthenticationProvider>()
     }
 }
@@ -45,7 +45,7 @@ impl ServiceProvider for Provider {
 }
 fn verify(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
-        let provider = Engine::getFacadeRoot()?;
+        let provider = Engine::get_facade_root()?;
         let secret = request
             .query(Some("secret"))?
             .and_then(|v| v.as_str().map(str::to_owned))
@@ -79,8 +79,8 @@ async fn transport(
 }
 async fn start() -> (SocketAddr, tokio::task::JoinHandle<()>) {
     let app = Application::configure(std::env::temp_dir())
-        .withProviders(vec![Box::new(Provider)])
-        .withRouting(Routing::default().api(routes))
+        .with_providers(vec![Box::new(Provider)])
+        .with_routing(Routing::default().api(routes))
         .create()
         .unwrap();
     let mut kernel = Kernel::new(app);

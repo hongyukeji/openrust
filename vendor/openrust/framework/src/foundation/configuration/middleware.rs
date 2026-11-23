@@ -122,11 +122,11 @@ impl Middleware {
 
     /// 覆盖启动时自动发现的语言候选；空列表关闭识别，非法标签保留原设置。
     #[allow(non_snake_case, reason = "沿用中间件配置方法的命名风格")]
-    pub fn setLocale(
+    pub fn set_locale(
         &mut self,
         locales: &[&str],
     ) -> crate::translation::TranslationResult<&mut Self> {
-        self.set_locale.setLocale(locales)?;
+        self.set_locale.set_locale(locales)?;
         Ok(self)
     }
 

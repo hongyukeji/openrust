@@ -17,30 +17,29 @@ pub struct Config;
 
 impl Facade for Config {
     type Service = dyn Repository;
-    const cached: bool = false;
+    const CACHED: bool = false;
 
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         "config".into()
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Config {
     /// Returns the value at a dot-separated key, if it exists.
     pub fn get(key: &str) -> Result<Option<Value>, BindingResolutionError> {
-        Ok(Self::getFacadeRoot()?.get(key))
+        Ok(Self::get_facade_root()?.get(key))
     }
 
     /// Returns the default only when the key is absent.
-    pub fn getOr(key: &str, default: Value) -> Result<Value, BindingResolutionError> {
+    pub fn get_or(key: &str, default: Value) -> Result<Value, BindingResolutionError> {
         Ok(Self::get(key)?.unwrap_or(default))
     }
 
     /// Reads multiple keys with per-key defaults, in input order.
-    pub fn getMany<'a>(
+    pub fn get_many<'a>(
         keys: impl IntoIterator<Item = (&'a str, Value)>,
     ) -> Result<IndexMap<String, Value>, BindingResolutionError> {
-        let repository = Self::getFacadeRoot()?;
+        let repository = Self::get_facade_root()?;
         Ok(keys
             .into_iter()
             .map(|(key, default)| (key.to_owned(), repository.get(key).unwrap_or(default)))
@@ -55,7 +54,7 @@ impl Config {
     }
 
     /// Deserializes a value, or uses the provided default when the key is absent.
-    pub fn deserializeOr<T: DeserializeOwned>(key: &str, default: T) -> Result<T, ConfigError> {
+    pub fn deserialize_or<T: DeserializeOwned>(key: &str, default: T) -> Result<T, ConfigError> {
         match Self::get(key)? {
             None => Ok(default),
             Some(value) => serde_json::from_value(value).map_err(|_| ConfigError::InvalidType {
@@ -66,23 +65,23 @@ impl Config {
     }
 
     pub fn has(key: &str) -> Result<bool, ConfigError> {
-        Ok(Self::getFacadeRoot()?.has(key))
+        Ok(Self::get_facade_root()?.has(key))
     }
 
     pub fn all() -> Result<BTreeMap<String, Value>, ConfigError> {
-        Ok(Self::getFacadeRoot()?.all())
+        Ok(Self::get_facade_root()?.all())
     }
 
     pub fn set(key: &str, value: Value) -> Result<(), ConfigError> {
-        Self::getFacadeRoot()?.set(key, value)
+        Self::get_facade_root()?.set(key, value)
     }
 
     pub fn prepend(key: &str, value: Value) -> Result<(), ConfigError> {
-        Self::getFacadeRoot()?.prepend(key, value)
+        Self::get_facade_root()?.prepend(key, value)
     }
 
     pub fn push(key: &str, value: Value) -> Result<(), ConfigError> {
-        Self::getFacadeRoot()?.push(key, value)
+        Self::get_facade_root()?.push(key, value)
     }
 
     pub fn string(key: &str) -> Result<String, ConfigError> {
@@ -93,7 +92,7 @@ impl Config {
     }
 
     /// Returns the configured string or the default if it cannot be read as a string.
-    pub fn stringOr(key: &str, default: impl Into<String>) -> String {
+    pub fn string_or(key: &str, default: impl Into<String>) -> String {
         Self::string(key).unwrap_or_else(|_| default.into())
     }
 

@@ -78,15 +78,15 @@ impl Root {
             let _ = fs::remove_file(&parameter_path);
         }
         let app = Application::configure(self.0.clone())
-            .withConfig(|base, env| {
+            .with_config(|base, env| {
                 let mut app = serde_json::json!({"locale":env.get_utf8("APP_LOCALE")?.unwrap_or("en"), "fallback_locale":"en"});
                 if let Ok(bytes) = fs::read(base.join("locale-query.json")) { app["locale_query_parameter"] = serde_json::from_slice(&bytes).unwrap(); }
                 if let Ok(bytes) = fs::read(base.join("locale-header.json")) { app["locale_header"] = serde_json::from_slice(&bytes).unwrap(); }
                 Ok(BTreeMap::from([("app".into(), app)]))
             })
-            .withProviders(vec![Box::new(Observer(events))])
-            .withMiddleware(configure)
-            .withRouting(Routing::default().web(|| {
+            .with_providers(vec![Box::new(Observer(events))])
+            .with_middleware(configure)
+            .with_routing(Routing::default().web(|| {
                 Route::get("/", inspect)?;
                 Route::get("/switch", switch)?;
                 Route::get("/boundary", language_boundary)?;
@@ -131,8 +131,8 @@ impl Listener for Events {
     ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
         Box::pin(async move {
             let locale = &event.downcast_ref::<LocaleUpdated>().unwrap().locale;
-            assert_eq!(App::currentLocale().unwrap(), *locale);
-            assert_eq!(Lang::getLocale().unwrap(), *locale);
+            assert_eq!(App::current_locale().unwrap(), *locale);
+            assert_eq!(Lang::get_locale().unwrap(), *locale);
             assert_eq!(Config::string("app.locale").unwrap(), *locale);
             self.0.lock().unwrap().push(locale.clone());
             if locale == "de-DE" {
@@ -159,14 +159,14 @@ fn inspect(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         tokio::task::yield_now().await;
         Ok(Response::from(format!(
             "{}|{}",
-            App::currentLocale().unwrap(),
+            App::current_locale().unwrap(),
             Lang::get("messages.hello", &BTreeMap::new(), None).unwrap()
         )))
     })
 }
 fn switch(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        App::setLocale("fr").await.unwrap();
+        App::set_locale("fr").await.unwrap();
         Ok(Response::from("switched"))
     })
 }
@@ -195,7 +195,7 @@ async fn send(kernel: &Kernel, path: &str, language: &str) -> (StatusCode, Heade
     )
 }
 fn browser(middleware: &mut Middleware) {
-    middleware.setLocale(&["de", "fr", "en"]).unwrap();
+    middleware.set_locale(&["de", "fr", "en"]).unwrap();
 }
 
 #[tokio::test]
@@ -228,7 +228,7 @@ async fn default_stack_detects_languages_without_application_registration() {
 async fn minimal_applications_without_locale_configuration_still_render() {
     let root = Root::new();
     let app = Application::configure(root.0.clone())
-        .withRouting(Routing::default().web(|| Route::get("/", inspect)))
+        .with_routing(Routing::default().web(|| Route::get("/", inspect)))
         .create()
         .unwrap();
     let mut kernel = Kernel::new(app);
@@ -252,7 +252,7 @@ async fn disabling_the_default_keeps_configured_locale_and_allows_route_specific
         .kernel(
             "de",
             |middleware| {
-                middleware.setLocale(&[]).unwrap();
+                middleware.set_locale(&[]).unwrap();
             },
             events.clone(),
         )
@@ -278,9 +278,9 @@ async fn configuration_is_atomic_and_updates_all_consumers_before_events_once_pe
         .kernel(
             "en",
             |middleware| {
-                middleware.setLocale(&["fr"]).unwrap();
-                middleware.setLocale(&["DE", "fr", "en"]).unwrap();
-                assert!(middleware.setLocale(&["it", "zh_CN"]).is_err());
+                middleware.set_locale(&["fr"]).unwrap();
+                middleware.set_locale(&["DE", "fr", "en"]).unwrap();
+                assert!(middleware.set_locale(&["it", "zh_CN"]).is_err());
             },
             recorded.clone(),
         )
@@ -354,7 +354,7 @@ async fn listener_errors_stop_dispatch_without_polluting_next_requests() {
         .kernel(
             "en",
             |middleware| {
-                middleware.setLocale(&["en", "de-DE"]).unwrap();
+                middleware.set_locale(&["en", "de-DE"]).unwrap();
             },
             events.clone(),
         )
@@ -378,7 +378,7 @@ async fn policy_and_locale_are_isolated_between_concurrent_requests_and_applicat
         .kernel(
             "fr",
             |middleware| {
-                middleware.setLocale(&[]).unwrap();
+                middleware.set_locale(&[]).unwrap();
             },
             Arc::default(),
         )
@@ -526,11 +526,11 @@ async fn candidates_and_callback_survive_both_configuration_orders_and_failed_up
                     if callback_first {
                         middleware.localeUsing(header_locale);
                     }
-                    middleware.setLocale(&["en", "fr"]).unwrap();
+                    middleware.set_locale(&["en", "fr"]).unwrap();
                     if !callback_first {
                         middleware.localeUsing(header_locale);
                     }
-                    assert!(middleware.setLocale(&["de", "zh_CN"]).is_err());
+                    assert!(middleware.set_locale(&["de", "zh_CN"]).is_err());
                 },
                 Arc::default(),
             )
@@ -556,7 +556,7 @@ async fn empty_candidates_skip_callback_but_keep_it_for_reenabling() {
             "de",
             |middleware| {
                 middleware.localeUsing(|_| panic!("关闭后不得执行回调"));
-                middleware.setLocale(&[]).unwrap();
+                middleware.set_locale(&[]).unwrap();
             },
             events.clone(),
         )
@@ -572,9 +572,9 @@ async fn empty_candidates_skip_callback_but_keep_it_for_reenabling() {
             "en",
             |middleware| {
                 middleware.localeUsing(header_locale);
-                middleware.setLocale(&[]).unwrap();
-                assert!(middleware.setLocale(&["zh_CN"]).is_err());
-                middleware.setLocale(&["en", "fr"]).unwrap();
+                middleware.set_locale(&[]).unwrap();
+                assert!(middleware.set_locale(&["zh_CN"]).is_err());
+                middleware.set_locale(&["en", "fr"]).unwrap();
             },
             Arc::default(),
         )
@@ -634,7 +634,7 @@ async fn callback_policy_is_isolated_between_requests_instances_and_applications
         .kernel(
             "en",
             |middleware| {
-                middleware.setLocale(&["en", "fr"]).unwrap();
+                middleware.set_locale(&["en", "fr"]).unwrap();
                 middleware.localeUsing(|_| Ok(Some("fr".into())));
             },
             Arc::default(),
@@ -671,7 +671,7 @@ async fn exact_callback_tags_keep_regions_and_extensions_without_browser_mapping
             "en",
             |middleware| {
                 middleware
-                    .setLocale(&["en", "zh-Hans", "zh-CN", "en-US-u-ca-gregory"])
+                    .set_locale(&["en", "zh-Hans", "zh-CN", "en-US-u-ca-gregory"])
                     .unwrap();
                 middleware.localeUsing(header_locale);
             },
@@ -694,21 +694,21 @@ async fn exact_callback_tags_keep_regions_and_extensions_without_browser_mapping
 async fn cloned_route_instances_keep_independent_candidates_and_callbacks() {
     let root = Root::new();
     let app = Application::configure(root.0.clone())
-        .withConfig(|_, _| {
+        .with_config(|_, _| {
             Ok(BTreeMap::from([(
                 "app".into(),
                 serde_json::json!({"locale":"en"}),
             )]))
         })
-        .withMiddleware(|middleware| {
-            middleware.setLocale(&[]).unwrap();
+        .with_middleware(|middleware| {
+            middleware.set_locale(&[]).unwrap();
         })
-        .withRouting(Routing::default().web(|| {
+        .with_routing(Routing::default().web(|| {
             let mut first = SetLocale::new(&["en", "fr"]).unwrap();
             first.localeUsing(|_| Ok(Some("fr".into())));
             let mut second = first.clone();
-            second.setLocale(&["en", "de"]).unwrap();
-            assert!(second.setLocale(&["zh_CN"]).is_err());
+            second.set_locale(&["en", "de"]).unwrap();
+            assert!(second.set_locale(&["zh_CN"]).is_err());
             second.localeUsing(|_| Ok(Some("de".into())));
             Route::group(
                 openrust::routing::RouteGroup::new().middleware(Arc::new(first)),
@@ -782,15 +782,15 @@ async fn session_kernel(root: &Root, global: bool, locale_before_session: bool) 
         session::middleware::StartSession,
     };
     let app = Application::configure(root.0.clone())
-        .withConfig(|_, _| Ok(BTreeMap::from([
+        .with_config(|_, _| Ok(BTreeMap::from([
             ("app".into(), serde_json::json!({"locale":"en", "fallback_locale":"en", "key":"a".repeat(32)})),
             ("session".into(), serde_json::json!({"driver":"array", "cookie":"locale_session", "lottery":[0,100]})),
         ])))
-        .withMiddleware(move |middleware| {
+        .with_middleware(move |middleware| {
             if global {
-                middleware.setLocale(&["en", "fr"]).unwrap();
+                middleware.set_locale(&["en", "fr"]).unwrap();
                 middleware.localeUsing(session_locale);
-            } else { middleware.setLocale(&[]).unwrap(); }
+            } else { middleware.set_locale(&[]).unwrap(); }
             let mut locale = SetLocale::new(&["en", "fr"]).unwrap();
             locale.localeUsing(session_locale);
             let locale = MiddlewareEntry::Instance(Arc::new(locale));
@@ -800,7 +800,7 @@ async fn session_kernel(root: &Root, global: bool, locale_before_session: bool) 
             if !locale_before_session { entries.push(locale); }
             middleware.group("web", entries);
         })
-        .withRouting(Routing::default().web(|| {
+        .with_routing(Routing::default().web(|| {
             Route::get("/seed", seed_session)?;
             Route::get("/", private_session)?;
             Ok(())
@@ -859,14 +859,14 @@ async fn session_rules_require_correct_group_order_and_keep_private_cache_policy
 async fn callback_source_errors_are_visible_to_registered_exception_renderers() {
     let root = Root::new();
     let app = Application::configure(root.0.clone())
-        .withMiddleware(|middleware| {
+        .with_middleware(|middleware| {
             middleware.localeUsing(|_| {
                 Err(HttpError::Internal {
                     source: Box::new(std::io::Error::other("语言来源暂不可用")),
                 })
             });
         })
-        .withExceptions(|exceptions| {
+        .with_exceptions(|exceptions| {
             exceptions.render::<std::io::Error>(|error, _| {
                 Some(Response::new(
                     StatusCode::SERVICE_UNAVAILABLE,
@@ -874,7 +874,7 @@ async fn callback_source_errors_are_visible_to_registered_exception_renderers() 
                 ))
             });
         })
-        .withRouting(Routing::default().web(|| Route::get("/", inspect)))
+        .with_routing(Routing::default().web(|| Route::get("/", inspect)))
         .create()
         .unwrap();
     let mut kernel = Kernel::new(app);
@@ -976,7 +976,7 @@ async fn query_configuration_missing_null_custom_invalid_and_empty_candidates() 
         .kernel_query(
             "en",
             |middleware| {
-                middleware.setLocale(&[]).unwrap();
+                middleware.set_locale(&[]).unwrap();
                 middleware.localeUsing(|_| panic!("停用实例不能执行回调"));
             },
             events,
@@ -1126,7 +1126,7 @@ async fn explicit_query_preserves_exact_region_and_extension_candidates() {
             "en",
             |middleware| {
                 middleware
-                    .setLocale(&["en", "en-US", "zh-CN", "en-US-u-nu-arab"])
+                    .set_locale(&["en", "en-US", "zh-CN", "en-US-u-nu-arab"])
                     .unwrap();
             },
             Arc::new(Events::default()),
@@ -1333,7 +1333,7 @@ async fn header_null_errors_empty_candidates_and_vary_contract() {
         .kernel(
             "en",
             |m| {
-                m.setLocale(&[]).unwrap();
+                m.set_locale(&[]).unwrap();
                 m.localeUsing(|_| panic!("停用实例不能执行回调"));
             },
             Arc::new(Events::default()),
@@ -1453,14 +1453,14 @@ async fn custom_header_rereads_changed_request_without_standard_cache_contaminat
 fn language_boundary(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
         if request.path() == "boundary-switch" {
-            App::setLocale("fr").await.unwrap();
+            App::set_locale("fr").await.unwrap();
         }
         tokio::task::yield_now().await;
         Ok(Response::from(serde_json::json!({
             "languages": request.getLanguages(),
             "preferred": request.getPreferredLanguage(Some(&["en", "zh-Hans", "zh-Hant"])).unwrap(),
-            "current": App::currentLocale().unwrap(),
-            "translator": Lang::getLocale().unwrap(),
+            "current": App::current_locale().unwrap(),
+            "translator": Lang::get_locale().unwrap(),
             "text": Lang::get("messages.hello", &BTreeMap::new(), None).unwrap(),
         }).to_string()))
     })

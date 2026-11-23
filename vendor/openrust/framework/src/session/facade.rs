@@ -13,8 +13,7 @@ pub struct Session;
 impl Facade for Session {
     type Service = SessionManager;
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         "session".into()
     }
 }
@@ -25,7 +24,7 @@ impl Session {
         driver: impl Into<String>,
         factory: impl Fn(&Container, &Request) -> SessionResult<H> + Send + Sync + 'static,
     ) -> SessionResult<()> {
-        Self::getFacadeRoot()
+        Self::get_facade_root()
             .map_err(|_| SessionError::Configuration)?
             .extend(driver, factory)?;
         Ok(())

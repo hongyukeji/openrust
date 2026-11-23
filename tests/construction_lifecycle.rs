@@ -64,13 +64,12 @@ struct Client {
 }
 struct SelfBuilt(String);
 impl SelfBuilding for SelfBuilt {
-    #[allow(non_snake_case)]
-    fn newInstance(args: ResolvedArgs, container: &Container) -> FactoryFuture<'_, Self> {
+    fn new_instance(args: ResolvedArgs, container: &Container) -> FactoryFuture<'_, Self> {
         Box::pin(async move {
             let client = args.service::<Client>(0)?;
             let ordinary = container.make::<Self>()?;
             let tagged = args.get::<TaggedServices<u32>>(2)?;
-            let items = tagged.collectAsync(container).await?;
+            let items = tagged.collect_async(container).await?;
             assert_eq!(items.iter().map(|value| **value).collect::<Vec<_>>(), [17]);
             Ok(Arc::new(Self(format!(
                 "{}:{}:{}:{}",
@@ -101,7 +100,7 @@ struct ObserveWorker;
 struct Workers;
 impl Facade for Workers {
     type Service = Worker;
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         ServiceKey::typed::<Worker>()
     }
 }
@@ -110,12 +109,12 @@ impl ServiceProvider for Constructors {
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
             let counts = self.0.clone();
-            app.container().registerClass(
+            app.container().register_class(
                 ClassDescriptor::concrete::<Worker, _>(
                     vec![
                         ConstructorParam::class::<Client>("client"),
                         ConstructorParam::scalar::<u32>("number")
-                            .withDefault(|| Ok(ParameterValue::new(1u32))),
+                            .with_default(|| Ok(ParameterValue::new(1u32))),
                     ],
                     move |args| {
                         Ok(Arc::new(Worker {
@@ -126,35 +125,35 @@ impl ServiceProvider for Constructors {
                         }))
                     },
                 )?
-                .withLifetime(Lifetime::Scoped)
-                .withAttribute(ClassAttribute::marker(|| Ok(ObserveWorker)))
-                .withProjection(class_projection!(Worker => dyn WorkerView)),
+                .with_lifetime(Lifetime::Scoped)
+                .with_attribute(ClassAttribute::marker(|| Ok(ObserveWorker)))
+                .with_projection(class_projection!(Worker => dyn WorkerView)),
             )?;
             app.container()
-                .registerClass(ClassDescriptor::selfBuilding::<SelfBuilt>(
+                .register_class(ClassDescriptor::self_building::<SelfBuilt>(
                     vec![],
                     |_| Ok(Arc::new(SelfBuilt("ordinary".into()))),
                     vec![
-                        ConstructorParam::class::<Client>("client").withAttribute(
+                        ConstructorParam::class::<Client>("client").with_attribute(
                             ClassAttribute::contextual(|| {
                                 Ok(Give::<Client>::new(ServiceKey::typed::<Client>()))
                             }),
                         ),
-                        ConstructorParam::scalar::<String>("label").withAttribute(
+                        ConstructorParam::scalar::<String>("label").with_attribute(
                             ClassAttribute::contextual(|| Ok(Config::<String>::new("app.label"))),
                         ),
-                        ConstructorParam::scalar::<TaggedServices<u32>>("tagged").withAttribute(
+                        ConstructorParam::scalar::<TaggedServices<u32>>("tagged").with_attribute(
                             ClassAttribute::contextual(|| Ok(Tag::<u32>::new("probe"))),
                         ),
                     ],
                 )?)?;
             app.container()
-                .instanceNamed("tagged.number", Arc::new(17_u32))?;
+                .instance_named("tagged.number", Arc::new(17_u32))?;
             app.container().tag(["tagged.number"], ["probe"]);
             app.container()
                 .alias(ServiceKey::typed::<Worker>(), "worker.view")?;
             app.container()
-                .afterResolvingAttribute::<dyn WorkerView>(|event, container| {
+                .after_resolving_attribute::<dyn WorkerView>(|event, container| {
                     event.attribute.downcast::<ObserveWorker>()?;
                     let view = event
                         .service::<dyn WorkerView>(container)?
@@ -187,7 +186,7 @@ impl ServiceProvider for ClientProvider {
         Box::pin(async move {
             let (counts, name, fail) = (self.counts.clone(), self.name, self.fail);
             app.container()
-                .singletonAsync::<Client, _>(move |_| {
+                .singleton_async::<Client, _>(move |_| {
                     let counts = counts.clone();
                     Box::pin(async move {
                         tokio::task::yield_now().await;
@@ -209,14 +208,14 @@ impl ServiceProvider for ClientProvider {
 }
 fn read(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let a = Workers::getFacadeRootAsync().await?;
-        let b = Workers::getFacadeRootAsync().await?;
+        let a = Workers::get_facade_root_async().await?;
+        let b = Workers::get_facade_root_async().await?;
         assert!(Arc::ptr_eq(&a, &b));
-        let direct = Container::getInstance().makeAsync::<Worker>().await?;
+        let direct = Container::get_instance().make_async::<Worker>().await?;
         assert!(Arc::ptr_eq(&a, &direct));
         let expected: Arc<dyn WorkerView> = direct;
-        let view = Container::getInstance()
-            .getAsync::<dyn WorkerView>("worker.view")
+        let view = Container::get_instance()
+            .get_async::<dyn WorkerView>("worker.view")
             .await?;
         assert_eq!(view.sequence(), a.sequence);
         assert!(Arc::ptr_eq(&view, &expected));
@@ -232,7 +231,7 @@ fn read(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 }
 fn read_self_built(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let result = Container::getInstance().makeAsync::<SelfBuilt>().await?;
+        let result = Container::get_instance().make_async::<SelfBuilt>().await?;
         Ok(Response::new(StatusCode::OK, Body::from(result.0.clone())))
     })
 }
@@ -244,8 +243,8 @@ fn routes() -> Result<(), RoutingError> {
 fn application(root: &Root, name: &'static str, counts: Arc<Counts>, fail: bool) -> Application {
     let owned = counts.clone();
     Application::configure(root.0.clone())
-        .withConfig(config)
-        .withProviders(vec![
+        .with_config(config)
+        .with_providers(vec![
             Box::new(Constructors(counts)),
             Box::new(DeferredProvider::new(move || ClientProvider {
                 counts: owned.clone(),
@@ -253,10 +252,10 @@ fn application(root: &Root, name: &'static str, counts: Arc<Counts>, fail: bool)
                 fail,
             })),
         ])
-        .withExceptions(|exceptions| {
+        .with_exceptions(|exceptions| {
             exceptions.shouldRenderJsonWhen(|_, _| true);
         })
-        .withRouting(Routing::default().web(routes))
+        .with_routing(Routing::default().web(routes))
         .create()
         .unwrap()
 }

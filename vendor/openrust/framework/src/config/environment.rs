@@ -24,7 +24,7 @@ impl Environment {
                     .get("APP_STORAGE_PATH")
                     .map_or_else(|| base.join("storage"), PathBuf::from)
             },
-            |paths| paths.storagePath(""),
+            |paths| paths.storage_path(""),
         );
         crate::foundation::paths::join(&root, path)
     }

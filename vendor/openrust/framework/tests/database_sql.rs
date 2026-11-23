@@ -439,8 +439,8 @@ async fn server(
     Arc<EstablishmentListener>,
 ) {
     let mut app = Application::configure(root.0.clone())
-        .withConfig(config)
-        .withRouting(Routing::new(routes))
+        .with_config(config)
+        .with_routing(Routing::new(routes))
         .create()
         .unwrap();
     app.boot().await.unwrap();
@@ -515,13 +515,13 @@ async fn db_facade_reads_sqlite_through_real_http_and_artisan() {
     const CHILD: &str = "OPENRUST_TEST_DATABASE_CHILD";
     if let Some(root) = std::env::var_os(CHILD) {
         let mut app = Application::configure(root.into())
-            .withCommands(commands)
+            .with_commands(commands)
             .create()
             .unwrap();
         app.boot().await.unwrap();
         let recorder = transaction_recorder(&app);
         let established = establishment_listener(&app, false, false);
-        assert_eq!(app.handleCommand(&["db:probe".into()]).await.unwrap(), 0);
+        assert_eq!(app.handle_command(&["db:probe".into()]).await.unwrap(), 0);
         assert_eq!(established.calls.load(Ordering::SeqCst), 1);
         assert!(recorder.query_calls.load(Ordering::SeqCst) >= 2);
         assert_eq!(
@@ -708,7 +708,8 @@ async fn real_mysql_transactions_retry_lock_failure_and_retire_cancelled_session
         }))].into())
     }
     let (_app, writer, events) =
-        record_transactions(Application::configure(root.0.clone()).withConfig(writer_config)).await;
+        record_transactions(Application::configure(root.0.clone()).with_config(writer_config))
+            .await;
     writer.unprepared("DROP TABLE IF EXISTS rust_txn; CREATE TABLE rust_txn (id INT PRIMARY KEY, n INT); INSERT INTO rust_txn VALUES (1, 0)").await.unwrap();
     let mut locker = db
         .connection(Some("locker"))
@@ -1637,10 +1638,12 @@ async fn sqlite_transaction_events_are_ordered_and_application_local() {
     let root = Root::new();
     let other_root = Root::new();
     let (_app, connection, events) =
-        record_transactions(Application::configure(root.0.clone()).withConfig(sqlite_config)).await;
-    let (_other_app, other, other_events) =
-        record_transactions(Application::configure(other_root.0.clone()).withConfig(sqlite_config))
+        record_transactions(Application::configure(root.0.clone()).with_config(sqlite_config))
             .await;
+    let (_other_app, other, other_events) = record_transactions(
+        Application::configure(other_root.0.clone()).with_config(sqlite_config),
+    )
+    .await;
     verify_transaction_lifecycle(&connection, &events).await;
     assert!(other_events.take().is_empty());
     other
@@ -1679,7 +1682,7 @@ async fn mysql_transactions_deliver_events_after_confirmed_driver_operations() {
     }
     let root = Root::new();
     let (_app, connection, events) =
-        record_transactions(Application::configure(root.0.clone()).withConfig(mysql_config)).await;
+        record_transactions(Application::configure(root.0.clone()).with_config(mysql_config)).await;
     verify_transaction_lifecycle(&connection, &events).await;
 }
 
@@ -1826,7 +1829,7 @@ async fn mysql_connection_established_can_initialize_its_own_connection() {
     let second = Root::new();
     verify_establishment(
         &second,
-        Application::configure(root.0.clone()).withConfig(config),
+        Application::configure(root.0.clone()).with_config(config),
     )
     .await;
 }
@@ -2345,7 +2348,7 @@ async fn verify_query_observation(mut app: Application) {
 #[tokio::test]
 async fn sqlite_reports_query_bindings_pool_role_and_cumulative_duration() {
     let root = Root::new();
-    let app = Application::configure(root.0.clone()).withConfig(|_, _| {
+    let app = Application::configure(root.0.clone()).with_config(|_, _| {
         Ok([("database".into(), json!({
             "default":"main","connections":{"main":{
                 "driver":"sqlite","database":":memory:","read":{"database":":memory:"},"max_connections":1
@@ -2362,7 +2365,7 @@ async fn mysql_reports_query_bindings_pool_role_and_cumulative_duration() {
         return;
     }
     let root = Root::new();
-    let app = Application::configure(root.0.clone()).withConfig(|_, _| {
+    let app = Application::configure(root.0.clone()).with_config(|_, _| {
         let url = std::env::var("OPENRUST_TEST_MYSQL_URL").unwrap();
         Ok([("database".into(), json!({
             "default":"main","connections":{"main":{"url":url,"read":{"url":url},"max_connections":1}}
@@ -2543,7 +2546,7 @@ async fn verify_query_diagnostics(mut app: Application, mysql: bool) {
 async fn sqlite_renders_the_original_bindings_in_opt_in_query_diagnostics() {
     let root = Root::new();
     let app = Application::configure(root.0.clone())
-        .withConfig(|_, _| {
+        .with_config(|_, _| {
             Ok([("database".into(), json!({
             "default":"main","connections":{"main":{"driver":"sqlite","database":":memory:"}}
         }))].into())
@@ -2561,7 +2564,7 @@ async fn mysql_renders_the_original_bindings_in_opt_in_query_diagnostics() {
     }
     let root = Root::new();
     let app = Application::configure(root.0.clone())
-        .withConfig(|_, _| {
+        .with_config(|_, _| {
             let url = std::env::var("OPENRUST_TEST_MYSQL_URL").unwrap();
             Ok([(
                 "database".into(),
@@ -2670,7 +2673,7 @@ async fn mysql_reconnect_replaces_read_write_sessions_with_an_active_transaction
     }
     let root = Root::new();
     let mut app = Application::configure(root.0.clone())
-        .withConfig(|_, _| {
+        .with_config(|_, _| {
             let url = std::env::var("OPENRUST_TEST_MYSQL_URL").unwrap();
             Ok([("database".into(), json!({
             "default":"main",
@@ -2945,7 +2948,7 @@ async fn sqlite_schema_rollback_callbacks_observe_restored_session_settings() {
 
     let root = Root::new();
     let mut app = Application::configure(root.0.clone())
-        .withConfig(|_, _| {
+        .with_config(|_, _| {
             Ok([("database".into(), json!({
             "default":"fixture","connections":{"fixture":{"driver":"sqlite","database":":memory:"}}
         }))].into())
@@ -3026,7 +3029,7 @@ async fn mysql_replays_running_reads_and_writes_once_and_preserves_transaction_b
     .unwrap();
     let mut app =
         Application::configure(root.0.clone())
-            .withConfig(|_, _| {
+            .with_config(|_, _| {
                 let url = std::env::var("OPENRUST_TEST_MYSQL_URL").unwrap();
                 Ok([("database".into(), json!({"default":"main","connections":{
             "main":{"url":url,"read":{"url":url},"max_connections":1,"acquire_timeout":5},

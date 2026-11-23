@@ -14,7 +14,7 @@ async fn presence_relation_and_exclusion_follow_complete_fixed_upstream_validato
         if let Some(clock) = case.get("clock") {
             let timezone = clock["timezone"].as_str().unwrap().to_owned();
             let mut fixture = openrust::testing::TestApp::create(|builder| {
-                builder.withConfig(|_, _| {
+                builder.with_config(|_, _| {
                     Ok([("app".into(), serde_json::json!({"env":"testing"}))].into())
                 })
             })

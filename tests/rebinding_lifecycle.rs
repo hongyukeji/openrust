@@ -102,7 +102,7 @@ impl ServiceProvider for Provider {
                 .unwrap();
             assert_eq!(previous.get("app.name"), Some(json!("seed")));
             app.container()
-                .instanceNamed("config", self.repository.clone())?;
+                .instance_named("config", self.repository.clone())?;
             assert!(Arc::ptr_eq(&app.config()?, &self.repository));
             assert!(Arc::ptr_eq(
                 &app.config()?,
@@ -142,7 +142,7 @@ impl Command for ConfigCommand {
 struct Swapped;
 impl Facade for Swapped {
     type Service = u32;
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         "swap-probe".into()
     }
 }
@@ -159,12 +159,12 @@ impl Command for SwapCommand {
     ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
         Box::pin(async move {
             app.container()
-                .instanceNamed("swap-probe", Arc::new(1_u32))
+                .instance_named("swap-probe", Arc::new(1_u32))
                 .unwrap();
-            assert_eq!(*Swapped::getFacadeRoot().unwrap(), 1);
+            assert_eq!(*Swapped::get_facade_root().unwrap(), 1);
             app.container()
                 .rebinding::<u32, _>("swap-probe", |_, value| {
-                    assert!(Arc::ptr_eq(&value, &Swapped::getFacadeRoot()?));
+                    assert!(Arc::ptr_eq(&value, &Swapped::get_facade_root()?));
                     Err(
                         openrust::contracts::container::BindingResolutionError::NotBound {
                             service: "swap-listener".into(),
@@ -173,7 +173,7 @@ impl Command for SwapCommand {
                 })
                 .unwrap();
             assert!(Swapped::swap(Arc::new(2)).is_err());
-            assert_eq!(*Swapped::getFacadeRoot().unwrap(), 2);
+            assert_eq!(*Swapped::get_facade_root().unwrap(), 2);
             assert_eq!(*app.container().get::<u32>("swap-probe").unwrap(), 2);
             output.stdout.push_str("swapped");
             Ok(0)
@@ -190,16 +190,16 @@ fn commands(artisan: &mut openrust::console::Application) -> Result<(), ConsoleE
 }
 fn application(root: &Root, name: &str, seen: Arc<Mutex<Vec<String>>>) -> Application {
     Application::configure(root.0.clone())
-        .withConfig(seed)
-        .withProviders(vec![Box::new(Provider {
+        .with_config(seed)
+        .with_providers(vec![Box::new(Provider {
             repository: repository(name),
             seen,
         })])
-        .withCommands(commands)
-        .withExceptions(|exceptions| {
+        .with_commands(commands)
+        .with_exceptions(|exceptions| {
             exceptions.shouldRenderJsonWhen(|_, _| true);
         })
-        .withRouting(Routing::default().web(web).health("/up"))
+        .with_routing(Routing::default().web(web).health("/up"))
         .create()
         .unwrap()
 }
@@ -280,7 +280,7 @@ async fn current_config_drives_the_listener_routes_views_health_and_two_applicat
     first
         .get_application()
         .container()
-        .instanceNamed("config", current.clone())
+        .instance_named("config", current.clone())
         .unwrap();
     assert!(Arc::ptr_eq(
         &first.get_application().config().unwrap(),
@@ -297,7 +297,7 @@ async fn current_config_drives_the_listener_routes_views_health_and_two_applicat
         first
             .get_application()
             .container()
-            .instanceNamed("config", Arc::new(String::from("private value")))
+            .instance_named("config", Arc::new(String::from("private value")))
             .is_err()
     );
     assert!(first.get_application().config().is_err());
@@ -309,7 +309,7 @@ async fn current_config_drives_the_listener_routes_views_health_and_two_applicat
     first
         .get_application()
         .container()
-        .instanceNamed("config", current)
+        .instance_named("config", current)
         .unwrap();
     assert!(
         tokio::task::spawn_blocking(move || send(a, "/up", 200))
@@ -337,7 +337,7 @@ async fn artisan_uses_rebound_configuration_and_preserves_facade_swap_commit_ord
             kernel
                 .get_application()
                 .container()
-                .instanceNamed("config", repository(name))
+                .instance_named("config", repository(name))
                 .unwrap();
         }
         let mut output = Output::default();
@@ -351,7 +351,7 @@ async fn artisan_uses_rebound_configuration_and_preserves_facade_swap_commit_ord
         kernel
             .get_application()
             .container()
-            .instanceNamed("config", Arc::new(1_u32))
+            .instance_named("config", Arc::new(1_u32))
             .is_err()
     );
     let mut output = Output::default();
@@ -363,7 +363,7 @@ async fn artisan_uses_rebound_configuration_and_preserves_facade_swap_commit_ord
     kernel
         .get_application()
         .container()
-        .instanceNamed("config", repository("CLI:restored"))
+        .instance_named("config", repository("CLI:restored"))
         .unwrap();
     let mut output = Output::default();
     assert_eq!(
@@ -384,11 +384,11 @@ async fn a_configuration_listener_failure_stops_boot_before_loading_files_and_ke
  {
     let root = Root::new();
     let mut app = Application::configure(root.0.clone())
-        .withConfig(|_, _| panic!("configuration must not load after a rebound failure"))
+        .with_config(|_, _| panic!("configuration must not load after a rebound failure"))
         .create()
         .unwrap();
     app.container()
-        .instanceNamed("config", repository("preboot"))
+        .instance_named("config", repository("preboot"))
         .unwrap();
     let initial = app.config().unwrap();
     app.container()
@@ -416,19 +416,19 @@ async fn a_configuration_listener_failure_stops_boot_before_loading_files_and_ke
 async fn configuration_is_unbound_before_boot_and_the_new_observed_repository_is_filled_in_place() {
     let root = Root::new();
     let mut app = Application::configure(root.0.clone())
-        .withConfig(seed)
+        .with_config(seed)
         .create()
         .unwrap();
     assert!(app.config().is_err());
     assert_eq!(
         app.container()
-            .getAlias(ServiceKey::typed::<dyn RepositoryContract>())
+            .get_alias(ServiceKey::typed::<dyn RepositoryContract>())
             .unwrap(),
         ServiceKey::named("config")
     );
     let initial = repository("preboot");
     app.container()
-        .instanceNamed("config", initial.clone())
+        .instance_named("config", initial.clone())
         .unwrap();
     let observed: Arc<Mutex<Option<Arc<dyn RepositoryContract>>>> = Arc::new(Mutex::new(None));
     let seen = observed.clone();

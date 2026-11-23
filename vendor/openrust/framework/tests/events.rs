@@ -355,8 +355,8 @@ async fn request(address: SocketAddr, path: &str) -> Json {
 
 async fn verify(connection: Json) {
     let mut app = Application::configure(std::env::temp_dir())
-        .withEvents(DiscoverEvents::new(&[register]))
-        .withRouting(Routing::new(routing))
+        .with_events(DiscoverEvents::new(&[register]))
+        .with_routing(Routing::new(routing))
         .create()
         .unwrap();
     app.boot().await.unwrap();
@@ -381,7 +381,7 @@ async fn verify(connection: Json) {
         db.statement(sql, &[]).await.unwrap();
     }
     let other = Application::configure(std::env::temp_dir())
-        .withRouting(Routing::new(routing))
+        .with_routing(Routing::new(routing))
         .create()
         .unwrap();
     let (address, server) = start(app).await;
@@ -466,8 +466,8 @@ async fn event_contracts_run_after_wildcards_over_http() {
         Ok(())
     }
     let app = Application::configure(std::env::temp_dir())
-        .withEvents(DiscoverEvents::new(&[register_interfaces]))
-        .withRouting(Routing::new(routing))
+        .with_events(DiscoverEvents::new(&[register_interfaces]))
+        .with_routing(Routing::new(routing))
         .create()
         .unwrap();
     let (address, server) = start(app).await;
@@ -494,8 +494,8 @@ async fn verify_class_listeners(connection: Json) {
 
     for label in ["first-app", "second-app"] {
         let mut app = Application::configure(std::env::temp_dir())
-            .withEvents(DiscoverEvents::new(&[register_classes]))
-            .withRouting(Routing::new(routing))
+            .with_events(DiscoverEvents::new(&[register_classes]))
+            .with_routing(Routing::new(routing))
             .create()
             .unwrap();
         app.boot().await.unwrap();
@@ -524,10 +524,10 @@ async fn verify_class_listeners(connection: Json) {
             .instance(Arc::new(ListenerLabel(label)))
             .unwrap();
         app.container()
-            .bindAsync::<ClassListener, _>(move |container| {
+            .bind_async::<ClassListener, _>(move |container| {
                 resolutions.fetch_add(1, Ordering::Relaxed);
                 Box::pin(async move {
-                    let label = container.makeAsync::<ListenerLabel>().await?;
+                    let label = container.make_async::<ListenerLabel>().await?;
                     Ok(Arc::new(ClassListener(Record(label.0))))
                 })
             })
@@ -610,15 +610,15 @@ fn discovery_manifest() -> DiscoverEvents {
 #[tokio::test]
 async fn discovery_policy_filters_http_and_artisan_per_application() {
     let production = Application::configure(std::env::temp_dir())
-        .withConfig(|_, _| Ok([("app".into(), json!({"env":"production"}))].into()))
-        .withEvents(discovery_manifest())
-        .withRouting(Routing::new(routing))
+        .with_config(|_, _| Ok([("app".into(), json!({"env":"production"}))].into()))
+        .with_events(discovery_manifest())
+        .with_routing(Routing::new(routing))
         .create()
         .unwrap();
     let testing = Application::configure(std::env::temp_dir())
-        .withConfig(|_, _| Ok([("app".into(), json!({"env":"testing"}))].into()))
-        .withEvents(discovery_manifest())
-        .withRouting(Routing::new(routing))
+        .with_config(|_, _| Ok([("app".into(), json!({"env":"testing"}))].into()))
+        .with_events(discovery_manifest())
+        .with_routing(Routing::new(routing))
         .create()
         .unwrap();
     let ((production, production_server), (testing, testing_server)) =
@@ -634,11 +634,11 @@ async fn discovery_policy_filters_http_and_artisan_per_application() {
 
     let mut production = TestApp::create(|builder| {
         builder
-            .withConfig(|_, _| Ok([("app".into(), json!({"env":"production"}))].into()))
-            .withEvents(discovery_manifest())
+            .with_config(|_, _| Ok([("app".into(), json!({"env":"production"}))].into()))
+            .with_events(discovery_manifest())
     })
     .unwrap();
-    let mut testing = TestApp::create(|builder| builder.withEvents(discovery_manifest())).unwrap();
+    let mut testing = TestApp::create(|builder| builder.with_events(discovery_manifest())).unwrap();
     let arguments = ["event:list", "--event=order.ready", "--json"];
     let (included, excluded) =
         tokio::join!(production.artisan(arguments), testing.artisan(arguments));
@@ -692,7 +692,8 @@ async fn failed_discovery_leaves_the_manifest_unregistered() {
     }
 
     let mut app = TestApp::create(|builder| {
-        builder.withEvents(DiscoverEvents::new(&[register]).withListener::<FailingPolicy>(register))
+        builder
+            .with_events(DiscoverEvents::new(&[register]).withListener::<FailingPolicy>(register))
     })
     .unwrap();
     assert!(app.boot().await.is_err());
@@ -705,17 +706,17 @@ async fn failed_discovery_leaves_the_manifest_unregistered() {
 async fn event_cache_artisan_fixture() {
     let root = std::env::var_os("EVENT_CACHE_TEST_ROOT").unwrap();
     let app = Application::configure(root.into())
-        .withConfig(|_, _| {
+        .with_config(|_, _| {
             let environment = std::env::var("EVENT_CACHE_TEST_ENV").unwrap();
             Ok([("app".into(), json!({"env": environment}))].into())
         })
-        .withEvents(discovery_manifest())
+        .with_events(discovery_manifest())
         .create()
         .unwrap();
     let arguments = std::env::var("EVENT_CACHE_TEST_COMMAND").unwrap();
     let arguments: Vec<_> = arguments.split_ascii_whitespace().map(Into::into).collect();
     assert_eq!(
-        app.handleCommand(&arguments).await.unwrap(),
+        app.handle_command(&arguments).await.unwrap(),
         std::env::var("EVENT_CACHE_TEST_EXIT")
             .unwrap()
             .parse::<i32>()
@@ -760,9 +761,9 @@ async fn event_cache_survives_process_restart_and_clears_per_application() {
     assert!(run(other.path(), "testing", list, "0").contains("[]"));
     let application = || {
         Application::configure(root.path().to_owned())
-            .withConfig(|_, _| Ok([("app".into(), json!({"env":"testing"}))].into()))
-            .withEvents(discovery_manifest())
-            .withRouting(Routing::new(routing))
+            .with_config(|_, _| Ok([("app".into(), json!({"env":"testing"}))].into()))
+            .with_events(discovery_manifest())
+            .with_routing(Routing::new(routing))
             .create()
             .unwrap()
     };
@@ -854,7 +855,7 @@ async fn test_app_event_cache_fixture() {
         .unwrap()
         .join("private/fixture.json");
     fixture.artisan(["event:cache"]).await.assertSuccessful();
-    assert_eq!(fixture.app().getCachedEventsPath(), Some(path.as_path()));
+    assert_eq!(fixture.app().get_cached_events_path(), Some(path.as_path()));
     assert!(path.is_file());
     fixture.artisan(["event:clear"]).await.assertSuccessful();
     assert!(!path.exists());

@@ -604,7 +604,7 @@ impl<'connection> Builder<'connection> {
         self.compile(None).map(|(sql, _)| sql)
     }
 
-    pub fn getBindings(&self) -> DatabaseResult<Vec<Value>> {
+    pub fn get_bindings(&self) -> DatabaseResult<Vec<Value>> {
         self.compile(None).map(|(_, bindings)| bindings)
     }
 

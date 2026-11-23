@@ -17,8 +17,8 @@ pub struct MorphOne<P: Model, R: Model>(pub(super) HasOne<P, R>);
 impl<P: Model, R: Model> MorphOne<P, R> {
     /// Configures an unsaved model for a missing polymorphic match.
     #[must_use]
-    pub fn withDefault(self, configure: impl Fn(&mut R, &P) + Send + Sync + 'static) -> Self {
-        Self(self.0.withDefault(configure))
+    pub fn with_default(self, configure: impl Fn(&mut R, &P) + Send + Sync + 'static) -> Self {
+        Self(self.0.with_default(configure))
     }
 
     /// Builds the descriptor using the parent's application morph map.

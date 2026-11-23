@@ -140,7 +140,7 @@ async fn application(
     table: &str,
 ) -> (Application, Arc<QueueManager>, Connection, Arc<Handler>) {
     let mut app = Application::configure(std::env::temp_dir())
-        .withRouting(Routing::new(routes))
+        .with_routing(Routing::new(routes))
         .create()
         .unwrap();
     app.boot().await.unwrap();

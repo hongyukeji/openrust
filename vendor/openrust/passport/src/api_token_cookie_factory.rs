@@ -17,7 +17,7 @@ pub struct ApiTokenCookieFactory;
 impl ApiTokenCookieFactory {
     pub fn make(user: impl Into<AuthIdentifier>, csrf: &str) -> Result<Cookie, OAuthError> {
         let passport = passport()?;
-        let encrypter = openrust::container::Container::getInstance()
+        let encrypter = openrust::container::Container::get_instance()
             .make::<Encrypter>()
             .map_err(internal)?;
         let session = Config::get("session")
@@ -178,7 +178,7 @@ fn decode(jwt: &str, key: &[u8]) -> Result<Value, OAuthError> {
     Ok(token)
 }
 fn passport() -> Result<std::sync::Arc<Passport>, OAuthError> {
-    openrust::container::Container::getInstance()
+    openrust::container::Container::get_instance()
         .make::<Passport>()
         .map_err(internal)
 }

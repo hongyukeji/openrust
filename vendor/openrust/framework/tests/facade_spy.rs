@@ -32,7 +32,7 @@ struct CatalogFacade;
 impl Facade for CatalogFacade {
     type Service = dyn Lookup;
 
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         ServiceKey::typed::<dyn Lookup>()
     }
 }
@@ -53,7 +53,7 @@ impl Lookup for RecordingCatalog {
 }
 
 fn catalog() -> Result<Arc<dyn Lookup>, HttpError> {
-    CatalogFacade::getFacadeRoot().map_err(Into::into)
+    CatalogFacade::get_facade_root().map_err(Into::into)
 }
 
 fn lookup(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
@@ -88,7 +88,7 @@ impl Command for LookupCommand {
         output: &'a mut Output,
     ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
         Box::pin(async move {
-            let service = CatalogFacade::getFacadeRootAsync()
+            let service = CatalogFacade::get_facade_root_async()
                 .await
                 .map_err(|error| ConsoleError::new(error.to_string()))?;
             output
@@ -108,8 +108,8 @@ fn commands(artisan: &mut Artisan) -> Result<(), ConsoleError> {
 async fn fixture() -> TestResult<TestApp> {
     let mut app = TestApp::create(|builder| {
         builder
-            .withCommands(commands)
-            .withRouting(Routing::default().web(|| {
+            .with_commands(commands)
+            .with_routing(Routing::default().web(|| {
                 Route::get("/lookup", lookup)?;
                 Route::get("/install-spy", install_inside_scope)
             }))

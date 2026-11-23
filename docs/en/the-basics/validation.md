@@ -183,7 +183,7 @@ Use `validateWithBag("profile")` on a validator or override `FormRequest::errorB
 
 ### Excluding Sensitive Input
 
-Password fields are omitted from flashed input. Register additional paths in `withExceptions` with `dontFlash`.
+Password fields are omitted from flashed input. Register additional paths in `with_exceptions` with `dontFlash`.
 
 ```rust
 use openrust::foundation::configuration::Exceptions;

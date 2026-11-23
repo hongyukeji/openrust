@@ -63,7 +63,7 @@ impl Default for DefaultViews {
 
 impl DefaultViews {
     pub(super) fn get(simple: bool) -> ViewResult<String> {
-        let settings = ViewDefaults::getFacadeRoot()?;
+        let settings = ViewDefaults::get_facade_root()?;
         let views = settings.0.read().expect("pagination view defaults lock");
         Ok(if simple {
             views.1.clone()
@@ -73,7 +73,7 @@ impl DefaultViews {
     }
 
     pub(super) fn configure(view: Option<String>, simple: Option<String>) -> ViewResult<()> {
-        let settings = ViewDefaults::getFacadeRoot()?;
+        let settings = ViewDefaults::get_facade_root()?;
         let mut views = settings.0.write().expect("pagination view defaults lock");
         if let Some(view) = view {
             views.0 = view;
@@ -90,8 +90,7 @@ struct ViewDefaults;
 impl Facade for ViewDefaults {
     type Service = DefaultViews;
 
-    #[allow(non_snake_case, reason = "Matches the Facade contract")]
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         ServiceKey::typed::<DefaultViews>()
     }
 }

@@ -80,7 +80,7 @@ fn force_fill_retains_mutators_json_and_errors_without_leaking_guard_state() {
     let mut custom = CustomFill::from_state(ModelState::default());
     custom.forceFill(Attributes::new()).unwrap();
     assert_eq!(custom.getAttribute("custom_fill"), Some(&Value::Bool(true)));
-    let mut model = Guarded::newInstance(Attributes::new()).unwrap();
+    let mut model = Guarded::new_instance(Attributes::new()).unwrap();
     assert!(matches!(
         model.fill(attrs("label", "blocked")),
         Err(DatabaseError::MassAssignment(_))
@@ -285,11 +285,11 @@ async fn mysql_http_force_fill_persists_hashes_renders_errors_and_recovers() {
         return;
     }
     let mut app = openrust::foundation::Application::configure(std::env::temp_dir())
-        .withConfig(configuration)
-        .withRouting(openrust::foundation::configuration::Routing::new(
+        .with_config(configuration)
+        .with_routing(openrust::foundation::configuration::Routing::new(
             http_routes,
         ))
-        .withExceptions(|exceptions| {
+        .with_exceptions(|exceptions| {
             exceptions.shouldRenderJsonWhen(|request, _| request.expectsJson());
         })
         .create()
@@ -387,7 +387,7 @@ impl Model for PendingFill {
         &mut self.0
     }
     async fn fillAsync(&mut self, _: Attributes) -> openrust::database::DatabaseResult<&mut Self> {
-        let mut nested = Guarded::newInstance(Attributes::new())?;
+        let mut nested = Guarded::new_instance(Attributes::new())?;
         nested.forceFillAsync(attrs("label", "nested")).await?;
         // Returning from an inner bypass must restore the still-active outer scope.
         nested.fill(attrs("label", "outer"))?;
@@ -407,7 +407,7 @@ async fn force_fill_scope_is_restored_between_polls_and_after_cancellation() {
             Poll::Ready(())
         })
         .await;
-        let mut other = Guarded::newInstance(Attributes::new()).unwrap();
+        let mut other = Guarded::new_instance(Attributes::new()).unwrap();
         assert!(matches!(
             other.fill(attrs("label", "outside poll")),
             Err(DatabaseError::MassAssignment(_))
@@ -415,7 +415,7 @@ async fn force_fill_scope_is_restored_between_polls_and_after_cancellation() {
         assert!(!Guarded::isUnguarded());
         // Dropping the suspended future cancels the bypass rather than leaving a global flag.
     }
-    let mut after = Guarded::newInstance(Attributes::new()).unwrap();
+    let mut after = Guarded::new_instance(Attributes::new()).unwrap();
     assert!(matches!(
         after.fillAsync(attrs("label", "after cancellation")).await,
         Err(DatabaseError::MassAssignment(_))
@@ -425,13 +425,13 @@ async fn force_fill_scope_is_restored_between_polls_and_after_cancellation() {
 #[tokio::test]
 async fn public_guard_scope_reports_nested_state_and_restores_after_error() {
     assert!(!Guarded::isUnguarded());
-    let guarded = Guarded::newInstance(Attributes::new()).unwrap();
+    let guarded = Guarded::new_instance(Attributes::new()).unwrap();
     assert!(guarded.getFillable().is_empty());
     assert_eq!(guarded.getGuarded(), &["*"]);
     assert_eq!(guarded.getDeletedAtColumn(), None);
     let result: Result<(), &'static str> = Guarded::unguarded(async {
         assert!(Guarded::isUnguarded());
-        let mut model = Guarded::newInstance(Attributes::new()).unwrap();
+        let mut model = Guarded::new_instance(Attributes::new()).unwrap();
         model.fill(attrs("label", "unguarded")).unwrap();
         Guarded::unguarded(async { assert!(Guarded::isUnguarded()) }).await;
         assert!(Guarded::isUnguarded());
@@ -445,6 +445,6 @@ async fn public_guard_scope_reports_nested_state_and_restores_after_error() {
     .await;
     assert_eq!(result, Err("stop"));
     assert!(!Guarded::isUnguarded());
-    let mut after = Guarded::newInstance(Attributes::new()).unwrap();
+    let mut after = Guarded::new_instance(Attributes::new()).unwrap();
     assert!(after.fill(attrs("label", "blocked")).is_err());
 }

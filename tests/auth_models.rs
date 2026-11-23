@@ -1,5 +1,4 @@
 #![allow(non_snake_case, reason = "保留既定公开接口及命名")]
-
 use std::{
     collections::BTreeMap,
     fs,
@@ -97,15 +96,15 @@ async fn stock_models_are_ready_during_registration_even_with_cached_configurati
     )
     .unwrap();
     let mut app = Application::configure(root.0.clone())
-        .withConfig(|_, _| panic!("cached configuration must bypass the loader"))
-        .withProviders(vec![
+        .with_config(|_, _| panic!("cached configuration must bypass the loader"))
+        .with_providers(vec![
             Box::new(EarlyAuth),
             Box::new(providers::AppServiceProvider),
         ])
         .create()
         .unwrap();
     app.boot().await.unwrap();
-    assert!(app.configurationIsCached());
+    assert!(app.configuration_is_cached());
 }
 
 async fn custom_models(database: Value) {
@@ -116,7 +115,7 @@ async fn custom_models(database: Value) {
     )
     .unwrap();
     let mut app = Application::configure(root.0.clone())
-        .withConfig(|base, _| {
+        .with_config(|base, _| {
             let database =
                 serde_json::from_slice(&fs::read(base.join("database.json")).unwrap()).unwrap();
             Ok(configuration(
@@ -181,7 +180,7 @@ async fn custom_models(database: Value) {
     auth.registerModel::<custom_user::User>("runtime::Only");
     let other_root = Directory::new();
     let mut other = Application::configure(other_root.0.clone())
-        .withConfig(|_, _| {
+        .with_config(|_, _| {
             Ok(configuration(
                 json!({"driver":"sqlite","database":":memory:"}),
                 "runtime::Only",
@@ -232,7 +231,7 @@ async fn configuration_class_references_resolve_without_application_wiring() {
     );
     let root = Directory::new();
     let mut app = Application::configure(root.0.clone())
-        .withConfig(config::load)
+        .with_config(config::load)
         .create()
         .unwrap();
     app.boot().await.unwrap();
@@ -244,7 +243,7 @@ async fn configuration_class_references_resolve_without_application_wiring() {
 async fn ambiguous_class_names_fail_instead_of_depending_on_link_order() {
     let root = Directory::new();
     let mut app = Application::configure(root.0.clone())
-        .withConfig(|_, _| {
+        .with_config(|_, _| {
             let first = openrust::auth::model!(models::User, "collision::User");
             let second = openrust::auth::model!(custom_user::User, "collision::User");
             assert_eq!(first, second);

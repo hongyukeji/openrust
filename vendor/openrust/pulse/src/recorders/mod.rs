@@ -16,19 +16,19 @@ use std::sync::Arc;
 #[derive(Clone)]
 pub struct Recorders {
     config: Arc<dyn Repository>,
-    basePath: Option<std::path::PathBuf>,
+    base_path: Option<std::path::PathBuf>,
     only: Option<&'static str>,
 }
 impl Recorders {
     pub fn new(config: Arc<dyn Repository>) -> Self {
         Self {
             config,
-            basePath: None,
+            base_path: None,
             only: None,
         }
     }
     pub fn withBasePath(mut self, path: std::path::PathBuf) -> Self {
-        self.basePath = Some(path);
+        self.base_path = Some(path);
         self
     }
     fn resolveLocation(&self) -> String {
@@ -49,7 +49,7 @@ impl Recorders {
                 {
                     return;
                 }
-                let path = match &self.basePath {
+                let path = match &self.base_path {
                     Some(base) => match path.strip_prefix(base) {
                         Ok(path) => path,
                         Err(_) => return,
@@ -459,7 +459,7 @@ macro_rules! recorder {
             pub fn new(config: Arc<dyn Repository>) -> Self {
                 let mut inner = Recorders::new(config); inner.only = Some(stringify!($name)); Self(inner)
             }
-            pub fn withBasePath(mut self, path: std::path::PathBuf) -> Self { self.0.basePath = Some(path); self }
+            pub fn withBasePath(mut self, path: std::path::PathBuf) -> Self { self.0.base_path = Some(path); self }
         }
         impl Recorder for $name {
             fn name(&self) -> &'static str { stringify!($name) }
@@ -531,7 +531,7 @@ impl Listener for NativeListener {
     ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
         Box::pin(async move {
             if !Pulse::isIgnoring(&self.options)
-                && let Ok(pulse) = crate::facades::Pulse::getFacadeRoot()
+                && let Ok(pulse) = crate::facades::Pulse::get_facade_root()
                 && pulse
                     .automaticRecording
                     .load(std::sync::atomic::Ordering::Relaxed)
@@ -568,12 +568,12 @@ pub(crate) fn register(
     client: &openrust::http::client::Factory,
     config: Arc<dyn Repository>,
     servers: Arc<Servers>,
-    basePath: std::path::PathBuf,
+    base_path: std::path::PathBuf,
     options: Arc<crate::pulse::Options>,
 ) -> EventResult<()> {
-    let recorders = Arc::new(Recorders::new(config.clone()).withBasePath(basePath.clone()));
+    let recorders = Arc::new(Recorders::new(config.clone()).withBasePath(base_path.clone()));
     let defaults: Vec<Arc<dyn Recorder>> = vec![
-        Arc::new(SlowQueries::new(config.clone()).withBasePath(basePath)),
+        Arc::new(SlowQueries::new(config.clone()).withBasePath(base_path)),
         Arc::new(CacheInteractions::new(config.clone())),
         Arc::new(SlowRequests::new(config.clone())),
         Arc::new(UserRequests::new(config.clone())),
@@ -605,7 +605,7 @@ pub(crate) fn register(
             let started = std::time::Instant::now();
             let result = next.run(request).await;
             if !Pulse::isIgnoring(&options)
-                && let Ok(pulse) = crate::facades::Pulse::getFacadeRoot()
+                && let Ok(pulse) = crate::facades::Pulse::get_facade_root()
                 && pulse
                     .automaticRecording
                     .load(std::sync::atomic::Ordering::Relaxed)
@@ -640,7 +640,7 @@ pub(crate) fn registerLogging(
         let Some(exception) = &event.exception else {
             return Ok(());
         };
-        let Ok(pulse) = crate::facades::Pulse::getFacadeRoot() else {
+        let Ok(pulse) = crate::facades::Pulse::get_facade_root() else {
             return Ok(());
         };
         if !pulse

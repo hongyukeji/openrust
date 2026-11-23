@@ -79,7 +79,7 @@ Use `Cache::store(Some("file"))` for a named store or call the facade directly f
 
 ### Retrieving items from the cache {#retrieving-items-from-the-cache}
 
-Use `getOr(key, default)` for a value or `getOrElse(key, resolve)` for an asynchronous fallback. Missing entries and cached JSON `null` use the default. A hit leaves the fallback untouched. Backend errors still propagate, and fallback results are only returned to the caller.
+Use `get_or(key, default)` for a value or `getOrElse(key, resolve)` for an asynchronous fallback. Missing entries and cached JSON `null` use the default. A hit leaves the fallback untouched. Backend errors still propagate, and fallback results are only returned to the caller.
 
 ```rust
 use openrust::{cache::{CacheResult, Value}, support::facades::Cache};

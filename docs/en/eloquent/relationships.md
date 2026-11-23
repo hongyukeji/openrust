@@ -66,19 +66,19 @@ pub fn is_author<P: Model, A: Model>(post: &P, author: &A) -> bool {
 
 ### Default Models
 
-Use `withDefault` on `BelongsTo`, `HasOne`, `HasOneThrough`, or `MorphOne` to supply an unsaved model when the related row is absent. The closure receives the new model and the parent. Use `|_, _| {}` for a default with no extra attributes. `HasOne` initializes the foreign key, and `MorphOne` also initializes the type alias. A fallback is available through the loaded relationship. Relationship existence and count queries still reflect stored rows.
+Use `with_default` on `BelongsTo`, `HasOne`, `HasOneThrough`, or `MorphOne` to supply an unsaved model when the related row is absent. The closure receives the new model and the parent. Use `|_, _| {}` for a default with no extra attributes. `HasOne` initializes the foreign key, and `MorphOne` also initializes the type alias. A fallback is available through the loaded relationship. Relationship existence and count queries still reflect stored rows.
 
 ```rust
 use openrust::database::eloquent::{Model, relations::BelongsTo};
 
 pub fn author_with_default() -> BelongsTo<Post, Author> {
-    BelongsTo::new("author_id", "id").withDefault(|author: &mut Author, _| {
+    BelongsTo::new("author_id", "id").with_default(|author: &mut Author, _| {
         author.setAttribute("name", "Guest author");
     })
 }
 ```
 
-For a `MorphTo` relationship, register a typed `withDefault` for each alias that needs a fallback. The callback receives the new unsaved target and its parent. A stored alias selects its own default when the key or matching row is missing. Use `defaultForMissingType` to explicitly choose a registered default for a null or empty type. An unknown alias with a foreign key still returns an error.
+For a `MorphTo` relationship, register a typed `with_default` for each alias that needs a fallback. The callback receives the new unsaved target and its parent. A stored alias selects its own default when the key or matching row is missing. Use `defaultForMissingType` to explicitly choose a registered default for a null or empty type. An unknown alias with a foreign key still returns an error.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::{Model, relations::MorphTo}};
@@ -86,7 +86,7 @@ use openrust::database::{DatabaseResult, eloquent::{Model, relations::MorphTo}};
 pub fn subject_with_default<P: Model, T: Model>() -> DatabaseResult<MorphTo<P>> {
     MorphTo::new("subject_type", "subject_id")
         .target::<T>("post", "id")
-        .withDefault::<T>("post", |post, _| {
+        .with_default::<T>("post", |post, _| {
             post.setAttribute("title", "Unavailable");
         })?
         .defaultForMissingType("post")
@@ -907,7 +907,7 @@ pub fn latest_roles<U: Model, R: Model>() -> BelongsToMany<U, R> {
 
 Use `using::<Membership>()` on a many-to-many relationship to load and write intermediate rows as a typed Eloquent model. Declare the model’s casts and fillable attributes as usual. Read the result with `getRelation::<Membership>("membership")` when the accessor is renamed. The relation supplies the table, connection, and original link keys, including the morph type for polymorphic links. Use `incrementing(false)` for a composite-key table. An incrementing pivot requires an actual primary key column.
 
-New custom pivot rows start with the model’s `newInstance` defaults. Relationship keys, pivot defaults, and explicit values are then applied before `Saving` and `Creating` run. On update, the original attributes come from the existing row and the dirty set reflects the pending changes.
+New custom pivot rows start with the model’s `new_instance` defaults. Relationship keys, pivot defaults, and explicit values are then applied before `Saving` and `Creating` run. On update, the original attributes come from the existing row and the dirty set reflects the pending changes.
 
 When a custom pivot is hydrated, selected database values override model defaults, including SQL NULL. Unselected non-key fields can keep their model defaults. Relationship identity comes from the database row, and the hydrated values form the original snapshot used for change tracking and JSON output.
 

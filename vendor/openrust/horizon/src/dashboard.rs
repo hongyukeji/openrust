@@ -27,7 +27,7 @@ pub struct Dashboard {
 }
 impl Dashboard {
     pub(crate) fn repository(&self) -> Result<Arc<Repository>> {
-        Store::getFacadeRoot().map_err(|_| Error::Unavailable)
+        Store::get_facade_root().map_err(|_| Error::Unavailable)
     }
     async fn allowed(&self, request: &mut Request) -> std::result::Result<bool, HttpError> {
         let callback = *self
@@ -40,8 +40,8 @@ impl Dashboard {
         }
     }
     pub async fn stats(&self) -> Result<serde_json::Value> {
-        let config =
-            openrust::support::facades::Config::getFacadeRoot().map_err(|_| Error::Unavailable)?;
+        let config = openrust::support::facades::Config::get_facade_root()
+            .map_err(|_| Error::Unavailable)?;
         let options = SupervisorOptions::fromConfig(config.as_ref())?;
         let repository = self.repository()?;
         let queue = openrust::queue::QueueFacade::manager().map_err(|_| Error::Unavailable)?;
@@ -102,13 +102,13 @@ impl Dashboard {
 pub struct Horizon;
 impl Facade for Horizon {
     type Service = Dashboard;
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         ServiceKey::typed::<Dashboard>()
     }
 }
 impl Horizon {
     pub fn manager() -> std::result::Result<Arc<Dashboard>, BindingResolutionError> {
-        Self::getFacadeRoot()
+        Self::get_facade_root()
     }
     pub fn auth(callback: Authorize) -> std::result::Result<(), BindingResolutionError> {
         *Self::manager()?
@@ -118,7 +118,7 @@ impl Horizon {
         Ok(())
     }
     pub fn routes() -> std::result::Result<(), openrust::routing::RoutingError> {
-        let config = openrust::support::facades::Config::getFacadeRoot()
+        let config = openrust::support::facades::Config::get_facade_root()
             .map_err(|source| openrust::routing::RoutingError::ContainerFailed { source })?;
         let path = config.get("horizon.path").unwrap_or("horizon".into());
         let path = path
@@ -149,7 +149,7 @@ impl Horizon {
         if dashboard.routesRegistered.load(Ordering::SeqCst) {
             return Ok(());
         }
-        let config = openrust::support::facades::Config::getFacadeRoot()
+        let config = openrust::support::facades::Config::get_facade_root()
             .map_err(|source| openrust::routing::RoutingError::ContainerFailed { source })?;
         let mut group = openrust::routing::RouteGroup::new();
         if let Some(domain) = config
@@ -377,8 +377,8 @@ fn api(request: &mut Request) -> HttpFuture<'_, std::result::Result<Response, Ht
             {
                 let manager = openrust::queue::QueueFacade::manager()
                     .map_err(|_| HttpError::from(Error::Unavailable))?;
-                let failures =
-                    FailedJobs::getFacadeRoot().map_err(|_| HttpError::from(Error::Unavailable))?;
+                let failures = FailedJobs::get_facade_root()
+                    .map_err(|_| HttpError::from(Error::Unavailable))?;
                 let id = id.as_deref().ok_or(HttpError::InvalidRequest)?;
                 let ids = if path.starts_with("batches/") {
                     manager
@@ -471,7 +471,7 @@ fn api(request: &mut Request) -> HttpFuture<'_, std::result::Result<Response, Ht
 pub(crate) struct Store;
 impl Facade for Store {
     type Service = Repository;
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         ServiceKey::typed::<Repository>()
     }
 }
@@ -488,13 +488,13 @@ fn snapshotResponse(mut snapshots: Vec<serde_json::Value>) -> serde_json::Value 
 struct FailedJobs;
 impl Facade for FailedJobs {
     type Service = dyn openrust::queue::failed::FailedJobProviderInterface;
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         "queue.failer".into()
     }
 }
 
 pub(crate) fn configuredRoutes() -> std::result::Result<(), openrust::routing::RoutingError> {
-    let config = openrust::support::facades::Config::getFacadeRoot()
+    let config = openrust::support::facades::Config::get_facade_root()
         .map_err(|source| openrust::routing::RoutingError::ContainerFailed { source })?;
     if Horizon::manager()
         .map_err(|source| openrust::routing::RoutingError::ContainerFailed { source })?

@@ -21,7 +21,7 @@ impl ServiceProvider for AuthServiceProvider {
         Box::pin(async move {
             let container = app.container();
             let app_container = Arc::downgrade(&app.container_handle());
-            container.singletonNamed("auth", move |container| {
+            container.singleton_named("auth", move |container| {
                 let config = container.get::<dyn Repository>("config")?;
                 Ok(Arc::new(AuthManager::new(app_container.clone(), config)))
             })?;
@@ -33,7 +33,7 @@ impl ServiceProvider for AuthServiceProvider {
                 )))
             })?;
             let owner = Arc::downgrade(&app.container_handle());
-            container.singletonNamed("auth.password", move |container| {
+            container.singleton_named("auth.password", move |container| {
                 let config = container.get::<dyn Repository>("config")?;
                 Ok(Arc::new(PasswordBrokerManager::new(config, owner.clone())))
             })?;
@@ -45,7 +45,7 @@ impl ServiceProvider for AuthServiceProvider {
                 Ok(Arc::default())
             })?;
             let owner = Arc::downgrade(&app.container_handle());
-            container.singletonNamed("gate", move |_| {
+            container.singleton_named("gate", move |_| {
                 Ok(Arc::new(super::access::GateRegistry::for_application(
                     owner.clone(),
                 )))

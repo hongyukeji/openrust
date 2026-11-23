@@ -122,7 +122,7 @@ impl Root {
             let _ = fs::remove_file(&parameter_path);
         }
         let application = Application::configure(self.0.clone())
-            .withConfig(|base, env| {
+            .with_config(|base, env| {
                 let mut values = config::load(base, env)?;
                 values.get_mut("app").unwrap()["debug"] = true.into();
                 values.get_mut("app").unwrap()["key"] = "a".repeat(32).into();
@@ -148,18 +148,18 @@ impl Root {
                 }
                 Ok(values)
             })
-            .withMiddleware(move |middleware| {
+            .with_middleware(move |middleware| {
                 if let Some(candidates) = candidates {
-                    middleware.setLocale(&candidates).unwrap();
+                    middleware.set_locale(&candidates).unwrap();
                 }
                 if let Some(locale) = callback {
                     middleware.localeUsing(move |_| Ok(Some(locale.into())));
                 }
                 if !browser {
-                    middleware.setLocale(&[]).unwrap();
+                    middleware.set_locale(&[]).unwrap();
                 }
             })
-            .withRouting(Routing::default().web(|| {
+            .with_routing(Routing::default().web(|| {
                 web::register()?;
                 Route::get("/locale", default_locale)?;
                 Route::get("/escaped-repository", || {
@@ -216,7 +216,7 @@ fn default_locale(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
         tokio::task::yield_now().await;
         Ok(Response::new(
             StatusCode::OK,
-            Body::from(Lang::getLocale().unwrap()),
+            Body::from(Lang::get_locale().unwrap()),
         ))
     })
 }
@@ -232,7 +232,7 @@ fn validate(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 }
 fn switched_locale(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
-        App::setLocale("zh-Hant").await.unwrap();
+        App::set_locale("zh-Hant").await.unwrap();
         Response::view(
             StatusCode::OK,
             openrust::view::view("other"),

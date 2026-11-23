@@ -79,7 +79,7 @@ CACHE_STORAGE_PATH=framework/cache/items
 
 ### 读取缓存条目 {#retrieving-items-from-the-cache}
 
-`getOr(key, default)` 接受默认值，`getOrElse(key, resolve)` 接受异步回退闭包。键缺失或缓存值为 JSON `null` 时使用默认值，命中时跳过回退。后端错误继续返回给调用方，回退计算的结果只返回给调用方。
+`get_or(key, default)` 接受默认值，`getOrElse(key, resolve)` 接受异步回退闭包。键缺失或缓存值为 JSON `null` 时使用默认值，命中时跳过回退。后端错误继续返回给调用方，回退计算的结果只返回给调用方。
 
 ```rust
 use openrust::{cache::{CacheResult, Value}, support::facades::Cache};

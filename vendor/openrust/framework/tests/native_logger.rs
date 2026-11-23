@@ -169,7 +169,7 @@ async fn facade_and_manager_return_the_same_default_native_instance() {
     let resolved = Arc::new(Mutex::new(None));
     let captured = resolved.clone();
     let mut app = Application::configure(root.0.clone())
-        .withConfig(configuration)
+        .with_config(configuration)
         .booted(move |app| {
             let manager = app.container().make::<LogManager>().unwrap();
             assert!(manager.getChannels().is_empty());

@@ -15,7 +15,7 @@ pub struct URL;
 impl Facade for URL {
     type Service = UrlGenerator;
 
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         "url".into()
     }
 }
@@ -23,7 +23,7 @@ impl Facade for URL {
 #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl URL {
     pub(crate) fn service() -> UrlResult<Arc<UrlGenerator>> {
-        Self::getFacadeRoot().map_err(|_| UrlError::Unavailable)
+        Self::get_facade_root().map_err(|_| UrlError::Unavailable)
     }
 
     pub fn generator() -> UrlResult<UrlGenerator> {

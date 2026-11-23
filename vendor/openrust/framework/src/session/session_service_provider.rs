@@ -23,7 +23,7 @@ impl ServiceProvider for SessionServiceProvider {
         Box::pin(async move {
             let container = app.container();
             let base = app.base_path().to_path_buf();
-            container.singletonNamed("session", move |container| {
+            container.singleton_named("session", move |container| {
                 let config = container.get::<dyn Repository>("config")?;
                 let database = container.get::<DatabaseManager>("db")?;
                 let cache = container.get::<CacheManager>("cache")?;

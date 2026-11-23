@@ -47,7 +47,7 @@ impl AccessToken {
         if self.transient {
             return Ok(false);
         }
-        let passport = openrust::container::Container::getInstance()
+        let passport = openrust::container::Container::get_instance()
             .make::<Passport>()
             .map_err(openrust::database::DatabaseError::Unavailable)?;
         passport
@@ -63,7 +63,7 @@ pub struct ResourceServer {
 }
 impl Facade for ResourceServer {
     type Service = Self;
-    fn getFacadeAccessor() -> openrust::container::ServiceKey {
+    fn get_facade_accessor() -> openrust::container::ServiceKey {
         openrust::container::ServiceKey::typed::<Self>()
     }
 }

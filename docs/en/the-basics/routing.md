@@ -2,7 +2,7 @@
 
 Declare web routes in `routes/web.rs`. The application registers those routes and the `/up` health check through `openrust::routing::Router` during startup. A handler that needs the request takes a mutable `Request` and returns an asynchronous HTTP result. The framework binds the application router while calling the Web route module’s `register()`. Declare a named view with `Route::get("/", || view("welcome"))`, using `openrust::support::facades::Route`.
 
-Run `./artisan install:api` to generate and register `routes/api.rs` and `config/api.rs`. Both files are created on demand. Declare API routes in `routes/api.rs`. The application loads `api.prefix` from `config/api.rs` and applies the `api` middleware group. The default prefix is `/api`. Set `API_PREFIX=api/admin` in `.env` to mount routes under `/api/admin`, or set `API_PREFIX=` to omit the prefix. An explicit `Routing::apiPrefix(...)` in `withRouting` takes precedence. Reinstalling preserves an existing `config/api.rs`, even with `--force`.
+Run `./artisan install:api` to generate and register `routes/api.rs` and `config/api.rs`. Both files are created on demand. Declare API routes in `routes/api.rs`. The application loads `api.prefix` from `config/api.rs` and applies the `api` middleware group. The default prefix is `/api`. Set `API_PREFIX=api/admin` in `.env` to mount routes under `/api/admin`, or set `API_PREFIX=` to omit the prefix. An explicit `Routing::apiPrefix(...)` in `with_routing` takes precedence. Reinstalling preserves an existing `config/api.rs`, even with `--force`.
 
 In `routes/api.rs`, declare API endpoints in the parameterless `register() -> Result<(), RoutingError>` using the `Route` facade. Route paths are relative to the API prefix. Use `Route::getWith` when a GET route needs a name, model binding, or route-level middleware.
 
@@ -141,7 +141,7 @@ The cache stores candidates by HTTP method and first path segment. Rust still re
 
 The default path is `storage/framework/cache/routes.json`. Set `APP_ROUTES_CACHE` to an absolute path or a path relative to the application root. Export it in the service environment when using cached configuration, because that startup can skip loading `.env`.
 
-After boot, `getCachedRoutesPath()` returns the resolved path and `routesAreCached()` tells you whether this application loaded a valid index.
+After boot, `get_cached_routes_path()` returns the resolved path and `routes_are_cached()` tells you whether this application loaded a valid index.
 
 ## Route Parameters
 
@@ -180,7 +180,7 @@ Set the paths, origins, methods and headers in `config/cors.rs`. The global `Han
 
 When `CORS_PATHS` is unset, `cors.paths` matches defaults, `api/*` and `sanctum/csrf-cookie`. The API route prefix and CORS paths are configured independently. If your API is mounted at `/v1`, set `CORS_PATHS=v1/*,sanctum/csrf-cookie` to allow CORS on those paths. Set `CORS_PATHS=*` to cover all paths or `CORS_PATHS=` to disable CORS. Cross-origin credentials are disabled by default. A path map can override paths by host, using numeric string keys for shared paths. Use `allowed_origins_patterns` for patterns supported by Rust's regex engine. The HTTP kernel loads and validates the policy during bootstrap.
 
-Inside `withMiddleware`, use `middleware.skipCorsWhen(|request| request.is("api/internal/*"));` to bypass CORS for matching requests in the current application. When a callback returns `true`, `HandleCors` passes the request to the remaining middleware and leaves the response headers untouched. This also applies to `OPTIONS` preflights.
+Inside `with_middleware`, use `middleware.skipCorsWhen(|request| request.is("api/internal/*"));` to bypass CORS for matching requests in the current application. When a callback returns `true`, `HandleCors` passes the request to the remaining middleware and leaves the response headers untouched. This also applies to `OPTIONS` preflights.
 
 ```bash
 curl -i -X OPTIONS http://127.0.0.1:8000/api/example \
@@ -222,7 +222,7 @@ Use `throttle:5|upload_limit,1,uploads:` to read the authenticated user’s `upl
 
 ### Throttling With Redis
 
-Call `middleware.throttleWithRedis()` in `withMiddleware` to resolve named and numeric throttle aliases through the default Redis connection. Processes sharing the same Redis connection settings and key prefix share their quota. Redis checks and charges the configured limits atomically. Limits using `after` are charged after the response.
+Call `middleware.throttleWithRedis()` in `with_middleware` to resolve named and numeric throttle aliases through the default Redis connection. Processes sharing the same Redis connection settings and key prefix share their quota. Redis checks and charges the configured limits atomically. Limits using `after` are charged after the response.
 
 With a [default Redis cluster](../database/redis.md#clusters), all counters for one named policy share a hash slot so Redis can check and charge them together. Different named policies can use different slots. Upgrading from the previous Cluster key layout starts a new window for named policies. The old counters expire at their original times.
 

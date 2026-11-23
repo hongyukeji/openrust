@@ -20,7 +20,7 @@ use serde_json::{Value as JsonValue, json};
 
 fn postgres_application() -> TestApp {
     TestApp::create(|app| {
-        app.withConfig(|_, _| {
+        app.with_config(|_, _| {
             Ok([
                 ("app".into(), json!({"env":"testing"})),
                 (
@@ -92,7 +92,7 @@ async fn text_vectors_reuse_http_embeddings_and_keep_application_caches_separate
         .await
         .unwrap();
     assert_eq!(
-        query.getBindings().unwrap(),
+        query.get_bindings().unwrap(),
         [
             "[1.0,0.0]".into(),
             "[1.0,0.0]".into(),
@@ -142,7 +142,7 @@ async fn text_vectors_reuse_http_embeddings_and_keep_application_caches_separate
         .orderByVectorDistanceText("embedding", "shared text")
         .await
         .unwrap();
-    assert_eq!(new_model.getBindings().unwrap(), ["[0.0,1.0]".into()]);
+    assert_eq!(new_model.get_bindings().unwrap(), ["[0.0,1.0]".into()]);
     assert_eq!(calls.load(Ordering::Relaxed), 7);
     server.abort();
 }

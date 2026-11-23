@@ -36,7 +36,7 @@ pub fn storage_path(
     super::facades::current_container()
         .ok_or(BindingResolutionError::FacadeNotSet)?
         .make::<crate::foundation::Paths>()
-        .map(|paths| paths.storagePath(path))
+        .map(|paths| paths.storage_path(path))
 }
 
 /// 读取当前应用的语言目录，不创建目录。
@@ -47,7 +47,7 @@ pub fn lang_path(
     super::facades::current_container()
         .ok_or(BindingResolutionError::FacadeNotSet)?
         .make::<crate::foundation::Paths>()
-        .map(|paths| paths.langPath(path))
+        .map(|paths| paths.lang_path(path))
 }
 
 /// Tests blank-value rules for JSON values.

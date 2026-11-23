@@ -28,7 +28,7 @@ Route::staticDisk("web")?;
 Route::staticDisk("public")?;
 ```
 
-`web` 磁碟描述網站目錄，根目錄預設是 `public`，URL 預設是 `app.url`。在 `config/filesystems.rs` 中透過 `FILESYSTEM_WEB_ROOT` 和 `FILESYSTEM_WEB_URL` 覆寫預設值。`FILESYSTEM_WEB_ROOT` 優先指定網站磁碟根目錄；未設定時使用 `APP_PUBLIC_PATH`（預設 `public`）。相對路徑基於應用根目錄，絕對路徑直接使用。空字串或全空白值會導致設定載入失敗。應用程式使用 `web.root` 作為 `publicPath()`；啟動前呼叫 `usePublicPath()` 會覆寫目錄並同步 `web.root`。兩個掛載統一使用 `staticDisk`，讀取本機磁碟根目錄，並從 `url` 取得完整掛載路徑。例如，`FILESYSTEM_PUBLIC_URL=/storage/tmp/` 將 `storage/app/public/photo.jpg` 公開在 `/storage/tmp/photo.jpg`。絕對 URL 必須與 `app.url` 同源，協定、主機或有效連接埠不同會導致 HTTP 引導失敗。
+`web` 磁碟描述網站目錄，根目錄預設是 `public`，URL 預設是 `app.url`。在 `config/filesystems.rs` 中透過 `FILESYSTEM_WEB_ROOT` 和 `FILESYSTEM_WEB_URL` 覆寫預設值。`FILESYSTEM_WEB_ROOT` 優先指定網站磁碟根目錄；未設定時使用 `APP_PUBLIC_PATH`（預設 `public`）。相對路徑基於應用根目錄，絕對路徑直接使用。空字串或全空白值會導致設定載入失敗。應用程式使用 `web.root` 作為 `public_path()`；啟動前呼叫 `use_public_path()` 會覆寫目錄並同步 `web.root`。兩個掛載統一使用 `staticDisk`，讀取本機磁碟根目錄，並從 `url` 取得完整掛載路徑。例如，`FILESYSTEM_PUBLIC_URL=/storage/tmp/` 將 `storage/app/public/photo.jpg` 公開在 `/storage/tmp/photo.jpg`。絕對 URL 必須與 `app.url` 同源，協定、主機或有效連接埠不同會導致 HTTP 引導失敗。
 
 兩個磁碟掛載在 Unix 上都要求檔案公開且各級目錄可遍歷，並拒絕符號連結、寫入暫存檔及具有多個硬連結的檔案。如果 `public/storage` 是符號連結，`web` 磁碟會跳過它，由 `public` 磁碟直接從其設定的根目錄提供檔案。
 

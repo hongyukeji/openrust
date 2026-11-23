@@ -402,8 +402,8 @@ async fn application_scope_and_public_mount_work_over_http() {
 
     async fn start(root: &Sandbox) -> (std::net::SocketAddr, tokio::task::JoinHandle<()>) {
         let application = Application::configure(root.0.clone())
-            .withConfig(config)
-            .withRouting(Routing::default().web(|| {
+            .with_config(config)
+            .with_routing(Routing::default().web(|| {
                 Route::staticDisk("public")?;
                 Route::get("/write", write)?;
                 Route::post("/upload", upload)?;

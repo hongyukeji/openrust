@@ -17,7 +17,7 @@ impl ServiceProvider for ValidationServiceProvider {
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
             let container = app.container();
-            container.singletonNamed("validator", |container| {
+            container.singleton_named("validator", |container| {
                 let mut factory = Factory::new(container.get::<Translator>("translator")?);
                 factory.setPresenceVerifier(DatabasePresenceVerifier::new(
                     container.make::<dyn crate::database::ConnectionResolverInterface>()?,

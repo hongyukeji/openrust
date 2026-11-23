@@ -110,8 +110,8 @@ pub(super) fn links(application: &Application) -> Result<BTreeMap<PathBuf, PathB
                 .collect()
         }
         None => Ok(BTreeMap::from([(
-            application.publicPath().join("storage"),
-            application.storagePath("app/public"),
+            application.public_path().join("storage"),
+            application.storage_path("app/public"),
         )])),
     }
 }

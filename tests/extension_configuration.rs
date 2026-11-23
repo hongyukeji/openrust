@@ -39,8 +39,8 @@ struct Merge;
 impl ServiceProvider for Merge {
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
-            self.mergeConfigFrom(app, json!({"from_package":true}), "probe")?;
-            self.replaceConfigRecursivelyFrom(app, json!({"nested":{"new":true}}), "probe")?;
+            self.merge_config_from(app, json!({"from_package":true}), "probe")?;
+            self.replace_config_recursively_from(app, json!({"nested":{"new":true}}), "probe")?;
             Ok(())
         })
     }
@@ -55,13 +55,13 @@ async fn cached_configuration_is_authoritative_for_both_merge_methods() {
     )
     .unwrap();
     let app = Application::configure(root.0.clone())
-        .withProviders(vec![Box::new(Merge)])
+        .with_providers(vec![Box::new(Merge)])
         .create()
         .unwrap();
     let mut kernel = Kernel::new(app);
     kernel.bootstrap().await.unwrap();
     let app = kernel.get_application();
-    assert!(app.configurationIsCached());
+    assert!(app.configuration_is_cached());
     assert_eq!(
         app.config().unwrap().get("probe"),
         Some(json!({"nested":{"saved":true}}))
@@ -129,14 +129,14 @@ async fn enabled_packages_supply_defaults_without_publishing_application_files()
     fs::write(root.0.join(".env"), "REVERB_ENABLED=false\nREVERB_SERVER_PORT=9123\nOIDC_ISSUER=https://example.test\nPAY_DRIVER=alipay\n").unwrap();
     let providers = package_providers();
     let app = Application::configure(root.0.clone())
-        .withConfig(config::load)
-        .withProviders(providers)
+        .with_config(config::load)
+        .with_providers(providers)
         .create()
         .unwrap();
     let mut kernel = Kernel::new(app);
     kernel.bootstrap().await.unwrap();
     let app = kernel.get_application();
-    assert!(!app.configurationIsCached());
+    assert!(!app.configuration_is_cached());
     let config = app.config().unwrap();
     for (name, enabled) in [
         ("settings", cfg!(feature = "settings")),
@@ -188,8 +188,8 @@ async fn package_defaults_preserve_application_overrides_and_do_not_fill_cached_
     }
     let root = Directory::new();
     let app = Application::configure(root.0.clone())
-        .withConfig(overrides)
-        .withProviders(package_providers())
+        .with_config(overrides)
+        .with_providers(package_providers())
         .create()
         .unwrap();
     let mut kernel = Kernel::new(app);
@@ -210,14 +210,14 @@ async fn package_defaults_preserve_application_overrides_and_do_not_fill_cached_
     )
     .unwrap();
     let app = Application::configure(root.0.clone())
-        .withConfig(overrides)
-        .withProviders(package_providers())
+        .with_config(overrides)
+        .with_providers(package_providers())
         .create()
         .unwrap();
     let mut kernel = Kernel::new(app);
     kernel.bootstrap().await.unwrap();
     let app = kernel.get_application();
-    assert!(app.configurationIsCached());
+    assert!(app.configuration_is_cached());
     let config = app.config().unwrap();
     assert_eq!(config.get("pay"), None);
     assert_eq!(config.get("settings"), None);

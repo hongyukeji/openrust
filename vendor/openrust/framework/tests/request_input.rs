@@ -716,9 +716,9 @@ async fn start_with(
     configure: impl FnOnce(ApplicationBuilder) -> ApplicationBuilder,
 ) -> (SocketAddr, tokio::task::JoinHandle<()>) {
     let app = configure(Application::configure(root))
-        .withConfig(|base, _| Ok([("probe".into(), json!({"file_root": base}))].into()))
-        .withProviders(vec![Box::new(Provider(label))])
-        .withRouting(Routing::default().web(|| {
+        .with_config(|base, _| Ok([("probe".into(), json!({"file_root": base}))].into()))
+        .with_providers(vec![Box::new(Provider(label))])
+        .with_routing(Routing::default().web(|| {
             Route::get("/negotiation", negotiate)?;
             Route::get("/path-encoding/{value}", path_encoding)?;
             Route::r#match(
@@ -1012,7 +1012,7 @@ async fn real_http_normalizes_input_bags_and_keeps_application_exceptions_separa
     let root = tempfile::tempdir().unwrap();
     let ((custom, one), (default, two)) = tokio::join!(
         start_with("custom", root.path().to_owned(), |builder| {
-            builder.withMiddleware(|middleware| {
+            builder.with_middleware(|middleware| {
                 middleware
                     .trimStrings(["rows.*.sealed"])
                     .skipTrimStringsWhen(|request| request.hasHeader("x-no-trim"))
@@ -1885,7 +1885,7 @@ async fn real_http_native_snapshot_keeps_the_transport_target_and_effective_meth
     use openrust::http::TrustedProxyHeaders;
 
     let (address, server) = start_with("native", std::env::temp_dir(), |builder| {
-        builder.withMiddleware(|middleware| {
+        builder.with_middleware(|middleware| {
             middleware
                 .trustProxies(&["127.0.0.1"], TrustedProxyHeaders::DEFAULT)
                 .unwrap();
@@ -2967,7 +2967,7 @@ async fn sse_reports_source_errors_in_the_originating_application() {
     let reports = Arc::new(AtomicUsize::new(0));
     let observed = reports.clone();
     let (address, server) = start_with("stream-failure", std::env::temp_dir(), |builder| {
-        builder.withExceptions(move |exceptions| {
+        builder.with_exceptions(move |exceptions| {
             exceptions.report::<std::io::Error>(move |error| {
                 assert_eq!(error.to_string(), "sse fixture interruption");
                 assert!(Config::get("probe.file_root").unwrap().is_some());

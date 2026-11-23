@@ -88,14 +88,14 @@ fn probe(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     })
 }
 fn create() -> Result<Application, Box<dyn std::error::Error + Send + Sync>> {
-    Ok(Application::configure(std::env::var("APP_BASE_PATH")?.into()).withConfig(|base,_|Ok(std::collections::BTreeMap::from([
+    Ok(Application::configure(std::env::var("APP_BASE_PATH")?.into()).with_config(|base,_|Ok(std::collections::BTreeMap::from([
         ("app".into(),json!({"env":"production","debug":false,"key":"01234567890123456789012345678901","cipher":"AES-256-CBC"})),
         ("database".into(),json!({"default":"sqlite","connections":{"sqlite":{"driver":"sqlite","database":base.join("database.sqlite")}}})),
         ("cache".into(),json!({"default":"file","stores":{"file":{"driver":"file","path":base.join("cache"),"lock_path":base.join("locks")}}})),
         ("session".into(),json!({"driver":"array"})),
         ("auth".into(),json!({"defaults":{"guard":"web"},"guards":{"web":{"driver":"pulse-test"}}})),
         ("pulse".into(),json!({"path":"operations/pulse","domain":"127.0.0.1","recorders":{"Servers":false,"SlowQueries":false},"ingest":{"driver":"storage","buffer":5000,"trim":{"lottery":[0,1]}}})),
-    ]))).withProviders(vec![Box::new(openrust_pulse::PulseServiceProvider),Box::new(Access)]).withRouting(Routing::default().api(||{Route::get("/probe",probe)?;Ok(())})).create()?)
+    ]))).with_providers(vec![Box::new(openrust_pulse::PulseServiceProvider),Box::new(Access)]).with_routing(Routing::default().api(||{Route::get("/probe",probe)?;Ok(())})).create()?)
 }
 #[tokio::main]
 async fn main() -> std::process::ExitCode {

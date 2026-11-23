@@ -44,7 +44,7 @@ async fn render(
         return Response::json(StatusCode::OK, serde_json::json!({"message":message}));
     }
     let redirect = if reset {
-        let fortify = Resolver::<Fortify>::getFacadeRoot().map_err(internal)?;
+        let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;
         let login = if fortify.truthy("fortify.views") {
             Some(openrust::support::facades::URL::route("login", &[], true)?)
         } else {
@@ -71,7 +71,7 @@ macro_rules! password_view {
                 request: &'a mut Request,
             ) -> HttpFuture<'a, Result<Response, HttpError>> {
                 Box::pin(async move {
-                    let fortify = Resolver::<Fortify>::getFacadeRoot().map_err(internal)?;
+                    let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;
                     fortify
                         .$getter()
                         .ok_or_else(|| {

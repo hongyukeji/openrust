@@ -55,7 +55,7 @@ impl TokenGuard {
             }
             request.parts_mut().extensions.remove::<AccessToken>();
             if request.bearerToken()?.is_none() {
-                let container = openrust::container::Container::getInstance();
+                let container = openrust::container::Container::get_instance();
                 let passport = container.make::<crate::Passport>().map_err(backend)?;
                 if !request.hasCookie(&passport.cookie(None))? {
                     return Ok(None);
@@ -89,7 +89,7 @@ impl TokenGuard {
                 }
                 return Ok(user);
             }
-            let server = ResourceServer::getFacadeRoot().map_err(backend)?;
+            let server = ResourceServer::get_facade_root().map_err(backend)?;
             let token = match server.validateAuthenticatedRequest(request).await {
                 Ok(token) => token,
                 Err(error) if error.is_server_error() => return Err(backend(error)),
@@ -98,7 +98,7 @@ impl TokenGuard {
                     return Ok(None);
                 }
             };
-            let container = openrust::container::Container::getInstance();
+            let container = openrust::container::Container::get_instance();
             let clients = container.make::<ClientRepository>().map_err(backend)?;
             let Some(client) = clients
                 .findActive(token.oauth_client_id.as_str())

@@ -114,7 +114,7 @@ async fn eighteen_notification_messages_render_to_local_capture_and_restore_loca
     };
     let mut application =
         openrust::foundation::Application::configure(PathBuf::from(env!("CARGO_MANIFEST_DIR")))
-            .withConfig(mail_config)
+            .with_config(mail_config)
             .create()
             .unwrap();
     application.boot().await.unwrap();
@@ -131,7 +131,7 @@ async fn eighteen_notification_messages_render_to_local_capture_and_restore_loca
                 let greeting=Lang::get("Hello!",&BTreeMap::new(),None).unwrap();assert!(body.contains(&greeting),"{locale}: {body}");
                 let copyright=Lang::get("All rights reserved.",&BTreeMap::new(),None).unwrap();assert!(body.contains(&copyright),"{locale}: {body}");
             }).await.unwrap();
-            assert_eq!(Lang::getLocale().unwrap(),"en");
+            assert_eq!(Lang::get_locale().unwrap(),"en");
         }
         Ok(())
     }),Default::default()).await.unwrap();
@@ -220,7 +220,7 @@ async fn application_keys_override_embedded_defaults_without_replacing_the_group
     )
     .unwrap();
     let mut app = openrust::foundation::Application::configure(directory.path().to_owned())
-        .withConfig(mail_config)
+        .with_config(mail_config)
         .create()
         .unwrap();
     app.boot().await.unwrap();

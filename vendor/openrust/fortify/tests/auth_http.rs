@@ -244,13 +244,13 @@ async fn start_with_store(
     mysql: Option<&str>,
     configure: impl FnOnce(&Application),
 ) -> Server {
-    let mut app=Application::configure(std::env::temp_dir()).withConfig(|_,_|Ok([
+    let mut app=Application::configure(std::env::temp_dir()).with_config(|_,_|Ok([
   ("app".into(),json!({"key":"a".repeat(32),"timezone":"UTC","url":"http://localhost"})),
   ("session".into(),json!({"driver":"array","cookie":"fortify_session","lottery":[0,100]})),
   ("cache".into(),json!({"default":"array","stores":{"array":{"driver":"array"}}})),
   ("hashing".into(),json!({"driver":"bcrypt","bcrypt":{"rounds":4}})),
   ("auth".into(),json!({"defaults":{"guard":"web"},"guards":{"web":{"driver":"session","provider":"users"}},"providers":{"users":{"driver":"test-user"}},"password_timeout":900})),
- ].into())).withProviders(vec![Box::new(Settings(settings)),Box::new(FortifyServiceProvider)]).withRouting(Routing::default().web(routes)).create().unwrap();
+ ].into())).with_providers(vec![Box::new(Settings(settings)),Box::new(FortifyServiceProvider)]).with_routing(Routing::default().web(routes)).create().unwrap();
     app.boot().await.unwrap();
     let hasher = app.container().make::<dyn Hasher>().unwrap();
     let hash = hasher

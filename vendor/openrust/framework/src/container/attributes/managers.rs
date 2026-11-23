@@ -46,13 +46,13 @@ impl ContextualAttribute for Cache {
         self.repository(container.get::<CacheManager>("cache")?.as_ref())
     }
 
-    fn resolveAsync<'a>(
+    fn resolve_async<'a>(
         self: Arc<Self>,
         container: &'a Container,
         _: AttributeParameter,
     ) -> CallFuture<'a, AttributeValue> {
         Box::pin(async move {
-            self.repository(container.getAsync::<CacheManager>("cache").await?.as_ref())
+            self.repository(container.get_async::<CacheManager>("cache").await?.as_ref())
         })
     }
 }
@@ -79,13 +79,13 @@ impl ContextualAttribute for Database {
         self.connection(container.get::<DatabaseManager>("db")?.as_ref())
     }
 
-    fn resolveAsync<'a>(
+    fn resolve_async<'a>(
         self: Arc<Self>,
         container: &'a Container,
         _: AttributeParameter,
     ) -> CallFuture<'a, AttributeValue> {
         Box::pin(async move {
-            self.connection(container.getAsync::<DatabaseManager>("db").await?.as_ref())
+            self.connection(container.get_async::<DatabaseManager>("db").await?.as_ref())
         })
     }
 }
@@ -109,14 +109,14 @@ impl ContextualAttribute for Db {
         self.0.resolve(container, parameter)
     }
 
-    fn resolveAsync<'a>(
+    fn resolve_async<'a>(
         self: Arc<Self>,
         container: &'a Container,
         _: AttributeParameter,
     ) -> CallFuture<'a, AttributeValue> {
         Box::pin(async move {
             self.0
-                .connection(container.getAsync::<DatabaseManager>("db").await?.as_ref())
+                .connection(container.get_async::<DatabaseManager>("db").await?.as_ref())
         })
     }
 }
@@ -143,7 +143,7 @@ impl ContextualAttribute for Storage {
         self.disk(container.get::<FilesystemManager>("filesystem")?.as_ref())
     }
 
-    fn resolveAsync<'a>(
+    fn resolve_async<'a>(
         self: Arc<Self>,
         container: &'a Container,
         _: AttributeParameter,
@@ -151,7 +151,7 @@ impl ContextualAttribute for Storage {
         Box::pin(async move {
             self.disk(
                 container
-                    .getAsync::<FilesystemManager>("filesystem")
+                    .get_async::<FilesystemManager>("filesystem")
                     .await?
                     .as_ref(),
             )
@@ -197,13 +197,13 @@ impl ContextualAttribute for Log {
         self.logger(container.get::<LogManager>("log")?.as_ref())
     }
 
-    fn resolveAsync<'a>(
+    fn resolve_async<'a>(
         self: Arc<Self>,
         container: &'a Container,
         _: AttributeParameter,
     ) -> CallFuture<'a, AttributeValue> {
         Box::pin(
-            async move { self.logger(container.getAsync::<LogManager>("log").await?.as_ref()) },
+            async move { self.logger(container.get_async::<LogManager>("log").await?.as_ref()) },
         )
     }
 }

@@ -144,7 +144,7 @@ impl Drop for Server {
 
 async fn start(configure: impl FnOnce(&mut Middleware) + Send + Sync + 'static) -> Server {
     let app = Application::configure(std::env::temp_dir())
-        .withConfig(|_, _| {
+        .with_config(|_, _| {
             let mut config = std::collections::BTreeMap::from([
                 ("cache".into(), json!({"default":"array","stores":{"array":{"driver":"array"}}})),
                 ("app".into(), json!({"key":"a".repeat(32)})),
@@ -158,9 +158,9 @@ async fn start(configure: impl FnOnce(&mut Middleware) + Send + Sync + 'static) 
             }
             Ok(config)
         })
-        .withProviders(vec![Box::new(Limits)])
-        .withMiddleware(configure)
-        .withRouting(Routing::default().api(api).web(web))
+        .with_providers(vec![Box::new(Limits)])
+        .with_middleware(configure)
+        .with_routing(Routing::default().api(api).web(web))
         .create().unwrap();
     let mut kernel = Kernel::new(app);
     kernel.bootstrap().await.unwrap();

@@ -43,9 +43,9 @@ async fn main() -> ExitCode {
         return ExitCode::SUCCESS;
     }
     run_application(|| {
-        let root = Application::inferBasePath(Some(env!("CARGO_MANIFEST_DIR")))?;
+        let root = Application::infer_base_path(Some(env!("CARGO_MANIFEST_DIR")))?;
         Application::configure(root)
-            .withConfig(|path, env| {
+            .with_config(|path, env| {
                 let mut config = config::load(path, env)?;
                 let sms = config.get_mut("sms").expect("SMS configuration");
                 sms["drivers"]["primary"] = json!({
@@ -93,9 +93,9 @@ async fn main() -> ExitCode {
                 }
                 Ok(config)
             })
-            .withProviders(vec![Box::new(SmsServiceProvider)])
-            .withMigrations(migrations::entries())
-            .withCommands(register_commands)
+            .with_providers(vec![Box::new(SmsServiceProvider)])
+            .with_migrations(migrations::entries())
+            .with_commands(register_commands)
             .create()
             .map_err(Into::into)
     })

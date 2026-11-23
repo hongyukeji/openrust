@@ -21,7 +21,7 @@ impl ServiceProvider for BroadcastServiceProvider {
     fn register<'a>(&'a mut self, app: &'a Application) -> BroadcastFuture<'a, ProviderResult> {
         Box::pin(async move {
             let container = app.container();
-            container.singletonNamed("broadcast", |container| {
+            container.singleton_named("broadcast", |container| {
                 let config = container.get::<dyn Repository>("config")?;
                 let log = container.make()?;
                 Ok(Arc::new(BroadcastManager::new(config, log)))

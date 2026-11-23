@@ -382,7 +382,7 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
         std::fs::write(root.path().join("custom-csrf"), "").unwrap();
     }
     let mut app = Application::configure(root.path().to_path_buf())
-        .withConfig(|root, _| Ok([
+        .with_config(|root, _| Ok([
             ("app".into(), json!({"key":"a".repeat(32)})),
             ("session".into(), json!({"driver":"array","cookie":"sanctum_test","lottery":[0,100],"same_site":"strict","http_only":false})),
             ("sanctum".into(), json!({"stateful":format!("spa.example:8443{}", Sanctum::currentRequestHost()),"expiration":5,"token_prefix":"fixture_",
@@ -394,11 +394,11 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
                 "providers":{"users":{"driver":"eloquent","model":"SanctumUser"}}
             })),
         ].into()))
-        .withMiddleware(move |middleware| {
+        .with_middleware(move |middleware| {
             if stateful { middleware.statefulApi(); }
             middleware.alias("custom-csrf", Arc::new(CustomCsrf));
         })
-        .withRouting(Routing::default().api(api).web(web::<KEY>))
+        .with_routing(Routing::default().api(api).web(web::<KEY>))
         .create().unwrap();
     app.boot().await.unwrap();
     let config = app.container().get::<dyn Repository>("config").unwrap();
@@ -1294,7 +1294,7 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
             .usePersonalAccessTokenModel::<CustomToken<KEY>>();
         assert_eq!(
             console
-                .handleCommand(&["sanctum:prune-expired".into(), "--hours=0".into()])
+                .handle_command(&["sanctum:prune-expired".into(), "--hours=0".into()])
                 .await
                 .unwrap(),
             0
@@ -1367,7 +1367,7 @@ mod installed_api_routes;
 async fn sanctum_checks_configured_request_guard_without_a_session() {
     let root = tempfile::tempdir().unwrap();
     let mut app = Application::configure(root.path().canonicalize().unwrap())
-        .withConfig(|_, _| {
+        .with_config(|_, _| {
             Ok([
                 (
                     "auth".into(),
@@ -1382,7 +1382,7 @@ async fn sanctum_checks_configured_request_guard_without_a_session() {
             ]
             .into())
         })
-        .withRouting(Routing::default().api(installed_api_routes::register))
+        .with_routing(Routing::default().api(installed_api_routes::register))
         .create()
         .unwrap();
     app.boot().await.unwrap();
@@ -1452,7 +1452,7 @@ async fn acting_as_isolated_to_test_app_and_selected_guard() {
 
     let configure = |builder: openrust::foundation::configuration::ApplicationBuilder| {
         builder
-            .withConfig(|_, _| {
+            .with_config(|_, _| {
                 Ok([(
                     "auth".into(),
                     json!({
@@ -1461,7 +1461,7 @@ async fn acting_as_isolated_to_test_app_and_selected_guard() {
                 )]
                 .into())
             })
-            .withRouting(Routing::default().api(|| {
+            .with_routing(Routing::default().api(|| {
                 api()?;
                 Route::get("/default", whoami)?;
                 Route::get("/token-ability", token_ability)?;
@@ -1545,7 +1545,7 @@ async fn acting_as_isolated_to_test_app_and_selected_guard() {
 #[tokio::test]
 async fn publishes_sanctum_resources_by_tag_without_overwriting_customizations() {
     let mut app = TestApp::create(|builder| {
-        builder.withConfig(|_, _| {
+        builder.with_config(|_, _| {
             Ok([(
                 "database".into(),
                 json!({

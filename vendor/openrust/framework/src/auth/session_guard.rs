@@ -390,7 +390,7 @@ impl<'a> SessionGuard<'a> {
         if key.is_empty() || maximum == 0 || decay_seconds == 0 {
             return Err(AuthError::Configuration("login throttle"));
         }
-        let limiter = RateLimiter::getFacadeRoot()?;
+        let limiter = RateLimiter::get_facade_root()?;
         let key = format!("login:{}:{key}", self.name);
         if let Some(retry) = limiter.reserve(&key, maximum, decay_seconds).await? {
             self.emit(

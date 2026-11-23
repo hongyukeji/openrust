@@ -401,7 +401,7 @@ Windows ARM64 已补验 MySQL 队列搭配文件缓存、Redis 队列搭配 Redi
 
 #### 按异常停止重试 {#stopping-retries-by-exception}
 
-队列任务遇到特定错误需要直接失败时，在应用的 `withExceptions` 回调中注册规则。`dontRetry` 匹配异常本身或来源链中的类型。`dontRetryWhen` 按谓词判断异常。
+队列任务遇到特定错误需要直接失败时，在应用的 `with_exceptions` 回调中注册规则。`dontRetry` 匹配异常本身或来源链中的类型。`dontRetryWhen` 按谓词判断异常。
 
 ```rust
 use std::{io, num::ParseIntError};

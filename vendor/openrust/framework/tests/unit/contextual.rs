@@ -91,13 +91,13 @@ fn multiple_consumers_and_aliased_service_implementations_preserve_identity() {
     let app = container();
     app.alias(ServiceKey::typed::<Consumer>(), "consumer")
         .unwrap();
-    app.instanceNamed("implementation", Arc::new(String::from("shared")))
+    app.instance_named("implementation", Arc::new(String::from("shared")))
         .unwrap();
     app.alias("implementation", "implementation-alias").unwrap();
-    app.whenMany([ServiceKey::named("consumer"), ServiceKey::typed::<Other>()])
+    app.when_many([ServiceKey::named("consumer"), ServiceKey::typed::<Other>()])
         .unwrap()
         .needs::<String>()
-        .giveService("implementation-alias")
+        .give_service("implementation-alias")
         .unwrap();
     let one = app.get::<Consumer>("consumer").unwrap();
     let two = app.make::<Other>().unwrap();
@@ -110,29 +110,29 @@ fn multiple_consumers_and_aliased_service_implementations_preserve_identity() {
 #[test]
 fn late_aliases_are_followed_and_retargeted_aliases_do_not_leave_stale_contexts() {
     let app = Container::default();
-    app.bindNamed::<String, _>("consumer", |c| c.get("dependency"))
+    app.bind_named::<String, _>("consumer", |c| c.get("dependency"))
         .unwrap();
-    app.whenNamed("consumer")
+    app.when_named("consumer")
         .unwrap()
-        .needsNamed::<String>("stale")
+        .needs_named::<String>("stale")
         .give(|_| Ok(Arc::new("stale".into())))
         .unwrap();
-    app.whenNamed("consumer")
+    app.when_named("consumer")
         .unwrap()
-        .needsNamed::<String>("live")
+        .needs_named::<String>("live")
         .give(|_| Ok(Arc::new("live".into())))
         .unwrap();
     app.alias("dependency", "stale").unwrap();
     app.alias("unrelated", "stale").unwrap();
     app.alias("dependency", "live").unwrap();
     assert_eq!(&*app.get::<String>("consumer").unwrap(), "live");
-    app.bindNamed::<String, _>("live", |_| Ok(Arc::new("raw".into())))
+    app.bind_named::<String, _>("live", |_| Ok(Arc::new("raw".into())))
         .unwrap();
     assert!(app.get::<String>("consumer").is_err());
 
-    app.whenNamed("consumer")
+    app.when_named("consumer")
         .unwrap()
-        .needsNamed::<String>("dependency")
+        .needs_named::<String>("dependency")
         .give(|_| Ok(Arc::new("canonical".into())))
         .unwrap();
     app.alias("target", "dependency").unwrap();
@@ -144,7 +144,7 @@ fn wrong_contextual_output_type_is_rejected_before_executing_the_factory() {
     let app = container();
     let calls = Arc::new(AtomicUsize::new(0));
     let observed = calls.clone();
-    app.addContextualBinding(
+    app.add_contextual_binding(
         ServiceKey::typed::<Consumer>(),
         ServiceKey::typed::<String>(),
         move |_| {
@@ -212,17 +212,17 @@ fn configuration_is_read_lazily_with_missing_defaults_nulls_and_checked_types() 
     let app = Container::default();
     let repo: Arc<dyn openrust::contracts::config::Repository> =
         Arc::new(openrust::config::Repository::new(Default::default()));
-    app.instanceNamed::<dyn openrust::contracts::config::Repository>("config", repo.clone())
+    app.instance_named::<dyn openrust::contracts::config::Repository>("config", repo.clone())
         .unwrap();
     app.bind::<Configured, _>(|c| Ok(Arc::new(Configured(c.get("$name")?, c.get("$optional")?))))
         .unwrap();
     app.when::<Configured>()
         .unwrap()
-        .needsNamed::<String>("$name")
-        .giveConfig("app.name", Some("fallback".into()))
+        .needs_named::<String>("$name")
+        .give_config("app.name", Some("fallback".into()))
         .unwrap()
-        .needsNamed::<Option<String>>("$optional")
-        .giveConfig("app.optional", Some("fallback".into()))
+        .needs_named::<Option<String>>("$optional")
+        .give_config("app.optional", Some("fallback".into()))
         .unwrap();
     assert_eq!(&*app.make::<Configured>().unwrap().0, "fallback");
     repo.set("app.name", "current".into()).unwrap();
@@ -242,11 +242,11 @@ fn tags_are_lazy_rewindable_ordered_and_preserve_duplicates_and_late_registratio
     let app = Container::default();
     let calls = Arc::new(AtomicUsize::new(0));
     let count = calls.clone();
-    app.bindNamed::<usize, _>("first", move |_| {
+    app.bind_named::<usize, _>("first", move |_| {
         Ok(Arc::new(count.fetch_add(1, Ordering::SeqCst)))
     })
     .unwrap();
-    app.instanceNamed("second", Arc::new(99_usize)).unwrap();
+    app.instance_named("second", Arc::new(99_usize)).unwrap();
     let absent = app.tagged::<usize>("services");
     app.tag(["first"], ["services"]);
     let tagged = app.tagged::<usize>("services");
@@ -263,12 +263,12 @@ fn tags_are_lazy_rewindable_ordered_and_preserve_duplicates_and_late_registratio
             .collect::<Vec<_>>(),
         [2, 99, 3]
     );
-    app.bindNamed::<Vec<Arc<usize>>, _>("consumer", |c| c.get("$services"))
+    app.bind_named::<Vec<Arc<usize>>, _>("consumer", |c| c.get("$services"))
         .unwrap();
-    app.whenNamed("consumer")
+    app.when_named("consumer")
         .unwrap()
-        .needsNamed::<Vec<Arc<usize>>>("$services")
-        .giveTagged("services")
+        .needs_named::<Vec<Arc<usize>>>("$services")
+        .give_tagged("services")
         .unwrap();
     assert_eq!(
         app.get::<Vec<Arc<usize>>>("consumer")

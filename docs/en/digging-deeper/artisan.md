@@ -18,11 +18,11 @@ On Windows, use `artisan.bat`. The compiled application accepts the same command
 
 Listing and help exit with status 0. Unknown commands and invalid arguments exit with status 1. Entries marked `Planned` have help available and exit with status 1 when invoked.
 
-Register command types through `withCommands`, using `app/console/commands/mod.rs`. Declare the console routes from `routes/console.rs` through `withRouting` in `bootstrap/app.rs`. A command registered under the same name replaces its planned entry.
+Register command types through `with_commands`, using `app/console/commands/mod.rs`. Declare the console routes from `routes/console.rs` through `with_routing` in `bootstrap/app.rs`. A command registered under the same name replaces its planned entry.
 
 In `routes/console.rs`, import `openrust::support::facades::Artisan`. `Artisan::command("inspire", …)` registers the closure with the console bound while `register()` runs and `purpose()` sets the description shown by Artisan help and list. The closure receives the command’s output and returns normally with exit status 0.
 
-`Application::handleCommand` calls the Console Kernel’s `handle` and `terminate` methods. After boot, the kernel loads deferred providers and registers the command catalog, built-in commands and application commands before dispatch.
+`Application::handle_command` calls the Console Kernel’s `handle` and `terminate` methods. After boot, the kernel loads deferred providers and registers the command catalog, built-in commands and application commands before dispatch.
 
 
 ## Source and Release Entrypoints {#source-and-release-entrypoints}

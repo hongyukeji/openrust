@@ -46,11 +46,11 @@ fn registration_resolves_existing_services_without_invoking_the_listener() {
         .unwrap();
     assert_eq!(*current, 2);
     assert_eq!(calls.load(Ordering::SeqCst), 1);
-    c.bindIf::<u32, _>(|_| panic!("conditional replacement"))
+    c.bind_if::<u32, _>(|_| panic!("conditional replacement"))
         .unwrap();
-    c.singletonIf::<u32, _>(|_| panic!("conditional replacement"))
+    c.singleton_if::<u32, _>(|_| panic!("conditional replacement"))
         .unwrap();
-    c.scopedIf::<u32, _>(|_| panic!("conditional replacement"))
+    c.scoped_if::<u32, _>(|_| panic!("conditional replacement"))
         .unwrap();
     assert_eq!(calls.load(Ordering::SeqCst), 1);
 }
@@ -68,13 +68,13 @@ fn first_instances_do_not_notify_but_replacements_return_and_deliver_the_supplie
     let first = Arc::new(1_u32);
     assert!(Arc::ptr_eq(
         &first,
-        &c.instanceNamed("number", first.clone()).unwrap()
+        &c.instance_named("number", first.clone()).unwrap()
     ));
     assert!(values.lock().unwrap().is_empty());
     let second = Arc::new(2_u32);
     assert!(Arc::ptr_eq(
         &second,
-        &c.instanceNamed("number", second.clone()).unwrap()
+        &c.instance_named("number", second.clone()).unwrap()
     ));
     assert!(Arc::ptr_eq(&second, &values.lock().unwrap()[0]));
 }
@@ -82,7 +82,7 @@ fn first_instances_do_not_notify_but_replacements_return_and_deliver_the_supplie
 #[test]
 fn aliases_are_fixed_on_listener_registration_and_raw_alias_replacements_are_independent() {
     let c = Container::default();
-    c.instanceNamed("original", Arc::new(1_u32)).unwrap();
+    c.instance_named("original", Arc::new(1_u32)).unwrap();
     c.alias("original", "alias").unwrap();
     let values = Arc::new(Mutex::new(Vec::new()));
     let seen = values.clone();
@@ -91,9 +91,9 @@ fn aliases_are_fixed_on_listener_registration_and_raw_alias_replacements_are_ind
         Ok(())
     })
     .unwrap();
-    c.instanceNamed("alias", Arc::new(9_u32)).unwrap();
+    c.instance_named("alias", Arc::new(9_u32)).unwrap();
     assert!(values.lock().unwrap().is_empty());
-    c.instanceNamed("original", Arc::new(2_u32)).unwrap();
+    c.instance_named("original", Arc::new(2_u32)).unwrap();
     assert_eq!(*values.lock().unwrap(), [2]);
     assert_eq!(*c.get::<u32>("alias").unwrap(), 9);
 }
@@ -185,11 +185,11 @@ fn failed_registration_keeps_the_listener_and_wrong_contracts_fail_without_invok
     let c = Container::default();
     c.rebinding::<u64, _>("number", |_, _| panic!("wrong listener"))
         .unwrap();
-    c.bindNamed::<u32, _>("number", |_| Ok(Arc::new(1)))
+    c.bind_named::<u32, _>("number", |_| Ok(Arc::new(1)))
         .unwrap();
     c.get::<u32>("number").unwrap();
     assert!(matches!(
-        c.bindNamed::<u32, _>("number", |_| Ok(Arc::new(2))),
+        c.bind_named::<u32, _>("number", |_| Ok(Arc::new(2))),
         Err(BindingResolutionError::TypeMismatch { .. })
     ));
     assert_eq!(*c.get::<u32>("number").unwrap(), 2);
@@ -225,9 +225,9 @@ fn before_and_construction_hooks_precede_listeners_and_instance_updates_skip_pos
             Ok(())
         };
         match stage {
-            "before" => c.beforeResolving(None, callback),
+            "before" => c.before_resolving(None, callback),
             "resolving" => c.resolving(None, callback),
-            _ => c.afterResolving(None, callback),
+            _ => c.after_resolving(None, callback),
         }
         .unwrap();
     }
@@ -344,7 +344,7 @@ fn scoped_registration_can_replace_a_raw_circular_alias_without_following_it_fir
     let c = Container::default();
     c.alias("second", "first").unwrap();
     c.alias("first", "second").unwrap();
-    c.scopedNamed::<u32, _>("first", |_| Ok(Arc::new(7)))
+    c.scoped_named::<u32, _>("first", |_| Ok(Arc::new(7)))
         .unwrap();
     assert_eq!(*c.get::<u32>("first").unwrap(), 7);
 }
@@ -366,7 +366,7 @@ fn extending_resolved_transients_and_evicted_singletons_rebuilds_for_the_listene
         })
         .unwrap();
         if shared {
-            c.forgetInstance(key::<u32>());
+            c.forget_instance(key::<u32>());
         }
         c.extend::<u32, _>(key::<u32>(), |value, _| Ok(Arc::new(*value + 10)))
             .unwrap();
@@ -387,7 +387,7 @@ fn extending_after_an_explicit_only_read_does_not_invent_history_or_notify() {
         Ok(())
     })
     .unwrap();
-    c.forgetInstance(key::<u32>());
+    c.forget_instance(key::<u32>());
     assert!(!c.resolved(key::<u32>()).unwrap());
     c.extend::<u32, _>(key::<u32>(), |value, _| Ok(Arc::new(*value + 1)))
         .unwrap();

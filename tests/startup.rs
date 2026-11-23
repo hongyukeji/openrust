@@ -131,7 +131,7 @@ fn artisan_installs_optional_routes_without_overwriting_or_duplication() {
             "channels",
             ".channels(routes::channels::register)",
         ),
-        ("install:grpc", "grpc", ".withGrpc(routes::grpc::register)"),
+        ("install:grpc", "grpc", ".with_grpc(routes::grpc::register)"),
     ] {
         let result = run(&[command]);
         assert!(
@@ -303,16 +303,16 @@ async fn api_routing_and_json_follow_the_prefix_while_cors_uses_configured_paths
             None => routing,
         };
         let app = Application::configure(root.0.clone())
-            .withConfig(if matches!(cors, Cors::ByHost) {
+            .with_config(if matches!(cors, Cors::ByHost) {
                 custom_cors
             } else {
                 api_config
             })
-            .withMiddleware(|middleware| {
+            .with_middleware(|middleware| {
                 middleware.group("api", [MiddlewareEntry::Instance(Arc::new(ApiMarker))]);
             })
-            .withRouting(routing)
-            .withExceptions(|exceptions| {
+            .with_routing(routing)
+            .with_exceptions(|exceptions| {
                 exceptions.shouldRenderJsonWhen(|request, _| {
                     request.isApiPath() || request.expectsJson()
                 });
@@ -922,7 +922,7 @@ async fn artisan_publishes_templates_modified_by_application_listeners() {
     }
 
     let mut app =
-        TestApp::create(|builder| builder.withEvents(DiscoverEvents::new(&[register]))).unwrap();
+        TestApp::create(|builder| builder.with_events(DiscoverEvents::new(&[register]))).unwrap();
     app.artisan(["stub:publish"]).await.assertSuccessful();
     assert!(!app.root().join("stubs/model.rs.stub").exists());
     assert!(!app.root().join("escape.stub").exists());
@@ -1561,14 +1561,14 @@ async fn all_providers_register_before_boot_and_success_is_idempotent() {
     let events = Arc::new(Mutex::new(Vec::new()));
     let middleware_events = events.clone();
     let application = Application::configure(root.0.clone())
-        .withConfig(|_, _| Ok(BTreeMap::from([("app".into(), json!({"name":"test app"}))])))
-        .withProviders(vec![
+        .with_config(|_, _| Ok(BTreeMap::from([("app".into(), json!({"name":"test app"}))])))
+        .with_providers(vec![
             Box::new(First(events.clone())),
             Box::new(Second(events.clone())),
             Box::new(Second(events.clone())),
         ])
-        .withMiddleware(move |_| middleware_events.lock().unwrap().push("middleware"))
-        .withRouting(Routing::new(|app| {
+        .with_middleware(move |_| middleware_events.lock().unwrap().push("middleware"))
+        .with_routing(Routing::new(|app| {
             assert_eq!(
                 &*app.container().make::<str>().unwrap(),
                 "service from second"
@@ -1618,17 +1618,17 @@ async fn grpc_registration_runs_after_providers_and_only_once() {
     let root = TestRoot::new("grpc-registration");
     let events = Arc::new(Mutex::new(Vec::new()));
     let mut application = Application::configure(root.0.clone())
-        .withConfig(|_, _| {
+        .with_config(|_, _| {
             Ok(BTreeMap::from([(
                 "app".into(),
                 json!({"name": "test app"}),
             )]))
         })
-        .withProviders(vec![
+        .with_providers(vec![
             Box::new(First(events.clone())),
             Box::new(Second(events.clone())),
         ])
-        .withGrpc(|app, _services| {
+        .with_grpc(|app, _services| {
             let events = app.container().make::<Mutex<Vec<&'static str>>>()?;
             events.lock().unwrap().push("grpc.register");
             Ok(())
@@ -1692,7 +1692,7 @@ fn listener_config(
 async fn start_bootstraps_through_the_http_kernel() {
     let root = TestRoot::new("start-before-boot");
     let application = Application::configure(root.0.clone())
-        .withProviders(vec![Box::new(FailingProvider)])
+        .with_providers(vec![Box::new(FailingProvider)])
         .create()
         .unwrap();
 
@@ -1713,8 +1713,8 @@ async fn failed_provider_prevents_listening_and_is_not_retried() {
     )
     .unwrap();
     let application = Application::configure(root.0.clone())
-        .withConfig(listener_config)
-        .withProviders(vec![Box::new(FailingProvider)])
+        .with_config(listener_config)
+        .with_providers(vec![Box::new(FailingProvider)])
         .create()
         .unwrap();
     let mut kernel = Kernel::new(application);
@@ -1757,13 +1757,13 @@ async fn welcome_route_reads_the_named_view_from_the_application_root() {
     fs::write(&custom_welcome, "custom welcome").unwrap();
 
     let application = Application::configure(root.0.clone())
-        .withConfig(|base, env| {
+        .with_config(|base, env| {
             let mut config = web_config(base, env)?;
             config.get_mut("app").unwrap()["name"] = json!("Startup Test");
             config.get_mut("view").unwrap()["paths"] = json!(["custom-views", "resources/views"]);
             Ok(config)
         })
-        .withRouting(Routing::default().web(web::register))
+        .with_routing(Routing::default().web(web::register))
         .create()
         .unwrap();
     let mut kernel = Kernel::new(application);
@@ -1861,8 +1861,8 @@ async fn public_mount_serves_files_after_application_routes() {
     }
 
     let application = Application::configure(root.0.clone())
-        .withConfig(web_config)
-        .withRouting(
+        .with_config(web_config)
+        .with_routing(
             Routing::new(|_| {
                 let mut router = Router::new();
                 router.add_route(&[Method::POST], "/post-only.txt", Arc::new(not_found))?;
@@ -1983,8 +1983,8 @@ async fn public_mount_serves_files_after_application_routes() {
     }
 
     let application = Application::configure(root.0.clone())
-        .withConfig(web_config)
-        .withRouting(Routing::default().web(web::register))
+        .with_config(web_config)
+        .with_routing(Routing::default().web(web::register))
         .create()
         .unwrap();
     let mut reversed = Kernel::new(application);
@@ -2035,8 +2035,8 @@ async fn public_mount_revalidates_get_and_head_using_file_modification_time() {
     };
     set_file("body{}", 1_700_000_000_123);
     let application = Application::configure(root.0.clone())
-        .withConfig(web_config)
-        .withRouting(Routing::default().web(web::register))
+        .with_config(web_config)
+        .with_routing(Routing::default().web(web::register))
         .create()
         .unwrap();
     let mut kernel = Kernel::new(application);
@@ -2117,8 +2117,8 @@ async fn public_mounts_follow_the_application_and_disk_configuration() {
     let settings = "APP_URL=http://localhost:8000\nAPP_PUBLIC_PATH=assets\nFILESYSTEM_WEB_URL=/assets\nFILESYSTEM_PUBLIC_ROOT=uploads\n";
     let application = |register: fn() -> Result<(), openrust::routing::RoutingError>| {
         Application::configure(root.0.clone())
-            .withConfig(web_config)
-            .withRouting(Routing::default().web(register))
+            .with_config(web_config)
+            .with_routing(Routing::default().web(register))
             .create()
             .unwrap()
     };
@@ -2192,7 +2192,7 @@ async fn public_mounts_follow_the_application_and_disk_configuration() {
         )
         .await;
         assert_eq!(
-            kernel.get_application().publicPath(),
+            kernel.get_application().public_path(),
             root.0.canonicalize().unwrap().join("override")
         );
         let configuration = kernel.get_application().config().unwrap();
@@ -2216,7 +2216,7 @@ async fn public_mounts_follow_the_application_and_disk_configuration() {
     )
     .unwrap();
     let mut app = application(web::register);
-    app.usePublicPath("override");
+    app.use_public_path("override");
     let mut kernel = Kernel::new(app);
     kernel.bootstrap().await.unwrap();
     check(
@@ -2234,7 +2234,7 @@ async fn public_mounts_follow_the_application_and_disk_configuration() {
         Some(json!(root.0.canonicalize().unwrap().join("override")))
     );
     assert_eq!(
-        kernel.get_application().publicPath(),
+        kernel.get_application().public_path(),
         root.0.canonicalize().unwrap().join("override")
     );
 
@@ -2277,14 +2277,14 @@ async fn public_mounts_follow_the_application_and_disk_configuration() {
         Ok(configuration)
     }
     let configured = Application::configure(root.0.clone())
-        .withConfig(custom_web_config)
-        .withRouting(Routing::default().web(web::register))
+        .with_config(custom_web_config)
+        .with_routing(Routing::default().web(web::register))
         .create()
         .unwrap();
     let mut kernel = Kernel::new(configured);
     kernel.bootstrap().await.unwrap();
     assert_eq!(
-        kernel.get_application().publicPath(),
+        kernel.get_application().public_path(),
         root.0.canonicalize().unwrap().join("assets")
     );
     check(&kernel, "/probe.txt", Some("application assets")).await;
@@ -2403,8 +2403,8 @@ async fn request_urls_use_the_explicit_url_then_request_origin_then_localhost() 
         )
         .unwrap();
         let app = Application::configure(root.0.clone())
-            .withConfig(config::load)
-            .withRouting(Routing::new(|_| {
+            .with_config(config::load)
+            .with_routing(Routing::new(|_| {
                 let mut router = openrust::routing::Router::new();
                 router.get("/probe", probe)?;
                 Ok(router)
@@ -2472,8 +2472,8 @@ async fn invalid_routes_fail_bootstrap_before_the_listener_opens() {
     )
     .unwrap();
     let application = Application::configure(root.0.clone())
-        .withConfig(listener_config)
-        .withRouting(Routing::new(|_| {
+        .with_config(listener_config)
+        .with_routing(Routing::new(|_| {
             use openrust::{contracts::routing::Registrar as _, routing::Router};
             let mut router = Router::new();
             router.add_route(&[], "/", Arc::new(unreachable_handler))?;

@@ -35,7 +35,7 @@ fn main() {
 
 Use `addHidden`, `getHidden` and the corresponding hidden methods for values that should stay out of log metadata. Log records carry public Context fields in a second JSON object, after the fields passed to the individual log call. Only the individual fields participate in placeholder substitution.
 
-Use `openrust::container::attributes::Context::<T>::new(key)` in compiled injection metadata. Add `.hidden()` to read hidden context, and `.withDefault(value)` or `.withDefaultUsing(factory)` for missing or null values. Values must deserialize to the declared Rust type. [Logging](../the-basics/logging.md)
+Use `openrust::container::attributes::Context::<T>::new(key)` in compiled injection metadata. Add `.hidden()` to read hidden context, and `.with_default(value)` or `.with_default_using(factory)` for missing or null values. Values must deserialize to the declared Rust type. [Logging](../the-basics/logging.md)
 
 ## Queue context
 

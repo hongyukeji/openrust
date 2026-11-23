@@ -1,5 +1,4 @@
 #![allow(non_snake_case, reason = "保留既定公开接口及命名")]
-
 //! Device/browser endpoints with the existing authentication, Session and CSRF path.
 use super::{
     AuthorizationViewParameters,
@@ -34,7 +33,7 @@ impl DeviceCodeController {
                 .await?
                 .and_then(|v| v.as_object().cloned())
                 .unwrap_or_default();
-            let server = AuthorizationServer::getFacadeRoot().map_err(internal)?;
+            let server = AuthorizationServer::get_facade_root().map_err(internal)?;
             let uri = URL::forRequest(request)
                 .map_err(internal)?
                 .route("passport.device", &[], true)
@@ -94,7 +93,7 @@ impl DeviceAuthorizationController {
             let Some(code) = user_code(request)? else {
                 return redirect(request, "passport.device", None);
             };
-            let server = AuthorizationServer::getFacadeRoot().map_err(internal)?;
+            let server = AuthorizationServer::get_facade_root().map_err(internal)?;
             let Some(device) = server.deviceCodeByUserCode(&code).await.map_err(internal)? else {
                 request
                     .session_mut()?
@@ -194,7 +193,7 @@ fn complete(request: &mut Request, approved: bool) -> HttpFuture<'_, Result<Resp
         if pending.user != user.getAuthIdentifier() {
             return Err(HttpError::Unauthenticated);
         }
-        let server = AuthorizationServer::getFacadeRoot().map_err(internal)?;
+        let server = AuthorizationServer::get_facade_root().map_err(internal)?;
         if let Err(error) = server
             .completeDeviceAuthorizationRequest(&pending.code, pending.user, approved)
             .await

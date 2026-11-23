@@ -72,7 +72,7 @@ fn create() -> Result<Application, Box<dyn std::error::Error + Send + Sync>> {
             .map(PathBuf::from)
             .unwrap_or_else(std::env::temp_dir),
     )
-    .withCommands(|artisan| {
+    .with_commands(|artisan| {
         artisan.add_command(Box::new(Print(
             CommandDefinition::new(
                 Syntax::new("printer:record").arg(Arg::new("index").required(true)),

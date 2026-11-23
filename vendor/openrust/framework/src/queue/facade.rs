@@ -18,14 +18,14 @@ pub struct QueueFacade;
 impl Facade for QueueFacade {
     type Service = QueueManager;
 
-    fn getFacadeAccessor() -> ServiceKey {
+    fn get_facade_accessor() -> ServiceKey {
         "queue".into()
     }
 }
 
 impl QueueFacade {
     pub fn manager() -> QueueResult<Arc<QueueManager>> {
-        Self::getFacadeRoot().map_err(Into::into)
+        Self::get_facade_root().map_err(Into::into)
     }
 
     pub fn register(name: &str, handler: Arc<dyn JobHandler>) -> QueueResult<()> {

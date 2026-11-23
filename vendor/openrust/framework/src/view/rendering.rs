@@ -158,7 +158,7 @@ impl<'a> RenderContext<'a> {
             return Ok(false);
         };
         container
-            .currentEnvironmentIs(patterns)
+            .current_environment_is(patterns)
             .map(bool::from)
             .map_err(|error| ViewError::RenderFailed(Box::new(error)))
     }

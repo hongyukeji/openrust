@@ -345,9 +345,9 @@ fn commands() -> Result<(), ConsoleError> {
 
 fn application(root: &Root) -> Application {
     Application::configure(root.0.clone())
-        .withConfig(configuration)
-        .withProviders(vec![Box::new(Observe)])
-        .withRouting(Routing::default().web(routes).commands(commands))
+        .with_config(configuration)
+        .with_providers(vec![Box::new(Observe)])
+        .with_routing(Routing::default().web(routes).commands(commands))
         .create()
         .unwrap()
 }
@@ -389,7 +389,7 @@ async fn http_and_artisan_observers_remain_in_their_application() {
     tokio::join!(request(left_address), request(right_address));
     assert_eq!(
         application(&left)
-            .handleCommand(&["listener:probe".into()])
+            .handle_command(&["listener:probe".into()])
             .await
             .unwrap(),
         0

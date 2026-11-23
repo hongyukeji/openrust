@@ -730,14 +730,14 @@ fn routes(_: &Application) -> Result<Router, RoutingError> {
 
 fn application(base: &Path) -> Application {
     Application::configure(base.to_owned())
-        .withConfig(|base, _| {
+        .with_config(|base, _| {
             let settings: serde_json::Map<String, Json> =
                 serde_json::from_slice(&std::fs::read(base.join("settings.json")).unwrap())
                     .unwrap();
             Ok(settings.into_iter().collect())
         })
-        .withProviders(vec![Box::new(Provider)])
-        .withRouting(Routing::new(routes))
+        .with_providers(vec![Box::new(Provider)])
+        .with_routing(Routing::new(routes))
         .create()
         .unwrap()
 }
@@ -754,7 +754,7 @@ async fn job_batches_artisan_process() {
         .parse::<i32>()
         .unwrap();
     assert_eq!(
-        application(&base).handleCommand(&args).await.unwrap(),
+        application(&base).handle_command(&args).await.unwrap(),
         status
     );
 }

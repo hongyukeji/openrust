@@ -162,7 +162,7 @@ assert_eq!(failures[0].downcast_ref::<ConnectionFailed>().unwrap().request.url.a
 
 Register `Http::globalMiddleware` in your application provider to wrap each outgoing hop; `Factory::globalMiddleware` also supports standalone clients. A wrapper receives the owned request and a continuation `next`, and returns `Box::pin(async move { ... })`. `next.run(request).await` returns the response or transport error, including timeout. Wrappers run in registration order and unwind in reverse; redirects and retries re-enter them. Registration applies to subsequently created pending requests, is shared by clones of the same factory, and stays isolated between applications.
 
-`globalRequestMiddleware` edits the request through `&mut Request` and returns `Result<()>`; `globalResponseMiddleware` maps a `Response` to `Result<Response>`. For a single pending request use `withMiddleware`, `withRequestMiddleware`, or `withResponseMiddleware`. Existing `beforeSending` and `afterResponse` callbacks remain available.
+`globalRequestMiddleware` edits the request through `&mut Request` and returns `Result<()>`; `globalResponseMiddleware` maps a `Response` to `Result<Response>`. For a single pending request use `with_middleware`, `withRequestMiddleware`, or `withResponseMiddleware`. Existing `beforeSending` and `afterResponse` callbacks remain available.
 
 ```rust
 use openrust::http::client::Http;

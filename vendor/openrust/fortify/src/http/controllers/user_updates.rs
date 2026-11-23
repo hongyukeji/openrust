@@ -15,7 +15,7 @@ pub(crate) async fn canonicalize(
 ) -> Result<(), HttpError> {
     if fortify.truthy("fortify.lowercase_usernames") && request.has(&[&fortify.username()]).await? {
         crate::actions::CanonicalizeUsername::new(
-            Resolver::<Fortify>::getFacadeRoot().map_err(internal)?,
+            Resolver::<Fortify>::get_facade_root().map_err(internal)?,
         )
         .handle(request)
         .await?;
@@ -29,7 +29,7 @@ impl ProfileInformationController {
         request: &'a mut Request,
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
-            let fortify = Resolver::<Fortify>::getFacadeRoot().map_err(internal)?;
+            let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;
             canonicalize(request, &fortify).await?;
             let user = Auth::user(request).await?.ok_or(HttpError::NotFound)?;
             let input = request.all().await?;
@@ -40,7 +40,7 @@ impl ProfileInformationController {
                 .clone();
             let updater = match updater {
                 Some(updater) => updater,
-                None => Resolver::<dyn contracts::UpdatesUserProfileInformation>::getFacadeRoot()
+                None => Resolver::<dyn contracts::UpdatesUserProfileInformation>::get_facade_root()
                     .map_err(internal)?,
             };
             let user = updater.update(user.as_ref(), &input).await?;
@@ -56,7 +56,7 @@ impl PasswordController {
         request: &'a mut Request,
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
-            let fortify = Resolver::<Fortify>::getFacadeRoot().map_err(internal)?;
+            let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;
             let user = Auth::user(request).await?.ok_or(HttpError::NotFound)?;
             let input = request.all().await?;
             let updater = fortify
@@ -66,7 +66,7 @@ impl PasswordController {
                 .clone();
             let updater = match updater {
                 Some(updater) => updater,
-                None => Resolver::<dyn contracts::UpdatesUserPasswords>::getFacadeRoot()
+                None => Resolver::<dyn contracts::UpdatesUserPasswords>::get_facade_root()
                     .map_err(internal)?,
             };
             let user = updater

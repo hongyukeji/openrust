@@ -43,10 +43,10 @@ impl Root {
     }
     async fn application(&self) -> Application {
         let mut app = Application::configure(self.0.clone())
-            .withConfig(configuration)
-            .withProviders(vec![Box::new(PassportServiceProvider)])
-            .withMigrations(MIGRATIONS)
-            .withRouting(Routing::new(routes))
+            .with_config(configuration)
+            .with_providers(vec![Box::new(PassportServiceProvider)])
+            .with_migrations(MIGRATIONS)
+            .with_routing(Routing::new(routes))
             .create()
             .unwrap();
         app.boot().await.unwrap();
@@ -382,7 +382,7 @@ fn lookup(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
     Box::pin(async move {
         let internal =
             |source: Box<dyn std::error::Error + Send + Sync>| HttpError::Internal { source };
-        let repo = openrust::container::Container::getInstance()
+        let repo = openrust::container::Container::get_instance()
             .make::<ClientRepository>()
             .map_err(|e| internal(Box::new(e)))?;
         let id = request.route("id").unwrap();
@@ -1063,7 +1063,7 @@ async fn verify_model_connections() -> DatabaseResult<Json> {
         Some("direct model".into())
     );
 
-    let manager = openrust::container::Container::getInstance()
+    let manager = openrust::container::Container::get_instance()
         .make::<DatabaseManager>()
         .map_err(openrust::database::DatabaseError::Unavailable)?;
     let main = manager.connection(Some("main"))?;
@@ -1163,7 +1163,7 @@ async fn mysql_direct_client_models_resolve_configuration_and_preserve_bound_tra
 
 fn scope_oracle(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let passport = openrust::container::Container::getInstance()
+        let passport = openrust::container::Container::get_instance()
             .make::<Passport>()
             .unwrap();
         let inherited = passport.withInheritedScopes.load(Ordering::Relaxed);
@@ -1359,7 +1359,7 @@ fn factory_create(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
         let Some(Value::Text(hash)) = stored.getAttributeValue("secret").unwrap() else {
             panic!("hash")
         };
-        let hasher = openrust::container::Container::getInstance()
+        let hasher = openrust::container::Container::get_instance()
             .make::<dyn openrust::contracts::hashing::Hasher>()
             .unwrap();
         assert!(

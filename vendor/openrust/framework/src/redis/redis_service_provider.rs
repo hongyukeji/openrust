@@ -18,7 +18,7 @@ impl ServiceProvider for RedisServiceProvider {
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
             let container = app.container();
-            container.singletonNamed("redis", |container| {
+            container.singleton_named("redis", |container| {
                 Ok(Arc::new(RedisManager::new(
                     container.get::<dyn Repository>("config")?,
                 )))

@@ -33,7 +33,7 @@ impl AuthenticatedSessionController {
         _: ValidatedFormRequest<LoginRequest>,
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
-            let fortify = Resolver::<Fortify>::getFacadeRoot().map_err(internal)?;
+            let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;
             let pipes = self.loginPipeline(&fortify, request)?;
             Pipeline::send(())
                 .through(pipes)
@@ -48,7 +48,7 @@ impl AuthenticatedSessionController {
         request: &'a mut Request,
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
-            let fortify = Resolver::<Fortify>::getFacadeRoot().map_err(internal)?;
+            let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;
             Auth::sessionGuard(request, fortify.guard().as_deref())?
                 .logout()
                 .await?;
@@ -105,7 +105,7 @@ impl AuthenticatedSessionController {
             ]);
             stages
         };
-        let limiter = Resolver::<LoginRateLimiter>::getFacadeRoot().map_err(internal)?;
+        let limiter = Resolver::<LoginRateLimiter>::get_facade_root().map_err(internal)?;
         stages
             .into_iter()
             .map(|name| {
@@ -156,10 +156,11 @@ fn run_stage<'a>(
             }
             "RedirectIfTwoFactorAuthenticatable" => {
                 if let Some(response) =
-                    Resolver::<dyn contracts::RedirectsIfTwoFactorAuthenticatable>::getFacadeRoot()
-                        .map_err(internal)?
-                        .handle(request)
-                        .await?
+                    Resolver::<dyn contracts::RedirectsIfTwoFactorAuthenticatable>::get_facade_root(
+                    )
+                    .map_err(internal)?
+                    .handle(request)
+                    .await?
                 {
                     return Ok(response);
                 }

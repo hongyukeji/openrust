@@ -247,7 +247,7 @@ async fn start(
     openrust::database::Connection,
 ) {
     let mut app = Application::configure(std::env::temp_dir())
-        .withConfig(|_, _| {
+        .with_config(|_, _| {
             Ok([(
                 "auth".into(),
                 json!({
@@ -257,7 +257,7 @@ async fn start(
             )]
             .into())
         })
-        .withRouting(Routing::default().api(api))
+        .with_routing(Routing::default().api(api))
         .create()
         .unwrap();
     app.boot().await.unwrap();
@@ -462,7 +462,7 @@ async fn gate_evaluated_delivers_original_arguments_and_raw_result_over_http() {
     }
 
     let app = Application::configure(std::env::temp_dir())
-        .withConfig(|_, _| {
+        .with_config(|_, _| {
             Ok([(
                 "auth".into(),
                 json!({
@@ -472,7 +472,7 @@ async fn gate_evaluated_delivers_original_arguments_and_raw_result_over_http() {
             )]
             .into())
         })
-        .withRouting(Routing::default().api(|| Route::get("/gate-event", probe)))
+        .with_routing(Routing::default().api(|| Route::get("/gate-event", probe)))
         .create()
         .unwrap();
     let mut kernel = Kernel::new(app);

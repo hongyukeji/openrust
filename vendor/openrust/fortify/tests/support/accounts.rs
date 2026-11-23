@@ -110,9 +110,15 @@ impl CanResetPassword for AccountUser {
     fn getEmailForPasswordReset(&self) -> &str {
         field(self, "email").unwrap()
     }
-    fn sendPasswordResetNotification<'a>(&'a self, token: &'a str) -> AuthFuture<'a, AuthResult<()>> {
+    fn sendPasswordResetNotification<'a>(
+        &'a self,
+        token: &'a str,
+    ) -> AuthFuture<'a, AuthResult<()>> {
         Box::pin(async move {
-            RESET_NOTIFICATIONS.lock().unwrap().push((self.getEmailForPasswordReset().to_owned(), token.to_owned()));
+            RESET_NOTIFICATIONS
+                .lock()
+                .unwrap()
+                .push((self.getEmailForPasswordReset().to_owned(), token.to_owned()));
             Ok(())
         })
     }
@@ -459,17 +465,30 @@ impl Listener for Observe {
     }
 }
 async fn start(settings: Json, callbacks: bool, configure: impl FnOnce(&Application)) -> Server {
-    let mut app=Application::configure(std::env::temp_dir()).withConfig(|_,_|Ok([
+    let mut app=Application::configure(std::env::temp_dir()).with_config(|_,_|Ok([
         ("app".into(),json!({"key":"a".repeat(32),"timezone":"UTC","url":"http://localhost","debug":true})),
         ("database".into(),json!({"default":"mysql","connections":{"mysql":{"url":std::env::var("OPENRUST_TEST_MYSQL_URL").unwrap()}}})),
         ("session".into(),json!({"driver":"database","table":"fortify_account_sessions","cookie":"fortify_session","lottery":[0,100]})),
         ("cache".into(),json!({"default":"array","stores":{"array":{"driver":"array"}}})),
         ("hashing".into(),json!({"driver":"bcrypt","bcrypt":{"rounds":4}})),
         ("auth".into(),json!({"defaults":{"guard":"web","passwords":"users"},"guards":{"web":{"driver":"session","provider":"users"}},"providers":{"users":{"driver":"eloquent","model":"AccountUser"}},"passwords":{"users":{"driver":"database","provider":"users","table":"fortify_default_resets","expire":60,"throttle":60},"accounts":{"driver":"database","provider":"users","table":"fortify_named_resets","expire":60,"throttle":60}}})),
-    ].into())).withProviders(vec![Box::new(Settings(settings)),Box::new(FortifyServiceProvider)]).withRouting(Routing::default().web(routes)).create().unwrap();
+    ].into())).with_providers(vec![Box::new(Settings(settings)),Box::new(FortifyServiceProvider)]).with_routing(Routing::default().web(routes)).create().unwrap();
     app.boot().await.unwrap();
-    let passwords: BTreeMap<String, openrust::translation::Line> = serde_json::from_str(include_str!("../../../framework/src/translation/stubs/passwords.json")).unwrap();
-    app.make::<openrust::translation::Translator>().await.unwrap().addLines(passwords.into_iter().map(|(key, value)| (format!("passwords.{key}"), value)), "en", None).unwrap();
+    let passwords: BTreeMap<String, openrust::translation::Line> = serde_json::from_str(
+        include_str!("../../../framework/src/translation/stubs/passwords.json"),
+    )
+    .unwrap();
+    app.make::<openrust::translation::Translator>()
+        .await
+        .unwrap()
+        .addLines(
+            passwords
+                .into_iter()
+                .map(|(key, value)| (format!("passwords.{key}"), value)),
+            "en",
+            None,
+        )
+        .unwrap();
     let database = app
         .make::<openrust::database::DatabaseManager>()
         .await
@@ -511,7 +530,9 @@ async fn start(settings: Json, callbacks: bool, configure: impl FnOnce(&Applicat
         fortify.updateUserProfileInformationUsing(actions.clone());
         fortify.updateUserPasswordsUsing(actions.clone());
     } else {
-        app.container().instance::<dyn contracts::ResetsUserPasswords>(actions.clone()).unwrap();
+        app.container()
+            .instance::<dyn contracts::ResetsUserPasswords>(actions.clone())
+            .unwrap();
         app.container()
             .instance::<dyn contracts::CreatesNewUsers>(actions.clone())
             .unwrap();
@@ -630,27 +651,43 @@ fn verification_link(request: &mut Request) -> HttpFuture<'_, Result<Response, H
         } else {
             std::time::SystemTime::now() + Duration::from_secs(600)
         };
-        let url = URL::forRequest(request)?
-            .temporarySignedRoute(
-                "verification.verify",
-                expires,
-                &[
-                    RouteParameter::named("id", id),
-                    RouteParameter::named("hash", hash),
-                ],
-                SignatureMode::Absolute,
-            )?;
+        let url = URL::forRequest(request)?.temporarySignedRoute(
+            "verification.verify",
+            expires,
+            &[
+                RouteParameter::named("id", id),
+                RouteParameter::named("hash", hash),
+            ],
+            SignatureMode::Absolute,
+        )?;
         Response::json(StatusCode::OK, json!({"url":url}))
     })
 }
 
 impl contracts::ResetsUserPasswords for Actions {
-    fn reset<'a>(&'a self, user: &'a mut dyn CanResetPassword, values: &'a RequestValue) -> HttpFuture<'a, Result<(), HttpError>> {
+    fn reset<'a>(
+        &'a self,
+        user: &'a mut dyn CanResetPassword,
+        values: &'a RequestValue,
+    ) -> HttpFuture<'a, Result<(), HttpError>> {
         Box::pin(async move {
-            Validator::make(validation_data(values)?, RuleSet::parse([("password", "required|string|min:8")])?)?.validate().await?;
+            Validator::make(
+                validation_data(values)?,
+                RuleSet::parse([("password", "required|string|min:8")])?,
+            )?
+            .validate()
+            .await?;
             policy(values, "default", false, true)?;
-            let hash = self.hasher.make(input(values, "password").as_str().unwrap().as_bytes(), &HashOptions::new()).await?;
-            let user = (user as &mut dyn std::any::Any).downcast_mut::<AccountUser>().unwrap();
+            let hash = self
+                .hasher
+                .make(
+                    input(values, "password").as_str().unwrap().as_bytes(),
+                    &HashOptions::new(),
+                )
+                .await?;
+            let user = (user as &mut dyn std::any::Any)
+                .downcast_mut::<AccountUser>()
+                .unwrap();
             user.setAttribute("password", hash);
             user.save().await?;
             Ok(())

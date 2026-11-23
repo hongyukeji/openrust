@@ -35,7 +35,7 @@ fn main() {
 
 透過 `addHidden`、`getHidden` 與對應方法保存不應進入日誌中繼資料的欄位。公開 Context 欄位作為第二個 JSON 物件附加到日誌，排在單筆日誌欄位之後。預留位置替換只讀取單筆日誌欄位。
 
-在編譯後的參數注入中繼資料中使用 `openrust::container::attributes::Context::<T>::new(key)`。透過 `.hidden()` 讀取隱藏欄位，透過 `.withDefault(value)` 或 `.withDefaultUsing(factory)` 為缺少或 null 設定預設值。欄位須可反序列化為宣告的 Rust 型別。 [日誌](../the-basics/logging.md)
+在編譯後的參數注入中繼資料中使用 `openrust::container::attributes::Context::<T>::new(key)`。透過 `.hidden()` 讀取隱藏欄位，透過 `.with_default(value)` 或 `.with_default_using(factory)` 為缺少或 null 設定預設值。欄位須可反序列化為宣告的 Rust 型別。 [日誌](../the-basics/logging.md)
 
 ## 佇列 Context
 

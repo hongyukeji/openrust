@@ -49,9 +49,9 @@ pub(super) fn install(
     container: &Arc<Container>,
     environment: Arc<str>,
 ) -> Result<(), BindingResolutionError> {
-    container.instanceNamed("env", environment)?;
+    container.instance_named("env", environment)?;
     let weak = Arc::downgrade(container);
-    container.resolveEnvironmentUsing(Some(Arc::new(move |patterns| {
+    container.resolve_environment_using(Some(Arc::new(move |patterns| {
         let container = weak
             .upgrade()
             .ok_or_else(|| BindingResolutionError::NotBound {

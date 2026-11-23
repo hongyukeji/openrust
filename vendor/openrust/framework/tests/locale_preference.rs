@@ -48,7 +48,7 @@ impl Root {
         let config_path = self.0.join("settings.json");
         fs::write(config_path, serde_json::to_vec(&app).unwrap()).unwrap();
         let app = Application::configure(self.0.clone())
-            .withConfig(|base, _| {
+            .with_config(|base, _| {
                 let mut app = json!({"locale":"en","fallback_locale":"en"});
                 app.as_object_mut().unwrap().extend(
                     serde_json::from_slice::<Value>(&fs::read(base.join("settings.json")).unwrap())
@@ -65,7 +65,7 @@ impl Root {
                     ),
                 ]))
             })
-            .withMiddleware(move |middleware| {
+            .with_middleware(move |middleware| {
                 let mut encrypt = EncryptCookies::new(Arc::new(
                     Encrypter::new([key; 32], Cipher::Aes256Cbc).unwrap(),
                 ));
@@ -82,7 +82,7 @@ impl Root {
                 );
                 configure(middleware);
             })
-            .withRouting(
+            .with_routing(
                 Routing::default()
                     .web(|| {
                         Route::get("/", inspect)?;
@@ -130,7 +130,7 @@ fn inspect(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
         Response::json(
             StatusCode::OK,
             json!({
-                "locale":App::currentLocale().unwrap(),"translation":Lang::get("message.hello",&BTreeMap::new(),None).unwrap(),
+                "locale":App::current_locale().unwrap(),"translation":Lang::get("message.hello",&BTreeMap::new(),None).unwrap(),
                 "preference":request.extensions().get::<LocaleSelection>().and_then(|selection|selection.preference.clone()),
                 "can_store":request.extensions().get::<LocaleSelection>().is_some_and(|selection|selection.can_store),
                 "languages":first,"after":request.getLanguages(),"session":request.hasSession()
@@ -140,7 +140,7 @@ fn inspect(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
 }
 fn switch(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        App::setLocale("zh-Hant").await.unwrap();
+        App::set_locale("zh-Hant").await.unwrap();
         Ok(Response::from("changed"))
     })
 }
@@ -284,7 +284,7 @@ async fn protected_preference_is_distinct_from_actual_locale_and_never_needs_ses
     let (status, headers, _) = send(&kernel, "GET", "/unsafe-store", &cookie, &[]).await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
     assert!(!has_locale_cookie(&headers));
-    assert_eq!(kernel.get_application().getLocale().unwrap(), "en");
+    assert_eq!(kernel.get_application().get_locale().unwrap(), "en");
 }
 
 #[tokio::test]
@@ -322,7 +322,7 @@ async fn invalid_cookie_values_and_removed_candidates_safely_fall_back() {
     let cookie = saved(&headers);
     let changed = root
         .kernel(json!({}), 2, false, |m| {
-            m.setLocale(&["en", "zh-Hans"]).unwrap();
+            m.set_locale(&["en", "zh-Hans"]).unwrap();
         })
         .await;
     let (_, _, value) = send(
@@ -445,7 +445,7 @@ async fn callback_query_cookie_header_default_priority_and_disabled_sources() {
     assert_eq!(headers["vary"], "Accept-Language");
     let empty = root
         .kernel(json!({"locale_cookie":false}), 4, false, |m| {
-            m.setLocale(&[]).unwrap();
+            m.set_locale(&[]).unwrap();
         })
         .await;
     let (status, headers, value) = send(&empty, "GET", "/?locale=bad_tag", &cookie, &[]).await;
@@ -576,13 +576,13 @@ async fn route_cache_directives_cannot_publish_cookie_variants() {
 async fn stateful_browser_api_uses_protected_preference_only_for_trusted_origins() {
     let root = Root::new();
     let app=Application::configure(root.0.clone())
-        .withConfig(|_,_| Ok(BTreeMap::from([
+        .with_config(|_,_| Ok(BTreeMap::from([
             ("app".into(),json!({"locale":"en","fallback_locale":"en","key":"a".repeat(32)})),
             ("session".into(),json!({"driver":"array","cookie":"stateful-session","path":"/","lottery":[0,100]})),
             ("sanctum".into(),json!({"stateful":["localhost"],"middleware":{"authenticate_session":false}})),
         ])))
-        .withMiddleware(|m|{m.statefulApi();})
-        .withRouting(Routing::default().api(|| {Route::get("/probe",inspect)?;Route::post("/preference/{locale}",store)?;Route::post("/body/{field}",store_body)?;Ok(())})).create().unwrap();
+        .with_middleware(|m|{m.statefulApi();})
+        .with_routing(Routing::default().api(|| {Route::get("/probe",inspect)?;Route::post("/preference/{locale}",store)?;Route::post("/body/{field}",store_body)?;Ok(())})).create().unwrap();
     let mut kernel = Kernel::new(app);
     kernel.bootstrap().await.unwrap();
     let (status, headers, _) = send_body(
@@ -907,7 +907,7 @@ async fn request_body_entry_preserves_safe_method_and_cookie_pipeline_restrictio
         let kernel = root
             .kernel(app, 33, exempt, move |m| {
                 if disabled {
-                    m.setLocale(&[]).unwrap();
+                    m.set_locale(&[]).unwrap();
                 }
             })
             .await;

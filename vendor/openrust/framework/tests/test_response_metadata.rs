@@ -87,9 +87,9 @@ fn page() -> openrust::view::View {
         .with("number", f64::INFINITY)
 }
 fn app() -> TestApp {
-    TestApp::create(|builder|builder.withConfig(|_,_|Ok([
+    TestApp::create(|builder|builder.with_config(|_,_|Ok([
     ("app".into(),json!({"env":"testing","url":"http://example.test","key":"12345678901234567890123456789012"}))
-].into())).withRouting(Routing::default().api(||Route::group(RouteGroup::new(),|router| {
+].into())).with_routing(Routing::default().api(||Route::group(RouteGroup::new(),|router| {
     router.post("/encoding/{mode}",encoding)?;
     router.get("/file",file_response)?;
     router.get("/target/{id}",target)?.name("target").setAction("TargetController@show")?;

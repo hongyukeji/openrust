@@ -100,14 +100,14 @@ async fn health_endpoint_negotiates_html_and_json_and_reports_failed_diagnostics
         let root = tempfile::tempdir().unwrap();
         let reports = Arc::new(AtomicUsize::new(0));
         let application = Application::configure(root.path().to_owned())
-            .withConfig(if debug {
+            .with_config(if debug {
                 |_, _| Ok([("app".into(), json!({"debug": true}))].into())
             } else {
                 |_, _| Ok([("app".into(), json!({"name": "<Health & \"Check\">"}))].into())
             })
-            .withProviders(vec![Box::new(Probe(failing))])
-            .withRouting(Routing::default().health("/up"))
-            .withExceptions({
+            .with_providers(vec![Box::new(Probe(failing))])
+            .with_routing(Routing::default().health("/up"))
+            .with_exceptions({
                 let reports = reports.clone();
                 move |exceptions| {
                     exceptions.report::<EventError>(move |_| {

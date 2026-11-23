@@ -152,7 +152,7 @@ async fn verify(config: Json, id: &str) {
     );
     let one = query();
     let two = query();
-    let (one, two) = tokio::join!(one.makeAsync(password("")), two.makeAsync(password("")));
+    let (one, two) = tokio::join!(one.make_async(password("")), two.make_async(password("")));
     let one = one.unwrap();
     let two = two.unwrap();
     assert_ne!(hash_of(&one), hash_of(&two));
@@ -165,14 +165,14 @@ async fn verify(config: Json, id: &str) {
 
     let (_other_app, other_db) = application(&config, "bcrypt", 4).await;
     let other = Account::queryOn(&other_db)
-        .makeAsync(password("plain password"))
+        .make_async(password("plain password"))
         .await
         .unwrap();
     assert!(hash_of(&other).starts_with("$2y$04$"));
     let (_argon_app, argon_db) = application(&config, "argon2id", 4).await;
     let argon = Account::queryOn(&argon_db);
     assert!(matches!(
-        argon.makeAsync(password(&old)).await,
+        argon.make_async(password(&old)).await,
         Err(DatabaseError::AttributeHashing(HashError::InvalidOptions))
     ));
     let (_invalid_app, invalid_db) = application(&config, "unsupported", 4).await;
