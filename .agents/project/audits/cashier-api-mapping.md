@@ -107,6 +107,6 @@
 | 原有具名账户 | cashier.default / drivers；匹配的 profile 整体优先，已有账户作用域不改变，CASHIER_LIVE 显式存在时保留旧模式覆盖 |
 | 未消费的上游配置 | path/webhook routes、currency locale、invoice renderer、seller/client-side token 等未实现功能不预设无效配置；相应浏览器 JS/路由由应用按正文装配，不宣称包默认行为等价 |
 
-配置缓存继续复用已有 Provider 的 configurationIsCached 分支，缓存命中不读取环境。API 版本仍按固定官方 stripe-php；候选库取舍见 [扩展复用决定](../plans/extension-reuse-decisions.md)。
+配置缓存继续复用已有 Provider 的 configurationIsCached 分支，缓存命中不读取环境。API 版本仍按固定官方 stripe-php；候选库取舍见 [扩展复用决定](extension-design-review.md#扩展复用取舍)。
 
 本记录是已交付接口的逐项映射，不是全量上游 API 完成声明。验收结果回填全量扩展审计 R2。

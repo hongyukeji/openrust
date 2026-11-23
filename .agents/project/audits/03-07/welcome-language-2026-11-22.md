@@ -433,7 +433,7 @@ Rust 1.94.0，所有临时源码、参考、日志、测试文件和浏览器材
 
 ### 范围与调研
 
-执行 [已确认计划](../../plans/locale-query-and-welcome-switching.md)，实施起点 HEAD `2c3b8102e`。保留既有框架版本、SetLocale 回调、仓库元信息以及其他协作者的框架对齐改动；本次授权仅开发与验收，未暂存、提交、推送、发布或操作开发数据。
+执行 [已确认计划](welcome-language-2026-11-22.md)，实施起点 HEAD `2c3b8102e`。保留既有框架版本、SetLocale 回调、仓库元信息以及其他协作者的框架对齐改动；本次授权仅开发与验收，未暂存、提交、推送、发布或操作开发数据。
 
 联网读取固定 Laravel Framework v13.40.0 / `1449bf241017087fbd38c118ecaabef3f6797fdc` 的 [InteractsWithInput::query](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/Concerns/InteractsWithInput.php)、[Request 的 query 合并／删除](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/Request.php)、[Arr::query](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/Arr.php) 、[HttpRequestTest 的 query与合并删除测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Http/HttpRequestTest.php) 和 [Authenticate::redirectUsing](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Auth/Middleware/Authenticate.php)。复用本项目 Request 查询集合、Arr 的 RFC3986 编码、Config 仓储和现有实例回调；不复制 PHP 静态回调状态，也不新增管理器。
 
@@ -979,3 +979,9 @@ Rust1.94.0、隔离源码及独占复用locale-save构建目录，经build_guard
 quality.py受影响fmt、框架库／相关测试及应用测试严格Clippy通过（第三方既有警告保留）；docs.py三语内容／构建／12组浏览器／6组双前缀全导航通过；browser-checks.py真实HTTP Kernel＋Chromium25组欢迎页三语、桌面手机、明暗、自动／固定／清除、无JS和自定义来源交互通过。14处交付与最终快照逐字节一致，source-match.json记录SHA256，材料在target/tmp/blade-app-helper-20261123/。未验完整workspace、其他引擎／实机、Windows、Docker和发布；未操作开发数据，未暂存／提交／推送。
 
 用户随后授权本轮本地提交，不包含推送或发布；仅提交本主题改动，保留其他协作者在途修改。
+
+## 已完成计划归档（2026-11-23）
+
+语言选择、偏好保存及欢迎页约定范围已完成；最新默认名称、可配置来源、候选发现和模板读取以现行规范及本文后续修订为准，过往lang默认值仅为历史事实。
+
+原计划 `locale-query-and-welcome-switching.md` 已删除；历史设计、调研及执行前快照可从提交 `f80096ea6` 的 `.agents/project/plans/locale-query-and-welcome-switching.md` 查阅。本文保留实际验收与未验边界，不因归档补计测试。

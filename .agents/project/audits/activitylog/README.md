@@ -2,7 +2,7 @@
 
 ## 当前范围与来源
 
-2026-11-21 按完整固定 Spatie 源码补齐先前子集。扩展负责人直接实现并验收必要的核心接口；仅实际并行文件冲突需要协调，不再遵循早期“不得修改核心／等待转交”的分工。本轮未暂存、提交或推送。其他扩展的状态见[交付计划](../../plans/operations-ecosystem.md)，本页不表示整个生态计划完成。
+2026-11-21 按完整固定 Spatie 源码补齐先前子集。扩展负责人直接实现并验收必要的核心接口；仅实际并行文件冲突需要协调，不再遵循早期“不得修改核心／等待转交”的分工。本轮未暂存、提交或推送。其他扩展的状态见[交付计划](../08-04/README.md)，本页不表示整个生态计划完成。
 
 主来源为 Spatie `fdcc5ee063cbf91114679336c4fbf92837196419`，完整归档位于 `/private/tmp/openrust-ecosystem-20261121/upstream/spatie-laravel-activitylog`；核对 `src/Support/*`、`src/Models/Activity.php`、`src/Models/Concerns/LogsActivity.php`、`src/Actions/*`、配置、迁移及测试。网页读取没有返回可用正文，因此依据已取得的固定 GitHub 主来源，不宣称已验证实时热门榜。旧版 `v0.x` 固定 `6d1a81924451e15f595f68c8dfb520ad6d6c44cf` 没有独立 Activitylog 包，复用其可信身份、显式策略及事务原则，不引入 SeaORM 或旧租户依赖。
 

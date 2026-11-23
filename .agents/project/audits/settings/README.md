@@ -1,6 +1,6 @@
 # 数据库设置底座 S1
 
-日期：2026-11-21。状态：S1 实现及本阶段验收完成，核范围本地提交；框架扩展交付闭合；后台产品及具体服务接入属于应用层按需工作。计划见[数据库动态设置](../../plans/database-settings.md)。
+日期：2026-11-21。状态：S1 实现及本阶段验收完成，核范围本地提交；框架扩展交付闭合；后台产品及具体服务接入属于应用层按需工作。设计边界及验收见本文。
 
 ## 范围与设计对账
 
@@ -73,3 +73,9 @@ node docs/tests/check_settings.mjs
 `cargo +1.94.0 clippy --workspace --all-targets --all-features --locked --offline -- -D warnings`、`fmt --all --check`、三语内容与构建、通用12组合和Settings12组合浏览器通过；`git diff --check`通过。证据包括 `results.json`、`provider-final.log`、`settings-{sqlite,postgres,mysql}.log`、`skeleton-feature-{off,on}.log`、`skeleton-reject-{settings,pay}.log`、`install-{off,on}.log`、`clippy.log`、`fmt.log`及`docs-*.log`。首轮新增测试的PathBuf与mut声明编译错误已修正，初轮日志不计成功结果。该验收为固定归档叠加本批修改，不将并行新支付／微信整理称作同一快照整合；支付自身迁移装配已由Plan在 `7edd0fbca` 独立修正并通过三库原生Artisan复验，见[支付验收](../pay/README.md#最终装配复验)。
 
 收尾确认专属target无人占用后，直接移除target／测试二进制及临时文档dist／cache；源码、日志、共享依赖、IDE target与旧正式API交付保留。`cleanup.json`记录表观5,492,260KiB，可用空间43,396,636→48,643,568KiB，实际净增5,246,932KiB（约5.373GB），剩余约49.811GB／46.390GiB；Docker卷前后均[]、删除0。没有修改开发数据库、推送或部署。
+
+## 已完成计划归档（2026-11-23）
+
+框架范围为类型化设置底座；后台产品、权限和具体服务适配由应用接入。保留单表版本锚点、事务冲突检测、显式异步加载及请求／任务作用域，不把数据库保存等同组件自动生效。
+
+原计划 `database-settings.md` 已删除；历史设计、调研及执行前快照可从提交 `f80096ea6` 的 `.agents/project/plans/database-settings.md` 查阅。本文保留实际验收与未验边界，不因归档补计测试。
