@@ -219,4 +219,6 @@ async fn check_reports(app: &mut TestApp) -> Result<(), Box<dyn std::error::Erro
 
 `Exceptions::report(error)` 和 `Application::report_owned(error)` 接收错误所有权，HTTP、Artisan 和 Worker 边界也保留共享错误。自定义调用方若只有借用的非透明错误，须先持有 `SharedException` 再借用；替身无法安全保存任意短期借用，因此明确返回错误，不降级为字符串快照。不同应用及并发任务不会共享替身记录。
 
-`throw_on_report()` 使直接的 `report(...).await` 返回含原始源错误的失败；`throw_first_reported()` 返回首条报告的错误，空列表则成功。这里使用 Rust `Result`，不会主动 panic。HTTP／Artisan／Worker 中原本消费日志失败的边界，自动传播报告错误的行为仍待补齐；测试暂用显式结果检查或 `throw_first_reported`。此边界尚不计为异常测试完整对齐。
+`throw_on_report()` 会在记录后中止受保护的测试调用。HTTP 调用通过自身的 `Result` 返回原始错误；`TestApp::try_artisan(args)` 返回 `Result<TestCommand, SharedException>`，也包括 `queue:work` 报告的任务错误。兼容的 `artisan(args)` 仍返回 `TestCommand`；显式启用重抛模式时，它以携带原始 `SharedException` 的 panic 重抛。需要可失败调用的 Rust 测试优先使用 `try_artisan`。
+
+其他异步入口可用 `Exceptions::catch_reported(future).await` 包裹。每次捕获使用词法任务局部通道，报告后返回原始错误并取消本次调用，后续代码不会继续执行；嵌套捕获恢复外层作用域，并发请求与取消不会遗留通道。捕获作用域外直接 `report(...).await` 会返回含原始错误的 `Err`，不会挂起任务。`throw_first_reported()` 返回首条报告的错误，空列表则成功。此测试控制不会把生产日志失败改成 panic。

@@ -6,7 +6,7 @@ mod database;
 mod database_assertions;
 mod database_migrations;
 mod database_truncation;
-mod exception_handler_fake;
+pub(crate) mod exception_handler_fake;
 mod facade_spy;
 pub use exception_handler_fake::{ExceptionHandlerFake, ExceptionType};
 mod json_assertions;

@@ -252,3 +252,13 @@ python3 -B tests/build_guard.py --workflow facade-alignment --target-dir target/
 - 仍有明确缺口：throw_on_report 目前在直接报告中以Result返回原始错误，HTTP/Artisan/Worker消费日志失败的边界尚未自动传播；withoutExceptionHandling模式、完整map/context/register和继承Fake/spy契约继续开发，不能将本批算作整个Exceptions或全部门面闭合。
 
 - 本批三语文档构建、异常测试章节桌面/移动端6项浏览器检查、全workspace格式检查通过：`exception-fake/docs.log`、`browser.log`、`fmt.log`。增量缓存按当前规则保留，临时容器已删除，验收记录保留。
+
+### Exceptions：重抛的原生异步传播（2026-11-24）
+
+- 前批公开的自动传播缺口已补：词法任务局部捕获通道将原始SharedException返回受保护入口，丢弃报告所在Future，使报告后的代码不继续执行；不通过线程全局状态、字符串或日志快照模拟异常。
+- `TestApp::call/get` 自动捕获并返回原始错误；新增 `try_artisan` 返回原生Result。保留原 `artisan -> TestCommand` 签名：只有显式throw模式才以SharedException原始payload panic，调用方可选fallible API避免panic。任意其他异步入口用正式 `Exceptions::catch_reported(future)` 捕获；捕获外直接report返回Err，不会无限挂起。
+- `exception-propagation/tests-final.log`：16项替身目标返回通过，其中4项外部环境早返回不计实测；实际12项覆盖原有7项及HTTP/Artisan传播、嵌套恢复、取消、显式兼容panic及并发应用隔离；另原门面/报告/渲染22项通过。
+- `exception-propagation/workers.log`：强制独立MySQL8.4.13、Redis8.10.3，共4项真实Artisan Worker（两后端分别正常记录与显式重抛）通过，仍可断言原任务Failure源类型/状态。测试表与临时容器已清理。没有将默认无环境的早返回算成后端通过。
+- 此批闭合的是受保护原生测试调用传播；没有宣称生产HTTP可跨网络传送Rust对象，亦未将Exceptions剩余map/context/register及整个门面对齐任务计为完成。
+
+- 本批严格workspace/all-targets Clippy复核、fmt、三语站点构建及6项浏览器检查通过（`clippy-second.log/fmt.log/docs.log/browser.log`）。失败Clippy的err().expect()已改正，原日志保留。

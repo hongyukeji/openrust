@@ -287,7 +287,7 @@ impl openrust::contracts::queue::JobHandler for FailedJob {
         })
     }
 }
-async fn worker_fake(driver: &str, url: Option<String>, redis: Option<u16>) {
+async fn worker_fake(driver: &str, url: Option<String>, redis: Option<u16>, rethrow: bool) {
     use openrust::{
         contracts::container::Container as _,
         database::DatabaseManager,
@@ -347,18 +347,35 @@ async fn worker_fake(driver: &str, url: Option<String>, redis: Option<u16>) {
         .unwrap();
     })
     .await;
-    let result = app
-        .artisan([
-            "queue:work",
-            driver,
-            "--queue=isolated-fake",
-            "--stop-when-empty",
-            "--sleep=0",
-            "--timeout=0",
-            "--tries=1",
-        ])
-        .await;
-    result.assert_exit_code(0);
+    let args = [
+        "queue:work",
+        driver,
+        "--queue=isolated-fake",
+        "--stop-when-empty",
+        "--sleep=0",
+        "--timeout=0",
+        "--tries=1",
+    ];
+    if rethrow {
+        fake.throw_on_report();
+        let error = app
+            .try_artisan(args)
+            .await
+            .expect_err("Worker 必须传播原任务错误");
+        let exception = Exception::Error(&error);
+        assert!(exception.downcast_ref::<QueueError>().is_some());
+        assert_eq!(
+            *exception
+                .downcast_ref::<Failure>()
+                .unwrap()
+                .0
+                .lock()
+                .unwrap(),
+            42
+        );
+    } else {
+        app.artisan(args).await.assert_exit_code(0);
+    }
     fake.assert_reported::<QueueError>();
     fake.assert_reported_count(1);
     let reports = fake.reported();
@@ -383,7 +400,7 @@ async fn worker_fake(driver: &str, url: Option<String>, redis: Option<u16>) {
 #[tokio::test]
 async fn mysql_artisan_worker_records_original_job_error() {
     match std::env::var("OPENRUST_TEST_MYSQL_URL") {
-        Ok(url) => worker_fake("database", Some(url), None).await,
+        Ok(url) => worker_fake("database", Some(url), None, false).await,
         Err(_) => assert!(
             std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none(),
             "缺少 MySQL 验收夹具"
@@ -393,10 +410,166 @@ async fn mysql_artisan_worker_records_original_job_error() {
 #[tokio::test]
 async fn redis_artisan_worker_records_original_job_error() {
     match std::env::var("OPENRUST_TEST_REDIS_PORT") {
-        Ok(port) => worker_fake("redis", None, Some(port.parse().unwrap())).await,
+        Ok(port) => worker_fake("redis", None, Some(port.parse().unwrap()), false).await,
         Err(_) => assert!(
             std::env::var_os("OPENRUST_REQUIRE_QUEUE_REDIS").is_none(),
             "缺少 Redis 验收夹具"
         ),
     }
+}
+
+#[tokio::test]
+async fn throw_mode_interrupts_http_and_artisan_with_original_errors_and_restores_scopes() {
+    let mut app = app().await;
+    let fake = app.fake_exceptions(&[]).await.unwrap();
+    fake.throw_on_report();
+    let error = match app.get("/failure").await {
+        Err(error) => error,
+        Ok(_) => panic!("HTTP 必须传播异常，不返回渲染后的成功调用"),
+    };
+    assert!(
+        Exception::Error(error.as_ref())
+            .downcast_ref::<HttpError>()
+            .is_some()
+    );
+    let error = app
+        .try_artisan(["fake:fail"])
+        .await
+        .expect_err("Artisan 必须传播异常");
+    assert!(
+        Exception::Error(&error)
+            .downcast_ref::<ConsoleError>()
+            .is_some()
+    );
+    fake.assert_reported_count(2);
+    App::set_facade_application(Some(app.app()), async {
+        // 受保护调用完成后不遗留通道；直接报告仍返回普通 Result 错误。
+        let error = Exceptions::report(Failure(Arc::new(Mutex::new(8))))
+            .await
+            .unwrap_err();
+        assert!(Exception::Error(&error).downcast_ref::<Failure>().is_some());
+    })
+    .await;
+}
+#[tokio::test]
+async fn capture_cancels_after_report_and_nested_scopes_restore_without_cross_task_leaks() {
+    let app = app().await;
+    App::set_facade_application(Some(app.app()), async {
+        Exceptions::fake().unwrap().throw_on_report();
+        let reached = AtomicUsize::new(0);
+        let outer = Exceptions::catch_reported(async {
+            let inner = Exceptions::catch_reported(async {
+                Exceptions::report(Failure(Arc::new(Mutex::new(1))))
+                    .await
+                    .unwrap();
+                reached.fetch_add(1, Ordering::SeqCst);
+            })
+            .await
+            .unwrap_err();
+            assert_eq!(
+                *Exception::Error(&inner)
+                    .downcast_ref::<Failure>()
+                    .unwrap()
+                    .0
+                    .lock()
+                    .unwrap(),
+                1
+            );
+            Exceptions::report(Failure(Arc::new(Mutex::new(2))))
+                .await
+                .unwrap();
+            reached.fetch_add(1, Ordering::SeqCst);
+        })
+        .await
+        .unwrap_err();
+        assert_eq!(
+            *Exception::Error(&outer)
+                .downcast_ref::<Failure>()
+                .unwrap()
+                .0
+                .lock()
+                .unwrap(),
+            2
+        );
+        assert_eq!(reached.load(Ordering::SeqCst), 0);
+    })
+    .await;
+    let (first, second) = tokio::join!(
+        Exceptions::catch_reported(async { 42 }),
+        Exceptions::catch_reported(async { 43 })
+    );
+    assert_eq!(first.unwrap(), 42);
+    assert_eq!(second.unwrap(), 43);
+}
+#[tokio::test]
+async fn cancelling_capture_drops_the_inflight_future_and_task_local_sender() {
+    let app = app().await;
+    App::set_facade_application(Some(app.app()), async {
+        Exceptions::fake().unwrap().throw_on_report();
+        let timed = tokio::time::timeout(
+            std::time::Duration::from_millis(5),
+            Exceptions::catch_reported(std::future::pending::<()>()),
+        )
+        .await;
+        assert!(timed.is_err());
+        let result = Exceptions::report(Failure(Arc::new(Mutex::new(1)))).await;
+        assert!(result.is_err());
+    })
+    .await;
+}
+#[tokio::test]
+async fn infallible_artisan_compatibility_path_panics_only_for_explicit_throw_mode_with_original_payload()
+ {
+    use futures_util::FutureExt as _;
+    let mut app = app().await;
+    app.fake_exceptions(&[]).await.unwrap().throw_on_report();
+    let payload = std::panic::AssertUnwindSafe(app.artisan(["fake:fail"]))
+        .catch_unwind()
+        .await
+        .expect_err("显式重抛不得伪装成 TestCommand");
+    let error = payload
+        .downcast::<SharedException>()
+        .expect("panic 必须保留原始共享错误");
+    assert!(
+        Exception::Error(error.as_ref())
+            .downcast_ref::<ConsoleError>()
+            .is_some()
+    );
+}
+
+#[tokio::test]
+async fn mysql_artisan_worker_propagates_original_job_error_in_throw_mode() {
+    match std::env::var("OPENRUST_TEST_MYSQL_URL") {
+        Ok(url) => worker_fake("database", Some(url), None, true).await,
+        Err(_) => assert!(
+            std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none(),
+            "缺少 MySQL 验收夹具"
+        ),
+    }
+}
+#[tokio::test]
+async fn redis_artisan_worker_propagates_original_job_error_in_throw_mode() {
+    match std::env::var("OPENRUST_TEST_REDIS_PORT") {
+        Ok(port) => worker_fake("redis", None, Some(port.parse().unwrap()), true).await,
+        Err(_) => assert!(
+            std::env::var_os("OPENRUST_REQUIRE_QUEUE_REDIS").is_none(),
+            "缺少 Redis 验收夹具"
+        ),
+    }
+}
+
+#[tokio::test]
+async fn concurrent_http_calls_keep_throw_signals_and_report_lists_application_local() {
+    let mut first = app().await;
+    let mut second = app().await;
+    let first_fake = first.fake_exceptions(&[]).await.unwrap();
+    first_fake.throw_on_report();
+    let second_fake = second.fake_exceptions(&[]).await.unwrap();
+    let (left, right) = tokio::join!(first.get("/failure"), second.get("/failure"));
+    assert!(left.is_err());
+    right
+        .unwrap()
+        .assert_status(StatusCode::INTERNAL_SERVER_ERROR);
+    first_fake.assert_reported_count(1);
+    second_fake.assert_reported_count(1);
 }

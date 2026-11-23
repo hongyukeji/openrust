@@ -139,7 +139,10 @@ impl TestApp {
         if let Some(identity) = &self.sanctum_identity {
             request.parts_mut().extensions.insert(identity.clone());
         }
-        let (parts, body) = kernel.handle(&mut request).await.into_parts();
+        let (parts, body) =
+            super::exception_handler_fake::catch_reported(kernel.handle(&mut request))
+                .await?
+                .into_parts();
         let response_time: std::time::SystemTime =
             self.clock.now().unwrap_or_else(jiff::Timestamp::now).into();
         let response_kind = parts.extensions.get::<crate::http::ResponseKind>().copied();
@@ -192,8 +195,20 @@ impl TestApp {
         &mut self,
         arguments: impl IntoIterator<Item = impl Into<OsString>>,
     ) -> TestCommand {
+        match self.try_artisan(arguments).await {
+            Ok(command) => command,
+            Err(error) => std::panic::panic_any(error),
+        }
+    }
+
+    /// 以 Result 捕获显式 throw_on_report，避免测试调用方依赖 panic。
+    pub async fn try_artisan(
+        &mut self,
+        arguments: impl IntoIterator<Item = impl Into<OsString>>,
+    ) -> Result<TestCommand, crate::contracts::debug::SharedException> {
         let arguments: Vec<_> = arguments.into_iter().map(Into::into).collect();
-        run_artisan(self.app.share(), arguments).await
+        super::exception_handler_fake::catch_reported(run_artisan(self.app.share(), arguments))
+            .await
     }
 
     pub(super) fn spawn_migration_command(

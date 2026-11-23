@@ -16,6 +16,43 @@ use std::{
     },
 };
 
+tokio::task_local! {
+    static REPORT_ESCAPE: Mutex<Option<tokio::sync::oneshot::Sender<SharedException>>>;
+}
+
+/// 只中止当前受保护调用；不把测试控制信号泄漏到并发任务或外层调用。
+pub(crate) async fn catch_reported<T>(
+    future: impl std::future::Future<Output = T>,
+) -> Result<T, SharedException> {
+    let (sender, mut receiver) = tokio::sync::oneshot::channel();
+    REPORT_ESCAPE
+        .scope(Mutex::new(Some(sender)), async move {
+            tokio::select! {
+                biased;
+                error = &mut receiver => Err(error.expect("报告通道随调用作用域存活")),
+                value = future => Ok(value),
+            }
+        })
+        .await
+}
+
+async fn escape_report(error: SharedException) -> LogResult<()> {
+    let captured = REPORT_ESCAPE
+        .try_with(|slot| {
+            slot.lock()
+                .unwrap()
+                .take()
+                .is_some_and(|sender| sender.send(error.clone()).is_ok())
+        })
+        .unwrap_or(false);
+    if captured {
+        // 受保护入口收到错误后丢弃本次 Future，报告后续代码不会继续执行。
+        std::future::pending::<LogResult<()>>().await
+    } else {
+        Err(LogError::WriteFailed(Box::new(error)))
+    }
+}
+
 fn root_error<'a>(error: &'a (dyn Error + 'static)) -> &'a (dyn Error + 'static) {
     let mut error = error;
     while error.is::<SharedException>() {
@@ -175,7 +212,7 @@ impl ExceptionHandler for ExceptionHandlerFake {
                 })?;
             self.reported.lock().unwrap().push(error.clone());
             if self.throw_on_report.load(Ordering::Acquire) {
-                return Err(LogError::WriteFailed(Box::new(error)));
+                return escape_report(error).await;
             }
             Ok(())
         })

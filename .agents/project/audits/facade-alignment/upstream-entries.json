@@ -1125,9 +1125,9 @@
           "evidence": "framework/tests/exceptions_facade.rs; existing exception_reporting and exception_rendering actual TCP consumers"
         },
         "throwOnReport": {
-          "local": "throw_on_report(): direct report returns typed source in Err; automatic boundary propagation remains pending",
-          "status": "partial",
-          "evidence": "exception_handler_fake: 7 local cases; forced MySQL8.4/Redis8 real Artisan queue:work each 1; actual fixed PHP ExceptionHandlerFake oracle; exception-fake/tests-fourth.log + workers-second.log + oracle.log"
+          "local": "throw_on_report; TestApp HTTP Result / try_artisan Result; catch_reported(Future) lexical capture and cancellation; compatibility artisan explicit typed panic",
+          "status": "verified-native-protected-invocations",
+          "evidence": "exception-propagation/tests-final.log: HTTP, Artisan, nested/cancel/concurrent control; workers.log: real MySQL8.4/Redis8 each normal + throw job; original errors retained"
         },
         "throwFirstReported": {
           "local": "throw_first_reported() -> LogResult<Arc<ExceptionHandlerFake>>; empty succeeds",
@@ -1160,7 +1160,6 @@
         "register and map, contextForException/buildContextForException runtime public contracts remain to implement and verify",
         "global throttleUsing callback replacement/default grouping vs native typed policy; full result/chain defaults",
         "isReporting borrowed zero-sized Rust value identity cannot imply PHP object identity; owned facade report uses Arc-backed identity; review remaining direct borrowed contract consumers during owned-error/fake work",
-        "throwOnReport automatic propagation at HTTP/Artisan/Worker boundaries that intentionally consume reporting errors; current direct report uses Result with original source; no panic-based substitute",
         "borrowed opaque exception retention requires explicit SharedException ownership; custom callers and full request/task/Worker failure restoration plus inherited base mocks/spy remain to audit",
         "withoutExceptionHandling handler mode, all dynamic Handler/config forwarding and full context/map/register contracts still require closure"
       ],
@@ -1188,7 +1187,8 @@
         "ownership": "Arc-owned original errors, predicates executed outside report-list lock; no string snapshots; borrowed opaque errors explicitly fail",
         "scope": "per-application container replacement; normal Facade is_fake inspects current scope resolved cache; fresh context false until resolution is intentional fixed base behavior",
         "testing": "TestApp.fake_exceptions retains handle across actual HTTP/Artisan calls; unselected errors delegate original report/render; selected HTTP keeps original rendering-only path",
-        "limits": "direct throwOnReport and throwFirstReported use Result; automatic boundary rethrow pending and not counted complete"
+        "limits": "Rust uses fallible lexical catch_reported for arbitrary async boundaries; TestApp HTTP and try_artisan guard automatically. Compatibility artisan emits typed SharedException panic only in explicit throw mode. Outside guard direct report returns LogError containing original source.",
+        "propagation": "task-local oneshot escapes recording future; protected caller returns original shared error and drops in-flight invocation, preventing post-report code; lexical nested restoration, cancellation, concurrent application isolation verified; no thread/global signal or string snapshot"
       }
     },
     {

@@ -219,4 +219,6 @@ async fn check_reports(app: &mut TestApp) -> Result<(), Box<dyn std::error::Erro
 
 `Exceptions::report(error)` 與 `Application::report_owned(error)` 接收錯誤所有權，HTTP、Artisan 與 Worker 邊界也保留共享錯誤。自訂呼叫端若只有借用的非透明錯誤，須先持有 `SharedException` 再借用；替身無法安全保存任意短期借用，因此明確傳回錯誤，不降級為字串快照。不同應用與並行任務不會共用替身記錄。
 
-`throw_on_report()` 使直接的 `report(...).await` 傳回含原始來源錯誤的失敗；`throw_first_reported()` 傳回首筆報告的錯誤，空列表則成功。此處使用 Rust `Result`，不會主動 panic。HTTP／Artisan／Worker 中原本消費日誌失敗的邊界，自動傳播報告錯誤的行為仍待補齊；測試暫用明確結果檢查或 `throw_first_reported`。此邊界尚不計為例外測試完整對齊。
+`throw_on_report()` 會在記錄後中止受保護的測試呼叫。HTTP 呼叫透過自身的 `Result` 傳回原始錯誤；`TestApp::try_artisan(args)` 傳回 `Result<TestCommand, SharedException>`，也包括 `queue:work` 報告的任務錯誤。相容的 `artisan(args)` 仍傳回 `TestCommand`；明確啟用重拋模式時，它以攜帶原始 `SharedException` 的 panic 重拋。需要可失敗呼叫的 Rust 測試優先使用 `try_artisan`。
+
+其他非同步入口可用 `Exceptions::catch_reported(future).await` 包裹。每次捕獲使用詞法任務區域通道，報告後傳回原始錯誤並取消本次呼叫，後續程式碼不再執行；巢狀捕獲恢復外層作用域，並行請求與取消不會遺留通道。捕獲作用域外直接 `report(...).await` 會傳回含原始錯誤的 `Err`，不會掛起任務。`throw_first_reported()` 傳回首筆報告的錯誤，空列表則成功。此測試控制不會將正式環境日誌失敗改為 panic。

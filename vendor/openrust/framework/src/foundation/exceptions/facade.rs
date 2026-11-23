@@ -23,6 +23,12 @@ impl Facade for Exceptions {
     }
 }
 impl Exceptions {
+    /// 捕获替身的重抛信号，以 Result 返回原始错误并中止本次异步调用。
+    pub async fn catch_reported<T>(
+        future: impl std::future::Future<Output = T>,
+    ) -> Result<T, crate::contracts::debug::SharedException> {
+        crate::testing::exception_handler_fake::catch_reported(future).await
+    }
     pub async fn report(error: impl Error + Send + Sync + 'static) -> LogResult<()> {
         let shared = if let Some(shared) = (&error as &(dyn Error + 'static))
             .downcast_ref::<crate::contracts::debug::SharedException>(
