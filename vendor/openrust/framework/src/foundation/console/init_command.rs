@@ -2,7 +2,7 @@
 
 use super::{
     install_routes_command::{build_application, initialize_routes},
-    source_edit::{file_error, lock_manifest, read, replace},
+    source_edit::{lock_manifest, read, replace},
 };
 use crate::{
     console::{
@@ -301,7 +301,18 @@ impl Command for InitCommand {
             }
             let updated = update_environment(&source, &values)?;
             if env_path.exists() {
-                replace(&env_path, &source, &updated)?;
+                let mut editor = crate::config::EnvironmentFile::open(&env_path)
+                    .and_then(|file| file.edit())
+                    .map_err(|e| ConsoleError::new(e.to_string()))?;
+                if editor.original() != source {
+                    return Err(ConsoleError::new("环境文件已在初始化期间变化，请重新执行"));
+                }
+                editor
+                    .replace_content(updated)
+                    .map_err(|e| ConsoleError::new(e.to_string()))?;
+                editor
+                    .save()
+                    .map_err(|e| ConsoleError::new(e.to_string()))?;
             } else {
                 create_environment(&env_path, &updated)?;
             }
@@ -553,7 +564,7 @@ fn value<'a>(env: &'a BTreeMap<String, String>, key: &str, default: &'a str) -> 
     env.get(key).map(String::as_str).unwrap_or(default)
 }
 fn parse_environment(source: &str) -> Result<BTreeMap<String, String>, ConsoleError> {
-    dotenvy::from_read_iter(source.as_bytes())
+    dotenvy::from_read_iter(source.trim_start_matches('\u{feff}').as_bytes())
         .map(|entry| {
             entry.map_err(|_| {
                 ConsoleError::new("Invalid .env syntax; correct the configuration and retry.")
@@ -565,65 +576,30 @@ fn update_environment(
     source: &str,
     values: &BTreeMap<String, String>,
 ) -> Result<String, ConsoleError> {
-    let old = parse_environment(source)?;
-    let mut updated = source.to_owned();
-    for (key, val) in values {
-        if old.get(key) == Some(val) && !(key == "APP_KEY" && val.is_empty()) {
-            continue;
-        }
-        if val.contains(['\n', '\r', '\0']) {
-            return Err(ConsoleError::new(format!(
-                "{key} cannot contain line breaks or NUL."
-            )));
-        }
-        let encoded = if key == "APP_KEY" && val.is_empty() {
-            String::new()
-        } else {
-            serde_json::to_string(val)
-                .map_err(|e| ConsoleError::new(e.to_string()))?
-                .replace('$', "\\$")
-        };
-        let assignment = format!("{key}={encoded}");
-        let mut found = false;
-        updated = updated
-            .split_inclusive('\n')
-            .map(|line| {
-                let text = line
-                    .trim_start()
-                    .strip_prefix("export ")
-                    .unwrap_or(line.trim_start());
-                if text
-                    .split_once('=')
-                    .is_some_and(|(name, _)| name.trim() == key)
-                {
-                    found = true;
-                    format!("{assignment}\n")
-                } else {
-                    line.to_owned()
-                }
+    let original = parse_environment(source)?;
+    crate::config::render_environment(
+        source,
+        values
+            .iter()
+            .filter(|(key, value)| {
+                // 不改写未变更项，保留原文件中的变量引用与引号。
+                original.get(*key) != Some(*value)
+                    || (key.as_str() == "APP_KEY" && value.is_empty())
             })
-            .collect();
-        if !found {
-            if !updated.is_empty() && !updated.ends_with('\n') {
-                updated.push('\n');
-            }
-            updated.push_str(&format!("{assignment}\n"));
-        }
-    }
-    Ok(updated)
+            .map(|(key, value)| {
+                (
+                    key.as_str(),
+                    value.as_str(),
+                    key == "APP_KEY" && value.is_empty(),
+                )
+            }),
+    )
+    .map_err(|e| ConsoleError::new(e.to_string()))
 }
 fn create_environment(path: &Path, content: &str) -> Result<(), ConsoleError> {
-    use std::io::Write as _;
-    let mut options = fs::OpenOptions::new();
-    options.write(true).create_new(true);
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::OpenOptionsExt as _;
-        options.mode(0o600);
-    }
-    let mut file = options.open(path).map_err(|e| file_error(path, e))?;
-    file.write_all(content.as_bytes())
-        .map_err(|e| file_error(path, e))
+    crate::config::EnvironmentFile::create(path, content)
+        .map(|_| ())
+        .map_err(|e| ConsoleError::new(e.to_string()))
 }
 fn prompt(
     env: &mut BTreeMap<String, String>,

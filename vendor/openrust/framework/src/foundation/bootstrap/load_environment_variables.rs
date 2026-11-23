@@ -69,12 +69,20 @@ impl LoadEnvironmentVariables {
 
     pub(crate) fn load(mut environment: Environment) -> Result<Environment, ConfigError> {
         let path = &environment.file;
-        let file_values = match dotenvy::from_path_iter(path) {
-            Ok(entries) => entries
-                .collect::<Result<std::collections::HashMap<_, _>, _>>()
-                .map_err(|error| file_error(path, error))?,
-            Err(error) if error.not_found() => Default::default(),
-            Err(error) => return Err(file_error(path, error)),
+        let file_values = match std::fs::read(path) {
+            Ok(bytes) => {
+                let bytes = zeroize::Zeroizing::new(bytes);
+                dotenvy::from_read_iter(bytes.strip_prefix(&[0xef, 0xbb, 0xbf]).unwrap_or(&bytes))
+                    .collect::<Result<std::collections::HashMap<_, _>, _>>()
+                    .map_err(|error| file_error(path, error))?
+            }
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Default::default(),
+            Err(source) => {
+                return Err(ConfigError::ReadFailed {
+                    path: path.to_owned(),
+                    source,
+                });
+            }
         };
         for (key, value) in file_values {
             environment

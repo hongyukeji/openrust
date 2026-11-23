@@ -59,6 +59,44 @@ pub fn application_name() -> String {
 
 用 `Config::string_or("app.name", "App")` 直接取得字串。缺少鍵、值為 `null` 或型別不符、設定儲存庫無法使用時，均使用傳入的預設值。需要嚴格讀取並處理錯誤時，用 `Config::string("app.name")?`。原始值讀取 `Config::get_or("app.name", Value::from("App"))?` 僅在缺少鍵時使用預設值，並保留顯式空值。`Config::get_many([("app.name", Value::from("App")), ("app.debug", Value::Bool(false))])?` 按輸入順序讀取多個鍵，各自套用預設值。讀取整組設定時，為結構體衍生 `serde::Deserialize`，再用 `Config::deserialize::<MailOptions>("mail")?`。
 
+## 編輯環境檔案 {#editing-environment-files}
+
+`EnvironmentFile` 修改磁碟中的環境檔案；`Config::set` 只修改目前的設定儲存庫，`Environment` 則是不可變的啟動快照。寫入檔案不會自動更新後兩者，也不會重新啟動服務。
+
+```rust
+use openrust::config::EnvironmentFile;
+
+// 應用程式引導後，使用實際選中的 .env 或 .env.<環境名稱>。
+let file = EnvironmentFile::for_application(&app)?;
+// 也可明確開啟既有檔案；create(path, content) 建立時不覆寫既有目標。
+// let file = EnvironmentFile::open(project_root.join(".env"))?;
+file.set("APP_NAME", "我的應用程式")?;
+file.set_many([("MAIL_HOST", "smtp.example.test"), ("MAIL_PORT", "587")])?;
+let name = file.get("APP_NAME")?;
+let exists = file.contains("MAIL_HOST")?;
+let raw = file.get_raw("APP_NAME")?; // 帶引號的原始值，不展開參照
+let values = file.all()?;
+file.remove("OBSOLETE_SETTING")?;
+```
+
+需要一次儲存多種變更時，建立獨立編輯工作階段：
+
+```rust
+let mut editor = file.edit()?;
+editor.set("APP_NAME", "我的應用程式")?
+    .set_expression("MAIL_FROM_NAME", "${APP_NAME}")?
+    .remove("OBSOLETE_SETTING")?;
+let changed = editor.save()?;
+```
+
+`set` 寫入字面字串，跳脫錢字號、引號和反斜線。需要 dotenv 變數展開時明確使用 `set_expression`，不會執行 shell 命令。`get`、`all` 使用應用程式的 dotenv 載入器解析，展開參照時也遵循其處理程序環境回退規則；結果均為字串，`null`、`false` 仍是文字。`get_raw` 傳回帶原有引號的值。目標變數重複定義時拒絕操作；`all` 對重複項沿用載入器的最後定義規則。未修改項的參照、註解、`export`、空白、UTF-8 BOM 和換行格式保留原樣。
+
+直接寫入先取得檔案鎖再讀取；編輯工作階段儲存時發現原檔案變更傳回 `Conflict`，鎖被佔用傳回 `Busy`，待對方完成後重試。批次操作失敗不改檔案，沒有變更時不更新修改時間。同目錄暫存檔完成寫入後原子替換，保留權限及 Unix 擁有者並在 Unix 同步至磁碟；Windows 使用 `ReplaceFileW` 保留目標 ACL。Unix 新檔案僅擁有者可讀寫，Windows 遵循目錄 ACL。穩定的 `<檔案名稱>.lock` 鎖定檔案在可能存在寫入者時必須保留，日常清理不要刪除。
+
+僅支援不超過 8 MiB 的一般 UTF-8 檔案，拒絕目標符號連結及 Windows 重新解析點。新變數名稱以 ASCII 字母或底線開頭，後續允許字母、數字、底線和點。唯讀檔案或語法錯誤不會被替換。協作寫入者透過同一鎖循序處理；繞過該鎖的外部編輯器仍可能與儲存競爭。`DurabilityUncertain` 表示替換已完成但目錄同步失敗，重試前應先核查磁碟內容。Windows 傳回 `ReplacementUncertain` 時會保留復原檔案並報告路徑，重試前應核對目標及復原檔案。 錯誤及編輯器偵錯輸出不含變數值，`content`、`all` 和讀取結果含明文，不應直接記錄到日誌。
+
+正式環境修改後應明確執行 `artisan config:cache` 並重新啟動常駐 HTTP、佇列和排程處理程序；未快取時，新啟動的應用程式讀取新檔案。既有快照不變，處理程序環境覆寫的優先順序保持原樣。`key:generate` 和 `init` 共用檔案寫入後端，繼續保留各自的金鑰驗證、正式環境確認和初始化規則。
+
 ## 設定快取 {#configuration-caching}
 
 以 `config:cache` 儲存應用程式重新啟動後的設定，包含服務提供者設定的值。後續 HTTP 與 Artisan 啟動會讀取這份快照。更新設定後，用 `config:clear` 移除快照，再重新啟動應用程式。

@@ -59,6 +59,44 @@ After replacing `app`, subsequent writes follow call order: replacing `app.ui` r
 
 Use `Config::string_or("app.name", "App")` to get a `String` directly. It returns the default if the key is absent, the value is null or another type, or the repository is unavailable. Use `Config::string("app.name")?` for strict reads. Raw `Config::get_or("app.name", Value::from("App"))?` defaults only when the key is absent and preserves an explicit null. `Config::get_many([("app.name", Value::from("App")), ("app.debug", Value::Bool(false))])?` reads keys with individual defaults in input order. To read an entire section as a struct, derive `serde::Deserialize` and use `Config::deserialize::<MailOptions>("mail")?`.
 
+## Editing Environment Files {#editing-environment-files}
+
+`EnvironmentFile` edits the application's environment file on disk. `Config::set` changes the current configuration repository; the `Environment` boot snapshot remains immutable. File edits do not automatically change either one or restart services.
+
+```rust
+use openrust::config::EnvironmentFile;
+
+// After application bootstrap: uses the actual selected .env or .env.<environment>.
+let file = EnvironmentFile::for_application(&app)?;
+// Or open an existing file explicitly; create(path, content) never overwrites one.
+// let file = EnvironmentFile::open(project_root.join(".env"))?;
+file.set("APP_NAME", "My application")?;
+file.set_many([("MAIL_HOST", "smtp.example.test"), ("MAIL_PORT", "587")])?;
+let name = file.get("APP_NAME")?;
+let exists = file.contains("MAIL_HOST")?;
+let raw = file.get_raw("APP_NAME")?; // token including quotes, without expansion
+let values = file.all()?;
+file.remove("OBSOLETE_SETTING")?;
+```
+
+Use an independent editor to commit several kinds of change together:
+
+```rust
+let mut editor = file.edit()?;
+editor.set("APP_NAME", "My application")?
+    .set_expression("MAIL_FROM_NAME", "${APP_NAME}")?
+    .remove("OBSOLETE_SETTING")?;
+let changed = editor.save()?;
+```
+
+`set` writes a literal string, escaping dollar signs, quotes and backslashes. Use `set_expression` explicitly for dotenv variable expansion; shell commands are never executed. `get` and `all` parse with the application's dotenv loader, including its process-environment fallback when expanding references. They return strings: `null` and `false` remain text. `get_raw` returns the original quoted token. Duplicate definitions of a targeted key are rejected; `all` follows the loader's last-definition rule for duplicates. Unchanged variables keep their original bytes, including expressions, comments, `export`, spacing, UTF-8 BOM and line endings.
+
+Simple writes acquire a per-file lock before reading; `save` detects a changed editor snapshot and returns `Conflict`. `Busy` means another writer holds the lock: retry after it finishes. Batch failure leaves the file unchanged. No-op saves preserve modification time. Replacement uses a temporary file in the same directory, preserves permissions and Unix ownership, and syncs on Unix; Windows uses `ReplaceFileW` to preserve the target ACL. New files are private to the owner on Unix; Windows follows directory ACLs. The stable `<filename>.lock` sidecar must remain in place while writers may run. Do not delete it during normal cleanup.
+
+Files must be regular UTF-8 files, at most 8 MiB; target symbolic links and Windows reparse points are rejected. New variable names use ASCII letters, digits, underscores and dots, beginning with a letter or underscore. Read-only files and malformed documents fail without replacement. Cooperating writers are serialized; tools that bypass the sidecar lock can still race with a save. A `DurabilityUncertain` error means replacement completed but directory synchronization failed: inspect disk state before retrying. A Windows `ReplacementUncertain` error preserves a recovery file and reports its path; inspect both files before retrying. Errors and editor debug output omit values; `content`, `all` and getter results contain plaintext and must not be logged indiscriminately.
+
+After editing production configuration, explicitly rebuild the configuration cache (`artisan config:cache`) and restart long-running HTTP, queue and scheduler processes. Without a cache, a newly booted application reads the changed file. Existing snapshots and process environment overrides retain their original precedence. `key:generate` and `init` share this file-writing backend while keeping their own key validation, production confirmation and initialization rules.
+
 ## Configuration Caching {#configuration-caching}
 
 Use `config:cache` to write the configuration from a fresh application boot, including service provider changes. Later HTTP and Artisan boots read the snapshot. Use `config:clear` to remove it before restarting with updated settings.

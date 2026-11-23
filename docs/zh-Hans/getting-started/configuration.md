@@ -59,6 +59,44 @@ pub fn application_name() -> String {
 
 用 `Config::string_or("app.name", "App")` 直接取得字符串。键缺失、值为 `null` 或类型不符、配置仓储不可用时，均使用传入的默认值。需要严格读取并处理错误时，用 `Config::string("app.name")?`。原始值读取 `Config::get_or("app.name", Value::from("App"))?` 仅在缺键时使用默认值，并保留显式空值。`Config::get_many([("app.name", Value::from("App")), ("app.debug", Value::Bool(false))])?` 按输入顺序读取多个键，各自使用默认值。读取整组配置时，为结构体派生 `serde::Deserialize`，再用 `Config::deserialize::<MailOptions>("mail")?`。
 
+## 编辑环境文件 {#editing-environment-files}
+
+`EnvironmentFile` 修改磁盘中的环境文件；`Config::set` 只修改当前配置仓储，`Environment` 则是不可变的启动快照。写文件不会自动更新后两者，也不会重启服务。
+
+```rust
+use openrust::config::EnvironmentFile;
+
+// 应用引导后，使用实际选中的 .env 或 .env.<环境名>。
+let file = EnvironmentFile::for_application(&app)?;
+// 也可显式打开已有文件；create(path, content) 创建时不覆盖已有目标。
+// let file = EnvironmentFile::open(project_root.join(".env"))?;
+file.set("APP_NAME", "我的应用")?;
+file.set_many([("MAIL_HOST", "smtp.example.test"), ("MAIL_PORT", "587")])?;
+let name = file.get("APP_NAME")?;
+let exists = file.contains("MAIL_HOST")?;
+let raw = file.get_raw("APP_NAME")?; // 带引号的原始值，不展开引用
+let values = file.all()?;
+file.remove("OBSOLETE_SETTING")?;
+```
+
+需要一次保存多种变更时，创建独立编辑会话：
+
+```rust
+let mut editor = file.edit()?;
+editor.set("APP_NAME", "我的应用")?
+    .set_expression("MAIL_FROM_NAME", "${APP_NAME}")?
+    .remove("OBSOLETE_SETTING")?;
+let changed = editor.save()?;
+```
+
+`set` 写入字面字符串，转义美元符号、引号和反斜线。需要 dotenv 变量展开时显式使用 `set_expression`，不会执行 shell 命令。`get`、`all` 使用应用的 dotenv 加载器解析，展开引用时也遵循其进程环境回退规则；结果均为字符串，`null`、`false` 仍是文本。`get_raw` 返回带原有引号的值。目标变量重复定义时拒绝操作；`all` 对重复项沿用加载器的最后定义规则。未修改项的引用、注释、`export`、空白、UTF-8 BOM 和换行格式保留原样。
+
+直接写入先取得文件锁再读取；编辑会话保存时发现原文件变化返回 `Conflict`，锁被占用返回 `Busy`，待对方完成后重试。批量操作失败不改文件，无变化时不更新修改时间。同目录临时文件完成写入后原子替换，保留权限及 Unix 所有者并在 Unix 同步落盘；Windows 使用 `ReplaceFileW` 保留目标 ACL。Unix 新文件仅所有者可读写，Windows 遵循目录 ACL。稳定的 `<文件名>.lock` 锁文件在可能存在写入者时必须保留，日常清理不要删除。
+
+仅支持不超过 8 MiB 的普通 UTF-8 文件，拒绝目标符号链接及 Windows 重解析点。新变量名以 ASCII 字母或下划线开头，后续允许字母、数字、下划线和点。只读文件或语法错误不会被替换。协作写入者通过同一锁串行处理；绕过该锁的外部编辑器仍可能与保存竞争。`DurabilityUncertain` 表示替换已完成但目录同步失败，重试前应先核查磁盘内容。Windows 返回 `ReplacementUncertain` 时会保留恢复文件并报告路径，重试前应核对目标及恢复文件。 错误及编辑器调试输出不含变量值，`content`、`all` 和读取结果含明文，不应直接记录到日志。
+
+生产环境改完后应显式执行 `artisan config:cache` 并重启常驻 HTTP、队列和调度进程；未缓存时，新启动的应用读取新文件。已有快照不变，进程环境覆盖的优先级保持原样。`key:generate` 和 `init` 共用文件写入后端，继续保留各自的密钥校验、生产确认和初始化规则。
+
 ## 配置缓存 {#configuration-caching}
 
 用 `config:cache` 保存应用重新启动后的配置，包括服务提供者设置的值。后续 HTTP 和 Artisan 启动会读取这份快照。更新配置后，用 `config:clear` 移除快照，再重启应用。

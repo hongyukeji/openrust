@@ -18,6 +18,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa"
 
 [[package]]
+name = "adotenv"
+version = "1.5.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "41faea4791d5885835896f3232bde6f9e288db1048c804c099196294f99e857a"
+
+[[package]]
 name = "aead"
 version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4228,6 +4234,7 @@ dependencies = [
 name = "openrust-framework"
 version = "0.0.0"
 dependencies = [
+ "adotenv",
  "argon2 0.6.0",
  "async-stream",
  "aws-config",
