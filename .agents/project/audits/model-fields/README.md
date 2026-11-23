@@ -409,3 +409,25 @@ Rust 1.94.0的fmt、框架all-targets严格Clippy、main构建通过。SQLite、
 收尾：`i18n-queries.py` 在SQLite、隔离PostgreSQL18及MySQL8.4执行真实筛选／排序／投影／更新／联表／关系／动态模型消费者，三库均通过，日志 `i18n-query-{sqlite,postgres,mysql}.log`。最终文档构建、12组页面浏览器、根与子路径6组三语导航全部通过，日志 `i18n-docs-{build,browser,scope}.log`。最终逐字节核对本轮代码、资源、测试、正文与已验收快照一致，User与实际生成物一致；暂存区为空、diff检查通过，本批数据库容器已回收。最终磁盘可用42,875,772 KiB，高于停线阈值，本轮未清理编译缓存。
 
 用户随后于2026-11-23追加授权将本节已验收改动本地提交；提交前重新核对全部代码、资源、测试与正文和已验收快照逐字节一致。没有推送或发布授权。
+
+## 开发库注释重建（2026-11-23）
+
+用户明确确认当前库为可清空的开发库并授权处理。本轮先核对 `.env`、无配置缓存／DB环境覆盖及Docker端口，目标限定本机 `127.0.0.1:5432` 的PostgreSQL `openrust`／public；未操作MySQL、Redis或其他数据库，未删除容器或数据卷。此前只读查询确认旧注释保存的是 `schema.tables.*`／`schema.columns.*`，不是生成器漏读。先用隔离PostgreSQL18真实迁移验证当前翻译资源可正常产生中文注释，再执行开发库重建。
+
+复用Rust1.94.0已验收隔离构建及 `model-fields-sync-20261123` 守卫工作流，正式main Artisan入口通过 `APP_BASE_PATH` 指向根项目，依次执行 `migrate:fresh --database=pgsql --force`、`model:fields User`、`model:fields User --check`、`migrate:status --database=pgsql`，退出码均为0。没有执行Seeder；旧开发数据已清空，users实际记录数为0。4项迁移均Ran，实际目录查询确认10张表及全部字段均有可读注释，无残留schema翻译键。User刷新时根文件已恢复正确中文，实际刷新结果逐字节不变，且只有一份生成宏。保留其他协作者未跟踪的18语言计划文件。
+
+证据在 `target/tmp/model-fields-sync-20261123/`：`dev-rebuild-preflight-{migrate.log,comments.json}`、`dev-rebuild-root-{fresh,refresh,check,status}.log`、`dev-rebuild-root-comments.json`，操作／核验脚本 `dev-rebuild-{preflight,root,verify}.py`。未修改框架、迁移或语言资源，本轮不重复计为框架三库／HTTP全量回归，未暂存、提交或推送。
+
+## 删除生成说明与完整生成区的恢复（2026-11-23）
+
+本批仅修复唯一、无额外属性的字段宏前整段说明被删除后无法刷新的问题：以真实宏的语法位置定位，只替换该宏并补回说明，业务源码保持原文。损坏的块说明、重复声明、孤立说明、宏属性与其他歧义仍明确失败，不放宽原失败保护。新增消费者覆盖说明删除、整块删除后的 E0599、显式调用已有程序恢复、恢复后编译与幂等检查；用户当前工作区 User 改动保留，所有写入式复现均在隔离副本执行。
+
+原因与边界：生成字段宏是真实 Rust 关联常量代码，并非仅供 IDE 的注释。`./artisan` 复用 `cargo run`，整块删除后模型引用的 TABLE／EMAIL 等不存在，编译先于命令执行失败。本批在真实 User 上重现相同的22项 E0599；使用已有二进制恢复后，重新执行真实 `./artisan model:fields User` 和 `--check` 均成功。不在脚本中偷偷回退旧二进制，不引入第二套 CLI 或构建期数据库查询；没有可用程序时先从版本控制恢复声明。三语正文明确该边界、来源程序与 APP_BASE_PATH 要求。
+
+调研与复用：[Cargo run 官方机制](https://doc.rust-lang.org/cargo/commands/cargo-run.html)、[IDE Helper 生成模型辅助信息的实践](https://github.com/barryvdh/laravel-ide-helper)。沿用本主题固定上游和已存在的 syn 源码定位、Schema 查询及命令实现；OpenRust 的编译期字段引用与仅生成 PHPDoc 的辅助信息用途不同，不能假装删除常量后仍能先运行生成器。
+
+实际验证使用既有 `target/tmp/model-fields-sync-20261123/source` 与独占 `cargo-target`，通过 build_guard，Rust 1.94.0，保持增量／正常并发。命令脚本 `deleted-fields-verify.py`、`deleted-fields-followup.py` 均保留在同目录。构建、框架 all-targets 严格 Clippy、SQLite／MySQL8.4.13／PostgreSQL18.7 的完整字段消费者通过；原损坏边界负例继续通过。真实 User 的迁移、说明删除后脚本恢复、22项编译失败、原二进制恢复、再次脚本刷新及重复 check 全通过，日志 `deleted-user-*.log`。生成器独立编译和源码空白检查通过。三语站点命令入口／正文检查及构建通过，日志 `deleted-fields-docs-final.log`；首轮文档使用调试产物命令违反既有正文规则，已改为保存的应用正式入口说明，没有放宽检查器。
+
+本批不证明删除整个宏后 `./artisan` 可以跳过编译自我恢复；该路径仍受真实 Rust 编译依赖约束。不修改用户开发数据库、不改 Artisan 脚本、不暂存、不提交、不推送。现有其他协作者的本地化资源及交接改动保留。
+
+补记：三语桌面／移动端在 `/` 与 `/docs/` 的12项浏览器检查通过，日志 `target/tmp/model-fields-sync-20261123/source/deleted-fields-browser.log`。本轮末次磁盘约33.19GB，高于32GB停线；按新规范保留可复用独占缓存，没有每批清空或删除根 target。
