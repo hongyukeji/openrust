@@ -154,3 +154,11 @@ python3 -B tests/build_guard.py --workflow facade-alignment --target-dir target/
 - `cleanup.log`：守卫持有全部 Cargo 锁后清理项目编译/文档产物，释放 71,288,389,632 字节，清后可用 102,876,880,896 字节；日志、源码、未提交改动、下载依赖、数据库和卷保留。先前停止尝试遇到 Operation not permitted，随后确认无活跃 Cargo 后才重试清理，未无锁删除。
 
 `resumed.log`：清理后实际重新编译，维护专项 5 项（含新增构造器、显式容器设置、无效默认配置与真实 Redis Worker）、状态 4 项、调度器 2 项再次通过。`clippy-resumed.log`：随后全工作区 all-targets 严格 Clippy 通过，完成最后的惰性错误构造修正；不把先前中断计通过。通用 Facade 基类测试 API 尚未全量裁决，因此本门面仍保持 partial；其余七个缺失核心门面仍在原清单，不因此变更整体完成率。
+
+### 本地交付复核（2026-11-24）
+
+- Cache 批次：`2312f8cfb988d6ce066829df28f3089bc73238ce`。
+- MaintenanceMode 批次：`11bad74faea68f4b0ac9fc77c91cbb9ff2fac758`。提交后复查剔除了三语配置页混入的并行 EnvironmentFile 章节，原文留在工作区，随后由所属功能的独立提交 `8e881a75f` 收口；没有将环境文件代码夹带进本批。未发布的临时维护提交 `5938b1b69` 已被上述最终提交替代。
+- `maintenance/docs-scoped.log` 与 `maintenance/browser-scoped.log` 是剔除并行段落后的文档构建和三语桌面／移动端 6 次页面复核，均通过。维护批次的所有代码与这份冻结验收源码逐字一致；后续新环境文档不属于维护批次。
+- `maintenance/clippy-combination.log`：以已提交 `8e881a75fe0de35375b8c244615174e257d25f82` 组合两批门面改动及环境文件功能，全工作区 `cargo clippy --workspace --all-targets -- -D warnings` 通过。既有维护／HTTP／Worker 行为证据继续按各自实际源码和日志范围使用，不把静态组合检查当成额外行为验收。
+- 均为本地提交，未推送。当前共有 39 个已提供入口的核心门面；新增 MaintenanceMode 不能直接算完整对齐。其余七个缺失入口是 Blade、Cloud、Date、Exceptions、File、ParallelTesting、Vite；原有门面、Facade 基类、Sms／扩展门面的剩余公开契约继续在本对账核对，未达全量闭合条件，不修改核心阶段完成率。
