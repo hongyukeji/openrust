@@ -25,6 +25,8 @@ fn store(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 }
 ```
 
+`email` 和 `email:rfc` 驗證預設 RFC 地址語法，允許僅產生警告的地址。尚未實作 DNS、spoof、strict 和 filter 模式；解析規則時，不支援的信箱參數傳回 `ValidationError::InvalidRule`，不會作為應用程式自訂規則處理。
+
 ## 資料庫驗證規則 {#database-validation-rules}
 
 用 `exists:table,column` 要求存在符合條件的資料列，用 `unique:table,column` 拒絕已有的值。省略欄位名稱時使用欄位名，在資料表名稱前加 `connection.` 可指定具名連線。兩條規則都使用寫入連線。陣列形式的 `exists` 用一次查詢檢查所有不同的值是否存在。

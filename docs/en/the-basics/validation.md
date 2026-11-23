@@ -25,6 +25,8 @@ fn store(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 }
 ```
 
+`email` and `email:rfc` validate the default RFC address syntax, including warning-only addresses. DNS, spoof, strict and filter modes are not implemented; unsupported email parameters return `ValidationError::InvalidRule` when rules are parsed. They are not treated as application-defined rules.
+
 ## Database Validation Rules {#database-validation-rules}
 
 Use `exists:table,column` to require a matching row and `unique:table,column` to reject an existing value. Omit the column to use the field name and prefix the table with `connection.` to select a named database connection. Both rules use the write connection. For an array, `exists` uses one query to check that all distinct values exist.

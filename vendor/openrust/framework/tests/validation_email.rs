@@ -67,7 +67,14 @@ async fn email_rules_preserve_nullable_wildcards_and_error_messages() {
             .unwrap();
         assert!(validator.validate().await.is_ok());
     }
-    for mode in ["email:dns", "email:strict", "email:spoof", "email:filter"] {
+    for mode in [
+        "email:dns",
+        "email:strict",
+        "email:spoof",
+        "email:filter",
+        "email:rfc,dns",
+        "email:unknown",
+    ] {
         assert!(RuleSet::parse([("email", mode)]).is_err());
     }
 }

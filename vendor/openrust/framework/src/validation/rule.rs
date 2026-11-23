@@ -449,6 +449,7 @@ impl Rule {
                         | "mimes"
                         | "mimetypes"
                         | "extensions"
+                        | "email"
                 ) =>
                 {
                     return Err(invalid());
