@@ -118,3 +118,37 @@ fn exceptions(exceptions: &mut openrust::foundation::configuration::Exceptions) 
     });
 }
 ```
+
+## URL 預設值與中介軟體優先級 {#url-defaults-middleware-priority}
+
+在 `with_middleware` 中，以設定預設值的中介軟體型別呼叫此函式，並照常將中介軟體註冊到路由或群組；相對優先級不會自動註冊中介軟體。`prepend_to_priority_list` 插入最早命中的型別之前，`append_to_priority_list` 插入最晚命中的型別之後。目標不存在時附加，已存在的型別不重複加入。相對項目在 `priority(...)` 之後裝配，不依賴設定呼叫順序。
+
+```rust
+use std::any::TypeId;
+use openrust::{
+    contracts::http::Middleware,
+    foundation::configuration,
+    routing::middleware::SubstituteBindings,
+};
+
+fn prioritize_url_defaults<T: Middleware + 'static>(middleware: &mut configuration::Middleware) {
+    middleware.prepend_to_priority_list(
+        [TypeId::of::<SubstituteBindings>()],
+        TypeId::of::<T>(),
+    );
+}
+```
+
+## 鏈式 URI 物件 {#fluent-uri-objects}
+
+`Uri::to`、`route`、`action`、`signed_route` 和 `temporary_signed_route` 復用同一 URL 服務及請求預設值。元件方法傳回新值並驗證修改的元件，不改變原 URI；可用 `with_scheme`、`with_host`、`with_port`、`with_path`、`with_query` 和 `with_fragment` 組合。
+
+```rust
+use openrust::{routing::RouteParameter, support::Uri};
+
+fn article_uri() -> Result<Uri, Box<dyn std::error::Error + Send + Sync>> {
+    Ok(Uri::route("article", &[RouteParameter::named("article", "42")], false)?
+        .with_query(&serde_json::json!({"sort": "new"}))?
+        .with_fragment("part")?)
+}
+```

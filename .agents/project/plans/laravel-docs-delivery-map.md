@@ -189,3 +189,5 @@ API 相关扩展自 2026-11-19 起纳入第一代。OIDC RP 与双应用 SSO 分
 2026-11-24 URL第二组：Url::full与固定PHP实际输出对齐；Request实例／门面支持验签过滤回调，实际HTTP覆盖过期链接的bootstrap渲染及默认回退。13项专项／回归通过，严格Clippy／fmt／三语构建通过。整章其他教程逐项继续核对；APP_URL来源优先和previous同源限制保留明确差异，见[逐组记录](../audits/docs-tutorials/README.md)。
 
 2026-11-24 Validation第三组：请求实例／门面、Validator与FormRequest已贯通消息和字段名；三语实际示例提取、真实JSON／Web具名会话／Precognition及关联回归32项通过，严格Clippy／fmt／三语构建通过。未知字段拒绝、email扩展模式及整章规则仍保持独立待核对，不能标为全章完成。
+
+2026-11-24 URL第四组：补齐相对优先级配置，实际HTTP观察默认值→模型绑定→后置顺序，14项模型／中间件／URL回归（真实MySQL8.4.13）及补强Uri工厂／组件通过。URL章各教程的入口、消费者和既有APP_URL／同源previous差异已逐节列在[教程记录](../audits/docs-tutorials/README.md)，不等同于完整类型审计或完全行为无差异。

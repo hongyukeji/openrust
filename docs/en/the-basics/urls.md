@@ -116,3 +116,37 @@ fn exceptions(exceptions: &mut openrust::foundation::configuration::Exceptions) 
     });
 }
 ```
+
+## URL defaults and middleware priority {#url-defaults-middleware-priority}
+
+In `with_middleware`, call this function with the type of your defaults middleware. Register the middleware on the route or group as usual. Relative priority does not register a middleware by itself. `prepend_to_priority_list` inserts before the earliest matching type; `append_to_priority_list` inserts after the latest. An absent target appends the type; a type already present is not inserted twice. These relative entries are applied after `priority(...)`, regardless of configuration call order.
+
+```rust
+use std::any::TypeId;
+use openrust::{
+    contracts::http::Middleware,
+    foundation::configuration,
+    routing::middleware::SubstituteBindings,
+};
+
+fn prioritize_url_defaults<T: Middleware + 'static>(middleware: &mut configuration::Middleware) {
+    middleware.prepend_to_priority_list(
+        [TypeId::of::<SubstituteBindings>()],
+        TypeId::of::<T>(),
+    );
+}
+```
+
+## Fluent URI objects {#fluent-uri-objects}
+
+`Uri::to`, `route`, `action`, `signed_route` and `temporary_signed_route` use the same URL service and request defaults. Component methods return a new value and validate the changed components; they do not mutate the original URI. Use `with_scheme`, `with_host`, `with_port`, `with_path`, `with_query` and `with_fragment` to compose the result.
+
+```rust
+use openrust::{routing::RouteParameter, support::Uri};
+
+fn article_uri() -> Result<Uri, Box<dyn std::error::Error + Send + Sync>> {
+    Ok(Uri::route("article", &[RouteParameter::named("article", "42")], false)?
+        .with_query(&serde_json::json!({"sort": "new"}))?
+        .with_fragment("part")?)
+}
+```

@@ -118,3 +118,37 @@ fn exceptions(exceptions: &mut openrust::foundation::configuration::Exceptions) 
     });
 }
 ```
+
+## URL 默认值与中间件优先级 {#url-defaults-middleware-priority}
+
+在 `with_middleware` 中，以设置默认值的中间件类型调用此函数，并照常将中间件注册到路由或组；相对优先级不会自动注册中间件。`prepend_to_priority_list` 插入到最早命中的类型之前，`append_to_priority_list` 插到最晚命中的类型之后。目标不存在时追加，已存在的类型不重复加入。相对条目在 `priority(...)` 之后装配，不依赖配置调用先后。
+
+```rust
+use std::any::TypeId;
+use openrust::{
+    contracts::http::Middleware,
+    foundation::configuration,
+    routing::middleware::SubstituteBindings,
+};
+
+fn prioritize_url_defaults<T: Middleware + 'static>(middleware: &mut configuration::Middleware) {
+    middleware.prepend_to_priority_list(
+        [TypeId::of::<SubstituteBindings>()],
+        TypeId::of::<T>(),
+    );
+}
+```
+
+## 链式 URI 对象 {#fluent-uri-objects}
+
+`Uri::to`、`route`、`action`、`signed_route` 和 `temporary_signed_route` 复用同一 URL 服务及请求默认值。组件方法返回新值并校验修改的组件，不改变原 URI；可用 `with_scheme`、`with_host`、`with_port`、`with_path`、`with_query` 和 `with_fragment` 组合。
+
+```rust
+use openrust::{routing::RouteParameter, support::Uri};
+
+fn article_uri() -> Result<Uri, Box<dyn std::error::Error + Send + Sync>> {
+    Ok(Uri::route("article", &[RouteParameter::named("article", "42")], false)?
+        .with_query(&serde_json::json!({"sort": "new"}))?
+        .with_fragment("part")?)
+}
+```

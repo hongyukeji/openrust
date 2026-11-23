@@ -79,3 +79,26 @@ URL第二组最终补验：清理后实际重编译，request_docs_generated三�
 最终组合32项通过（request_facade_full17、request_signature_tutorial5、request_validation_tutorial2、validation_options_tutorial3、validation_web2、三语提取3），0忽略。工作区严格Clippy之前用独立来源运行，未带优先级等在途实现；workspace/all-targets -D warnings、fmt和三语站点构建退出0。证据target/tmp/docs-chapters-20261124/validation-{final-v2,clippy,fmt,docs-build,doc-extraction}.log；首次夹具缺少Session trait导入编译失败已修正，未算作框架缺陷或通过证据。
 
 本组只关闭可选消息／属性参数和FormRequest对应钩子；完整Validation章仍须逐项核对，包括固定文档的未知字段拒绝和现有明确未实现的email扩展模式，不以本组32项回归关闭整章。
+
+## 第四组：URL 默认值优先级与完整章节教程对账
+
+新增configuration::Middleware::prepend_to_priority_list和append_to_priority_list。按固定Configuration/Middleware及Foundation/Http/Kernel的相对优先级机制，延后装配相对条目，允许priority在相对调用之前或之后设置；prepend选择最早目标，append选择最晚目标，无目标时追加，已有类型不重复加入。数组／类型名在Rust用TypeId列表表示。只在应用装配时处理，路由请求仍复用既有优先级排序，不新增每请求注册或进程全局状态。v0.x没有可复用的同等配置入口，使用当前MiddlewareRegistry。
+
+实际HTTP的路由故意按“后置→绑定→默认值”注册，应用装配后观察为defaults→binding→after。默认优先级与显式重设priority两种配置均通过，绑定得到真实模型值；同请求的命名路由、控制器action、query数组及Uri复用locale=fr默认值。独立候选经touch首方源码强制重编译；一次复制保留旧mtime导致Cargo使用旧库并报缺方法，已纠正缓存来源并重跑，不视为实现缺口。MySQL夹具两轮均安全回收。
+
+| 固定URL文档章节 | 本地入口与教程消费者 | 状态／差异 |
+| --- | --- | --- |
+| Generating URLs：路径、合并查询、覆盖、数组 | Url::to/query；url_defaults_tutorial实际HTTP、urls固定PHP夹具 | 通过；数组用显式UrlValue::Array保持顺序 |
+| Current URL：current/full | 第二组实际PHP oracle与TCP | 通过；full已修复规范化 |
+| Previous URL／path、session previousRoute／Uri | urls真实会话回归 | 通过既定同源策略；上游允许外部Referer，本项目保留同源过滤，不声称完全等价 |
+| Named routes：多个参数、额外查询、自定义模型键 | urls；eloquent_route_binding实际HTTP+MySQL8.4.13及SQLite | 通过；选定accessor/cast失败传播，模型不因生成URL额外查询 |
+| Signed／temporary／relative | request_signature_tutorial及urls实际HTTP | 通过；SystemTime表示过期时间，签名原始查询不改变 |
+| Request验证、忽略键／回调、signed中间件 | 第二组实例、门面、数组/Vec/回调与403实际TCP | 通过；忽略expires的现有防护保持 |
+| Responding to Invalid Signed Routes | with_exceptions render::<HttpError>匹配InvalidSignature | 过期自定义403及普通默认回退通过 |
+| Controller actions | Url::action；url_defaults_tutorial实际HTTP | 通过；Rust显式注册稳定action标识，不反射PHP类名 |
+| Fluent URI | Uri::to/route/action/signed_route/temporary_signed_route、with组件方法；url_defaults_tutorial HTTP及uri_helpers | 通过列明教程；签名结果与同请求Url输出一致，组件验证保留 |
+| Defaults及Middleware Priority | defaults→binding→after，含晚调用priority | 新增相对优先级入口并通过；默认值仍按请求隔离 |
+
+本表只核定本章教程组合，不替代每个UrlGenerator／Uri公开方法的完整类型审计。APP_URL显式优先是既有项目选择，固定文档默认使用请求来源；已在三语保留说明。全章记录列明这两项行为差异，不能称为逐字节完全等价。
+
+验收：独立MySQL8.4.13模型绑定2项（含SQLite回归）、中间件生命周期5项、默认值1项、urls6项，共14项通过。补强Uri所有工厂与链式组件后的默认值1项再通过。workspace/all-targets严格Clippy及三语构建通过；新增测试最终再定向严格Clippy和fmt。三语浏览器、根及/docs全部导航、无API导出的参考页检查均退出0。日志位于target/tmp/docs-chapters-20261124/defaults-*.log及chapters-browser.log；原源码和日志保留，不重复清空热缓存。

@@ -31,6 +31,8 @@ pub struct Middleware {
     pub(crate) trim_strings: TrimStrings,
     pub(crate) empty_strings_to_null: ConvertEmptyStringsToNull,
     pub(crate) set_locale: SetLocale,
+    prepend_priority: Vec<(Vec<TypeId>, TypeId)>,
+    append_priority: Vec<(Vec<TypeId>, TypeId)>,
     default_web: bool,
     default_api: bool,
     api_limiter: Option<String>,
@@ -54,6 +56,8 @@ impl Default for Middleware {
             trim_strings: TrimStrings::default(),
             empty_strings_to_null: ConvertEmptyStringsToNull::default(),
             set_locale: SetLocale::default(),
+            prepend_priority: Vec::new(),
+            append_priority: Vec::new(),
             default_web: true,
             default_api: true,
             api_limiter: None,
@@ -274,6 +278,7 @@ impl Middleware {
     }
 
     pub(crate) fn configure_web(&mut self, config: &dyn Repository) -> Result<(), ConfigError> {
+        self.configure_priority();
         if self.default_api {
             let mut stack = Vec::new();
             if let Some(limiter) = &self.api_limiter
@@ -456,6 +461,70 @@ impl Middleware {
     ) -> &mut Self {
         self.registry.aliases.insert(name.into(), middleware);
         self
+    }
+
+    /// 在候选类型中最早的项之前加入优先级，不改变未列出的中间件。
+    pub fn prepend_to_priority_list(
+        &mut self,
+        before: impl IntoIterator<Item = TypeId>,
+        prepend: TypeId,
+    ) -> &mut Self {
+        let before = before.into_iter().collect();
+        if let Some(entry) = self
+            .prepend_priority
+            .iter_mut()
+            .find(|(_, id)| *id == prepend)
+        {
+            entry.0 = before;
+        } else {
+            self.prepend_priority.push((before, prepend));
+        }
+        self
+    }
+
+    /// 在候选类型中最晚的项之后加入优先级；目标不存在时追加到列表。
+    pub fn append_to_priority_list(
+        &mut self,
+        after: impl IntoIterator<Item = TypeId>,
+        append: TypeId,
+    ) -> &mut Self {
+        let after = after.into_iter().collect();
+        if let Some(entry) = self
+            .append_priority
+            .iter_mut()
+            .find(|(_, id)| *id == append)
+        {
+            entry.0 = after;
+        } else {
+            self.append_priority.push((after, append));
+        }
+        self
+    }
+
+    fn configure_priority(&mut self) {
+        for (entries, after) in [
+            (&self.prepend_priority, false),
+            (&self.append_priority, true),
+        ] {
+            for (targets, id) in entries {
+                if self.registry.priority.contains(id) {
+                    continue;
+                }
+                let positions = self
+                    .registry
+                    .priority
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(i, candidate)| targets.contains(candidate).then_some(i));
+                let index = if after {
+                    positions.max().map(|i| i + 1)
+                } else {
+                    positions.min()
+                }
+                .unwrap_or(self.registry.priority.len());
+                self.registry.priority.insert(index, *id);
+            }
+        }
     }
 
     pub fn priority(&mut self, types: impl IntoIterator<Item = TypeId>) -> &mut Self {
