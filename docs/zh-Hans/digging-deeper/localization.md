@@ -525,3 +525,7 @@ app.useLangPath(app.base_path().join("translations"))?;
 在 HTTP、Artisan 或队列作用域内，`App::langPath("")` 与 `openrust::support::lang_path("")` 读取同一应用路径，也可使用 `App::useLangPath(...)`。目录属于整个应用，不应逐请求切换。已经解析的加载器保留原目录，因此应在加载服务之前配置，不依赖热切换。
 
 `lang:publish` 发布到此目录，默认保留已有文件；`--force` 覆盖可发布模板，`--existing` 只覆盖已经发布的模板。包资源可将 `app.langPath("vendor/package/...")` 传给 `publishesPaths` 作为目标；`vendor:publish` 支持明确配置的绝对路径，包括项目外目录，仍拒绝相对路径穿越及符号链接。包翻译的应用覆盖也从此语言目录加载。
+
+欢迎页视图通过当前语言资源中的 `welcome.documentation_locale` 获取文档目录。随附语言尚无对应文档时使用 `en`；自定义语言缺少此键时也使用 `en`。新增某种语言的文档后，在该语言的应用 `welcome.json` 中覆盖此键即可，例如 `"documentation_locale": "ja"`。这只改变文档链接，不改变页面语言。
+
+欢迎页介绍使用 `:name` 占位符，视图传入 `config('app.name')`。修改 `APP_NAME` 后，各随附语言的介绍都会使用新的应用名称，输出保持 HTML 转义。

@@ -1,0 +1,17 @@
+{
+  "heading": "لنبدأ",
+  "description": "طوّر تطبيقك باستخدام :name.",
+  "read": "اقرأ",
+  "documentation": "التوثيق",
+  "documentation_locale": "en",
+  "explore": "استكشف",
+  "source": "الشيفرة المصدرية",
+  "deployment": "دليل النشر",
+  "changelog": "عرض سجل التغييرات",
+  "language": "اللغة",
+  "follow_browser": "اتباع لغة المتصفح",
+  "theme": "المظهر",
+  "theme_light": "فاتح",
+  "theme_dark": "داكن",
+  "theme_system": "اتباع إعدادات النظام"
+}

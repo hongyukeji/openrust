@@ -1,0 +1,17 @@
+{
+  "heading": "Mari mulai",
+  "description": "Bangun aplikasi Anda dengan :name.",
+  "read": "Baca",
+  "documentation": "Dokumentasi",
+  "documentation_locale": "en",
+  "explore": "Jelajahi",
+  "source": "Kode sumber",
+  "deployment": "Panduan penerapan",
+  "changelog": "Lihat perubahan",
+  "language": "Bahasa",
+  "follow_browser": "Ikuti bahasa peramban",
+  "theme": "Tampilan",
+  "theme_light": "Terang",
+  "theme_dark": "Gelap",
+  "theme_system": "Ikuti sistem"
+}

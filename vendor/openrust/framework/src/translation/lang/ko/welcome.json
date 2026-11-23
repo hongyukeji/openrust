@@ -1,0 +1,17 @@
+{
+  "heading": "시작해 보세요",
+  "description": ":name 기반으로 애플리케이션을 개발하세요.",
+  "read": "읽기",
+  "documentation": "문서",
+  "documentation_locale": "en",
+  "explore": "살펴보기",
+  "source": "소스 코드",
+  "deployment": "배포 안내",
+  "changelog": "변경 내역 보기",
+  "language": "언어",
+  "follow_browser": "브라우저 설정 따르기",
+  "theme": "화면 모드",
+  "theme_light": "밝게",
+  "theme_dark": "어둡게",
+  "theme_system": "시스템 설정 따르기"
+}

@@ -1,0 +1,17 @@
+{
+  "heading": "มาเริ่มกันเลย",
+  "description": "สร้างแอปพลิเคชันของคุณด้วย :name",
+  "read": "อ่าน",
+  "documentation": "เอกสาร",
+  "documentation_locale": "en",
+  "explore": "สำรวจ",
+  "source": "ซอร์สโค้ด",
+  "deployment": "คู่มือการนำขึ้นใช้งาน",
+  "changelog": "ดูประวัติการเปลี่ยนแปลง",
+  "language": "ภาษา",
+  "follow_browser": "ใช้ภาษาของเบราว์เซอร์",
+  "theme": "รูปลักษณ์",
+  "theme_light": "สว่าง",
+  "theme_dark": "มืด",
+  "theme_system": "ใช้การตั้งค่าของระบบ"
+}

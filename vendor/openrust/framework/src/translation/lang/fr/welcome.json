@@ -1,0 +1,17 @@
+{
+  "heading": "Commençons",
+  "description": "Développez votre application avec :name.",
+  "read": "Lire la",
+  "documentation": "Documentation",
+  "documentation_locale": "en",
+  "explore": "Explorer le",
+  "source": "Code source",
+  "deployment": "Guide de déploiement",
+  "changelog": "Voir les changements",
+  "language": "Langue",
+  "follow_browser": "Suivre le navigateur",
+  "theme": "Apparence",
+  "theme_light": "Clair",
+  "theme_dark": "Sombre",
+  "theme_system": "Suivre le système"
+}

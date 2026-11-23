@@ -1,0 +1,17 @@
+{
+  "heading": "Bắt đầu nào",
+  "description": "Xây dựng ứng dụng của bạn với :name.",
+  "read": "Đọc",
+  "documentation": "Tài liệu",
+  "documentation_locale": "en",
+  "explore": "Khám phá",
+  "source": "Mã nguồn",
+  "deployment": "Hướng dẫn triển khai",
+  "changelog": "Xem các thay đổi",
+  "language": "Ngôn ngữ",
+  "follow_browser": "Theo ngôn ngữ trình duyệt",
+  "theme": "Giao diện",
+  "theme_light": "Sáng",
+  "theme_dark": "Tối",
+  "theme_system": "Theo hệ thống"
+}

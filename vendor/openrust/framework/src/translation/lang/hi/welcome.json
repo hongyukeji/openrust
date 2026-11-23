@@ -1,0 +1,17 @@
+{
+  "heading": "आइए शुरू करें",
+  "description": ":name के साथ अपना अनुप्रयोग बनाएँ।",
+  "read": "पढ़ें",
+  "documentation": "दस्तावेज़",
+  "documentation_locale": "en",
+  "explore": "देखें",
+  "source": "स्रोत कोड",
+  "deployment": "परिनियोजन मार्गदर्शिका",
+  "changelog": "बदलावों का विवरण देखें",
+  "language": "भाषा",
+  "follow_browser": "ब्राउज़र की भाषा अपनाएँ",
+  "theme": "दिखावट",
+  "theme_light": "हल्का",
+  "theme_dark": "गहरा",
+  "theme_system": "सिस्टम की सेटिंग अपनाएँ"
+}

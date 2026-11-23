@@ -1,8 +1,9 @@
 {
   "heading": "Let’s get started",
-  "description": "This application follows Laravel’s structure and development workflow in Rust.",
+  "description": "Build your application with :name.",
   "read": "Read the",
   "documentation": "Documentation",
+  "documentation_locale": "en",
   "explore": "Explore the",
   "source": "Source code",
   "deployment": "Deployment guide",

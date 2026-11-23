@@ -525,3 +525,7 @@ app.useLangPath(app.base_path().join("translations"))?;
 在 HTTP、Artisan 或佇列作用域內，`App::langPath("")` 與 `openrust::support::lang_path("")` 讀取相同的應用程式路徑，也可使用 `App::useLangPath(...)`。目錄屬於整個應用程式，不應逐請求切換。已解析的載入器保留原目錄，因此應在載入服務之前設定，不依賴熱切換。
 
 `lang:publish` 發布至此目錄，預設保留既有檔案；`--force` 覆寫可發布範本，`--existing` 只覆寫已發布的範本。套件資源可將 `app.langPath("vendor/package/...")` 傳給 `publishesPaths` 作為目標；`vendor:publish` 支援明確設定的絕對路徑，包括專案外目錄，仍拒絕相對路徑穿越及符號連結。套件翻譯的應用程式覆寫也從此語言目錄載入。
+
+歡迎頁視圖透過目前語言資源中的 `welcome.documentation_locale` 取得文件目錄。隨附語言尚無對應文件時使用 `en`；自訂語言缺少此鍵時也使用 `en`。新增某種語言的文件後，在該語言的應用程式 `welcome.json` 中覆寫此鍵即可，例如 `"documentation_locale": "ja"`。這只改變文件連結，不改變頁面語言。
+
+歡迎頁介紹使用 `:name` 預留位置，視圖傳入 `config('app.name')`。修改 `APP_NAME` 後，各隨附語言的介紹都會使用新的應用程式名稱，輸出維持 HTML 跳脫。

@@ -1,0 +1,17 @@
+{
+  "heading": "Başlayalım",
+  "description": "Uygulamanızı :name ile geliştirin.",
+  "read": "Okuyun",
+  "documentation": "Belgeler",
+  "documentation_locale": "en",
+  "explore": "Keşfedin",
+  "source": "Kaynak kodu",
+  "deployment": "Dağıtım kılavuzu",
+  "changelog": "Değişiklikleri görüntüle",
+  "language": "Dil",
+  "follow_browser": "Tarayıcı dilini kullan",
+  "theme": "Görünüm",
+  "theme_light": "Açık",
+  "theme_dark": "Koyu",
+  "theme_system": "Sistem ayarını kullan"
+}

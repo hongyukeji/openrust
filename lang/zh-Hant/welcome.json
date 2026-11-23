@@ -1,8 +1,9 @@
 {
   "heading": "開始使用",
-  "description": "本應用程式使用 Rust，沿用 Laravel 的專案結構與開發流程。",
+  "description": "使用 :name 建立你的應用程式。",
   "read": "閱讀",
   "documentation": "開發文件",
+  "documentation_locale": "zh-Hant",
   "explore": "查看",
   "source": "專案原始碼",
   "deployment": "部署指南",

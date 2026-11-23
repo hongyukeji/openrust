@@ -1,0 +1,17 @@
+{
+  "heading": "Let’s get started",
+  "description": "Build your application with :name.",
+  "read": "Read the",
+  "documentation": "Documentation",
+  "documentation_locale": "en",
+  "explore": "Explore the",
+  "source": "Source code",
+  "deployment": "Deployment guide",
+  "changelog": "View changelog",
+  "language": "Language",
+  "follow_browser": "Follow browser",
+  "theme": "Appearance",
+  "theme_light": "Light",
+  "theme_dark": "Dark",
+  "theme_system": "Follow system"
+}

@@ -1,0 +1,17 @@
+{
+  "heading": "Empecemos",
+  "description": "Crea tu aplicación con :name.",
+  "read": "Lee la",
+  "documentation": "Documentación",
+  "documentation_locale": "en",
+  "explore": "Explora el",
+  "source": "Código fuente",
+  "deployment": "Guía de despliegue",
+  "changelog": "Ver los cambios",
+  "language": "Idioma",
+  "follow_browser": "Usar el idioma del navegador",
+  "theme": "Apariencia",
+  "theme_light": "Claro",
+  "theme_dark": "Oscuro",
+  "theme_system": "Usar la configuración del sistema"
+}

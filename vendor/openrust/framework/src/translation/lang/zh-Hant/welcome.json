@@ -1,0 +1,17 @@
+{
+  "heading": "開始使用",
+  "description": "使用 :name 建立你的應用程式。",
+  "read": "閱讀",
+  "documentation": "開發文件",
+  "documentation_locale": "zh-Hant",
+  "explore": "查看",
+  "source": "專案原始碼",
+  "deployment": "部署指南",
+  "changelog": "查看更新日誌",
+  "language": "語言",
+  "follow_browser": "跟隨瀏覽器",
+  "theme": "主題",
+  "theme_light": "淺色",
+  "theme_dark": "深色",
+  "theme_system": "跟隨系統"
+}

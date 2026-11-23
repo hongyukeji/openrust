@@ -1,0 +1,17 @@
+{
+  "heading": "开始使用",
+  "description": "使用 :name 构建你的应用。",
+  "read": "阅读",
+  "documentation": "开发文档",
+  "documentation_locale": "zh-Hans",
+  "explore": "查看",
+  "source": "项目源码",
+  "deployment": "部署指南",
+  "changelog": "查看更新日志",
+  "language": "语言",
+  "follow_browser": "跟随浏览器",
+  "theme": "主题",
+  "theme_light": "浅色",
+  "theme_dark": "深色",
+  "theme_system": "跟随系统"
+}

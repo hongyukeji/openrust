@@ -1,0 +1,17 @@
+{
+  "heading": "Aan de slag",
+  "description": "Bouw je applicatie met :name.",
+  "read": "Lees de",
+  "documentation": "Documentatie",
+  "documentation_locale": "en",
+  "explore": "Verken de",
+  "source": "Broncode",
+  "deployment": "Implementatiehandleiding",
+  "changelog": "Wijzigingen bekijken",
+  "language": "Taal",
+  "follow_browser": "Browsertaal volgen",
+  "theme": "Weergave",
+  "theme_light": "Licht",
+  "theme_dark": "Donker",
+  "theme_system": "Systeeminstelling volgen"
+}

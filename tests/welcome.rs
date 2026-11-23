@@ -118,7 +118,9 @@ impl Root {
                 let mut values = config::load(base, env)?;
                 values.get_mut("app").unwrap()["debug"] = true.into();
                 values.get_mut("app").unwrap()["key"] = "a".repeat(32).into();
-                values.get_mut("app").unwrap()["name"] = "Welcome <Test>".into();
+                if env.get_utf8("APP_NAME")?.is_none() {
+                    values.get_mut("app").unwrap()["name"] = "Welcome <Test>".into();
+                }
                 values.get_mut("session").unwrap()["driver"] = "array".into();
                 if let Ok(bytes) = fs::read(base.join("locale-query.json")) {
                     values.get_mut("app").unwrap()["locale_query_parameter"] =
@@ -265,6 +267,11 @@ async fn send_status(
     (parts.headers, body)
 }
 fn assert_links(html: &str, locale: &str) {
+    let locale = if matches!(locale, "en" | "zh-Hans" | "zh-Hant") {
+        locale
+    } else {
+        "en"
+    };
     let repository = Application::REPOSITORY;
     for suffix in [
         format!("/blob/master/docs/{locale}/README.md"),
@@ -639,7 +646,7 @@ async fn missing_display_text_does_not_prevent_link_rendering() {
     assert_eq!(headers["content-language"], "fr");
     assert!(html.contains("welcome.heading"));
     assert_links(&html, "fr");
-    assert!(!html.contains("docs/en/README.md"));
+    assert!(html.contains("docs/en/README.md"));
 }
 
 #[tokio::test]
@@ -1863,5 +1870,65 @@ async fn locale_form_field_strict_types_and_unmatched_names_preserve_safe_writes
                 .iter()
                 .any(|v| v.to_str().unwrap().starts_with("locale="))
         );
+    }
+}
+
+#[tokio::test]
+async fn welcome_documentation_links_follow_application_language_resources() {
+    let root = Root::new("ja");
+    fs::create_dir_all(root.0.join("lang/ja")).unwrap();
+    fs::write(
+        root.0.join("lang/ja/welcome.json"),
+        serde_json::json!({"documentation_locale": "ja"}).to_string(),
+    )
+    .unwrap();
+    let kernel = root.kernel_with_browser(false).await;
+    let (headers, html) = send(&kernel, "/", &[]).await;
+    assert_eq!(headers["content-language"], "ja");
+    for path in ["README.md", "getting-started/deployment.md"] {
+        assert!(html.contains(&format!(
+            "href=\"{}/blob/master/docs/ja/{path}\"",
+            Application::REPOSITORY
+        )));
+    }
+    assert!(!html.contains("/blob/master/docs/en/"));
+}
+
+#[tokio::test]
+async fn welcome_description_uses_configured_application_name_in_every_bundled_language() {
+    let catalogs = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("vendor/openrust/framework/src/translation/lang");
+    for locale in [
+        "en", "zh-Hans", "zh-Hant", "ar", "de", "es", "fr", "hi", "id", "it", "ja", "ko", "nl",
+        "pt", "ru", "th", "tr", "vi",
+    ] {
+        let root = Root::new(locale);
+        fs::write(
+            root.0.join(".env"),
+            format!("APP_LOCALE={locale}\nAPP_FALLBACK_LOCALE=en\nAPP_NAME=\"My <Blog> & Co\"\n"),
+        )
+        .unwrap();
+        let catalog = fs::read(catalogs.join(locale).join("welcome.json")).unwrap();
+        fs::create_dir_all(root.0.join("lang").join(locale)).unwrap();
+        fs::write(
+            root.0.join("lang").join(locale).join("welcome.json"),
+            &catalog,
+        )
+        .unwrap();
+        let resource: serde_json::Value = serde_json::from_slice(&catalog).unwrap();
+        let description = resource["description"].as_str().unwrap();
+        assert_eq!(description.matches(":name").count(), 1, "{locale}");
+        let kernel = root.kernel_with_browser(false).await;
+        let (headers, html) = send(&kernel, "/", &[]).await;
+        assert_eq!(headers["content-language"], locale);
+        assert!(
+            html.contains(&format!(
+                "<p>{}</p>",
+                description.replace(":name", "My &lt;Blog&gt; &amp; Co")
+            )),
+            "{locale}"
+        );
+        assert!(!html.contains(":name"), "{locale}");
+        assert!(!html.contains("<Blog>"), "{locale}");
     }
 }

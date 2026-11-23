@@ -1,0 +1,17 @@
+{
+  "heading": "Los geht’s",
+  "description": "Entwickle deine Anwendung mit :name.",
+  "read": "Lesen Sie die",
+  "documentation": "Dokumentation",
+  "documentation_locale": "en",
+  "explore": "Entdecken Sie den",
+  "source": "Quellcode",
+  "deployment": "Bereitstellungsanleitung",
+  "changelog": "Änderungsprotokoll ansehen",
+  "language": "Sprache",
+  "follow_browser": "Browsereinstellung verwenden",
+  "theme": "Darstellung",
+  "theme_light": "Hell",
+  "theme_dark": "Dunkel",
+  "theme_system": "Systemeinstellung verwenden"
+}

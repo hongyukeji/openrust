@@ -1,0 +1,17 @@
+{
+  "heading": "Приступим",
+  "description": "Создавайте приложения с :name.",
+  "read": "Читайте",
+  "documentation": "Документация",
+  "documentation_locale": "en",
+  "explore": "Изучите",
+  "source": "Исходный код",
+  "deployment": "Руководство по развёртыванию",
+  "changelog": "История изменений",
+  "language": "Язык",
+  "follow_browser": "Как в браузере",
+  "theme": "Оформление",
+  "theme_light": "Светлое",
+  "theme_dark": "Тёмное",
+  "theme_system": "Как в системе"
+}
