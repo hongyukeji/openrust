@@ -134,7 +134,7 @@ fn register() -> Result<(), RoutingError> {
 
 `ApiResponse::empty()` 返回省略 `data` 的成功响应。HTTP 204 响应的正文为空。请给 `failure` 传入可安全展示给客户端的消息，需要返回字段错误时使用 `with_errors`。
 
-序列化失败交给[异常处理](errors.md)。内置异常和健康检查各自使用原有的响应格式。统一业务响应格式由 OpenRust 提供。
+序列化失败交给[异常处理](errors.md)。内置异常和健康检查各自使用原有的响应格式。统一业务响应格式单独提供。
 
 ## 重定向响应
 

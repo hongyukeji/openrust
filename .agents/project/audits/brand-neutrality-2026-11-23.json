@@ -1,0 +1,9 @@
+{
+  "retained": [
+    {
+      "file": "vendor/openrust/translation-database/README.md",
+      "text": "The schema and loading behavior follow `spatie/laravel-translation-loader` 2.8.3 (MIT). Upstream copyright and license are preserved in `LICENSE.spatie.md`. Locale fallback stays in OpenRust's translator; missing tables fail an explicit reload.",
+      "reason": "真实第三方包坐标和必要来源声明；恢复被误替换的准确名称。"
+    }
+  ]
+}

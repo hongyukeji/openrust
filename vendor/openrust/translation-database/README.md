@@ -65,4 +65,4 @@ pub async fn load_database_translations(
 
 The package does not register a provider or run migrations. Reads are explicit and asynchronous; translation lookups use the published catalog without SQL.
 
-The schema and loading behavior follow `spatie/the framework-translation-loader` 2.8.3 (MIT). Upstream copyright and license are preserved in `LICENSE.spatie.md`. Locale fallback stays in OpenRust's translator; missing tables fail an explicit reload.
+The schema and loading behavior follow `spatie/laravel-translation-loader` 2.8.3 (MIT). Upstream copyright and license are preserved in `LICENSE.spatie.md`. Locale fallback stays in OpenRust's translator; missing tables fail an explicit reload.

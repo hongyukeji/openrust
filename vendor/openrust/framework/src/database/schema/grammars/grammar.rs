@@ -794,7 +794,7 @@ impl Grammar {
         let constraint = self.identifier(name)?;
         let target = postgres_string(&qualified);
         let index = postgres_string(name);
-        // Earlier OpenRust migrations created standalone indexes for unique constraints.
+        // 早期迁移会为唯一约束创建独立索引，此处兼容这些索引。
         let body = format!(
             "declare index_schema text;
              begin

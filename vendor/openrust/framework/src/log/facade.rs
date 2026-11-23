@@ -75,7 +75,7 @@ impl Log {
     }
 
     /// Writes a log at the current request boundary and awaits asynchronous observers.
-    #[allow(non_snake_case, reason = "OpenRust asynchronous request log adapter")]
+    #[allow(non_snake_case, reason = "异步请求日志适配接口")]
     pub async fn logWithRequest(
         request: &mut crate::http::Request,
         level: Level,

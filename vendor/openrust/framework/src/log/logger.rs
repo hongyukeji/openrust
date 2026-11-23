@@ -234,7 +234,7 @@ impl Logger {
     }
 
     /// Writes a record, then awaits observers that require the current request.
-    #[allow(non_snake_case, reason = "OpenRust asynchronous request log adapter")]
+    #[allow(non_snake_case, reason = "异步请求日志适配接口")]
     pub async fn logWithRequest(
         &self,
         request: &mut crate::http::Request,

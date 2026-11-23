@@ -134,7 +134,7 @@ fn register() -> Result<(), RoutingError> {
 
 `ApiResponse::empty()` 回傳省略 `data` 的成功回應。HTTP 204 回應的本文為空。請給 `failure` 傳入可安全顯示給用戶端的訊息，需要回傳欄位錯誤時使用 `with_errors`。
 
-序列化失敗交給[例外處理](errors.md)。內建例外和健康檢查各自使用原有的回應格式。統一業務回應格式由 OpenRust 提供。
+序列化失敗交給[例外處理](errors.md)。內建例外和健康檢查各自使用原有的回應格式。統一業務回應格式另外提供。
 
 ## 重新導向回應
 

@@ -49,7 +49,7 @@ The `App` facade currently exposes these locale methods; other the framework App
 
 ### Browser Language {#welcome-page-language}
 
-OpenRust automatically installs `openrust::http::middleware::SetLocale`. Applications do not need a locale middleware file or manual registration in `bootstrap/app.rs`.
+The application automatically installs `openrust::http::middleware::SetLocale`. Applications do not need a locale middleware file or manual registration in `bootstrap/app.rs`.
 
 Default candidates are discovered once at HTTP startup from framework and application translation resources; the framework provides all 18 bundled locales. The middleware shares the request language parser for its configured negotiation header, respects quality weights, skips `q=0`, and keeps browser order for equal weights. Without a match, it uses a supported `APP_LOCALE`, then the first candidate in stable tag order. Controllers, validation, and Blade share the current request locale.
 
@@ -120,11 +120,11 @@ The default query and Cookie names are now `locale` (`?locale=zh-Hans`, `locale=
 
 With no manual preference, Web pages negotiate the language on every request. The welcome-page language menu lists the same active candidates as the middleware and offers Follow browser. A POST form protected by the existing Web CSRF middleware saves the selected candidate; Follow browser deletes it. Automatic detection and GET requests never save a preference. The underlined item is the current request language; the check mark identifies the saved choice or automatic mode, including during a temporary URL override. Native names come from each locale's `languages.json`; a missing exact-locale name displays the locale code, without falling back to another language's name. Other query parameters survive the POST/303 redirect to the local page specified by the form; the temporary language parameter is removed. Disabling URL selection does not disable these forms.
 
-The OpenRust extension `app.locale_cookie` defaults to `"locale"`, including when absent; the application preserves `APP_LOCALE_COOKIE` to override the name. JSON `null` disables preference reads and writes (the environment string `null` is a name). Choose a nonempty top-level Cookie name that does not conflict with Session or `XSRF-TOKEN`. Invalid configuration is an error. The Cookie must pass through `EncryptCookies` and must not be excluded from encryption. The default instance runs after Web Cookie decryption and queue setup, before the ordinary Web Session middleware. Stateless API routes do not read raw preference Cookies or automatically start Session. Without a protected Cookie queue, the welcome page retains temporary GET links when URL selection is enabled.
+The language preference setting `app.locale_cookie` defaults to `"locale"`, including when absent; the application preserves `APP_LOCALE_COOKIE` to override the name. JSON `null` disables preference reads and writes (the environment string `null` is a name). Choose a nonempty top-level Cookie name that does not conflict with Session or `XSRF-TOKEN`. Invalid configuration is an error. The Cookie must pass through `EncryptCookies` and must not be excluded from encryption. The default instance runs after Web Cookie decryption and queue setup, before the ordinary Web Session middleware. Stateless API routes do not read raw preference Cookies or automatically start Session. Without a protected Cookie queue, the welcome page retains temporary GET links when URL selection is enabled.
 
 The preference uses `Cookie::forever` (400 days), encryption, HttpOnly, and the existing CookieJar defaults from `session.path`, `domain`, `secure` and `same_site` (normally `/`, current host, HTTPS-dependent Secure, and Lax). Deletion uses the same path and domain. Set `session.secure=true` on HTTPS-only deployments. Expiration, clearing Cookies, or changing browsers loses the local preference; it is not permanent or synchronized across devices. Invalid, damaged or no-longer-supported saved values are ignored and automatic selection resumes. Explicit invalid submissions return HTTP 400. Browser expiry is enforced by the client; a replayed Cookie header carries no expiry metadata.
 
-For a protected Web write endpoint, the OpenRust extension reads only the specified top-level body field and leaves the response to the controller:
+For a protected Web write endpoint, the language preference helper reads only the specified top-level body field and leaves the response to the controller:
 
 The welcome form field is configured separately from the Cookie and query parameter names in `config/app.rs`:
 
@@ -161,7 +161,7 @@ SetLocale::storePreferenceFromRequest(request, "language").await?;
 Ok(Response::empty(StatusCode::NO_CONTENT))
 ```
 
-This does not enable persistence on an ordinary stateless API. Add the existing stateful Cookie pipeline and write protection explicitly; retain CSRF for browser requests. No route, Session or account storage is registered by these helpers. Both preference helpers are OpenRust extensions.
+This does not enable persistence on an ordinary stateless API. Add the existing stateful Cookie pipeline and write protection explicitly; retain CSRF for browser requests. No route, Session or account storage is registered by these helpers. Both helpers manage language preferences.
 
 Use one of these actions per write request, then redirect to an application-controlled local destination. The method rejects read requests and unavailable or unprotected preference storage; it queues a Cookie without changing the current locale or emitting a second event. It does not replace CSRF middleware. `LocaleSelection` exposes `preference`, `can_store`, supported candidates and URL selection data; read `App::currentLocale()` for the actual language. A callback selecting a language hides controls that cannot override it. Empty candidates disable the entire middleware.
 
@@ -187,7 +187,7 @@ Accept-Language: zh-Hans
 
 In `config/app.rs`, `"locale_header": get(env, "APP_LOCALE_HEADER", "Accept-Language")?` selects the application negotiation header. Set `APP_LOCALE_HEADER=X-Language` to read only that header, with case-insensitive HTTP header names; when absent, it does not retry `Accept-Language`. Values keep the same BCP 47 validation, weights, repeated-header merging and candidate matching. Missing configuration uses `Accept-Language`; JSON `null` disables only header negotiation. Environment values are strings: `APP_LOCALE_HEADER=null` names the header `null`, rather than disabling negotiation. To disable it, set JSON `null` in application configuration. Empty or invalid names and non-string values are configuration errors (HTTP 500), even when a callback or URL selects the language. An empty candidate list still disables the entire middleware.
 
-Selection order is `localeUsing` returning `Some` → configured URL parameter → protected preference Cookie → configured header → application default and candidate fallback. `None` continues to the next source. Configuration uses the existing repository and configuration cache; changing the source or environment does not override an already loaded cache. Rebuild the configuration cache after changing `APP_LOCALE_HEADER`. Configurable headers and default URL selection are OpenRust extensions.
+Selection order is `localeUsing` returning `Some` → configured URL parameter → protected preference Cookie → configured header → application default and candidate fallback. `None` continues to the next source. Configuration uses the existing repository and configuration cache; changing the source or environment does not override an already loaded cache. Rebuild the configuration cache after changing `APP_LOCALE_HEADER`. Both header negotiation and URL language selection are configurable.
 
 `Request::getLanguages` and `getPreferredLanguage` always describe `Accept-Language`, regardless of this application setting. Only text using translation resources changes with the locale. Enabled header negotiation adds the configured header name to `Vary`, preserving existing values and `*`; `null` adds no language-header entry and keeps URL switching, callbacks and `Content-Language`. Cookie or user-based callbacks still need an appropriate private-cache policy and any additional `Vary` fields.
 
@@ -197,7 +197,7 @@ Use `App::currentLocale()?` in business code, controllers and pages to read the 
 
 For a custom negotiation header, use the existing `APP_LOCALE_HEADER=X-Locale`; leave it unset to negotiate `Accept-Language`. The header is checked after URL and protected Cookie preferences. A configured custom header missing from a request falls back to the application default or first candidate, without retrying `Accept-Language`. This differs from a first-priority callback. Configure ordinary candidate lists above; reserve callbacks for business rules such as user or tenant preferences.
 
-`localeUsing` is an OpenRust extension. Use it to configure a synchronous callback on the current application's middleware instance. For example, prefer an explicit request header and continue with URL selection, the protected preference Cookie and header negotiation when it is absent:
+Use `localeUsing` to configure a synchronous callback on the current application's middleware instance. For example, prefer an explicit request header and continue with URL selection, the protected preference Cookie and header negotiation when it is absent:
 
 ```rust
 .withMiddleware(|middleware| {
@@ -381,7 +381,7 @@ The selected connection's table prefix applies. The table name is an unqualified
 
 `Lang::loadFrom` publishes all requested groups together. Database, file, or parsing failures leave the previous published catalog available and return an error; missing rows produce an empty database overlay. Reads occur per group; publication atomicity does not provide a transaction spanning all database reads. Reloads are explicit. Applications manage writes, migrations, and refresh timing; the package does not automatically select a source or start background tasks.
 
-Unlike Spatie’s PHP model, this source does not perform locale fallback while reading each row: OpenRust’s translator applies its configured fallback after loading exact locales. This also preserves file translations for the selected locale. A missing table returns an error so a failed explicit reload cannot silently replace a published database catalog with files.
+Unlike Spatie’s PHP model, this source does not perform locale fallback while reading each row: the translator applies its configured fallback after loading exact locales. This also preserves file translations for the selected locale. A missing table returns an error so a failed explicit reload cannot silently replace a published database catalog with files.
 
 ## Retrieving Translation Strings
 
@@ -543,11 +543,11 @@ The welcome view reads the documentation directory from `welcome.documentation_l
 
 The welcome description uses a `:name` placeholder. The view passes `config('app.name')`, so changing `APP_NAME` updates the introduction in every bundled language; the rendered text is HTML-escaped.
 
-Standard translations retain the bundled MIT attribution. OpenRust-specific additions are technically checked translations, including machine-assisted drafts; native-language editorial review is separate. Neither local capture nor queue delivery tests certify delivery through an external mail provider.
+Standard translations retain the bundled MIT attribution. Additional framework translations are technically checked translations, including machine-assisted drafts; native-language editorial review is separate. Neither local capture nor queue delivery tests certify delivery through an external mail provider.
 
 ## Language directories
 
-At application creation, OpenRust uses `resources/lang/` when that directory exists; otherwise it selects the root `lang/`. Path selection does not create directories. The application contract exposes `langPath("")` and accepts a suffix such as `langPath("en/validation.json")`.
+At creation, the application uses `resources/lang/` when that directory exists; otherwise it selects the root `lang/`. Path selection does not create directories. The application contract exposes `langPath("")` and accepts a suffix such as `langPath("en/validation.json")`.
 
 To override the directory, set it during application assembly, before resolving the translation loader:
 

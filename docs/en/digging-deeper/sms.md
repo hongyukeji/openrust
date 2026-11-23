@@ -1,6 +1,6 @@
 # SMS
 
-The unified SMS API is an OpenRust extension based on [file storage](filesystem.md) design. Just as `Storage::disk` selects a named disk backed by a registered driver, `Sms::driver` selects a named SMS profile backed by a registered provider driver. Multiple profiles can use the same driver with different settings.
+The unified SMS API uses the named-driver design described in [file storage](filesystem.md). Just as `Storage::disk` selects a named disk backed by a registered driver, `Sms::driver` selects a named SMS profile backed by a registered provider driver. Multiple profiles can use the same driver with different settings.
 
 The application supplies the default `log` profile in `config/sms.rs`. If a custom configuration loader replaces the SMS settings, it must provide both `default` and the selected entry under `drivers`; missing settings produce an error.
 

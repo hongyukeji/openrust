@@ -49,7 +49,7 @@ fn greeting(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
 
 ### 瀏覽器語言 {#welcome-page-language}
 
-OpenRust 預設自動裝配 `openrust::http::middleware::SetLocale`，應用程式不必建立語言中介軟體或在 `bootstrap/app.rs` 手動註冊。
+應用程式預設自動裝配 `openrust::http::middleware::SetLocale`，應用程式不必建立語言中介軟體或在 `bootstrap/app.rs` 手動註冊。
 
 預設候選在 HTTP 啟動時從框架及應用翻譯資源發現一次；框架內建全部18語。中介軟體為配置的協商標頭共用請求語言解析器，依權重選擇、略過 `q=0`，同權重保留瀏覽器順序。沒有符合項目時使用支援的 `APP_LOCALE`，否則使用按標籤穩定排序後的首個候選。控制器、驗證與 Blade 模板共用目前請求語言。
 
@@ -120,11 +120,11 @@ Provider載入器包含框架內建語言；直接 `FileLoader::new(path)` 仍�
 
 從未手動設定時，Web 頁面每次請求重新協商語言。歡迎頁選單遍歷中介軟體的同一份有效候選，並提供「跟隨瀏覽器」。受現有 Web CSRF 中介軟體保護的 POST 表單儲存選擇，「跟隨瀏覽器」刪除偏好；自動識別和 GET 不儲存偏好。底線表示本次實際語言，勾選表示固定選擇或自動模式，URL 暫時覆蓋時也分別顯示。母語名稱來自各語言的 `languages.json`；該語言缺少名稱時顯示語言代碼，不備援為其他語言的名稱。POST 後以 303 返回表單指定的站內頁面，保留其他查詢參數並移除暫時語言參數；關閉 URL 識別不影響儲存表單。
 
-OpenRust 擴充 `app.locale_cookie` 預設 `"locale"`，缺鍵相同，應用保留 `APP_LOCALE_COOKIE` 覆寫名稱。JSON `null` 關閉偏好讀取與寫入（環境字串 `null` 是名稱）。名稱須為非空頂層 Cookie 名稱，不能與 Session 或 `XSRF-TOKEN` 衝突，非法設定報錯。必須經過 `EncryptCookies`，不能豁免加密。預設實例自動裝配在 Web Cookie 解密和佇列之後、一般 Web Session 之前。無狀態 API 不讀取原始偏好 Cookie，也不自動啟動 Session。沒有安全 Cookie 佇列時，歡迎頁在 URL 識別啟用時保留單次 GET 連結。
+語言偏好設定 `app.locale_cookie` 預設 `"locale"`，缺鍵相同，應用保留 `APP_LOCALE_COOKIE` 覆寫名稱。JSON `null` 關閉偏好讀取與寫入（環境字串 `null` 是名稱）。名稱須為非空頂層 Cookie 名稱，不能與 Session 或 `XSRF-TOKEN` 衝突，非法設定報錯。必須經過 `EncryptCookies`，不能豁免加密。預設實例自動裝配在 Web Cookie 解密和佇列之後、一般 Web Session 之前。無狀態 API 不讀取原始偏好 Cookie，也不自動啟動 Session。沒有安全 Cookie 佇列時，歡迎頁在 URL 識別啟用時保留單次 GET 連結。
 
 偏好重用 `Cookie::forever`（400 天）、加密、HttpOnly，以及現有 CookieJar 的 `session.path`、`domain`、`secure`、`same_site` 預設值（通常為 `/`、目前主機、HTTPS 時 Secure、Lax）。刪除使用相同路徑與網域。僅提供 HTTPS 的部署應設 `session.secure=true`。過期、清除 Cookie 或更換瀏覽器都會遺失本地選擇，不承諾永久或跨裝置同步。損壞、非法或已不屬於候選的已儲存值會被忽略並恢復自動；明確的非法提交傳回 HTTP 400。過期由客戶端執行，重播的 Cookie 請求頭本身不攜帶過期資訊。
 
-受保護的 Web 寫入入口可使用以下 OpenRust 擴充，只讀取指定頂層請求本文欄位，由控制器決定回應：
+受保護的 Web 寫入入口可使用以下語言偏好輔助方法，只讀取指定頂層請求本文欄位，由控制器決定回應：
 
 歡迎頁表單欄位在 `config/app.rs` 中獨立設定：
 
@@ -161,7 +161,7 @@ SetLocale::storePreferenceFromRequest(request, "language").await?;
 Ok(Response::empty(StatusCode::NO_CONTENT))
 ```
 
-這不會自動為一般無狀態 API 啟用持久化；須明確接入既有具狀態 Cookie 管線與寫入保護，瀏覽器請求仍需 CSRF。輔助方法不會註冊路由、啟動 Session 或增加帳號儲存。兩個語言偏好輔助入口均屬於 OpenRust 擴充。
+這不會自動為一般無狀態 API 啟用持久化；須明確接入既有具狀態 Cookie 管線與寫入保護，瀏覽器請求仍需 CSRF。輔助方法不會註冊路由、啟動 Session 或增加帳號儲存。兩個輔助入口均用於管理語言偏好。
 
 每次寫請求選擇其中一種操作，再導向應用控制的站內位址。方法拒絕讀取請求及不可用或未加密的偏好儲存，只排隊 Cookie，不改變本次語言或再次發出事件，不能代替 CSRF 中介軟體。`LocaleSelection` 提供 `preference`、`can_store`、候選和 URL 資訊；實際語言使用 `App::currentLocale()`。回呼已決定語言時，不顯示無法覆蓋它的控制項；空候選關閉整個中介軟體。
 
@@ -187,7 +187,7 @@ Accept-Language: zh-Hans
 
 在 `config/app.rs` 中，`"locale_header": get(env, "APP_LOCALE_HEADER", "Accept-Language")?` 指定應用程式語言協商標頭。設定 `APP_LOCALE_HEADER=X-Language` 後只讀取該標頭，名稱按 HTTP 規則不區分大小寫；缺少時不再嘗試 `Accept-Language`。值繼續使用相同的 BCP 47 驗證、權重、多標頭合併及候選比對規則。缺鍵預設 `Accept-Language`；JSON `null` 僅關閉標頭辨識。環境值以字串讀取：`APP_LOCALE_HEADER=null` 表示名為 `null` 的標頭，並不關閉辨識；關閉時請在應用程式配置中設定 JSON `null`。空名稱、非法名稱或非字串類型屬於配置錯誤（HTTP 500），即使回呼或 URL 已選擇語言也會回報。空候選仍關閉整個中介軟體。
 
-選擇順序為 `localeUsing` 傳回 `Some` → 配置的 URL 參數 → 受保護的偏好 Cookie → 配置的請求標頭 → 應用程式預設語言及候選備援；回呼傳回 `None` 才進入下一來源。配置使用既有儲存庫與配置快取，修改原始碼或環境不會覆蓋已載入的快取，修改 `APP_LOCALE_HEADER` 後須重建配置快取。可配置標頭與預設 URL 辨識屬於 OpenRust 擴充。
+選擇順序為 `localeUsing` 傳回 `Some` → 配置的 URL 參數 → 受保護的偏好 Cookie → 配置的請求標頭 → 應用程式預設語言及候選備援；回呼傳回 `None` 才進入下一來源。配置使用既有儲存庫與配置快取，修改原始碼或環境不會覆蓋已載入的快取，修改 `APP_LOCALE_HEADER` 後須重建配置快取。標頭與 URL 語言辨識均可設定。
 
 `Request::getLanguages`／`getPreferredLanguage` 始終描述標準 `Accept-Language`，不受應用程式配置影響。只有接入翻譯資源的文案隨語言變化。啟用標頭辨識時，`Vary` 合併實際配置的標頭名稱，保留既有項目與 `*`；`null` 不新增語言標頭項目，仍保留 URL、回呼與 `Content-Language`。依賴 Cookie 或使用者資料的回呼仍需應用程式設定適當的私人快取策略及其他 `Vary` 項目。
 
@@ -197,7 +197,7 @@ Accept-Language: zh-Hans
 
 一般自訂協商標頭直接設定既有 `APP_LOCALE_HEADER=X-Locale`，未設定時協商 `Accept-Language`。該標頭位於 URL 和受保護 Cookie 偏好之後；請求缺少設定的自訂標頭時，使用預設語言或首個候選，不再嘗試 `Accept-Language`。這與優先於其他來源的回呼不同。一般候選清單使用上方設定，使用者或租戶語言等業務規則再使用回呼。
 
-`localeUsing` 是 OpenRust 擴充介面，可為目前應用程式的中介軟體實例設定同步回呼。例如優先讀取指定請求標頭，缺少時依序嘗試 URL、受保護的偏好 Cookie 與標頭協商：
+`localeUsing` 可為目前應用程式的中介軟體實例設定同步回呼。例如優先讀取指定請求標頭，缺少時依序嘗試 URL、受保護的偏好 Cookie 與標頭協商：
 
 ```rust
 .withMiddleware(|middleware| {
@@ -381,7 +381,7 @@ pub async fn load_database_translations(
 
 `Lang::loadFrom` 一次發佈全部請求群組。資料庫、檔案或解析錯誤會回傳失敗，並保留先前發佈的目錄；沒有詞條的資源提供空資料庫覆寫。資料庫按群組讀取，發佈原子性不提供橫跨所有讀取的資料庫交易快照。重新載入由應用程式明確觸發。寫入、遷移與刷新時機由應用程式管理，套件不會自動選擇來源或啟動背景工作。
 
-與 Spatie 的 PHP 模型不同，本來源讀取每列時不執行語言回退；OpenRust 翻譯器在載入精確語言後按自身設定回退，也因此保留所選語言的檔案詞條。缺表會回傳錯誤，避免明確重新載入失敗時靜默以檔案取代已發佈的資料庫目錄。
+與 Spatie 的 PHP 模型不同，本來源讀取每列時不執行語言回退；翻譯器在載入精確語言後按自身設定回退，也因此保留所選語言的檔案詞條。缺表會回傳錯誤，避免明確重新載入失敗時靜默以檔案取代已發佈的資料庫目錄。
 
 ## 取得翻譯字串
 
@@ -543,11 +543,11 @@ Faker 原生 provider 鍵僅保留於私有邊界，`locale()`、`randomLocale()
 
 歡迎頁介紹使用 `:name` 預留位置，視圖傳入 `config('app.name')`。修改 `APP_NAME` 後，各隨附語言的介紹都會使用新的應用程式名稱，輸出維持 HTML 跳脫。
 
-標準譯文隨附完整MIT聲明。OpenRust專有譯文包含機器輔助初稿，已做技術校驗，母語編輯審校須單獨進行。本機捕獲及佇列投遞測試不代表外部郵件供應商投遞驗收。
+標準譯文隨附完整MIT聲明。框架補充譯文包含機器輔助初稿，已做技術校驗，母語編輯審校須單獨進行。本機捕獲及佇列投遞測試不代表外部郵件供應商投遞驗收。
 
 ## 語言目錄
 
-應用程式建立時，若 `resources/lang/` 已存在，OpenRust 優先使用它，否則選擇根目錄的 `lang/`。讀取路徑不會建立目錄。應用程式 Contract 提供 `langPath("")`，也可傳入 `langPath("en/validation.json")` 等後綴。
+應用程式建立時，若 `resources/lang/` 已存在，優先使用它，否則選擇根目錄的 `lang/`。讀取路徑不會建立目錄。應用程式 Contract 提供 `langPath("")`，也可傳入 `langPath("en/validation.json")` 等後綴。
 
 需要自訂目錄時，在應用程式組裝階段、解析翻譯載入器之前設定：
 

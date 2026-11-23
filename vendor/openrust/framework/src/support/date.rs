@@ -10,7 +10,7 @@ mod clock;
 mod timezone;
 pub(crate) use clock::{TestClock, frozen_utc_now, utc_now_for};
 
-/// An IANA timezone used by OpenRust date helpers.
+/// 日期辅助方法使用的 IANA 时区。
 pub use jiff::tz::TimeZone as DateTimezone;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -37,7 +37,7 @@ impl Handler {
     }
 
     /// Resolves authentication only at an explicitly awaited request log boundary.
-    #[allow(non_snake_case, reason = "OpenRust asynchronous request log adapter")]
+    #[allow(non_snake_case, reason = "异步请求日志适配接口")]
     pub async fn logWithRequest(
         &self,
         event: &MessageLogged,

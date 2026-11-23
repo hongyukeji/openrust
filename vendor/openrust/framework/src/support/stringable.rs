@@ -15,9 +15,9 @@ pub use scan::{ScanError, ScanValue};
 /// ```
 /// use openrust::support::Stringable;
 ///
-/// let value = Stringable::from("  OpenRust  ").trim();
-/// assert_eq!(value.value(), "OpenRust");
-/// assert_eq!(value.toString(), "OpenRust");
+/// let value = Stringable::from("  Example  ").trim();
+/// assert_eq!(value.value(), "Example");
+/// assert_eq!(value.toString(), "Example");
 /// ```
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(transparent)]

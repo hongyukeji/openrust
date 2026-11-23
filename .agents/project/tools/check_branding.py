@@ -7,7 +7,10 @@ import subprocess
 root = Path(__file__).resolve().parents[3]
 audit = json.loads((root / '.agents/project/audits/branding-2026-11-23.json').read_text())
 brands = re.compile('laravel|goravel', re.I)
-allowed = {(entry['file'].removeprefix('./'), ' '.join(entry['text'].split())) for entry in audit['retained']}
+# 新裁决独立保存，不能改写原验收快照。
+supplement = json.loads((root / '.agents/project/audits/brand-neutrality-2026-11-23.json').read_text())
+allowed = {(entry['file'].removeprefix('./'), ' '.join(entry['text'].split()))
+           for entry in audit['retained'] + supplement['retained']}
 paths = subprocess.check_output(['git', 'ls-files', '--cached', '--others', '--exclude-standard', '-z'], cwd=root).decode().split('\0')
 errors = []
 count = 0

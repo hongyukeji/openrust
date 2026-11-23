@@ -7,7 +7,7 @@ pub trait Logger: Send + Sync {
     fn log(&self, level: Level, message: &str, context: &LogContext) -> LogResult<()>;
 
     /// Receives the record fields and application metadata separately.
-    #[allow(non_snake_case, reason = "OpenRust structured log adapter")]
+    #[allow(non_snake_case, reason = "结构化日志适配接口")]
     fn logWithContext(
         &self,
         level: Level,
@@ -19,7 +19,7 @@ pub trait Logger: Send + Sync {
     }
 
     /// Receives a normalized exception separately from the ordinary context.
-    #[allow(non_snake_case, reason = "OpenRust structured log adapter")]
+    #[allow(non_snake_case, reason = "结构化日志适配接口")]
     fn logWithException(
         &self,
         level: Level,
@@ -34,7 +34,7 @@ pub trait Logger: Send + Sync {
         }
     }
     /// Request-aware adapter; custom synchronous loggers retain their existing contract.
-    #[allow(non_snake_case, reason = "OpenRust asynchronous request log adapter")]
+    #[allow(non_snake_case, reason = "异步请求日志适配接口")]
     fn logWithExceptionForRequest<'a>(
         &'a self,
         _request: &'a mut crate::http::Request,

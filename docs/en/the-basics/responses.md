@@ -134,7 +134,7 @@ fn register() -> Result<(), RoutingError> {
 
 `ApiResponse::empty()` returns a success envelope without a `data` field. HTTP 204 responses have an empty body. Supply a client-safe message to `failure` and attach field messages with `with_errors` when needed.
 
-A serialization error goes through [exception handling](errors.md). Built-in exceptions and the health endpoint each use their own response format. OpenRust provides the business response envelope.
+A serialization error goes through [exception handling](errors.md). Built-in exceptions and the health endpoint each use their own response format. The business response envelope is available separately.
 
 ## Redirect responses
 

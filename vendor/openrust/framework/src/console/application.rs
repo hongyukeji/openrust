@@ -196,7 +196,7 @@ impl Application {
 
     fn syntax(&self, version: &'static str) -> Syntax {
         Syntax::new("artisan")
-            .about("OpenRust command-line interface")
+            .about("应用命令行接口")
             .disable_help_subcommand(true)
             .version(version)
             .propagate_version(true)

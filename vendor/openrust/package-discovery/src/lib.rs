@@ -182,10 +182,7 @@ fn discovery(package: &Value) -> io::Result<&Value> {
         && (options["version"].as_u64() != Some(1)
             || (!options["providers"].is_null() && !options["providers"].is_boolean()))
     {
-        return Err(invalid(format!(
-            "invalid OpenRust discovery declaration for {}",
-            package["name"]
-        )));
+        return Err(invalid(format!("包 {} 的发现声明无效", package["name"])));
     }
     Ok(options)
 }
