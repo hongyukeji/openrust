@@ -115,27 +115,17 @@ fn argument_description(command: &str, argument: &Arg) -> String {
         .map(ToString::to_string)
         .unwrap_or_default();
     let key = argument.get_id().as_str();
-    let (simplified, traditional) = match key {
-        "help" => ("显示帮助", "顯示說明"),
-        "version" => ("显示版本", "顯示版本"),
-        "ansi" if argument.is_global_set() => ("启用 ANSI 样式", "啟用 ANSI 樣式"),
-        "no-ansi" if argument.is_global_set() => ("禁用 ANSI 样式", "停用 ANSI 樣式"),
-        "env" if argument.is_global_set() => ("指定运行环境", "指定執行環境"),
-        "no-interaction" if argument.is_global_set() => ("禁用交互提示", "停用互動提示"),
-        "quiet" if argument.is_global_set() => ("隐藏普通输出", "隱藏一般輸出"),
-        "silent" if argument.is_global_set() => ("隐藏输出和错误", "隱藏輸出和錯誤"),
-        "verbose" if argument.is_global_set() => ("增加输出详细程度", "增加輸出詳細程度"),
-        "format" if matches!(command, "help" | "list") => ("选择输出格式", "選擇輸出格式"),
-        "command_name" if command == "help" => ("要查看的命令", "要查看的命令"),
-        "namespace" if command == "list" => ("只显示指定命令组", "只顯示指定命令群組"),
-        _ => (fallback.as_str(), fallback.as_str()),
+    let common = matches!(key, "help" | "version")
+        || argument.is_global_set()
+        || (key == "format" && matches!(command, "help" | "list"))
+        || (key == "command_name" && command == "help")
+        || (key == "namespace" && command == "list");
+    let fallback = if common {
+        text(&format!("argument_descriptions.{key}"), &fallback)
+    } else {
+        fallback
     };
-    text(
-        &format!("commands.{command}.arguments.{key}"),
-        &fallback,
-        simplified,
-        traditional,
-    )
+    text(&format!("commands.{command}.arguments.{key}"), &fallback)
 }
 
 fn option_name(argument: &Arg) -> String {
@@ -218,7 +208,7 @@ pub(super) fn write_markdown(output: &mut String, command: &Command) {
     writeln!(
         output,
         "\n## {}\n\n```text\n{}\n```",
-        text("usage_title", "Usage", "用法", "用法"),
+        text("usage_title", "Usage"),
         help(command, false).trim_end(),
     )
     .unwrap();

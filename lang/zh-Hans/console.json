@@ -1,0 +1,68 @@
+{
+    "command_missing": "命令「:name」不存在。",
+    "command_ambiguous": "命令「:name」有歧义：:choices",
+    "confirm": {
+        "production": "当前处于生产环境。确定要执行此命令吗？",
+        "cancelled": "命令已取消。"
+    },
+    "make": {
+        "mail": {
+            "name": "邮件类叫什么？",
+            "view": "要创建视图吗？\n  1. Markdown 视图\n  2. 空白视图\n  3. 不创建视图\n请选择 [1]"
+        },
+        "notification": {
+            "name": "通知类叫什么？",
+            "markdown": "要创建 Markdown 视图吗？ [Y/n]",
+            "view": "Markdown 视图叫什么？"
+        },
+        "message": {
+            "cancelled": "命令已取消。"
+        }
+    },
+    "commands": {
+        "list": {
+            "description": "列出可用命令"
+        },
+        "help": {
+            "description": "显示命令帮助"
+        },
+        "inspire": {
+            "description": "显示一句励志名言"
+        },
+        "heading": "命令："
+    },
+    "usage": "用法：",
+    "options": "选项：",
+    "unknown_argument": "无法识别的参数",
+    "unknown_command": "命令不存在",
+    "missing_argument": "缺少必填参数",
+    "invalid_value": "参数值无效",
+    "argument_conflict": "参数冲突",
+    "invalid_arguments": "参数无效",
+    "model_fields": {
+        "title": "模型表与字段",
+        "notice": "根据数据库结构自动生成，勿手动修改。",
+        "sync": "请在项目根目录执行 `./artisan model:fields :model` 同步。",
+        "table": "表名"
+    },
+    "namespace_missing": "命令组「:name」不存在。",
+    "available_commands": "可用命令",
+    "namespace_commands": "「:name」命令组的可用命令：",
+    "available_commands_heading": "可用命令：",
+    "usage_title": "用法",
+    "argument_descriptions": {
+        "help": "显示帮助",
+        "version": "显示版本",
+        "ansi": "启用 ANSI 样式",
+        "no-ansi": "禁用 ANSI 样式",
+        "env": "指定运行环境",
+        "no-interaction": "禁用交互提示",
+        "quiet": "隐藏普通输出",
+        "silent": "隐藏输出和错误",
+        "verbose": "增加输出详细程度",
+        "format": "选择输出格式",
+        "command_name": "要查看的命令",
+        "namespace": "只显示指定命令组"
+    },
+    "arguments": "参数："
+}

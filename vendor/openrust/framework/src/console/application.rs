@@ -180,20 +180,13 @@ impl Application {
         match candidates.as_slice() {
             [canonical] => Ok(canonical),
             [] => Err(ConsoleError::new(
-                localization::text(
-                    "command_missing",
-                    "Command ':name' is not defined.",
-                    "命令「:name」不存在。",
-                    "命令「:name」不存在。",
-                )
-                .replace(":name", name),
+                localization::text("command_missing", "Command ':name' is not defined.")
+                    .replace(":name", name),
             )),
             _ => Err(ConsoleError::new(
                 localization::text(
                     "command_ambiguous",
                     "Command ':name' is ambiguous: :choices",
-                    "命令「:name」有歧义：:choices",
-                    "命令「:name」有歧義：:choices",
                 )
                 .replace(":choices", &candidates.join(", "))
                 .replace(":name", name),

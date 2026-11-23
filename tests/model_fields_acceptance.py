@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 import re
+import shutil
 from pathlib import Path
 import subprocess
 
@@ -24,7 +25,7 @@ def main():
     if driver == 'sqlite':
         (work / 'fields.sqlite').touch()
     url = {'postgres': 'OPENRUST_TEST_POSTGRES_URL', 'mysql': 'OPENRUST_TEST_MYSQL_URL'}
-    environment = dict(os.environ, APP_BASE_PATH=str(source), APP_ENV='testing', APP_LOCALE='zh-Hans',
+    environment = dict(os.environ, APP_BASE_PATH=str(source), APP_ENV='testing', APP_LOCALE='zh-Hans', APP_FALLBACK_LOCALE='en',
                        DB_CONNECTION={'postgres': 'pgsql'}.get(driver, driver),
                        DB_URL=os.environ[url[driver]] if driver in url else '',
                        DB_PREFIX='',
@@ -57,6 +58,12 @@ def main():
         if not success:
             assert 'E0599' in result.stderr, f'{name}：必须因关联常量不存在而失败'
         return work / name
+
+    # where是Rust关键字；普通方法调用在解析阶段失败，r#where沿用现有公开名称。
+    keyword = work / 'where_keyword.rs'
+    keyword.write_text('struct Query; impl Query { fn r#where(&self, _: &str) {} } fn main() { Query.where("name"); }')
+    result = run('where-keyword', [*compiler, str(keyword), '--out-dir', str(work)], False)
+    assert 'keyword `where`' in result.stderr and 'r#where' in result.stderr
 
     db_setup = '''
 use std::{collections::BTreeMap, sync::Arc};
@@ -134,6 +141,46 @@ async fn main() {
             assert ('/// 姓名' in localized) == (driver != 'sqlite'), '数据库注释不自动翻译'
             compile_code('locale-' + locale, localized, deny_warnings=True)
             artisan('locale-' + locale + '-check', 'model:fields', 'FieldReferenceProbe', '--check')
+        # 语言资源可扩展至任意规范语言；识别旧区不依赖语言枚举或历史文案。
+        extra_locales = ['fr', 'de', 'es', 'it', 'pt', 'ja', 'ko', 'ru', 'ar', 'hi', 'th', 'vi', 'tr', 'id', 'nl']
+        resources = {}
+        try:
+            for locale in extra_locales:
+                path = source / 'lang' / locale / 'console.json'
+                resources[path] = path.read_bytes() if path.exists() else None
+                path.parent.mkdir(parents=True, exist_ok=True)
+                title = f'Fields {locale}'
+                data = {'model_fields': {'title': title, 'notice': 'Database schema',
+                                        'sync': 'Sync `./artisan model:fields :model`.', 'table': f'Table-{locale}'}}
+                path.write_text(json.dumps(data))
+                environment['APP_LOCALE'] = locale
+                artisan('resource-' + locale, 'model:fields', 'FieldReferenceProbe')
+                text = generated.read_text()
+                assert f'| {title}\n' in text and f'/// Table-{locale}\n        TABLE' in text
+                assert text.count('openrust::model_fields!') == 1
+                artisan('resource-' + locale + '-check', 'model:fields', 'FieldReferenceProbe', '--check')
+            # 翻译原文改变也不需要枚举历史译文；注释开闭符不能变成Rust源码。
+            path = source / 'lang/fr/console.json'
+            data['model_fields']['title'] = 'Nouveau /* titre */'
+            path.write_text(json.dumps(data))
+            environment['APP_LOCALE'] = 'fr'
+            artisan('resource-changed-check', 'model:fields', 'FieldReferenceProbe', '--check', success=False)
+            artisan('resource-changed-refresh', 'model:fields', 'FieldReferenceProbe')
+            text = generated.read_text()
+            assert '| Nouveau / * titre * /\n' in text and text.count('openrust::model_fields!') == 1
+            compile_code('resource-changed', text, deny_warnings=True)
+            # 缺少当前语言的词条时，由统一译器按app.fallback_locale回退。
+            path.write_text('{}')
+            artisan('resource-fallback', 'model:fields', 'FieldReferenceProbe')
+            assert '| Model Table and Fields\n' in generated.read_text()
+        finally:
+            environment['APP_LOCALE'] = 'zh-Hans'
+            for path, previous in resources.items():
+                if previous is None:
+                    path.unlink(missing_ok=True)
+                else:
+                    path.write_bytes(previous)
+            artisan('resource-restored', 'model:fields', 'FieldReferenceProbe')
         assert generated.read_text() == original
         artisan('refresh', 'model:fields', 'FieldReferenceProbe')
         assert generated.read_text() == original, '重复刷新应保持相同内容'
@@ -293,6 +340,7 @@ async fn main() {
             copy = check_root / path.relative_to(source)
             copy.parent.mkdir(parents=True, exist_ok=True)
             copy.write_bytes(path.read_bytes())
+        shutil.copytree(source / 'lang', check_root / 'lang', dirs_exist_ok=True)
         environment['APP_BASE_PATH'] = str(check_root)
         try:
             assert not (check_root / 'tmp').exists()
@@ -407,12 +455,20 @@ async fn main() {
             ('duplicate-marker', legacy + '// openrust:model-fields begin\n'),
             ('reversed-marker', legacy.replace('// openrust:model-fields begin', '// openrust:model-fields TEMP').replace('// openrust:model-fields end', '// openrust:model-fields begin').replace('// openrust:model-fields TEMP', '// openrust:model-fields end')),
             ('duplicate-section', refreshed + refreshed[section:model_start]),
-            ('damaged-section', refreshed.replace('| 模型表与字段', '| removed section')),
+            ('damaged-section', refreshed.replace('|--------------------------------------------------------------------------', 'broken boundary', 1)),
+            ('missing-generated-macro', refreshed[:refreshed.index('openrust::model_fields!')] + refreshed[model_start:]),
+            ('renamed-generated-macro', refreshed.replace('openrust::model_fields!', 'openrust::other_fields!')),
             ('invalid-rust', refreshed + '\nfn incomplete(\n'),
         ]:
             generated.write_text(broken)
             artisan(label, 'model:fields', 'FieldReferenceProbe', success=False)
             assert generated.read_text() == broken
+        # 改标题或字段说明仍定位同一宏；刷新恢复数据库生成内容，不追加第二份。
+        edited = refreshed.replace('| 模型表与字段', '| 我的模型字段').replace('FULL_NAME = "full_name";', 'FULL_NAME = "edited_name";')
+        generated.write_text(edited)
+        artisan('edited-generated-region', 'model:fields', 'FieldReferenceProbe')
+        assert generated.read_text() == refreshed
+        artisan('edited-generated-region-check', 'model:fields', 'FieldReferenceProbe', '--check')
         # 上一版顶部紧凑布局可原地升级，不留下第二份分区或表名字符串。
         old_header = '/*\n|--------------------------------------------------------------------------\n| 模型字段\n|--------------------------------------------------------------------------\n|\n| 根据数据库表结构生成字段与说明，通过 model:fields 命令同步。\n| 调整表结构或列说明后，请重新同步并构建；不要直接修改此区域。\n|\n*/\n'
         old_compact = refreshed.replace(refreshed[section:refreshed.index('openrust::model_fields!')], old_header).replace(

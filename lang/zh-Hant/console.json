@@ -1,0 +1,68 @@
+{
+    "command_missing": "命令「:name」不存在。",
+    "command_ambiguous": "命令「:name」有歧義：:choices",
+    "confirm": {
+        "production": "目前處於正式環境。確定要執行此命令嗎？",
+        "cancelled": "命令已取消。"
+    },
+    "make": {
+        "mail": {
+            "name": "郵件類別叫什麼？",
+            "view": "要建立視圖嗎？\n  1. Markdown 視圖\n  2. 空白視圖\n  3. 不建立視圖\n請選擇 [1]"
+        },
+        "notification": {
+            "name": "通知類別叫什麼？",
+            "markdown": "要建立 Markdown 視圖嗎？ [Y/n]",
+            "view": "Markdown 視圖叫什麼？"
+        },
+        "message": {
+            "cancelled": "命令已取消。"
+        }
+    },
+    "commands": {
+        "list": {
+            "description": "列出可用命令"
+        },
+        "help": {
+            "description": "顯示命令說明"
+        },
+        "inspire": {
+            "description": "顯示一句勵志名言"
+        },
+        "heading": "命令："
+    },
+    "usage": "用法：",
+    "options": "選項：",
+    "unknown_argument": "無法辨識的引數",
+    "unknown_command": "命令不存在",
+    "missing_argument": "缺少必填引數",
+    "invalid_value": "引數值無效",
+    "argument_conflict": "引數衝突",
+    "invalid_arguments": "引數無效",
+    "model_fields": {
+        "title": "模型資料表與欄位",
+        "notice": "根據資料庫結構自動產生，請勿手動修改。",
+        "sync": "請在專案根目錄執行 `./artisan model:fields :model` 同步。",
+        "table": "表名"
+    },
+    "namespace_missing": "命令群組「:name」不存在。",
+    "available_commands": "可用命令",
+    "namespace_commands": "「:name」命令群組的可用命令：",
+    "available_commands_heading": "可用命令：",
+    "usage_title": "用法",
+    "argument_descriptions": {
+        "help": "顯示說明",
+        "version": "顯示版本",
+        "ansi": "啟用 ANSI 樣式",
+        "no-ansi": "停用 ANSI 樣式",
+        "env": "指定執行環境",
+        "no-interaction": "停用互動提示",
+        "quiet": "隱藏一般輸出",
+        "silent": "隱藏輸出和錯誤",
+        "verbose": "增加輸出詳細程度",
+        "format": "選擇輸出格式",
+        "command_name": "要查看的命令",
+        "namespace": "只顯示指定命令群組"
+    },
+    "arguments": "參數："
+}

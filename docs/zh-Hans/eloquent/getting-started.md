@@ -114,7 +114,13 @@ let users = query.orderBy(User::ID, "asc").get().await?;
 
 `TABLE` 上方直接显示数据库表注释，不添加前缀；没有注释或注释为空白时使用当前语言的默认说明，例如“表名”。表注释变更后也需同步，`--check` 会检测这类变化。
 
-分区标题、同步说明及表名标签跟随 `app.locale`（`APP_LOCALE`），内置英文、简体中文与繁体中文；可通过现有 Artisan 的 `console.model_fields` 翻译键定制。切换语言后重新同步模型；数据库表注释和字段注释保持原文。
+`where` 是 Rust 关键字，因此方法调用写作 `r#where`。原始标识符保留现有方法名；`query.where(...)` 会在 Rust 解析阶段报错。
+
+生成器通过 Rust 宏的语法位置和紧邻的配置式注释定位已有区域，不依赖翻译后的标题。修改标题或生成的常量不会追加第二份；刷新会按数据库结构替换同一区域。宏缺失或改名、注释边界损坏、重复声明或旧区有歧义时拒绝写入。模型业务方法请保留在生成区域之外。
+
+`DB_PREFIX` 由配置的连接应用。例如 `DB_PREFIX=tenant_` 时，`User::TABLE` 仍为 `"users"`，结构读取和查询实际使用 `tenant_users`；不要再把前缀写入常量。
+
+生成说明及 Artisan 展示文案使用统一译器和 `lang/<locale>/console.json`，遵循配置的回退语言。应用目前提供三份语言资源，不限制支持语言的数量；新增资源即可扩展，无需修改 Rust 语言分支。`model_fields` 下的 `title`、`notice`、`sync` 和 `table` 控制生成说明，`sync` 使用 `:model` 占位符。修改资源或语言后刷新即可，数据库描述保持原文。
 
 ### 刷新模型 {#refreshing-models}
 

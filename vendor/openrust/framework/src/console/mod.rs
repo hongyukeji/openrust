@@ -260,8 +260,6 @@ pub fn confirmToProceed(
     let prompt = localization::text(
         "confirm.production",
         "APPLICATION IN PRODUCTION. Do you really wish to run this command?",
-        "当前处于生产环境。确定要执行此命令吗？",
-        "目前處於正式環境。確定要執行此命令嗎？",
     );
     let mut output = io::stderr().lock();
     write!(output, "{prompt} [y/N] ").map_err(|error| ConsoleError::new(error.to_string()))?;
@@ -279,12 +277,7 @@ pub fn confirmToProceed(
 }
 
 pub(crate) fn command_cancelled() -> String {
-    localization::text(
-        "confirm.cancelled",
-        "Command cancelled.",
-        "命令已取消。",
-        "命令已取消。",
-    )
+    localization::text("confirm.cancelled", "Command cancelled.")
 }
 
 pub(crate) fn monitor_signals(

@@ -114,7 +114,13 @@ let users = query.orderBy(User::ID, "asc").get().await?;
 
 `TABLE` 上方直接顯示資料庫表註解，不添加前綴；沒有註解或註解為空白時使用目前語言的預設說明，例如「表名」。表註解變更後也需同步，`--check` 會偵測這類變化。
 
-分區標題、同步說明及表名標籤跟隨 `app.locale`（`APP_LOCALE`），內建英文、簡體中文與繁體中文；可透過既有 Artisan 的 `console.model_fields` 翻譯鍵自訂。切換語言後重新同步模型；資料庫表註解和欄位註解維持原文。
+`where` 是 Rust 關鍵字，因此方法呼叫寫作 `r#where`。原始識別字保留既有方法名稱；`query.where(...)` 會在 Rust 解析階段報錯。
+
+產生器透過 Rust 巨集的語法位置與緊鄰的設定式註解定位既有區域，不依賴翻譯後的標題。修改標題或產生的常數不會追加第二份；同步會依資料庫結構替換同一區域。巨集缺失或改名、註解邊界損壞、重複宣告或舊區有歧義時拒絕寫入。模型業務方法請保留在產生區域之外。
+
+`DB_PREFIX` 由設定的連線套用。例如 `DB_PREFIX=tenant_` 時，`User::TABLE` 仍為 `"users"`，結構讀取和查詢實際使用 `tenant_users`；不要再把前綴寫入常數。
+
+產生說明及 Artisan 展示文字使用統一譯器和 `lang/<locale>/console.json`，遵循設定的備援語言。應用目前提供三份語言資源，不限制支援語言的數量；新增資源即可擴充，無須修改 Rust 語言分支。`model_fields` 下的 `title`、`notice`、`sync` 和 `table` 控制產生說明，`sync` 使用 `:model` 佔位符。修改資源或語言後重新同步即可，資料庫描述保持原文。
 
 ### 重新整理模型 {#refreshing-models}
 

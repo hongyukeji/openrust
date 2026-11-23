@@ -2,33 +2,16 @@
 
 use crate::support::facades::Lang;
 
-pub(crate) fn text(key: &str, english: &str, simplified: &str, traditional: &str) -> String {
-    text_for_locale(key, english, simplified, traditional, None)
+// 语言选择、资源加载与回退交给统一译器；启动前尚无译器时保留默认文案。
+pub(crate) fn text(key: &str, fallback: &str) -> String {
+    text_for_locale(key, fallback, None)
 }
 
-pub(crate) fn text_for_locale(
-    key: &str,
-    english: &str,
-    simplified: &str,
-    traditional: &str,
-    locale: Option<&str>,
-) -> String {
+pub(crate) fn text_for_locale(key: &str, fallback: &str, locale: Option<&str>) -> String {
     let key = format!("console.{key}");
-    if let Ok(translated) = Lang::get(&key, &Default::default(), locale)
-        && translated != key
-    {
-        return translated;
-    }
-    let locale = locale
-        .map(str::to_owned)
-        .unwrap_or_else(|| Lang::getLocale().unwrap_or_default());
-    let mut parts = locale.split('-');
-    if parts.next() != Some("zh") {
-        return english.into();
-    }
-    match parts.next() {
-        Some("Hant" | "TW" | "HK" | "MO") => traditional.into(),
-        _ => simplified.into(),
+    match Lang::get(&key, &Default::default(), locale) {
+        Ok(translated) if translated != key => translated,
+        _ => fallback.to_owned(),
     }
 }
 
@@ -37,17 +20,9 @@ pub(super) fn description(command: &clap::Command) -> String {
         .get_about()
         .map(ToString::to_string)
         .unwrap_or_default();
-    let (simplified, traditional) = match command.get_name() {
-        "list" => ("列出可用命令", "列出可用命令"),
-        "help" => ("显示命令帮助", "顯示命令說明"),
-        "inspire" => ("显示一句励志名言", "顯示一句勵志名言"),
-        _ => (fallback.as_str(), fallback.as_str()),
-    };
     text(
         &format!("commands.{}.description", command.get_name()),
         &fallback,
-        simplified,
-        traditional,
     )
 }
 
@@ -59,11 +34,11 @@ pub(super) fn styled_headings(rendered: &str, usage_style: &str, header_style: &
     rendered
         .split_inclusive('\n')
         .map(|line| {
-            for (key, english, simplified, traditional) in [
-                ("usage", "Usage:", "用法：", "用法："),
-                ("options", "Options:", "选项：", "選項："),
-                ("arguments", "Arguments:", "参数：", "引數："),
-                ("commands", "Commands:", "命令：", "命令："),
+            for (key, english) in [
+                ("usage", "Usage:"),
+                ("options", "Options:"),
+                ("arguments", "Arguments:"),
+                ("commands.heading", "Commands:"),
             ] {
                 let style = if key == "usage" {
                     usage_style
@@ -74,10 +49,7 @@ pub(super) fn styled_headings(rendered: &str, usage_style: &str, header_style: &
                     .strip_prefix(style)
                     .and_then(|line| line.strip_prefix(english))
                 {
-                    return format!(
-                        "{style}{}{tail}",
-                        text(key, english, simplified, traditional)
-                    );
+                    return format!("{style}{}{tail}", text(key, english));
                 }
             }
             line.into()
@@ -89,33 +61,25 @@ pub(super) fn argument_error(error: &clap::Error) -> String {
     use clap::error::{ContextKind, ErrorKind};
 
     let context = |kind| error.get(kind).map(ToString::to_string).unwrap_or_default();
-    let (key, english, simplified, traditional, details) = match error.kind() {
+    let (key, english, details) = match error.kind() {
         ErrorKind::UnknownArgument => (
             "unknown_argument",
             "Unexpected argument",
-            "无法识别的参数",
-            "無法辨識的引數",
             context(ContextKind::InvalidArg),
         ),
         ErrorKind::InvalidSubcommand => (
             "unknown_command",
             "Command is not defined",
-            "命令不存在",
-            "命令不存在",
             context(ContextKind::InvalidSubcommand),
         ),
         ErrorKind::MissingRequiredArgument => (
             "missing_argument",
             "Required arguments are missing",
-            "缺少必填参数",
-            "缺少必填引數",
             context(ContextKind::InvalidArg),
         ),
         ErrorKind::InvalidValue | ErrorKind::ValueValidation => (
             "invalid_value",
             "Invalid value",
-            "参数值无效",
-            "引數值無效",
             format!(
                 "{} {}",
                 context(ContextKind::InvalidArg),
@@ -125,8 +89,6 @@ pub(super) fn argument_error(error: &clap::Error) -> String {
         ErrorKind::ArgumentConflict => (
             "argument_conflict",
             "Arguments conflict",
-            "参数冲突",
-            "引數衝突",
             format!(
                 "{} {}",
                 context(ContextKind::InvalidArg),
@@ -136,12 +98,10 @@ pub(super) fn argument_error(error: &clap::Error) -> String {
         _ => (
             "invalid_arguments",
             "Invalid arguments",
-            "参数无效",
-            "引數無效",
             context(ContextKind::InvalidArg),
         ),
     };
-    let label = text(key, english, simplified, traditional);
+    let label = text(key, english);
     let rendered = error.to_string();
     if label == english {
         return rendered;

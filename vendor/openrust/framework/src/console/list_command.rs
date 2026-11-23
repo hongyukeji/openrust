@@ -70,13 +70,8 @@ pub(super) fn run(
     if groups.is_empty()
         && let Some(name) = filter
     {
-        let message = text(
-            "namespace_missing",
-            "Namespace ':name' is not defined.",
-            "命令组「:name」不存在。",
-            "命令群組「:name」不存在。",
-        )
-        .replace(":name", name);
+        let message =
+            text("namespace_missing", "Namespace ':name' is not defined.").replace(":name", name);
         writeln!(output.stderr, "{message}").expect("writing to String");
         return 1;
     }
@@ -117,12 +112,7 @@ pub(super) fn run(
             writeln!(output.stdout, "</commands>").expect("writing to String");
         }
         "md" => {
-            let title = text(
-                "available_commands",
-                "Available commands",
-                "可用命令",
-                "可用命令",
-            );
+            let title = text("available_commands", "Available commands");
             writeln!(output.stdout, "# {title}").expect("writing to String");
             for (group, entries) in groups {
                 writeln!(
@@ -148,24 +138,17 @@ pub(super) fn run(
         }
         _ => {
             if !raw {
-                let usage = text("usage", "Usage:", "用法：", "用法：");
-                let options = text("options", "Options:", "选项：", "選項：");
+                let usage = text("usage", "Usage:");
+                let options = text("options", "Options:");
                 let global = descriptor::global_options(console, output.decorated);
                 let title = if let Some(name) = filter {
                     text(
                         "namespace_commands",
                         "Available commands for the ':name' namespace:",
-                        "「:name」命令组的可用命令：",
-                        "「:name」命令群組的可用命令：",
                     )
                     .replace(":name", name)
                 } else {
-                    text(
-                        "available_commands_heading",
-                        "Available commands:",
-                        "可用命令：",
-                        "可用命令：",
-                    )
+                    text("available_commands_heading", "Available commands:")
                 };
                 writeln!(
                     output.stdout,

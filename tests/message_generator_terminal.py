@@ -1,10 +1,12 @@
 """Exercise Artisan message generators using a POSIX pseudo-terminal."""
 
 import errno
+import json
 import os
 from pathlib import Path
 import pty
 import select
+import shutil
 import subprocess
 import sys
 from tempfile import TemporaryDirectory
@@ -55,6 +57,12 @@ choose = 'Choose [1]'
 confirm = 'Would you like to create a markdown view? [Y/n]'
 with TemporaryDirectory() as folder:
     root = Path(folder)
+    # 独立应用使用正常语言资源，语言选择与回退不再由命令写死。
+    languages = Path(__file__).resolve().parents[1] / 'lang'
+    for resource in languages.glob('*/console.json'):
+        destination = root / 'lang' / resource.parent.name / resource.name
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(resource, destination)
     artisan(root, ['make:mail'], [(mail, '\n'), (mail, 'Orders/Ready\n'), (choose, '\n')])
     assert '<x-mail::message>' in (root/'resources/views/mail/orders/ready.blade.html').read_text()
     artisan(root, ['make:mail'], [(mail, 'Billing/InvoiceReady\n'), (choose, '8\n'), (choose, '2\n')])
@@ -82,3 +90,13 @@ with TemporaryDirectory() as folder:
     assert 'Command cancelled.' in out and not (root/'app/mail/cancelled.rs').exists()
     artisan(root, ['make:mail','--test'], [('邮件类叫什么？', 'SimplifiedMail\n')], locale='zh-Hans')
     artisan(root, ['make:notification','--test'], [('通知類別叫什麼？', 'TraditionalNotice\n')], locale='zh-Hant')
+    # 相同命令由统一资源选择文案；新增语言、命令级覆盖及缺词回退无需改Rust。
+    for locale, heading, option in [('en', 'Usage:', 'Print help'), ('zh-Hans', '用法：', '显示帮助'), ('zh-Hant', '用法：', '顯示說明')]:
+        output = artisan(root, ['help', 'list'], locale=locale)
+        assert heading in output and option in output, output
+    resource = root / 'lang/fr/console.json'
+    resource.parent.mkdir(parents=True)
+    resource.write_text(json.dumps({'usage': 'Utilisation:', 'commands': {'list': {'description': 'Liste des commandes', 'arguments': {'help': 'Aide locale'}}}}))
+    output = artisan(root, ['help', 'list'], locale='fr')
+    assert 'Utilisation:' in output and 'Liste des commandes' in output and 'Aide locale' in output, output
+    assert 'Options:' in output, output

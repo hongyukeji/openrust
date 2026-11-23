@@ -114,7 +114,14 @@ Database column comments are generated as Rust documentation comments (`///`; de
 
 The `TABLE` documentation contains the database table comment directly, without a prefix. If that comment is missing or blank, it uses the localized default label (`Table` in English). Table comment changes require a refresh and are detected by `--check`.
 
-Generated section headings, instructions, and the table label follow `app.locale` (`APP_LOCALE`); English, Simplified Chinese, and Traditional Chinese are built in. Existing Artisan translation keys under `console.model_fields` can customize these strings. Refresh models after changing the language; database table and column comments remain in their original language.
+
+The method is written `r#where` because `where` is a Rust keyword. The raw identifier preserves the existing method name; `query.where(...)` is rejected by the Rust parser.
+
+Generation uses the Rust macro's syntax span and its adjacent configuration comment to locate the existing section, independently of translated headings. Editing the heading or generated constants does not create a second section; refresh replaces that section from the database. A missing or renamed macro, damaged comment boundary, duplicate declaration, or ambiguous legacy region is rejected without modifying the file. Keep business methods outside the generated section.
+
+`DB_PREFIX` is applied by the configured connection. For example, with `DB_PREFIX=tenant_`, `User::TABLE` remains `"users"`, while schema inspection and queries use `tenant_users`; do not add the prefix to the constant yourself.
+
+Generated text and Artisan presentation strings use the shared translator and `lang/<locale>/console.json`, including the configured fallback locale. The application currently supplies three language resources; this does not limit the number of supported languages. Add a language resource to extend it without changing Rust language branches. The `model_fields.title`, `notice`, `sync` and `table` entries control the generated section; `sync` uses the `:model` placeholder. Resource or locale changes take effect on refresh, and database descriptions remain unchanged.
 
 ### Refreshing models {#refreshing-models}
 

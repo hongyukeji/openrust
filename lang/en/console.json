@@ -1,0 +1,68 @@
+{
+    "command_missing": "Command ':name' is not defined.",
+    "command_ambiguous": "Command ':name' is ambiguous: :choices",
+    "confirm": {
+        "production": "APPLICATION IN PRODUCTION. Do you really wish to run this command?",
+        "cancelled": "Command cancelled."
+    },
+    "make": {
+        "mail": {
+            "name": "What is the name of the mailable?",
+            "view": "Would you like to create a view?\n  1. Markdown View\n  2. Empty View\n  3. No View\nChoose [1]"
+        },
+        "notification": {
+            "name": "What is the name of the notification?",
+            "markdown": "Would you like to create a markdown view? [Y/n]",
+            "view": "What should the markdown view be named?"
+        },
+        "message": {
+            "cancelled": "Command cancelled."
+        }
+    },
+    "commands": {
+        "list": {
+            "description": "List commands"
+        },
+        "help": {
+            "description": "Display help for a command"
+        },
+        "inspire": {
+            "description": "Display an inspiring quote"
+        },
+        "heading": "Commands:"
+    },
+    "usage": "Usage:",
+    "options": "Options:",
+    "unknown_argument": "Unexpected argument",
+    "unknown_command": "Command is not defined",
+    "missing_argument": "Required arguments are missing",
+    "invalid_value": "Invalid value",
+    "argument_conflict": "Arguments conflict",
+    "invalid_arguments": "Invalid arguments",
+    "model_fields": {
+        "title": "Model Table and Fields",
+        "notice": "Generated from the database schema. Do not edit manually.",
+        "sync": "Run `./artisan model:fields :model` from the project root to sync.",
+        "table": "Table"
+    },
+    "namespace_missing": "Namespace ':name' is not defined.",
+    "available_commands": "Available commands",
+    "namespace_commands": "Available commands for the ':name' namespace:",
+    "available_commands_heading": "Available commands:",
+    "usage_title": "Usage",
+    "argument_descriptions": {
+        "help": "Print help",
+        "version": "Print version",
+        "ansi": "Enable ANSI output",
+        "no-ansi": "Disable ANSI output",
+        "env": "The environment the command should run under",
+        "no-interaction": "Do not ask any interactive question",
+        "quiet": "Do not output any message",
+        "silent": "Do not output any message or error",
+        "verbose": "Increase the verbosity of messages",
+        "format": "Choose an output format",
+        "command_name": "The command to display",
+        "namespace": "Show commands in a specific namespace"
+    },
+    "arguments": "Arguments:"
+}

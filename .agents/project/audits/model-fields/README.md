@@ -375,3 +375,37 @@ Rust 1.94.0的fmt、框架all-targets严格Clippy、main构建通过。SQLite、
 
 
 提交授权补记（2026-11-23）：用户追加“提交代码”，将“完整需求复核与安全刷新”的修复、消费者测试、三语文档及交接记录纳入本地提交。提交前5项剩余技术／正文文件与最新通过验收的隔离快照逐字节一致，Python语法及差异空白检查通过；复用上述验收结果，未重复构建，未推送或发布。
+
+## 统一语言资源与刷新区域识别（2026-11-23）
+
+方案定稿、实现完成；下述实际范围验收通过。基于 `720d0d9da` 核对并保留协作者的表描述、顶部布局、TABLE复用、AST与原子刷新保护，未重新实现查询框架。本轮没有暂存、提交、推送或发布。
+
+### 采用方案与依据
+
+- 阅读固定 Laravel Framework `1449bf241017087fbd38c118ecaabef3f6797fdc` 的 [FileLoader](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Translation/FileLoader.php) 与 [Translator](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Translation/Translator.php)：按语言／组加载资源，并按配置回退。复用OpenRust现有Lang译器，文案存入 `lang/<locale>/console.json`；公共函数只接收键、单一默认文案及可选语言，不再枚举简繁英文。命令帮助、列表、参数说明、生产确认和邮件生成提示同步迁移；保留命令级覆盖。
+- 复核 [IDE Helper v3.6.0 ModelsCommand](https://github.com/barryvdh/laravel-ide-helper/blob/v3.6.0/src/Console/ModelsCommand.php) 的 `getPropertiesFromTable`：从模型连接／表结构生成IDE信息，符合本需求，不从fillable或casts推断全部字段。阅读 [SeaORM 1.1.19 EntityWriter](https://github.com/SeaQL/sea-orm/blob/1.1.19/sea-orm-codegen/src/entity/writer.rs)，继续采用显式生成源码而非普通构建连接数据库，不引入平行实体框架。前节Diesel、SeaQuery及MyBatis-Plus取舍保持有效。
+- [Rust 1.94 原始标识符](https://doc.rust-lang.org/1.94.0/reference/identifiers.html#raw-identifiers)：`where`是关键字，方法调用必须使用 `r#where`；真实rustc反例确认 `.where`解析失败并提示原始标识符。
+- 区域定位复用syn真实宏位置，紧邻配置式块注释仅检查结构，不读取标题、不枚举语言或历史译文。改标题或字段值后刷新替换同一区域；宏缺失／改名且仍留配置式说明、宏重复、边界损坏或旧区歧义时拒绝写入。翻译中的块注释开闭符均转义。
+- 无新增依赖。复用锁定syn 2.0.119／proc-macro2 1.0.107（MIT OR Apache-2.0、MSRV1.71），本轮用Rust1.94.0实际构建。在线搜索工具本轮无返回，改为HTTPS获取上述固定官方资料并阅读；参考材料在本工作流research目录。
+
+### 实际验收
+
+所有隔离源码、日志、TMPDIR和独占增量缓存在 `target/tmp/model-fields-sync-20261123/`，通过 `tests/build_guard.py --workflow model-fields-sync-20261123 --` 执行；未操作开发数据库。源码位于 `source/`，Cargo target位于 `cargo-target/`。
+
+- `python3 -B target/tmp/model-fields-sync-20261123/i18n.py`：Rust1.94.0 workspace fmt、workspace/all-targets严格Clippy（`-- -D warnings`）、main构建、model_fields两项rustdoc正反例通过。第三方vendor已有警告仍输出，未为本任务屏蔽。
+- 同入口的 `tests/model_fields_acceptance.py`：SQLite、隔离PostgreSQL18.7、MySQL8.4.13全部通过；真实生成／刷新／编译与查询，原字符串兼容、缺字段编译失败、列顺序／描述、表映射、NULL、别名／联表、旧格式迁移、无副作用检查、重复刷新及损坏源码保护均保留。新增15份临时语言资源，连同现有3份验证18种语言标识的资源扩展；译文改变、注释开闭符转义、缺词回退和改生成标题／常量后不重复插入均通过。日志 `i18n-{sqlite,postgres,mysql}.log`，详细消费者日志在 `i18n-final-{sqlite,postgres,mysql}/`。
+- 早期失败如实保留：首次Clippy暴露descriptor/list调用方未迁移，已修复；首次SQLite独立应用检查未携带语言资源，导致生成说明变为默认英文而判过期，已为独立应用复制真实语言资源，再跑三库通过，不恢复硬编码分支。
+- `i18n-post.py`：隔离MySQL以 `DB_PREFIX=tenant_` 迁移真实应用、执行 `model:fields User`、`--check`及重复刷新通过。TABLE仍是逻辑表名 `users`，数据库访问使用连接前缀。根 `app/models/user.rs` 与真实刷新结果逐字节相同，故未制造文件差异；模型业务代码逐字节未变。证据 `i18n-user-final.rs`、`i18n-user-{migrate,refresh,check,repeat}.log`。
+- 同入口复验fmt、严格Clippy、main构建，应用console／application_skeleton／mail_generator、缓存配置模型注册、真实TCP密码重置与邮箱验证HTTP、框架model_fields／query_bindings／eloquent_key_values全部通过。日志 `i18n-post-*.log` 与 `i18n-framework.log`。
+- `tests/message_generator_terminal.py <独占target>/debug/main`：实际PTY交互、取消／非交互、三语提示、自定义法语帮助与命令级覆盖、缺词回退通过；日志 `i18n-terminal.log`。
+- 三语Eloquent正文同步；`i18n-docs.py` 运行npm文档构建（含正文检查）、页面浏览器与根／子路径三语导航检查，结果及最终补充查询矩阵见下方收尾。
+
+### 支持边界
+
+这里只交付数据库生成关联字符串常量：检查Rust引用名称存在，不能检查查询模型归属、值类型或外部数据库结构。数据库变更后刷新、修复旧引用并重新构建。TABLE不固化DB_PREFIX。当前附带三份正式译文，18语言验收使用临时测试资源，不代表已提供18份完整翻译；以后增加语言资源即可，普通编译不需要数据库。
+
+安全刷新采取保守策略：没有可识别字段宏但仍有配置式块注释时拒绝，可能包含用户手写同结构说明，需先人工消除歧义；任意删改所有识别结构后的文件不能保证自动辨识历史来源。生成区不是业务代码区。Windows、其他数据库版本／SQL Server、完整workspace测试及正式发布验收未执行。
+
+收尾：`i18n-queries.py` 在SQLite、隔离PostgreSQL18及MySQL8.4执行真实筛选／排序／投影／更新／联表／关系／动态模型消费者，三库均通过，日志 `i18n-query-{sqlite,postgres,mysql}.log`。最终文档构建、12组页面浏览器、根与子路径6组三语导航全部通过，日志 `i18n-docs-{build,browser,scope}.log`。最终逐字节核对本轮代码、资源、测试、正文与已验收快照一致，User与实际生成物一致；暂存区为空、diff检查通过，本批数据库容器已回收。最终磁盘可用42,875,772 KiB，高于停线阈值，本轮未清理编译缓存。
+
+用户随后于2026-11-23追加授权将本节已验收改动本地提交；提交前重新核对全部代码、资源、测试与正文和已验收快照逐字节一致。没有推送或发布授权。

@@ -100,17 +100,10 @@ pub(super) fn register(artisan: &mut Artisan, kind: Kind) -> Result<(), ConsoleE
 
 fn prompt_for_name_and_view(kind: Kind, input: &ArgMatches) -> Result<Vec<OsString>, ConsoleError> {
     let question = match kind {
-        Kind::Mailable => localized_text(
-            "make.mail.name",
-            "What is the name of the mailable?",
-            "邮件类叫什么？",
-            "郵件類別叫什麼？",
-        ),
+        Kind::Mailable => localized_text("make.mail.name", "What is the name of the mailable?"),
         Kind::Notification => localized_text(
             "make.notification.name",
             "What is the name of the notification?",
-            "通知类叫什么？",
-            "通知類別叫什麼？",
         ),
     };
     let name = loop {
@@ -140,8 +133,6 @@ fn prompt_mailable_view() -> Result<Option<String>, ConsoleError> {
     let question = localized_text(
         "make.mail.view",
         "Would you like to create a view?\n  1. Markdown View\n  2. Empty View\n  3. No View\nChoose [1]",
-        "要创建视图吗？\n  1. Markdown 视图\n  2. 空白视图\n  3. 不创建视图\n请选择 [1]",
-        "要建立視圖嗎？\n  1. Markdown 視圖\n  2. 空白視圖\n  3. 不建立視圖\n請選擇 [1]",
     );
     loop {
         match read_prompt(&question)?.as_str() {
@@ -157,8 +148,6 @@ fn prompt_notification_view(name: &str) -> Result<Option<String>, ConsoleError> 
     let question = localized_text(
         "make.notification.markdown",
         "Would you like to create a markdown view? [Y/n]",
-        "要创建 Markdown 视图吗？ [Y/n]",
-        "要建立 Markdown 視圖嗎？ [Y/n]",
     );
     loop {
         match read_prompt(&question)?.to_ascii_lowercase().as_str() {
@@ -174,8 +163,6 @@ fn prompt_notification_view(name: &str) -> Result<Option<String>, ConsoleError> 
     let question = localized_text(
         "make.notification.view",
         "What should the markdown view be named?",
-        "Markdown 视图叫什么？",
-        "Markdown 視圖叫什麼？",
     );
     let view = read_prompt(&format!("{question} [{default}]"))?;
     Ok(Some(format!("--markdown={view}")))
@@ -193,8 +180,6 @@ fn read_prompt(question: &str) -> Result<String, ConsoleError> {
         return Err(ConsoleError::new(localized_text(
             "make.message.cancelled",
             "Command cancelled.",
-            "命令已取消。",
-            "命令已取消。",
         )));
     }
     Ok(answer.trim().to_owned())

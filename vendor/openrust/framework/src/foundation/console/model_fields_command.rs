@@ -16,53 +16,27 @@ use super::{model_make_command::validated_parts, source_edit};
 
 const BEGIN: &str = "// openrust:model-fields begin";
 const END: &str = "// openrust:model-fields end";
-const PREVIOUS_SECTION: &str = "/*\n|--------------------------------------------------------------------------\n| 模型字段\n|--------------------------------------------------------------------------\n|\n| 根据数据库表结构生成字段与说明，通过 model:fields 命令同步。\n| 调整表结构或列说明后，请重新同步并构建；不要直接修改此区域。\n|\n*/";
-const SECTION: &str = "/*\n|--------------------------------------------------------------------------\n| 模型表与字段\n|--------------------------------------------------------------------------\n|\n| 根据数据库表结构生成表名、字段与说明，通过 model:fields 命令同步。\n| 调整表结构或列说明后，请重新同步并构建；不要直接修改此区域。\n|\n*/";
-const PREVIOUS_SINGLE_LINE_SECTION: &str = "/*\n|--------------------------------------------------------------------------\n| 模型表与字段\n|--------------------------------------------------------------------------\n|\n| 根据数据库结构自动生成，请在项目根目录执行 `./artisan model:fields {model}` 同步，勿手动修改。\n|\n*/";
-const SECTION_TEMPLATE: &str = "/*\n|--------------------------------------------------------------------------\n| 模型表与字段\n|--------------------------------------------------------------------------\n|\n| 根据数据库结构自动生成，勿手动修改。\n| 请在项目根目录执行 `./artisan model:fields {model}` 同步。\n|\n*/";
-
-fn generated_text(
-    key: &str,
-    english: &str,
-    simplified: &str,
-    traditional: &str,
-    locale: &str,
-) -> String {
-    crate::console::localization::text_for_locale(
-        &format!("model_fields.{key}"),
-        english,
-        simplified,
-        traditional,
-        Some(locale),
-    )
-}
-
 fn generated_section(locale: &str, model: &str) -> String {
-    let title = generated_text(
-        "title",
+    let title = crate::console::localization::text_for_locale(
+        "model_fields.title",
         "Model Table and Fields",
-        "模型表与字段",
-        "模型資料表與欄位",
-        locale,
+        Some(locale),
     );
-    let notice = generated_text(
-        "notice",
+    let notice = crate::console::localization::text_for_locale(
+        "model_fields.notice",
         "Generated from the database schema. Do not edit manually.",
-        "根据数据库结构自动生成，勿手动修改。",
-        "根據資料庫結構自動產生，請勿手動修改。",
-        locale,
+        Some(locale),
     );
-    let sync = generated_text(
-        "sync",
+    let sync = crate::console::localization::text_for_locale(
+        "model_fields.sync",
         "Run `./artisan model:fields :model` from the project root to sync.",
-        "请在项目根目录执行 `./artisan model:fields :model` 同步。",
-        "請在專案根目錄執行 `./artisan model:fields :model` 同步。",
-        locale,
+        Some(locale),
     )
     .replace(":model", model);
     // 翻译属于配置数据，不能让注释结束符或换行逃逸生成的说明区域。
     let lines = |text: &str| {
-        text.replace("*/", "* /")
+        text.replace("/*", "/ *")
+            .replace("*/", "* /")
             .lines()
             .map(|line| format!("| {line}\n"))
             .collect::<String>()
@@ -305,7 +279,13 @@ async fn generate_for(
         .as_deref()
         .filter(|comment| !comment.trim().is_empty())
         .map_or_else(
-            || generated_text("table", "Table", "表名", "表名", &locale),
+            || {
+                crate::console::localization::text_for_locale(
+                    "model_fields.table",
+                    "Table",
+                    Some(&locale),
+                )
+            },
             str::to_owned,
         );
     append_documentation(&mut block, &table_documentation);
@@ -362,6 +342,38 @@ fn constant_name(column: &str) -> Result<String, ConsoleError> {
         field = "COLUMN_TABLE".into();
     }
     Ok(field)
+}
+
+// 通过宏前紧邻的配置式块注释定位说明，不依赖语言、标题或翻译历史。
+fn configuration_section_start(prefix: &str) -> Option<usize> {
+    let prefix = prefix.trim_end();
+    if !prefix.ends_with("*/") {
+        return None;
+    }
+    let start = prefix
+        .rfind("\n/*")
+        .map(|offset| offset + 1)
+        .or_else(|| prefix.starts_with("/*").then_some(0))?;
+    let mut lines = prefix[start..].lines();
+    if lines.next()? != "/*" {
+        return None;
+    }
+    let lines = lines.collect::<Vec<_>>();
+    if lines.last().copied()? != "*/"
+        || !lines[..lines.len() - 1]
+            .iter()
+            .all(|line| line.starts_with('|'))
+    {
+        return None;
+    }
+    let separators = lines
+        .iter()
+        .filter(|line| {
+            line.strip_prefix('|')
+                .is_some_and(|text| text.len() >= 8 && text.bytes().all(|byte| byte == b'-'))
+        })
+        .count();
+    (separators >= 2).then_some(start)
 }
 
 pub(super) fn merge(source: &str, block: &str, name: &str) -> Result<String, ConsoleError> {
@@ -455,31 +467,6 @@ pub(super) fn merge(source: &str, block: &str, name: &str) -> Result<String, Con
         }
     }
     let (file, base) = parse_source(&source)?;
-    let mut headers = [
-        SECTION_TEMPLATE.replace("{model}", name),
-        PREVIOUS_SINGLE_LINE_SECTION.replace("{model}", name),
-        PREVIOUS_SINGLE_LINE_SECTION.replace("{model}", class),
-        SECTION.to_owned(),
-        PREVIOUS_SECTION.to_owned(),
-    ]
-    .into_iter()
-    .flat_map(|section| [section.replace('\n', "\r\n"), section])
-    .collect::<Vec<_>>();
-    let locale = crate::support::facades::Lang::getLocale().map_err(error)?;
-    for locale in ["en", "zh-Hans", "zh-Hant", locale.as_str()] {
-        let section = generated_section(locale, name);
-        headers.extend([section.replace('\n', "\r\n"), section]);
-    }
-    headers.sort();
-    headers.dedup();
-    let sections = headers
-        .iter()
-        .flat_map(|section| {
-            source
-                .match_indices(section.as_str())
-                .map(move |(offset, _)| (offset, section.len()))
-        })
-        .collect::<Vec<_>>();
     let declarations = file
         .items
         .iter()
@@ -513,16 +500,25 @@ pub(super) fn merge(source: &str, block: &str, name: &str) -> Result<String, Con
             Some((start, end, item.attrs.is_empty()))
         })
         .collect::<Vec<_>>();
-    match (sections.as_slice(), declarations.as_slice()) {
-        ([], []) => {}
-        ([(section, section_len)], [(start, end, true)])
-            if *section < *start
-                && source[section + section_len..*start].trim().is_empty()
-                && begin.is_none() =>
-        {
+    match declarations.as_slice() {
+        [] => {
+            // 生成宏被删改时不能仅因不认识旧文案便插入第二份说明。
+            if source
+                .match_indices("*/")
+                .any(|(end, _)| configuration_section_start(&source[..end + 2]).is_some())
+            {
+                return Err(ConsoleError::new(
+                    "模型中存在配置式说明但没有可识别的字段宏，未修改源码。",
+                ));
+            }
+        }
+        [(start, end, true)] if begin.is_none() => {
+            let Some(section) = configuration_section_start(&source[..*start]) else {
+                return Err(ConsoleError::new("模型字段说明边界已损坏，未修改源码。"));
+            };
             let trailing =
                 source[*end..].len() - source[*end..].trim_start_matches(['\r', '\n']).len();
-            source.replace_range(*section..end + trailing, "");
+            source.replace_range(section..end + trailing, "");
         }
         _ => {
             return Err(ConsoleError::new(
