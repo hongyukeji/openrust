@@ -72,7 +72,7 @@ impl TokenRepository for DatabaseTokenRepository {
         Box::pin(async move {
             let (token, hash) = self.policy.generate().await?;
             let record: Record = [
-                ("email".into(), user.getEmailForPasswordReset().into()),
+                ("email".into(), user.get_email_for_password_reset().into()),
                 ("token".into(), hash.into()),
                 ("created_at".into(), timestamp(now())),
             ]
@@ -90,7 +90,7 @@ impl TokenRepository for DatabaseTokenRepository {
         user: &'a dyn CanResetPassword,
     ) -> AuthFuture<'a, AuthResult<Option<String>>> {
         Box::pin(async move {
-            if self.recentlyCreatedToken(user).await? {
+            if self.recently_created_token(user).await? {
                 return Ok(None);
             }
             let Some(_) = self.policy.throttle_cutoff(now()) else {
@@ -99,7 +99,7 @@ impl TokenRepository for DatabaseTokenRepository {
             let (token, hash) = self.policy.generate().await?;
             let now = now();
             let cutoff = self.policy.throttle_cutoff(now).expect("throttle enabled");
-            let email = user.getEmailForPasswordReset();
+            let email = user.get_email_for_password_reset();
             let values: Record = [
                 ("token".into(), hash.into()),
                 ("created_at".into(), timestamp(now)),
@@ -134,7 +134,7 @@ impl TokenRepository for DatabaseTokenRepository {
         token: &'a str,
     ) -> AuthFuture<'a, AuthResult<Option<TokenClaim>>> {
         Box::pin(async move {
-            let email = user.getEmailForPasswordReset();
+            let email = user.get_email_for_password_reset();
             let Some((hash, created)) = self.record(email).await? else {
                 return Ok(None);
             };
@@ -185,7 +185,8 @@ impl TokenRepository for DatabaseTokenRepository {
         token: &'a str,
     ) -> AuthFuture<'a, AuthResult<bool>> {
         Box::pin(async move {
-            let Some((hash, created)) = self.record(user.getEmailForPasswordReset()).await? else {
+            let Some((hash, created)) = self.record(user.get_email_for_password_reset()).await?
+            else {
                 return Ok(false);
             };
             if hash.starts_with('!') || created <= self.policy.expiry_cutoff(now()) {
@@ -195,7 +196,7 @@ impl TokenRepository for DatabaseTokenRepository {
         })
     }
 
-    fn recentlyCreatedToken<'a>(
+    fn recently_created_token<'a>(
         &'a self,
         user: &'a dyn CanResetPassword,
     ) -> AuthFuture<'a, AuthResult<bool>> {
@@ -204,7 +205,7 @@ impl TokenRepository for DatabaseTokenRepository {
                 return Ok(false);
             };
             Ok(self
-                .record(user.getEmailForPasswordReset())
+                .record(user.get_email_for_password_reset())
                 .await?
                 .is_some_and(|(_, created)| created > cutoff))
         })
@@ -212,12 +213,14 @@ impl TokenRepository for DatabaseTokenRepository {
 
     fn delete<'a>(&'a self, user: &'a dyn CanResetPassword) -> AuthFuture<'a, AuthResult<()>> {
         Box::pin(async move {
-            self.query(user.getEmailForPasswordReset()).delete().await?;
+            self.query(user.get_email_for_password_reset())
+                .delete()
+                .await?;
             Ok(())
         })
     }
 
-    fn deleteExpired(&self) -> AuthFuture<'_, AuthResult<()>> {
+    fn delete_expired(&self) -> AuthFuture<'_, AuthResult<()>> {
         Box::pin(async move {
             self.database
                 .table(&self.table)

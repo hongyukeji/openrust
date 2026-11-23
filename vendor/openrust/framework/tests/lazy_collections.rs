@@ -34,7 +34,7 @@ fn pipelines_open_only_when_polled_and_replay_without_overreading() {
     assert!(iterator.next().is_none());
     assert_eq!(reads.get(), 4);
     assert_eq!(
-        selected.collect().unwrap().toJson().unwrap(),
+        selected.collect().unwrap().to_json().unwrap(),
         r#"{"6":20,"12":40}"#
     );
     assert_eq!(opens.get(), 2);
@@ -132,11 +132,11 @@ fn keyed_tail_chunks_and_eager_conversion_follow_collection_rules() {
     );
     let chunks = values.clone().chunk(2, true).collect().unwrap();
     assert_eq!(
-        chunks.toJson().unwrap(),
+        chunks.to_json().unwrap(),
         r#"[{"1":1,"05":2},{"1":3,"last":4}]"#
     );
     let chunks = values.clone().chunk(3, false).collect().unwrap();
-    assert_eq!(chunks.toJson().unwrap(), "[[1,2,3],[4]]");
+    assert_eq!(chunks.to_json().unwrap(), "[[1,2,3],[4]]");
     assert_eq!(values.count().unwrap(), 4);
     assert_eq!(values.eager().unwrap().count().unwrap(), 3);
 
@@ -228,13 +228,13 @@ fn chunk_while_reuses_the_boundary_item_and_preserves_keys() {
     assert_eq!(reads.get(), 0);
     let mut iterator = groups.getIterator();
     let (_, first) = iterator.next().unwrap().unwrap();
-    assert_eq!(first.toJson().unwrap(), r#"{"first":"A","again":"A"}"#);
+    assert_eq!(first.to_json().unwrap(), r#"{"first":"A","again":"A"}"#);
     assert_eq!(reads.get(), 3);
     let (_, second) = iterator.next().unwrap().unwrap();
-    assert_eq!(second.toJson().unwrap(), r#"{"next":"B"}"#);
+    assert_eq!(second.to_json().unwrap(), r#"{"next":"B"}"#);
     assert_eq!(reads.get(), 4);
     let (_, last) = iterator.next().unwrap().unwrap();
-    assert_eq!(last.toJson().unwrap(), r#"{"last":"C"}"#);
+    assert_eq!(last.to_json().unwrap(), r#"{"last":"C"}"#);
     assert!(iterator.next().is_none());
     assert_eq!(groups.count().unwrap(), 3);
 }
@@ -251,16 +251,16 @@ fn sliding_preserves_key_order_and_pulls_only_complete_windows() {
     assert_eq!(reads.get(), 0);
     let mut iterator = overlap.getIterator();
     let (_, first) = iterator.next().unwrap().unwrap();
-    assert_eq!(first.toJson().unwrap(), r#"{"x":2,"y":3}"#);
+    assert_eq!(first.to_json().unwrap(), r#"{"x":2,"y":3}"#);
     assert_eq!(reads.get(), 3);
     assert_eq!(
-        iterator.next().unwrap().unwrap().1.toJson().unwrap(),
+        iterator.next().unwrap().unwrap().1.to_json().unwrap(),
         r#"{"y":3,"z":4}"#
     );
     assert_eq!(reads.get(), 4);
     let gapped = source.clone().sliding(2, 3).unwrap().all().unwrap();
     assert_eq!(gapped.len(), 2);
-    assert_eq!(gapped[1].1.toJson().unwrap(), r#"{"p":5,"q":6}"#);
+    assert_eq!(gapped[1].1.to_json().unwrap(), r#"{"p":5,"q":6}"#);
     let short = source.clone().sliding(6, 1).unwrap();
     assert_eq!(short.count().unwrap(), 0);
     assert!(matches!(
@@ -383,8 +383,8 @@ fn chunk_by_projects_typed_values_and_keys() {
         .all()
         .unwrap();
     assert_eq!(groups.len(), 2);
-    assert_eq!(groups[0].1.toJson().unwrap(), r#"{"a":4,"b":7}"#);
-    assert_eq!(groups[1].1.toJson().unwrap(), r#"{"c":11}"#);
+    assert_eq!(groups[0].1.to_json().unwrap(), r#"{"a":4,"b":7}"#);
+    assert_eq!(groups[1].1.to_json().unwrap(), r#"{"c":11}"#);
 }
 
 #[test]
@@ -407,11 +407,11 @@ fn lazy_collapse_preserves_or_reindexes_keys_without_opening_later_groups() {
     assert_eq!(iterator.next().unwrap().unwrap(), ("same".into(), 3));
     assert_eq!(opened.get(), 1);
     assert_eq!(
-        keyed.collect().unwrap().toJson().unwrap(),
+        keyed.collect().unwrap().to_json().unwrap(),
         r#"{"same":3,"first":2,"last":4}"#
     );
     assert_eq!(
-        groups.collapse().collect().unwrap().toJson().unwrap(),
+        groups.collapse().collect().unwrap().to_json().unwrap(),
         "[1,2,3,4]"
     );
 }
@@ -425,7 +425,7 @@ fn lazy_flat_map_flattens_one_level_and_propagates_nested_failures() {
     });
     assert_eq!(mapped.clone().take(1).all().unwrap(), vec![(0.into(), 1)]);
     assert_eq!(calls.get(), 1);
-    assert_eq!(mapped.collect().unwrap().toJson().unwrap(), "[1,2,2,4]");
+    assert_eq!(mapped.collect().unwrap().to_json().unwrap(), "[1,2,2,4]");
     assert_eq!(
         LazyCollection::make(|| [[1, 2], [3, 4]])
             .collapse()
@@ -461,9 +461,12 @@ fn lazy_flatten_respects_depth_and_keeps_scalar_values() {
     let one = source.clone().flatten(Some(1));
     assert_eq!(one.clone().take(1).first().unwrap(), Some(json!([1, [2]])));
     assert_eq!(read.get(), 1);
-    assert_eq!(one.collect().unwrap().toJson().unwrap(), "[[1,[2]],3,null]");
     assert_eq!(
-        source.flatten(None).collect().unwrap().toJson().unwrap(),
+        one.collect().unwrap().to_json().unwrap(),
+        "[[1,[2]],3,null]"
+    );
+    assert_eq!(
+        source.flatten(None).collect().unwrap().to_json().unwrap(),
         "[1,2,3,null]"
     );
 
@@ -624,13 +627,13 @@ fn lazy_cardinality_checks_short_circuit_and_follow_keyed_sole_semantics() {
         repeated.soleWhere(|value, _| *value > 4),
         Err(CollectionError::ItemNotFound)
     ));
-    assert!(LazyCollection::<i32>::empty().isEmpty().unwrap());
+    assert!(LazyCollection::<i32>::empty().is_empty().unwrap());
 }
 
 #[test]
 fn lazy_first_and_contains_stop_on_the_first_match_and_propagate_errors() {
     let source = LazyCollection::tryMake(|| [Ok(10), Err(source_error()), Ok(30)]);
-    assert!(source.isNotEmpty().unwrap());
+    assert!(source.is_not_empty().unwrap());
     assert!(source.containsStrict(&10).unwrap());
     assert!(source.containsWhere(|value, _| *value == 10).unwrap());
     assert_eq!(source.firstOrFail().unwrap(), 10);
@@ -1022,10 +1025,10 @@ fn lazy_groups_materialize_with_key_coalescing_before_projection() {
         vec![(0.into(), vec![4, 2]), (1.into(), vec![3])]
     );
     let groups = source.clone().mapToGroups(|value, _| (value % 2, *value));
-    assert_eq!(groups.first().unwrap().unwrap().toJson().unwrap(), "[4,2]");
+    assert_eq!(groups.first().unwrap().unwrap().to_json().unwrap(), "[4,2]");
     let keyed = source.groupBy(|value, _| value % 2, true);
     assert_eq!(
-        keyed.first().unwrap().unwrap().toJson().unwrap(),
+        keyed.first().unwrap().unwrap().to_json().unwrap(),
         r#"{"a":4,"b":2}"#
     );
 }
@@ -1043,7 +1046,7 @@ fn lazy_key_lookups_stop_at_first_match_and_distinguish_normalized_keys() {
     assert_eq!(source.get("08").unwrap(), Some(1));
     assert!(source.has(8).unwrap());
     assert!(source.hasAll(["08", "8", "8"]).unwrap());
-    assert!(source.hasAny(["missing", "08"]).unwrap());
+    assert!(source.has_any(["missing", "08"]).unwrap());
     assert!(!source.has("missing").unwrap());
     assert!(source.hasAll(std::iter::empty::<ArrayKey>()).unwrap());
     assert!(
@@ -1088,7 +1091,7 @@ fn lazy_neighbors_and_search_follow_occurrence_order() {
 fn lazy_lookup_reports_errors_only_if_needed_for_the_result() {
     let failing = LazyCollection::tryFromEntries(|| [Ok(("first", 1)), Err(source_error())]);
     assert_eq!(failing.get("first").unwrap(), Some(1));
-    assert!(failing.hasAny(["first", "missing"]).unwrap());
+    assert!(failing.has_any(["first", "missing"]).unwrap());
     assert!(matches!(
         failing.hasAll(["first", "missing"]),
         Err(CollectionError::Source(_))
@@ -1180,16 +1183,16 @@ fn lazy_null_filters_distinguish_null_from_false_and_missing_paths() {
             .unwrap(),
         1
     );
-    assert_eq!(source.clone().whereNull().count().unwrap(), 1);
-    assert_eq!(source.whereNotNull().count().unwrap(), 3);
+    assert_eq!(source.clone().where_null().count().unwrap(), 1);
+    assert_eq!(source.where_not_null().count().unwrap(), 3);
 
     let typed = LazyCollection::fromEntries(|| [("empty", None), ("not_empty", Some(false))]);
     assert_eq!(
-        typed.clone().whereNull().all().unwrap(),
+        typed.clone().where_null().all().unwrap(),
         vec![("empty".into(), None)]
     );
     assert_eq!(
-        typed.whereNotNull().all().unwrap(),
+        typed.where_not_null().all().unwrap(),
         vec![("not_empty".into(), Some(false))]
     );
 }
@@ -1217,7 +1220,7 @@ fn lazy_downcasting_and_predicates_propagate_source_errors() {
     assert!(iterator.next().is_none());
     let source = LazyCollection::tryMake(|| [Ok(1), Err(source_error())]);
     assert!(matches!(
-        source.whereIn(|value| *value, &[2]).first(),
+        source.where_in(|value| *value, &[2]).first(),
         Err(CollectionError::Source(_))
     ));
 }
@@ -1261,20 +1264,20 @@ fn lazy_split_and_partition_preserve_their_distinct_materialization_rules() {
     let split = source.clone().split(3).unwrap();
     assert_eq!(reads.get(), 0);
     assert_eq!(
-        split.first().unwrap().unwrap().toJson().unwrap(),
+        split.first().unwrap().unwrap().to_json().unwrap(),
         r#"{"a":2,"b":3}"#
     );
     assert_eq!(reads.get(), 5);
     let chunks = source.clone().splitIn(2).unwrap();
     assert_eq!(reads.get(), 10);
     assert_eq!(
-        chunks.first().unwrap().unwrap().toJson().unwrap(),
+        chunks.first().unwrap().unwrap().to_json().unwrap(),
         r#"{"a":2,"b":3,"c":4}"#
     );
     assert_eq!(reads.get(), 14);
     let (evens, odds) = source.partition(|value, _| value % 2 == 0).unwrap();
-    assert_eq!(evens.toJson().unwrap(), r#"{"a":2,"c":4}"#);
-    assert_eq!(odds.toJson().unwrap(), r#"{"a":1,"b":3,"d":5}"#);
+    assert_eq!(evens.to_json().unwrap(), r#"{"a":2,"c":4}"#);
+    assert_eq!(odds.to_json().unwrap(), r#"{"a":1,"b":3,"d":5}"#);
 }
 
 #[test]
@@ -1325,25 +1328,25 @@ fn lazy_json_preserves_shapes_and_replays_deserialized_sources() {
         .into_iter()
         .inspect(|_| reads.set(reads.get() + 1))
     });
-    assert_eq!(keyed.toJson().unwrap(), r#"{"2":"new","08":"keep"}"#);
+    assert_eq!(keyed.to_json().unwrap(), r#"{"2":"new","08":"keep"}"#);
     assert_eq!(reads.get(), 3);
     assert_eq!(
         keyed.jsonSerialize().unwrap(),
         json!({"2":"new","08":"keep"})
     );
     assert_eq!(
-        keyed.toPrettyJson().unwrap(),
+        keyed.to_pretty_json().unwrap(),
         "{\n  \"2\": \"new\",\n  \"08\": \"keep\"\n}"
     );
     assert_eq!(
         serde_json::to_value(&keyed).unwrap(),
-        keyed.toArray().unwrap()
+        keyed.to_array().unwrap()
     );
-    assert_eq!(keyed.values().toJson().unwrap(), r#"["old","keep","new"]"#);
+    assert_eq!(keyed.values().to_json().unwrap(), r#"["old","keep","new"]"#);
 
     let decoded = LazyCollection::<i32>::fromJson(r#"{"8":1,"08":2}"#).unwrap();
-    assert_eq!(decoded.toJson().unwrap(), r#"{"8":1,"08":2}"#);
-    assert_eq!(decoded.toJson().unwrap(), r#"{"8":1,"08":2}"#);
+    assert_eq!(decoded.to_json().unwrap(), r#"{"8":1,"08":2}"#);
+    assert_eq!(decoded.to_json().unwrap(), r#"{"8":1,"08":2}"#);
     assert!(LazyCollection::<i32>::fromJson("7").is_err());
     let nested =
         serde_json::from_str::<LazyCollection<'_, LazyCollection<'_, i32>>>("[[1,2],[]]").unwrap();
@@ -1353,15 +1356,15 @@ fn lazy_json_preserves_shapes_and_replays_deserialized_sources() {
 #[test]
 fn lazy_serialization_keeps_read_errors_separate_from_encoding_errors() {
     let failing = LazyCollection::tryMake(|| [Ok(1), Err(source_error())]);
-    assert!(matches!(failing.toJson(), Err(CollectionError::Source(_))));
+    assert!(matches!(failing.to_json(), Err(CollectionError::Source(_))));
     assert!(serde_json::to_string(&failing).is_err());
     let nonfinite = LazyCollection::from([1.0, f64::NAN]);
     assert!(matches!(
-        nonfinite.toJson(),
+        nonfinite.to_json(),
         Err(CollectionError::Serialization(_))
     ));
     assert!(matches!(
-        nonfinite.toArray(),
+        nonfinite.to_array(),
         Err(CollectionError::Serialization(_))
     ));
 }
@@ -1420,14 +1423,14 @@ fn lazy_range_is_inclusive_in_both_directions_and_handles_integer_limits() {
     let two = NonZeroUsize::new(2).unwrap();
     let one = NonZeroUsize::MIN;
     assert_eq!(
-        LazyCollection::range(2, 6, two).toJson().unwrap(),
+        LazyCollection::range(2, 6, two).to_json().unwrap(),
         "[2,4,6]"
     );
     assert_eq!(
-        LazyCollection::range(6, 1, two).toJson().unwrap(),
+        LazyCollection::range(6, 1, two).to_json().unwrap(),
         "[6,4,2]"
     );
-    assert_eq!(LazyCollection::range(9, 9, two).toJson().unwrap(), "[9]");
+    assert_eq!(LazyCollection::range(9, 9, two).to_json().unwrap(), "[9]");
     assert_eq!(
         LazyCollection::range(i64::MIN, i64::MAX, one)
             .take(3)
@@ -1474,13 +1477,13 @@ fn lazy_wrapping_replays_values_and_unwrap_propagates_errors() {
             .is_empty()
     );
     let json = LazyCollection::fromValue(json!({"08":2,"8":3}));
-    assert_eq!(json.toJson().unwrap(), r#"{"08":2,"8":3}"#);
+    assert_eq!(json.to_json().unwrap(), r#"{"08":2,"8":3}"#);
     assert_eq!(
         json.clone().unwrap().unwrap(),
         vec![("08".into(), json!(2)), (8.into(), json!(3))]
     );
     assert_eq!(
-        LazyCollection::fromValue(json!(42)).toJson().unwrap(),
+        LazyCollection::fromValue(json!(42)).to_json().unwrap(),
         "[42]"
     );
     assert_eq!(LazyCollection::fromValue(json!(null)).count().unwrap(), 0);
@@ -1509,7 +1512,7 @@ fn lazy_conditional_pipes_and_tap_preserve_the_source_until_pulled() {
     assert_eq!(reads.get(), 0);
     assert_eq!(tapped.get(), 1);
     assert_eq!(
-        stage.pipe(|items| items.values().toJson()).unwrap(),
+        stage.pipe(|items| items.values().to_json()).unwrap(),
         "[6,9]"
     );
     assert_eq!(reads.get(), 3);
@@ -1600,7 +1603,7 @@ fn lazy_flip_and_spread_transform_items_without_materializing() {
     let flipped = keys.flip();
     assert_eq!(flipped.count().unwrap(), 3);
     assert_eq!(
-        flipped.collect().unwrap().toJson().unwrap(),
+        flipped.collect().unwrap().to_json().unwrap(),
         r#"{"8":"b","08":"c"}"#
     );
 
@@ -1641,19 +1644,19 @@ fn lazy_json_select_is_row_based_and_recursive_updates_reuse_key_rules() {
     assert_eq!(reads.get(), 0);
     assert_eq!(selected.first().unwrap(), Some(json!({"a":1})));
     assert_eq!(reads.get(), 1);
-    assert_eq!(selected.toArray().unwrap(), json!([{"a":1},{"a":null},[]]));
+    assert_eq!(selected.to_array().unwrap(), json!([{"a":1},{"a":null},[]]));
 
     let base = LazyCollection::fromValue(json!({"profile":{"name":"A","roles":["edit"]}}));
     let other = LazyCollection::fromValue(json!({"profile":{"name":"B","roles":["view"]}}));
     assert_eq!(
         base.clone()
             .mergeRecursive(other.clone())
-            .toArray()
+            .to_array()
             .unwrap(),
         json!({"profile":{"name":["A","B"],"roles":["edit","view"]}})
     );
     assert_eq!(
-        base.replaceRecursive(other).toArray().unwrap(),
+        base.replaceRecursive(other).to_array().unwrap(),
         json!({"profile":{"name":"B","roles":["view"]}})
     );
 }
@@ -1661,7 +1664,7 @@ fn lazy_json_select_is_row_based_and_recursive_updates_reuse_key_rules() {
 #[test]
 fn lazy_multiply_coalesces_input_before_repetition_and_transforms_propagate_errors() {
     let source = LazyCollection::fromEntries(|| [("same", 1), ("same", 2), ("other", 3)]);
-    assert_eq!(source.multiply(2).toJson().unwrap(), "[2,3,2,3]");
+    assert_eq!(source.multiply(2).to_json().unwrap(), "[2,3,2,3]");
     let failing = LazyCollection::tryMake(|| [Ok(serde_json::json!({"a":1})), Err(source_error())]);
     let projected = failing.clone().select(&["a"]);
     let mut values = projected.getIterator();
@@ -1692,7 +1695,7 @@ fn lazy_cross_join_defers_source_reads_and_matches_product_order() {
     assert_eq!(product.first().unwrap(), Some(vec![1, 3, 5]));
     assert_eq!(reads.get(), 3);
     assert_eq!(
-        product.toJson().unwrap(),
+        product.to_json().unwrap(),
         "[[1,3,5],[1,4,5],[2,3,5],[2,4,5]]"
     );
     assert_eq!(
@@ -1723,7 +1726,7 @@ fn lazy_random_is_immediate_and_replays_the_selected_values() {
     assert_eq!(LazyCollection::all(&retained).unwrap(), sampled);
     assert_eq!(reads.get(), 3);
     assert_eq!(
-        source.random(3, false).unwrap().toJson().unwrap(),
+        source.random(3, false).unwrap().to_json().unwrap(),
         "[10,20,30]"
     );
     assert!(matches!(
@@ -1836,14 +1839,14 @@ fn lazy_caching_iterator_looks_ahead_and_caches_only_yielded_keys() -> Collectio
     assert_eq!(traversal.next().transpose()?, Some(("a".into(), 1)));
     assert!(traversal.hasNext());
     assert_eq!(reads.get(), 2);
-    assert_eq!(traversal.getCache().unwrap().get("a"), Some(&1));
+    assert_eq!(traversal.get_cache().unwrap().get("a"), Some(&1));
     assert_eq!(traversal.next().transpose()?, Some(("a".into(), 2)));
     assert_eq!(reads.get(), 3);
-    assert_eq!(traversal.getCache().unwrap().get("a"), Some(&2));
-    assert!(!traversal.getCache().unwrap().has("b"));
+    assert_eq!(traversal.get_cache().unwrap().get("a"), Some(&2));
+    assert!(!traversal.get_cache().unwrap().has("b"));
     assert_eq!(traversal.next().transpose()?, Some(("b".into(), 3)));
     assert!(!traversal.hasNext());
-    assert_eq!(traversal.getCache().unwrap().get("b"), Some(&3));
+    assert_eq!(traversal.get_cache().unwrap().get("b"), Some(&3));
     assert!(traversal.next().is_none());
 
     struct NoClone;
@@ -1851,7 +1854,7 @@ fn lazy_caching_iterator_looks_ahead_and_caches_only_yielded_keys() -> Collectio
     let mut lookahead = single.getCachingIterator();
     assert!(lookahead.hasNext());
     assert!(lookahead.next().transpose()?.is_some());
-    assert!(lookahead.getCache().is_none());
+    assert!(lookahead.get_cache().is_none());
     assert!(!lookahead.hasNext());
     assert!(single.containsOneItem()?);
     assert!(!single.containsManyItems()?);
@@ -1877,7 +1880,7 @@ fn lazy_caching_iterator_preserves_the_entry_before_a_source_error() -> Collecti
     ));
     assert!(!traversal.hasNext());
     assert_eq!(reads.get(), 2);
-    assert_eq!(traversal.getCache().unwrap().count(), 1);
+    assert_eq!(traversal.get_cache().unwrap().count(), 1);
     Ok(())
 }
 
@@ -1947,7 +1950,7 @@ fn lazy_string_escape_only_applies_during_string_conversion() -> CollectionResul
     );
     assert_eq!(reads.get(), 1);
     let raw = r#"{"a&b":"<>\"' &lt;"}"#;
-    assert_eq!(escaped.toJson()?, raw);
+    assert_eq!(escaped.to_json()?, raw);
     assert_eq!(values.toString()?, raw);
     assert_eq!(
         escaped

@@ -28,10 +28,9 @@ impl PolicyHandle {
     }
 }
 
-#[allow(non_snake_case, reason = "保留授权策略发现原名")]
 impl GateRegistry {
     /// 将已编译策略登记到发现目录；不提前构造，也不添加显式模型映射。
-    pub fn discoverPolicy<T, P>(&self) -> &Self
+    pub fn discover_policy<T, P>(&self) -> &Self
     where
         T: Send + Sync + 'static,
         P: Policy<T> + 'static,
@@ -65,7 +64,7 @@ impl GateRegistry {
             .collect()
     }
 
-    pub fn guessPolicyNamesUsing(
+    pub fn guess_policy_names_using(
         &self,
         callback: impl Fn(&str) -> Vec<String> + Send + Sync + 'static,
     ) -> &Self {
@@ -77,7 +76,7 @@ impl GateRegistry {
     }
 
     /// 通过现有容器构造策略，保留绑定的瞬态、共享和错误语义。
-    pub fn resolvePolicy<P: Send + Sync + 'static>(&self) -> AuthResult<Arc<P>> {
+    pub fn resolve_policy<P: Send + Sync + 'static>(&self) -> AuthResult<Arc<P>> {
         let owner = self
             .owner
             .upgrade()
@@ -85,7 +84,7 @@ impl GateRegistry {
         owner.make::<P>().map_err(AuthError::backend)
     }
 
-    pub fn getPolicyFor(&self, target: &Argument) -> AuthResult<Option<PolicyHandle>> {
+    pub fn get_policy_for(&self, target: &Argument) -> AuthResult<Option<PolicyHandle>> {
         let descriptor = target.downcast_ref::<PolicyTarget>();
         let target_id = descriptor.map_or_else(|| target.type_id(), |target| target.0);
         let (explicit, name, guess) = {

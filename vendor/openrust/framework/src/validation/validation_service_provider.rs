@@ -19,7 +19,7 @@ impl ServiceProvider for ValidationServiceProvider {
             let container = app.container();
             container.singleton_named("validator", |container| {
                 let mut factory = Factory::new(container.get::<Translator>("translator")?);
-                factory.setPresenceVerifier(DatabasePresenceVerifier::new(
+                factory.set_presence_verifier(DatabasePresenceVerifier::new(
                     container.make::<dyn crate::database::ConnectionResolverInterface>()?,
                 ));
                 Ok(Arc::new(factory))

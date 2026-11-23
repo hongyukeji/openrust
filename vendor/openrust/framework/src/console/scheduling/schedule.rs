@@ -54,10 +54,9 @@ impl Default for Schedule {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Schedule {
     /// 阈值与回调耗时均用 Duration 表达，避免秒和毫秒混淆。
-    pub fn whenTaskRunsLongerThan(
+    pub fn when_task_runs_longer_than(
         &self,
         threshold: std::time::Duration,
         handler: impl Fn(&Arc<Event>, std::time::Duration) -> crate::events::EventResult<()>
@@ -139,15 +138,15 @@ impl Schedule {
     }
 
     /// Disables pause controls for this application's scheduler.
-    pub fn doNotAllowPausing(&mut self) {
+    pub fn do_not_allow_pausing(&mut self) {
         self.pausable = false;
     }
 
-    pub fn useCache(&mut self, store: impl Into<String>) {
+    pub fn use_cache(&mut self, store: impl Into<String>) {
         self.store = Some(store.into());
     }
 
-    pub fn useClock(&mut self, clock: impl Fn() -> SystemTime + Send + Sync + 'static) {
+    pub fn use_clock(&mut self, clock: impl Fn() -> SystemTime + Send + Sync + 'static) {
         self.clock = Some(Box::new(clock));
     }
 
@@ -215,7 +214,7 @@ impl Schedule {
         self.after(hook)
     }
 
-    pub fn onSuccess(
+    pub fn on_success(
         &mut self,
         hook: impl for<'a> Fn(
             &'a Application,
@@ -228,7 +227,7 @@ impl Schedule {
         self.with_hook(HookKind::Success, Arc::new(hook))
     }
 
-    pub fn onFailure(
+    pub fn on_failure(
         &mut self,
         hook: impl for<'a> Fn(
             &'a Application,
@@ -255,7 +254,7 @@ impl Schedule {
         }))
     }
 
-    pub fn everyMinute(&mut self) -> &mut Self {
+    pub fn every_minute(&mut self) -> &mut Self {
         self.cron("* * * * *").expect("valid minute frequency")
     }
 
@@ -263,16 +262,16 @@ impl Schedule {
         self.cron("0 0 * * *").expect("valid daily frequency")
     }
 
-    pub fn twiceDaily(&mut self) -> &mut Self {
+    pub fn twice_daily(&mut self) -> &mut Self {
         self.cron("0 1,13 * * *")
             .expect("valid twice-daily frequency")
     }
 
-    pub fn dailyAt(&mut self, time: &str) -> Result<&mut Self, ConsoleError> {
+    pub fn daily_at(&mut self, time: &str) -> Result<&mut Self, ConsoleError> {
         self.cron(&daily_expression(time)?)
     }
 
-    pub fn everySeconds(&mut self, seconds: u32) -> Result<&mut Self, ConsoleError> {
+    pub fn every_seconds(&mut self, seconds: u32) -> Result<&mut Self, ConsoleError> {
         let interval = repeat_interval(seconds)?;
         let cron = parse_cron("* * * * *").expect("valid minute frequency");
         Ok(self.with_pending(move |event| {
@@ -280,32 +279,32 @@ impl Schedule {
         }))
     }
 
-    pub fn everySecond(&mut self) -> &mut Self {
-        self.everySeconds(1).expect("valid repeat frequency")
+    pub fn every_second(&mut self) -> &mut Self {
+        self.every_seconds(1).expect("valid repeat frequency")
     }
 
-    pub fn everyTwoSeconds(&mut self) -> &mut Self {
-        self.everySeconds(2).expect("valid repeat frequency")
+    pub fn every_two_seconds(&mut self) -> &mut Self {
+        self.every_seconds(2).expect("valid repeat frequency")
     }
 
-    pub fn everyFiveSeconds(&mut self) -> &mut Self {
-        self.everySeconds(5).expect("valid repeat frequency")
+    pub fn every_five_seconds(&mut self) -> &mut Self {
+        self.every_seconds(5).expect("valid repeat frequency")
     }
 
-    pub fn everyTenSeconds(&mut self) -> &mut Self {
-        self.everySeconds(10).expect("valid repeat frequency")
+    pub fn every_ten_seconds(&mut self) -> &mut Self {
+        self.every_seconds(10).expect("valid repeat frequency")
     }
 
-    pub fn everyFifteenSeconds(&mut self) -> &mut Self {
-        self.everySeconds(15).expect("valid repeat frequency")
+    pub fn every_fifteen_seconds(&mut self) -> &mut Self {
+        self.every_seconds(15).expect("valid repeat frequency")
     }
 
-    pub fn everyTwentySeconds(&mut self) -> &mut Self {
-        self.everySeconds(20).expect("valid repeat frequency")
+    pub fn every_twenty_seconds(&mut self) -> &mut Self {
+        self.every_seconds(20).expect("valid repeat frequency")
     }
 
-    pub fn everyThirtySeconds(&mut self) -> &mut Self {
-        self.everySeconds(30).expect("valid repeat frequency")
+    pub fn every_thirty_seconds(&mut self) -> &mut Self {
+        self.every_seconds(30).expect("valid repeat frequency")
     }
 
     pub fn timezone(&mut self, zone: jiff::tz::TimeZone) -> &mut Self {
@@ -314,31 +313,31 @@ impl Schedule {
         })
     }
 
-    pub fn onOneServer(&mut self) -> &mut Self {
+    pub fn on_one_server(&mut self) -> &mut Self {
         self.with_pending(|event| {
-            event.onOneServer();
+            event.on_one_server();
         })
     }
 
-    pub fn withoutOverlapping(&mut self) -> &mut Self {
+    pub fn without_overlapping(&mut self) -> &mut Self {
         self.with_pending(|event| {
-            event.withoutOverlapping();
+            event.without_overlapping();
         })
     }
 
-    pub fn evenInMaintenanceMode(&mut self) -> &mut Self {
+    pub fn even_in_maintenance_mode(&mut self) -> &mut Self {
         self.with_pending(|event| {
-            event.evenInMaintenanceMode();
+            event.even_in_maintenance_mode();
         })
     }
 
-    pub fn evenWhenPaused(&mut self) -> &mut Self {
+    pub fn even_when_paused(&mut self) -> &mut Self {
         self.with_pending(|event| {
-            event.evenWhenPaused();
+            event.even_when_paused();
         })
     }
 
-    pub fn withoutOverlappingFor(&mut self, minutes: u32) -> Result<&mut Self, ConsoleError> {
+    pub fn without_overlapping_for(&mut self, minutes: u32) -> Result<&mut Self, ConsoleError> {
         if minutes == 0 {
             return Err(ConsoleError::new(
                 "An overlap lock requires a positive expiry in minutes.",
@@ -346,7 +345,7 @@ impl Schedule {
         }
         Ok(self.with_pending(move |event| {
             event
-                .withoutOverlappingFor(minutes)
+                .without_overlapping_for(minutes)
                 .expect("validated overlap expiry");
         }))
     }
@@ -383,13 +382,13 @@ impl Schedule {
         })
     }
 
-    pub fn withAttributes(
+    pub fn with_attributes(
         &mut self,
         attributes: impl IntoIterator<Item = (String, serde_json::Value)>,
     ) -> &mut Self {
         let attributes: Vec<_> = attributes.into_iter().collect();
         self.with_pending(move |event| {
-            event.withAttributes(attributes.iter().cloned());
+            event.with_attributes(attributes.iter().cloned());
         })
     }
 

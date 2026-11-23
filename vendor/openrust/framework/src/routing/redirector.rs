@@ -27,7 +27,6 @@ impl Default for RedirectOptions {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Redirector {
     pub fn new(urls: UrlGenerator) -> Self {
         Self { urls }
@@ -59,7 +58,7 @@ impl Redirector {
         redirect_response(&self.urls.action(action, parameters, true)?, options)
     }
 
-    pub fn signedRoute(
+    pub fn signed_route(
         &self,
         name: &str,
         parameters: &[RouteParameter],
@@ -68,18 +67,18 @@ impl Redirector {
     ) -> UrlResult<RedirectResponse> {
         let target =
             self.urls
-                .signedRoute(name, parameters, expiration, SignatureMode::Absolute)?;
+                .signed_route(name, parameters, expiration, SignatureMode::Absolute)?;
         redirect_response(&target, options)
     }
 
-    pub fn temporarySignedRoute(
+    pub fn temporary_signed_route(
         &self,
         name: &str,
         expiration: SystemTime,
         parameters: &[RouteParameter],
         options: RedirectOptions,
     ) -> UrlResult<RedirectResponse> {
-        self.signedRoute(name, parameters, Some(expiration), options)
+        self.signed_route(name, parameters, Some(expiration), options)
     }
 
     pub fn refresh(&self, options: RedirectOptions) -> UrlResult<RedirectResponse> {
@@ -96,7 +95,7 @@ impl Redirector {
         fallback: Option<&str>,
         options: RedirectOptions,
     ) -> UrlResult<RedirectResponse> {
-        let target = self.urls.forRequest(request).previous(fallback)?;
+        let target = self.urls.for_request(request).previous(fallback)?;
         redirect_response(&target, options)
     }
 
@@ -106,17 +105,17 @@ impl Redirector {
         path: &str,
         options: RedirectOptions,
     ) -> UrlResult<RedirectResponse> {
-        let urls = self.urls.forRequest(request);
+        let urls = self.urls.for_request(request);
         let response = Self::new(urls.clone()).to(path, options)?;
         let target = if request.matched_route
             && request.method() == crate::http::Method::GET
-            && !request.expectsJson()
+            && !request.expects_json()
         {
             urls.full()?
         } else {
             urls.previous(None)?
         };
-        self.setIntendedUrl(request, &target)?;
+        self.set_intended_url(request, &target)?;
         Ok(response)
     }
 
@@ -126,7 +125,7 @@ impl Redirector {
         fallback: &str,
         options: RedirectOptions,
     ) -> UrlResult<RedirectResponse> {
-        let urls = self.urls.forRequest(request);
+        let urls = self.urls.for_request(request);
         let session = request.session_mut().map_err(UrlError::Session)?;
         let target = session
             .get("url.intended")
@@ -136,7 +135,7 @@ impl Redirector {
         Self::new(urls).to(target.as_deref().unwrap_or(fallback), options)
     }
 
-    pub fn getIntendedUrl<'a>(&self, request: &'a Request) -> UrlResult<Option<&'a str>> {
+    pub fn get_intended_url<'a>(&self, request: &'a Request) -> UrlResult<Option<&'a str>> {
         Ok(request
             .session()
             .map_err(UrlError::Session)?
@@ -144,7 +143,7 @@ impl Redirector {
             .and_then(serde_json::Value::as_str))
     }
 
-    pub fn setIntendedUrl(&self, request: &mut Request, target: &str) -> UrlResult<()> {
+    pub fn set_intended_url(&self, request: &mut Request, target: &str) -> UrlResult<()> {
         request
             .session_mut()
             .map_err(UrlError::Session)?

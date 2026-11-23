@@ -107,14 +107,14 @@ impl Transport<'_> {
                         network,
                     };
                     stats = Some(measured.clone());
-                    response.transferStats = Some(measured);
+                    response.transfer_stats = Some(measured);
                     Ok(response)
                 })
             });
             let result = super::middleware::run(self.middleware, request, next).await;
             let result = result.map(|mut response| {
-                if response.transferStats.is_none() {
-                    response.transferStats = stats;
+                if response.transfer_stats.is_none() {
+                    response.transfer_stats = stats;
                 }
                 response
             });
@@ -182,7 +182,7 @@ impl Transport<'_> {
     fn observed_response(&self, response: &Response) -> Response {
         if self.redact_response {
             let mut redacted = Response::new(response.status(), http::HeaderMap::new(), Vec::new());
-            redacted.transferStats.clone_from(&response.transferStats);
+            redacted.transfer_stats.clone_from(&response.transfer_stats);
             redacted
         } else {
             response.clone()

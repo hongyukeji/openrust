@@ -55,7 +55,7 @@ impl Listener for Recorder {
                 assert!(event.duration.as_secs() < 10);
                 self.0.lock().unwrap().push(format!(
                     "finish:{}:{}:{}",
-                    event.command, event.exitCode, event.output
+                    event.command, event.exit_code, event.output
                 ));
             }
             Ok(None)

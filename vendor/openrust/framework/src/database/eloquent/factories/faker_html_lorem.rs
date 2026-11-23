@@ -10,7 +10,7 @@ impl Faker {
     pub fn randomHtml(
         &self,
         maxDepth: Option<i32>,
-        maxWidth: Option<i32>,
+        max_width: Option<i32>,
     ) -> DatabaseResult<String> {
         let mut document = HtmlLorem {
             faker: self,
@@ -20,7 +20,7 @@ impl Faker {
         document.sentence_element("title", 10);
         document.html.push_str("</head><body>");
         document.login_form();
-        document.subtree(maxDepth.unwrap_or(4), maxWidth.unwrap_or(4))?;
+        document.subtree(maxDepth.unwrap_or(4), max_width.unwrap_or(4))?;
         document.html.push_str("</body></html>\n");
         Ok(document.html)
     }
@@ -31,9 +31,9 @@ impl UniqueFaker<'_> {
     pub fn randomHtml(
         &self,
         maxDepth: Option<i32>,
-        maxWidth: Option<i32>,
+        max_width: Option<i32>,
     ) -> DatabaseResult<String> {
-        self.try_generate("randomHtml", || self.0.randomHtml(maxDepth, maxWidth))
+        self.try_generate("randomHtml", || self.0.randomHtml(maxDepth, max_width))
     }
 }
 

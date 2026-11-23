@@ -95,11 +95,11 @@ impl<'a> AbstractProvider<'a> {
         let headers = self.headers("POST", endpoint, protocol, &BTreeMap::new(), "")?;
         let response = self
             .http
-            .pendingRequest()
-            .withHeaders(headers)
-            .redactPayload()
-            .withoutRedirecting()
-            .withBody(
+            .pending_request()
+            .with_headers(headers)
+            .redact_payload()
+            .without_redirecting()
+            .with_body(
                 Vec::<u8>::new(),
                 http::HeaderValue::from_static("application/x-www-form-urlencoded"),
             )
@@ -178,11 +178,11 @@ impl<'a> AbstractProvider<'a> {
             .unwrap_or_default();
         let response = self
             .http
-            .pendingRequest()
-            .withHeaders(headers)
-            .redactPayload()
-            .withoutRedirecting()
-            .asForm()
+            .pending_request()
+            .with_headers(headers)
+            .redact_payload()
+            .without_redirecting()
+            .as_form()
             .post(endpoint, &payload)
             .await?;
         let (token, secret) = credentials(&form(response)?)?;
@@ -204,10 +204,10 @@ impl<'a> AbstractProvider<'a> {
             let headers = self.headers("GET", endpoint, protocol, &BTreeMap::new(), secret)?;
             let response = self
                 .http
-                .pendingRequest()
-                .withHeaders(headers)
-                .redactPayload()
-                .withoutRedirecting()
+                .pending_request()
+                .with_headers(headers)
+                .redact_payload()
+                .without_redirecting()
                 .get(endpoint)
                 .await?;
             if !response.successful() {

@@ -15,7 +15,7 @@ Sms::forgetDrivers()?;
 let sender = Sms::driver("aliyun")?;
 ```
 
-`Sms::getDefaultDriver()` 返回当前默认配置名，不创建驱动。`forgetDrivers` 影响之后的解析，已持有的 `SmsSender` 保留原驱动和设置。驱动创建失败后可以重试。常驻 Worker 修改配置后，按需重新生成配置缓存并重启 Worker。
+`Sms::get_default_driver()` 返回当前默认配置名，不创建驱动。`forgetDrivers` 影响之后的解析，已持有的 `SmsSender` 保留原驱动和设置。驱动创建失败后可以重试。常驻 Worker 修改配置后，按需重新生成配置缓存并重启 Worker。
 
 ## 内置供应商
 

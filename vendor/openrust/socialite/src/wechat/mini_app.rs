@@ -59,11 +59,11 @@ impl MiniApp {
         }
         let response = self
             .http
-            .pendingRequest()
-            .redactPayload()
-            .withoutRedirecting()
+            .pending_request()
+            .redact_payload()
+            .without_redirecting()
             .timeout(Duration::from_secs(5))
-            .withQueryParameters([
+            .with_query_parameters([
                 ("appid".into(), self.app_id.clone()),
                 ("secret".into(), self.secret.to_string()),
                 ("js_code".into(), code.into()),

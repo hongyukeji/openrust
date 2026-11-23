@@ -143,7 +143,7 @@ async fn resolve_user(
     let mut request = request_context::borrow_for_resolution(container)
         .ok_or_else(|| missing_request(parameter))?;
     let user = manager
-        .userForGuard(&mut request, guard)
+        .user_for_guard(&mut request, guard)
         .await
         .map_err(resolution_failed)?;
     Ok(user

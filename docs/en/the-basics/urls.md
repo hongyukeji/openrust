@@ -20,17 +20,17 @@ fn article_link(article: &impl Model) -> UrlResult<String> {
 
 ## Signed URLs
 
-Use `URL::signedRoute` for a persistent link or `URL::temporarySignedRoute` with a `SystemTime` deadline. Attach `signed` or `signed:relative` to the destination route to match the signing mode. A modified or expired link receives HTTP 403. Signing uses `APP_KEY` as configured. `APP_PREVIOUS_KEYS` allows existing links to survive key rotation.
+Use `URL::signed_route` for a persistent link or `URL::temporary_signed_route` with a `SystemTime` deadline. Attach `signed` or `signed:relative` to the destination route to match the signing mode. A modified or expired link receives HTTP 403. Signing uses `APP_KEY` as configured. `APP_PREVIOUS_KEYS` allows existing links to survive key rotation.
 
 ## Request and asset URLs
 
 HTTP link generation uses an explicit `APP_URL` first, then the current request scheme and authority, then the listener-derived `app.url`. Artisan uses `app.url` directly. See [configuration](../getting-started/configuration.md) for the listener fallback. `URL::asset` honors `ASSET_URL`. Use `URL::to`, `URL::current` or `URL::query` for ordinary URLs.
 
-`URL::current()` returns the current URL without the query. `URL::full()` includes the original request path and query string. `URL::previous(request, fallback)` resolves a same-origin Referer, the previous session URL or the fallback. `URL::previousPath(request, fallback)` returns only the path, with the application's base path and trailing slash removed. On a web route, `request.session()?.previousRoute()` returns the last recorded route name. `previousUri()` on the same session returns a parsed `openrust::support::Uri` when a previous URL exists.
+`URL::current()` returns the current URL without the query. `URL::full()` includes the original request path and query string. `URL::previous(request, fallback)` resolves a same-origin Referer, the previous session URL or the fallback. `URL::previous_path(request, fallback)` returns only the path, with the application's base path and trailing slash removed. On a web route, `request.session()?.previous_route()` returns the last recorded route name. `previous_uri()` on the same session returns a parsed `openrust::support::Uri` when a previous URL exists.
 
 ## Request-wide URL defaults {#default-values}
 
-Call `URL::defaults` before generating links, typically in route middleware. Successive calls merge the defaults for that request. A later request starts with its own defaults. Explicit named and positional parameters can override defaults. Use a key such as `"article:slug"` when the route uses a custom binding field. Defaults also apply to action URLs, signed links and route redirects. To set defaults for a single generator in Artisan, use `URL::generator()?.withDefaults(...)` and import `openrust::contracts::routing::UrlGenerator` to call its methods.
+Call `URL::defaults` before generating links, typically in route middleware. Successive calls merge the defaults for that request. A later request starts with its own defaults. Explicit named and positional parameters can override defaults. Use a key such as `"article:slug"` when the route uses a custom binding field. Defaults also apply to action URLs, signed links and route redirects. To set defaults for a single generator in Artisan, use `URL::generator()?.with_defaults(...)` and import `openrust::contracts::routing::UrlGenerator` to call its methods.
 
 ```rust
 use openrust::{http::Request, routing::UrlResult, support::facades::URL};
@@ -59,7 +59,7 @@ fn show(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 }
 
 fn register(router: &mut Router) -> Result<(), RoutingError> {
-    router.get("/articles/{article}", show)?.setAction(SHOW)?;
+    router.get("/articles/{article}", show)?.set_action(SHOW)?;
     Ok(())
 }
 
@@ -71,9 +71,9 @@ fn article_url() -> Result<String, openrust::routing::UrlError> {
 Domain routes take precedence. Among active routes of the same kind, the first registration wins. The identifier is explicit because Rust registers compiled handlers.
 ## Generation Policies
 
-Clone the request's `UrlGenerator` before applying `forceScheme`, `forceHttps`, `forceRootUrl`, `formatHostUsing`, or `formatPathUsing`. These methods take mutable access to that generator; they do not mutate another request's policies. Pass `None` to clear forced scheme/root settings. Formatters affect generated paths and named routes, including signed URLs. Verify signatures against the same absolute/relative mode used to generate them. Configure trusted proxies separately so request-derived origins use the intended forwarded host and scheme.
+Clone the request's `UrlGenerator` before applying `force_scheme`, `force_https`, `force_root_url`, `format_host_using`, or `format_path_using`. These methods take mutable access to that generator; they do not mutate another request's policies. Pass `None` to clear forced scheme/root settings. Formatters affect generated paths and named routes, including signed URLs. Verify signatures against the same absolute/relative mode used to generate them. Configure trusted proxies separately so request-derived origins use the intended forwarded host and scheme.
 
 
 ## Resource origins and defaults
 
-Use `UrlGenerator::useOrigin(Some(root))` to override the origin for generated URLs and pass `None` to restore the request or configured origin. `useAssetOrigin(Some(root))` overrides the asset origin; `None` clears the asset origin, including the configured CDN. These changes belong to that generator instance and its clones. `secureAsset(path)` requests HTTPS while retaining an explicitly configured asset origin. `assetFrom(root, path, secure)` uses a custom root with the selected request or forced scheme. `getDefaultParameters()` reads the generator’s named defaults. The `URL` facade also exposes `secureAsset`, `assetFrom`, and `getDefaultParameters`.
+Use `UrlGenerator::use_origin(Some(root))` to override the origin for generated URLs and pass `None` to restore the request or configured origin. `use_asset_origin(Some(root))` overrides the asset origin; `None` clears the asset origin, including the configured CDN. These changes belong to that generator instance and its clones. `secure_asset(path)` requests HTTPS while retaining an explicitly configured asset origin. `asset_from(root, path, secure)` uses a custom root with the selected request or forced scheme. `get_default_parameters()` reads the generator’s named defaults. The `URL` facade also exposes `secure_asset`, `asset_from`, and `get_default_parameters`.

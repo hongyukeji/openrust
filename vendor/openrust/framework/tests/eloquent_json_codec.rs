@@ -168,14 +168,14 @@ async fn verify(config: Document, native_type: &str) {
             panic!("expected stored text")
         };
         assert_eq!(Json::default().decode(text).unwrap()["format"], marker);
-        let data = record.toArray().unwrap();
+        let data = record.to_array().unwrap();
         assert_eq!(data["payload"], expected);
         assert_eq!(data["native_payload"], json!({"native":true}));
         assert_eq!(data["secret"], json!(["redacted"]));
     }
-    assert_eq!(three.toArray().unwrap()["payload"], expected);
+    assert_eq!(three.to_array().unwrap()["payload"], expected);
     let foreign = Record::queryOn(&second).findOrFail(1).await.unwrap();
-    assert!(foreign.toArray().is_err());
+    assert!(foreign.to_array().is_err());
     assert!(foreign.getEncryptedCollection("secret").is_err());
     assert!(
         one.getEnumCollection::<Status>("states")
@@ -187,7 +187,7 @@ async fn verify(config: Document, native_type: &str) {
         one.getJsonCollection("items")
             .unwrap()
             .unwrap()
-            .toArray()
+            .to_array()
             .unwrap(),
         json!({"team":"ops"})
     );
@@ -207,7 +207,7 @@ async fn verify(config: Document, native_type: &str) {
         .unwrap();
     assert!(one.save().await.unwrap());
     let one = Record::queryOn(&first).findOrFail(1).await.unwrap();
-    let serialized: Document = serde_json::from_str(&one.toJson().unwrap()).unwrap();
+    let serialized: Document = serde_json::from_str(&one.to_json().unwrap()).unwrap();
     assert_eq!(serialized["payload"], json!({"name":"record","count":2}));
     assert_eq!(serialized["secret"], json!(["updated"]));
     assert_eq!(serialized["items"], json!(["next"]));

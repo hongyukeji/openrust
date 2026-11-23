@@ -60,20 +60,20 @@ fn app() -> TestApp {
 async fn capture_limit_is_configurable_at_runtime_and_isolated_per_app() {
     let mut first = app();
     let mut second = app();
-    first.get("/size/1048576").await.unwrap().assertOk();
+    first.get("/size/1048576").await.unwrap().assert_ok();
     assert!(first.get("/size/1048577").await.is_err());
-    first.withResponseCapture(ResponseCaptureOptions {
-        maxBytes: 2 * 1024 * 1024,
+    first.with_response_capture(ResponseCaptureOptions {
+        max_bytes: 2 * 1024 * 1024,
         ..Default::default()
     });
     let response = first.get("/size/1048577").await.unwrap();
     assert_eq!(response.body().len(), 1048577);
     assert!(second.get("/size/1048577").await.is_err());
-    first.withResponseCapture(ResponseCaptureOptions {
-        maxBytes: 0,
+    first.with_response_capture(ResponseCaptureOptions {
+        max_bytes: 0,
         ..Default::default()
     });
-    first.get("/size/0").await.unwrap().assertContent("");
+    first.get("/size/0").await.unwrap().assert_content("");
     assert!(first.get("/size/1").await.is_err());
 }
 
@@ -81,22 +81,22 @@ async fn capture_limit_is_configurable_at_runtime_and_isolated_per_app() {
 async fn capture_timeout_cancels_infinite_stream_and_does_not_poison_later_requests() {
     DROPPED.store(false, Ordering::SeqCst);
     let mut app = app();
-    app.withResponseCapture(ResponseCaptureOptions {
+    app.with_response_capture(ResponseCaptureOptions {
         timeout: Duration::from_millis(20),
         ..Default::default()
     });
     assert!(app.get("/pending").await.is_err());
     assert!(DROPPED.load(Ordering::SeqCst));
-    app.get("/size/1").await.unwrap().assertContent("x");
+    app.get("/size/1").await.unwrap().assert_content("x");
 }
 
 #[tokio::test]
 async fn long_finite_stream_can_exceed_default_timeout_when_explicitly_configured() {
     let mut app = app();
     assert!(app.get("/delayed").await.is_err());
-    app.withResponseCapture(ResponseCaptureOptions {
+    app.with_response_capture(ResponseCaptureOptions {
         timeout: Duration::from_secs(7),
         ..Default::default()
     });
-    app.get("/delayed").await.unwrap().assertContent("done");
+    app.get("/delayed").await.unwrap().assert_content("done");
 }

@@ -41,9 +41,9 @@ async fn user_agent_matches_fixed_php_trimming_and_real_wire_headers() {
     for (index, row) in reference["trim"].as_array().unwrap().iter().enumerate() {
         let input = row["input"].as_str().unwrap();
         let request = if index % 2 == 0 {
-            factory.withUserAgent(input)
+            factory.with_user_agent(input)
         } else {
-            factory.pendingRequest().withUserAgent(input)
+            factory.pending_request().with_user_agent(input)
         };
         assert_eq!(
             request.get(&url).await.unwrap().json::<Value>().unwrap()["user_agent"],
@@ -55,7 +55,7 @@ async fn user_agent_matches_fixed_php_trimming_and_real_wire_headers() {
     let root = Root::new();
     let mut app = Application::configure(root.0.clone())
         .booted(move |_| {
-            *captured.lock().unwrap() = Some(Http::withUserAgent(" Facade/1.0 \t")?);
+            *captured.lock().unwrap() = Some(Http::with_user_agent(" Facade/1.0 \t")?);
             Ok(())
         })
         .create()
@@ -68,23 +68,23 @@ async fn user_agent_matches_fixed_php_trimming_and_real_wire_headers() {
     );
     assert!(matches!(
         factory
-            .withUserAgent("good\r\nInjected: bad")
+            .with_user_agent("good\r\nInjected: bad")
             .get(&url)
             .await,
         Err(Error::InvalidRequest)
     ));
     let replaced = factory
-        .pendingRequest()
-        .withHeader(
+        .pending_request()
+        .with_header(
             http::header::USER_AGENT,
             http::HeaderValue::from_static("old"),
         )
-        .withUserAgent("new");
+        .with_user_agent("new");
     assert_eq!(
         replaced.get(&url).await.unwrap().json::<Value>().unwrap()["user_agent"],
         reference["override"]
     );
-    let appended = factory.withUserAgent("old").withHeader(
+    let appended = factory.with_user_agent("old").with_header(
         http::header::USER_AGENT,
         http::HeaderValue::from_static("new"),
     );
@@ -174,12 +174,12 @@ async fn certificate_verification_is_disabled_only_for_the_selected_request() {
     });
     let factory = Factory::new().unwrap();
     assert!(matches!(
-        factory.pendingRequest().get(&url).await,
+        factory.pending_request().get(&url).await,
         Err(Error::Connection)
     ));
     assert_eq!(
         factory
-            .withoutVerifying()
+            .without_verifying()
             .get(&url)
             .await
             .unwrap()
@@ -189,14 +189,14 @@ async fn certificate_verification_is_disabled_only_for_the_selected_request() {
         b"ok"
     );
     assert!(matches!(
-        factory.pendingRequest().get(&url).await,
+        factory.pending_request().get(&url).await,
         Err(Error::Connection)
     ));
     assert_eq!(
         factory
-            .pendingRequest()
-            .withoutVerifying()
-            .connectTimeout(Duration::from_secs(2))
+            .pending_request()
+            .without_verifying()
+            .connect_timeout(Duration::from_secs(2))
             .get(&url)
             .await
             .unwrap()
@@ -207,8 +207,8 @@ async fn certificate_verification_is_disabled_only_for_the_selected_request() {
     );
     assert!(matches!(
         factory
-            .pendingRequest()
-            .connectTimeout(Duration::from_secs(2))
+            .pending_request()
+            .connect_timeout(Duration::from_secs(2))
             .get(&url)
             .await,
         Err(Error::Connection)
@@ -217,7 +217,7 @@ async fn certificate_verification_is_disabled_only_for_the_selected_request() {
     let captured = pending.clone();
     let mut app = Application::configure(root.0.clone())
         .booted(move |_| {
-            *captured.lock().unwrap() = Some(Http::withoutVerifying()?);
+            *captured.lock().unwrap() = Some(Http::without_verifying()?);
             Ok(())
         })
         .create()

@@ -15,7 +15,7 @@ impl Middleware for HandlePrecognitiveRequests {
         next: Next<'a>,
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
-            let attempting = request.isAttemptingPrecognition();
+            let attempting = request.is_attempting_precognition();
             if attempting {
                 request
                     .attributes()

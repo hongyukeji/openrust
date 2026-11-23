@@ -8,14 +8,14 @@ fn init_auth_tokens(
         let mut query = crate::app::models::User::query().unwrap();
         query.r#where("email", "=", "alice@example.test");
         let user = query.first().await.unwrap().unwrap();
-        let passport = openrust_passport::HasApiTokens::createToken(&user, "Init acceptance", &[])
+        let passport = openrust_passport::HasApiTokens::create_token(&user, "Init acceptance", &[])
             .await
             .unwrap();
         let sanctum = container.make::<openrust::sanctum::Sanctum>().unwrap();
         let database = container
             .make::<openrust::database::DatabaseManager>()
             .unwrap();
-        let sanctum = openrust::sanctum::HasApiTokens::createToken(
+        let sanctum = openrust::sanctum::HasApiTokens::create_token(
             &user,
             &sanctum,
             &database,

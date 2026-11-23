@@ -23,7 +23,7 @@ async fn standalone_publishing_uses_native_tags_without_booting_authentication()
                 "--no-interaction",
             ])
             .await;
-        result.assertSuccessful();
+        result.assert_successful();
     }
     let path = app.root().join("config/passkeys.rs");
     assert_eq!(
@@ -37,7 +37,7 @@ async fn standalone_publishing_uses_native_tags_without_booting_authentication()
         "--no-interaction",
     ])
     .await
-    .assertSuccessful();
+    .assert_successful();
     assert_eq!(
         std::fs::read_to_string(&path).unwrap(),
         "// application customization\n"
@@ -61,7 +61,7 @@ async fn standalone_publishing_uses_native_tags_without_booting_authentication()
         "--no-interaction",
     ])
     .await
-    .assertSuccessful();
+    .assert_successful();
     assert_eq!(count(), 1);
 }
 

@@ -86,8 +86,8 @@ fn string_transformations_cover_empty_unicode_and_negative_boundaries() {
         [0, 0xff, 0x80]
     );
     assert!(Str::fromBase64("%%%%").is_err());
-    assert!(Str::isJson("null"));
-    assert!(!Str::isJson("{]"));
+    assert!(Str::is_json("null"));
+    assert!(!Str::is_json("{]"));
 }
 
 #[test]

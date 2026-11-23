@@ -41,17 +41,17 @@ fn account_rules() -> ValidationResult<RuleSet> {
     ])?
         .field("email", [
             Rule::unique("directory.accounts", Some("email"))
-                .withoutTrashed(None)
+                .without_trashed(None)
                 .into(),
         ])
 }
 ```
 
-流暢介面支援附加查詢條件和軟刪除篩選。更新資料列時，用 `ignore` 傳入可信的識別碼，或將應用程式已解析並授權的模型傳給 `ignoreModel`。並行寫入的唯一性由資料庫唯一約束保證。
+流暢介面支援附加查詢條件和軟刪除篩選。更新資料列時，用 `ignore` 傳入可信的識別碼，或將應用程式已解析並授權的模型傳給 `ignore_model`。並行寫入的唯一性由資料庫唯一約束保證。
 
 ## 表單請求驗證 {#form-request-validation}
 
-將 `ValidatedFormRequest<F>` 宣告為 action 的型別參數。路由在呼叫 action 前建立表單請求，依序準備輸入、授權、驗證並呼叫 `passedValidation`。授權拒絕回傳 HTTP 403。
+將 `ValidatedFormRequest<F>` 宣告為 action 的型別參數。路由在呼叫 action 前建立表單請求，依序準備輸入、授權、驗證並呼叫 `passed_validation`。授權拒絕回傳 HTTP 403。
 
 ```rust
 use openrust::{
@@ -80,11 +80,11 @@ fn register() -> Result<(), RoutingError> {
 }
 ```
 
-表單請求實作 `Default` 以便建立。需要建構依賴時，可在容器中為表單型別註冊暫時繫結。一般控制器方法用 `ControllerDispatcher::withFormRequest`，資源控制器用 `ResourceController::actionWithFormRequest`。兩種控制器皆可接收原始請求及其路由參數。需要明確驗證時呼叫 `validateResolved`。
+表單請求實作 `Default` 以便建立。需要建構依賴時，可在容器中為表單型別註冊暫時繫結。一般控制器方法用 `ControllerDispatcher::with_form_request`，資源控制器用 `ResourceController::action_with_form_request`。兩種控制器皆可接收原始請求及其路由參數。需要明確驗證時呼叫 `validate_resolved`。
 
 ## 檔案驗證 {#validating-files}
 
-手動驗證 multipart 時使用 `Data::fromRequest`。FormRequest 會自動包含上傳檔案。透過 `validated.file` 讀取已驗證的檔案，支援 `attachments.0` 等點路徑。JSON 檢視中的檔案位置表示為 null。
+手動驗證 multipart 時使用 `Data::from_request`。FormRequest 會自動包含上傳檔案。透過 `validated.file` 讀取已驗證的檔案，支援 `attachments.0` 等點路徑。JSON 檢視中的檔案位置表示為 null。
 
 `mimes` 和 `mimetypes` 從檔案內容推斷類型，`extensions` 檢查用戶端檔名的副檔名。內容和副檔名都有要求時可同時使用。用 `image:allow_svg` 或 `File::image(true)` 接受 SVG。`size`、`min`、`max` 和 `between` 以 KiB 計量檔案大小，每 KiB 為 1,024 位元組。
 
@@ -124,16 +124,16 @@ use openrust::{
 
 fn upload(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
-        let data = Data::fromRequest(request).await?;
+        let data = Data::from_request(request).await?;
         let rules = RuleSet::new().field("image", [
             Rule::required(),
             File::image(false)
-                .dimensions(Rule::dimensions().minWidth(256).ratio("1/1"))
+                .dimensions(Rule::dimensions().min_width(256).ratio("1/1"))
                 .max("2mb")
                 .into(),
         ])?;
         let validated = Validator::make(data, rules)?.validate().await?;
-        let size = validated.file("image").map(|file| file.getSize());
+        let size = validated.file("image").map(|file| file.get_size());
         Response::json(StatusCode::OK, serde_json::json!({ "size": size }))
     })
 }
@@ -179,7 +179,7 @@ fn mailbox_rules() -> ValidationResult<RuleSet> {
 
 ### 命名錯誤包
 
-在驗證器上呼叫 `validateWithBag("profile")`，或覆寫 `FormRequest::errorBag`，即可指定錯誤包。在 Blade 中，`$errors->profile->name` 選取該包內 name 欄位的訊息。
+在驗證器上呼叫 `validate_with_bag("profile")`，或覆寫 `FormRequest::error_bag`，即可指定錯誤包。在 Blade 中，`$errors->profile->name` 選取該包內 name 欄位的訊息。
 
 ### 排除敏感輸入
 
@@ -202,9 +202,9 @@ fn configure(exceptions: &mut Exceptions) {
 
 正則包含 `|` 時，使用 `RuleSet::field` 的規則陣列並透過 `Rule::parse` 解析，避免被當成規則分隔符號。支援 PCRE2 修飾符 `i m s x u A U J n D`；`D` 使 `$` 僅比對輸入末尾，多行模式下遵循 PCRE2 原生語義。其他尚不支援的修飾符傳回 `InvalidRule`，不表示已支援 PHP 的全部 PCRE 選項。
 
-`Validator::after` 在規則檢查後執行，可追加錯誤。`sometimes` 按條件追加規則，萬用字元回呼收到所在父項。`stopOnFirstFailure(true)` 在不同欄位間停止檢查，`bail` 只停止目前欄位。`safe()` 必須在驗證成功後呼叫，只公開已驗證資料。
+`Validator::after` 在規則檢查後執行，可追加錯誤。`sometimes` 按條件追加規則，萬用字元回呼收到所在父項。`stop_on_first_failure(true)` 在不同欄位間停止檢查，`bail` 只停止目前欄位。`safe()` 必須在驗證成功後呼叫，只公開已驗證資料。
 
-FormRequest 順序為 `prepareForValidation`、`authorize`、`withValidator`、驗證和 `after`、`passedValidation`。授權或驗證失敗不執行業務方法。攜帶 `Precognition-Validate-Only` 的預驗證成功後不呼叫 `passedValidation`；未帶該標頭時可能先呼叫，再短路業務方法。驗證器按請求隔離。
+FormRequest 順序為 `prepare_for_validation`、`authorize`、`with_validator`、驗證和 `after`、`passed_validation`。授權或驗證失敗不執行業務方法。攜帶 `Precognition-Validate-Only` 的預驗證成功後不呼叫 `passed_validation`；未帶該標頭時可能先呼叫，再短路業務方法。驗證器按請求隔離。
 
 ## 訊息包 {#message-bags}
 
@@ -216,7 +216,7 @@ use openrust::support::{MessageBag, ViewErrorBag};
 let mut messages = MessageBag::new([("email", ["Invalid email"])]);
 messages.addIf(true, "name", "Required");
 assert_eq!(messages.first(Some("email"), None), "Invalid email");
-assert!(messages.hasAny(["email", "phone"]));
+assert!(messages.has_any(["email", "phone"]));
 messages.setFormat(":key: :message");
 assert_eq!(messages.first(Some("name"), None), "name: Required");
 let mut errors = ViewErrorBag::new();
@@ -260,19 +260,19 @@ assert_eq!(errors.count(), 0);
 
 `timezone` 接受內建 IANA 2025b 資料中的精確識別碼。`timezone:all_with_bc` 包含相容別名，`timezone:asia` 等參數限制地區，`timezone:per_country,CN` 按國家篩選。識別碼區分大小寫，群組與國家參數不區分大小寫。無效群組或國家參數長度傳回 `InvalidRule`。
 
-`active_url` 要求主機存在 DNS A 或 AAAA 紀錄，使用非同步 DNS 查詢，不因作業系統能解析數字 IP 就判為成功。`validator.setDnsResolver(resolver)` 接受 Hickory 0.25 解析器，可指定名稱伺服器、逾時與重試策略；DNS 查詢失敗即驗證失敗。測試時用 `validator.fakeDnsLookups(true)` 對目前驗證器啟用僅檢查主機名稱的行為，傳入 `false` 恢復實際 DNS 查詢。開關按實例隔離，並行驗證器互不影響。
+`active_url` 要求主機存在 DNS A 或 AAAA 紀錄，使用非同步 DNS 查詢，不因作業系統能解析數字 IP 就判為成功。`validator.set_dns_resolver(resolver)` 接受 Hickory 0.25 解析器，可指定名稱伺服器、逾時與重試策略；DNS 查詢失敗即驗證失敗。測試時用 `validator.fake_dns_lookups(true)` 對目前驗證器啟用僅檢查主機名稱的行為，傳入 `false` 恢復實際 DNS 查詢。開關按實例隔離，並行驗證器互不影響。
 
 ## 修改驗證器
 
-用 `getData`、`getValue` 和 `getRules` 讀取輸入及展開後的規則。`getRules` 按宣告順序傳回 `(欄位路徑, 規則)`，路徑使用原生跳脫。`setValue` 更新一個具體路徑，拒絕萬用字元。`setData` 替換輸入，並恢復最近一次 `setRules` 或工廠建立時的規則。`addRules` 合併暫時規則；`appendRules` 同時將合併後的宣告作為下次重設的基準。
+用 `get_data`、`get_value` 和 `get_rules` 讀取輸入及展開後的規則。`get_rules` 按宣告順序傳回 `(欄位路徑, 規則)`，路徑使用原生跳脫。`set_value` 更新一個具體路徑，拒絕萬用字元。`set_data` 替換輸入，並恢復最近一次 `set_rules` 或工廠建立時的規則。`add_rules` 合併暫時規則；`append_rules` 同時將合併後的宣告作為下次重設的基準。
 
-`setCustomMessages` 合併訊息。`setAttributeNames`、`setValueNames` 替換對應映射；`addCustomAttributes`、`addCustomValues` 按欄位合併。`getTranslator`、`setTranslator` 讀取或替換錯誤訊息使用的譯器。修改後會捨棄快取的成功結果和錯誤，需要重新執行 `validate().await`，再讀取 `validated()` 或 `safe()`。
+`set_custom_messages` 合併訊息。`set_attribute_names`、`set_value_names` 替換對應映射；`add_custom_attributes`、`add_custom_values` 按欄位合併。`get_translator`、`set_translator` 讀取或替換錯誤訊息使用的譯器。修改後會捨棄快取的成功結果和錯誤，需要重新執行 `validate().await`，再讀取 `validated()` 或 `safe()`。
 
-`getException`、`setException` 使用型別化函式 `fn(MessageBag, Option<&Translator>) -> ValidationException`，可自訂實際拒絕回應的狀態、錯誤包及重新導向。固定回傳型別替代執行期例外類別名稱及繼承，每個驗證器獨立保存工廠。
+`get_exception`、`set_exception` 使用型別化函式 `fn(MessageBag, Option<&Translator>) -> ValidationException`，可自訂實際拒絕回應的狀態、錯誤包及重新導向。固定回傳型別替代執行期例外類別名稱及繼承，每個驗證器獨立保存工廠。
 
 ## 註冊驗證擴充
 
-在服務提供者中用 `Validator::extend` 註冊一般規則，`extendImplicit` 註冊缺失或空值也必須執行的規則，`extendDependent` 註冊參數引用其他欄位的規則。名稱可用 `ProjectCode` 或 `project_code`，宣告統一使用 `project_code`。工廠建立驗證器時複製目前註冊項，後續註冊不會改變已建立的執行個體。
+在服務提供者中用 `Validator::extend` 註冊一般規則，`extend_implicit` 註冊缺失或空值也必須執行的規則，`extend_dependent` 註冊參數引用其他欄位的規則。名稱可用 `ProjectCode` 或 `project_code`，宣告統一使用 `project_code`。工廠建立驗證器時複製目前註冊項，後續註冊不會改變已建立的執行個體。
 
 ```rust
 use openrust::support::facades::Validator;
@@ -287,6 +287,6 @@ Validator::extend("upper_code", |_, value, _, _| {
 
 用 `Validator::replacer` 註冊訊息替換回呼，參數為訊息、欄位、規則名稱、參數列表及唯讀驗證器，傳回最終訊息。先選擇自訂或翻譯訊息並替換欄位名稱，再呼叫替換器；註冊替換器後，由它處理 `:min` 等規則參數。`Factory::resolver` 接收並傳回擁有的驗證器，用於建立時的定制。Rust 使用閉包及明確解析的服務，不支援執行期 `Class@method` 字串或動態驗證器子類別。
 
-單一驗證器可使用 `addExtension`、`addImplicitExtension`、`addDependentExtension` 和 `addReplacer`；對應複數方法接受 `(String, Arc<回呼>)`。這些修改會清除既有驗證結果，需要再次驗證。
+單一驗證器可使用 `add_extension`、`add_implicit_extension`、`add_dependent_extension` 和 `add_replacer`；對應複數方法接受 `(String, Arc<回呼>)`。這些修改會清除既有驗證結果，需要再次驗證。
 
-工廠預設 `excludeUnvalidatedArrayKeys()`：父欄位宣告無參數 `array` 或 `list` 且有子欄位規則時，只傳回經過驗證的子鍵。用 `includeUnvalidatedArrayKeys()` 將之後建立的驗證器切換為包含父欄位全部鍵；呼叫 `excludeUnvalidatedArrayKeys()` 恢復預設。`array:name,email` 已明確限制允許鍵，不採用此裁剪策略。單一驗證器的 `excludeUnvalidatedArrayKeys` 布林欄位可獨立調整，`validated()` 和 `safe()` 隨即採用新策略。
+工廠預設 `exclude_unvalidated_array_keys()`：父欄位宣告無參數 `array` 或 `list` 且有子欄位規則時，只傳回經過驗證的子鍵。用 `include_unvalidated_array_keys()` 將之後建立的驗證器切換為包含父欄位全部鍵；呼叫 `exclude_unvalidated_array_keys()` 恢復預設。`array:name,email` 已明確限制允許鍵，不採用此裁剪策略。單一驗證器的 `exclude_unvalidated_array_keys` 布林欄位可獨立調整，`validated()` 和 `safe()` 隨即採用新策略。

@@ -9,7 +9,7 @@ fn recursive_merges_and_dotted_fields_match_key_rules() {
         left.clone()
             .mergeRecursive(right.clone())
             .unwrap()
-            .toJson()
+            .to_json()
             .unwrap(),
         r#"{"x":{"a":[1,2,3],"same":[null,4]},"0":"a","1":"b"}"#
     );
@@ -17,7 +17,7 @@ fn recursive_merges_and_dotted_fields_match_key_rules() {
         left.clone()
             .replaceRecursive(right)
             .unwrap()
-            .toJson()
+            .to_json()
             .unwrap(),
         r#"{"x":{"a":[3,2],"same":4},"7":"b"}"#
     );
@@ -25,7 +25,7 @@ fn recursive_merges_and_dotted_fields_match_key_rules() {
         left.clone()
             .dotWithDepth(Some(1))
             .unwrap()
-            .toJson()
+            .to_json()
             .unwrap(),
         r#"{"x.a":[1,2],"x.same":null,"7":"a"}"#
     );
@@ -34,11 +34,11 @@ fn recursive_merges_and_dotted_fields_match_key_rules() {
     let rows = Collection::fromValue(json!([{}, {"name":null,"a":{"b":"甲"}}, {"name":"乙"}]));
     assert_eq!(rows.value("name"), Some(Value::Null));
     assert_eq!(
-        rows.clone().whereNotNullAt("name").toArray().unwrap(),
+        rows.clone().whereNotNullAt("name").to_array().unwrap(),
         json!({"2":{"name":"乙"}})
     );
     assert_eq!(
-        rows.select(&["name"]).unwrap().toArray().unwrap(),
+        rows.select(&["name"]).unwrap().to_array().unwrap(),
         json!([[],{"name":null},{"name":"乙"}])
     );
     assert_eq!(
@@ -54,7 +54,7 @@ fn functional_callbacks_preserve_keys_and_order() {
         source
             .clone()
             .mapToGroups(|item, _| (item.len() == 1, *item))
-            .toJson()
+            .to_json()
             .unwrap(),
         r#"{"1":["a","a"],"0":["bb"]}"#
     );
@@ -77,7 +77,7 @@ fn functional_callbacks_preserve_keys_and_order() {
             .clone()
             .when(false, |_| panic!("unexpected branch"))
             .whereBetween(|item| item.len(), 1..=1)
-            .toArray()
+            .to_array()
             .unwrap(),
         json!({"2":"a","9":"a"})
     );
@@ -91,7 +91,7 @@ fn functional_callbacks_preserve_keys_and_order() {
     assert_eq!(
         Collection::make([vec![1, 2], vec![3]])
             .mapSpread(|chunk, _| chunk.iter().sum::<i32>())
-            .toArray()
+            .to_array()
             .unwrap(),
         json!([3, 3])
     );
@@ -100,9 +100,9 @@ fn functional_callbacks_preserve_keys_and_order() {
 #[test]
 fn typed_json_and_random_sampling_handle_boundaries() {
     let source = Collection::<Value>::fromJson(r#"{"2":"a","02":"b","1":"c"}"#).unwrap();
-    assert_eq!(source.toJson().unwrap(), r#"{"2":"a","02":"b","1":"c"}"#);
+    assert_eq!(source.to_json().unwrap(), r#"{"2":"a","02":"b","1":"c"}"#);
     assert!(Collection::<i64>::fromJson("[false]").is_err());
-    assert!(Collection::make([f64::NAN]).toPrettyJson().is_err());
+    assert!(Collection::make([f64::NAN]).to_pretty_json().is_err());
     assert_eq!(source.clone().random(3, true).unwrap(), source);
     assert!(source.clone().random(4, false).is_err());
     let selected = source.clone().random(2, true).unwrap();
@@ -114,7 +114,7 @@ fn typed_json_and_random_sampling_handle_boundaries() {
             .unwrap()
             .sortBy(|item, _| item.as_str().unwrap().to_owned())
             .values()
-            .toArray()
+            .to_array()
             .unwrap(),
         json!(["a", "b", "c"])
     );
@@ -122,5 +122,5 @@ fn typed_json_and_random_sampling_handle_boundaries() {
     assert_eq!(*values.getOrPut(i64::MAX, || unreachable!()), 2);
     assert!(values.add(3).is_err());
     values.unshift([5, 6]).add(7).unwrap();
-    assert_eq!(values.toArray().unwrap(), json!([5, 6, 2, 7]));
+    assert_eq!(values.to_array().unwrap(), json!([5, 6, 2, 7]));
 }

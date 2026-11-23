@@ -22,7 +22,7 @@ fn route_metadata_reflects_nested_group_names_and_replaced_routes() {
             )
         })
         .unwrap();
-    let routes = router.getRoutes();
+    let routes = router.get_routes();
     assert_eq!(routes.len(), 2);
     assert_eq!(routes[0].name, None);
     assert_eq!(routes[1].uri, "admin/users/{id?}");

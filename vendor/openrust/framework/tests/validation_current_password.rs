@@ -29,23 +29,23 @@ use tokio::{
 
 struct User(String);
 impl Authenticatable for User {
-    fn getAuthIdentifierName(&self) -> &str {
+    fn get_auth_identifier_name(&self) -> &str {
         "id"
     }
-    fn getAuthIdentifier(&self) -> AuthIdentifier {
+    fn get_auth_identifier(&self) -> AuthIdentifier {
         "user".into()
     }
-    fn getAuthPasswordName(&self) -> &str {
+    fn get_auth_password_name(&self) -> &str {
         "password"
     }
-    fn getAuthPassword(&self) -> Option<&str> {
+    fn get_auth_password(&self) -> Option<&str> {
         Some(&self.0)
     }
-    fn getRememberToken(&self) -> Option<&str> {
+    fn get_remember_token(&self) -> Option<&str> {
         None
     }
-    fn setRememberToken(&mut self, _: Option<String>) {}
-    fn getRememberTokenName(&self) -> &str {
+    fn set_remember_token(&mut self, _: Option<String>) {}
+    fn get_remember_token_name(&self) -> &str {
         "remember_token"
     }
 }
@@ -54,7 +54,7 @@ impl FormRequest for CurrentForm {
     fn rules(&self) -> openrust::validation::ValidationResult<RuleSet> {
         RuleSet::parse([("current_password", "current_password")])
     }
-    fn validationRules(
+    fn validation_rules(
         &self,
         request: &Request,
     ) -> openrust::validation::ValidationResult<RuleSet> {
@@ -66,30 +66,30 @@ impl FormRequest for CurrentForm {
                 .unwrap_or("current_password"),
         )])
     }
-    fn errorBag(&self) -> &str {
+    fn error_bag(&self) -> &str {
         "updatePassword"
     }
 }
 fn submit(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
         let selected = request.header("x-default")?.unwrap_or("web").to_owned();
-        Auth::shouldUse(request, &selected)?;
+        Auth::should_use(request, &selected)?;
         if request.header("x-resolver")? == Some("yes") {
             let user = Auth::user(request).await?;
             let mut validator = Validator::make(
-                Data::fromRequest(request).await?,
+                Data::from_request(request).await?,
                 RuleSet::parse([("current_password", "current_password:web")])?,
             )?;
-            validator.setUserResolver(move |guard| {
+            validator.set_user_resolver(move |guard| {
                 Ok(if guard == Some("web") {
                     user.clone()
                 } else {
                     None
                 })
             });
-            validator.validateWithBag("updatePassword").await?;
+            validator.validate_with_bag("updatePassword").await?;
         } else {
-            CurrentForm.validateResolved(request).await?;
+            CurrentForm.validate_resolved(request).await?;
         }
         Response::json(StatusCode::OK, json!({"ok":true}))
     })
@@ -102,7 +102,7 @@ async fn transport(
     State(kernel): State<Arc<Kernel>>,
     request: axum::extract::Request,
 ) -> axum::response::Response {
-    kernel.handleTransport(request).await
+    kernel.handle_transport(request).await
 }
 async fn send(address: SocketAddr, body: Value, headers: &str) -> (u16, Value) {
     timeout(Duration::from_secs(5), async {
@@ -143,11 +143,11 @@ async fn current_password_matches_php_with_real_named_guards_and_hasher() {
         );
     }
     let manager = app.make::<AuthManager>().await.unwrap();
-    manager.viaRequest("current-web", move |request| {
+    manager.via_request("current-web", move |request| {
         let hash = hashes[request.header("x-profile").unwrap().unwrap_or("normal")].clone();
         Box::pin(async move { Ok(Some(Box::new(User(hash)) as Box<dyn Authenticatable>)) })
     });
-    manager.viaRequest("current-admin", |_| Box::pin(async { Ok(None) }));
+    manager.via_request("current-admin", |_| Box::pin(async { Ok(None) }));
     let mut kernel = Kernel::new(app);
     kernel.bootstrap().await.unwrap();
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -280,14 +280,14 @@ async fn current_password_missing_context_and_presence_are_explicit() {
             RuleSet::new()
                 .field(
                     "current_password",
-                    [openrust::validation::Rule::currentPassword(Some("admin"))],
+                    [openrust::validation::Rule::current_password(Some("admin"))],
                 )
                 .unwrap(),
             Default::default(),
             Default::default(),
         )
         .unwrap();
-    validator.setUserResolver(|guard| {
+    validator.set_user_resolver(|guard| {
         assert_eq!(guard, Some("admin"));
         Ok(None)
     });

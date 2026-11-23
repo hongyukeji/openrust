@@ -9,17 +9,16 @@ use crate::{
 
 /// Identity and credential fields exposed by an authenticatable user.
 pub trait Authenticatable: Any + Send + Sync {
-    fn getAuthIdentifierName(&self) -> &str;
-    fn getAuthIdentifier(&self) -> AuthIdentifier;
-    fn getAuthPasswordName(&self) -> &str;
-    fn getAuthPassword(&self) -> Option<&str>;
-    fn getRememberToken(&self) -> Option<&str>;
-    fn setRememberToken(&mut self, token: Option<String>);
-    fn getRememberTokenName(&self) -> &str;
+    fn get_auth_identifier_name(&self) -> &str;
+    fn get_auth_identifier(&self) -> AuthIdentifier;
+    fn get_auth_password_name(&self) -> &str;
+    fn get_auth_password(&self) -> Option<&str>;
+    fn get_remember_token(&self) -> Option<&str>;
+    fn set_remember_token(&mut self, token: Option<String>);
+    fn get_remember_token_name(&self) -> &str;
 
     /// Reads a named attribute used by authentication-aware middleware.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn getAuthAttribute(&self, _name: &str) -> AuthResult<Option<Value>> {
+    fn get_auth_attribute(&self, _name: &str) -> AuthResult<Option<Value>> {
         Ok(None)
     }
 

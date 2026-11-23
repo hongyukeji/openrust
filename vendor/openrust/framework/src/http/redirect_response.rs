@@ -18,7 +18,6 @@ use super::{Body, HeaderMap, HttpError, Request, Response, StatusCode};
 /// An HTTP redirect with fluent session flashing.
 pub struct RedirectResponse(Response);
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl RedirectResponse {
     pub(crate) fn new(target: &str, status: StatusCode, headers: HeaderMap) -> UrlResult<Self> {
         if !matches!(status.as_u16(), 201 | 301 | 302 | 303 | 307 | 308) {
@@ -27,7 +26,7 @@ impl RedirectResponse {
         let location = redirect_location(target)?;
         Ok(Self(
             Response::new(status, redirect_body(target))
-                .withHeaders(headers)
+                .with_headers(headers)
                 .header(
                     CONTENT_TYPE,
                     HeaderValue::from_static("text/html; charset=utf-8"),
@@ -37,46 +36,46 @@ impl RedirectResponse {
     }
 
     /// Attaches an exception to the response.
-    pub fn withException(self, error: impl Error + Send + Sync + 'static) -> Self {
-        Self(self.0.withException(error))
+    pub fn with_exception(self, error: impl Error + Send + Sync + 'static) -> Self {
+        Self(self.0.with_exception(error))
     }
 
     pub fn exception(&self) -> Option<&(dyn Error + Send + Sync + 'static)> {
         self.0.exception()
     }
 
-    pub fn throwResponse(self) -> HttpError {
-        self.0.throwResponse()
+    pub fn throw_response(self) -> HttpError {
+        self.0.throw_response()
     }
 
     /// Attaches a cookie while keeping the redirect available for further changes.
     pub fn cookie(self, cookie: &Cookie, request: &Request) -> Result<Self, HttpError> {
-        self.withCookie(cookie, request)
+        self.with_cookie(cookie, request)
     }
 
-    pub fn withCookie(self, cookie: &Cookie, request: &Request) -> Result<Self, HttpError> {
-        self.0.withCookie(cookie, request).map(Self)
+    pub fn with_cookie(self, cookie: &Cookie, request: &Request) -> Result<Self, HttpError> {
+        self.0.with_cookie(cookie, request).map(Self)
     }
 
-    pub fn withCookies<'a>(
+    pub fn with_cookies<'a>(
         self,
         cookies: impl IntoIterator<Item = &'a Cookie>,
         request: &Request,
     ) -> Result<Self, HttpError> {
-        self.0.withCookies(cookies, request).map(Self)
+        self.0.with_cookies(cookies, request).map(Self)
     }
 
-    pub fn withoutCookie(
+    pub fn without_cookie(
         self,
         name: &str,
         path: Option<&str>,
         domain: Option<&str>,
         request: &Request,
     ) -> Result<Self, HttpError> {
-        self.0.withoutCookie(name, path, domain, request).map(Self)
+        self.0.without_cookie(name, path, domain, request).map(Self)
     }
 
-    pub fn withoutCookies<'a>(
+    pub fn without_cookies<'a>(
         self,
         names: impl IntoIterator<Item = &'a str>,
         path: Option<&str>,
@@ -84,12 +83,12 @@ impl RedirectResponse {
         request: &Request,
     ) -> Result<Self, HttpError> {
         self.0
-            .withoutCookies(names, path, domain, request)
+            .without_cookies(names, path, domain, request)
             .map(Self)
     }
 
     /// Replaces the target's fragment, keeping its path and query.
-    pub fn withFragment(self, fragment: &str) -> UrlResult<Self> {
+    pub fn with_fragment(self, fragment: &str) -> UrlResult<Self> {
         let current = self.target()?;
         let base = current.split_once('#').map_or(current, |(base, _)| base);
         if base.is_empty() {
@@ -103,7 +102,7 @@ impl RedirectResponse {
     }
 
     /// Removes the target's fragment, including the separator.
-    pub fn withoutFragment(self) -> UrlResult<Self> {
+    pub fn without_fragment(self) -> UrlResult<Self> {
         let target = self.target()?;
         let Some((base, _)) = target.split_once('#') else {
             return Ok(self);
@@ -113,7 +112,7 @@ impl RedirectResponse {
     }
 
     /// Keeps the target when its origin matches the request, or uses the supplied fallback.
-    pub fn enforceSameOrigin(
+    pub fn enforce_same_origin(
         self,
         request: &Request,
         fallback: &str,
@@ -122,7 +121,7 @@ impl RedirectResponse {
     ) -> Result<Self, HttpError> {
         let target = Uri::of(self.target()?).map_err(|_| UrlError::InvalidRedirect)?;
         let current =
-            Uri::of(&request.schemeAndHttpHost()?).map_err(|_| HttpError::InvalidRequest)?;
+            Uri::of(&request.scheme_and_http_host()?).map_err(|_| HttpError::InvalidRequest)?;
         if target.host() == current.host()
             && (!validate_scheme || target.scheme() == current.scheme())
             && (!validate_port || target.port() == current.port())
@@ -157,7 +156,7 @@ impl RedirectResponse {
     }
 
     /// Flashes supplied input, or reads the current request's input when omitted.
-    pub async fn withInput(
+    pub async fn with_input(
         self,
         request: &mut Request,
         input: Option<Value>,
@@ -170,7 +169,7 @@ impl RedirectResponse {
     }
 
     /// Flashes only the selected input paths.
-    pub async fn onlyInput(self, request: &mut Request, keys: &[&str]) -> Result<Self, HttpError> {
+    pub async fn only_input(self, request: &mut Request, keys: &[&str]) -> Result<Self, HttpError> {
         let input = request_input(request).await?;
         let mut selected = Value::Object(Map::new());
         for key in keys {
@@ -183,7 +182,7 @@ impl RedirectResponse {
     }
 
     /// Flashes input after removing the specified paths.
-    pub async fn exceptInput(
+    pub async fn except_input(
         self,
         request: &mut Request,
         keys: &[&str],
@@ -199,7 +198,7 @@ impl RedirectResponse {
     }
 
     /// Flashes an error bag without replacing other named bags.
-    pub fn withErrors(
+    pub fn with_errors(
         self,
         request: &mut Request,
         errors: &MessageBag,
@@ -207,7 +206,7 @@ impl RedirectResponse {
     ) -> UrlResult<Self> {
         request
             .session_mut()
-            .and_then(|session| session.flashErrors(bag, errors))
+            .and_then(|session| session.flash_errors(bag, errors))
             .map_err(UrlError::Session)?;
         Ok(self)
     }
@@ -215,7 +214,7 @@ impl RedirectResponse {
     fn flash_input(self, request: &mut Request, input: Value) -> UrlResult<Self> {
         request
             .session_mut()
-            .and_then(|session| session.flashInput(input))
+            .and_then(|session| session.flash_input(input))
             .map_err(UrlError::Session)?;
         Ok(self)
     }

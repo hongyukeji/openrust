@@ -167,33 +167,33 @@ async fn publication_is_explicit_preserves_overrides_and_only_implemented_comman
     .unwrap();
     app.artisan(["vendor:publish", "--tag=passport-config"])
         .await
-        .assertSuccessful();
+        .assert_successful();
     let path = app.root().join("config/passport.rs");
     let source = fs::read_to_string(&path).unwrap();
     assert!(source.contains("PASSPORT_PRIVATE_KEY"));
     fs::write(&path, "// application override").unwrap();
     app.artisan(["vendor:publish", "--tag=passport-config"])
         .await
-        .assertSuccessful();
+        .assert_successful();
     assert_eq!(
         fs::read_to_string(&path).unwrap(),
         "// application override"
     );
     app.artisan(["vendor:publish", "--tag=passport-config", "--force"])
         .await
-        .assertSuccessful();
+        .assert_successful();
     assert_eq!(fs::read_to_string(&path).unwrap(), source);
     app.artisan(["vendor:publish", "--tag=passport-migrations"])
         .await
-        .assertSuccessful();
+        .assert_successful();
     let directory = app.root().join("database/migrations");
     assert_eq!(fs::read_dir(&directory).unwrap().count(), 5);
     app.artisan(["vendor:publish", "--tag=passport-migrations"])
         .await
-        .assertSuccessful();
+        .assert_successful();
     assert_eq!(fs::read_dir(&directory).unwrap().count(), 5);
     let listing = app.artisan(["list"]).await;
-    listing.assertSuccessful();
+    listing.assert_successful();
     assert!(listing.stdout.contains("passport:keys"));
     assert!(listing.stdout.contains("passport:client"));
 }
@@ -357,7 +357,7 @@ async fn serve(root: &Root) -> (std::net::SocketAddr, tokio::task::JoinHandle<()
             middleware.alias("custom", std::sync::Arc::new(CustomMiddleware));
         })
         .with_exceptions(|exceptions| {
-            exceptions.shouldRenderJsonWhen(|request, _| request.expectsJson());
+            exceptions.shouldRenderJsonWhen(|request, _| request.expects_json());
         })
         .create()
         .unwrap();
@@ -366,7 +366,7 @@ async fn serve(root: &Root) -> (std::net::SocketAddr, tokio::task::JoinHandle<()
     let address = listener.local_addr().unwrap();
     let kernel = std::sync::Arc::new(kernel);
     let router = axum::Router::new()
-        .fallback(move |request: axum::extract::Request| kernel.clone().handleTransport(request));
+        .fallback(move |request: axum::extract::Request| kernel.clone().handle_transport(request));
     (
         address,
         tokio::spawn(async move {

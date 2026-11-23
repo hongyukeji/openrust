@@ -739,7 +739,7 @@ async fn cache_tags_facade_writes_reads_and_flushes_over_http() {
         State(kernel): State<Arc<Kernel>>,
         incoming: axum::extract::Request,
     ) -> axum::response::Response {
-        kernel.handleTransport(incoming).await
+        kernel.handle_transport(incoming).await
     }
 
     let env = std::env::var("OPENRUST_TEST_FAILOVER_REDIS_URL").map_or_else(
@@ -1191,7 +1191,7 @@ async fn null_store_discards_values_and_returns_nonexclusive_lock_handles() {
     let mut fixture = openrust::testing::TestApp::create(|builder| builder).unwrap();
     fixture.boot().await.unwrap();
     let manager = fixture.app().container().make::<CacheManager>().unwrap();
-    assert_eq!(manager.getDefaultDriver().unwrap(), "null");
+    assert_eq!(manager.get_default_driver().unwrap(), "null");
     let unconfigured = manager.store(None).unwrap();
     assert!(Arc::ptr_eq(
         &unconfigured,
@@ -1359,7 +1359,7 @@ async fn storage_cache_reuses_disk_and_preserves_files_outside_its_directory() {
             .await
             .unwrap()
     );
-    let hashed = disk.allFiles(Some("framework/cache/items")).await.unwrap();
+    let hashed = disk.all_files(Some("framework/cache/items")).await.unwrap();
     assert_eq!(hashed.len(), 1);
     assert_eq!(
         hashed[0],
@@ -1392,7 +1392,7 @@ async fn storage_cache_reuses_disk_and_preserves_files_outside_its_directory() {
     root.success(&["cache:clear", "storage"]);
     assert!(disk.directoryExists("framework/cache/items").await.unwrap());
     assert!(
-        disk.allFiles(Some("framework/cache/items"))
+        disk.all_files(Some("framework/cache/items"))
             .await
             .unwrap()
             .is_empty()
@@ -1417,7 +1417,7 @@ async fn storage_cache_reuses_disk_and_preserves_files_outside_its_directory() {
         .build(serde_json::json!({"driver": "storage", "path": ""}))
         .unwrap();
     assert!(entire_disk.flush().await.unwrap());
-    assert!(disk.allFiles(None).await.unwrap().is_empty());
+    assert!(disk.all_files(None).await.unwrap().is_empty());
     assert_eq!(
         public.get("keep.txt").await.unwrap().unwrap(),
         b"separate disk"
@@ -1451,7 +1451,7 @@ async fn storage_cache_s3_flush_keeps_adjacent_prefixes() {
     let disk = disks.disk(Some("s3")).unwrap();
     let cache = manager.store(None).unwrap();
     if std::env::var_os("OPENRUST_TEST_CACHE_S3_PAGED").is_some() {
-        let objects = disk.allFiles(Some("paginated")).await.unwrap();
+        let objects = disk.all_files(Some("paginated")).await.unwrap();
         assert_eq!(objects.len(), 1002);
         assert_eq!(objects.first().unwrap(), "paginated/0000");
         assert_eq!(objects.last().unwrap(), "paginated/1001");
@@ -1475,12 +1475,12 @@ async fn storage_cache_s3_flush_keeps_adjacent_prefixes() {
         cache.get("two").await.unwrap(),
         Some(vec![1, 0, 255].into())
     );
-    assert_eq!(disk.allFiles(Some("tenant/cache")).await.unwrap().len(), 2);
+    assert_eq!(disk.all_files(Some("tenant/cache")).await.unwrap().len(), 2);
     root.success(&["cache:clear", "storage"]);
     assert_eq!(cache.get("one").await.unwrap(), None);
     assert_eq!(cache.get("two").await.unwrap(), None);
     assert!(
-        disk.allFiles(Some("tenant/cache"))
+        disk.all_files(Some("tenant/cache"))
             .await
             .unwrap()
             .is_empty()
@@ -2380,7 +2380,7 @@ async fn verify_cache_concurrency(first: Arc<Repository>, second: Arc<Repository
         "done"
     );
     second
-        .withoutOverlapping("exclusive", || async { Ok(()) })
+        .without_overlapping("exclusive", || async { Ok(()) })
         .await
         .unwrap();
 }

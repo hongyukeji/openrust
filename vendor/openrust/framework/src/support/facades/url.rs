@@ -20,7 +20,6 @@ impl Facade for URL {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl URL {
     pub(crate) fn service() -> UrlResult<Arc<UrlGenerator>> {
         Self::get_facade_root().map_err(|_| UrlError::Unavailable)
@@ -34,8 +33,8 @@ impl URL {
         Ok(urls)
     }
 
-    pub fn forRequest(request: &Request) -> UrlResult<UrlGenerator> {
-        Ok(Self::service()?.forRequest(request))
+    pub fn for_request(request: &Request) -> UrlResult<UrlGenerator> {
+        Ok(Self::service()?.for_request(request))
     }
 
     pub fn route(name: &str, parameters: &[RouteParameter], absolute: bool) -> UrlResult<String> {
@@ -71,27 +70,27 @@ impl URL {
     }
 
     pub fn previous(request: &Request, fallback: Option<&str>) -> UrlResult<String> {
-        Self::forRequest(request)?.previous(fallback)
+        Self::for_request(request)?.previous(fallback)
     }
 
-    pub fn previousPath(request: &Request, fallback: Option<&str>) -> UrlResult<String> {
-        Self::forRequest(request)?.previousPath(fallback)
+    pub fn previous_path(request: &Request, fallback: Option<&str>) -> UrlResult<String> {
+        Self::for_request(request)?.previous_path(fallback)
     }
 
     pub fn asset(path: &str, secure: Option<bool>) -> UrlResult<String> {
         Self::generator()?.asset(path, secure)
     }
 
-    pub fn secureAsset(path: &str) -> UrlResult<String> {
-        Self::generator()?.secureAsset(path)
+    pub fn secure_asset(path: &str) -> UrlResult<String> {
+        Self::generator()?.secure_asset(path)
     }
 
-    pub fn assetFrom(root: &str, path: &str, secure: Option<bool>) -> UrlResult<String> {
-        Self::generator()?.assetFrom(root, path, secure)
+    pub fn asset_from(root: &str, path: &str, secure: Option<bool>) -> UrlResult<String> {
+        Self::generator()?.asset_from(root, path, secure)
     }
 
-    pub fn getDefaultParameters() -> UrlResult<std::collections::HashMap<String, String>> {
-        Ok(Self::generator()?.getDefaultParameters().clone())
+    pub fn get_default_parameters() -> UrlResult<std::collections::HashMap<String, String>> {
+        Ok(Self::generator()?.get_default_parameters().clone())
     }
 
     pub fn query(
@@ -103,28 +102,28 @@ impl URL {
         Self::generator()?.query(path, query, parameters, secure)
     }
 
-    pub fn signedRoute(
+    pub fn signed_route(
         name: &str,
         parameters: &[RouteParameter],
         expiration: Option<SystemTime>,
         mode: SignatureMode,
     ) -> UrlResult<String> {
-        Self::generator()?.signedRoute(name, parameters, expiration, mode)
+        Self::generator()?.signed_route(name, parameters, expiration, mode)
     }
 
-    pub fn temporarySignedRoute(
+    pub fn temporary_signed_route(
         name: &str,
         expiration: SystemTime,
         parameters: &[RouteParameter],
         mode: SignatureMode,
     ) -> UrlResult<String> {
-        Self::generator()?.temporarySignedRoute(name, expiration, parameters, mode)
+        Self::generator()?.temporary_signed_route(name, expiration, parameters, mode)
     }
-    pub fn hasValidSignature(
+    pub fn has_valid_signature(
         request: &Request,
         mode: SignatureMode,
         ignore_query: crate::routing::SignatureQueryFilter<'_>,
     ) -> UrlResult<bool> {
-        Self::service()?.hasValidSignature(request, mode, ignore_query)
+        Self::service()?.has_valid_signature(request, mode, ignore_query)
     }
 }

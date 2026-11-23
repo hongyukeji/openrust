@@ -35,7 +35,7 @@ fn data_helpers_preserve_null_wildcards_order_and_sparse_indices() {
     assert_eq!(Arr::get(&value, "a.b"), Some(&json!("literal")));
     assert_eq!(data_get(&value, Some("a.b")), Some(json!("nested")));
     assert!(Arr::hasAll(&value, &["a.b", "teams.0"]));
-    assert!(!Arr::hasAny(&value, &["missing", "teams.5"]));
+    assert!(!Arr::has_any(&value, &["missing", "teams.5"]));
     data_fill(&mut value, "teams.*.users.*.active", json!(true)).unwrap();
     assert_eq!(
         data_get(&value, Some("teams.*.users.*.active")),

@@ -19,18 +19,18 @@ impl Middleware for AuthenticateSession {
         next: Next<'a>,
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
-            if !request.hasSession() {
+            if !request.has_session() {
                 return Ok(next.run(request).await);
             }
             let manager = Auth::manager()?;
             let guard = AuthManager::selected_guard(request)
                 .map(str::to_owned)
-                .unwrap_or_else(|| manager.getDefaultDriver());
+                .unwrap_or_else(|| manager.get_default_driver());
             if !manager.guard_uses_driver(request, &guard, "session")? {
                 return Ok(next.run(request).await);
             }
-            let user = manager.userForGuard(request, Some(&guard)).await?;
-            let Some(password) = user.as_deref().and_then(|user| user.getAuthPassword()) else {
+            let user = manager.user_for_guard(request, Some(&guard)).await?;
+            let Some(password) = user.as_deref().and_then(|user| user.get_auth_password()) else {
                 return Ok(next.run(request).await);
             };
 
@@ -44,8 +44,8 @@ impl Middleware for AuthenticateSession {
                         .is_ok_and(|stored| bool::from(stored.ct_eq(&fingerprint))) =>
                 {
                     let result = manager
-                        .sessionGuard(request, Some(&guard))?
-                        .logoutCurrentDevice()
+                        .session_guard(request, Some(&guard))?
+                        .logout_current_device()
                         .await;
                     request.session_mut()?.flush();
                     result?;
@@ -56,8 +56,8 @@ impl Middleware for AuthenticateSession {
             }
 
             let response = next.run(request).await;
-            let user = AuthManager::resolved_user(request, &guard);
-            if let Some(password) = user.as_deref().and_then(|user| user.getAuthPassword()) {
+            let user = AuthManager::resolved_user_from_request(request, &guard);
+            if let Some(password) = user.as_deref().and_then(|user| user.get_auth_password()) {
                 let value = signer.sign(Some(password));
                 request.session_mut()?.put(&key, serde_json::json!(value))?;
             }

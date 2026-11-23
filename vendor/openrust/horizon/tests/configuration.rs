@@ -20,7 +20,7 @@ async fn environment_defaults_and_provider_routes_follow_configuration_without_r
     app.get("/operations/queue")
         .await
         .unwrap()
-        .assertStatus(http::StatusCode::NOT_FOUND);
+        .assert_status(http::StatusCode::NOT_FOUND);
     let response = app
         .call(
             http::Request::builder()
@@ -31,7 +31,7 @@ async fn environment_defaults_and_provider_routes_follow_configuration_without_r
         )
         .await
         .unwrap();
-    response.assertStatus(http::StatusCode::FORBIDDEN);
+    response.assert_status(http::StatusCode::FORBIDDEN);
     let mut default_app =
         TestApp::create(|builder| builder.with_providers(vec![Box::new(HorizonServiceProvider)]))
             .unwrap();
@@ -65,11 +65,11 @@ async fn application_name_derives_prefix_and_empty_path_mounts_at_root() {
     app.get("/")
         .await
         .unwrap()
-        .assertStatus(http::StatusCode::FORBIDDEN);
+        .assert_status(http::StatusCode::FORBIDDEN);
     app.get("/api/stats")
         .await
         .unwrap()
-        .assertStatus(http::StatusCode::FORBIDDEN);
+        .assert_status(http::StatusCode::FORBIDDEN);
 }
 
 fn explicit() -> Result<(), openrust::routing::RoutingError> {
@@ -87,17 +87,17 @@ async fn explicit_routes_take_precedence_and_automatic_routes_can_be_disabled() 
         .get("/api/custom")
         .await
         .unwrap()
-        .assertStatus(http::StatusCode::FORBIDDEN);
+        .assert_status(http::StatusCode::FORBIDDEN);
     explicit
         .get("/horizon")
         .await
         .unwrap()
-        .assertStatus(http::StatusCode::NOT_FOUND);
+        .assert_status(http::StatusCode::NOT_FOUND);
     explicit
         .get("/api/ignored-duplicate")
         .await
         .unwrap()
-        .assertStatus(http::StatusCode::NOT_FOUND);
+        .assert_status(http::StatusCode::NOT_FOUND);
     let mut disabled = TestApp::create(|b| {
         b.with_config(|_, _| {
             Ok(std::collections::BTreeMap::from([(
@@ -112,7 +112,7 @@ async fn explicit_routes_take_precedence_and_automatic_routes_can_be_disabled() 
         .get("/horizon")
         .await
         .unwrap()
-        .assertStatus(http::StatusCode::NOT_FOUND);
+        .assert_status(http::StatusCode::NOT_FOUND);
 }
 
 struct Stamp;
@@ -150,8 +150,8 @@ async fn configured_named_middleware_runs_on_automatically_registered_routes() {
     app.get("/horizon")
         .await
         .unwrap()
-        .assertStatus(http::StatusCode::FORBIDDEN)
-        .assertHeader("x-horizon-middleware", "configured");
+        .assert_status(http::StatusCode::FORBIDDEN)
+        .assert_header("x-horizon-middleware", "configured");
 }
 
 #[tokio::test]

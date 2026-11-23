@@ -22,7 +22,6 @@ impl Default for Password {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Password {
     pub fn new(min: usize) -> Self {
         Self::min(min)
@@ -55,7 +54,7 @@ impl Password {
             ..Self::default()
         }
     }
-    pub fn mixedCase(mut self) -> Self {
+    pub fn mixed_case(mut self) -> Self {
         self.mixed_case = true;
         self
     }

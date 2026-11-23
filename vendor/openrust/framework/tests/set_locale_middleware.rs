@@ -434,7 +434,7 @@ async fn callback_selects_exact_canonical_candidate_and_none_uses_browser() {
         .kernel(
             "en",
             |middleware| {
-                middleware.localeUsing(header_locale);
+                middleware.locale_using(header_locale);
             },
             events.clone(),
         )
@@ -467,7 +467,7 @@ async fn invalid_or_unsupported_callback_values_fail_without_dispatch_or_event()
         .kernel(
             "en",
             |middleware| {
-                middleware.localeUsing(header_locale);
+                middleware.locale_using(header_locale);
             },
             events.clone(),
         )
@@ -493,7 +493,7 @@ async fn callback_errors_keep_the_original_http_status_and_do_not_update_locale(
         .kernel(
             "en",
             |middleware| {
-                middleware.localeUsing(|request| {
+                middleware.locale_using(|request| {
                     if request.header("x-locale")?.is_some() {
                         Err(openrust::http::abort(
                             StatusCode::IM_A_TEAPOT,
@@ -524,11 +524,11 @@ async fn candidates_and_callback_survive_both_configuration_orders_and_failed_up
                 "en",
                 move |middleware| {
                     if callback_first {
-                        middleware.localeUsing(header_locale);
+                        middleware.locale_using(header_locale);
                     }
                     middleware.set_locale(&["en", "fr"]).unwrap();
                     if !callback_first {
-                        middleware.localeUsing(header_locale);
+                        middleware.locale_using(header_locale);
                     }
                     assert!(middleware.set_locale(&["de", "zh_CN"]).is_err());
                 },
@@ -555,7 +555,7 @@ async fn empty_candidates_skip_callback_but_keep_it_for_reenabling() {
         .kernel(
             "de",
             |middleware| {
-                middleware.localeUsing(|_| panic!("关闭后不得执行回调"));
+                middleware.locale_using(|_| panic!("关闭后不得执行回调"));
                 middleware.set_locale(&[]).unwrap();
             },
             events.clone(),
@@ -571,7 +571,7 @@ async fn empty_candidates_skip_callback_but_keep_it_for_reenabling() {
         .kernel(
             "en",
             |middleware| {
-                middleware.localeUsing(header_locale);
+                middleware.locale_using(header_locale);
                 middleware.set_locale(&[]).unwrap();
                 assert!(middleware.set_locale(&["zh_CN"]).is_err());
                 middleware.set_locale(&["en", "fr"]).unwrap();
@@ -593,7 +593,7 @@ async fn custom_sources_keep_downstream_language_and_existing_response_headers()
             "en",
             |middleware| {
                 browser(middleware);
-                middleware.localeUsing(header_locale);
+                middleware.locale_using(header_locale);
             },
             Arc::default(),
         )
@@ -625,7 +625,7 @@ async fn callback_policy_is_isolated_between_requests_instances_and_applications
             "en",
             |middleware| {
                 browser(middleware);
-                middleware.localeUsing(header_locale);
+                middleware.locale_using(header_locale);
             },
             Arc::default(),
         )
@@ -635,7 +635,7 @@ async fn callback_policy_is_isolated_between_requests_instances_and_applications
             "en",
             |middleware| {
                 middleware.set_locale(&["en", "fr"]).unwrap();
-                middleware.localeUsing(|_| Ok(Some("fr".into())));
+                middleware.locale_using(|_| Ok(Some("fr".into())));
             },
             Arc::default(),
         )
@@ -673,7 +673,7 @@ async fn exact_callback_tags_keep_regions_and_extensions_without_browser_mapping
                 middleware
                     .set_locale(&["en", "zh-Hans", "zh-CN", "en-US-u-ca-gregory"])
                     .unwrap();
-                middleware.localeUsing(header_locale);
+                middleware.locale_using(header_locale);
             },
             Arc::default(),
         )
@@ -705,11 +705,11 @@ async fn cloned_route_instances_keep_independent_candidates_and_callbacks() {
         })
         .with_routing(Routing::default().web(|| {
             let mut first = SetLocale::new(&["en", "fr"]).unwrap();
-            first.localeUsing(|_| Ok(Some("fr".into())));
+            first.locale_using(|_| Ok(Some("fr".into())));
             let mut second = first.clone();
             second.set_locale(&["en", "de"]).unwrap();
             assert!(second.set_locale(&["zh_CN"]).is_err());
-            second.localeUsing(|_| Ok(Some("de".into())));
+            second.locale_using(|_| Ok(Some("de".into())));
             Route::group(
                 openrust::routing::RouteGroup::new().middleware(Arc::new(first)),
                 |router| {
@@ -760,7 +760,7 @@ fn seed_session(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
 
 fn private_session(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
-        assert!(request.hasSession());
+        assert!(request.has_session());
         let response = inspect(request).await?;
         Ok(response
             .header(
@@ -789,10 +789,10 @@ async fn session_kernel(root: &Root, global: bool, locale_before_session: bool) 
         .with_middleware(move |middleware| {
             if global {
                 middleware.set_locale(&["en", "fr"]).unwrap();
-                middleware.localeUsing(session_locale);
+                middleware.locale_using(session_locale);
             } else { middleware.set_locale(&[]).unwrap(); }
             let mut locale = SetLocale::new(&["en", "fr"]).unwrap();
-            locale.localeUsing(session_locale);
+            locale.locale_using(session_locale);
             let locale = MiddlewareEntry::Instance(Arc::new(locale));
             let mut entries = vec![MiddlewareEntry::Instance(Arc::new(EncryptCookies::new(Arc::new(Encrypter::new([b'a';32], Cipher::Aes256Cbc).unwrap()))))];
             if locale_before_session { entries.push(locale.clone()); }
@@ -860,7 +860,7 @@ async fn callback_source_errors_are_visible_to_registered_exception_renderers() 
     let root = Root::new();
     let app = Application::configure(root.0.clone())
         .with_middleware(|middleware| {
-            middleware.localeUsing(|_| {
+            middleware.locale_using(|_| {
                 Err(HttpError::Internal {
                     source: Box::new(std::io::Error::other("语言来源暂不可用")),
                 })
@@ -977,7 +977,7 @@ async fn query_configuration_missing_null_custom_invalid_and_empty_candidates() 
             "en",
             |middleware| {
                 middleware.set_locale(&[]).unwrap();
-                middleware.localeUsing(|_| panic!("停用实例不能执行回调"));
+                middleware.locale_using(|_| panic!("停用实例不能执行回调"));
             },
             events,
             Some(false.into()),
@@ -996,7 +996,7 @@ async fn callback_precedes_query_and_none_continues_query() {
         .kernel(
             "en",
             |middleware| {
-                middleware.localeUsing(header_locale);
+                middleware.locale_using(header_locale);
             },
             Arc::new(Events::default()),
         )
@@ -1023,7 +1023,7 @@ async fn callback_precedes_query_and_none_continues_query() {
         .kernel(
             "en",
             |middleware| {
-                middleware.localeUsing(|_| Err(HttpError::NotFound));
+                middleware.locale_using(|_| Err(HttpError::NotFound));
             },
             Arc::new(Events::default()),
         )
@@ -1153,13 +1153,13 @@ async fn send_headers(
     }
     let mut request = Request::from(raw.body(Body::empty()).unwrap());
     // 先读取标准接口的缓存，确保配置的其他来源不会复用它。
-    let standard = request.getLanguages().to_vec();
+    let standard = request.get_languages().to_vec();
     assert_eq!(
-        request.getPreferredLanguage(None).unwrap(),
+        request.get_preferred_language(None).unwrap(),
         standard.first().cloned()
     );
     let response = kernel.handle(&mut request).await;
-    assert_eq!(request.getLanguages(), standard);
+    assert_eq!(request.get_languages(), standard);
     let (parts, body) = response.into_parts();
     (
         parts.status,
@@ -1234,7 +1234,7 @@ async fn configured_header_reuses_negotiation_and_preserves_standard_request_api
         .kernel(
             "en",
             |m| {
-                m.localeUsing(header_locale);
+                m.locale_using(header_locale);
             },
             Arc::new(Events::default()),
         )
@@ -1286,7 +1286,7 @@ async fn header_null_errors_empty_candidates_and_vary_contract() {
         .kernel(
             "en",
             |m| {
-                m.localeUsing(|_| Ok(Some("zh-Hant".into())));
+                m.locale_using(|_| Ok(Some("zh-Hant".into())));
             },
             Arc::new(Events::default()),
         )
@@ -1320,7 +1320,7 @@ async fn header_null_errors_empty_candidates_and_vary_contract() {
         .kernel(
             "en",
             |m| {
-                m.localeUsing(|_| panic!("错误配置须先于回调报告"));
+                m.locale_using(|_| panic!("错误配置须先于回调报告"));
             },
             Arc::new(Events::default()),
         )
@@ -1334,7 +1334,7 @@ async fn header_null_errors_empty_candidates_and_vary_contract() {
             "en",
             |m| {
                 m.set_locale(&[]).unwrap();
-                m.localeUsing(|_| panic!("停用实例不能执行回调"));
+                m.locale_using(|_| panic!("停用实例不能执行回调"));
             },
             Arc::new(Events::default()),
         )
@@ -1436,7 +1436,7 @@ async fn custom_header_rereads_changed_request_without_standard_cache_contaminat
             .parts_mut()
             .headers
             .insert("x-language", value.parse().unwrap());
-        assert_eq!(request.getLanguages(), ["en"]);
+        assert_eq!(request.get_languages(), ["en"]);
         let (parts, body) = kernel.handle(&mut request).await.into_parts();
         assert_eq!(parts.headers["content-language"], expected);
         let body = axum::body::to_bytes(body, 4096).await.unwrap();
@@ -1445,7 +1445,7 @@ async fn custom_header_rereads_changed_request_without_standard_cache_contaminat
                 .unwrap()
                 .starts_with(&format!("{expected}|"))
         );
-        assert_eq!(request.getLanguages(), ["en"]);
+        assert_eq!(request.get_languages(), ["en"]);
     }
 }
 
@@ -1457,8 +1457,8 @@ fn language_boundary(request: &mut Request) -> HttpFuture<'_, Result<Response, H
         }
         tokio::task::yield_now().await;
         Ok(Response::from(serde_json::json!({
-            "languages": request.getLanguages(),
-            "preferred": request.getPreferredLanguage(Some(&["en", "zh-Hans", "zh-Hant"])).unwrap(),
+            "languages": request.get_languages(),
+            "preferred": request.get_preferred_language(Some(&["en", "zh-Hans", "zh-Hant"])).unwrap(),
             "current": App::current_locale().unwrap(),
             "translator": Lang::get_locale().unwrap(),
             "text": Lang::get("messages.hello", &BTreeMap::new(), None).unwrap(),
@@ -1492,9 +1492,9 @@ async fn standard_preferences_and_actual_locale_are_independent_in_http_consumer
                     .unwrap(),
             );
             if warm_standard {
-                assert_eq!(request.getLanguages(), ["zh-Hans", "en"]);
+                assert_eq!(request.get_languages(), ["zh-Hans", "en"]);
                 assert_eq!(
-                    request.getPreferredLanguage(None).unwrap().as_deref(),
+                    request.get_preferred_language(None).unwrap().as_deref(),
                     Some("zh-Hans")
                 );
             }
@@ -1508,7 +1508,7 @@ async fn standard_preferences_and_actual_locale_are_independent_in_http_consumer
                 value,
                 serde_json::json!({"languages":["zh-Hans","en"], "preferred":"zh-Hans", "current":expected, "translator":expected,"text":text})
             );
-            assert_eq!(request.getLanguages(), ["zh-Hans", "en"]);
+            assert_eq!(request.get_languages(), ["zh-Hans", "en"]);
         }
     }
     assert_eq!(

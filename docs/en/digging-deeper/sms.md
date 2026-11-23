@@ -15,7 +15,7 @@ Sms::forgetDrivers()?;
 let sender = Sms::driver("aliyun")?;
 ```
 
-`Sms::getDefaultDriver()` returns the configured default profile name without creating a driver. `forgetDrivers` affects future resolutions; existing `SmsSender` handles keep their original driver and settings. Failed driver creation can be retried. In long-running workers, rebuild configuration caches when applicable and restart workers after configuration changes.
+`Sms::get_default_driver()` returns the configured default profile name without creating a driver. `forgetDrivers` affects future resolutions; existing `SmsSender` handles keep their original driver and settings. Failed driver creation can be retried. In long-running workers, rebuild configuration caches when applicable and restart workers after configuration changes.
 
 ## Built-in providers
 

@@ -362,7 +362,7 @@ impl http::Kernel for Kernel {
                     self.application.container_handle(),
                     request.uri().clone(),
                     request.headers().get(::http::header::HOST).cloned(),
-                    request.getBaseUrl().to_owned(),
+                    request.get_base_url().to_owned(),
                     attributes,
                     crate::view::middleware::request_scope(
                         crate::cookie::middleware::request_scope(async {

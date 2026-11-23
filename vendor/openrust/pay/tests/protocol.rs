@@ -258,13 +258,13 @@ async fn named_profiles_cache_keys_until_forget_and_keep_existing_instances_isol
         .set("pay.drivers.main.private_key", json!(MERCHANT))
         .unwrap();
     assert!(manager.driver("main").is_ok());
-    assert_eq!(manager.getDefaultDriver().unwrap(), "main");
+    assert_eq!(manager.get_default_driver().unwrap(), "main");
     assert!(manager.driver("missing").is_err());
     config
         .set("pay.drivers.other", profile("alipay", &server.endpoint))
         .unwrap();
     config.set("pay.default", json!("other")).unwrap();
-    assert_eq!(manager.getDefaultDriver().unwrap(), "other");
+    assert_eq!(manager.get_default_driver().unwrap(), "other");
     manager
         .driver("other")
         .unwrap()
@@ -399,7 +399,7 @@ async fn provider_facade_http_callbacks_are_application_local_and_http_observati
                 http::HeaderValue::from_static("PUB_KEY_ID_UNKNOWN"),
             );
         }
-        let result = kernel.clone().handleTransport(request).await;
+        let result = kernel.clone().handle_transport(request).await;
         assert_eq!(
             result.status(),
             if valid {

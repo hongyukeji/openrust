@@ -2,7 +2,7 @@
 
 ## 创建响应
 
-用 `Response::json` 返回 JSON 数据和明确的状态码。通过 `header` 或 `withHeaders` 设置类型化 HTTP 响应头。用 `Response::stream` 从 Rust 流逐块发送正文。
+用 `Response::json` 返回 JSON 数据和明确的状态码。通过 `header` 或 `with_headers` 设置类型化 HTTP 响应头。用 `Response::stream` 从 Rust 流逐块发送正文。
 
 输入读取和 JSON 响应的完整示例见[控制器](./controllers.md)。
 
@@ -33,7 +33,7 @@ Route::get("/native", || {
 
 ### 依赖请求的响应 {#responsable}
 
-返回对象需要当前请求来生成响应时，实现 `openrust::contracts::support::Responsable`。路由器在动作执行后调用 `toResponse`，此时可读取路由参数和输入。结果继续经过常规中间件和 HTTP 响应准备流程。
+返回对象需要当前请求来生成响应时，实现 `openrust::contracts::support::Responsable`。路由器在动作执行后调用 `to_response`，此时可读取路由参数和输入。结果继续经过常规中间件和 HTTP 响应准备流程。
 
 ```rust
 use openrust::{
@@ -46,7 +46,7 @@ struct Report;
 
 #[allow(non_snake_case)]
 impl Responsable for Report {
-    async fn toResponse(self, request: &mut Request) -> Result<Response, HttpError> {
+    async fn to_response(self, request: &mut Request) -> Result<Response, HttpError> {
         Response::json(StatusCode::OK, request.route("id"))
     }
 }
@@ -54,19 +54,19 @@ impl Responsable for Report {
 Route::get("/reports/{id}", || Report)?;
 ```
 
-闭包可直接返回对象，控制器或经过 FormRequest 验证的动作可用 `Result` 返回对象。从 `toResponse` 返回 `HttpError` 会沿用应用异常渲染。
+闭包可直接返回对象，控制器或经过 FormRequest 验证的动作可用 `Result` 返回对象。从 `to_response` 返回 `HttpError` 会沿用应用异常渲染。
 
 ### 提前返回已构造的响应 {#prepared-response-exceptions}
 
-在返回 `Result` 的处理器或中间件中，用 `Err(response.throwResponse())` 提前发送已构造的 `Response` 或 `RedirectResponse`。HTTP 异常处理器会调用 `respond` 回调。为 `HttpResponseException` 注册的自定义渲染器可覆盖原响应，也可用 `takeResponse()` 一次性取出原响应。这类异常默认跳过报告。
+在返回 `Result` 的处理器或中间件中，用 `Err(response.throw_response())` 提前发送已构造的 `Response` 或 `RedirectResponse`。HTTP 异常处理器会调用 `respond` 回调。为 `HttpResponseException` 注册的自定义渲染器可覆盖原响应，也可用 `take_response()` 一次性取出原响应。这类异常默认跳过报告。
 
-已持有框架或原生响应时，可以用 `abortResponse(response)`。请求感知对象使用 `Err(abortResponsable(value, request).await)`。若 `toResponse` 失败，原错误交由异常处理器渲染。按状态码中止时使用 `abort(status, message, headers)`。
+已持有框架或原生响应时，可以用 `abort_response(response)`。请求感知对象使用 `Err(abort_responsable(value, request).await)`。若 `to_response` 失败，原错误交由异常处理器渲染。按状态码中止时使用 `abort(status, message, headers)`。
 
-用 `withException(error)` 附加诊断信息，应用代码可通过 `response.exception()` 读取。附加异常只记录响应元数据。
+用 `with_exception(error)` 附加诊断信息，应用代码可通过 `response.exception()` 读取。附加异常只记录响应元数据。
 
 ### 向响应附加响应头 {#attaching-headers-to-responses}
 
-用 `withoutHeader` 删除一个类型化响应头，用 `withoutHeaders` 批量删除。两者都返回响应，可以继续链式调用。
+用 `without_header` 删除一个类型化响应头，用 `without_headers` 批量删除。两者都返回响应，可以继续链式调用。
 
 #### 缓存控制中间件 {#cache-control-middleware}
 
@@ -103,7 +103,7 @@ fn remember(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 
 ### 设置和删除响应 Cookie {#expiring-cookies-early}
 
-普通响应和重定向响应都支持 `withCookie(&cookie, request)` 和 `withCookies([&first, &second], request)`。名称、路径和域相同时，新 Cookie 会覆盖先前的 Cookie。用 `withoutCookie("theme", None, None, request)` 或 `withoutCookies(["theme", "contrast"], None, None, request)` 发送过期 Cookie。原 Cookie 的路径或域与应用默认值不同时，请显式传入原值。
+普通响应和重定向响应都支持 `with_cookie(&cookie, request)` 和 `with_cookies([&first, &second], request)`。名称、路径和域相同时，新 Cookie 会覆盖先前的 Cookie。用 `without_cookie("theme", None, None, request)` 或 `without_cookies(["theme", "contrast"], None, None, request)` 发送过期 Cookie。原 Cookie 的路径或域与应用默认值不同时，请显式传入原值。
 
 ## JSON 业务响应
 
@@ -142,21 +142,21 @@ fn register() -> Result<(), RoutingError> {
 
 用 `Redirect::action` 跳转到[已注册的控制器动作](./urls.md#urls-for-controller-actions)。
 
-`Redirect::refresh` 重定向到不带查询串的当前路径。`Redirect::secure` 从应用路径生成 HTTPS 目标。`Redirect::away` 将显式 HTTP(S) URL 或相对引用写入 `Location`，调用时请传入可信目标。`Redirect::signedRoute` 和 `Redirect::temporarySignedRoute` 重定向到绝对签名 URL。`Redirect::back` 依次使用同源 Referer、上一会话 URL 和回退地址。`Redirect::getIntendedUrl` 读取当前预期地址，`Redirect::setIntendedUrl` 显式写入预期地址。两个方法都接收当前请求。
+`Redirect::refresh` 重定向到不带查询串的当前路径。`Redirect::secure` 从应用路径生成 HTTPS 目标。`Redirect::away` 将显式 HTTP(S) URL 或相对引用写入 `Location`，调用时请传入可信目标。`Redirect::signed_route` 和 `Redirect::temporary_signed_route` 重定向到绝对签名 URL。`Redirect::back` 依次使用同源 Referer、上一会话 URL 和回退地址。`Redirect::get_intended_url` 读取当前预期地址，`Redirect::set_intended_url` 显式写入预期地址。两个方法都接收当前请求。
 
-路由级重定向可使用 `Router::redirect` 或 `Router::permanentRedirect`，把来源参数代入目标路径。目标中的可选段（如 `/articles/{slug?}`）没有对应值时会省略。`destination` 和 `status` 是保留的来源参数名。
+路由级重定向可使用 `Router::redirect` 或 `Router::permanent_redirect`，把来源参数代入目标路径。目标中的可选段（如 `/articles/{slug?}`）没有对应值时会省略。`destination` 和 `status` 是保留的来源参数名。
 
 ### 重定向 URL 片段 {#redirect-url-fragments}
 
-用 `withFragment("details")` 替换当前片段，或用 `withoutFragment()` 移除片段。两者都保留 URL 路径和查询参数，并同步更新 `Location` 响应头与 HTML 跳转链接。方法返回 `Result`，以便处理无效的重定向目标。
+用 `with_fragment("details")` 替换当前片段，或用 `without_fragment()` 移除片段。两者都保留 URL 路径和查询参数，并同步更新 `Location` 响应头与 HTML 跳转链接。方法返回 `Result`，以便处理无效的重定向目标。
 
 ### 同源重定向 {#same-origin-redirects}
 
-调用 `redirect.enforceSameOrigin(request, "/fallback", true, true)`，将目标与当前请求比对。主机必须一致，两个布尔参数分别控制是否校验协议和端口。比较采用请求生效的实际来源，包含可信代理配置，并将显式默认端口和省略端口视为相同。相对目标没有主机，因此会使用回退地址。请传入受信任的回退地址，例如固定的应用路径。
+调用 `redirect.enforce_same_origin(request, "/fallback", true, true)`，将目标与当前请求比对。主机必须一致，两个布尔参数分别控制是否校验协议和端口。比较采用请求生效的实际来源，包含可信代理配置，并将显式默认端口和省略端口视为相同。相对目标没有主机，因此会使用回退地址。请传入受信任的回退地址，例如固定的应用路径。
 
 ### 重定向时闪存会话数据 {#redirecting-with-flashed-session-data}
 
-在启用会话的 Web 路由中，使用 `with` 闪存值，`withInput` 保留输入，`withErrors` 附加命名的 `MessageBag`。Rust 方法显式接收当前请求的可变引用。处理器可直接返回 `RedirectResponse`。状态码、响应头和会话更新沿用正常的 HTTP 响应流程。
+在启用会话的 Web 路由中，使用 `with` 闪存值，`with_input` 保留输入，`with_errors` 附加命名的 `MessageBag`。Rust 方法显式接收当前请求的可变引用。处理器可直接返回 `RedirectResponse`。状态码、响应头和会话更新沿用正常的 HTTP 响应流程。
 
 ```rust
 use openrust::{
@@ -169,13 +169,13 @@ fn save_profile(request: &mut Request) -> HttpFuture<'_, Result<RedirectResponse
     Box::pin(async move {
         Redirect::to("/profile", Default::default())?
             .with(request, "status", json!("saved"))?
-            .onlyInput(request, &["name"])
+            .only_input(request, &["name"])
             .await
     })
 }
 ```
 
-向 `withInput` 传入 `None` 时，读取请求的表单或 JSON 字段和查询参数。上传文件会被排除。使用 `onlyInput` 或 `exceptInput` 按点路径筛选字段。下一次请求可用 `request.old(Some("name"))` 读取旧输入，并从会话读取闪存值。
+向 `with_input` 传入 `None` 时，读取请求的表单或 JSON 字段和查询参数。上传文件会被排除。使用 `only_input` 或 `except_input` 按点路径筛选字段。下一次请求可用 `request.old(Some("name"))` 读取旧输入，并从会话读取闪存值。
 
 ## 其他响应类型 {#other-response-types}
 
@@ -185,7 +185,7 @@ fn save_profile(request: &mut Request) -> HttpFuture<'_, Result<RedirectResponse
 
 ### JSON 响应 {#json-responses}
 
-用 `Response::json(StatusCode::CREATED, data)?` 指定状态码，并序列化实现了 `serde::Serialize` 的值。响应设置 `Content-Type: application/json`。用 `header` 或 `withHeaders` 附加响应头。路由直接返回 JSON 值时使用 HTTP 200。
+用 `Response::json(StatusCode::CREATED, data)?` 指定状态码，并序列化实现了 `serde::Serialize` 的值。响应设置 `Content-Type: application/json`。用 `header` 或 `with_headers` 附加响应头。路由直接返回 JSON 值时使用 HTTP 200。
 
 ### JSONP 响应 {#jsonp-responses}
 
@@ -197,7 +197,7 @@ fn save_profile(request: &mut Request) -> HttpFuture<'_, Result<RedirectResponse
 
 ### 空响应 {#empty-responses}
 
-用 `Response::noContent()` 返回无正文的 HTTP 204。用 `Response::empty(status)` 指定其他状态码，用 `withHeaders` 附加响应头。
+用 `Response::no_content()` 返回无正文的 HTTP 204。用 `Response::empty(status)` 指定其他状态码，用 `with_headers` 附加响应头。
 
 ### 文件下载 {#file-downloads}
 
@@ -231,7 +231,7 @@ source.addEventListener('update', (event) => {
 
 ### 流式 JSON 响应 {#streamed-json-responses}
 
-通过 `Response::streamJson` 和 `StreamedJson::object` 将数据行流放进 JSON 对象。`StreamedJson::items` 在每行到达时序列化。固定值使用 `StreamedJson::value`，嵌套数组使用 `StreamedJson::array`。使用 `StreamedJson::entries` 可将键值对逐项写入 JSON 对象。
+通过 `Response::stream_json` 和 `StreamedJson::object` 将数据行流放进 JSON 对象。`StreamedJson::items` 在每行到达时序列化。固定值使用 `StreamedJson::value`，嵌套数组使用 `StreamedJson::array`。使用 `StreamedJson::entries` 可将键值对逐项写入 JSON 对象。
 
 流式 JSON 与 JSON 事件载荷沿用 默认字符串转义。SSE JSON 保留无需转义的非 ASCII 文本。
 
@@ -241,18 +241,18 @@ use openrust::http::{HttpError, Response, StatusCode, StreamedJson};
 
 let users = stream::iter([Ok::<_, HttpError>(1), Ok(2)]);
 let data = StreamedJson::object([("users", StreamedJson::items(users))]);
-let response = Response::streamJson(StatusCode::OK, data);
+let response = Response::stream_json(StatusCode::OK, data);
 ```
 
 ### 服务端发送事件（SSE） {#event-streams}
 
-`Response::eventStream` 发送 `text/event-stream` 并关闭缓存和代理缓冲。`StreamedEvent::message` 使用 `update` 事件。命名文本事件使用 `StreamedEvent::new`，JSON 数据使用 `StreamedEvent::json`。默认结束事件携带 `</stream>`。`Response::eventStreamWithEnd` 接收自定义结束事件，传入 `None` 可省略结束事件。
+`Response::event_stream` 发送 `text/event-stream` 并关闭缓存和代理缓冲。`StreamedEvent::message` 使用 `update` 事件。命名文本事件使用 `StreamedEvent::new`，JSON 数据使用 `StreamedEvent::json`。默认结束事件携带 `</stream>`。`Response::event_stream_with_end` 接收自定义结束事件，传入 `None` 可省略结束事件。
 
 响应头发出后，JSON 或下载数据源失败会以传输错误结束正文。应用中的 SSE 数据源失败时，会交给当前应用的异常处理器报告，连接关闭且不发送结束事件。
 
 ### 流式下载 {#streamed-downloads}
 
-`Response::streamDownload` 按块发送下载内容。提供文件名时，框架按指定的处置方式生成 `Content-Disposition`，并按需附加 UTF-8 文件名。文件名为 `None` 时，由调用者提供的响应头决定处置方式。
+`Response::stream_download` 按块发送下载内容。提供文件名时，框架按指定的处置方式生成 `Content-Disposition`，并按需附加 UTF-8 文件名。文件名为 `None` 时，由调用者提供的响应头决定处置方式。
 
 ## 响应宏 {#response-macros}
 
@@ -278,4 +278,4 @@ Response::r#macro("caps", |arguments| async move {
 Response::call("caps", vec!["hello".into()]).await
 ```
 
-`hasMacro` 检查当前工厂。`mixin` 接收显式列出的 `ResponseMacro` 和替换开关。`flushMacros` 清空当前应用的注册表。每个应用使用自己的响应工厂。
+`has_macro` 检查当前工厂。`mixin` 接收显式列出的 `ResponseMacro` 和替换开关。`flush_macros` 清空当前应用的注册表。每个应用使用自己的响应工厂。

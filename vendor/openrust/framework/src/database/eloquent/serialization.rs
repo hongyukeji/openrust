@@ -147,7 +147,7 @@ pub(super) fn model<M: Model>(model: &M) -> DatabaseResult<Map<String, Json>> {
 pub(super) fn one<M: Model>(related: &Option<Arc<M>>) -> DatabaseResult<Option<Json>> {
     related
         .as_deref()
-        .map_or(Ok(Json::Null), |model| model.toArray().map(Json::Object))
+        .map_or(Ok(Json::Null), |model| model.to_array().map(Json::Object))
         .map(Some)
 }
 
@@ -158,7 +158,7 @@ pub(super) fn many<M: Model>(
 
     let models = related
         .iter()
-        .map(|model| model.toArray().map(Json::Object))
+        .map(|model| model.to_array().map(Json::Object))
         .collect::<DatabaseResult<Vec<_>>>()?;
     if let Some(keys) = &related.keys
         && keys.iter().enumerate().any(|(index, key)| {

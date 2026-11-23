@@ -133,7 +133,7 @@ async fn inspire_help() -> Result<(i32, String), ConsoleError> {
 
 ### 将 Artisan 命令加入队列 {#queueing-artisan-commands}
 
-用 `Artisan::queue` 准备命令。调用 `dispatch().await` 提交任务并取得派发结果。用 `onConnection` 和 `onQueue` 指定目标，也可以使用默认连接及其默认队列。
+用 `Artisan::queue` 准备命令。调用 `dispatch().await` 提交任务并取得派发结果。用 `on_connection` 和 `on_queue` 指定目标，也可以使用默认连接及其默认队列。
 
 ```rust
 use openrust::{
@@ -143,8 +143,8 @@ use openrust::{
 
 async fn queue_inspire() -> QueueResult<DispatchResult> {
     Artisan::queue("inspire", &[])
-        .onConnection("redis")
-        .onQueue("commands")
+        .on_connection("redis")
+        .on_queue("commands")
         .dispatch()
         .await
 }
@@ -176,7 +176,7 @@ async fn queue_inspire() -> QueueResult<DispatchResult> {
 
 `--extensions=all` 是默认集合和向导推荐项，也可选择 `api,broadcasting,reverb,grpc,passport,fortify,passkeys,socialite,precognition,oidc,sso`。`api` 安装 Sanctum；`passport` 自动补选 `api`，`passkeys` 补选 Fortify，`sso` 补选 OIDC 和 Fortify，`reverb` 补选广播频道。后续运行可补装扩展，已配置 Reverb 时须纳入选择。API `/user` 路由保留 `auth:sanctum`，Passport 使用独立 `api` 守卫；已有不兼容守卫会保留并报告冲突。
 
-Fortify 安装认证动作、应用 Provider、配置和迁移；初始化新生成的配置使用 `views=false` 并启用邮件验证，已有自定义配置保留。请通过 `ResetPassword::createUrlUsing` 配置前端密码重置地址，或提供名为 `password.reset` 的路由；无界面初始化不生成前端页面。按选择启用 Passkeys。新配置须将 APP_URL 设为带域名、无路径的精确 HTTPS Origin；开发环境允许 HTTP localhost，例如 `APP_URL=http://localhost:8000`。HTTP IP 地址会在写入前被预检拒绝。Socialite、OIDC 启用对应包，供应商凭据、获准回调、本地账户显式绑定及应用路由仍由应用配置；选择 SSO 不会创建身份提供方或配置全局退出。Precognition 已内建，在选定路由添加 `precognitive`。安装状态与这些外部前置分开报告。
+Fortify 安装认证动作、应用 Provider、配置和迁移；初始化新生成的配置使用 `views=false` 并启用邮件验证，已有自定义配置保留。请通过 `ResetPassword::create_url_using` 配置前端密码重置地址，或提供名为 `password.reset` 的路由；无界面初始化不生成前端页面。按选择启用 Passkeys。新配置须将 APP_URL 设为带域名、无路径的精确 HTTPS Origin；开发环境允许 HTTP localhost，例如 `APP_URL=http://localhost:8000`。HTTP IP 地址会在写入前被预检拒绝。Socialite、OIDC 启用对应包，供应商凭据、获准回调、本地账户显式绑定及应用路由仍由应用配置；选择 SSO 不会创建身份提供方或配置全局退出。Precognition 已内建，在选定路由添加 `precognitive`。安装状态与这些外部前置分开报告。
 
 缺少 `.env` 时从示例创建，保留已有密钥和凭据；缺少应用密钥时调用 `key:generate`。共享安装服务在源码锁内发布所选资源；当前程序未编入安装器时，集中重建一次加载安装服务，随后统一构建全部生成模块并执行一次原迁移入口，不递归运行单项安装命令。生产环境需要确认或 `--force`。初始化成功后执行 `cargo run`，命令不自动启动长期服务。`--without-migration` 报告准备完成、迁移待执行。`--force` 覆盖可发布配置和脚手架并授权生产迁移，保留 APP_KEY、Passport 密钥、无关应用模块及全部历史迁移。`--dry-run` 不连接、不写文件、不加锁、不构建、不迁移。必需步骤失败返回非零，停止依赖步骤并保留完成内容供重试；并发源码安装立即报告冲突。
 
@@ -186,7 +186,7 @@ Fortify 安装认证动作、应用 Provider、配置和迁移；初始化新生
 
 ## 生成命令 {#generating-commands}
 
-破坏性命令可调用 `openrust::console::confirmToProceed(production, input.matches())?`，仅在返回 `true` 时继续。`production` 由应用环境或命令确认条件决定。复用的多语提示默认拒绝，非交互输入拒绝；命令声明的 `--force` 可跳过确认。
+破坏性命令可调用 `openrust::console::confirm_to_proceed(production, input.matches())?`，仅在返回 `true` 时继续。`production` 由应用环境或命令确认条件决定。复用的多语提示默认拒绝，非交互输入拒绝；命令声明的 `--force` 可跳过确认。
 
 在源码检出目录生成命令。生成的类型实现 Artisan 命令契约。
 

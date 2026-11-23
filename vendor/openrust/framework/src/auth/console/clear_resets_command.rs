@@ -35,8 +35,8 @@ impl Command for ClearResetsCommand {
                 .map(String::as_str);
             let broker = Password::broker(name).map_err(console_error)?;
             broker
-                .getRepository()
-                .deleteExpired()
+                .get_repository()
+                .delete_expired()
                 .await
                 .map_err(console_error)?;
             output.info("Expired password reset tokens cleared.");

@@ -16,12 +16,12 @@ fn main() {
     let mapped = amounts.map(|value, _| value * 10);
     let selected = mapped.filter(|value, _| *value >= 20);
 
-    assert_eq!(selected.toJson().unwrap(), r#"{"3":20,"7":30}"#);
-    assert_eq!(selected.values().toJson().unwrap(), "[20,30]");
+    assert_eq!(selected.to_json().unwrap(), r#"{"3":20,"7":30}"#);
+    assert_eq!(selected.values().to_json().unwrap(), "[20,30]");
 
     let groups = Collection::make(["apple", "apricot", "pear"])
         .groupBy(|word, _| word.starts_with('a'), false);
-    assert_eq!(groups.toJson().unwrap(), r#"{"1":["apple","apricot"],"0":["pear"]}"#);
+    assert_eq!(groups.to_json().unwrap(), r#"{"1":["apple","apricot"],"0":["pear"]}"#);
 }
 ```
 
@@ -36,9 +36,9 @@ use openrust::support::Collection;
 
 let mut rows = Collection::fromEntries([("4", "甲"), ("keep", "乙"), ("9", "丙")]);
 assert_eq!(rows.shift(), Some("甲"));
-assert_eq!(rows.toJson()?, r#"{"keep":"乙","0":"丙"}"#);
+assert_eq!(rows.to_json()?, r#"{"keep":"乙","0":"丙"}"#);
 let existing = Collection::make(["乙"]);
-let remaining = rows.diff(&existing).toArray()?;
+let remaining = rows.diff(&existing).to_array()?;
 assert_eq!(remaining, serde_json::json!(["丙"]));
 ```
 
@@ -54,13 +54,13 @@ use serde_json::json;
 
 let first = Collection::fromValue(json!({"team":{"tags":["甲"]}}));
 let second = Collection::fromValue(json!({"team":{"tags":["乙"]}}));
-let merged = first.mergeRecursive(second)?.dotWithDepth(Some(1))?.toArray()?;
+let merged = first.mergeRecursive(second)?.dotWithDepth(Some(1))?.to_array()?;
 assert_eq!(merged, json!({"team.tags":["甲","乙"]}));
 ```
 
 ## JSON Serialization
 
-A collection serializes as a JSON array when its keys are consecutive from zero in iteration order. Other keys produce a JSON object. `toJson()` returns a JSON string or a serialization error, including for non-finite floats. A collection can also be passed directly to `ApiResponse::success`. Deserialize JSON directly into `Collection<T>` to retain object member order. `fromValue` uses the order of the supplied `serde_json::Value`.
+A collection serializes as a JSON array when its keys are consecutive from zero in iteration order. Other keys produce a JSON object. `to_json()` returns a JSON string or a serialization error, including for non-finite floats. A collection can also be passed directly to `ApiResponse::success`. Deserialize JSON directly into `Collection<T>` to retain object member order. `fromValue` uses the order of the supplied `serde_json::Value`.
 
 ## Lazy Collections
 
@@ -92,9 +92,9 @@ fn main() -> Result<(), CollectionError> {
     .remember();
 
     assert_eq!(reads.get(), 0);
-    assert_eq!(lines.clone().take(1).collect()?.toJson()?, r#"["WARN slow"]"#);
+    assert_eq!(lines.clone().take(1).collect()?.to_json()?, r#"["WARN slow"]"#);
     assert_eq!(reads.get(), 2);
-    assert_eq!(lines.collect()?.toJson()?, r#"["WARN slow","WARN retry"]"#);
+    assert_eq!(lines.collect()?.to_json()?, r#"["WARN slow","WARN retry"]"#);
     assert_eq!(reads.get(), 3);
     Ok(())
 }
@@ -191,7 +191,7 @@ fn main() -> Result<(), CollectionError> {
 
     let windows = readings.sliding(2, 2)?;
     assert_eq!(windows.count()?, 2);
-    assert_eq!(windows.first()?.unwrap().toJson()?, "[4,4]");
+    assert_eq!(windows.first()?.unwrap().to_json()?, "[4,4]");
     Ok(())
 }
 ```
@@ -213,7 +213,7 @@ fn main() -> Result<(), CollectionError> {
     assert_eq!(readings.clone().chunkBy(|value, _| value / 10).count()?, 2);
 
     let combined = readings.nth(2, 0)?.concat(LazyCollection::make(|| [15]));
-    assert_eq!(combined.collect()?.toJson()?, "[4,11,15]");
+    assert_eq!(combined.collect()?.to_json()?, "[4,11,15]");
     Ok(())
 }
 ```
@@ -234,15 +234,15 @@ fn main() -> Result<(), CollectionError> {
         ]
     });
     assert_eq!(
-        groups.collapseWithKeys().collect()?.toJson()?,
+        groups.collapseWithKeys().collect()?.to_json()?,
         r#"{"first":1,"second":2}"#
     );
 
     let doubled = LazyCollection::make(|| [1, 3]).flatMap(|value, _| [*value, value * 2]);
-    assert_eq!(doubled.collect()?.toJson()?, "[1,2,3,6]");
+    assert_eq!(doubled.collect()?.to_json()?, "[1,2,3,6]");
 
     let nested = LazyCollection::make(|| [json!([1, [2]]), json!(3)]);
-    assert_eq!(nested.flatten(None).collect()?.toJson()?, "[1,2,3]");
+    assert_eq!(nested.flatten(None).collect()?.to_json()?, "[1,2,3]");
     Ok(())
 }
 ```
@@ -257,11 +257,11 @@ use openrust::support::{CollectionError, LazyCollection};
 fn main() -> Result<(), CollectionError> {
     let numbers = LazyCollection::from([1, 2]);
     let rows = numbers.clone().zip(["one"]);
-    assert_eq!(rows.collect()?.toJson()?, r#"[[1,"one"],[2,null]]"#);
+    assert_eq!(rows.collect()?.to_json()?, r#"[[1,"one"],[2,null]]"#);
 
     let labels = LazyCollection::from(["first", "second"]);
     assert_eq!(
-        labels.combine(numbers).collect()?.toJson()?,
+        labels.combine(numbers).collect()?.to_json()?,
         r#"{"first":1,"second":2}"#
     );
     Ok(())
@@ -278,7 +278,7 @@ use openrust::support::{CollectionError, LazyCollection};
 fn main() -> Result<(), CollectionError> {
     let readings = LazyCollection::fromEntries(|| [("a", 10), ("b", 11), ("c", 21)]);
     let distinct = readings.clone().uniqueBy(|value, _| value / 10);
-    assert_eq!(distinct.collect()?.toJson()?, r#"{"a":10,"c":21}"#);
+    assert_eq!(distinct.collect()?.to_json()?, r#"{"a":10,"c":21}"#);
     assert!(readings.contains(&11)?);
     assert!(readings.hasSoleWhere(|value, _| *value > 20)?);
     assert_eq!(readings.firstOrFailWhere(|value, _| *value > 10)?, 11);
@@ -296,9 +296,9 @@ use openrust::support::{CollectionError, LazyCollection};
 fn main() -> Result<(), CollectionError> {
     let readings = LazyCollection::fromEntries(|| [("a", 12), ("b", 7), ("c", 12)]);
     let sorted = readings.clone().sort();
-    assert_eq!(sorted.collect()?.toJson()?, r#"{"b":7,"a":12,"c":12}"#);
+    assert_eq!(sorted.collect()?.to_json()?, r#"{"b":7,"a":12,"c":12}"#);
     let duplicates = readings.duplicatesBy(|value, _| value / 10);
-    assert_eq!(duplicates.collect()?.toJson()?, r#"{"c":1}"#);
+    assert_eq!(duplicates.collect()?.to_json()?, r#"{"c":1}"#);
     Ok(())
 }
 ```
@@ -317,7 +317,7 @@ fn main() -> Result<(), CollectionError> {
     assert_eq!(readings.mode()?, Some(vec![5]));
 
     let counts = readings.countBy(|value, _| if *value == 5 { "low" } else { "high" });
-    assert_eq!(counts.collect()?.toJson()?, r#"{"high":2,"low":2}"#);
+    assert_eq!(counts.collect()?.to_json()?, r#"{"high":2,"low":2}"#);
     Ok(())
 }
 ```
@@ -354,11 +354,11 @@ fn main() -> Result<(), CollectionError> {
             .clone()
             .diffAssoc(incoming.clone())
             .collect()?
-            .toJson()?,
+            .to_json()?,
         r#"{"a":1}"#
     );
     assert_eq!(
-        current.replace(incoming).collect()?.toJson()?,
+        current.replace(incoming).collect()?.to_json()?,
         r#"{"a":1,"b":2,"c":3}"#
     );
     Ok(())
@@ -379,14 +379,14 @@ fn main() -> Result<(), CollectionError> {
 
     let readings = LazyCollection::from([("a", 10), ("b", 7)]);
     let mapped = readings.mapWithKeys(|record, _| [(record.0, record.1 * 2)]);
-    assert_eq!(mapped.collect()?.toJson()?, r#"{"a":20,"b":14}"#);
+    assert_eq!(mapped.collect()?.to_json()?, r#"{"a":20,"b":14}"#);
     Ok(())
 }
 ```
 
 #### Looking Up Items and Neighbors {#lazy-looking-up-items}
 
-`get` returns the first entry with the given key. `has` checks one key, `hasAll` checks all requested keys, and `hasAny` checks whether at least one exists. Rust compares normalized `ArrayKey` values, so `"08"` and `8` are distinct. PHP loose equality can match those two keys. `search` returns the first matching key. `before` and `after` return adjacent values in source order. `last` traverses the source to the end.
+`get` returns the first entry with the given key. `has` checks one key, `hasAll` checks all requested keys, and `has_any` checks whether at least one exists. Rust compares normalized `ArrayKey` values, so `"08"` and `8` are distinct. PHP loose equality can match those two keys. `search` returns the first matching key. `before` and `after` return adjacent values in source order. `last` traverses the source to the end.
 
 ```rust
 use openrust::support::{ArrayKey, CollectionError, LazyCollection};
@@ -438,7 +438,7 @@ The fallback runs once when the lookup finds no result. A present JSON null is a
 
 #### Filtering Values and Fields {#lazy-filtering-values}
 
-`r#where` and `whereIn` compare the value returned by a typed projection. Their strict variants use the same Rust equality rules. `whereBetween` includes both endpoints. `whereNotBetween` tests whether a value is below the lower bound or above the upper bound. For JSON, `whereNullAt` matches a missing path or explicit null, while `whereNotNullAt` keeps present non-null values. These filters preserve keys and evaluate only the entries requested.
+`r#where` and `where_in` compare the value returned by a typed projection. Their strict variants use the same Rust equality rules. `whereBetween` includes both endpoints. `whereNotBetween` tests whether a value is below the lower bound or above the upper bound. For JSON, `whereNullAt` matches a missing path or explicit null, while `whereNotNullAt` keeps present non-null values. These filters preserve keys and evaluate only the entries requested.
 
 ```rust
 use openrust::support::{CollectionError, LazyCollection};
@@ -447,7 +447,7 @@ use serde_json::json;
 fn main() -> Result<(), CollectionError> {
     let readings = LazyCollection::fromEntries(|| [("low", 1), ("same", 3), ("same", 4)]);
     let selected = readings.whereBetween(|value| *value, 3..=4).values();
-    assert_eq!(selected.collect()?.toJson()?, "[3,4]");
+    assert_eq!(selected.collect()?.to_json()?, "[3,4]");
 
     let records = LazyCollection::from([json!({}), json!({"status": false})]);
     assert_eq!(records.whereNotNullAt("status").count()?, 1);
@@ -475,8 +475,8 @@ fn main() -> Result<(), CollectionError> {
 
     let before = readings.clone().takeUntilValue(json!(2));
     let from = readings.skipUntilValue(json!(2)).filterTruthy();
-    assert_eq!(before.toJson()?, r#"{"text":"2"}"#);
-    assert_eq!(from.toJson()?, r#"{"marker":2,"tail":3}"#);
+    assert_eq!(before.to_json()?, r#"{"text":"2"}"#);
+    assert_eq!(from.to_json()?, r#"{"marker":2,"tail":3}"#);
     Ok(())
 }
 ```
@@ -493,31 +493,31 @@ use openrust::support::{CollectionError, LazyCollection};
 fn main() -> Result<(), CollectionError> {
     let readings = LazyCollection::from([10, 20, 30, 40, 50]);
     let page = readings.clone().forPage(2, 2).values();
-    assert_eq!(page.collect()?.toJson()?, "[30,40]");
+    assert_eq!(page.collect()?.to_json()?, "[30,40]");
 
     let (passed, failed) = readings.partition(|value, _| *value >= 30)?;
     assert_eq!(passed.count(), 3);
     assert_eq!(failed.count(), 2);
     let padded = readings.pad(6, 0);
-    assert_eq!(padded.collect()?.toJson()?, "[10,20,30,40,50,0]");
+    assert_eq!(padded.collect()?.to_json()?, "[10,20,30,40,50,0]");
     Ok(())
 }
 ```
 
 #### Serializing Values {#lazy-serializing-values}
 
-`toArray` and `jsonSerialize` return a JSON value. `toJson` and `toPrettyJson` return encoded text. Each call materializes the source. Consecutive integer keys starting at zero produce an array, and sparse or named keys produce an object. The last value wins for repeated keys. Use `values()` first to retain each occurrence. `fromJson` decodes arrays or objects into a repeatable source. Nested lazy collections participate in Serde serialization.
+`to_array` and `jsonSerialize` return a JSON value. `to_json` and `to_pretty_json` return encoded text. Each call materializes the source. Consecutive integer keys starting at zero produce an array, and sparse or named keys produce an object. The last value wins for repeated keys. Use `values()` first to retain each occurrence. `fromJson` decodes arrays or objects into a repeatable source. Nested lazy collections participate in Serde serialization.
 
 ```rust
 use openrust::support::{CollectionError, LazyCollection};
 
 fn main() -> Result<(), CollectionError> {
     let readings = LazyCollection::fromEntries(|| [("a", 10), ("a", 12), ("b", 7)]);
-    assert_eq!(readings.toJson()?, r#"{"a":12,"b":7}"#);
-    assert_eq!(readings.values().toJson()?, "[10,12,7]");
+    assert_eq!(readings.to_json()?, r#"{"a":12,"b":7}"#);
+    assert_eq!(readings.values().to_json()?, "[10,12,7]");
 
     let decoded = LazyCollection::<i32>::fromJson("[4,5]")?;
-    assert_eq!(decoded.toJson()?, "[4,5]");
+    assert_eq!(decoded.to_json()?, "[4,5]");
     Ok(())
 }
 ```
@@ -564,12 +564,12 @@ use openrust::support::{CollectionError, LazyCollection};
 
 fn main() -> Result<(), CollectionError> {
     let numbers = LazyCollection::range(9, 1, NonZeroUsize::new(2).unwrap());
-    assert_eq!(numbers.take(3).toJson()?, "[9,7,5]");
+    assert_eq!(numbers.take(3).to_json()?, "[9,7,5]");
 
     let readings = LazyCollection::times(10_000, |index| index * 5);
-    assert_eq!(readings.take(2).toJson()?, "[5,10]");
+    assert_eq!(readings.take(2).to_json()?, "[5,10]");
     assert_eq!(
-        LazyCollection::wrap(Some("ready")).toJson()?,
+        LazyCollection::wrap(Some("ready")).to_json()?,
         r#"["ready"]"#
     );
     Ok(())
@@ -578,14 +578,14 @@ fn main() -> Result<(), CollectionError> {
 
 #### Conditionals and Pipelines {#lazy-conditionals-and-pipelines}
 
-`when` and `unless` select a callback immediately. `whenEmpty` and `whenNotEmpty` probe the first item and can return a source error. `whenEmptyElse` and `whenNotEmptyElse` accept a fallback. `pipe` can change the result type, while `pipeThrough` chains stages that return the same collection type. `tap` inspects the collection at the call site. `ensure` validates every item with a predicate and stops at the first failure. A later traversal opens the source again unless you use `remember()`.
+`when` and `unless` select a callback immediately. `when_empty` and `whenNotEmpty` probe the first item and can return a source error. `whenEmptyElse` and `whenNotEmptyElse` accept a fallback. `pipe` can change the result type, while `pipeThrough` chains stages that return the same collection type. `tap` inspects the collection at the call site. `ensure` validates every item with a predicate and stops at the first failure. A later traversal opens the source again unless you use `remember()`.
 
 ```rust
 use openrust::support::{CollectionError, LazyCollection};
 
 fn main() -> Result<(), CollectionError> {
     let readings = LazyCollection::<i32>::empty()
-        .whenEmpty(|_| LazyCollection::from([3, 5]))?
+        .when_empty(|_| LazyCollection::from([3, 5]))?
         .when(true, |items| items.map(|value, _| value * 2))
         .ensure(|value, _| *value <= 10)?;
 
@@ -605,11 +605,11 @@ use serde_json::json;
 
 fn main() -> Result<(), CollectionError> {
     let fields = LazyCollection::fromEntries(|| [("active", ArrayKey::from("status"))]);
-    assert_eq!(fields.flip().toJson()?, r#"{"status":"active"}"#);
+    assert_eq!(fields.flip().to_json()?, r#"{"status":"active"}"#);
 
     let records = LazyCollection::from([json!({"status":"active","internal":42})]);
     assert_eq!(
-        records.select(&["status"]).toJson()?,
+        records.select(&["status"]).to_json()?,
         r#"[{"status":"active"}]"#
     );
     let rows = LazyCollection::from([vec![2_u8, 3]]);
@@ -636,9 +636,9 @@ fn main() -> Result<(), CollectionError> {
 
     let names = LazyCollection::fromEntries(|| [("x", 4), ("y", 7), ("z", 9)]);
     let sample = names.random(2, true)?;
-    let selected = sample.toJson()?;
+    let selected = sample.to_json()?;
     assert_eq!(sample.count()?, 2);
-    assert_eq!(sample.toJson()?, selected);
+    assert_eq!(sample.to_json()?, selected);
     Ok(())
 }
 ```
@@ -657,20 +657,20 @@ fn main() -> Result<(), CollectionError> {
     assert_eq!(iterator.next().transpose()?, Some(("a".into(), 1)));
     assert!(iterator.hasNext());
     assert_eq!(
-        iterator.getCache().and_then(|cache| cache.get("a")),
+        iterator.get_cache().and_then(|cache| cache.get("a")),
         Some(&1)
     );
 
     assert_eq!(iterator.next().transpose()?, Some(("a".into(), 2)));
     assert_eq!(
-        iterator.getCache().and_then(|cache| cache.get("a")),
+        iterator.get_cache().and_then(|cache| cache.get("a")),
         Some(&2)
     );
     Ok(())
 }
 ```
 
-Use `getCachingIteratorWithFullCache()` for full-cache behavior. It requires cloneable values and keeps the last yielded value for each key. `getCache()` returns the entries already yielded. Use `remember()` to replay a shared source across several traversals.
+Use `getCachingIteratorWithFullCache()` for full-cache behavior. It requires cloneable values and keeps the last yielded value for each key. `get_cache()` returns the entries already yielded. Use `remember()` to replay a shared source across several traversals.
 
 The older `containsOneItem()` and `containsManyItems()` names call `hasSole()` and `hasMany()`. Use `hasSoleWhere()` to test for a single matching item with a predicate.
 
@@ -684,12 +684,12 @@ use openrust::support::{CollectionError, LazyCollection};
 fn main() -> Result<(), CollectionError> {
     let values = LazyCollection::from(["<tag> &lt;"]).escapeWhenCastingToString(true);
     assert_eq!(values.toString()?, "[&quot;&lt;tag&gt; &amp;lt;&quot;]");
-    assert_eq!(values.toJson()?, r#"["<tag> &lt;"]"#);
+    assert_eq!(values.to_json()?, r#"["<tag> &lt;"]"#);
     Ok(())
 }
 ```
 
-The setting applies to string conversion. `toJson()` and `toPrettyJson()` continue to return JSON.
+The setting applies to string conversion. `to_json()` and `to_pretty_json()` continue to return JSON.
 
 #### Dumping a Lazy Collection {#lazy-dump}
 

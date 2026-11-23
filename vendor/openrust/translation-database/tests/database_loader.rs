@@ -496,7 +496,7 @@ async fn database_explicit_provider_publishes_the_app_catalog_to_real_http() {
         State(kernel): State<Arc<Kernel>>,
         request: axum::extract::Request,
     ) -> axum::response::Response {
-        kernel.handleTransport(request).await
+        kernel.handle_transport(request).await
     }
     let Some(first) = Fixture::new().await else {
         return;

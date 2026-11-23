@@ -149,7 +149,7 @@ Call `union(&other)?` to remove duplicate rows, or `unionAll(&other)?` to keep t
 
 ## Basic Where Clauses
 
-Use `r#where(column, operator, value)` for `where`, since `where` is reserved in Rust. `orWhere` combines predicates with OR. Group them with `whereNested` or negate the group with `whereNot`. Use `whereNull`, `whereNotNull`, `whereIn`, `whereNotIn`, `whereBetween`, or `whereColumn` for those comparisons. An empty IN matches no rows. An empty NOT IN matches all rows.
+Use `r#where(column, operator, value)` for `where`, since `where` is reserved in Rust. `orWhere` combines predicates with OR. Group them with `whereNested` or negate the group with `where_not`. Use `where_null`, `where_not_null`, `where_in`, `where_not_in`, `whereBetween`, or `whereColumn` for those comparisons. An empty IN matches no rows. An empty NOT IN matches all rows.
 
 `whereLike` accepts a case-sensitivity flag. `whereDate` and `whereTime` use `jiff::civil::Date` and `jiff::civil::Time`. Use `toSql()` and `get_bindings()` to inspect the SQL and parameters in execution order.
 
@@ -163,7 +163,7 @@ pub async fn active_users(connection: &Connection) -> DatabaseResult<Vec<Row>> {
         .r#where("active", "=", true)
         .whereNested(|query| {
             query
-                .whereNull("archived_at")
+                .where_null("archived_at")
                 .orWhere("name", "=", "Admin")
         })
         .orderBy("id", "asc")

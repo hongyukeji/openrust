@@ -315,13 +315,13 @@ fn resolver<'a>(
         };
         if Hash::check(
             password,
-            user.getAuthPassword().unwrap(),
+            user.get_auth_password().unwrap(),
             &Default::default(),
         )
         .await
         .unwrap()
         {
-            Ok(Some(user.getAuthIdentifier()))
+            Ok(Some(user.get_auth_identifier()))
         } else {
             Ok(None)
         }
@@ -725,45 +725,45 @@ struct NativeProvider {
     validations: Arc<AtomicUsize>,
 }
 impl openrust::contracts::auth::UserProvider for NativeProvider {
-    fn retrieveById<'a>(
+    fn retrieve_by_id<'a>(
         &'a self,
         id: &'a AuthIdentifier,
     ) -> openrust::auth::AuthFuture<'a, openrust::auth::AuthResult<Option<Box<dyn Authenticatable>>>>
     {
-        self.inner.retrieveById(id)
+        self.inner.retrieve_by_id(id)
     }
-    fn retrieveByToken<'a>(
+    fn retrieve_by_token<'a>(
         &'a self,
         id: &'a AuthIdentifier,
         token: &'a str,
     ) -> openrust::auth::AuthFuture<'a, openrust::auth::AuthResult<Option<Box<dyn Authenticatable>>>>
     {
-        self.inner.retrieveByToken(id, token)
+        self.inner.retrieve_by_token(id, token)
     }
-    fn updateRememberToken<'a>(
+    fn update_remember_token<'a>(
         &'a self,
         user: &'a mut dyn Authenticatable,
         token: &'a str,
     ) -> openrust::auth::AuthFuture<'a, openrust::auth::AuthResult<()>> {
-        self.inner.updateRememberToken(user, token)
+        self.inner.update_remember_token(user, token)
     }
-    fn retrieveByCredentials<'a>(
+    fn retrieve_by_credentials<'a>(
         &'a self,
         credentials: &'a Credentials,
     ) -> openrust::auth::AuthFuture<'a, openrust::auth::AuthResult<Option<Box<dyn Authenticatable>>>>
     {
         self.lookups.fetch_add(1, Ordering::Relaxed);
-        self.inner.retrieveByCredentials(credentials)
+        self.inner.retrieve_by_credentials(credentials)
     }
-    fn validateCredentials<'a>(
+    fn validate_credentials<'a>(
         &'a self,
         user: &'a dyn Authenticatable,
         credentials: &'a Credentials,
     ) -> openrust::auth::AuthFuture<'a, openrust::auth::AuthResult<bool>> {
         self.validations.fetch_add(1, Ordering::Relaxed);
-        self.inner.validateCredentials(user, credentials)
+        self.inner.validate_credentials(user, credentials)
     }
-    fn rehashPasswordIfRequired<'a>(
+    fn rehash_password_if_required<'a>(
         &'a self,
         _user: &'a mut dyn Authenticatable,
         _credentials: &'a Credentials,
@@ -792,7 +792,7 @@ async fn mysql_password_compiled_user_provider_uses_real_lookup_validation_and_i
                         inner: container
                             .make::<AuthManager>()
                             .unwrap()
-                            .createUserProvider("users")?,
+                            .create_user_provider("users")?,
                         lookups: a.clone(),
                         validations: b.clone(),
                     }))

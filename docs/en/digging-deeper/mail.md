@@ -280,7 +280,7 @@ Call `mailable.render().await?` to get the rendered body without sending or queu
 
 ### Previewing mailables in the browser {#previewing-mailables-in-the-browser}
 
-Use `toResponse()` in an application route to preview the mailable. It returns HTML or plain text with the corresponding media type.
+Use `to_response()` in an application route to preview the mailable. It returns HTML or plain text with the corresponding media type.
 
 ```rust
 use openrust::{
@@ -290,7 +290,7 @@ use openrust::{
 };
 
 fn preview_order(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
-    Box::pin(async { OrderShipped.toResponse().await })
+    Box::pin(async { OrderShipped.to_response().await })
 }
 
 Route::get("/mail-preview/order", preview_order)?;

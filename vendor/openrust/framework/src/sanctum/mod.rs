@@ -126,7 +126,7 @@ impl AccessToken {
         if let Some(name) = name {
             return tokens.0.get(name);
         }
-        let default = crate::auth::Auth::manager().ok()?.getDefaultDriver();
+        let default = crate::auth::Auth::manager().ok()?.get_default_driver();
         tokens.0.get(&default)
     }
 

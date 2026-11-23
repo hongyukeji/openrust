@@ -89,7 +89,7 @@ fn spoofed_update(request: &mut Request) -> HttpFuture<'_, Result<Response, Http
             StatusCode::OK,
             json!({
                 "method": request.method().as_str(),
-                "transport": request.getRealMethod().as_str(),
+                "transport": request.get_real_method().as_str(),
                 "value": value,
             }),
         )
@@ -118,7 +118,7 @@ fn app(root: PathBuf, origin_only: bool, same_site: bool) -> Application {
             |_, _| Ok(config("staging-view"))
         })
         .with_middleware(move |middleware| {
-            middleware.preventRequestForgery(["hooks/*"], origin_only, same_site);
+            middleware.prevent_request_forgery(["hooks/*"], origin_only, same_site);
         })
         .with_routing(Routing::new(binding).web(web).api(api))
         .create()
@@ -129,7 +129,7 @@ async fn transport(
     State(kernel): State<Arc<Kernel>>,
     request: axum::extract::Request,
 ) -> axum::response::Response {
-    kernel.handleTransport(request).await
+    kernel.handle_transport(request).await
 }
 
 async fn start(
@@ -456,7 +456,7 @@ async fn default_web_rejects_excluded_session_cookies_before_serving() {
             .into())
         })
         .with_middleware(|middleware| {
-            middleware.encryptCookies(["csrf_session"]);
+            middleware.encrypt_cookies(["csrf_session"]);
         })
         .create()
         .unwrap();

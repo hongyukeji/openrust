@@ -29,9 +29,9 @@ pub(super) async fn verify(
     } = requirements;
     let invalid = || Error::InvalidIdentityToken;
     let response = json(
-        http.pendingRequest()
-            .redactPayload()
-            .withoutRedirecting()
+        http.pending_request()
+            .redact_payload()
+            .without_redirecting()
             .get(url)
             .await?,
     )?;

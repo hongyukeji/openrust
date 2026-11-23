@@ -233,12 +233,12 @@ async fn model_scopes_query_replacement_and_eager_loads_follow_fixed_reference()
         &reference,
     )
     .await;
-    run("with_trashed", q().withTrashed(), &reference).await;
-    run("without_trashed", q().withoutTrashed(), &reference).await;
-    run("only_trashed", q().onlyTrashed(), &reference).await;
+    run("with_trashed", q().with_trashed(), &reference).await;
+    run("without_trashed", q().without_trashed(), &reference).await;
+    run("only_trashed", q().only_trashed(), &reference).await;
     run(
         "only_except_empty",
-        q().onlyTrashed().withoutGlobalScopesExcept(&[]),
+        q().only_trashed().withoutGlobalScopesExcept(&[]),
         &reference,
     )
     .await;
@@ -325,7 +325,7 @@ async fn model_scopes_query_replacement_and_eager_loads_follow_fixed_reference()
             .firstOrFail()
             .await
             .unwrap()
-            .relationLoaded("children")
+            .relation_loaded("children")
     );
     assert_eq!(
         json!(ids(Child::queryOn(&db)

@@ -14,7 +14,6 @@ pub struct Pool<'a> {
     requests: IndexMap<String, HttpFuture<'a, Result<Response>>>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'a> Pool<'a> {
     pub(super) fn new(factory: Factory) -> Self {
         Self {
@@ -40,11 +39,11 @@ impl<'a> Pool<'a> {
             self.next_index = self.next_index.max(index as u128 + 1);
         }
         self.requests
-            .insert(key, Box::pin(build(self.factory.pendingRequest())));
+            .insert(key, Box::pin(build(self.factory.pending_request())));
         self
     }
 
-    pub fn newRequest<F>(&mut self, build: impl FnOnce(PendingRequest) -> F) -> &mut Self
+    pub fn new_request<F>(&mut self, build: impl FnOnce(PendingRequest) -> F) -> &mut Self
     where
         F: Future<Output = Result<Response>> + Send + 'a,
     {

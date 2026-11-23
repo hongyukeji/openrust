@@ -48,22 +48,22 @@ impl UserRepository {
         let provider = container
             .make::<AuthManager>()
             .map_err(internal)?
-            .createUserProvider(&provider)
+            .create_user_provider(&provider)
             .map_err(internal)?;
         let credentials = Credentials::new([("email", Value::Text(username.into()))], password);
         let Some(user) = provider
-            .retrieveByCredentials(&credentials)
+            .retrieve_by_credentials(&credentials)
             .await
             .map_err(internal)?
         else {
             return Ok(None);
         };
         if provider
-            .validateCredentials(user.as_ref(), &credentials)
+            .validate_credentials(user.as_ref(), &credentials)
             .await
             .map_err(internal)?
         {
-            Ok(Some(user.getAuthIdentifier()))
+            Ok(Some(user.get_auth_identifier()))
         } else {
             Ok(None)
         }

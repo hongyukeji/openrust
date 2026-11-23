@@ -250,7 +250,7 @@ impl<'a, M: Model> RelatedBatch<'a, M> {
         if index >= self.models.len() {
             return Err(DatabaseError::InvalidQuery("related model index"));
         }
-        if !self.models[index].relationLoaded(name) && !self.loaded[index].contains(name) {
+        if !self.models[index].relation_loaded(name) && !self.loaded[index].contains(name) {
             self.load_missing(name, relation).await?;
         }
         self.result::<R>(index, name)
@@ -312,7 +312,7 @@ impl<'a, M: Model> RelatedBatch<'a, M> {
             .copied()
             .enumerate()
             .filter(|(index, model)| {
-                !model.relationLoaded(name) && !self.loaded[*index].contains(name)
+                !model.relation_loaded(name) && !self.loaded[*index].contains(name)
             })
             .unzip();
         if models.is_empty() {

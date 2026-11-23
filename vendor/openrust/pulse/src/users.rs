@@ -19,7 +19,7 @@ pub struct User {
 /// Resolves metric identifiers and dashboard user details in the active application.
 pub trait ResolvesUsers: Send + Sync {
     fn key(&self, user: &dyn Authenticatable) -> Option<String> {
-        Some(user.getAuthIdentifier().to_string())
+        Some(user.get_auth_identifier().to_string())
     }
     fn setFieldResolver(&self, _resolver: Arc<FieldResolver>) -> Result<()> {
         Err(Error::InvalidConfiguration(
@@ -54,7 +54,7 @@ impl Users {
         }
         let text = |key| -> Result<Option<String>> {
             Ok(user
-                .getAuthAttribute(key)
+                .get_auth_attribute(key)
                 .map_err(Error::Auth)?
                 .and_then(|v| match v {
                     openrust::database::Value::Text(v) => Some(v),
@@ -74,7 +74,7 @@ impl Users {
             None => "https://gravatar.com/avatar?d=mp".into(),
         });
         Ok(User {
-            name: text("name")?.unwrap_or_else(|| format!("ID: {}", user.getAuthIdentifier())),
+            name: text("name")?.unwrap_or_else(|| format!("ID: {}", user.get_auth_identifier())),
             extra: email,
             avatar: Some(avatar),
         })
@@ -90,14 +90,17 @@ impl ResolvesUsers for Users {
             let config = Config::get_facade_root()?;
             let auth = Auth::manager().map_err(Error::Auth)?;
             let provider = config
-                .get(&format!("auth.guards.{}.provider", auth.getDefaultDriver()))
+                .get(&format!(
+                    "auth.guards.{}.provider",
+                    auth.get_default_driver()
+                ))
                 .and_then(|v| v.as_str().map(str::to_owned));
             let mut resolved = BTreeMap::new();
             if let Some(provider) = provider {
-                let provider = auth.createUserProvider(&provider).map_err(Error::Auth)?;
+                let provider = auth.create_user_provider(&provider).map_err(Error::Auth)?;
                 for key in keys {
                     if let Some(user) = provider
-                        .retrieveById(&key.clone().into())
+                        .retrieve_by_id(&key.clone().into())
                         .await
                         .map_err(Error::Auth)?
                     {

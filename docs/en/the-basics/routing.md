@@ -2,7 +2,7 @@
 
 Declare web routes in `routes/web.rs`. The application registers those routes and the `/up` health check through `openrust::routing::Router` during startup. A handler that needs the request takes a mutable `Request` and returns an asynchronous HTTP result. The framework binds the application router while calling the Web route module’s `register()`. Declare a named view with `Route::get("/", || view("welcome"))`, using `openrust::support::facades::Route`.
 
-Run `./artisan install:api` to generate and register `routes/api.rs` and `config/api.rs`. Both files are created on demand. Declare API routes in `routes/api.rs`. The application loads `api.prefix` from `config/api.rs` and applies the `api` middleware group. The default prefix is `/api`. Set `API_PREFIX=api/admin` in `.env` to mount routes under `/api/admin`, or set `API_PREFIX=` to omit the prefix. An explicit `Routing::apiPrefix(...)` in `with_routing` takes precedence. Reinstalling preserves an existing `config/api.rs`, even with `--force`.
+Run `./artisan install:api` to generate and register `routes/api.rs` and `config/api.rs`. Both files are created on demand. Declare API routes in `routes/api.rs`. The application loads `api.prefix` from `config/api.rs` and applies the `api` middleware group. The default prefix is `/api`. Set `API_PREFIX=api/admin` in `.env` to mount routes under `/api/admin`, or set `API_PREFIX=` to omit the prefix. An explicit `Routing::api_prefix(...)` in `with_routing` takes precedence. Reinstalling preserves an existing `config/api.rs`, even with `--force`.
 
 In `routes/api.rs`, declare API endpoints in the parameterless `register() -> Result<(), RoutingError>` using the `Route` facade. Route paths are relative to the API prefix. Use `Route::getWith` when a GET route needs a name, model binding, or route-level middleware.
 
@@ -66,10 +66,10 @@ Route::fallback(NotFoundController::show)?;
 
 Ordinary routes take precedence even when the fallback was declared earlier. Among matching fallbacks, registration order applies; a later declaration for the same method, domain and registered URI replaces the earlier one. An unmatched POST returns 405 with `Allow: GET, HEAD` when the fallback matches its path; automatic OPTIONS returns 200. A fallback is a registered route, so it takes precedence over the static file mounts described below.
 
-Use `Route::fallbackWith(handler, |route| { route.name("missing"); Ok(()) })` for facade configuration. `Router::fallback` returns a mutable route; `route.fallback()` marks an existing route, and `route.setFallback(false)` removes the marker. Routing cache preserves this precedence.
+Use `Route::fallbackWith(handler, |route| { route.name("missing"); Ok(()) })` for facade configuration. `Router::fallback` returns a mutable route; `route.fallback()` marks an existing route, and `route.set_fallback(false)` removes the marker. Routing cache preserves this precedence.
 
 
-A handler can explicitly return another named route's response. `respondWithRoute` binds that route against the same request URI, runs its middleware and replaces the request's current route parameters and name; it does not generate a redirect or substitute the target URI.
+A handler can explicitly return another named route's response. `respond_with_route` binds that route against the same request URI, runs its middleware and replaces the request's current route parameters and name; it does not generate a redirect or substitute the target URI.
 
 ```rust
 use openrust::{
@@ -78,7 +78,7 @@ use openrust::{
 };
 
 fn show_missing(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
-    Box::pin(Route::respondWithRoute("missing", request))
+    Box::pin(Route::respond_with_route("missing", request))
 }
 ```
 
@@ -122,7 +122,7 @@ Use `-v` to show the middleware declared on each route. Use `-vv` to expand grou
 ./artisan route:list -vv --json --middleware=SubstituteBindings
 ```
 
-The route list preserves binding fields such as `{post:slug}`, optional markers and domain patterns such as `{tenant}.example.test`. Text and JSON output include the controller action registered with `setAction`. A later route for the same method, domain and path replaces the earlier route even if the binding field changes. Other methods keep their original routes.
+The route list preserves binding fields such as `{post:slug}`, optional markers and domain patterns such as `{tenant}.example.test`. Text and JSON output include the controller action registered with `set_action`. A later route for the same method, domain and path replaces the earlier route even if the binding field changes. Other methods keep their original routes.
 
 ```sh
 ./artisan route:list --domain=example.test --action=PostController --json
@@ -180,7 +180,7 @@ Set the paths, origins, methods and headers in `config/cors.rs`. The global `Han
 
 When `CORS_PATHS` is unset, `cors.paths` matches defaults, `api/*` and `sanctum/csrf-cookie`. The API route prefix and CORS paths are configured independently. If your API is mounted at `/v1`, set `CORS_PATHS=v1/*,sanctum/csrf-cookie` to allow CORS on those paths. Set `CORS_PATHS=*` to cover all paths or `CORS_PATHS=` to disable CORS. Cross-origin credentials are disabled by default. A path map can override paths by host, using numeric string keys for shared paths. Use `allowed_origins_patterns` for patterns supported by Rust's regex engine. The HTTP kernel loads and validates the policy during bootstrap.
 
-Inside `with_middleware`, use `middleware.skipCorsWhen(|request| request.is("api/internal/*"));` to bypass CORS for matching requests in the current application. When a callback returns `true`, `HandleCors` passes the request to the remaining middleware and leaves the response headers untouched. This also applies to `OPTIONS` preflights.
+Inside `with_middleware`, use `middleware.skip_cors_when(|request| request.is("api/internal/*"));` to bypass CORS for matching requests in the current application. When a callback returns `true`, `HandleCors` passes the request to the remaining middleware and leaves the response headers untouched. This also applies to `OPTIONS` preflights.
 
 ```bash
 curl -i -X OPTIONS http://127.0.0.1:8000/api/example \
@@ -218,11 +218,11 @@ fn upload(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 
 Use `middleware_name("throttle:30,0.5,uploads:")` for 30 requests per 30 seconds. A bare `throttle` allows 60 requests per minute. `throttle:5|20,1,uploads:` allows five requests per minute for guests and twenty for authenticated users. Guests share a bucket by the declared route domain and peer IP. Authenticated requests share a bucket by their authentication identifier. Give policies different prefixes to keep their quotas separate.
 
-Use `throttle:5|upload_limit,1,uploads:` to read the authenticated user’s `upload_limit` while retaining a fixed guest quota. Database-provider users expose their columns. An application model can expose its attributes through `Authenticatable::getAuthAttribute`, delegating to `Model::getAttributeValue` for accessors and casts. Quotas accept non-negative numbers and numeric strings within the signed 64-bit range. A missing or nonnumeric attribute is a configuration error.
+Use `throttle:5|upload_limit,1,uploads:` to read the authenticated user’s `upload_limit` while retaining a fixed guest quota. Database-provider users expose their columns. An application model can expose its attributes through `Authenticatable::get_auth_attribute`, delegating to `Model::getAttributeValue` for accessors and casts. Quotas accept non-negative numbers and numeric strings within the signed 64-bit range. A missing or nonnumeric attribute is a configuration error.
 
 ### Throttling With Redis
 
-Call `middleware.throttleWithRedis()` in `with_middleware` to resolve named and numeric throttle aliases through the default Redis connection. Processes sharing the same Redis connection settings and key prefix share their quota. Redis checks and charges the configured limits atomically. Limits using `after` are charged after the response.
+Call `middleware.throttle_with_redis()` in `with_middleware` to resolve named and numeric throttle aliases through the default Redis connection. Processes sharing the same Redis connection settings and key prefix share their quota. Redis checks and charges the configured limits atomically. Limits using `after` are charged after the response.
 
 With a [default Redis cluster](../database/redis.md#clusters), all counters for one named policy share a hash slot so Redis can check and charge them together. Different named policies can use different slots. Upgrading from the previous Cluster key layout starts a new window for named policies. The old counters expire at their original times.
 
@@ -230,8 +230,8 @@ With a [default Redis cluster](../database/redis.md#clusters), all counters for 
 
 Use `Route::model::<Post>("post")?` to register an explicit binding in the application’s router. A route can also declare the model for its own parameter using the router’s `.model::<Post>("post")?` method. Read the resolved model from `request.route_model::<Post>("post")`. Missing models produce a 404. A route can supply a custom response with `missing`.
 
-The model defaults to its primary key. Override `getRouteKeyName` for a slug or use `{post:slug}` for one route. A nested custom-key binding scopes through the preceding bound model. Use `scopeBindings` to require that scope for default keys or `withoutScopedBindings` to disable it. Implement the child model’s `resolveChildRouteBinding` with a typed relationship. Use `withTrashed` to include soft-deleted records. The default `web` and `api` groups run bindings before the handler.
+The model defaults to its primary key. Override `getRouteKeyName` for a slug or use `{post:slug}` for one route. A nested custom-key binding scopes through the preceding bound model. Use `scope_bindings` to require that scope for default keys or `without_scoped_bindings` to disable it. Implement the child model’s `resolveChildRouteBinding` with a typed relationship. Use `with_trashed` to include soft-deleted records. The default `web` and `api` groups run bindings before the handler.
 
 ## Redirect routes
 
-Use `Route::redirect` to register a redirect with an explicit HTTP status. `Route::permanentRedirect` sends 301. A redirect destination such as `/articles/{id}` can reuse a parameter from the matched route.
+Use `Route::redirect` to register a redirect with an explicit HTTP status. `Route::permanent_redirect` sends 301. A redirect destination such as `/articles/{id}` can reuse a parameter from the matched route.

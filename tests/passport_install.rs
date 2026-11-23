@@ -137,7 +137,7 @@ fn passport_install_probe(_: &mut openrust::http::Request) -> openrust::http::Ht
             user.forceFillAsync(Attributes::from([("name".into(),Value::Text("Installed".into())),("email".into(),Value::Text("installed@test".into())),("password".into(),Value::Text("password".into()))])).await.unwrap();
             assert!(user.save().await.unwrap());user
         };
-        let token=user.createToken("Generated acceptance",&[]).await.unwrap();
+        let token=user.create_token("Generated acceptance",&[]).await.unwrap();
         openrust::http::Response::json(openrust::http::StatusCode::OK,token)
     })
 }
@@ -152,7 +152,7 @@ fn sanctum_install_probe(_: &mut openrust::http::Request) -> openrust::http::Htt
         let mut query = crate::app::models::User::query().unwrap();
         query.r#where("email", "=", "installed@test");
         let user = query.first().await.unwrap().unwrap();
-        let issued = openrust::sanctum::HasApiTokens::createToken(&user, &sanctum, &database, "Separate Sanctum token", &["read"], None).await.unwrap();
+        let issued = openrust::sanctum::HasApiTokens::create_token(&user, &sanctum, &database, "Separate Sanctum token", &["read"], None).await.unwrap();
         openrust::http::Response::json(openrust::http::StatusCode::OK,serde_json::json!({"plainTextToken":issued.plain_text_token.as_str()}))
     })
 }
@@ -530,8 +530,8 @@ finally:
         let token: serde_json::Value = issued.json().unwrap();
         let bearer = token["accessToken"].as_str().unwrap();
         let user = client
-            .pendingRequest()
-            .withToken(bearer)
+            .pending_request()
+            .with_token(bearer)
             .get(&format!("{api}/user"))
             .await
             .unwrap();
@@ -552,8 +552,8 @@ finally:
             ("sanctum-user", sanctum_bearer, 200),
         ] {
             let response = client
-                .pendingRequest()
-                .withToken(credential)
+                .pending_request()
+                .with_token(credential)
                 .get(&format!("{api}/{path}"))
                 .await
                 .unwrap();
@@ -565,16 +565,16 @@ finally:
             }
         }
         let revoked = client
-            .pendingRequest()
-            .withToken(sanctum_bearer)
+            .pending_request()
+            .with_token(sanctum_bearer)
             .get(&format!("{api}/testing/sanctum-revoke"))
             .await
             .unwrap();
         assert_eq!(revoked.status(), 200);
         assert_eq!(
             client
-                .pendingRequest()
-                .withToken(sanctum_bearer)
+                .pending_request()
+                .with_token(sanctum_bearer)
                 .get(&format!("{api}/sanctum-user"))
                 .await
                 .unwrap()
@@ -583,8 +583,8 @@ finally:
         );
         assert_eq!(
             client
-                .pendingRequest()
-                .withToken(bearer)
+                .pending_request()
+                .with_token(bearer)
                 .get(&format!("{api}/user"))
                 .await
                 .unwrap()
@@ -593,8 +593,8 @@ finally:
         );
         println!("Coexisting Passport/Sanctum guards, users and independent revocation PASS");
         let issued = client
-            .pendingRequest()
-            .asForm()
+            .pending_request()
+            .as_form()
             .post(
                 &format!("{base}/oauth/token"),
                 &[
@@ -609,8 +609,8 @@ finally:
         let machine: serde_json::Value = issued.json().unwrap();
         assert_eq!(
             client
-                .pendingRequest()
-                .withToken(machine["access_token"].as_str().unwrap())
+                .pending_request()
+                .with_token(machine["access_token"].as_str().unwrap())
                 .get(&format!("{api}/user"))
                 .await
                 .unwrap()
@@ -619,8 +619,8 @@ finally:
         );
         assert_eq!(
             client
-                .pendingRequest()
-                .withToken(bearer)
+                .pending_request()
+                .with_token(bearer)
                 .get(&format!("{api}/testing/revoke"))
                 .await
                 .unwrap()
@@ -629,8 +629,8 @@ finally:
         );
         assert_eq!(
             client
-                .pendingRequest()
-                .withToken(bearer)
+                .pending_request()
+                .with_token(bearer)
                 .get(&format!("{api}/user"))
                 .await
                 .unwrap()

@@ -13,11 +13,11 @@ use openrust::{
 
 pub async fn request_reset(email: &str) -> AuthResult<PasswordResetStatus> {
     let credentials = Credentials::new([("email", Value::from(email))], "");
-    Password::sendResetLink(&credentials, None).await
+    Password::send_reset_link(&credentials, None).await
 }
 ```
 
-預設使用者透過 `ResetPassword` 傳送連結。可在 `sendResetLink` 的第二個參數傳入自訂傳送回呼。透過回傳狀態的 `as_str()` 取得翻譯鍵。代理對請求連結和未成功的重設套用設定的最短回應時間。
+預設使用者透過 `ResetPassword` 傳送連結。可在 `send_reset_link` 的第二個參數傳入自訂傳送回呼。透過回傳狀態的 `as_str()` 取得翻譯鍵。代理對請求連結和未成功的重設套用設定的最短回應時間。
 
 <span id="default-password-reset-email"></span>
 
@@ -25,7 +25,7 @@ pub async fn request_reset(email: &str) -> AuthResult<PasswordResetStatus> {
 
 ### 自訂重設郵件 {#custom-reset-email}
 
-在服務提供者的啟動方法中，透過 `ResetPassword::createUrlUsing` 自訂連結，或透過 `ResetPassword::toMailUsing` 替換郵件內容。兩個回呼均接收使用者與重設權杖。自訂郵件回呼負責建立連結。預設使用者透過 `sendTo` 傳送，將使用者傳給回呼。
+在服務提供者的啟動方法中，透過 `ResetPassword::create_url_using` 自訂連結，或透過 `ResetPassword::to_mail_using` 替換郵件內容。兩個回呼均接收使用者與重設權杖。自訂郵件回呼負責建立連結。預設使用者透過 `send_to` 傳送，將使用者傳給回呼。
 
 ```rust
 use openrust::{
@@ -34,8 +34,8 @@ use openrust::{
 };
 
 fn customize_reset_mail() -> AuthResult<()> {
-    ResetPassword::toMailUsing(|user, token| {
-        let url = ResetPassword::new(token).url(user.getEmailForPasswordReset())?;
+    ResetPassword::to_mail_using(|user, token| {
+        let url = ResetPassword::new(token).url(user.get_email_for_password_reset())?;
         Ok(MailDelivery::Message(Box::new(
             MailMessage::new()
                 .subject("Reset your account password")

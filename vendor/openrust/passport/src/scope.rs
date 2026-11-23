@@ -12,10 +12,10 @@ impl Scope {
             description: description.into(),
         }
     }
-    pub fn toArray(&self) -> serde_json::Value {
+    pub fn to_array(&self) -> serde_json::Value {
         serde_json::json!({"id":self.id,"description":self.description})
     }
-    pub fn toJson(&self) -> serde_json::Result<String> {
+    pub fn to_json(&self) -> serde_json::Result<String> {
         self.toJsonWithOptions(crate::ScopeJsonOptions::default())
     }
     pub fn toJsonWithOptions(

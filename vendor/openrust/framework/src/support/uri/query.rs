@@ -48,7 +48,7 @@ impl Uri {
         self.update_query(Value::Object(Map::new()), parameters, false)
     }
 
-    pub fn withQuery(&self, parameters: &Value) -> Result<Self, InvalidUri> {
+    pub fn with_query(&self, parameters: &Value) -> Result<Self, InvalidUri> {
         self.update_query(self.query().all()?, parameters, false)
     }
 

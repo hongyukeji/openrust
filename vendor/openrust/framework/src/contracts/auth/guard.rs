@@ -13,11 +13,4 @@ pub trait Guard: Send {
     fn validate<'a>(&'a mut self, credentials: &'a Credentials)
     -> AuthFuture<'a, AuthResult<bool>>;
     fn set_user(&mut self, user: Box<dyn Authenticatable>);
-
-    fn hasUser(&self) -> bool {
-        self.has_user()
-    }
-    fn setUser(&mut self, user: Box<dyn Authenticatable>) {
-        self.set_user(user);
-    }
 }

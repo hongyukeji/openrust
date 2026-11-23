@@ -57,7 +57,7 @@ pub fn abort(status: StatusCode, message: impl Into<String>, headers: HeaderMap)
     non_snake_case,
     reason = "Matches the application-facing HTTP API naming"
 )]
-pub fn abortResponse(response: impl Into<Response>) -> HttpError {
+pub fn abort_response(response: impl Into<Response>) -> HttpError {
     HttpResponseException::new(response.into()).into()
 }
 
@@ -66,9 +66,9 @@ pub fn abortResponse(response: impl Into<Response>) -> HttpError {
     non_snake_case,
     reason = "Matches the application-facing HTTP API naming"
 )]
-pub async fn abortResponsable(response: impl Responsable, request: &mut Request) -> HttpError {
-    match response.toResponse(request).await {
-        Ok(response) => abortResponse(response),
+pub async fn abort_responsable(response: impl Responsable, request: &mut Request) -> HttpError {
+    match response.to_response(request).await {
+        Ok(response) => abort_response(response),
         Err(error) => error,
     }
 }
@@ -83,7 +83,7 @@ impl HttpError {
             #[cfg(feature = "sanctum")]
             Self::MissingAbility(_) | Self::MissingScope(_) => StatusCode::FORBIDDEN,
             Self::AuthorizationDeniedWithStatus { status, .. } => *status,
-            Self::Validation(exception) => exception.statusCode(),
+            Self::Validation(exception) => exception.status_code(),
             Self::OriginMismatch => StatusCode::FORBIDDEN,
             Self::TokenMismatch => StatusCode::from_u16(419).expect("valid HTTP status"),
             Self::Throttled { .. } => StatusCode::TOO_MANY_REQUESTS,
@@ -97,7 +97,7 @@ impl HttpError {
 
     pub(crate) fn bare_response(&self) -> Response {
         if let Self::Response(error) = self
-            && let Some(response) = error.takeResponse()
+            && let Some(response) = error.take_response()
         {
             return response;
         }
@@ -113,8 +113,8 @@ impl HttpError {
     pub(crate) fn with_response_headers(&self, response: Response) -> Response {
         match self {
             Self::MethodNotAllowed { allowed } => response.with_allow(allowed, ", "),
-            Self::Throttled { headers } => response.withHeaders(headers.clone()),
-            Self::Aborted { headers, .. } => response.withHeaders(headers.as_ref().clone()),
+            Self::Throttled { headers } => response.with_headers(headers.clone()),
+            Self::Aborted { headers, .. } => response.with_headers(headers.as_ref().clone()),
             _ => response,
         }
     }

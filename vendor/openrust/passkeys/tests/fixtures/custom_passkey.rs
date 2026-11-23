@@ -79,7 +79,9 @@ impl openrust::database::eloquent::Observer<CustomPasskey> for Observe {
         _: &'a openrust::database::Connection,
     ) -> openrust::database::DatabaseFuture<
         'a,
-        openrust::database::DatabaseResult<openrust::database::eloquent::concerns::ModelEventResponse>,
+        openrust::database::DatabaseResult<
+            openrust::database::eloquent::concerns::ModelEventResponse,
+        >,
     > {
         Box::pin(async move {
             assert_eq!(model.getKeyName(), "pk");
@@ -94,7 +96,9 @@ impl openrust::database::eloquent::Observer<CustomPasskey> for Observe {
         _: &'a openrust::database::Connection,
     ) -> openrust::database::DatabaseFuture<
         'a,
-        openrust::database::DatabaseResult<openrust::database::eloquent::concerns::ModelEventResponse>,
+        openrust::database::DatabaseResult<
+            openrust::database::eloquent::concerns::ModelEventResponse,
+        >,
     > {
         Box::pin(async move {
             assert_eq!(model.getTable(), "custom_passkeys");
@@ -115,7 +119,7 @@ impl<U: Authenticatable> Listener for ObserveEvents<U> {
                 ($kind:ty,$counter:ident) => {
                     if let Some(event) = event.downcast_ref::<$kind>() {
                         let user = event.user::<U>(context).expect("actual typed user context");
-                        assert_eq!(user.getAuthIdentifier(), event.user);
+                        assert_eq!(user.get_auth_identifier(), event.user);
                         let model = event
                             .passkey::<CustomPasskey>(context)
                             .expect("actual custom Eloquent context");

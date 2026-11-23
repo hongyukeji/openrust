@@ -19,7 +19,7 @@ Stripe API 固定为 `2026-11-18.endive`；Webhook 使用相同版本。`CASHIER
 
 包加载 `cashier.default`、Stripe 的 `cashier.key`／`cashier.secret`／`cashier.webhook.secret`，以及 Paddle 的 `cashier.paddle.api_key`／`cashier.paddle.webhook_secret`／`cashier.paddle.sandbox`。同一 Rust crate 使用 Paddle 配置命名空间区分两个上游包。`cashier.drivers` 保存显式具名账户，同名账户优先于供应商原生配置。在应用配置加载器返回 `cashier` 分组可覆盖默认值；应用分组优先，`drivers` 整组替换。增加具名账户时明确填写 `driver`、`secret`、`webhook_secret`、`live`。`webhook_secrets` 数组支持轮换。每个名字代表一个稳定的商户账户与模式；不要把已使用的名字重新分配给其他商户或从测试切换到生产，使用独立数据库或新账户名。
 
-`Cashier::driver("stripe")`、`Cashier::defaultDriver()` 在应用作用域解析账户。`CashierManager::getDefaultDriver()` 返回配置名；`forgetDrivers()` 后新解析实例加载新配置，已持有的实例保留原凭据快照。配置缓存启用时保留缓存快照，修改环境后需按[配置文档](../getting-started/configuration.md)重建缓存。
+`Cashier::driver("stripe")`、`Cashier::defaultDriver()` 在应用作用域解析账户。`CashierManager::get_default_driver()` 返回配置名；`forgetDrivers()` 后新解析实例加载新配置，已持有的实例保留原凭据快照。配置缓存启用时保留缓存快照，修改环境后需按[配置文档](../getting-started/configuration.md)重建缓存。
 
 ## 客户与 Checkout {#customers-and-checkout}
 

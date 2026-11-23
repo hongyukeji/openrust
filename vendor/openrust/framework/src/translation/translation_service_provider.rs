@@ -48,7 +48,7 @@ impl ServiceProvider for TranslationServiceProvider {
                         Translator::with_loader(loader, default_locale, default_fallback)?
                             .with_owner(owner.clone());
                     translator.set_locale(&selected)?;
-                    translator.setFallback(&fallback)?;
+                    translator.set_fallback(&fallback)?;
                     Ok(translator)
                 };
                 make()

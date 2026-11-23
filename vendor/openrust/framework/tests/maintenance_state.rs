@@ -77,14 +77,14 @@ async fn artisan_dispatches_maintenance_events_and_http_exclusions_are_applicati
         builder
             .with_routing(Routing::default().health("/up"))
             .with_middleware(|middleware| {
-                middleware.preventRequestsDuringMaintenance(["status/*"]);
+                middleware.prevent_requests_during_maintenance(["status/*"]);
             })
     })
     .unwrap();
     let mut normal =
         TestApp::create(|builder| builder.with_routing(Routing::default().health("/ready")))
             .unwrap();
-    let events = excluded.fakeEvents(&[]).await.unwrap();
+    let events = excluded.fake_events(&[]).await.unwrap();
     let enabled = "foundation.maintenance_mode_enabled";
     let disabled = "foundation.maintenance_mode_disabled";
 

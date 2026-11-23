@@ -27,7 +27,7 @@ impl Middleware for AddQueuedCookiesToResponse {
                 .scope(Some(RefCell::new(jar)), async move {
                     let mut response = next.run(request).await;
                     for cookie in with_queue(CookieJar::drain)? {
-                        response.setCookie(&cookie, request.is_secure())?;
+                        response.set_cookie(&cookie, request.is_secure())?;
                     }
                     Ok(response)
                 })

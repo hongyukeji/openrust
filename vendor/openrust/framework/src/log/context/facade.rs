@@ -89,7 +89,7 @@ impl Context {
         stackContains(key: &str, value: &Value) -> bool;
         hiddenStackContains(key: &str, value: &Value) -> bool;
         flush() -> ();
-        isEmpty() -> bool;
+        is_empty() -> bool;
     }
 
     pub fn push(

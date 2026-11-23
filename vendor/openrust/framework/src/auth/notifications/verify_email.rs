@@ -21,10 +21,9 @@ use super::{LinkMail, MailCallbacks, route_id, send_mail};
 /// Sends a temporary signed link to the user's current email address.
 pub struct VerifyEmail;
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl VerifyEmail {
     /// Configure verification link creation for this application.
-    pub fn createUrlUsing(
+    pub fn create_url_using(
         callback: impl Fn(&dyn MustVerifyEmail) -> AuthResult<String> + Send + Sync + 'static,
     ) -> AuthResult<()> {
         MailCallbacks::get()?
@@ -35,7 +34,7 @@ impl VerifyEmail {
     }
 
     /// Replace the verification notification email, receiving the user and its link.
-    pub fn toMailUsing(
+    pub fn to_mail_using(
         callback: impl Fn(&dyn MustVerifyEmail, &str) -> AuthResult<MailDelivery>
         + Send
         + Sync
@@ -71,12 +70,12 @@ impl VerifyEmail {
             .checked_mul(60)
             .and_then(|seconds| SystemTime::now().checked_add(Duration::from_secs(seconds)))
             .ok_or(AuthError::Configuration("auth.verification.expire"))?;
-        URL::temporarySignedRoute(
+        URL::temporary_signed_route(
             "verification.verify",
             expiry,
             &[
-                RouteParameter::named("id", route_id(&user.getAuthIdentifier())),
-                RouteParameter::named("hash", email_hash(user.getEmailForVerification())),
+                RouteParameter::named("id", route_id(&user.get_auth_identifier())),
+                RouteParameter::named("hash", email_hash(user.get_email_for_verification())),
             ],
             SignatureMode::Absolute,
         )
@@ -84,7 +83,7 @@ impl VerifyEmail {
     }
 
     pub async fn send(user: &dyn MustVerifyEmail) -> AuthResult<()> {
-        send_mail("VerifyEmail", user.getEmailForVerification(), || {
+        send_mail("VerifyEmail", user.get_email_for_verification(), || {
             let url = Self::url(user)?;
             let mail = MailCallbacks::get()?
                 .read()

@@ -249,7 +249,7 @@ async fn http(root: &Root, enabled: bool, environment: &str) {
     let address = listener.local_addr().unwrap();
     let kernel = Arc::new(kernel);
     let router = axum::Router::new()
-        .fallback(move |request: axum::extract::Request| kernel.clone().handleTransport(request));
+        .fallback(move |request: axum::extract::Request| kernel.clone().handle_transport(request));
     let server = tokio::spawn(async move {
         axum::serve(listener, router).await.unwrap();
     });
@@ -303,7 +303,7 @@ async fn storage_http(root: &Root, directory: &Path, late: bool) {
     let address = listener.local_addr().unwrap();
     let kernel = Arc::new(kernel);
     let router = axum::Router::new()
-        .fallback(move |request: axum::extract::Request| kernel.clone().handleTransport(request));
+        .fallback(move |request: axum::extract::Request| kernel.clone().handle_transport(request));
     let server = tokio::spawn(async move {
         axum::serve(listener, router).await.unwrap();
     });

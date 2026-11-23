@@ -73,9 +73,9 @@ async fn verify(config: Json, id: &str) {
         .unwrap();
     assert_eq!(Htmlable::toHtml(html.as_ref()), original);
     assert_eq!(html.to_string(), original);
-    assert!(html.isNotEmpty());
+    assert!(html.is_not_empty());
     assert_eq!(serde_json::to_value(&html).unwrap(), json!(original));
-    assert!(HtmlString::default().isEmpty());
+    assert!(HtmlString::default().is_empty());
     assert!(!record.isDirty().unwrap());
 
     record
@@ -93,8 +93,11 @@ async fn verify(config: Json, id: &str) {
         record.getAttribute("body"),
         Some(&updated.toString().into())
     );
-    assert_eq!(record.toArray().unwrap()["body"], json!(updated.toString()));
-    let serialized: Json = serde_json::from_str(&record.toJson().unwrap()).unwrap();
+    assert_eq!(
+        record.to_array().unwrap()["body"],
+        json!(updated.toString())
+    );
+    let serialized: Json = serde_json::from_str(&record.to_json().unwrap()).unwrap();
     assert_eq!(serialized["body"], json!(updated.toString()));
     assert!(
         record
@@ -105,7 +108,7 @@ async fn verify(config: Json, id: &str) {
 
     for (value, expected) in [(Value::Bool(false), ""), (Value::Integer(17), "17")] {
         record.setAttributeValue("body", value).unwrap();
-        assert_eq!(record.toArray().unwrap()["body"], json!(expected));
+        assert_eq!(record.to_array().unwrap()["body"], json!(expected));
     }
     record.setValueObject::<HtmlString>("body", None).unwrap();
     assert!(record.save().await.unwrap());
@@ -116,7 +119,7 @@ async fn verify(config: Json, id: &str) {
             .unwrap()
             .is_none()
     );
-    assert_eq!(record.toArray().unwrap()["body"], Json::Null);
+    assert_eq!(record.to_array().unwrap()["body"], Json::Null);
     db.statement("DROP TABLE html_string_records", &[])
         .await
         .unwrap();

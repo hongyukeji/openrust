@@ -17,7 +17,7 @@ try {
                     const response = await page.goto(`http://127.0.0.1:${server.address().port}${base}${locale}/packages/precognition.html`);
                     assert.equal(response.status(),200);
                     const text = await page.locator('main').innerText();
-                    for(const expected of ['Precognition-Validate-Only','204','422','validationRules','passedValidation','validateFiles()','precognitive: false','middleware_name("precognitive")']) assert(text.includes(expected),expected);
+                    for(const expected of ['Precognition-Validate-Only','204','422','validation_rules','passed_validation','validateFiles()','precognitive: false','middleware_name("precognitive")']) assert(text.includes(expected),expected);
                     for(const suffix of ['validation.html','middleware.html']) {
                         const href = await page.locator(`main a[href$="${suffix}"]`).first().getAttribute('href');
                         assert.equal((await page.request.get(new URL(href,page.url()).href)).status(),200);

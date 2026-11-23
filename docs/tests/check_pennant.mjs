@@ -19,7 +19,7 @@ try {
                     assert.equal(response.status(), 200);
                     await page.locator("#configuration").waitFor();
                     const body = await page.locator("main").innerText();
-                    for (const text of ["PennantServiceProvider", "pennant:feature", "pennant:purge", "FeatureDefinition", "Feature::forRequest", "activateForEveryone"]) {
+                    for (const text of ["PennantServiceProvider", "pennant:feature", "pennant:purge", "FeatureDefinition", "Feature::for_request", "activateForEveryone"]) {
                         assert(body.includes(text), `${language}: missing ${text}`);
                     }
                     for (const anchor of ["installation", "configuration", "defining-features", "scopes", "feature-classes", "commands"]) {

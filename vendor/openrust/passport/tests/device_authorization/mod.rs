@@ -4,7 +4,7 @@ pub(super) fn code_view(request: &mut Request) -> HttpFuture<'_, Result<Response
     Box::pin(async move {
         Response::json(
             StatusCode::OK,
-            json!({"csrf":request.session()?.token(),"status":request.session()?.get("status"),"old":request.session()?.getOldInput(None),"errors":request.session()?.get("errors")}),
+            json!({"csrf":request.session()?.token(),"status":request.session()?.get("status"),"old":request.session()?.get_old_input(None),"errors":request.session()?.get("errors")}),
         )
     })
 }

@@ -7,7 +7,6 @@ use crate::contracts::events::Event;
 use super::scheduling;
 
 /// A parsed Artisan command is about to execute in its native execution scope.
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub struct CommandStarting {
     pub command: String,
     pub input: clap::ArgMatches,
@@ -23,12 +22,11 @@ impl Event for CommandStarting {
 }
 
 /// A command returned an exit code. Duration excludes event listeners.
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub struct CommandFinished {
     pub command: String,
     pub input: clap::ArgMatches,
     pub definition: Arc<clap::Command>,
-    pub exitCode: i32,
+    pub exit_code: i32,
     pub duration: Duration,
     pub output: String,
 }
@@ -120,14 +118,13 @@ impl Event for ScheduledBackgroundTaskFinished {
 }
 
 /// A scheduled execution has run its after hooks, including unsuccessful callbacks.
-#[allow(non_snake_case, reason = "Matches scheduling metadata names")]
 pub struct ScheduledTaskCompleted {
     pub command: String,
     pub description: Option<String>,
     pub expression: String,
     pub timezone: Option<String>,
     pub output: Option<std::path::PathBuf>,
-    pub shouldAppendOutput: bool,
+    pub should_append_output: bool,
 }
 impl Event for ScheduledTaskCompleted {
     fn name(&self) -> &str {

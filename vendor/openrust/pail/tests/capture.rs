@@ -97,27 +97,26 @@ fn config(_: &Path, _: &Environment) -> Result<BTreeMap<String, Value>, ConfigEr
 
 struct User(String);
 impl Authenticatable for User {
-    fn getAuthIdentifierName(&self) -> &str {
+    fn get_auth_identifier_name(&self) -> &str {
         "id"
     }
-    fn getAuthIdentifier(&self) -> AuthIdentifier {
+    fn get_auth_identifier(&self) -> AuthIdentifier {
         AuthIdentifier::String(self.0.clone())
     }
-    fn getAuthPasswordName(&self) -> &str {
+    fn get_auth_password_name(&self) -> &str {
         "password"
     }
-    fn getAuthPassword(&self) -> Option<&str> {
+    fn get_auth_password(&self) -> Option<&str> {
         None
     }
-    fn getRememberToken(&self) -> Option<&str> {
+    fn get_remember_token(&self) -> Option<&str> {
         None
     }
-    fn setRememberToken(&mut self, _: Option<String>) {}
-    fn getRememberTokenName(&self) -> &str {
+    fn set_remember_token(&mut self, _: Option<String>) {}
+    fn get_remember_token_name(&self) -> &str {
         "remember_token"
     }
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn getAuthAttribute(
+    fn get_auth_attribute(
         &self,
         name: &str,
     ) -> openrust::auth::AuthResult<Option<openrust::database::Value>> {
@@ -131,11 +130,11 @@ impl ServiceProvider for Probe {
     fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
             let auth = app.make::<AuthManager>().await?;
-            auth.viaRequest("capture", |request| -> AuthFuture<'_, _> {
+            auth.via_request("capture", |request| -> AuthFuture<'_, _> {
                 let id = request.route("id").unwrap().to_owned();
                 Box::pin(async move { Ok(Some(Box::new(User(id)) as Box<dyn Authenticatable>)) })
             });
-            auth.viaRequest("capture-other", |_| -> AuthFuture<'_, _> {
+            auth.via_request("capture-other", |_| -> AuthFuture<'_, _> {
                 Box::pin(async {
                     Ok(Some(
                         Box::new(User("other".into())) as Box<dyn Authenticatable>
@@ -209,7 +208,7 @@ fn capture_http(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
         Log::info("after identity", &LogContext::new()).unwrap();
         Auth::manager()
             .unwrap()
-            .shouldUse(request, "other")
+            .should_use(request, "other")
             .unwrap();
         Auth::user(request).await.unwrap();
         Log::info("other identity", &LogContext::new()).unwrap();
@@ -367,7 +366,7 @@ async fn server(root: &Root) -> (std::net::SocketAddr, tokio::task::JoinHandle<(
     let address = listener.local_addr().unwrap();
     let kernel = Arc::new(kernel);
     let service = axum::Router::new()
-        .fallback(move |request: axum::extract::Request| kernel.clone().handleTransport(request));
+        .fallback(move |request: axum::extract::Request| kernel.clone().handle_transport(request));
     (
         address,
         tokio::spawn(async move { axum::serve(listener, service).await.unwrap() }),

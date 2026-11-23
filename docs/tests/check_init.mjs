@@ -16,7 +16,7 @@ try {
                 await page.goto(`http://127.0.0.1:${server.address().port}${base}${language}/digging-deeper/artisan.html#complete-installation`);
                 await page.locator("#complete-installation").waitFor();
                 const text = await page.locator(".vp-doc").innerText();
-                for (const expected of ["--extensions=all", "auth:sanctum", "views=false", "ResetPassword::createUrlUsing", "precognitive", "Passport", "OIDC"]) {
+                for (const expected of ["--extensions=all", "auth:sanctum", "views=false", "ResetPassword::create_url_using", "precognitive", "Passport", "OIDC"]) {
                     assert.ok(text.includes(expected), `${language}: missing ${expected}`);
                 }
                 assert.equal(await page.locator("#complete-installation").count(), 1);

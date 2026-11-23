@@ -25,7 +25,7 @@ async fn provider_discovery_is_lazy_preserves_custom_profiles_and_facade_uses_ap
         .unwrap();
     app.boot().await.unwrap();
     let manager = app.make::<CashierManager>().await.unwrap();
-    assert_eq!(manager.getDefaultDriver().unwrap(), "custom");
+    assert_eq!(manager.get_default_driver().unwrap(), "custom");
     let repo = app
         .get::<dyn openrust::contracts::config::Repository>("config")
         .await
@@ -36,7 +36,7 @@ async fn provider_discovery_is_lazy_preserves_custom_profiles_and_facade_uses_ap
     let mut kernel = openrust::foundation::http::Kernel::new(app);
     kernel.bootstrap().await.unwrap();
     let response = std::sync::Arc::new(kernel)
-        .handleTransport(
+        .handle_transport(
             http::Request::builder()
                 .uri("/api/cashier-customer")
                 .body(openrust::http::Body::empty())
@@ -53,7 +53,7 @@ async fn provider_discovery_is_lazy_preserves_custom_profiles_and_facade_uses_ap
         .unwrap();
     other.boot().await.unwrap();
     let other = other.make::<CashierManager>().await.unwrap();
-    assert_eq!(other.getDefaultDriver().unwrap(), "stripe");
+    assert_eq!(other.get_default_driver().unwrap(), "stripe");
     assert!(other.driver("stripe").is_err());
 }
 

@@ -7,14 +7,14 @@ use super::{HeaderMap, Request};
 #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Request {
     /// Returns the Accept entries in descending quality order.
-    pub fn getAcceptableContentTypes(&self) -> &[String] {
+    pub fn get_acceptable_content_types(&self) -> &[String] {
         self.acceptable_content_types
             .get_or_init(|| parse_accept(self.headers()))
     }
 
     /// Tests whether any supplied media type is acceptable.
     pub fn accepts(&self, content_types: &[&str]) -> bool {
-        let acceptable = self.getAcceptableContentTypes();
+        let acceptable = self.get_acceptable_content_types();
         acceptable.is_empty()
             || acceptable.iter().any(|range| {
                 let range = strip_params(range).to_ascii_lowercase();
@@ -28,7 +28,7 @@ impl Request {
 
     /// Returns the preferred supplied media type or format name.
     pub fn prefers<'a>(&self, content_types: &[&'a str]) -> Option<&'a str> {
-        for range in self.getAcceptableContentTypes() {
+        for range in self.get_acceptable_content_types() {
             let range = strip_params(range).to_ascii_lowercase();
             if matches!(range.as_str(), "*" | "*/*") {
                 return content_types.first().copied();
@@ -46,40 +46,40 @@ impl Request {
     }
 
     /// Tests whether the first Accept entry allows every media type.
-    pub fn acceptsAnyContentType(&self) -> bool {
-        self.getAcceptableContentTypes()
+    pub fn accepts_any_content_type(&self) -> bool {
+        self.get_acceptable_content_types()
             .first()
             .is_none_or(|entry| matches!(entry.as_str(), "*" | "*/*"))
     }
 
-    pub fn acceptsJson(&self) -> bool {
+    pub fn accepts_json(&self) -> bool {
         self.accepts(&["application/json"])
     }
 
-    pub fn acceptsHtml(&self) -> bool {
+    pub fn accepts_html(&self) -> bool {
         self.accepts(&["text/html"])
     }
 
-    pub fn acceptsMarkdown(&self) -> bool {
+    pub fn accepts_markdown(&self) -> bool {
         self.accepts(&["text/markdown"])
     }
 
     /// Tests whether the preferred Accept entry indicates JSON.
-    pub fn wantsJson(&self) -> bool {
-        self.getAcceptableContentTypes()
+    pub fn wants_json(&self) -> bool {
+        self.get_acceptable_content_types()
             .first()
             .is_some_and(|entry| contains_json(&entry.to_ascii_lowercase()))
     }
 
     /// Tests whether the preferred Accept entry indicates Markdown.
-    pub fn wantsMarkdown(&self) -> bool {
-        self.getAcceptableContentTypes()
+    pub fn wants_markdown(&self) -> bool {
+        self.get_acceptable_content_types()
             .first()
             .is_some_and(|entry| entry.to_ascii_lowercase().starts_with("text/markdown"))
     }
 
     /// Determines whether to use JSON for a negotiated response.
-    pub fn expectsJson(&self) -> bool {
+    pub fn expects_json(&self) -> bool {
         let ajax = self
             .headers()
             .get("x-requested-with")
@@ -88,11 +88,11 @@ impl Request {
             .headers()
             .get("x-pjax")
             .is_some_and(|value| !value.is_empty() && value != "0");
-        self.wantsJson() || (ajax && !pjax && self.acceptsAnyContentType())
+        self.wants_json() || (ajax && !pjax && self.accepts_any_content_type())
     }
 
     /// Tests whether the request declares a JSON body.
-    pub fn isJson(&self) -> bool {
+    pub fn is_json(&self) -> bool {
         self.headers()
             .get(CONTENT_TYPE)
             .and_then(|value| value.to_str().ok())
@@ -100,13 +100,13 @@ impl Request {
     }
 
     /// Compares a media type with an exact or structured-suffix type.
-    pub fn matchesType(actual: &str, content_type: &str) -> bool {
+    pub fn matches_type(actual: &str, content_type: &str) -> bool {
         matches_type(actual, content_type)
     }
 
     /// Returns the first recognized response format, or the supplied fallback.
     pub fn format<'a>(&self, default: &'a str) -> &'a str {
-        self.getAcceptableContentTypes()
+        self.get_acceptable_content_types()
             .iter()
             .find_map(|entry| format_for_mime(entry))
             .unwrap_or(default)

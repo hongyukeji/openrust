@@ -1,7 +1,7 @@
 # Eloquent：修改器与类型转换
 ### 自定义 JSON 编解码 {#custom-json-codecs}
 
-使用模型前，在所属应用的容器注册 `Json`。用 `encodeUsing` 设置编码器，用 `decodeUsing` 设置解码器。编解码器适用于存储的 JSON 属性、集合、枚举集合、`AsFluent`、加密属性中的 JSON 和嵌套路径更新。SQL `NULL` 遵循各 Cast 原有规则。模型 `toJson()` 和 HTTP 响应使用常规 JSON 序列化器输出解码后的值。
+使用模型前，在所属应用的容器注册 `Json`。用 `encodeUsing` 设置编码器，用 `decodeUsing` 设置解码器。编解码器适用于存储的 JSON 属性、集合、枚举集合、`AsFluent`、加密属性中的 JSON 和嵌套路径更新。SQL `NULL` 遵循各 Cast 原有规则。模型 `to_json()` 和 HTTP 响应使用常规 JSON 序列化器输出解码后的值。
 
 回调接收 Serde JSON 值或 UTF-8 文本。原生 JSON 列要求编码器输出合法 JSON。数据库可能规范化文本后再交给解码器。
 

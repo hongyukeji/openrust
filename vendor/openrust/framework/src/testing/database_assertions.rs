@@ -6,33 +6,32 @@ use super::TestApp;
 
 type AssertionResult = Result<(), Box<dyn Error + Send + Sync>>;
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl TestApp {
     /// Expects exactly this many queries from this point until fixture teardown.
     /// With no connection name, all connections of this application count.
-    pub async fn expectsDatabaseQueryCount(
+    pub async fn expects_database_query_count(
         &mut self,
         expected: u64,
         connection: Option<&str>,
     ) -> AssertionResult {
         let selected = self.database_on(connection).await?;
-        let label = connection.unwrap_or_else(|| selected.getName()).to_owned();
+        let label = connection.unwrap_or_else(|| selected.get_name()).to_owned();
         self.query_counts
             .expect(expected, label, connection.map(|_| selected));
         Ok(())
     }
 
     /// Asserts that the default connection has a matching row.
-    pub async fn assertDatabaseHas(
+    pub async fn assert_database_has(
         &mut self,
         table: &str,
         columns: &[(&str, Value)],
     ) -> AssertionResult {
-        self.assertDatabaseHasOn(table, columns, None).await
+        self.assert_database_has_on(table, columns, None).await
     }
 
     /// Asserts that the selected connection has a matching row.
-    pub async fn assertDatabaseHasOn(
+    pub async fn assert_database_has_on(
         &mut self,
         table: &str,
         columns: &[(&str, Value)],
@@ -44,16 +43,16 @@ impl TestApp {
     }
 
     /// Asserts that the default connection has no matching row.
-    pub async fn assertDatabaseMissing(
+    pub async fn assert_database_missing(
         &mut self,
         table: &str,
         columns: &[(&str, Value)],
     ) -> AssertionResult {
-        self.assertDatabaseMissingOn(table, columns, None).await
+        self.assert_database_missing_on(table, columns, None).await
     }
 
     /// Asserts that the selected connection has no matching row.
-    pub async fn assertDatabaseMissingOn(
+    pub async fn assert_database_missing_on(
         &mut self,
         table: &str,
         columns: &[(&str, Value)],
@@ -65,12 +64,12 @@ impl TestApp {
     }
 
     /// Asserts that the table contains the expected number of rows.
-    pub async fn assertDatabaseCount(&mut self, table: &str, expected: u64) -> AssertionResult {
-        self.assertDatabaseCountOn(table, expected, None).await
+    pub async fn assert_database_count(&mut self, table: &str, expected: u64) -> AssertionResult {
+        self.assert_database_count_on(table, expected, None).await
     }
 
     /// Asserts the row count on a selected connection.
-    pub async fn assertDatabaseCountOn(
+    pub async fn assert_database_count_on(
         &mut self,
         table: &str,
         expected: u64,
@@ -89,31 +88,31 @@ impl TestApp {
     }
 
     /// Asserts that the table is empty on the default connection.
-    pub async fn assertDatabaseEmpty(&mut self, table: &str) -> AssertionResult {
-        self.assertDatabaseEmptyOn(table, None).await
+    pub async fn assert_database_empty(&mut self, table: &str) -> AssertionResult {
+        self.assert_database_empty_on(table, None).await
     }
 
     /// Asserts that the table is empty on a selected connection.
-    pub async fn assertDatabaseEmptyOn(
+    pub async fn assert_database_empty_on(
         &mut self,
         table: &str,
         connection: Option<&str>,
     ) -> AssertionResult {
-        self.assertDatabaseCountOn(table, 0, connection).await
+        self.assert_database_count_on(table, 0, connection).await
     }
 
     /// Asserts that the table has a matching row with a non-null `deleted_at`.
-    pub async fn assertSoftDeleted(
+    pub async fn assert_soft_deleted(
         &mut self,
         table: &str,
         columns: &[(&str, Value)],
     ) -> AssertionResult {
-        self.assertSoftDeletedOn(table, columns, None, "deleted_at")
+        self.assert_soft_deleted_on(table, columns, None, "deleted_at")
             .await
     }
 
     /// Asserts soft deletion with a selected connection and column.
-    pub async fn assertSoftDeletedOn(
+    pub async fn assert_soft_deleted_on(
         &mut self,
         table: &str,
         columns: &[(&str, Value)],
@@ -122,24 +121,24 @@ impl TestApp {
     ) -> AssertionResult {
         let query = self.matching_rows(table, columns, connection).await?;
         assert!(
-            query.whereNotNull(deleted_at).exists().await?,
+            query.where_not_null(deleted_at).exists().await?,
             "no matching soft-deleted row in {table}"
         );
         Ok(())
     }
 
     /// Asserts that the table has a matching row with a null `deleted_at`.
-    pub async fn assertNotSoftDeleted(
+    pub async fn assert_not_soft_deleted(
         &mut self,
         table: &str,
         columns: &[(&str, Value)],
     ) -> AssertionResult {
-        self.assertNotSoftDeletedOn(table, columns, None, "deleted_at")
+        self.assert_not_soft_deleted_on(table, columns, None, "deleted_at")
             .await
     }
 
     /// Asserts that a matching live row exists on a selected connection.
-    pub async fn assertNotSoftDeletedOn(
+    pub async fn assert_not_soft_deleted_on(
         &mut self,
         table: &str,
         columns: &[(&str, Value)],
@@ -148,15 +147,15 @@ impl TestApp {
     ) -> AssertionResult {
         let query = self.matching_rows(table, columns, connection).await?;
         assert!(
-            query.whereNull(deleted_at).exists().await?,
+            query.where_null(deleted_at).exists().await?,
             "no matching row with a null {deleted_at} in {table}"
         );
         Ok(())
     }
 
     /// Checks a model's primary key in its table, including soft-deleted rows.
-    pub async fn assertModelExists(&mut self, model: &impl Model) -> AssertionResult {
-        self.assertDatabaseHasOn(
+    pub async fn assert_model_exists(&mut self, model: &impl Model) -> AssertionResult {
+        self.assert_database_has_on(
             model.getTable(),
             &model_key(model),
             model.getConnectionName(),
@@ -165,8 +164,8 @@ impl TestApp {
     }
 
     /// Asserts that the model's primary key is absent from its table.
-    pub async fn assertModelMissing(&mut self, model: &impl Model) -> AssertionResult {
-        self.assertDatabaseMissingOn(
+    pub async fn assert_model_missing(&mut self, model: &impl Model) -> AssertionResult {
+        self.assert_database_missing_on(
             model.getTable(),
             &model_key(model),
             model.getConnectionName(),
@@ -175,8 +174,8 @@ impl TestApp {
     }
 
     /// Checks the model's primary key and configured soft-deletion column.
-    pub async fn assertSoftDeletedModel(&mut self, model: &impl Model) -> AssertionResult {
-        self.assertSoftDeletedOn(
+    pub async fn assert_soft_deleted_model(&mut self, model: &impl Model) -> AssertionResult {
+        self.assert_soft_deleted_on(
             model.getTable(),
             &model_key(model),
             model.getConnectionName(),
@@ -186,8 +185,8 @@ impl TestApp {
     }
 
     /// Asserts that the model has a matching live row in its table.
-    pub async fn assertNotSoftDeletedModel(&mut self, model: &impl Model) -> AssertionResult {
-        self.assertNotSoftDeletedOn(
+    pub async fn assert_not_soft_deleted_model(&mut self, model: &impl Model) -> AssertionResult {
+        self.assert_not_soft_deleted_on(
             model.getTable(),
             &model_key(model),
             model.getConnectionName(),

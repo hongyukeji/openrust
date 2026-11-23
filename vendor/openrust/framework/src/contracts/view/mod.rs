@@ -9,7 +9,7 @@ use crate::view::{ViewData, ViewResult, ViewValue};
 pub trait View: Send + Sync {
     fn name(&self) -> &str;
     fn with(&mut self, key: &str, value: ViewValue) -> &mut dyn View;
-    fn getData(&self) -> &ViewData;
+    fn get_data(&self) -> &ViewData;
     fn render(&mut self) -> ViewResult<String>;
 }
 

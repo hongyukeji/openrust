@@ -82,19 +82,19 @@ async fn verify(config: Json, id: &str) {
     assert!(record.isDirty().unwrap());
     assert!(record.save().await.unwrap());
     let mut record = query().findOrFail(key.clone()).await.unwrap();
-    assert_eq!(record.toArray().unwrap()["label"], json!("甲\u{200b}乙"));
+    assert_eq!(record.to_array().unwrap()["label"], json!("甲\u{200b}乙"));
 
     assert!(
         record
             .setAttributeValue("label", Value::Json(json!({"no":"text"})))
             .is_err()
     );
-    assert_eq!(record.toArray().unwrap()["label"], json!("甲\u{200b}乙"));
+    assert_eq!(record.to_array().unwrap()["label"], json!("甲\u{200b}乙"));
     for (value, expected) in [(Value::Bool(false), ""), (Value::Integer(42), "42")] {
         record.setAttributeValue("label", value).unwrap();
         assert!(record.save().await.unwrap());
         record = query().findOrFail(key.clone()).await.unwrap();
-        assert_eq!(record.toArray().unwrap()["label"], json!(expected));
+        assert_eq!(record.to_array().unwrap()["label"], json!(expected));
     }
     record.setAttributeValue("label", Value::Null).unwrap();
     assert!(record.save().await.unwrap());
@@ -106,7 +106,7 @@ async fn verify(config: Json, id: &str) {
             .is_none()
     );
     assert_eq!(record.getAttribute("label"), Some(&Value::Null));
-    assert_eq!(record.toArray().unwrap()["label"], Json::Null);
+    assert_eq!(record.to_array().unwrap()["label"], Json::Null);
     db.statement("DROP TABLE stringable_records", &[])
         .await
         .unwrap();

@@ -43,7 +43,7 @@ async fn configured_extensions_receive_each_guard_and_cache_only_within_its_requ
             .push((name.to_owned(), config["provider"].clone()));
         Box::pin(async { Ok(None) })
     });
-    manager.viaRequest("legacy", |_| Box::pin(async { Ok(None) }));
+    manager.via_request("legacy", |_| Box::pin(async { Ok(None) }));
     let mut first = request();
     for name in ["first", "second", "first", "second", "legacy"] {
         assert!(

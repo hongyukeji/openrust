@@ -406,7 +406,7 @@ fn snapshot<M: Model>(model: &M) -> DatabaseResult<PersonalAccessToken> {
 }
 
 fn serialized_model<M: Model>(model: &M) -> SerializedModel {
-    let mut values = model.toArray().map_err(|error| error.to_string())?;
+    let mut values = model.to_array().map_err(|error| error.to_string())?;
     values.remove("token");
     Ok(values)
 }

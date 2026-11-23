@@ -45,7 +45,7 @@ impl DatabaseStorage {
             .connection
             .table("pulse_aggregates")
             .select(["bucket", "type", "key", "value"])
-            .whereIn("type", types.iter().cloned().map(Sql::Text).collect())
+            .where_in("type", types.iter().cloned().map(Sql::Text).collect())
             .r#where("aggregate", "=", aggregate)
             .r#where("period", "=", period)
             .r#where("bucket", ">=", first)
@@ -219,13 +219,13 @@ impl DatabaseStorage {
             );
         }
         tail = tail
-            .whereIn("type", types.iter().cloned().map(Sql::Text).collect())
+            .where_in("type", types.iter().cloned().map(Sql::Text).collect())
             .r#where("timestamp", ">=", window)
             .r#where("timestamp", "<=", oldest - 1)
             .groupBy(&["key_hash"]);
         buckets = buckets
             .r#where("period", "=", period)
-            .whereIn("type", types.iter().cloned().map(Sql::Text).collect())
+            .where_in("type", types.iter().cloned().map(Sql::Text).collect())
             .r#where("aggregate", "=", aggregate)
             .r#where("bucket", ">=", oldest)
             .groupBy(&["key_hash"]);
@@ -265,7 +265,7 @@ impl DatabaseStorage {
             .table("pulse_entries")
             .select(["type"])
             .selectRaw(&format!("{tailSql} as {}", self.wrap(aggregate)), vec![])
-            .whereIn("type", types.iter().cloned().map(Sql::Text).collect())
+            .where_in("type", types.iter().cloned().map(Sql::Text).collect())
             .r#where("timestamp", ">=", window)
             .r#where("timestamp", "<=", oldest - 1)
             .groupBy(&["type"]);
@@ -282,7 +282,7 @@ impl DatabaseStorage {
                 vec![],
             )
             .r#where("period", "=", period)
-            .whereIn("type", types.iter().cloned().map(Sql::Text).collect())
+            .where_in("type", types.iter().cloned().map(Sql::Text).collect())
             .r#where("aggregate", "=", aggregate)
             .r#where("bucket", ">=", oldest)
             .groupBy(&["type"]);

@@ -497,15 +497,15 @@ impl<'a> AbstractProvider<'a> {
     async fn post(&mut self, fields: &Value, basic: bool, code: bool) -> Result<Value> {
         let mut request = self
             .http
-            .pendingRequest()
-            .asForm()
-            .redactPayload()
-            .withoutRedirecting();
+            .pending_request()
+            .as_form()
+            .redact_payload()
+            .without_redirecting();
         if !code || self.definition.tokenAcceptsJson() {
-            request = request.acceptJson();
+            request = request.accept_json();
         }
         if basic {
-            request = request.withBasicAuth(&self.config.client_id, &self.config.client_secret);
+            request = request.with_basic_auth(&self.config.client_id, &self.config.client_secret);
         }
         json(
             request

@@ -410,7 +410,7 @@ impl<'connection> Builder<'connection> {
             .retain(|order| !matches!(order, Order::Column(name, _) if name == column));
         let query = match lastId.filter(|value| !matches!(value, Value::Null)) {
             Some(id) => self.r#where(column, "<", id),
-            None => self.whereNotNull(column),
+            None => self.where_not_null(column),
         };
         query.orderByDesc(column).limit(perPage)
     }
@@ -420,7 +420,7 @@ impl<'connection> Builder<'connection> {
             .retain(|order| !matches!(order, Order::Column(name, _) if name == column));
         let query = match lastId.filter(|value| !matches!(value, Value::Null)) {
             Some(id) => self.r#where(column, ">", id),
-            None => self.whereNotNull(column),
+            None => self.where_not_null(column),
         };
         query.orderBy(column, "asc").limit(perPage)
     }

@@ -158,6 +158,6 @@ fn install_configuration<'a>(
         installation
             .publish("oidc-config", options.force, output)
             .await?;
-        installation.registerConfiguration("oidc")
+        installation.register_configuration("oidc")
     })
 }

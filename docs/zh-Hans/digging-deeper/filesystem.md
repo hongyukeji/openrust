@@ -120,7 +120,7 @@ async fn report_metadata(disk: &FilesystemAdapter) -> FilesystemResult<(u64, Opt
 
 ### 文件上传
 
-通过 `Request::file` 获取 multipart 上传。可调用上传对象的 `store` 或 `storeAs`，也可用磁盘的 `putFile` 或 `putFileAs`。`storePublicly` 和 `storePubliclyAs` 请求公开可见性。自动文件名使用 40 个随机字符，识别出类型时附加由内容推断的扩展名。客户端文件名与媒体类型属于元数据，保存前应执行应用的上传验证。
+通过 `Request::file` 获取 multipart 上传。可调用上传对象的 `store` 或 `store_as`，也可用磁盘的 `putFile` 或 `putFileAs`。`store_publicly` 和 `store_publicly_as` 请求公开可见性。自动文件名使用 40 个随机字符，识别出类型时附加由内容推断的扩展名。客户端文件名与媒体类型属于元数据，保存前应执行应用的上传验证。
 
 ```rust
 use openrust::{
@@ -131,7 +131,7 @@ use openrust::{
 pub async fn store_attachment(request: &mut Request) -> Result<Response, HttpError> {
     let attachment = request.file("attachment").await?.ok_or(HttpError::InvalidRequest)?;
     let disk = Storage::disk(Some("public"))?;
-    let path = attachment.storePublicly("attachments", Some("public")).await?
+    let path = attachment.store_publicly("attachments", Some("public")).await?
         .ok_or_else(|| HttpError::Internal {
             source: std::io::Error::other("Could not store attachment").into(),
         })?;
@@ -221,14 +221,14 @@ async fn report_preview() -> FilesystemResult<TemporaryDownloadUrl> {
 
 ## 目录 {#directories}
 
-对本地磁盘使用 `files` 和 `directories` 列出直接子项，使用 `allFiles` 和 `allDirectories` 包含后代。传入 `None` 表示磁盘根目录。结果为以 `/` 分隔的磁盘相对路径。文件列表按路径排序，目录缺失时返回空列表。
+对本地磁盘使用 `files` 和 `directories` 列出直接子项，使用 `all_files` 和 `allDirectories` 包含后代。传入 `None` 表示磁盘根目录。结果为以 `/` 分隔的磁盘相对路径。文件列表按路径排序，目录缺失时返回空列表。
 
 ```rust
 use openrust::filesystem::{FilesystemAdapter, FilesystemResult};
 
 async fn daily_reports(disk: &FilesystemAdapter) -> FilesystemResult<Vec<String>> {
     disk.makeDirectory("reports/daily").await?;
-    disk.allFiles(Some("reports")).await
+    disk.all_files(Some("reports")).await
 }
 ```
 

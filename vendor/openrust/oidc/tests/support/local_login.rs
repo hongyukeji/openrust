@@ -30,9 +30,9 @@ pub async fn login_bound_user(
     let id = AuthIdentifier::try_from(binding.get("user_id").ok_or(HttpError::InvalidRequest)?)
         .map_err(internal)?;
     {
-        let mut guard = Auth::sessionGuard(request, Some("web")).map_err(internal)?;
+        let mut guard = Auth::session_guard(request, Some("web")).map_err(internal)?;
         if guard
-            .loginUsingId(&id, false)
+            .login_using_id(&id, false)
             .await
             .map_err(internal)?
             .is_none()
@@ -40,6 +40,6 @@ pub async fn login_bound_user(
             return Ok(false);
         }
     }
-    request.session_mut()?.regenerateToken()?;
+    request.session_mut()?.regenerate_token()?;
     Ok(true)
 }

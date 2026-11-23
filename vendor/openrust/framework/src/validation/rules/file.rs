@@ -240,7 +240,7 @@ impl File {
         let min = self.minimum.as_ref().map(FileSize::kilobytes).transpose()?;
         let max = self.maximum.as_ref().map(FileSize::kilobytes).transpose()?;
         if let Some(file) = file
-            && let Some(failure) = size_failure(file.getSize(), min, max)
+            && let Some(failure) = size_failure(file.get_size(), min, max)
         {
             failures.push(failure);
         }
@@ -305,7 +305,7 @@ pub(in crate::validation) fn size_failure(
 }
 
 fn client_extension(file: &UploadedFile) -> String {
-    file.getClientOriginalName()
+    file.get_client_original_name()
         .rsplit_once('.')
         .map_or(String::new(), |(_, extension)| {
             extension.to_ascii_lowercase()

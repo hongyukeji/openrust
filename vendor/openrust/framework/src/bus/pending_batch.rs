@@ -106,7 +106,7 @@ impl PendingBatch {
     }
 
     /// Allows failures and registers a callback for each terminal job failure.
-    pub fn onFailure(self, callback: impl Into<String>) -> Self {
+    pub fn on_failure(self, callback: impl Into<String>) -> Self {
         self.allowFailures()
             .callback(BatchPhase::Failure, callback.into())
     }
@@ -123,12 +123,12 @@ impl PendingBatch {
         self
     }
 
-    pub fn onConnection(mut self, name: impl Into<String>) -> Self {
+    pub fn on_connection(mut self, name: impl Into<String>) -> Self {
         self.options.insert("connection".into(), name.into().into());
         self
     }
 
-    pub fn onQueue(mut self, name: impl Into<String>) -> Self {
+    pub fn on_queue(mut self, name: impl Into<String>) -> Self {
         self.options.insert("queue".into(), name.into().into());
         self
     }

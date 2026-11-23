@@ -185,8 +185,8 @@ impl Storage {
     }
 
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn allFiles(directory: Option<&str>) -> FilesystemResult<Vec<String>> {
-        Self::disk(None)?.allFiles(directory).await
+    pub async fn all_files(directory: Option<&str>) -> FilesystemResult<Vec<String>> {
+        Self::disk(None)?.all_files(directory).await
     }
 
     pub async fn directories(directory: Option<&str>) -> FilesystemResult<Vec<String>> {

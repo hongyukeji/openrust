@@ -38,23 +38,23 @@ impl Model for Account {
     }
 }
 impl Authenticatable for Account {
-    fn getAuthIdentifierName(&self) -> &str {
+    fn get_auth_identifier_name(&self) -> &str {
         "id"
     }
-    fn getAuthIdentifier(&self) -> AuthIdentifier {
+    fn get_auth_identifier(&self) -> AuthIdentifier {
         7_u64.into()
     }
-    fn getAuthPasswordName(&self) -> &str {
+    fn get_auth_password_name(&self) -> &str {
         "password"
     }
-    fn getAuthPassword(&self) -> Option<&str> {
+    fn get_auth_password(&self) -> Option<&str> {
         None
     }
-    fn getRememberToken(&self) -> Option<&str> {
+    fn get_remember_token(&self) -> Option<&str> {
         None
     }
-    fn setRememberToken(&mut self, _: Option<String>) {}
-    fn getRememberTokenName(&self) -> &str {
+    fn set_remember_token(&mut self, _: Option<String>) {}
+    fn get_remember_token_name(&self) -> &str {
         "remember_token"
     }
 }
@@ -63,10 +63,10 @@ impl ServiceProvider for Register {
     fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
             let auth = app.make::<AuthManager>().await?;
-            auth.registerModel::<Account>("accounts");
+            auth.register_model::<Account>("accounts");
             MorphMap::enforceMorphMap(app, [MorphMapEntry::model::<Account>("staff")], false)?;
             let db = app.make::<DatabaseManager>().await?.connection(None)?;
-            auth.viaRequest("pennant-header", move |request| {
+            auth.via_request("pennant-header", move |request| {
                 let guest = request.uri().path().contains("guest");
                 let user = (!guest).then(|| {
                     Box::new(Account::queryOn(&db).make(Attributes::new()).unwrap())
@@ -98,7 +98,7 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
 }
 fn identity(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
-        let _features = Feature::forRequest(request).await?;
+        let _features = Feature::for_request(request).await?;
         let manager = Feature::manager()?;
         let value = manager.serializeScope(&manager.defaultScope("array")?);
         Ok(Response::new(StatusCode::OK, Body::from(value)))
@@ -112,25 +112,25 @@ async fn lazy_native_guard_concrete_class_morph_and_guest_scopes_are_request_loc
         ("auth".into(), json!({"defaults":{"guard":"test"},"guards":{"test":{"driver":"pennant-header"}}})),
     ].into())).with_providers(vec![Box::new(PennantServiceProvider), Box::new(Register)]).with_routing(Routing::default().api(routes))).unwrap();
     assert_eq!(
-        app.get("/api/signed").await.unwrap().assertOk().body(),
+        app.get("/api/signed").await.unwrap().assert_ok().body(),
         format!("{}|7", std::any::type_name::<Account>()).as_bytes()
     );
     assert_eq!(
-        app.get("/api/guest").await.unwrap().assertOk().body(),
+        app.get("/api/guest").await.unwrap().assert_ok().body(),
         b"__laravel_null"
     );
     let manager = app.app().make::<FeatureManager>().await.unwrap();
     manager.useMorphMap(true);
     assert_eq!(
-        app.get("/api/protected").await.unwrap().assertOk().body(),
+        app.get("/api/protected").await.unwrap().assert_ok().body(),
         b"staff|7"
     );
     app.get("/api/protected-guest")
         .await
         .unwrap()
-        .assertStatus(StatusCode::BAD_REQUEST);
+        .assert_status(StatusCode::BAD_REQUEST);
     assert_eq!(
-        app.get("/api/guest").await.unwrap().assertOk().body(),
+        app.get("/api/guest").await.unwrap().assert_ok().body(),
         b"__laravel_null"
     );
 }

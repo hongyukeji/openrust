@@ -102,7 +102,7 @@ pub(super) async fn listen(
             .stderr
             .push_str(&String::from_utf8_lossy(&process.latestErrorOutput()));
         if !process.running() {
-            return Ok(process.wait().await.map_err(error)?.exitCode());
+            return Ok(process.wait().await.map_err(error)?.exit_code());
         }
         let current = fingerprint(app.base_path(), &paths).map_err(error)?;
         if current != previous {

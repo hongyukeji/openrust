@@ -27,7 +27,7 @@ fn proxy_info(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpErro
                 "ips": request.ips(),
                 "url": current,
                 "path": request.uri().path(),
-                "base": request.getBaseUrl(),
+                "base": request.get_base_url(),
                 "original_host": request.headers().get("host").and_then(|value| value.to_str().ok()),
             }),
         )
@@ -36,28 +36,28 @@ fn proxy_info(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpErro
 
 fn request_identity(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
-        let full = request.fullUrl()?;
+        let full = request.full_url()?;
         Response::json(
             StatusCode::OK,
             json!({
                 "path": request.path(),
-                "decoded": request.decodedPath(),
+                "decoded": request.decoded_path(),
                 "segments": request.segments(),
                 "segment": request.segment(2),
-                "get": request.isMethod("get"),
-                "named": request.routeIs(&["missing", "identity.*"]),
+                "get": request.is_method("get"),
+                "named": request.route_is(&["missing", "identity.*"]),
                 "host": request.host()?,
-                "http_host": request.httpHost()?,
-                "origin": request.schemeAndHttpHost()?,
+                "http_host": request.http_host()?,
+                "origin": request.scheme_and_http_host()?,
                 "root": request.root()?,
                 "url": request.url()?,
                 "full": full,
-                "matches": request.fullUrlIs(&["https://edge.test:8443/portal/*"])?,
-                "with": request.fullUrlWithQuery(&json!({"z":"changed","extra":"new value"}))?,
-                "without": request.fullUrlWithoutQuery(&["z", "items.0"])?,
+                "matches": request.full_url_is(&["https://edge.test:8443/portal/*"])?,
+                "with": request.full_url_with_query(&json!({"z":"changed","extra":"new value"}))?,
+                "without": request.full_url_without_query(&["z", "items.0"])?,
                 "header": request.header("X-Probe")?,
-                "has": request.hasHeader("x-probe"),
-                "bearer": request.bearerToken()?,
+                "has": request.has_header("x-probe"),
+                "bearer": request.bearer_token()?,
             }),
         )
     })
@@ -68,7 +68,7 @@ async fn entry(
     mut request: axum::extract::Request,
 ) -> axum::response::Response {
     request.extensions_mut().insert(RequestSecurity(false));
-    kernel.handleTransport(request).await
+    kernel.handle_transport(request).await
 }
 
 async fn start(
@@ -77,7 +77,7 @@ async fn start(
 ) -> (SocketAddr, tokio::task::JoinHandle<()>) {
     start_with(|builder| {
         builder.with_middleware(move |middleware| {
-            middleware.trustProxies(at, headers).unwrap();
+            middleware.trust_proxies(at, headers).unwrap();
         })
     })
     .await
@@ -262,10 +262,10 @@ async fn validates_incoming_and_effective_hosts_against_pcre_and_application_sub
             })
             .with_middleware(|middleware| {
                 middleware
-                    .trustHosts(&[r"^(?=backend\.)backend\.test$"], true)
+                    .trust_hosts(&[r"^(?=backend\.)backend\.test$"], true)
                     .unwrap();
                 middleware
-                    .trustProxies(&["127.0.0.1"], TrustedProxyHeaders::DEFAULT)
+                    .trust_proxies(&["127.0.0.1"], TrustedProxyHeaders::DEFAULT)
                     .unwrap();
             })
     })
@@ -308,7 +308,7 @@ async fn resolves_dynamic_host_patterns_and_skips_them_in_local_environment() {
                 .into())
             })
             .with_middleware(|middleware| {
-                middleware.trustHostsWith(
+                middleware.trust_hosts_with(
                     || async {
                         let value = Config::get("probe.host")?.expect("host pattern");
                         Ok(vec![value.as_str().expect("string pattern").to_owned()])
@@ -326,7 +326,7 @@ async fn resolves_dynamic_host_patterns_and_skips_them_in_local_environment() {
         builder
             .with_config(|_, _| Ok([("app".into(), json!({"env":"local"}))].into()))
             .with_middleware(|middleware| {
-                middleware.trustHostsWith(|| async { panic!("disabled callback ran") }, false);
+                middleware.trust_hosts_with(|| async { panic!("disabled callback ran") }, false);
             })
     })
     .await;
@@ -362,7 +362,7 @@ async fn honors_proxy_deployment_presets_and_explicit_configuration_precedence()
     let (disabled, second) = start_with(|builder| {
         builder.with_config(config).with_middleware(|middleware| {
             middleware
-                .trustProxies(&[], TrustedProxyHeaders::DEFAULT)
+                .trust_proxies(&[], TrustedProxyHeaders::DEFAULT)
                 .unwrap();
         })
     })

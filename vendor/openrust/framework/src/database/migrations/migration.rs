@@ -16,7 +16,7 @@ pub trait Migration: Send + Sync {
         true
     }
 
-    fn shouldRun<'a>(
+    fn should_run<'a>(
         &'a self,
         _connection: &'a mut MigrationContext,
     ) -> DatabaseFuture<'a, DatabaseResult<bool>> {
@@ -76,8 +76,8 @@ impl MigrationContext {
         self.connection.getDriverName()
     }
 
-    pub fn getName(&self) -> &str {
-        self.connection.getName()
+    pub fn get_name(&self) -> &str {
+        self.connection.get_name()
     }
 
     pub(super) fn take_statements(self) -> Vec<String> {

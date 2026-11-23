@@ -205,7 +205,7 @@ async fn verify(config: Json) {
         Err(DatabaseError::AttributeDecryption(_))
     ));
     wrong_key.setVisible(&["id"]);
-    assert_eq!(wrong_key.toJson().unwrap(), r#"{"id":1}"#);
+    assert_eq!(wrong_key.to_json().unwrap(), r#"{"id":1}"#);
     let mut before = wrong_key.state().getAttributes().clone();
     assert!(matches!(
         wrong_key.fill(Attributes::from([
@@ -329,7 +329,7 @@ async fn verify_projections(
     let mut record = Record::queryOn(old).findOrFail(2).await.unwrap();
     let original_ciphertext = ciphertext(record.getRawOriginal("projected")).to_owned();
     assert!(Encrypter::appearsEncrypted(&original_ciphertext));
-    let view = record.toArray().unwrap();
+    let view = record.to_array().unwrap();
     assert_eq!(
         view["projected"],
         json!({"second":{"name":"West"},"first":{"name":"East"}})
@@ -356,7 +356,7 @@ async fn verify_projections(
         ciphertext(record.getRawOriginal("projected")),
         original_ciphertext
     );
-    assert_eq!(record.toArray().unwrap()["custom"], view["custom"]);
+    assert_eq!(record.to_array().unwrap()["custom"], view["custom"]);
     record
         .fillJsonAttribute("projected->first->name", "North")
         .unwrap();
@@ -370,11 +370,11 @@ async fn verify_projections(
     let plain: Json = serde_json::from_slice(&encrypter.decryptString(encrypted).unwrap()).unwrap();
     assert_eq!(plain["second"]["internal"], 1);
     assert_eq!(plain["first"]["name"], "North");
-    assert_eq!(record.toArray().unwrap()["custom"], view["custom"]);
+    assert_eq!(record.to_array().unwrap()["custom"], view["custom"]);
 
     record.setAttributeValue("custom", "scalar").unwrap();
     assert_eq!(
-        record.toArray().unwrap()["custom"],
+        record.to_array().unwrap()["custom"],
         json!({"0":{"name":"scalar","key":"0"},"owner":{"name":"system","key":"owner"}})
     );
     record.setAttributeValue("custom", Value::Null).unwrap();
@@ -383,7 +383,7 @@ async fn verify_projections(
     record.setAttributeValue("projected", malformed).unwrap();
     let attributes = record.state().getAttributes().clone();
     assert!(record.getEncryptedCollection("projected").is_err());
-    assert!(record.toArray().is_err());
+    assert!(record.to_array().is_err());
     assert!(
         record
             .editEncryptedCollection("projected", |_| Ok(()))

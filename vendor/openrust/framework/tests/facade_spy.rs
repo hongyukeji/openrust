@@ -66,10 +66,10 @@ fn install_inside_scope(_: &mut Request) -> HttpFuture<'_, Result<Response, Http
         original.find("before");
         let spy = CatalogFacade::spy(|calls| Arc::new(RecordingCatalog { calls, original }))?;
         let value = catalog()?.find("inside");
-        spy.shouldHaveReceived("find")
+        spy.should_have_received("find")
             .with(Find("inside".into()))
             .once();
-        spy.shouldNotHaveReceivedWhere("find", |call| call.0 == "before");
+        spy.should_not_have_received_where("find", |call| call.0 == "before");
         Response::json(StatusCode::OK, value)
     })
 }
@@ -128,30 +128,30 @@ async fn spy_records_http_artisan_and_container_calls_in_one_app() -> TestResult
         .await?;
     assert_eq!(spy.received("find").len(), 0);
     let (left, right) = tokio::join!(first.get("/lookup"), second.get("/lookup"));
-    left?.assertOk().assertContent(r#""catalog:web""#);
-    right?.assertOk().assertContent(r#""catalog:web""#);
+    left?.assert_ok().assert_content(r#""catalog:web""#);
+    right?.assert_ok().assert_content(r#""catalog:web""#);
     first
         .artisan(["lookup:probe"])
         .await
-        .assertSuccessful()
-        .expectsOutput("catalog:cli");
+        .assert_successful()
+        .expects_output("catalog:cli");
     second
         .artisan(["lookup:probe"])
         .await
-        .assertSuccessful()
-        .expectsOutput("catalog:cli");
+        .assert_successful()
+        .expects_output("catalog:cli");
     first.app().make::<dyn Lookup>().await?.find("direct");
-    spy.shouldHaveReceived("find").times(3);
-    spy.shouldHaveReceived("find")
+    spy.should_have_received("find").times(3);
+    spy.should_have_received("find")
         .with(Find("web".into()))
         .once();
-    spy.shouldHaveReceived("find")
-        .withArgs(|call| {
-            spy.shouldNotHaveReceived("other");
+    spy.should_have_received("find")
+        .with_args(|call| {
+            spy.should_not_have_received("other");
             call.0 != "web"
         })
         .times(2);
-    spy.shouldNotHaveReceivedWhere("find", |call| call.0 == "missing");
+    spy.should_not_have_received_where("find", |call| call.0 == "missing");
     let calls = spy.received("find");
     assert_eq!(
         calls.iter().map(|call| call.0.as_str()).collect::<Vec<_>>(),
@@ -167,11 +167,11 @@ async fn facade_spy_replaces_an_already_resolved_root() -> TestResult {
     let mut app = fixture().await?;
     app.get("/install-spy")
         .await?
-        .assertOk()
-        .assertContent(r#""catalog:inside""#);
+        .assert_ok()
+        .assert_content(r#""catalog:inside""#);
     app.artisan(["lookup:probe"])
         .await
-        .assertSuccessful()
-        .expectsOutput("catalog:cli");
+        .assert_successful()
+        .expects_output("catalog:cli");
     Ok(())
 }

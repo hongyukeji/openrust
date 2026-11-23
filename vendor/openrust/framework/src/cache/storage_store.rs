@@ -219,7 +219,7 @@ impl Store for StorageStore {
                 }
             }
             let mut cleared = true;
-            for path in self.disk.allFiles(directory).await.map_err(backend)? {
+            for path in self.disk.all_files(directory).await.map_err(backend)? {
                 cleared &= self.disk.delete(&path).await.map_err(backend)?;
             }
             Ok(cleared)

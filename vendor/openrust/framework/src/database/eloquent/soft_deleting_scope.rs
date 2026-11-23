@@ -8,7 +8,7 @@ pub struct SoftDeletingScope;
 impl<M: Model> Scope<M> for SoftDeletingScope {
     fn apply(&self, builder: &mut Builder<'_, M>) -> DatabaseResult<()> {
         if let Some(column) = M::metadata().deleted_at {
-            builder.whereNull(&builder.qualifyColumn(column));
+            builder.where_null(&builder.qualifyColumn(column));
         }
         Ok(())
     }

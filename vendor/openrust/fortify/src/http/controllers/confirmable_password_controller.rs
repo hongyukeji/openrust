@@ -25,7 +25,7 @@ impl ConfirmablePasswordController {
         request: &'a mut Request,
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
-            let data = Data::fromRequest(request).await?;
+            let data = Data::from_request(request).await?;
             Validator::make(data, RuleSet::parse([("password", "nullable|string")])?)?
                 .validate()
                 .await?;
@@ -40,7 +40,7 @@ impl ConfirmablePasswordController {
             let guard = fortify.guard();
             let confirmed = ConfirmPassword::new(fortify)
                 .call(
-                    &mut Auth::sessionGuard(request, guard.as_deref())?,
+                    &mut Auth::session_guard(request, guard.as_deref())?,
                     user.as_ref(),
                     password.as_deref(),
                 )
@@ -49,7 +49,7 @@ impl ConfirmablePasswordController {
                 request
                     .session_mut()
                     .map_err(internal)?
-                    .passwordConfirmed()
+                    .password_confirmed()
                     .map_err(internal)?;
                 super::respond::<dyn contracts::PasswordConfirmedResponse>(request).await
             } else {

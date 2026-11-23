@@ -70,7 +70,7 @@ impl Middleware for Authorize {
         next: Next<'a>,
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
-            let gate = Gate::forRequest(request).await?;
+            let gate = Gate::for_request(request).await?;
             let values: Vec<_> = self
                 .arguments
                 .iter()

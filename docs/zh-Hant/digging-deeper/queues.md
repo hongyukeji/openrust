@@ -40,7 +40,7 @@ use openrust::{bus::Batch, queue::QueueResult, support::facades::Bus};
 async fn dispatch_batch() -> QueueResult<Batch> {
     Bus::batch([BatchReport.payload()?, BatchReport.payload()?])
         .name("monthly reports")
-        .onQueue("reports")
+        .on_queue("reports")
         .dispatch()
         .await
 }
@@ -551,23 +551,23 @@ use openrust::{
 };
 
 fn report_chain(prepare: Payload, generate: Payload, publish: Payload) -> PendingChain {
-    Bus::chain([prepare, generate, publish]).onQueue("reports")
+    Bus::chain([prepare, generate, publish]).on_queue("reports")
 }
 ```
 
-使用 `onConnection` 和 `onQueue` 選擇工作鏈的派送位置。`delay` 作用於第一個工作。派送前可用建構器的 `prepend` 和 `append` 調整順序。
+使用 `on_connection` 和 `on_queue` 選擇工作鏈的派送位置。`delay` 作用於第一個工作。派送前可用建構器的 `prepend` 和 `append` 調整順序。
 
 在服務提供者的 `boot` 方法中以 `Bus::registerChainCallback` 按名稱註冊失敗回呼，再以 `catch("reports.failed")` 關聯。Worker 在自己的應用程式內解析回呼，並傳入失敗的工作承載資料和佇列錯誤。工作應確保副作用具冪等性，因為 Worker 遺失預約後可能再次執行工作。工作鏈回呼沒有獨立的重試紀錄。
 
 ### 工作鏈連線和佇列 {#chain-connection-queue}
 
-使用 `PendingChain::onConnection` 和 `onQueue` 設定工作鏈的預設目標。在工作承載資料上呼叫同名方法可覆寫該工作的目標。後續工作仍使用鏈的預設值，除非它也設定了覆寫。後續工作的延遲從前一項成功時開始計算。第一個工作的延遲優先於鏈建構器的延遲。
+使用 `PendingChain::on_connection` 和 `on_queue` 設定工作鏈的預設目標。在工作承載資料上呼叫同名方法可覆寫該工作的目標。後續工作仍使用鏈的預設值，除非它也設定了覆寫。後續工作的延遲從前一項成功時開始計算。第一個工作的延遲優先於鏈建構器的延遲。
 
 ```rust
 use openrust::queue::{Delay, Payload};
 
 fn route_job(job: Payload, connection: &str, queue: &str, delay: Delay) -> Payload {
-    job.onConnection(connection).onQueue(queue).delay(delay)
+    job.on_connection(connection).on_queue(queue).delay(delay)
 }
 ```
 
@@ -629,7 +629,7 @@ async fn dispatch_reports() -> QueueResult<Batch> {
         Payload::new("reports.generate", "detail")?,
     ])
     .name("monthly reports")
-    .onQueue("batch")
+    .on_queue("batch")
     .dispatch()
     .await
 }
@@ -637,7 +637,7 @@ async fn dispatch_reports() -> QueueResult<Batch> {
 
 執行 `./artisan queue:work database --queue=batch --stop-when-empty` 處理批次。用 `Bus::findBatch(&id)` 讀取目前狀態，用 `Bus::cancelBatch(&id)` 主動取消批次。工作最終失敗時預設取消批次。透過 `allowFailures()` 允許批次繼續，透過 `SkipIfBatchCancelled` 略過已取消批次的工作。失敗工作在重試成功前仍計入待處理數。
 
-資料庫佇列與批次儲存庫須使用相同 SQL 連線，批次和入列操作在同一交易提交。派送到 Redis 時，在 `dispatch()` 前呼叫 `onConnection("redis")`。
+資料庫佇列與批次儲存庫須使用相同 SQL 連線，批次和入列操作在同一交易提交。派送到 Redis 時，在 `dispatch()` 前呼叫 `on_connection("redis")`。
 
 ### 批次中的工作鏈 {#chains-and-batches}
 
@@ -696,15 +696,15 @@ async fn append_report(id: &str, report: &str) -> QueueResult<Option<Batch>> {
 
 ### 發佈批次至 Redis {#redis-batches}
 
-透過 `.onConnection("redis")` 使用 Redis 批次。批次狀態和回呼選項儲存在 `job_batches`，工作直接推入 Redis。派送失敗向呼叫端傳回錯誤並復原 SQL 批次交易。Redis 寫入和 SQL 提交相互獨立：Worker 可能在 SQL 提交前取得工作，部分發佈或後續提交失敗也可能留下沒有批次記錄的工作，業務處理常式須考慮這些邊界。
+透過 `.on_connection("redis")` 使用 Redis 批次。批次狀態和回呼選項儲存在 `job_batches`，工作直接推入 Redis。派送失敗向呼叫端傳回錯誤並復原 SQL 批次交易。Redis 寫入和 SQL 提交相互獨立：Worker 可能在 SQL 提交前取得工作，部分發佈或後續提交失敗也可能留下沒有批次記錄的工作，業務處理常式須考慮這些邊界。
 
 ### 向獨立資料庫發佈批次 {#cross-database-batches}
 
-以 `queue.batching.database` 選擇批次狀態連線，再以 `onConnection` 選擇資料庫佇列。目的端只需要 `jobs` 資料表，Worker 使用共用的 `job_batches` 儲存庫。同一 SQL 連線時，批次變更和工作入列共用交易；獨立連線分別提交，可能部分發佈。以 `queue:work <connection>` 消費目的端佇列。
+以 `queue.batching.database` 選擇批次狀態連線，再以 `on_connection` 選擇資料庫佇列。目的端只需要 `jobs` 資料表，Worker 使用共用的 `job_batches` 儲存庫。同一 SQL 連線時，批次變更和工作入列共用交易；獨立連線分別提交，可能部分發佈。以 `queue:work <connection>` 消費目的端佇列。
 
 ### 向 Beanstalkd 或 SQS 發佈批次 {#external-batches}
 
-透過 `Bus::batch(jobs).onConnection("beanstalkd")` 或 `.onConnection("sqs")` 選擇驅動程式。發佈端和 Worker 使用相同的 SQL 批次儲存庫設定，在批次交易內傳送工作。SQS 使用 `SendMessageBatch`，每次最多 10 則訊息，訊息本文總計最多 1 MiB。
+透過 `Bus::batch(jobs).on_connection("beanstalkd")` 或 `.on_connection("sqs")` 選擇驅動程式。發佈端和 Worker 使用相同的 SQL 批次儲存庫設定，在批次交易內傳送工作。SQS 使用 `SendMessageBatch`，每次最多 10 則訊息，訊息本文總計最多 1 MiB。
 
 SQS 部分失敗時停止後續分塊並傳回錯誤；Beanstalkd 直接傳回傳送錯誤。SQL 交易復原，外部服務已接收的工作仍然存在。不再維護發佈 outbox 或復原指令。
 
@@ -739,14 +739,14 @@ fn register_batch_callbacks() -> QueueResult<()> {
 async fn dispatch_with_callbacks() -> QueueResult<Batch> {
     Bus::batch([Payload::new("reports.generate", "documentation")?])
         .name("report export")
-        .onQueue("reports")
+        .on_queue("reports")
         .then("reports.completed")
         .dispatch()
         .await
 }
 ```
 
-`before` 在入列前接收初始快照，`progress` 用於終態進度，`then` 在待處理數歸零時執行，`catch` 處理首次最終失敗，`finally` 在所有工作都有終態時執行。`onFailure` 允許失敗並為每次最終失敗註冊回呼。回呼出錯會寫入日誌，Worker 繼續處理。Worker 在 SQL 狀態提交後呼叫回呼，若程序在提交和呼叫之間退出，該次回呼可能遺失。
+`before` 在入列前接收初始快照，`progress` 用於終態進度，`then` 在待處理數歸零時執行，`catch` 處理首次最終失敗，`finally` 在所有工作都有終態時執行。`on_failure` 允許失敗並為每次最終失敗註冊回呼。回呼出錯會寫入日誌，Worker 繼續處理。Worker 在 SQL 狀態提交後呼叫回呼，若程序在提交和呼叫之間退出，該次回呼可能遺失。
 
 ### 批次事件 {#batch-events}
 

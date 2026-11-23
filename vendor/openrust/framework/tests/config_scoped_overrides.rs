@@ -119,8 +119,8 @@ async fn nested_parent_replacements_follow_write_order_in_http() {
         app.get("/replace")
             .await
             .unwrap()
-            .assertOk()
-            .assertContent("consistent");
+            .assert_ok()
+            .assert_content("consistent");
         assert_eq!(
             app.app().config().unwrap().get("app.ui"),
             Some(json!({"title":"default"}))
@@ -134,8 +134,8 @@ async fn scoped_array_indexes_and_list_mutations_preserve_siblings() {
     app.get("/arrays")
         .await
         .unwrap()
-        .assertOk()
-        .assertContent("consistent");
+        .assert_ok()
+        .assert_content("consistent");
     assert_eq!(
         app.app().config().unwrap().get("app.ui"),
         Some(json!({"title":"default"}))
@@ -213,8 +213,8 @@ async fn null_push_and_associative_arrays_preserve_configuration_contracts() {
     app.get("/mixed-arrays")
         .await
         .unwrap()
-        .assertOk()
-        .assertContent("consistent");
+        .assert_ok()
+        .assert_content("consistent");
     assert_eq!(
         app.app().config().unwrap().get("app.ui"),
         Some(json!({"title":"default"}))

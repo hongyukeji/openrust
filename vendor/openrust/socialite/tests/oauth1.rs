@@ -23,7 +23,7 @@ fn oracle() -> Value {
     serde_json::from_str(include_str!("fixtures/oauth1.json")).unwrap()
 }
 fn snapshot(u: &openrust_socialite::two::User) -> Value {
-    json!({"id":u.getId(),"nickname":u.getNickname(),"name":u.getName(),"email":u.getEmail(),"avatar":u.getAvatar(),"raw":u.getRaw(),"attributes":u.attributes})
+    json!({"id":u.get_id(),"nickname":u.getNickname(),"name":u.get_name(),"email":u.getEmail(),"avatar":u.getAvatar(),"raw":u.getRaw(),"attributes":u.attributes})
 }
 #[test]
 fn signatures_and_two_mapping_paths_match_pinned_league_and_socialite() {
@@ -328,7 +328,7 @@ async fn rp(remote: &str) -> (String, Arc<Factory>, tokio::task::JoinHandle<()>)
         State(k): State<Arc<Kernel>>,
         r: axum::extract::Request,
     ) -> axum::response::Response {
-        k.handleTransport(r).await
+        k.handle_transport(r).await
     }
     use axum::handler::Handler as _;
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -356,9 +356,9 @@ fn cookie(r: &openrust::http::client::Response) -> String {
         .into()
 }
 async fn call(http: &Factory, url: &str, cookie: Option<&str>) -> openrust::http::client::Response {
-    let mut r = http.pendingRequest().withoutRedirecting();
+    let mut r = http.pending_request().without_redirecting();
     if let Some(c) = cookie {
-        r = r.withHeaders(http::HeaderMap::from_iter([(
+        r = r.with_headers(http::HeaderMap::from_iter([(
             http::header::COOKIE,
             http::HeaderValue::from_str(c).unwrap(),
         )]));

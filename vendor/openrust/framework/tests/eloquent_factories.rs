@@ -197,7 +197,7 @@ async fn verify(config: Json, id: &str) {
         .count(1)
         .hasAttached(
             links().constrain(|query| {
-                query.withAttributes(
+                query.with_attributes(
                     Attributes::from([("name".into(), "attachment default".into())]),
                     false,
                 )
@@ -275,7 +275,7 @@ async fn verify(config: Json, id: &str) {
         .afterCreating(observe("created"))
         .has(
             HasMany::new("id", "author_id").constrain(|query| {
-                query.withAttributes(
+                query.with_attributes(
                     Attributes::from([("name".into(), "relation default".into())]),
                     false,
                 )
@@ -419,7 +419,7 @@ async fn verify(config: Json, id: &str) {
         .getRelationOrLoad(0, "entries", &relation)
         .await
         .unwrap();
-    assert!(!constructed[1].relationLoaded("entries"));
+    assert!(!constructed[1].relation_loaded("entries"));
 
     let mut created_many = authors()
         .createManyOn(&connection, FactoryRecords::Count(2))
@@ -429,7 +429,7 @@ async fn verify(config: Json, id: &str) {
         .getRelationOrLoad(0, "entries", &relation)
         .await
         .unwrap();
-    assert!(!created_many[1].relationLoaded("entries"));
+    assert!(!created_many[1].relation_loaded("entries"));
 
     let mut made_many = authors()
         .makeManyOn(&connection, FactoryRecords::Count(2))
@@ -439,21 +439,21 @@ async fn verify(config: Json, id: &str) {
         .getRelationOrLoad(0, "entries", &relation)
         .await
         .unwrap();
-    assert!(!made_many[1].relationLoaded("entries"));
+    assert!(!made_many[1].relation_loaded("entries"));
 
     let mut queried = Author::queryOn(&connection).get().await.unwrap();
     queried
         .getRelationOrLoad(0, "entries", &relation)
         .await
         .unwrap();
-    assert!(queried[1].relationLoaded("entries"));
+    assert!(queried[1].relation_loaded("entries"));
 
     let mut opted_in = constructed.withRelationshipAutoloading();
     opted_in
         .getRelationOrLoad(1, "all_entries", &relation)
         .await
         .unwrap();
-    assert!(opted_in[0].relationLoaded("all_entries"));
+    assert!(opted_in[0].relation_loaded("all_entries"));
 
     verify_final_state(&connection).await;
     verify_child_relation_defaults(&connection).await;
@@ -588,11 +588,11 @@ async fn verify_child_relation_defaults(connection: &Connection) {
     let named = |name: &str| Attributes::from([("name".into(), name.into())]);
     let one = || {
         HasOne::<Author, Entry>::new("id", "author_id")
-            .constrain(move |query| query.withAttributes(named("one default"), false))
+            .constrain(move |query| query.with_attributes(named("one default"), false))
     };
     let morph = || {
         MorphMany::<Author, Entry>::new("id", "author_id", "owner_type", "author")
-            .constrain(move |query| query.withAttributes(named("morph default"), false))
+            .constrain(move |query| query.with_attributes(named("morph default"), false))
     };
 
     for overridden in [false, true] {

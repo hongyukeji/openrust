@@ -142,7 +142,7 @@ impl<T: TwoFactorAuthenticatable> Account for TypedAccount<T> {
     fn emit(&self, event: AccountEvent) -> HttpFuture<'_, Result<(), HttpError>> {
         Box::pin(async move {
             use crate::events::*;
-            let user = self.0.getAuthIdentifier();
+            let user = self.0.get_auth_identifier();
             match event {
                 AccountEvent::Challenged => {
                     crate::actions::emit(TwoFactorAuthenticationChallenged { user }, &[&self.0])

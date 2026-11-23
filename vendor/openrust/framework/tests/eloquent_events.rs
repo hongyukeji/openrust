@@ -287,8 +287,8 @@ impl Observer<Article> for CommittedAudit {
             }
             if title == &"event-snapshot".into() {
                 assert_eq!(
-                    openrust::database::DB::connection(None)?.getName(),
-                    connection.getName()
+                    openrust::database::DB::connection(None)?.get_name(),
+                    connection.get_name()
                 );
             }
             assert_eq!(
@@ -595,7 +595,7 @@ async fn verify(config: Json, id: &str) {
     assert_eq!(take(), [ForceDeleting, Deleting, Deleted, ForceDeleted]);
     assert!(
         Article::queryOn(&db)
-            .withTrashed()
+            .with_trashed()
             .find(key)
             .await
             .unwrap()
@@ -839,8 +839,8 @@ impl ModelEventListener<ReplicaArticle> for ReplicatingListener {
             assert_eq!(event, Replicating);
             assert!(!replica.state().exists());
             assert!(replica.getKey().is_none());
-            assert!(replica.relationLoaded("children"));
-            assert_eq!(replica.getConnectionName(), Some(connection.getName()));
+            assert!(replica.relation_loaded("children"));
+            assert_eq!(replica.getConnectionName(), Some(connection.get_name()));
             replica.setAttribute("title", "from-listener");
             Ok(ModelEventResponse::Cancel)
         })
@@ -892,7 +892,7 @@ async fn verify_replication(config: Json, id: &str) {
     assert!(copy.state().getChanges().is_empty());
     assert_eq!(copy.getConnectionName(), source.getConnectionName());
     copy.unsetRelation("children");
-    assert!(source.relationLoaded("children"));
+    assert!(source.relation_loaded("children"));
     assert!(copy.save().await.unwrap());
     assert_ne!(copy.getKey(), source.getKey());
 
@@ -902,7 +902,7 @@ async fn verify_replication(config: Json, id: &str) {
         Some(&Value::from("unsaved-edit"))
     );
     assert_eq!(quiet.getAttribute("secret"), Some(&Value::from("private")));
-    assert!(quiet.relationLoaded("children"));
+    assert!(quiet.relation_loaded("children"));
     assert!(quiet.save().await.unwrap());
     assert_ne!(quiet.getKey(), copy.getKey());
     assert_eq!(

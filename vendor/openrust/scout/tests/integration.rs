@@ -378,8 +378,8 @@ async fn collection_search_filters_maps_callbacks_soft_deletes_pages_and_native_
     assert_eq!(
         ids(f
             .search("")
-            .whereIn("id", vec![1_i64.into(), 4_i64.into()])
-            .whereNotIn("id", vec![4_i64.into()])
+            .where_in("id", vec![1_i64.into(), 4_i64.into()])
+            .where_not_in("id", vec![4_i64.into()])
             .get()
             .await
             .unwrap()),
@@ -432,7 +432,7 @@ async fn collection_search_filters_maps_callbacks_soft_deletes_pages_and_native_
     assert_eq!(ids(filtered), vec![1]);
     let callback = f
         .search("")
-        .whereIn("id", vec![1_i64.into()])
+        .where_in("id", vec![1_i64.into()])
         .callback(|mut query| {
             query.r#where("id", "=", 4_i64);
             Ok(query)
@@ -486,16 +486,16 @@ async fn collection_search_filters_maps_callbacks_soft_deletes_pages_and_native_
             .await
             .is_err()
     );
-    f.app.get("/api/search").await.unwrap().assertOk();
+    f.app.get("/api/search").await.unwrap().assert_ok();
     let mut article = Article::queryOn(&f.db).find(1_i64).await.unwrap().unwrap();
     article.delete().await.unwrap();
     assert_eq!(ids(f.search("rust").get().await.unwrap()), vec![2]);
     assert_eq!(
-        ids(f.search("rust").withTrashed().get().await.unwrap()),
+        ids(f.search("rust").with_trashed().get().await.unwrap()),
         vec![2, 1]
     );
     assert_eq!(
-        ids(f.search("rust").onlyTrashed().get().await.unwrap()),
+        ids(f.search("rust").only_trashed().get().await.unwrap()),
         vec![1]
     );
     article.restore().await.unwrap();
@@ -653,7 +653,7 @@ async fn native_queue_reloads_latest_models_deletes_tombstones_and_import_comman
             "--memory=0",
         ])
         .await
-        .assertSuccessful();
+        .assert_successful();
     assert!(engine.take().is_empty());
     assert_eq!(f.db.table("jobs").count("*").await.unwrap(), 1);
     f.db.table("scout_articles")
@@ -672,7 +672,7 @@ async fn native_queue_reloads_latest_models_deletes_tombstones_and_import_comman
             "--memory=0",
         ])
         .await
-        .assertSuccessful();
+        .assert_successful();
     let actions = engine.take();
     assert_eq!(actions.len(), 1);
     assert_eq!(actions[0].ids, vec![1]);
@@ -692,7 +692,7 @@ async fn native_queue_reloads_latest_models_deletes_tombstones_and_import_comman
             "--memory=0",
         ])
         .await
-        .assertSuccessful();
+        .assert_successful();
     assert_eq!(engine.take()[0].kind, "delete");
     f.app
         .app()
@@ -707,7 +707,7 @@ async fn native_queue_reloads_latest_models_deletes_tombstones_and_import_comman
     f.app
         .artisan(["scout:import", "Article", "--fresh", "-c", "2"])
         .await
-        .assertSuccessful();
+        .assert_successful();
     let actions = engine.take();
     assert_eq!(
         actions
@@ -722,17 +722,17 @@ async fn native_queue_reloads_latest_models_deletes_tombstones_and_import_comman
     f.app
         .artisan(["scout:flush", "Article"])
         .await
-        .assertSuccessful();
+        .assert_successful();
     assert_eq!(engine.take()[0].kind, "flush");
     assert_eq!(f.db.table("scout_articles").count("*").await.unwrap(), 5);
     f.app
         .artisan(["scout:import", "missing"])
         .await
-        .assertExitCode(1);
+        .assert_exit_code(1);
     f.app
         .artisan(["scout:import", "Article", "--chunk=0"])
         .await
-        .assertExitCode(1);
+        .assert_exit_code(1);
 }
 #[tokio::test]
 async fn immediate_observer_indexes_before_transaction_completion_when_after_commit_is_disabled() {
@@ -753,7 +753,7 @@ async fn native_scope_restores_nested_and_cancelled_sync_suppression_and_collect
     let engine = f.recording();
     f.article(1, "Rust", "published").save().await.unwrap();
     engine.take();
-    f.app.get("/api/sync").await.unwrap().assertOk();
+    f.app.get("/api/sync").await.unwrap().assert_ok();
     let actions = engine.take();
     assert_eq!(
         actions.iter().map(|a| a.kind).collect::<Vec<_>>(),
@@ -848,8 +848,8 @@ async fn collection_matches_original_engine_unicode_filter_mapping_and_paginatio
         )
         .orderBy("id", "asc");
         match case["mode"].as_str().unwrap() {
-            "in" => builder = builder.whereIn("category", vec![2_i64.into()]),
-            "not_in" => builder = builder.whereNotIn("category", vec![2_i64.into()]),
+            "in" => builder = builder.where_in("category", vec![2_i64.into()]),
+            "not_in" => builder = builder.where_not_in("category", vec![2_i64.into()]),
             "where" => builder = builder.r#where("id", ">", 2_i64),
             "limit" => builder = builder.take(2),
             _ => {}

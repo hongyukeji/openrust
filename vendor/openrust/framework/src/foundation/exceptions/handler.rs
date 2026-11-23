@@ -53,7 +53,7 @@ impl Handler {
             custom
         } else if let Some(response) = exception
             .downcast_ref::<HttpResponseException>()
-            .and_then(HttpResponseException::takeResponse)
+            .and_then(HttpResponseException::take_response)
         {
             response
         } else {
@@ -71,7 +71,7 @@ impl Handler {
 
     fn renders_json(&self, request: &Request, error: Option<&HttpError>) -> bool {
         self.configuration.as_ref().map_or_else(
-            || request.expectsJson(),
+            || request.expects_json(),
             |config| config.renders_json(request, error),
         )
     }
@@ -293,7 +293,7 @@ impl ExceptionHandler for Handler {
             .or_else(|| {
                 exception
                     .downcast_ref::<HttpResponseException>()
-                    .and_then(HttpResponseException::takeResponse)
+                    .and_then(HttpResponseException::take_response)
             })
             .unwrap_or_else(|| {
                 let json = self.renders_json(request, exception.downcast_ref::<HttpError>());

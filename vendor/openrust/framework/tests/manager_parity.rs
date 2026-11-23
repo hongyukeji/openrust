@@ -53,16 +53,16 @@ async fn session_introspection_matches_defaults_overrides_and_application_isolat
         }).unwrap();
         app.boot().await.unwrap();
         let manager = app.app().container().make::<SessionManager>().unwrap();
-        assert_eq!(manager.shouldBlock(), expected.is_some());
-        assert_eq!(manager.blockDriver(), expected.as_ref().map(|_| "file"));
+        assert_eq!(manager.should_block(), expected.is_some());
+        assert_eq!(manager.block_driver(), expected.as_ref().map(|_| "file"));
         assert_eq!(
-            manager.defaultRouteBlockLockSeconds(),
+            manager.default_route_block_lock_seconds(),
             if expected.is_some() { 7 } else { 10 }
         );
         assert_eq!(
-            manager.defaultRouteBlockWaitSeconds(),
+            manager.default_route_block_wait_seconds(),
             if expected.is_some() { 3 } else { 10 }
         );
-        assert_eq!(manager.getSessionConfig(), &expected.unwrap_or_default());
+        assert_eq!(manager.get_session_config(), &expected.unwrap_or_default());
     }
 }

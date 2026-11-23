@@ -50,7 +50,7 @@ struct Counters {
 #[derive(Default)]
 struct Form(Arc<Counters>);
 impl FormRequest for Form {
-    fn withValidator(&mut self, _: &mut openrust::validation::Validator) -> ValidationResult<()> {
+    fn with_validator(&mut self, _: &mut openrust::validation::Validator) -> ValidationResult<()> {
         self.0.with_validator.fetch_add(1, Ordering::SeqCst);
         self.0.phases.lock().unwrap().push("withValidator");
         Ok(())
@@ -63,7 +63,7 @@ impl FormRequest for Form {
             Ok(())
         })]
     }
-    fn prepareForValidation(&mut self, _: &mut Data) -> ValidationResult<()> {
+    fn prepare_for_validation(&mut self, _: &mut Data) -> ValidationResult<()> {
         self.0.prepared.fetch_add(1, Ordering::SeqCst);
         self.0.phases.lock().unwrap().push("prepare");
         Ok(())
@@ -88,7 +88,7 @@ impl FormRequest for Form {
             ("users.*.email", "required|string"),
         ])
     }
-    fn validationRules(&self, request: &Request) -> ValidationResult<RuleSet> {
+    fn validation_rules(&self, request: &Request) -> ValidationResult<RuleSet> {
         let rules = self.rules()?;
         if request.headers().contains_key("x-upload") {
             return rules.field(
@@ -99,12 +99,12 @@ impl FormRequest for Form {
                 ],
             );
         }
-        if !request.isPrecognitive() {
+        if !request.is_precognitive() {
             return rules.field("confirmation", [openrust::validation::Rule::required()]);
         }
         Ok(rules)
     }
-    fn passedValidation(&mut self, _: &mut Request, _: &ValidatedInput) -> ValidationResult<()> {
+    fn passed_validation(&mut self, _: &mut Request, _: &ValidatedInput) -> ValidationResult<()> {
         self.0.passed.fetch_add(1, Ordering::SeqCst);
         self.0.phases.lock().unwrap().push("passed");
         Ok(())
@@ -201,7 +201,7 @@ impl FormRequest for RejectAfter {
             Ok(())
         })]
     }
-    fn passedValidation(&mut self, _: &mut Request, _: &ValidatedInput) -> ValidationResult<()> {
+    fn passed_validation(&mut self, _: &mut Request, _: &ValidatedInput) -> ValidationResult<()> {
         panic!("after 验证失败不得执行 passedValidation")
     }
 }
@@ -212,7 +212,7 @@ fn routes() -> Result<(), RoutingError> {
     Route::post("/after", rejected_after)?;
     Route::post(
         "/raw",
-        ControllerDispatcher::withFormRequest(Controller::store),
+        ControllerDispatcher::with_form_request(Controller::store),
     )?;
     Route::group(
         RouteGroup::new().middleware_name("precognitive"),
@@ -220,7 +220,7 @@ fn routes() -> Result<(), RoutingError> {
             router
                 .post(
                     "/form",
-                    ControllerDispatcher::withFormRequest(Controller::store),
+                    ControllerDispatcher::with_form_request(Controller::store),
                 )?
                 .middleware(Arc::new(Early));
             router.post("/plain", ControllerDispatcher::new(Controller::plain))?;
@@ -237,7 +237,7 @@ async fn transport(
     State(kernel): State<Arc<Kernel>>,
     request: axum::extract::Request,
 ) -> axum::response::Response {
-    kernel.handleTransport(request).await
+    kernel.handle_transport(request).await
 }
 async fn start(counters: Arc<Counters>) -> (SocketAddr, tokio::task::JoinHandle<()>) {
     let app = Application::configure(std::env::temp_dir())
@@ -403,7 +403,7 @@ async fn precognitive_rule_selection_preserves_expanded_paths_and_literal_dots()
             .unwrap();
         let request = Request::from(native);
         let rules = request
-            .filterPrecognitiveRules(
+            .filter_precognitive_rules(
                 RuleSet::parse([
                     ("users.*.email", "required"),
                     (r"profile\.name", "required"),
@@ -461,7 +461,7 @@ async fn fixed_php_selector_oracle_matches_rust() {
                 .body(Body::empty())
                 .unwrap(),
         );
-        let filtered = request.filterPrecognitiveRules(rules.clone()).unwrap();
+        let filtered = request.filter_precognitive_rules(rules.clone()).unwrap();
         let mut validator = Factory::default()
             .make(
                 Data::new(json!({})).unwrap(),
@@ -532,7 +532,7 @@ async fn precognition_does_not_persist_controller_writes_on_mysql_8_4() {
         .unwrap();
     assert_eq!(count, openrust::database::Value::Integer(1));
     let mut factory = Factory::default();
-    factory.setPresenceVerifier(openrust::validation::DatabasePresenceVerifier::new(
+    factory.set_presence_verifier(openrust::validation::DatabasePresenceVerifier::new(
         Arc::new(manager),
     ));
     let spec = format!("required|exists:{table}");
@@ -544,7 +544,7 @@ async fn precognition_does_not_persist_controller_writes_on_mysql_8_4() {
                 .unwrap(),
         );
         let rules = request
-            .filterPrecognitiveRules(RuleSet::parse([("users.*.name", spec.as_str())]).unwrap())
+            .filter_precognitive_rules(RuleSet::parse([("users.*.name", spec.as_str())]).unwrap())
             .unwrap();
         let mut validator = factory
             .make(
@@ -580,7 +580,7 @@ impl Middleware for SessionProbe {
                 request.session_mut()?.flash("message", json!("saved"))?;
             }
             let session = request.session()?;
-            let data = json!({"message": session.get("message"), "mutation": session.get("mutation"), "token": session.token(), "previous": session.previousUrl()});
+            let data = json!({"message": session.get("message"), "mutation": session.get("mutation"), "token": session.token(), "previous": session.previous_url()});
             let mut response = next.run(request).await;
             response.parts_mut().headers.insert(
                 "x-session-probe",

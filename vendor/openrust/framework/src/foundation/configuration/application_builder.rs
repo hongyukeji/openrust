@@ -254,7 +254,7 @@ impl ApplicationBuilder {
             let path = if path.is_empty() { "/" } else { path }.to_owned();
             self.middleware_configurators
                 .push(Box::new(move |middleware| {
-                    middleware.preventRequestsDuringMaintenance([path]);
+                    middleware.prevent_requests_during_maintenance([path]);
                 }));
         }
         let mut providers = self.packages.providers();

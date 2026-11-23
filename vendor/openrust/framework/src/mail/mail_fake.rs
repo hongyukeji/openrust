@@ -33,7 +33,7 @@ impl MailFake {
         self.matching(|mail| mail.queue.is_some() && mail.kind == kind)
     }
 
-    pub fn assertSent(&self, kind: &str) -> &Self {
+    pub fn assert_sent(&self, kind: &str) -> &Self {
         self.assertSentMatching(kind, |_| true)
     }
 
@@ -83,7 +83,7 @@ impl MailFake {
         self.assertQueuedTimes(kind, 1)
     }
 
-    pub fn assertNotSent(&self, kind: &str) -> &Self {
+    pub fn assert_not_sent(&self, kind: &str) -> &Self {
         self.assertSentTimes(kind, 0)
     }
 
@@ -92,10 +92,10 @@ impl MailFake {
     }
 
     pub fn assertNotOutgoing(&self, kind: &str) -> &Self {
-        self.assertNotSent(kind).assertNotQueued(kind)
+        self.assert_not_sent(kind).assertNotQueued(kind)
     }
 
-    pub fn assertSentCount(&self, count: usize) -> &Self {
+    pub fn assert_sent_count(&self, count: usize) -> &Self {
         assert_eq!(
             self.count(|mail| mail.queue.is_none()),
             count,
@@ -118,8 +118,8 @@ impl MailFake {
         self
     }
 
-    pub fn assertNothingSent(&self) -> &Self {
-        self.assertSentCount(0)
+    pub fn assert_nothing_sent(&self) -> &Self {
+        self.assert_sent_count(0)
     }
 
     pub fn assertNothingQueued(&self) -> &Self {

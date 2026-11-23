@@ -25,8 +25,7 @@ impl HttpResponseException {
     }
 
     /// Takes the response once, including its owned body, for custom rendering.
-    #[allow(non_snake_case, reason = "Matches the response exception API naming")]
-    pub fn takeResponse(&self) -> Option<Response> {
+    pub fn take_response(&self) -> Option<Response> {
         self.response
             .lock()
             .unwrap_or_else(PoisonError::into_inner)

@@ -80,7 +80,7 @@ impl Handler {
         let mut origin = match owner.as_ref().and_then(|_| Origin::current()) {
             Some(Origin::Http(request)) => {
                 let user = request.user();
-                let id = user.as_ref().map(|user| json!(user.getAuthIdentifier()));
+                let id = user.as_ref().map(|user| json!(user.get_auth_identifier()));
                 let email = user.as_deref().and_then(email);
                 json!({"type":"http","method":request.method(),"path":request.path(),"auth_id":id,"auth_email":email})
             }
@@ -120,7 +120,7 @@ fn suppressed(event: &MessageLogged) -> bool {
 }
 
 fn email(user: &dyn Authenticatable) -> Option<String> {
-    match user.getAuthAttribute("email").ok().flatten() {
+    match user.get_auth_attribute("email").ok().flatten() {
         Some(openrust::database::Value::Text(value)) => Some(value),
         _ => None,
     }

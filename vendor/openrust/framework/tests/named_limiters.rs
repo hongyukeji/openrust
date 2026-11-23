@@ -32,7 +32,7 @@ impl ServiceProvider for Limits {
                         .by(key)
                         .after(|response| response.status().is_success()),
                     Limit::perDay(max + 2).by(key).response(|_, headers| {
-                        Response::empty(StatusCode::TOO_MANY_REQUESTS).withHeaders(headers)
+                        Response::empty(StatusCode::TOO_MANY_REQUESTS).with_headers(headers)
                     }),
                 ]
             })?;
@@ -68,7 +68,7 @@ async fn transport(
     State(kernel): State<Arc<Kernel>>,
     request: axum::extract::Request,
 ) -> axum::response::Response {
-    kernel.handleTransport(request).await
+    kernel.handle_transport(request).await
 }
 
 async fn start(max: u64) -> (SocketAddr, tokio::task::JoinHandle<()>) {

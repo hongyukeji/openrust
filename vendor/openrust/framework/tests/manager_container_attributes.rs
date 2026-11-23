@@ -149,8 +149,8 @@ fn probe(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         Response::json(
             StatusCode::OK,
             json!({
-                "default": resolved.default_db.getName(),
-                "named": resolved.named_db.getName(),
+                "default": resolved.default_db.get_name(),
+                "named": resolved.named_db.get_name(),
             }),
         )
     })
@@ -177,7 +177,7 @@ async fn transport(
     State(kernel): State<Arc<Kernel>>,
     incoming: axum::extract::Request,
 ) -> axum::response::Response {
-    kernel.handleTransport(incoming).await
+    kernel.handle_transport(incoming).await
 }
 
 async fn server(root: &Path) -> (std::net::SocketAddr, tokio::task::JoinHandle<()>) {

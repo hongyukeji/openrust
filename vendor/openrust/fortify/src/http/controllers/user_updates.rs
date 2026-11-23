@@ -44,7 +44,7 @@ impl ProfileInformationController {
                     .map_err(internal)?,
             };
             let user = updater.update(user.as_ref(), &input).await?;
-            Auth::sessionGuard(request, fortify.guard().as_deref())?.set_user(user);
+            Auth::session_guard(request, fortify.guard().as_deref())?.set_user(user);
             super::respond::<dyn contracts::ProfileInformationUpdatedResponse>(request).await
         })
     }
@@ -72,14 +72,14 @@ impl PasswordController {
             let user = updater
                 .updateFromRequest(request, user.as_ref(), &input)
                 .await?;
-            Auth::sessionGuard(request, fortify.guard().as_deref())?.set_user(user);
+            Auth::session_guard(request, fortify.guard().as_deref())?.set_user(user);
             let user = Auth::user(request).await?.ok_or(HttpError::NotFound)?;
             let name = fortify
                 .config
                 .get("fortify.passwords")
                 .and_then(|v| v.as_str().map(str::to_owned));
             Password::broker(name.as_deref())?
-                .deleteToken(user.as_password_reset().ok_or(AuthError::Configuration(
+                .delete_token(user.as_password_reset().ok_or(AuthError::Configuration(
                     "user must implement CanResetPassword",
                 ))?)
                 .await?;

@@ -55,10 +55,10 @@ impl ProviderDefinition for GitlabProvider {
     ) -> ProviderFuture<'a, Value> {
         Box::pin(async move {
             json(
-                http.pendingRequest()
-                    .redactPayload()
-                    .withoutRedirecting()
-                    .withQueryParameters([("access_token".into(), token.into())])
+                http.pending_request()
+                    .redact_payload()
+                    .without_redirecting()
+                    .with_query_parameters([("access_token".into(), token.into())])
                     .get(&self.endpoints.user)
                     .await?,
             )

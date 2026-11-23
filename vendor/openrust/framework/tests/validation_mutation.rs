@@ -21,53 +21,59 @@ fn validator() -> Validator {
 async fn replacing_values_and_rules_invalidates_results_and_preserves_atomic_failures() {
     let mut validator = validator();
     assert!(validator.validate().await.is_ok());
-    assert_eq!(validator.getValue("users.0.age").unwrap(), Some(&json!(20)));
+    assert_eq!(
+        validator.get_value("users.0.age").unwrap(),
+        Some(&json!(20))
+    );
     assert_eq!(
         validator
-            .getRules()
+            .get_rules()
             .unwrap()
             .iter()
             .map(|(field, _)| field.as_str())
             .collect::<Vec<_>>(),
         ["users.0.age"]
     );
-    validator.setValue("users.0.age", json!(16)).unwrap();
+    validator.set_value("users.0.age", json!(16)).unwrap();
     assert!(matches!(
         validator.validated(),
         Err(ValidationError::NotValidated)
     ));
     assert!(validator.validate().await.is_err());
     assert!(!validator.errors().is_empty());
-    validator.setValue("users.0.age", json!(30)).unwrap();
+    validator.set_value("users.0.age", json!(30)).unwrap();
     assert!(validator.errors().is_empty());
     assert!(validator.validate().await.is_ok());
-    assert!(validator.setValue("users.*.age", json!(0)).is_err());
-    assert_eq!(validator.getValue("users.0.age").unwrap(), Some(&json!(30)));
+    assert!(validator.set_value("users.*.age", json!(0)).is_err());
+    assert_eq!(
+        validator.get_value("users.0.age").unwrap(),
+        Some(&json!(30))
+    );
     assert!(validator.validated().is_ok());
-    validator.setRules(RuleSet::parse([("users.*.age", "integer|min:40")]).unwrap());
+    validator.set_rules(RuleSet::parse([("users.*.age", "integer|min:40")]).unwrap());
     assert!(validator.safe().is_err());
     assert!(validator.validate().await.is_err());
-    validator.setData(Data::new(json!({"users":[{"age":50},{"age":60}]})).unwrap());
-    assert_eq!(validator.getRules().unwrap().len(), 2);
+    validator.set_data(Data::new(json!({"users":[{"age":50},{"age":60}]})).unwrap());
+    assert_eq!(validator.get_rules().unwrap().len(), 2);
     assert!(validator.validate().await.is_ok());
-    assert_eq!(validator.getData().as_value()["users"][1]["age"], 60);
+    assert_eq!(validator.get_data().as_value()["users"][1]["age"], 60);
 }
 
 #[tokio::test]
 async fn runtime_additions_reset_on_set_data_but_append_rules_becomes_initial() {
     let mut validator = validator();
     validator
-        .addRules(RuleSet::parse([("users.*.age", "min:25"), ("token", "required")]).unwrap())
+        .add_rules(RuleSet::parse([("users.*.age", "min:25"), ("token", "required")]).unwrap())
         .unwrap();
-    assert_eq!(validator.getRules().unwrap()[0].1.len(), 3);
+    assert_eq!(validator.get_rules().unwrap()[0].1.len(), 3);
     assert!(validator.validate().await.is_err());
-    validator.setData(Data::new(json!({"users":[{"age":20}]})).unwrap());
-    assert_eq!(validator.getRules().unwrap()[0].1.len(), 2);
+    validator.set_data(Data::new(json!({"users":[{"age":20}]})).unwrap());
+    assert_eq!(validator.get_rules().unwrap()[0].1.len(), 2);
     assert!(validator.validate().await.is_ok());
     validator
-        .appendRules(RuleSet::parse([("token", "required")]).unwrap())
+        .append_rules(RuleSet::parse([("token", "required")]).unwrap())
         .unwrap();
-    validator.setData(Data::new(json!({"users":[{"age":20}]})).unwrap());
+    validator.set_data(Data::new(json!({"users":[{"age":20}]})).unwrap());
     assert!(validator.validate().await.is_err());
     assert!(
         !validator
@@ -76,7 +82,7 @@ async fn runtime_additions_reset_on_set_data_but_append_rules_becomes_initial() 
             .intoMessages()
             .is_empty()
     );
-    validator.setValue("token", json!("ok")).unwrap();
+    validator.set_value("token", json!("ok")).unwrap();
     assert!(validator.validate().await.is_ok());
     validator
         .sometimes("token", vec![openrust::validation::Rule::min(5)], |_, _| {
@@ -92,16 +98,16 @@ async fn runtime_additions_reset_on_set_data_but_append_rules_becomes_initial() 
         )
         .unwrap();
     let before = validator
-        .getRules()
+        .get_rules()
         .unwrap()
         .iter()
         .map(|(_, rules)| rules.len())
         .collect::<Vec<_>>();
-    assert!(validator.addRules(too_many).is_err());
+    assert!(validator.add_rules(too_many).is_err());
     assert_eq!(
         before,
         validator
-            .getRules()
+            .get_rules()
             .unwrap()
             .iter()
             .map(|(_, rules)| rules.len())
@@ -119,20 +125,20 @@ async fn message_attribute_value_and_translator_changes_recompute_errors() {
             Default::default(),
         )
         .unwrap();
-    validator.setCustomMessages(BTreeMap::from([(
+    validator.set_custom_messages(BTreeMap::from([(
         "starts_with".into(),
         ":attribute :values".into(),
     )]));
-    validator.setAttributeNames(BTreeMap::from([("kind".into(), "种类".into())]));
-    validator.setValueNames(BTreeMap::from([(
+    validator.set_attribute_names(BTreeMap::from([("kind".into(), "种类".into())]));
+    validator.set_value_names(BTreeMap::from([(
         "kind".into(),
         BTreeMap::from([("a".into(), "甲".into())]),
     )]));
     assert!(validator.validate().await.is_err());
     assert_eq!(validator.errors().first(Some("kind"), None), "种类 甲");
-    validator.setCustomMessages(BTreeMap::from([("integer".into(), "整数错误".into())]));
-    validator.addCustomAttributes(BTreeMap::from([("value".into(), "数值".into())]));
-    validator.addCustomValues(BTreeMap::from([(
+    validator.set_custom_messages(BTreeMap::from([("integer".into(), "整数错误".into())]));
+    validator.add_custom_attributes(BTreeMap::from([("value".into(), "数值".into())]));
+    validator.add_custom_values(BTreeMap::from([(
         "kind".into(),
         BTreeMap::from([("a".into(), "A".into())]),
     )]));
@@ -140,8 +146,8 @@ async fn message_attribute_value_and_translator_changes_recompute_errors() {
     assert_eq!(validator.errors().first(Some("kind"), None), "种类 A");
     assert_eq!(validator.errors().first(Some("value"), None), "整数错误");
     validator
-        .setAttributeNames(BTreeMap::new())
-        .setValueNames(BTreeMap::new());
+        .set_attribute_names(BTreeMap::new())
+        .set_value_names(BTreeMap::new());
     assert!(validator.validate().await.is_err());
     assert_eq!(validator.errors().first(Some("kind"), None), "kind a");
     let resources = tempfile::tempdir().unwrap();
@@ -163,9 +169,12 @@ async fn message_attribute_value_and_translator_changes_recompute_errors() {
             None,
         )
         .unwrap();
-    validator.setTranslator(translator.clone());
-    assert!(Arc::ptr_eq(validator.getTranslator().unwrap(), &translator));
-    validator.setRules(RuleSet::parse([("missing", "required")]).unwrap());
+    validator.set_translator(translator.clone());
+    assert!(Arc::ptr_eq(
+        validator.get_translator().unwrap(),
+        &translator
+    ));
+    validator.set_rules(RuleSet::parse([("missing", "required")]).unwrap());
     assert!(validator.validate().await.is_err());
     assert_eq!(validator.errors().first(None, None), "新的必填错误");
 }
@@ -179,28 +188,28 @@ async fn typed_exception_factory_controls_actual_validation_rejection_and_is_ins
         let mut error = openrust::validation::ValidationException::new(errors);
         error
             .status(openrust::http::StatusCode::BAD_REQUEST)
-            .errorBag("custom")
-            .redirectTo("/retry");
+            .error_bag("custom")
+            .redirect_to("/retry");
         error
     }
     let mut first = validator();
     let mut second = validator();
-    let default = first.getException();
-    first.setException(custom);
-    first.setValue("users.0.age", json!(0)).unwrap();
-    second.setValue("users.0.age", json!(0)).unwrap();
+    let default = first.get_exception();
+    first.set_exception(custom);
+    first.set_value("users.0.age", json!(0)).unwrap();
+    second.set_value("users.0.age", json!(0)).unwrap();
     for (validator, status) in [(&mut first, 400), (&mut second, 422)] {
         let Err(ValidationError::Invalid(error)) = validator.validate().await else {
             panic!("必须返回真实验证异常");
         };
-        assert_eq!(error.statusCode().as_u16(), status);
+        assert_eq!(error.status_code().as_u16(), status);
         assert!(!error.errors().is_empty());
     }
-    first.setException(default);
+    first.set_exception(default);
     let Err(ValidationError::Invalid(error)) = first.validate().await else {
         panic!("必须返回真实验证异常");
     };
-    assert_eq!(error.statusCode().as_u16(), 422);
+    assert_eq!(error.status_code().as_u16(), 422);
 }
 
 #[tokio::test]
@@ -232,30 +241,31 @@ async fn runtime_mutation_sequences_follow_complete_fixed_php_validator() {
             let argument = &step["arguments"][0];
             match step["method"].as_str().unwrap() {
                 "setValue" => validator
-                    .setValue(argument.as_str().unwrap(), step["arguments"][1].clone())
+                    .set_value(argument.as_str().unwrap(), step["arguments"][1].clone())
                     .unwrap(),
                 "setData" => {
-                    validator.setData(Data::new(argument.clone()).unwrap());
+                    validator.set_data(Data::new(argument.clone()).unwrap());
                 }
                 "setRules" => {
-                    validator.setRules(rules(argument));
+                    validator.set_rules(rules(argument));
                 }
-                "addRules" => validator.addRules(rules(argument)).unwrap(),
+                "addRules" => validator.add_rules(rules(argument)).unwrap(),
                 "appendRules" => {
-                    validator.appendRules(rules(argument)).unwrap();
+                    validator.append_rules(rules(argument)).unwrap();
                 }
                 "setCustomMessages" => {
-                    validator.setCustomMessages(serde_json::from_value(argument.clone()).unwrap());
+                    validator
+                        .set_custom_messages(serde_json::from_value(argument.clone()).unwrap());
                 }
                 "setAttributeNames" => {
-                    validator.setAttributeNames(if argument.is_array() {
+                    validator.set_attribute_names(if argument.is_array() {
                         BTreeMap::new()
                     } else {
                         serde_json::from_value(argument.clone()).unwrap()
                     });
                 }
                 "setValueNames" => {
-                    validator.setValueNames(if argument.is_array() {
+                    validator.set_value_names(if argument.is_array() {
                         BTreeMap::new()
                     } else {
                         serde_json::from_value(argument.clone()).unwrap()
@@ -263,14 +273,14 @@ async fn runtime_mutation_sequences_follow_complete_fixed_php_validator() {
                 }
                 "addCustomAttributes" => {
                     validator
-                        .addCustomAttributes(serde_json::from_value(argument.clone()).unwrap());
+                        .add_custom_attributes(serde_json::from_value(argument.clone()).unwrap());
                 }
                 "addCustomValues" => {
-                    validator.addCustomValues(serde_json::from_value(argument.clone()).unwrap());
+                    validator.add_custom_values(serde_json::from_value(argument.clone()).unwrap());
                 }
                 "getRules" => {
                     let actual = validator
-                        .getRules()
+                        .get_rules()
                         .unwrap()
                         .into_iter()
                         .map(|(field, rules)| (field, json!(rules.len())))
@@ -308,7 +318,7 @@ async fn rules_introspection_applies_precognitive_selection_to_expanded_fields()
             .unwrap(),
     );
     let rules = request
-        .filterPrecognitiveRules(
+        .filter_precognitive_rules(
             RuleSet::parse([("users.*.age", "required|integer"), ("token", "required")]).unwrap(),
         )
         .unwrap();
@@ -322,7 +332,7 @@ async fn rules_introspection_applies_precognitive_selection_to_expanded_fields()
         .unwrap();
     assert_eq!(
         validator
-            .getRules()
+            .get_rules()
             .unwrap()
             .iter()
             .map(|(field, _)| field.as_str())

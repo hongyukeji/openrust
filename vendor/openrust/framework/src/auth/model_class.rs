@@ -22,7 +22,7 @@ impl ModelClass {
             name,
             type_id: TypeId::of::<M>,
             rust_name: std::any::type_name::<M>,
-            register: |auth, name| auth.registerModel::<M>(name),
+            register: |auth, name| auth.register_model::<M>(name),
             tokens: false,
         }
     }
@@ -30,7 +30,7 @@ impl ModelClass {
     #[cfg(feature = "sanctum")]
     pub const fn sanctum<M: crate::sanctum::HasApiTokens>(name: &'static str) -> Self {
         Self {
-            register: |auth, name| auth.registerSanctumModel::<M>(name),
+            register: |auth, name| auth.register_sanctum_model::<M>(name),
             tokens: true,
             ..Self::new::<M>(name)
         }

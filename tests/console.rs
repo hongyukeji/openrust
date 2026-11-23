@@ -110,8 +110,8 @@ impl Command for QueuedArtisan {
             let arguments = ["a value 中文"].map(OsString::from);
             assert_eq!(
                 ArtisanFacade::queue("say-hi", &arguments)
-                    .onConnection("sync")
-                    .onQueue("commands")
+                    .on_connection("sync")
+                    .on_queue("commands")
                     .dispatch()
                     .await
                     .unwrap(),
@@ -119,7 +119,7 @@ impl Command for QueuedArtisan {
             );
             assert!(matches!(
                 ArtisanFacade::queue("missing:command", &[])
-                    .onConnection("sync")
+                    .on_connection("sync")
                     .dispatch()
                     .await,
                 Err(QueueError::Execution { .. })

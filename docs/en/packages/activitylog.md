@@ -83,7 +83,7 @@ let page = repository.query().inLog("settings")
 // Pass the final record's id to .before(id) for the next page.
 ```
 
-Filters include `inLog`, `inLogs`, `forEvent`, `forSubject`, `causedBy`, and `forRequest`, with exact identity matching. Page size is 1–1000, default 50. The package exposes no automatic admin or HTTP interface.
+Filters include `inLog`, `inLogs`, `forEvent`, `forSubject`, `causedBy`, and `for_request`, with exact identity matching. Page size is 1–1000, default 50. The package exposes no automatic admin or HTTP interface.
 
 `./artisan activitylog:clean accounts --days=365` deletes expired records in the optional log group; omit `accounts` to clean all groups. Omitted days use `clean_after_days`; days must be a positive integer. Production commands require interactive confirmation or `--force`. `cleanBefore(utc_milliseconds, limit)` rejects future cutoffs. The package does not provide tamper-proof storage.
 

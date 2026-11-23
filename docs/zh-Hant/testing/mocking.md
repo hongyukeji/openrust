@@ -60,16 +60,16 @@ async fn records_reports() -> Result<(), Box<dyn std::error::Error + Send + Sync
     let spy = app.spy::<Reports, _>(|calls| Arc::new(RecordingReporter(calls))).await?;
 
     app.app().make::<dyn Reporter>().await?.send("daily");
-    spy.shouldHaveReceived("send").with("daily".to_owned()).once();
+    spy.should_have_received("send").with("daily".to_owned()).once();
     Ok(())
 }
 ```
 
-`received` 依呼叫順序傳回參數。可以用 `with` 依值篩選，或用 `withArgs` 依回呼篩選，再用 `once` 或 `times` 檢查次數。`shouldNotHaveReceived` 斷言方法未被呼叫。需要保留原服務行為時，替身可以把呼叫轉送給先前解析出的實例。
+`received` 依呼叫順序傳回參數。可以用 `with` 依值篩選，或用 `with_args` 依回呼篩選，再用 `once` 或 `times` 檢查次數。`should_not_have_received` 斷言方法未被呼叫。需要保留原服務行為時，替身可以把呼叫轉送給先前解析出的實例。
 
 ## 控制測試時間 {#interacting-with-time}
 
-`TestApp::travelTo` 將應用程式時鐘凍結在指定的 `Date`。`freezeTime` 凍結目前時刻，`freezeSecond` 凍結在目前整秒。使用 `travel(5).minutes().await?` 向前移動，傳入負數可向後移動。天、週、月和年的計算使用測試應用程式的時區。呼叫 `travelBack().await?` 還原系統時間。
+`TestApp::travel_to` 將應用程式時鐘凍結在指定的 `Date`。`freeze_time` 凍結目前時刻，`freeze_second` 凍結在目前整秒。使用 `travel(5).minutes().await?` 向前移動，傳入負數可向後移動。天、週、月和年的計算使用測試應用程式的時區。呼叫 `travel_back().await?` 還原系統時間。
 
 ```rust
 use openrust::{support::Date, testing::TestApp};
@@ -77,7 +77,7 @@ use openrust::{support::Date, testing::TestApp};
 #[tokio::test]
 async fn travels_five_minutes() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut app = TestApp::create(|builder| builder)?;
-    app.freezeSecondFor(async |app, start| {
+    app.freeze_second_for(async |app, start| {
         let later = app.travel(5).minutes().await?;
         assert_eq!(later.asDateTime().timestamp().as_second(), start.asDateTime().timestamp().as_second() + 300);
         assert_eq!(Date::now(None)?, later);
@@ -87,4 +87,4 @@ async fn travels_five_minutes() -> Result<(), Box<dyn std::error::Error + Send +
 }
 ```
 
-`travelToFor`、`freezeTimeFor` 和 `freezeSecondFor` 會在 Future 結束後還原原有時鐘，傳回錯誤或取消也一樣。測試應用程式呼叫 HTTP 和 Artisan 時，`Date::now`、`Date::today` 與 Eloquent 模型時間戳記共用該時鐘。其他測試應用程式、獨立程序、計時器以及外部資料庫和服務各自使用自己的時鐘。
+`travel_to_for`、`freeze_time_for` 和 `freeze_second_for` 會在 Future 結束後還原原有時鐘，傳回錯誤或取消也一樣。測試應用程式呼叫 HTTP 和 Artisan 時，`Date::now`、`Date::today` 與 Eloquent 模型時間戳記共用該時鐘。其他測試應用程式、獨立程序、計時器以及外部資料庫和服務各自使用自己的時鐘。

@@ -41,17 +41,17 @@ fn account_rules() -> ValidationResult<RuleSet> {
     ])?
         .field("email", [
             Rule::unique("directory.accounts", Some("email"))
-                .withoutTrashed(None)
+                .without_trashed(None)
                 .into(),
         ])
 }
 ```
 
-Fluent rules support query constraints and soft-deleted rows. When updating a row, use `ignore` with a trusted identifier or `ignoreModel` with a model already resolved and authorized by the application. Use a database unique constraint to enforce uniqueness across concurrent writes.
+Fluent rules support query constraints and soft-deleted rows. When updating a row, use `ignore` with a trusted identifier or `ignore_model` with a model already resolved and authorized by the application. Use a database unique constraint to enforce uniqueness across concurrent writes.
 
 ## Form Request Validation {#form-request-validation}
 
-Use `ValidatedFormRequest<F>` as a typed action parameter. The router creates the form request, prepares the input, authorizes, validates, and calls `passedValidation` before dispatching the action. An authorization denial returns HTTP 403.
+Use `ValidatedFormRequest<F>` as a typed action parameter. The router creates the form request, prepares the input, authorizes, validates, and calls `passed_validation` before dispatching the action. An authorization denial returns HTTP 403.
 
 ```rust
 use openrust::{
@@ -80,11 +80,11 @@ fn register() -> Result<(), RoutingError> {
 }
 ```
 
-A form request implements `Default` for construction. A transient container binding for the form type can supply constructor dependencies. Use `ControllerDispatcher::withFormRequest` for a controller method or `ResourceController::actionWithFormRequest` for a resource action. A controller using either adapter also receives the original request and its route parameters. Call `validateResolved` for explicit validation.
+A form request implements `Default` for construction. A transient container binding for the form type can supply constructor dependencies. Use `ControllerDispatcher::with_form_request` for a controller method or `ResourceController::action_with_form_request` for a resource action. A controller using either adapter also receives the original request and its route parameters. Call `validate_resolved` for explicit validation.
 
 ## Validating Files {#validating-files}
 
-Use `Data::fromRequest` for manual multipart validation. Form requests include uploads automatically. Access validated uploads by dotted path with `validated.file`, including indexed paths such as `attachments.0`. The JSON view represents file leaves as null.
+Use `Data::from_request` for manual multipart validation. Form requests include uploads automatically. Access validated uploads by dotted path with `validated.file`, including indexed paths such as `attachments.0`. The JSON view represents file leaves as null.
 
 `mimes` and `mimetypes` infer the type from file content. `extensions` checks the client's filename extension. Use both when the content type and filename extension matter. Use `image:allow_svg` or `File::image(true)` to accept SVG. The `size`, `min`, `max` and `between` rules measure files in kilobytes of 1,024 bytes.
 
@@ -124,16 +124,16 @@ use openrust::{
 
 fn upload(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
-        let data = Data::fromRequest(request).await?;
+        let data = Data::from_request(request).await?;
         let rules = RuleSet::new().field("image", [
             Rule::required(),
             File::image(false)
-                .dimensions(Rule::dimensions().minWidth(256).ratio("1/1"))
+                .dimensions(Rule::dimensions().min_width(256).ratio("1/1"))
                 .max("2mb")
                 .into(),
         ])?;
         let validated = Validator::make(data, rules)?.validate().await?;
-        let size = validated.file("image").map(|file| file.getSize());
+        let size = validated.file("image").map(|file| file.get_size());
         Response::json(StatusCode::OK, serde_json::json!({ "size": size }))
     })
 }
@@ -179,7 +179,7 @@ The redirect uses the configured target first, then a same-origin Referer, then 
 
 ### Named Error Bags
 
-Use `validateWithBag("profile")` on a validator or override `FormRequest::errorBag` to name the bag. In Blade, `$errors->profile->name` selects the messages for the name field in that bag.
+Use `validate_with_bag("profile")` on a validator or override `FormRequest::error_bag` to name the bag. In Blade, `$errors->profile->name` selects the messages for the name field in that bag.
 
 ### Excluding Sensitive Input
 
@@ -202,9 +202,9 @@ Floats first use PHP’s default 14 significant digits when converted to text: t
 
 Use `Rule::parse` inside a `RuleSet::field` array for regular expressions containing `|`, so the separator is not interpreted as another rule. PCRE2 modifiers `i m s x u A U J n D` are supported. `D` makes `$` match only the end of the subject unless multiline mode is enabled. Other unsupported modifiers return `InvalidRule`; the parser does not claim every PHP PCRE option.
 
-`Validator::after` runs after rule checks and can add errors. `sometimes` conditionally adds rules; wildcard callbacks receive the parent item. `stopOnFirstFailure(true)` stops checks across fields, while `bail` stops one field. `safe()` requires successful validation and exposes only validated data.
+`Validator::after` runs after rule checks and can add errors. `sometimes` conditionally adds rules; wildcard callbacks receive the parent item. `stop_on_first_failure(true)` stops checks across fields, while `bail` stops one field. `safe()` requires successful validation and exposes only validated data.
 
-Form requests execute `prepareForValidation`, `authorize`, `withValidator`, validation and `after`, then `passedValidation`. Authorization and validation failure stop the action. Precognition with `Precognition-Validate-Only` does not call `passedValidation`; successful Precognition without that header may call it before short-circuiting the action. Each request has its own validator.
+Form requests execute `prepare_for_validation`, `authorize`, `with_validator`, validation and `after`, then `passed_validation`. Authorization and validation failure stop the action. Precognition with `Precognition-Validate-Only` does not call `passed_validation`; successful Precognition without that header may call it before short-circuiting the action. Each request has its own validator.
 
 ## Message Bags {#message-bags}
 
@@ -216,7 +216,7 @@ use openrust::support::{MessageBag, ViewErrorBag};
 let mut messages = MessageBag::new([("email", ["Invalid email"])]);
 messages.addIf(true, "name", "Required");
 assert_eq!(messages.first(Some("email"), None), "Invalid email");
-assert!(messages.hasAny(["email", "phone"]));
+assert!(messages.has_any(["email", "phone"]));
 messages.setFormat(":key: :message");
 assert_eq!(messages.first(Some("name"), None), "name: Required");
 let mut errors = ViewErrorBag::new();
@@ -260,19 +260,19 @@ Use `accepted_if`, `declined_if`, `missing_if`, `missing_unless`, `missing_with`
 
 `timezone` accepts exact identifiers from the bundled IANA 2025b data. Use `timezone:all_with_bc` to include aliases, a region such as `timezone:asia`, or `timezone:per_country,CN` for a country. Names are case sensitive; the group and country parameters are case insensitive. Invalid groups or country parameter lengths return `InvalidRule`.
 
-`active_url` requires a host with DNS A or AAAA records. It uses asynchronous DNS queries and does not accept a numeric IP merely because the operating system can resolve it. `validator.setDnsResolver(resolver)` accepts a Hickory 0.25 resolver with explicit nameservers, timeout and retry settings. DNS lookup failures fail validation. `validator.fakeDnsLookups(true)` enables hostname-only test behavior for that validator; pass `false` to restore real DNS. The test switch is instance scoped so concurrent validators remain independent.
+`active_url` requires a host with DNS A or AAAA records. It uses asynchronous DNS queries and does not accept a numeric IP merely because the operating system can resolve it. `validator.set_dns_resolver(resolver)` accepts a Hickory 0.25 resolver with explicit nameservers, timeout and retry settings. DNS lookup failures fail validation. `validator.fake_dns_lookups(true)` enables hostname-only test behavior for that validator; pass `false` to restore real DNS. The test switch is instance scoped so concurrent validators remain independent.
 
 ## Updating a Validator
 
-Use `getData`, `getValue`, and `getRules` to inspect input and expanded rules. `getRules` returns ordered `(attribute, rules)` pairs using native escaped paths. `setValue` updates one concrete path; wildcards are rejected. `setData` replaces the input and restores the rules supplied to `setRules` or the factory. `addRules` merges temporary rules; `appendRules` also makes the merged declarations the next reset baseline.
+Use `get_data`, `get_value`, and `get_rules` to inspect input and expanded rules. `get_rules` returns ordered `(attribute, rules)` pairs using native escaped paths. `set_value` updates one concrete path; wildcards are rejected. `set_data` replaces the input and restores the rules supplied to `set_rules` or the factory. `add_rules` merges temporary rules; `append_rules` also makes the merged declarations the next reset baseline.
 
-`setCustomMessages` merges messages. `setAttributeNames` and `setValueNames` replace their maps, while `addCustomAttributes` and `addCustomValues` merge at the field level. `getTranslator` and `setTranslator` expose the translator used for errors. Mutations discard cached success and errors; call `validate().await` again before reading `validated()` or `safe()`.
+`set_custom_messages` merges messages. `set_attribute_names` and `set_value_names` replace their maps, while `add_custom_attributes` and `add_custom_values` merge at the field level. `get_translator` and `set_translator` expose the translator used for errors. Mutations discard cached success and errors; call `validate().await` again before reading `validated()` or `safe()`.
 
-`getException` and `setException` use a typed function `fn(MessageBag, Option<&Translator>) -> ValidationException`. It can customize the actual rejection status, error bag, and redirect. The return type replaces runtime exception class names and inheritance; each validator keeps its own factory.
+`get_exception` and `set_exception` use a typed function `fn(MessageBag, Option<&Translator>) -> ValidationException`. It can customize the actual rejection status, error bag, and redirect. The return type replaces runtime exception class names and inheritance; each validator keeps its own factory.
 
 ## Registering validation extensions
 
-In a service provider, use `Validator::extend` for ordinary rules, `extendImplicit` for rules that must also inspect missing or empty values, and `extendDependent` for rules whose parameters reference other fields. Register `ProjectCode` or `project_code` and use `project_code` in declarations. Each validator receives a snapshot of the factory registrations when created.
+In a service provider, use `Validator::extend` for ordinary rules, `extend_implicit` for rules that must also inspect missing or empty values, and `extend_dependent` for rules whose parameters reference other fields. Register `ProjectCode` or `project_code` and use `project_code` in declarations. Each validator receives a snapshot of the factory registrations when created.
 
 ```rust
 use openrust::support::facades::Validator;
@@ -287,6 +287,6 @@ Callbacks receive the attribute, `Option<&Value>`, parameters and a shared valid
 
 Register a message callback using `Validator::replacer`. It receives the selected message, attribute, rule name, parameter list and shared validator reference, and returns the final message. Custom or translated messages and attribute names are resolved first. A registered replacer takes responsibility for rule placeholders such as `:min`. `Factory::resolver` accepts and returns an owned validator for construction customization. Rust uses closures and explicitly resolved services; runtime `Class@method` strings and dynamic validator subclasses are unsupported.
 
-On one validator, use `addExtension`, `addImplicitExtension`, `addDependentExtension` and `addReplacer`. Their plural forms accept `(String, Arc<callback>)` entries. These changes invalidate cached validation results and require revalidation.
+On one validator, use `add_extension`, `add_implicit_extension`, `add_dependent_extension` and `add_replacer`. Their plural forms accept `(String, Arc<callback>)` entries. These changes invalidate cached validation results and require revalidation.
 
-The default factory policy is `excludeUnvalidatedArrayKeys()`: when a parent has an unparameterized `array` or `list` rule and nested rules, validated output contains only the validated child keys. `includeUnvalidatedArrayKeys()` includes all parent keys for subsequently created validators; `excludeUnvalidatedArrayKeys()` restores the default. `array:name,email` already restricts allowed keys and does not use this pruning policy. The public `excludeUnvalidatedArrayKeys` boolean can be changed on one validator; subsequent `validated()` and `safe()` calls use that policy immediately.
+The default factory policy is `exclude_unvalidated_array_keys()`: when a parent has an unparameterized `array` or `list` rule and nested rules, validated output contains only the validated child keys. `include_unvalidated_array_keys()` includes all parent keys for subsequently created validators; `exclude_unvalidated_array_keys()` restores the default. `array:name,email` already restricts allowed keys and does not use this pruning policy. The public `exclude_unvalidated_array_keys` boolean can be changed on one validator; subsequent `validated()` and `safe()` calls use that policy immediately.

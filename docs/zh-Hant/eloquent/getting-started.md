@@ -211,7 +211,7 @@ pub async fn count_visit_quietly<M: Model>(model: &mut M) -> DatabaseResult<u64>
 
 ## 刪除模型
 
-使用 `softDeletes("deleted_at")` 啟用軟刪除。模型查詢預設排除軟刪除記錄，可用 `withTrashed` 或 `onlyTrashed` 查詢這些記錄，用 `restore` 清除刪除時間，用 `forceDelete` 永久刪除。
+使用 `softDeletes("deleted_at")` 啟用軟刪除。模型查詢預設排除軟刪除記錄，可用 `with_trashed` 或 `only_trashed` 查詢這些記錄，用 `restore` 清除刪除時間，用 `forceDelete` 永久刪除。
 
 ## 複製模型 {#replicating-models}
 
@@ -243,7 +243,7 @@ async fn copy_without_secret<M: Model>(source: &M) -> DatabaseResult<M> {
 
 `withGlobalScope(name, scope)` 為目前查詢註冊或替換作用域，接收 `Scope<M>` 實作或回傳 `DatabaseResult<()>` 的 `Send + Sync + 'static` 閉包。作用域的 `extend` 鉤子在註冊時執行，`apply` 在套用作用域時執行。`withoutGlobalScopes()` 移除目前已註冊的作用域，之後重新註冊的仍會生效；`withoutGlobalScopesExcept(&["tenant"])` 僅保留指定名稱。`removedScopes()` 保留移除呼叫的順序和重複名稱。註冊表屬於目前查詢，不會改變其他查詢或模型型別。
 
-軟刪除使用相同註冊表。移除其他作用域時需要保留軟刪除篩選，可匯入 `eloquent::SoftDeletingScope` 並將 `std::any::type_name::<SoftDeletingScope>()` 加入保留名單。`onlyTrashed()` 或 `withoutTrashed()` 明確加入的條件不會因移除全部已註冊作用域而消失。
+軟刪除使用相同註冊表。移除其他作用域時需要保留軟刪除篩選，可匯入 `eloquent::SoftDeletingScope` 並將 `std::any::type_name::<SoftDeletingScope>()` 加入保留名單。`only_trashed()` 或 `without_trashed()` 明確加入的條件不會因移除全部已註冊作用域而消失。
 
 `applyScopes()` 消費模型查詢構造器並回傳已套用作用域的構造器，重複呼叫會再次套用目前註冊項。`getQuery()` 消費模型查詢構造器並回傳目前底層查詢，不自動套用尚未執行的作用域；需要這些約束時呼叫 `applyScopes()?.getQuery()`。`setQuery(query)` 替換底層查詢及其舊條件，保留模型作用域與預載入設定。`getEagerLoads()` 借用型別化的 `EagerLoads<M>`，可用 `names()` 讀取關係名稱；`setEagerLoads(loads)` 替換設定，也可設為空。覆寫 `Model::newEloquentBuilder(query)` 並用 `Builder::fromQuery(query)` 構造，可自訂公開模型查詢使用的構造器。工廠回傳框架的型別化 Builder，額外業務方法使用 Rust trait 或包裝型別擴充，不使用執行期類名。
 

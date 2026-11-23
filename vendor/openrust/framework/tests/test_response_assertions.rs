@@ -41,7 +41,7 @@ fn app() -> TestApp {
         builder.with_config(|_,_|Ok([
             ("app".into(),serde_json::json!({"env":"testing","debug":true,"key":"12345678901234567890123456789012","cipher":"AES-256-CBC"})),
             ("session".into(),serde_json::json!({"driver":"array","cookie":"assertion-session","lifetime":120}))
-        ].into())).with_middleware(|middleware| { middleware.preventRequestForgery(["fixture"], false, false); }).with_routing(Routing::default().web(|| {
+        ].into())).with_middleware(|middleware| { middleware.prevent_request_forgery(["fixture"], false, false); }).with_routing(Routing::default().web(|| {
             Route::post("/fixture",
                 fixture_response,
             )?;
@@ -66,30 +66,30 @@ fn fails(response: &TestResponse, assertion: impl FnOnce(&TestResponse)) {
 async fn named_status_assertions_accept_only_their_exact_status() {
     type Assertion = fn(&TestResponse) -> &TestResponse;
     let assertions: &[(u16, Assertion)] = &[
-        (200, TestResponse::assertOk),
-        (201, TestResponse::assertCreated),
-        (202, TestResponse::assertAccepted),
-        (301, TestResponse::assertMovedPermanently),
-        (302, TestResponse::assertFound),
-        (304, TestResponse::assertNotModified),
-        (307, TestResponse::assertTemporaryRedirect),
-        (308, TestResponse::assertPermanentRedirect),
-        (400, TestResponse::assertBadRequest),
-        (401, TestResponse::assertUnauthorized),
-        (402, TestResponse::assertPaymentRequired),
-        (403, TestResponse::assertForbidden),
-        (404, TestResponse::assertNotFound),
-        (405, TestResponse::assertMethodNotAllowed),
-        (406, TestResponse::assertNotAcceptable),
-        (408, TestResponse::assertRequestTimeout),
-        (409, TestResponse::assertConflict),
-        (410, TestResponse::assertGone),
-        (415, TestResponse::assertUnsupportedMediaType),
-        (422, TestResponse::assertUnprocessable),
-        (424, TestResponse::assertFailedDependency),
-        (429, TestResponse::assertTooManyRequests),
-        (500, TestResponse::assertInternalServerError),
-        (503, TestResponse::assertServiceUnavailable),
+        (200, TestResponse::assert_ok),
+        (201, TestResponse::assert_created),
+        (202, TestResponse::assert_accepted),
+        (301, TestResponse::assert_moved_permanently),
+        (302, TestResponse::assert_found),
+        (304, TestResponse::assert_not_modified),
+        (307, TestResponse::assert_temporary_redirect),
+        (308, TestResponse::assert_permanent_redirect),
+        (400, TestResponse::assert_bad_request),
+        (401, TestResponse::assert_unauthorized),
+        (402, TestResponse::assert_payment_required),
+        (403, TestResponse::assert_forbidden),
+        (404, TestResponse::assert_not_found),
+        (405, TestResponse::assert_method_not_allowed),
+        (406, TestResponse::assert_not_acceptable),
+        (408, TestResponse::assert_request_timeout),
+        (409, TestResponse::assert_conflict),
+        (410, TestResponse::assert_gone),
+        (415, TestResponse::assert_unsupported_media_type),
+        (422, TestResponse::assert_unprocessable),
+        (424, TestResponse::assert_failed_dependency),
+        (429, TestResponse::assert_too_many_requests),
+        (500, TestResponse::assert_internal_server_error),
+        (503, TestResponse::assert_service_unavailable),
     ];
     let mut app = app();
     for (status, assertion) in assertions {
@@ -111,9 +111,9 @@ async fn status_groups_preserve_boundaries_and_header_assertions_reject_missing_
     let mut app = app();
     for status in [199, 200, 299, 300, 399, 400, 499, 500, 599, 600] {
         let response = app.get(&format!("/{status}")).await.unwrap();
-        let success = catch_unwind(AssertUnwindSafe(|| response.assertSuccessful())).is_ok();
-        let client = catch_unwind(AssertUnwindSafe(|| response.assertClientError())).is_ok();
-        let server = catch_unwind(AssertUnwindSafe(|| response.assertServerError())).is_ok();
+        let success = catch_unwind(AssertUnwindSafe(|| response.assert_successful())).is_ok();
+        let client = catch_unwind(AssertUnwindSafe(|| response.assert_client_error())).is_ok();
+        let server = catch_unwind(AssertUnwindSafe(|| response.assert_server_error())).is_ok();
         assert_eq!(
             (success, client, server),
             (
@@ -125,25 +125,25 @@ async fn status_groups_preserve_boundaries_and_header_assertions_reject_missing_
     }
     let response = app.get("/200").await.unwrap();
     response
-        .assertHeader("X-Probe", "present")
-        .assertHeader("X-Probe", "PRESENT")
-        .assertHeaderContains("X-Probe", "rese")
-        .assertHeader("x-probe", &String::from("present"))
-        .assertHeader("x-probe", None)
-        .assertHeaderMissing("x-missing");
+        .assert_header("X-Probe", "present")
+        .assert_header("X-Probe", "PRESENT")
+        .assert_header_contains("X-Probe", "rese")
+        .assert_header("x-probe", &String::from("present"))
+        .assert_header("x-probe", None)
+        .assert_header_missing("x-missing");
     fails(&response, |response| {
-        response.assertHeader("missing", None);
+        response.assert_header("missing", None);
     });
     fails(&response, |response| {
-        response.assertHeader("x-probe", "wrong");
+        response.assert_header("x-probe", "wrong");
     });
     for value in ["", "PRESENT", "absent"] {
         fails(&response, |response| {
-            response.assertHeaderContains("x-probe", value);
+            response.assert_header_contains("x-probe", value);
         });
     }
     fails(&response, |response| {
-        response.assertHeaderMissing("X-Probe");
+        response.assert_header_missing("X-Probe");
     });
 }
 
@@ -153,29 +153,29 @@ async fn no_content_and_precognition_require_status_body_and_success_header() {
     app.get("/204")
         .await
         .unwrap()
-        .assertNoContent(None)
-        .assertSuccessfulPrecognition();
+        .assert_no_content(None)
+        .assert_successful_precognition();
     app.get("/200/0")
         .await
         .unwrap()
-        .assertNoContent(Some(StatusCode::OK));
+        .assert_no_content(Some(StatusCode::OK));
     for path in ["/204/no-header", "/204/wrong-header"] {
         let response = app.get(path).await.unwrap();
-        response.assertNoContent(None);
+        response.assert_no_content(None);
         fails(&response, |response| {
-            response.assertSuccessfulPrecognition();
+            response.assert_successful_precognition();
         });
     }
     let text = app.get("/200/text").await.unwrap();
     fails(&text, |response| {
-        response.assertNoContent(Some(StatusCode::OK));
+        response.assert_no_content(Some(StatusCode::OK));
     });
     let wrong_status = app.get("/200").await.unwrap();
     fails(&wrong_status, |response| {
-        response.assertNoContent(None);
+        response.assert_no_content(None);
     });
     fails(&wrong_status, |response| {
-        response.assertSuccessfulPrecognition();
+        response.assert_successful_precognition();
     });
 }
 
@@ -240,30 +240,30 @@ async fn body_and_text_assertions_follow_real_fixed_test_response_and_phpunit() 
             )
             .await
             .unwrap();
-        response.assertStatus(StatusCode::OK).assertContent(body);
+        response.assert_status(StatusCode::OK).assert_content(body);
         let method = case["method"].as_str().unwrap();
         let arguments = &case["arguments"];
         let passed = catch_unwind(AssertUnwindSafe(|| match method {
             "assertSee" => {
-                response.assertSee(
+                response.assert_see(
                     arguments[0].as_str().unwrap(),
                     arguments[1].as_bool().unwrap(),
                 );
             }
             "assertDontSee" => {
-                response.assertDontSee(
+                response.assert_dont_see(
                     arguments[0].as_str().unwrap(),
                     arguments[1].as_bool().unwrap(),
                 );
             }
             "assertSeeText" => {
-                response.assertSeeText(
+                response.assert_see_text(
                     arguments[0].as_str().unwrap(),
                     arguments[1].as_bool().unwrap(),
                 );
             }
             "assertDontSeeText" => {
-                response.assertDontSeeText(
+                response.assert_dont_see_text(
                     arguments[0].as_str().unwrap(),
                     arguments[1].as_bool().unwrap(),
                 );
@@ -277,13 +277,13 @@ async fn body_and_text_assertions_follow_real_fixed_test_response_and_phpunit() 
                     .collect();
                 match method {
                     "assertSeeInOrder" => {
-                        response.assertSeeInOrder(&values, arguments[1].as_bool().unwrap());
+                        response.assert_see_in_order(&values, arguments[1].as_bool().unwrap());
                     }
                     "assertSeeHtmlInOrder" => {
-                        response.assertSeeHtmlInOrder(&values);
+                        response.assert_see_html_in_order(&values);
                     }
                     "assertSeeTextInOrder" => {
-                        response.assertSeeTextInOrder(&values, arguments[1].as_bool().unwrap());
+                        response.assert_see_text_in_order(&values, arguments[1].as_bool().unwrap());
                     }
                     _ => panic!("未知参考方法 {method}"),
                 }
@@ -337,61 +337,61 @@ async fn json_assertions_follow_real_fixed_test_response_and_phpunit() {
             )
             .await
             .unwrap();
-        response.assertOk().assertContent(&body);
+        response.assert_ok().assert_content(&body);
         let arguments = &case["arguments"];
         let optional_key = || arguments.get(0).and_then(serde_json::Value::as_str);
         let passed = catch_unwind(AssertUnwindSafe(|| {
             match case["method"].as_str().unwrap() {
                 "assertJson" => {
-                    response.assertJson(&arguments[0], arguments[1].as_bool().unwrap());
+                    response.assert_json(&arguments[0], arguments[1].as_bool().unwrap());
                 }
                 "assertJsonPath" => {
-                    response.assertJsonPath(arguments[0].as_str().unwrap(), &arguments[1]);
+                    response.assert_json_path(arguments[0].as_str().unwrap(), &arguments[1]);
                 }
                 "assertJsonPathCanonicalizing" => {
-                    response.assertJsonPathCanonicalizing(
+                    response.assert_json_path_canonicalizing(
                         arguments[0].as_str().unwrap(),
                         &arguments[1],
                     );
                 }
                 "assertJsonFragment" => {
-                    response.assertJsonFragment(&arguments[0]);
+                    response.assert_json_fragment(&arguments[0]);
                 }
                 "assertJsonMissing" => {
-                    response.assertJsonMissing(&arguments[0], arguments[1].as_bool().unwrap());
+                    response.assert_json_missing(&arguments[0], arguments[1].as_bool().unwrap());
                 }
                 "assertJsonMissingExact" => {
-                    response.assertJsonMissingExact(&arguments[0]);
+                    response.assert_json_missing_exact(&arguments[0]);
                 }
                 "assertJsonMissingPath" => {
-                    response.assertJsonMissingPath(arguments[0].as_str().unwrap());
+                    response.assert_json_missing_path(arguments[0].as_str().unwrap());
                 }
                 "assertJsonCount" => {
-                    response.assertJsonCount(
+                    response.assert_json_count(
                         arguments[0].as_u64().unwrap().try_into().unwrap(),
                         arguments.get(1).and_then(serde_json::Value::as_str),
                     );
                 }
                 "assertJsonStructure" => {
-                    response.assertJsonStructure(&arguments[0]);
+                    response.assert_json_structure(&arguments[0]);
                 }
                 "assertExactJsonStructure" => {
-                    response.assertExactJsonStructure(&arguments[0]);
+                    response.assert_exact_json_structure(&arguments[0]);
                 }
                 "assertSimilarJson" => {
-                    response.assertSimilarJson(&arguments[0]);
+                    response.assert_similar_json(&arguments[0]);
                 }
                 "assertExactJson" => {
-                    response.assertExactJson(&arguments[0]);
+                    response.assert_exact_json(&arguments[0]);
                 }
                 "assertJsonPaths" => {
-                    response.assertJsonPaths(arguments[0].as_object().unwrap());
+                    response.assert_json_paths(arguments[0].as_object().unwrap());
                 }
                 "assertJsonPathsCanonicalizing" => {
-                    response.assertJsonPathsCanonicalizing(arguments[0].as_object().unwrap());
+                    response.assert_json_paths_canonicalizing(arguments[0].as_object().unwrap());
                 }
                 "assertJsonFragments" => {
-                    response.assertJsonFragments(arguments[0].as_array().unwrap());
+                    response.assert_json_fragments(arguments[0].as_array().unwrap());
                 }
                 "assertJsonMissingPaths" => {
                     let paths: Vec<_> = arguments[0]
@@ -400,13 +400,13 @@ async fn json_assertions_follow_real_fixed_test_response_and_phpunit() {
                         .iter()
                         .map(|path| path.as_str().unwrap())
                         .collect();
-                    response.assertJsonMissingPaths(&paths);
+                    response.assert_json_missing_paths(&paths);
                 }
                 "assertJsonIsArray" => {
-                    response.assertJsonIsArray(optional_key());
+                    response.assert_json_is_array(optional_key());
                 }
                 "assertJsonIsObject" => {
-                    response.assertJsonIsObject(optional_key());
+                    response.assert_json_is_object(optional_key());
                 }
                 method => panic!("未知 JSON 参考方法 {method}"),
             }
@@ -442,8 +442,8 @@ async fn session_and_validation_assertions_follow_real_fixed_store_and_phpunit()
             .await
             .unwrap();
         response
-            .assertOk()
-            .assertContent(case["body"].as_str().unwrap());
+            .assert_ok()
+            .assert_content(case["body"].as_str().unwrap());
         let args = case["arguments"].as_array().unwrap();
         let bag = |index: usize| args.get(index).and_then(Value::as_str).unwrap_or("default");
         let response_key =
@@ -463,52 +463,55 @@ async fn session_and_validation_assertions_follow_real_fixed_store_and_phpunit()
         let passed = catch_unwind(AssertUnwindSafe(|| {
             match case["method"].as_str().unwrap() {
                 "assertSessionHas" => {
-                    response.assertSessionHas(args[0].as_str().unwrap(), args.get(1));
+                    response.assert_session_has(args[0].as_str().unwrap(), args.get(1));
                 }
                 "assertSessionMissing" => {
-                    response.assertSessionMissing(args[0].as_str().unwrap(), args.get(1));
+                    response.assert_session_missing(args[0].as_str().unwrap(), args.get(1));
                 }
                 "assertSessionHasInput" => {
-                    response.assertSessionHasInput(args[0].as_str().unwrap(), args.get(1));
+                    response.assert_session_has_input(args[0].as_str().unwrap(), args.get(1));
                 }
                 "assertSessionMissingInput" => {
-                    response.assertSessionMissingInput(args[0].as_str().unwrap());
+                    response.assert_session_missing_input(args[0].as_str().unwrap());
                 }
                 "assertSessionHasAll" => {
-                    response.assertSessionHasAll(&args[0]);
+                    response.assert_session_has_all(&args[0]);
                 }
                 "assertSessionHasNoErrors" => {
-                    response.assertSessionHasNoErrors();
+                    response.assert_session_has_no_errors();
                 }
                 "assertSessionHasErrors" => {
-                    response.assertSessionHasErrors(&args[0], args[1].as_str(), bag(2));
+                    response.assert_session_has_errors(&args[0], args[1].as_str(), bag(2));
                 }
                 "assertSessionDoesntHaveErrors" => {
-                    response.assertSessionDoesntHaveErrors(&args[0], args[1].as_str(), bag(2));
+                    response.assert_session_doesnt_have_errors(&args[0], args[1].as_str(), bag(2));
                 }
                 "assertValid" => {
                     let keys = keys(0);
-                    response.assertValid(keys.as_deref(), bag(1), response_key(2));
+                    response.assert_valid(keys.as_deref(), bag(1), response_key(2));
                 }
                 "assertInvalid" => {
-                    response.assertInvalid(args.first(), bag(1), response_key(2));
+                    response.assert_invalid(args.first(), bag(1), response_key(2));
                 }
                 "assertOnlyInvalid" => {
-                    response.assertOnlyInvalid(args.first(), bag(1), response_key(2));
+                    response.assert_only_invalid(args.first(), bag(1), response_key(2));
                 }
                 "assertJsonValidationErrors" => {
-                    response.assertJsonValidationErrorsAt(&args[0], response_key(1));
+                    response.assert_json_validation_errors_at(&args[0], response_key(1));
                 }
                 "assertOnlyJsonValidationErrors" => {
-                    response.assertOnlyJsonValidationErrors(&args[0], response_key(1));
+                    response.assert_only_json_validation_errors(&args[0], response_key(1));
                 }
                 "assertJsonMissingValidationErrors" => {
                     let keys = keys(0);
-                    response.assertJsonMissingValidationErrors(keys.as_deref(), response_key(1));
+                    response
+                        .assert_json_missing_validation_errors(keys.as_deref(), response_key(1));
                 }
                 "assertJsonValidationErrorFor" => {
-                    response
-                        .assertJsonValidationErrorFor(args[0].as_str().unwrap(), response_key(1));
+                    response.assert_json_validation_error_for(
+                        args[0].as_str().unwrap(),
+                        response_key(1),
+                    );
                 }
                 method => panic!("未知 Session 参考方法 {method}"),
             }
@@ -527,7 +530,7 @@ fn flash_session(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpE
     Box::pin(async move {
         request
             .session_mut()?
-            .flashInput(serde_json::json!({"email":"ada@example.test","nullable":null}))?;
+            .flash_input(serde_json::json!({"email":"ada@example.test","nullable":null}))?;
         let mut errors = openrust::support::ViewErrorBag::new();
         let mut bag = openrust::support::MessageBag::default();
         bag.add("email", "Invalid email.");
@@ -542,7 +545,7 @@ fn read_old_input(request: &mut Request) -> HttpFuture<'_, Result<Response, Http
     Box::pin(async move {
         Response::json(
             StatusCode::OK,
-            serde_json::json!({"email":request.session()?.getOldInput(Some("email"))}),
+            serde_json::json!({"email":request.session()?.get_old_input(Some("email"))}),
         )
     })
 }
@@ -551,17 +554,17 @@ async fn assertions_do_not_consume_flashed_input_and_named_errors_across_real_se
     let mut app = app();
     let first = app.get("/flash").await.unwrap();
     first
-        .assertOk()
-        .assertSessionHasInput("email", Some(&serde_json::json!("ada@example.test")))
-        .assertSessionHasInput("email", None)
-        .assertSessionMissingInput("nullable")
-        .assertSessionHasErrorsIn("login", &serde_json::json!(["email"]), None)
-        .assertInvalid(
+        .assert_ok()
+        .assert_session_has_input("email", Some(&serde_json::json!("ada@example.test")))
+        .assert_session_has_input("email", None)
+        .assert_session_missing_input("nullable")
+        .assert_session_has_errors_in("login", &serde_json::json!(["email"]), None)
+        .assert_invalid(
             Some(&serde_json::json!({"email":"Invalid"})),
             "login",
             "errors",
         )
-        .assertValid(None, "default", "errors");
+        .assert_valid(None, "default", "errors");
     let cookie = first
         .headers()
         .get_all("set-cookie")
@@ -581,15 +584,15 @@ async fn assertions_do_not_consume_flashed_input_and_named_errors_across_real_se
     app.call(request())
         .await
         .unwrap()
-        .assertOk()
-        .assertJsonPath("email", &serde_json::json!("ada@example.test"))
-        .assertSessionMissingInput("email")
-        .assertSessionHasNoErrors();
+        .assert_ok()
+        .assert_json_path("email", &serde_json::json!("ada@example.test"))
+        .assert_session_missing_input("email")
+        .assert_session_has_no_errors();
     app.call(request())
         .await
         .unwrap()
-        .assertJsonPath("email", &serde_json::Value::Null)
-        .assertSessionMissingInput("email");
+        .assert_json_path("email", &serde_json::Value::Null)
+        .assert_session_missing_input("email");
 }
 
 fn redirect_errors(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
@@ -622,16 +625,20 @@ async fn redirect_back_with_errors_uses_real_session_and_named_bags() {
             )
             .await
             .unwrap();
-        response.assertRedirectBackWithErrors(&serde_json::json!({"email":"邮箱无效"}), None, bag);
+        response.assert_redirect_back_with_errors(
+            &serde_json::json!({"email":"邮箱无效"}),
+            None,
+            bag,
+        );
         fails(&response, |r| {
-            r.assertRedirectBackWithErrors(&serde_json::json!(["missing"]), None, bag);
+            r.assert_redirect_back_with_errors(&serde_json::json!(["missing"]), None, bag);
         });
         fails(&response, |r| {
-            r.assertRedirectBackWithErrors(&serde_json::json!(["email"]), None, "other");
+            r.assert_redirect_back_with_errors(&serde_json::json!(["email"]), None, "other");
         });
         fails(&response, |r| {
-            r.assertRedirectBackWithoutErrors();
+            r.assert_redirect_back_without_errors();
         });
-        response.assertSessionHasErrors(&serde_json::json!(["email"]), None, bag);
+        response.assert_session_has_errors(&serde_json::json!(["email"]), None, bag);
     }
 }

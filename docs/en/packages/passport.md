@@ -95,9 +95,9 @@ pub async fn create_client(
 }
 ```
 
-The arguments retain order. Rust makes default arguments explicit: `true` creates a confidential client, `owner` is optional, and the final `false` disables the additional device grant. A `ClientOwner` is made with `ClientOwner::forUser(&user)` from a compiled `Model + Authenticatable`; it uses the model's primary key and morph class, rather than its possibly different authentication identifier. Public clients pass `false` for confidentiality.
+The arguments retain order. Rust makes default arguments explicit: `true` creates a confidential client, `owner` is optional, and the final `false` disables the additional device grant. A `ClientOwner` is made with `ClientOwner::for_user(&user)` from a compiled `Model + Authenticatable`; it uses the model's primary key and morph class, rather than its possibly different authentication identifier. Public clients pass `false` for confidentiality.
 
-`createPersonalAccessGrantClient`, `createPasswordGrantClient`, `createClientCredentialsGrantClient`, `createImplicitGrantClient` and `createDeviceAuthorizationGrantClient` select their corresponding grants. Creating a row does not enable the optional password or implicit protocols; device routes follow the application device switch. `update` changes the name and redirects; `regenerateSecret` creates a new secret. Both save through Eloquent and return its boolean result. `findForUser` and `forUser` exclude revoked clients; the latter sorts by name. `personalAccessClient(provider)` selects the latest matching active personal client, including a null provider only when it matches `auth.guards.api.provider`, and returns an error when none exists.
+`createPersonalAccessGrantClient`, `createPasswordGrantClient`, `createClientCredentialsGrantClient`, `createImplicitGrantClient` and `createDeviceAuthorizationGrantClient` select their corresponding grants. Creating a row does not enable the optional password or implicit protocols; device routes follow the application device switch. `update` changes the name and redirects; `regenerateSecret` creates a new secret. Both save through Eloquent and return its boolean result. `findForUser` and `for_user` exclude revoked clients; the latter sorts by name. `personalAccessClient(provider)` selects the latest matching active personal client, including a null provider only when it matches `auth.guards.api.provider`, and returns an error when none exists.
 
 Confidential secrets use the application's existing asynchronous Eloquent hash service. The creating or rotating `Client` temporarily retains its setter input in `plainSecret`; fresh database reads do not. Default JSON output hides `secret` and does not append the plaintext. Copy a newly generated plaintext only when delivering it to its owner, and never log it. An `Arc<tokio::sync::Mutex<M>>` returned by `record.model::<M>()` refers to the actual selected model; `sameInstance` checks shared object identity, not whether two model rows have the same key.
 
@@ -135,7 +135,7 @@ Rust binds relation result types at compile time. Default helpers return the def
 
 ## Scope JSON
 
-`Scope::toJson()` retains the `id`, `description` field order and PHP’s default Unicode and slash escaping. Use `toJsonWithOptions(ScopeJsonOptions)` for `JSON_HEX_TAG`, `JSON_HEX_AMP`, `JSON_HEX_APOS`, `JSON_HEX_QUOT`, `JSON_NUMERIC_CHECK`, `JSON_UNESCAPED_SLASHES`, `JSON_PRETTY_PRINT`, `JSON_UNESCAPED_UNICODE`, `JSON_PRESERVE_ZERO_FRACTION` and `JSON_UNESCAPED_LINE_TERMINATORS`. Combine constants with `|`; `fromBits` accepts PHP option bits. Flags for invalid UTF-8 have no effect on Rust’s valid UTF-8 strings.
+`Scope::to_json()` retains the `id`, `description` field order and PHP’s default Unicode and slash escaping. Use `toJsonWithOptions(ScopeJsonOptions)` for `JSON_HEX_TAG`, `JSON_HEX_AMP`, `JSON_HEX_APOS`, `JSON_HEX_QUOT`, `JSON_NUMERIC_CHECK`, `JSON_UNESCAPED_SLASHES`, `JSON_PRETTY_PRINT`, `JSON_UNESCAPED_UNICODE`, `JSON_PRESERVE_ZERO_FRACTION` and `JSON_UNESCAPED_LINE_TERMINATORS`. Combine constants with `|`; `fromBits` accepts PHP option bits. Flags for invalid UTF-8 have no effect on Rust’s valid UTF-8 strings.
 
 ```rust
 use openrust_passport::{Scope, ScopeJsonOptions};
@@ -163,7 +163,7 @@ pub fn consent(request: &mut Request, params: AuthorizationViewParameters)
         Response::json(StatusCode::OK, serde_json::json!({
             "auth_token": params.auth_token,
             "csrf": request.session()?.token(),
-            "user": params.user.getAuthIdentifier(),
+            "user": params.user.get_auth_identifier(),
             "scopes": params.scopes,
         }))
     })
@@ -248,9 +248,9 @@ Protect machine routes with `EnsureClientIsResourceOwner::shared(["read"])`. Thi
 
 Create a personal client with `artisan passport:client --personal --provider=users`. Within the application context, call `PersonalAccessTokenFactory::make(user_id, "Automation", &["read".into()], "users").await?`. The dedicated personal grant is unavailable at the public token endpoint. Client selection follows the provider; a client with no provider is a fallback only for the configured API provider.
 
-A compiled user model may implement `HasApiTokens`, explicitly returning its configured provider from `getProviderName`, then call `user.createToken("Automation", &["read".into()]).await?`. Rust requires this declaration instead of inferring a PHP model class name. Tokens preserve their user, name and scopes and have no refresh token. `personalAccessTokensExpireIn` defaults to one calendar year independently of other grants.
+A compiled user model may implement `HasApiTokens`, explicitly returning its configured provider from `getProviderName`, then call `user.create_token("Automation", &["read".into()]).await?`. Rust requires this declaration instead of inferring a PHP model class name. Tokens preserve their user, name and scopes and have no refresh token. `personalAccessTokensExpireIn` defaults to one calendar year independently of other grants.
 
-`PersonalAccessTokenResult` exposes `accessTokenId`, `accessToken`, `tokenType` and `expiresIn` through serialization, `toArray` and `toJson`. `getToken().await?` loads and caches the actual default `Token` as `Option<PersonalToken<Token>>`; this is an `Arc<tokio::sync::Mutex<Token>>`, so repeated access shares the same model. For a compiled custom token model use `getTokenFor::<CustomToken>()`. Lock the model to revoke it with the `TokenModel` trait. Debug output redacts the bearer token.
+`PersonalAccessTokenResult` exposes `accessTokenId`, `accessToken`, `tokenType` and `expiresIn` through serialization, `to_array` and `to_json`. `getToken().await?` loads and caches the actual default `Token` as `Option<PersonalToken<Token>>`; this is an `Arc<tokio::sync::Mutex<Token>>`, so repeated access shares the same model. For a compiled custom token model use `getTokenFor::<CustomToken>()`. Lock the model to revoke it with the `TokenModel` trait. Debug output redacts the bearer token.
 
 ## Token scopes {#token-scopes}
 
@@ -290,7 +290,7 @@ Password and Implicit grants are disabled by default. Creating their client reco
 
 Create a client with `artisan passport:client --password --provider=users` (`--public` creates a public client). Send `grant_type=password`, `client_id`, `username`, `password` and optional `scope` to `POST /oauth/token`; confidential clients also provide `client_secret` or HTTP Basic credentials. Success returns a signed access token and, when the client supports it, a refresh token. Ordinary access/refresh lifetimes apply. Incorrect user credentials return 400 `invalid_grant`, `The user credentials were incorrect.`; missing fields, invalid clients and unknown scopes retain OAuth error responses.
 
-`bridge::UserRepository::getUserEntityByUserCredentials` selects the client's provider, falling back to `auth.guards.api.provider` for a null/empty provider. The default compiled Eloquent provider queries `email` and verifies the real password hash. A custom framework `UserProvider` supplies the native equivalents of model `findForPassport` and `validateForPassportPasswordGrant` through `retrieveByCredentials` and `validateCredentials`. This path neither starts a Session nor rehashes passwords.
+`bridge::UserRepository::getUserEntityByUserCredentials` selects the client's provider, falling back to `auth.guards.api.provider` for a null/empty provider. The default compiled Eloquent provider queries `email` and verifies the real password hash. A custom framework `UserProvider` supplies the native equivalents of model `findForPassport` and `validateForPassportPasswordGrant` through `retrieve_by_credentials` and `validate_credentials`. This path neither starts a Session nor rehashes passwords.
 
 For a combined model-level `findAndValidateForPassport` hook, register `passport.findAndValidateForPassportUsing("users", resolver)`. The native `bridge::PasswordGrantResolver` is a compiled function taking borrowed username, password and `ClientRecord`, returning `AuthFuture<AuthResult<Option<AuthIdentifier>>>`. It takes precedence for that provider; it must perform the application's actual lookup and validation. This explicit registration replaces PHP runtime method discovery. Exceptions fail with a redacted 500 response; they do not become invalid passwords.
 
@@ -310,7 +310,7 @@ Client, access and refresh models implement `ClientModel`, `TokenModel` and `Ref
 
 Use typed relationships for custom targets: `client.authCodesFor::<A>()`, `client.tokensFor::<T>()`, `code.clientFor::<C>()`, `token.clientFor::<C>()`, `token.refreshTokenFor::<R>()` and `refresh.accessTokenFor::<T>()`. The default relationship helpers keep their concrete default return types. PAT results use `getTokenFor::<T>()`; factories select a type with `ClientFactory::<C>::new()`.
 
-An explicit model connection takes precedence over `passport.connection`, then the protocol’s parent connection. OAuth writes in one issuance/consumption transaction must share that actual connection; crossing connection identities returns an error and rolls back, even when aliases point to the same database. Use `PASSPORT_CONNECTION` consistently for the OAuth tables. A user provider may independently query a different user store. Register compiled user models through `AuthManager::registerModel` or a custom `UserProvider`, configure the guard’s provider, and preserve the distinction between a model primary key and its authentication identifier. Password provider hooks are described above.
+An explicit model connection takes precedence over `passport.connection`, then the protocol’s parent connection. OAuth writes in one issuance/consumption transaction must share that actual connection; crossing connection identities returns an error and rolls back, even when aliases point to the same database. Use `PASSPORT_CONNECTION` consistently for the OAuth tables. A user provider may independently query a different user store. Register compiled user models through `AuthManager::register_model` or a custom `UserProvider`, configure the guard’s provider, and preserve the distinction between a model primary key and its authentication identifier. Password provider hooks are described above.
 
 ## Overriding routes {#overriding-routes}
 
@@ -324,7 +324,7 @@ pub fn oauth_routes() -> Result<(), RoutingError> {
         router.post("/token",
             openrust_passport::http::controllers::AccessTokenController::issueToken)?
             .name("passport.token")
-            .withoutMiddleware("web")
+            .without_middleware("web")
             .middleware_name("throttle");
         Ok(())
     })
@@ -338,10 +338,10 @@ This stateless token route accepts independent HTTP clients and returns the ordi
 Enable both `passport` and `sanctum` default Cargo features. Running the two API installers without `--force` preserves existing API routes; add the second guard’s resource routes explicitly and run its published migration. Configure a Passport guard such as `api` with its user provider and use `auth:api`; Sanctum routes use `auth:sanctum`. The default user may implement both packages’ `HasApiTokens`, using fully qualified calls to distinguish the methods:
 
 ```rust
-let oauth = openrust_passport::HasApiTokens::createToken(&user, "OAuth", &[]).await?;
-let personal = openrust::sanctum::HasApiTokens::createToken(
+let oauth = openrust_passport::HasApiTokens::create_token(&user, "OAuth", &[]).await?;
+let personal = openrust::sanctum::HasApiTokens::create_token(
     &user, &sanctum, &database, "Sanctum", &["read"], None,
 ).await?;
 ```
 
-Register the user for Sanctum with `AuthManager::registerSanctumModel` as well as the normal user provider. OAuth JWTs and Sanctum personal Bearer tokens use separate stores and guards, and are not interchangeable. Revoking one credential leaves the other package’s credential valid. Configure browser Session authentication separately. The request-local `actingAs` and `actingAsClient` helpers in the Testing section remain explicit substitutes within the selected request/guard; they do not install clients or create durable database tokens.
+Register the user for Sanctum with `AuthManager::register_sanctum_model` as well as the normal user provider. OAuth JWTs and Sanctum personal Bearer tokens use separate stores and guards, and are not interchangeable. Revoking one credential leaves the other package’s credential valid. Configure browser Session authentication separately. The request-local `actingAs` and `actingAsClient` helpers in the Testing section remain explicit substitutes within the selected request/guard; they do not install clients or create durable database tokens.

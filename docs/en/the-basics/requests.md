@@ -2,26 +2,26 @@
 
 ## Request Headers {#request-headers}
 
-Use `request.header("X-Trace")?` to read the first text value or `None` if the header is absent. Invalid names or non-UTF-8 values return HTTP 400 when the error is rendered by the kernel. Use `hasHeader` for presence, `headers()` for the complete header map and `bearerToken()?` to extract a bearer token from Authorization.
+Use `request.header("X-Trace")?` to read the first text value or `None` if the header is absent. Invalid names or non-UTF-8 values return HTTP 400 when the error is rendered by the kernel. Use `has_header` for presence, `headers()` for the complete header map and `bearer_token()?` to extract a bearer token from Authorization.
 
 ### Browser Language Preferences {#language-preferences}
 
-`request.getLanguages()` returns valid `Accept-Language` ranges in descending quality order, preserving input order for equal weights. Tags use BCP 47, such as `en-US` and `zh-Hant`; `*` remains a wildcard. Repeated header fields are combined, and repeated tags keep their highest valid weight. Invalid tags, malformed or duplicate quality parameters, and `q=0` entries are ignored. A quality must be between 0 and 1 with at most three decimal places. With no valid ranges, the list is empty.
+`request.get_languages()` returns valid `Accept-Language` ranges in descending quality order, preserving input order for equal weights. Tags use BCP 47, such as `en-US` and `zh-Hant`; `*` remains a wildcard. Repeated header fields are combined, and repeated tags keep their highest valid weight. Invalid tags, malformed or duplicate quality parameters, and `q=0` entries are ignored. A quality must be between 0 and 1 with at most three decimal places. With no valid ranges, the list is empty.
 
 ```rust,ignore
-let languages = request.getLanguages();
-let preferred = request.getPreferredLanguage(Some(&["en", "fr-FR"]))?;
+let languages = request.get_languages();
+let preferred = request.get_preferred_language(Some(&["en", "fr-FR"]))?;
 ```
 
-`getPreferredLanguage` checks each preference against ordered candidates, starting with the full tag, then language/script/region combinations and the base language. A wildcard or no match selects the first candidate. With `None` or an empty candidate list, it returns the first request range, or `None` when absent. Candidates use the same BCP 47 validation as other locale APIs; an invalid candidate returns a translation error, even if an earlier candidate matches. The returned value is an owned `Option<String>` inside a `Result`. This is a preference helper, not a 406 rejection mechanism: ignored `q=0` ranges do not form a persistent exclusion list, and the ordered fallback still applies.
+`get_preferred_language` checks each preference against ordered candidates, starting with the full tag, then language/script/region combinations and the base language. A wildcard or no match selects the first candidate. With `None` or an empty candidate list, it returns the first request range, or `None` when absent. Candidates use the same BCP 47 validation as other locale APIs; an invalid candidate returns a translation error, even if an earlier candidate matches. The returned value is an owned `Option<String>` inside a `Result`. This is a preference helper, not a 406 rejection mechanism: ignored `q=0` ranges do not form a persistent exclusion list, and the ordered fallback still applies.
 
 These methods always read standard `Accept-Language`, independently of `app.locale_header`, and do not change the application locale or infer Chinese script from region. Use `App::current_locale()?` for the actual language used by business code, translation and pages. The global `SetLocale` middleware separately chooses a language from the configured sources; changing its header does not change these Request methods. Applications may override or disable its candidates with `middleware.set_locale(...)`; see [Application language negotiation](../digging-deeper/localization.md#locale-header). Parsed standard ranges are cached per request; changing headers through `parts_mut()` invalidates that cache. Custom negotiation headers share the parser without using this standard-header cache.
 
 ## Request Path, Host and URL {#request-path-host-and-method}
 
-`path()` strips surrounding slashes. `decodedPath()` also percent-decodes the path. Use `segments()` or the one-based `segment(index)` to read its components. `is(pattern)` checks the decoded path, `routeIs(&["reports.*"])` checks the matched route name, and `isMethod("GET")` checks the effective HTTP method.
+`path()` strips surrounding slashes. `decoded_path()` also percent-decodes the path. Use `segments()` or the one-based `segment(index)` to read its components. `is(pattern)` checks the decoded path, `route_is(&["reports.*"])` checks the matched route name, and `is_method("GET")` checks the effective HTTP method.
 
-`host()?`, `httpHost()?` and `schemeAndHttpHost()?` use the effective connection and trusted proxy settings. The HTTP host includes a non-default port. `root()?` also includes the trusted proxy base path. `url()?` returns the current URL without a query string. `fullUrl()?` and `fullUrlIs(patterns)?` use a normalized query string. Use `fullUrlWithQuery(&serde_json::json!({"page": 2}))?` or `fullUrlWithoutQuery(&["page"])?` to build a URL from the request query data. These helpers return a new URL string. Signature verification uses the original request target.
+`host()?`, `http_host()?` and `scheme_and_http_host()?` use the effective connection and trusted proxy settings. The HTTP host includes a non-default port. `root()?` also includes the trusted proxy base path. `url()?` returns the current URL without a query string. `full_url()?` and `full_url_is(patterns)?` use a normalized query string. Use `full_url_with_query(&serde_json::json!({"page": 2}))?` or `full_url_without_query(&["page"])?` to build a URL from the request query data. These helpers return a new URL string. Signature verification uses the original request target.
 
 ## Retrieving Input
 
@@ -31,7 +31,7 @@ Use `request.all().await?` to retrieve ordinary input and uploaded files togethe
 
 When a regular input value and an upload share a key, the input value wins, including explicit null. Nested groups retain fields supplied on either side. The upload is still available through the file bag.
 
-Use `request.allOnly(&["items.1.photo", "name"]).await?` to select paths and retain missing fields as null. Use `request.keys().await?` to list input keys followed by file keys. A name supplied by both sources appears twice.
+Use `request.all_only(&["items.1.photo", "name"]).await?` to select paths and retain missing fields as null. Use `request.keys().await?` to list input keys followed by file keys. A name supplied by both sources appears twice.
 
 ### Retrieving an Input Value {#retrieving-an-input-value}
 
@@ -39,7 +39,7 @@ Use `request.query(Some("key"))` to read an exact top-level query key. Use `requ
 
 Use `request.post(None).await?` for the body parameter bag or `request.post(Some("name")).await?` for an exact top-level key. On a JSON request this reads the decoded JSON body. Query parameters and multipart file objects use their own bags. An explicit null remains in the full body bag, and a named lookup of that value returns `None`.
 
-Use `request.fluent(Some("user")).await?` to wrap a group of ordinary input as an independent `Fluent` bag. Pass `None` for all ordinary input, or use `fluentOr("user", default)` for a default attribute bag if the field is missing or null. A scalar cannot initialize the bag and returns HTTP 400. Use `fluentOnly(&["user.name", "document"]).await?` for an independent typed snapshot that retains uploads. Use `get` for paths and `value` for exact top-level keys.
+Use `request.fluent(Some("user")).await?` to wrap a group of ordinary input as an independent `Fluent` bag. Pass `None` for all ordinary input, or use `fluent_or("user", default)` for a default attribute bag if the field is missing or null. A scalar cannot initialize the bag and returns HTTP 400. Use `fluent_only(&["user.name", "document"]).await?` for an independent typed snapshot that retains uploads. Use `get` for paths and `value` for exact top-level keys.
 
 Use `scope("user")` for an independent nested bag. Scalar and file scopes use index `0`. Use `set("user.name", RequestValue::Value(serde_json::json!("Ada")))?` to edit a typed bag. Wildcard paths update existing children, and the original request keeps its input.
 
@@ -61,7 +61,7 @@ Implement `BackedEnum` with a `String` or `i64` backing. Use `request.r#enum::<S
 
 Use `request.date("when", None, None).await?` to parse a date using the application's time zone. Pass a PHP format and an explicit time zone with `request.date("formatted", Some("!d/m/Y H:i:s.u"), Some("Asia/Tokyo")).await?`. Missing, null, and blank values return `None`. Invalid dates return HTTP 400. The parsed date preserves its resolved time zone and microseconds.
 
-In a test fixture, `TestApp::travelTo` and the freeze helpers set the reference for relative dates and components omitted by the format. For example, `tomorrow` is resolved from the fixture's frozen date in the requested time zone. A format starting with `!` resets omitted fields. See [Interacting with time](../testing/mocking.md#interacting-with-time).
+In a test fixture, `TestApp::travel_to` and the freeze helpers set the reference for relative dates and components omitted by the format. For example, `tomorrow` is resolved from the fixture's frozen date in the requested time zone. A format starting with `!` resets omitted fields. See [Interacting with time](../testing/mocking.md#interacting-with-time).
 
 Use `request.interval("duration", None).await?` for ISO 8601 intervals or expressions such as `2 hours 30 minutes`. Use `request.interval("seconds", Some("second")).await?` when a field supplies a value in a named unit. The result preserves calendar components and microseconds. An explicit value of 90 seconds stays in the seconds field. Blank or missing input returns `None`. Invalid interval syntax or units return HTTP 400.
 
@@ -71,7 +71,7 @@ Use `request.field("name").await?` for the lookup the framework performs on dyna
 
 ### Retrieving a Portion of the Input Data {#retrieving-a-portion-of-the-input-data}
 
-Use `request.only(&["user.name", "document"]).await?` to select fields from input and uploads. It omits missing paths and preserves explicit null and typed files. `request.except(&["document"]).await?` removes fields without renumbering numeric keys. Use `arrayOnly` or `collectOnly` to return the selected data as a typed array or collection.
+Use `request.only(&["user.name", "document"]).await?` to select fields from input and uploads. It omits missing paths and preserves explicit null and typed files. `request.except(&["document"]).await?` removes fields without renumbering numeric keys. Use `array_only` or `collect_only` to return the selected data as a typed array or collection.
 
 ## Client IP addresses {#request-ip-address}
 
@@ -79,39 +79,39 @@ Use `request.ip()` for the first resolved client address and `request.ips()` for
 
 ## Content Negotiation {#content-negotiation}
 
-Use `request.getAcceptableContentTypes()` to read the `Accept` entries in quality order. Use `request.accepts(&["text/html", "application/json"])` to check a set of acceptable types, or `request.prefers(&["html", "json"])` to select the best candidate. `prefers` returns `None` when the header is absent or there is no match. `request.format("html")` uses the first recognized response format and falls back to the supplied value.
+Use `request.get_acceptable_content_types()` to read the `Accept` entries in quality order. Use `request.accepts(&["text/html", "application/json"])` to check a set of acceptable types, or `request.prefers(&["html", "json"])` to select the best candidate. `prefers` returns `None` when the header is absent or there is no match. `request.format("html")` uses the first recognized response format and falls back to the supplied value.
 
-`acceptsAnyContentType()`, `acceptsJson()`, `acceptsHtml()` and `acceptsMarkdown()` check acceptance. `wantsJson()` and `wantsMarkdown()` inspect the top-ranked entry. `expectsJson()` also recognizes a non-PJAX XMLHttpRequest with an empty or wildcard `Accept` header. `isJson()` checks the request body's `Content-Type`.
+`accepts_any_content_type()`, `accepts_json()`, `accepts_html()` and `accepts_markdown()` check acceptance. `wants_json()` and `wants_markdown()` inspect the top-ranked entry. `expects_json()` also recognizes a non-PJAX XMLHttpRequest with an empty or wildcard `Accept` header. `is_json()` checks the request body's `Content-Type`.
 
 With repeated `Accept` header fields, the first field is used, as in the pinned the framework request implementation. Send several types as a comma-separated list in one field.
 
 ### Native HTTP Requests {#native-http-requests}
 
-The HTTP server passes each owned transport request to `Kernel::handleTransport`, which constructs the framework request with `Request::from(native)`. The kernel applies trusted proxies and method overrides within that request’s lifecycle.
+The HTTP server passes each owned transport request to `Kernel::handle_transport`, which constructs the framework request with `Request::from(native)`. The kernel applies trusted proxies and method overrides within that request’s lifecycle.
 
-For interoperability with Rust HTTP libraries, convert an owned `http::Request<Body>` using `Request::from(native)` and move it back with `into()`. Ownership conversion moves the current body stream along with its headers, protocol version and extensions. Inside a route, use `request.toHttpRequest().await?` for an independent native request with a buffered body. It uses the same 8 MiB limit as framework input, and the body remains available to the framework request.
+For interoperability with Rust HTTP libraries, convert an owned `http::Request<Body>` using `Request::from(native)` and move it back with `into()`. Ownership conversion moves the current body stream along with its headers, protocol version and extensions. Inside a route, use `request.to_http_request().await?` for an independent native request with a buffered body. It uses the same 8 MiB limit as framework input, and the body remains available to the framework request.
 
-The native request uses the transport URI from `originalUri()` and the effective method from `method()`, including any method override. Use `uri()` for the framework URI after trusted-proxy processing and `getRealMethod()` for the original method. `version()` and `extensions()` read the corresponding transport metadata.
+The native request uses the transport URI from `original_uri()` and the effective method from `method()`, including any method override. Use `uri()` for the framework URI after trusted-proxy processing and `get_real_method()` for the original method. `version()` and `extensions()` read the corresponding transport metadata.
 
 See [Native HTTP responses](./responses.md#native-http-responses) for returning a native response.
 
 ### Input Presence {#input-presence}
 
-Use `request.has(&["profile.name"]).await?` when a key must exist, including a key explicitly set to `null`. Use `hasAny` to check alternatives and `missing` to test whether any supplied key is absent. These checks also recognize uploaded files.
+Use `request.has(&["profile.name"]).await?` when a key must exist, including a key explicitly set to `null`. Use `has_any` to check alternatives and `missing` to test whether any supplied key is absent. These checks also recognize uploaded files.
 
-Use `filled`, `isNotFilled` and `anyFilled` to check input values. Missing values, `null` and blank strings are empty. Booleans, zero and empty arrays count as filled. A file-only field is checked with `hasFile`.
+Use `filled`, `is_not_filled` and `any_filled` to check input values. Missing values, `null` and blank strings are empty. Booleans, zero and empty arrays count as filled. A file-only field is checked with `has_file`.
 
-Use `whenHas`, `whenFilled` or `whenMissing` to run an async callback when the condition holds. `whenHas` and `whenFilled` pass the combined field as `Option<RequestValue>`. Match `RequestValue::File(file)` to work with an upload. The method returns `Some(result)` when the callback runs. Use `unwrap_or_else` to supply a fallback.
+Use `when_has`, `when_filled` or `when_missing` to run an async callback when the condition holds. `when_has` and `when_filled` pass the combined field as `Option<RequestValue>`. Match `RequestValue::File(file)` to work with an upload. The method returns `Some(result)` when the callback runs. Use `unwrap_or_else` to supply a fallback.
 
 ### Merging Additional Input {#merging-additional-input}
 
-Use `request.merge(serde_json::json!({"profile.name": "Ada"})).await?` to set values by dotted path. `mergeIfMissing` preserves keys already present in the request, including explicit `null`, query fallbacks and uploads. Use `replace` with an object or array to replace the active input source.
+Use `request.merge(serde_json::json!({"profile.name": "Ada"})).await?` to set values by dotted path. `merge_if_missing` preserves keys already present in the request, including explicit `null`, query fallbacks and uploads. Use `replace` with an object or array to replace the active input source.
 
 A JSON request updates its JSON input. A non-JSON GET or HEAD updates the query bag. Other requests update their form input and still fall back to query values. These methods preserve the original URI, raw body and uploads.
 
 ## Old Input {#old-input}
 
-In a route with session middleware, use `request.flash().await?` to store the current input for the next request. Use `request.flashOnly(&["profile.name", "page"]).await?` to select specific fields or `request.flashExcept(&["password", "password_confirmation"]).await?` to exclude fields. Selection supports dotted paths. Uploaded files remain in the file bag.
+In a route with session middleware, use `request.flash().await?` to store the current input for the next request. Use `request.flash_only(&["profile.name", "page"]).await?` to select specific fields or `request.flash_except(&["password", "password_confirmation"]).await?` to exclude fields. Selection supports dotted paths. Uploaded files remain in the file bag.
 
 Read the result with `request.old(Some("profile.name"))` or retrieve the bag with `request.old(None)`. An exact key takes precedence over a dotted path. Explicit null remains available as `Some(Value::Null)`. Use `Option` methods to supply a fallback when the value is missing.
 
@@ -119,7 +119,7 @@ Use `request.flush()?` to replace the old input with an empty bag. The other ses
 
 ## Cookies {#cookies}
 
-Use `request.cookie(Some("theme"))?` to retrieve a cookie or `request.cookie(None)?` to retrieve the cookie bag. `request.hasCookie("theme")?` checks presence, including an empty string.
+Use `request.cookie(Some("theme"))?` to retrieve a cookie or `request.cookie(None)?` to retrieve the cookie bag. `request.has_cookie("theme")?` checks presence, including an empty string.
 
 With `EncryptCookies`, protected cookies are decrypted and validated before the handler runs. A failed validation leaves a null entry in the bag. A lookup by that name returns `None`, so callers can supply a default with `Option`.
 
@@ -132,9 +132,9 @@ Configure field patterns or skip either middleware for selected requests in `boo
 ```rust
 .with_middleware(|middleware| {
     middleware
-        .trimStrings(["rows.*.secret"])
-        .skipTrimStringsWhen(|request| request.is("hooks/*"))
-        .convertEmptyStringsToNull(|request| request.is("hooks/*"));
+        .trim_strings(["rows.*.secret"])
+        .skip_trim_strings_when(|request| request.is("hooks/*"))
+        .convert_empty_strings_to_null(|request| request.is("hooks/*"));
 })
 ```
 
@@ -146,9 +146,9 @@ Field patterns use dotted paths and `*` wildcards. Each application's exceptions
 
 Use `request.file("attachments.0").await?` to retrieve one multipart upload. The returned `UploadedFile` provides bytes, the client filename and the client media type. Validate the content before storing it.
 
-Use `request.fileValue("photos.*.image").await?` for a group or wildcard selection and `request.allFiles().await?` for the whole file bag. Both use `UploadedFileValue` to represent files and keyed groups. Fields submitted without a filename are omitted, while a named zero-byte file remains available. Surviving numeric keys keep their original positions.
+Use `request.file_value("photos.*.image").await?` for a group or wildcard selection and `request.all_files().await?` for the whole file bag. Both use `UploadedFileValue` to represent files and keyed groups. Fields submitted without a filename are omitted, while a named zero-byte file remains available. Surviving numeric keys keep their original positions.
 
-`request.hasFile("attachments").await?` checks a file or the immediate members of a group. To check deeper uploads, select the nested field or use a wildcard path.
+`request.has_file("attachments").await?` checks a file or the immediate members of a group. To check deeper uploads, select the nested field or use a wildcard path.
 
 See the [controller example](./controllers.md) for input handling and a JSON response.
 
@@ -161,7 +161,7 @@ use openrust::http::TrustedProxyHeaders;
 
 .with_middleware(|middleware| {
     middleware
-        .trustProxies(&["192.0.2.10", "10.20.0.0/16"], TrustedProxyHeaders::DEFAULT)
+        .trust_proxies(&["192.0.2.10", "10.20.0.0/16"], TrustedProxyHeaders::DEFAULT)
         .expect("valid trusted proxy policy");
 })
 ```
@@ -170,21 +170,21 @@ The default mask is `TrustedProxyHeaders::DEFAULT` for X-Forwarded fields. Use `
 
 `Request::secure` reflects the effective protocol. URL generation uses the forwarded origin and prefix while route matching uses the incoming path.
 
-When application assembly does not supply a proxy policy, HTTP startup reads `trustedproxy.proxies` from the configuration repository. Use a comma-separated string or an array. The optional `trustedproxy.headers` accepts a numeric mask or the framework preset name such as `HEADER_X_FORWARDED_AWS_ELB`. An explicit `trustProxies` policy takes precedence, including an empty address list.
+When application assembly does not supply a proxy policy, HTTP startup reads `trustedproxy.proxies` from the configuration repository. Use a comma-separated string or an array. The optional `trustedproxy.headers` accepts a numeric mask or the framework preset name such as `HEADER_X_FORWARDED_AWS_ELB`. An explicit `trust_proxies` policy takes precedence, including an empty address list.
 
 ## Configuring Trusted Hosts {#configuring-trusted-hosts}
 
-Enable `trustHosts` to restrict the original and effective hosts. Patterns are case-insensitive PCRE expressions matched against the hostname without its port. A rejected host returns HTTP 400 before routing.
+Enable `trust_hosts` to restrict the original and effective hosts. Patterns are case-insensitive PCRE expressions matched against the hostname without its port. A rejected host returns HTTP 400 before routing.
 
 ```rust
 .with_middleware(|middleware| {
     middleware
-        .trustHosts(&[r"^edge\.example\.com$"], true)
+        .trust_hosts(&[r"^edge\.example\.com$"], true)
         .expect("valid host patterns");
 })
 ```
 
-With `subdomains` enabled, the hostname in `app.url` and its subdomains are also trusted. Use `trustHostsWith` to resolve patterns asynchronously for each request. Host checks are skipped in the exact `local` and `testing` environments.
+With `subdomains` enabled, the hostname in `app.url` and its subdomains are also trusted. Use `trust_hosts_with` to resolve patterns asynchronously for each request. Host checks are skipped in the exact `local` and `testing` environments.
 ## Request Metadata
 
-`ajax()` checks `X-Requested-With: XMLHttpRequest`; `pjax()` checks `X-PJAX`. `prefetch()` compares `X-Moz`, `Purpose`, and `Sec-Purpose` with `prefetch`, ignoring case but requiring an exact value. Prefetch requests do not replace the session's previous URL or route. `userAgent()` returns an optional header value. `fingerprint()` requires a matched route and hashes its methods, domain, URI and client IP. Use `user(guard).await` to resolve the current user through the selected guard.
+`ajax()` checks `X-Requested-With: XMLHttpRequest`; `pjax()` checks `X-PJAX`. `prefetch()` compares `X-Moz`, `Purpose`, and `Sec-Purpose` with `prefetch`, ignoring case but requiring an exact value. Prefetch requests do not replace the session's previous URL or route. `user_agent()` returns an optional header value. `fingerprint()` requires a matched route and hashes its methods, domain, URI and client IP. Use `user(guard).await` to resolve the current user through the selected guard.

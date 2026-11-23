@@ -47,7 +47,7 @@ impl DatabasePresenceVerifier {
             if expected == 0 {
                 return Ok(true);
             }
-            let query = self.table(rule)?.whereIn(column, bindings).distinct();
+            let query = self.table(rule)?.where_in(column, bindings).distinct();
             return rule
                 .apply(query)
                 .count(column)
@@ -112,7 +112,7 @@ impl DatabasePresenceVerifier {
 
 fn equal(query: Builder<'static>, column: &str, value: Binding) -> Builder<'static> {
     if value == Binding::Null {
-        query.whereNull(column)
+        query.where_null(column)
     } else {
         query.r#where(column, "=", value)
     }

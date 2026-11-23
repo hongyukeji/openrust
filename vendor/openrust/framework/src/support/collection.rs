@@ -168,7 +168,7 @@ impl<T> Collection<T> {
         self.get(key).is_some()
     }
 
-    pub fn hasAny<K: Into<ArrayKey>>(&self, keys: impl IntoIterator<Item = K>) -> bool {
+    pub fn has_any<K: Into<ArrayKey>>(&self, keys: impl IntoIterator<Item = K>) -> bool {
         keys.into_iter().any(|key| self.has(key))
     }
 
@@ -218,12 +218,12 @@ impl<T> Collection<T> {
         self.items.len()
     }
 
-    pub fn isEmpty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         self.items.is_empty()
     }
 
-    pub fn isNotEmpty(&self) -> bool {
-        !self.isEmpty()
+    pub fn is_not_empty(&self) -> bool {
+        !self.is_empty()
     }
 
     pub fn first(&self) -> Option<&T> {

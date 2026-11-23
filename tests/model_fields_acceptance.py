@@ -270,7 +270,7 @@ async fn main() {
     let db = database();
     let mut query = FieldReferenceProbe::queryOn(&db);
     query.r#where(FieldReferenceProbe::NAME, "=", "张三");
-    query.whereNull(FieldReferenceProbe::PARENT_ID);
+    query.where_null(FieldReferenceProbe::PARENT_ID);
     let users = query.orderBy(FieldReferenceProbe::ORDER, "asc").get().await.unwrap();
     assert_eq!(FieldReferenceProbe::TABLE, "field_reference_probes");
     assert_eq!(FieldReferenceProbe::from_state(Default::default()).getTable(), FieldReferenceProbe::TABLE);

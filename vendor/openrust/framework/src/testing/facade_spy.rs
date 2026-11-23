@@ -18,7 +18,6 @@ impl<A> Clone for FacadeSpy<A> {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<A> FacadeSpy<A> {
     pub(crate) fn new() -> Self {
         Self {
@@ -50,7 +49,7 @@ impl<A> FacadeSpy<A> {
 
     /// Asserts a call was received and returns it for argument and count assertions.
     #[track_caller]
-    pub fn shouldHaveReceived(&self, method: &str) -> ReceivedCalls<A> {
+    pub fn should_have_received(&self, method: &str) -> ReceivedCalls<A> {
         let calls = ReceivedCalls {
             method: method.to_owned(),
             arguments: self.received(method),
@@ -61,13 +60,17 @@ impl<A> FacadeSpy<A> {
 
     /// Asserts that a method was never called.
     #[track_caller]
-    pub fn shouldNotHaveReceived(&self, method: &str) {
-        self.shouldNotHaveReceivedWhere(method, |_| true);
+    pub fn should_not_have_received(&self, method: &str) {
+        self.should_not_have_received_where(method, |_| true);
     }
 
     /// Asserts that a method was never called with matching arguments.
     #[track_caller]
-    pub fn shouldNotHaveReceivedWhere(&self, method: &str, mut matches: impl FnMut(&A) -> bool) {
+    pub fn should_not_have_received_where(
+        &self,
+        method: &str,
+        mut matches: impl FnMut(&A) -> bool,
+    ) {
         assert!(
             !self
                 .received(method)
@@ -84,7 +87,6 @@ pub struct ReceivedCalls<A> {
     arguments: Vec<Arc<A>>,
 }
 
-#[allow(non_snake_case, reason = "Matches Mockery's facade spy assertions")]
 impl<A> ReceivedCalls<A> {
     /// Retains only calls with the given arguments and asserts a match exists.
     #[track_caller]
@@ -92,12 +94,12 @@ impl<A> ReceivedCalls<A> {
     where
         A: PartialEq,
     {
-        self.withArgs(|received| received == &arguments)
+        self.with_args(|received| received == &arguments)
     }
 
     /// Retains only calls whose arguments satisfy the predicate and asserts a match exists.
     #[track_caller]
-    pub fn withArgs(mut self, mut matches: impl FnMut(&A) -> bool) -> Self {
+    pub fn with_args(mut self, mut matches: impl FnMut(&A) -> bool) -> Self {
         self.arguments.retain(|arguments| matches(arguments));
         self.assert_received();
         self

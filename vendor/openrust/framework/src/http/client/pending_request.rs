@@ -101,7 +101,6 @@ pub struct PendingRequest {
     after_response: Vec<Box<ResponseMiddleware>>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl PendingRequest {
     pub(super) fn new(factory: Factory) -> Self {
         let middleware = factory.middleware();
@@ -131,12 +130,12 @@ impl PendingRequest {
         }
     }
 
-    pub fn baseUrl(mut self, url: impl Into<String>) -> Self {
+    pub fn base_url(mut self, url: impl Into<String>) -> Self {
         self.base_url = Some(url.into());
         self
     }
 
-    pub fn withHeaders(mut self, headers: HeaderMap) -> Self {
+    pub fn with_headers(mut self, headers: HeaderMap) -> Self {
         for name in headers.keys() {
             for value in headers.get_all(name) {
                 self.headers.append(name, value.clone());
@@ -145,7 +144,7 @@ impl PendingRequest {
         self
     }
 
-    pub fn replaceHeaders(mut self, headers: HeaderMap) -> Self {
+    pub fn replace_headers(mut self, headers: HeaderMap) -> Self {
         for name in headers.keys() {
             self.headers.remove(name);
             for value in headers.get_all(name) {
@@ -155,24 +154,24 @@ impl PendingRequest {
         self
     }
 
-    pub fn withHeader(mut self, name: http::HeaderName, value: HeaderValue) -> Self {
+    pub fn with_header(mut self, name: http::HeaderName, value: HeaderValue) -> Self {
         self.headers.append(name, value);
         self
     }
 
-    pub fn contentType(mut self, content_type: HeaderValue) -> Self {
+    pub fn content_type(mut self, content_type: HeaderValue) -> Self {
         self.headers.insert(header::CONTENT_TYPE, content_type);
         self
     }
 
-    pub fn asMultipart(mut self) -> Self {
+    pub fn as_multipart(mut self) -> Self {
         if !matches!(self.payload, Payload::Multipart(_)) {
             self.payload = Payload::Multipart(Form::new());
         }
         self
     }
 
-    pub fn maxRedirects(mut self, maximum: usize) -> Self {
+    pub fn max_redirects(mut self, maximum: usize) -> Self {
         self.redirects = Some(maximum);
         self
     }
@@ -188,16 +187,16 @@ impl PendingRequest {
         self
     }
 
-    pub fn acceptJson(self) -> Self {
+    pub fn accept_json(self) -> Self {
         self.accept(HeaderValue::from_static("application/json"))
     }
 
-    pub fn withToken(self, token: &str) -> Self {
+    pub fn with_token(self, token: &str) -> Self {
         self.authorization(format!("Bearer {token}"))
     }
 
     /// 设置请求标识，按协议约定去除首尾 ASCII 空白。
-    pub fn withUserAgent(mut self, user_agent: &str) -> Self {
+    pub fn with_user_agent(mut self, user_agent: &str) -> Self {
         let value = user_agent.trim_matches([' ', '\t', '\n', '\r', '\0', '\x0b']);
         match HeaderValue::from_str(value) {
             Ok(value) => {
@@ -209,12 +208,12 @@ impl PendingRequest {
     }
 
     /// 只对当前请求关闭 TLS 证书及主机名校验。
-    pub fn withoutVerifying(mut self) -> Self {
+    pub fn without_verifying(mut self) -> Self {
         self.verify_tls = false;
         self
     }
 
-    pub fn withBasicAuth(self, username: &str, password: &str) -> Self {
+    pub fn with_basic_auth(self, username: &str, password: &str) -> Self {
         use base64::{Engine, engine::general_purpose::STANDARD};
         self.authorization(format!(
             "Basic {}",
@@ -222,7 +221,7 @@ impl PendingRequest {
         ))
     }
 
-    pub fn withDigestAuth(mut self, username: &str, password: &str) -> Self {
+    pub fn with_digest_auth(mut self, username: &str, password: &str) -> Self {
         self.headers.remove(header::AUTHORIZATION);
         self.digest = Some(DigestCredentials {
             username: username.to_owned(),
@@ -242,7 +241,7 @@ impl PendingRequest {
         self
     }
 
-    pub fn withUrlParameters(
+    pub fn with_url_parameters(
         mut self,
         parameters: serde_json::Map<String, serde_json::Value>,
     ) -> Self {
@@ -251,17 +250,17 @@ impl PendingRequest {
     }
 
     /// Omits request and response bodies from HTTP event observations.
-    pub fn redactPayload(mut self) -> Self {
+    pub fn redact_payload(mut self) -> Self {
         self.redact_response = true;
-        self.redact_payload()
+        self.redact_request_payload_only()
     }
 
-    pub(crate) fn redact_payload(mut self) -> Self {
+    pub(crate) fn redact_request_payload_only(mut self) -> Self {
         self.redact_payload = true;
         self
     }
 
-    pub fn withQueryParameters(
+    pub fn with_query_parameters(
         mut self,
         parameters: impl IntoIterator<Item = (String, String)>,
     ) -> Self {
@@ -269,17 +268,17 @@ impl PendingRequest {
         self
     }
 
-    pub fn asForm(mut self) -> Self {
+    pub fn as_form(mut self) -> Self {
         self.payload = Payload::Form;
         self
     }
 
-    pub fn asJson(mut self) -> Self {
+    pub fn as_json(mut self) -> Self {
         self.payload = Payload::Json;
         self
     }
 
-    pub fn withBody(mut self, body: impl Into<reqwest::Body>, content_type: HeaderValue) -> Self {
+    pub fn with_body(mut self, body: impl Into<reqwest::Body>, content_type: HeaderValue) -> Self {
         self.payload = Payload::Raw(body.into());
         self.headers.insert(header::CONTENT_TYPE, content_type);
         self
@@ -294,7 +293,7 @@ impl PendingRequest {
         self
     }
 
-    pub fn withAttributes(
+    pub fn with_attributes(
         mut self,
         attributes: serde_json::Map<String, serde_json::Value>,
     ) -> Self {
@@ -316,7 +315,7 @@ impl PendingRequest {
         self
     }
 
-    pub fn withRequestMiddleware(
+    pub fn with_request_middleware(
         self,
         middleware: impl Fn(&mut reqwest::Request) -> Result<()> + Send + Sync + 'static,
     ) -> Self {
@@ -326,7 +325,7 @@ impl PendingRequest {
         })
     }
 
-    pub fn withResponseMiddleware(
+    pub fn with_response_middleware(
         self,
         middleware: impl Fn(Response) -> Result<Response> + Send + Sync + 'static,
     ) -> Self {
@@ -335,17 +334,17 @@ impl PendingRequest {
             let middleware = middleware.clone();
             Box::pin(async move {
                 let response = next.run(request).await?;
-                let stats = response.transferStats.clone();
+                let stats = response.transfer_stats.clone();
                 let mut response = middleware(response)?;
-                if response.transferStats.is_none() {
-                    response.transferStats = stats;
+                if response.transfer_stats.is_none() {
+                    response.transfer_stats = stats;
                 }
                 Ok(response)
             })
         })
     }
 
-    pub fn beforeSending(
+    pub fn before_sending(
         mut self,
         callback: impl Fn(&mut reqwest::Request) -> Result<()> + Send + Sync + 'static,
     ) -> Self {
@@ -353,7 +352,7 @@ impl PendingRequest {
         self
     }
 
-    pub fn afterResponse(
+    pub fn after_response(
         mut self,
         callback: impl Fn(Response) -> Result<Response> + Send + Sync + 'static,
     ) -> Self {
@@ -366,17 +365,17 @@ impl PendingRequest {
         self
     }
 
-    pub fn connectTimeout(mut self, duration: Duration) -> Self {
+    pub fn connect_timeout(mut self, duration: Duration) -> Self {
         self.connect_timeout = duration;
         self
     }
 
-    pub fn withoutRedirecting(mut self) -> Self {
+    pub fn without_redirecting(mut self) -> Self {
         self.redirects = None;
         self
     }
 
-    pub fn maxResponseBytes(mut self, limit: usize) -> Self {
+    pub fn max_response_bytes(mut self, limit: usize) -> Self {
         self.body_limit = limit;
         self
     }
@@ -390,19 +389,19 @@ impl PendingRequest {
         self
     }
 
-    pub fn retryDelays(mut self, delays: impl Into<Vec<Duration>>) -> Self {
+    pub fn retry_delays(mut self, delays: impl Into<Vec<Duration>>) -> Self {
         self.retry.delays = RetryDelays::Backoff(delays.into().into_iter());
         self.retry.throw = true;
         self
     }
 
-    pub fn retryWhen(mut self, when: impl Fn(&Error) -> bool + Send + Sync + 'static) -> Self {
+    pub fn retry_when(mut self, when: impl Fn(&Error) -> bool + Send + Sync + 'static) -> Self {
         self.retry.when = Some(RetryWhen::Inspect(Arc::new(when)));
         self
     }
 
     /// Decides whether to retry and configures the request that will be replayed.
-    pub fn retryWhenRequest(
+    pub fn retry_when_request(
         mut self,
         when: impl Fn(&Error, &mut reqwest::Request) -> Result<bool> + Send + Sync + 'static,
     ) -> Self {
@@ -410,16 +409,16 @@ impl PendingRequest {
         self
     }
 
-    pub fn throwOnRetryFailure(mut self, throw: bool) -> Self {
+    pub fn throw_on_retry_failure(mut self, throw: bool) -> Self {
         self.retry.throw = throw;
         self
     }
 
     pub fn throw(self) -> Self {
-        self.throwIf(|_| true)
+        self.throw_if(|_| true)
     }
 
-    pub fn throwIf(
+    pub fn throw_if(
         mut self,
         condition: impl Fn(&Response) -> bool + Send + Sync + 'static,
     ) -> Self {
@@ -463,8 +462,8 @@ impl PendingRequest {
         self.factory.pool(concurrency, build).await
     }
 
-    pub async fn poolOrdered<'a>(&self, build: impl FnOnce(&mut Pool<'a>)) -> BatchResults {
-        self.factory.poolOrdered(build).await
+    pub async fn pool_ordered<'a>(&self, build: impl FnOnce(&mut Pool<'a>)) -> BatchResults {
+        self.factory.pool_ordered(build).await
     }
 
     pub fn batch<'a>(&self, build: impl FnOnce(&mut super::Batch<'a>)) -> super::Batch<'a> {
@@ -560,13 +559,13 @@ impl PendingRequest {
         loop {
             let result = transport.send(request).await;
             let result = result.and_then(|response| {
-                let stats = response.transferStats.clone();
+                let stats = response.transfer_stats.clone();
                 let mut response = self
                     .after_response
                     .iter()
                     .try_fold(response, |response, callback| callback(response))?;
-                if response.transferStats.is_none() {
-                    response.transferStats = stats;
+                if response.transfer_stats.is_none() {
+                    response.transfer_stats = stats;
                 }
                 Ok(response)
             });

@@ -181,12 +181,12 @@ async fn mysql_refresh_mutes_only_selected_connection_events_during_preparation(
         assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
         return Ok(());
     };
-    let mut app = TestApp::mysqlConnections(&[("mysql", &url), ("reports", &url)], |builder| {
+    let mut app = TestApp::mysql_connections(&[("mysql", &url), ("reports", &url)], |builder| {
         builder.with_providers(vec![Box::new(InventoryProvider)])
     })
     .await?;
     let events = app
-        .fakeEvents(&[
+        .fake_events(&[
             QueryExecuted::NAME,
             TransactionBeginning::NAME,
             MigrationStarted::NAME,
@@ -207,7 +207,7 @@ async fn mysql_refresh_mutes_only_selected_connection_events_during_preparation(
         ..Default::default()
     };
     PAUSE_MIGRATION_EVENT_PROBE.store(true, Ordering::Relaxed);
-    let refresh = app.refreshDatabase(options.clone(), |app| {
+    let refresh = app.refresh_database(options.clone(), |app| {
         Box::pin(async {
             app.database()
                 .await?
@@ -252,7 +252,7 @@ async fn mysql_refresh_mutes_only_selected_connection_events_during_preparation(
         seeder: Some("MissingSeeder".into()),
         ..options
     };
-    app.refreshDatabase::<()>(missing, |_| {
+    app.refresh_database::<()>(missing, |_| {
         Box::pin(async { panic!("failed seed must not run the callback") })
     })
     .await
@@ -261,7 +261,7 @@ async fn mysql_refresh_mutes_only_selected_connection_events_during_preparation(
     assert!(recorded("SELECT 704 AS after_failed_refresh"));
     app.artisan(["migrate:fresh", "--seeder=MigrationEventProbe"])
         .await
-        .assertSuccessful();
+        .assert_successful();
     assert!(recorded("SELECT 701 AS selected_probe"));
     assert!(!events.dispatched(TransactionBeginning::NAME).is_empty());
     app.close().await?;
@@ -300,8 +300,8 @@ async fn migrations_and_seeders_only_change_their_own_sqlite_fixture()
         first.artisan(["migrate", "--seed"]),
         second.artisan(["migrate", "--seed"]),
     );
-    first_result.assertSuccessful();
-    second_result.assertSuccessful();
+    first_result.assert_successful();
+    second_result.assert_successful();
     let config = first.app().config()?;
     assert_eq!(config.get("database.default"), Some(json!("sqlite")));
     assert!(config.get("database.connections.external").is_none());
@@ -311,12 +311,12 @@ async fn migrations_and_seeders_only_change_their_own_sqlite_fixture()
     );
 
     first
-        .assertDatabaseHas(
+        .assert_database_has(
             "items",
             &[("name", "seeded".into()), ("description", Value::Null)],
         )
         .await?;
-    first.assertDatabaseCount("test_migrations", 1).await?;
+    first.assert_database_count("test_migrations", 1).await?;
     first
         .database()
         .await?
@@ -324,20 +324,20 @@ async fn migrations_and_seeders_only_change_their_own_sqlite_fixture()
         .insert(&[Record::from([("name".into(), "first only".into())])])
         .await?;
     second
-        .assertDatabaseMissing("items", &[("name", "first only".into())])
+        .assert_database_missing("items", &[("name", "first only".into())])
         .await?;
 
     let invalid = second
         .artisan(["migrate:fresh", "--seed", "--seeder", "MissingSeeder"])
         .await;
-    invalid.assertExitCode(1);
+    invalid.assert_exit_code(1);
     assert!(invalid.stderr.contains("MissingSeeder"));
     second
         .artisan(["migrate:fresh", "--seed"])
         .await
-        .assertSuccessful();
-    second.assertDatabaseCount("items", 1).await?;
-    first.assertDatabaseCount("items", 2).await?;
+        .assert_successful();
+    second.assert_database_count("items", 1).await?;
+    first.assert_database_count("items", 2).await?;
 
     drop(first);
     assert!(!first_root.exists());
@@ -374,17 +374,19 @@ async fn mysql_test_transaction_shares_http_artisan_and_nested_writes()
     };
     let mut test = TestApp::create(configure)?;
     let mut observer = TestApp::create(configure)?;
-    test.artisan(["migrate", "--seed"]).await.assertSuccessful();
+    test.artisan(["migrate", "--seed"])
+        .await
+        .assert_successful();
     let external = observer.database().await?;
 
-    test.databaseTransaction(|test| {
+    test.database_transaction(|test| {
         Box::pin(async {
-            test.assertDatabaseCount("items", 1).await?;
+            test.assert_database_count("items", 1).await?;
             test.get("/write")
                 .await?
-                .assertStatus(StatusCode::NO_CONTENT);
-            test.artisan(["db:seed"]).await.assertSuccessful();
-            test.assertDatabaseHas("items", &[("name", "http".into())])
+                .assert_status(StatusCode::NO_CONTENT);
+            test.artisan(["db:seed"]).await.assert_successful();
+            test.assert_database_has("items", &[("name", "http".into())])
                 .await?;
             let db = test.database().await?;
             let mut nested = db.beginTransaction().await?;
@@ -393,7 +395,7 @@ async fn mysql_test_transaction_shares_http_artisan_and_nested_writes()
                 .insert(&[Record::from([("name".into(), "nested".into())])])
                 .await?;
             nested.commit().await?;
-            test.assertDatabaseCount("items", 4).await?;
+            test.assert_database_count("items", 4).await?;
             assert!(
                 db.statement("CREATE TABLE must_not_exist (id INT)", &[])
                     .await
@@ -404,13 +406,13 @@ async fn mysql_test_transaction_shares_http_artisan_and_nested_writes()
     })
     .await?;
     assert_eq!(external.table("items").count("*").await?, 1);
-    test.assertDatabaseMissing("items", &[("name", "http".into())])
+    test.assert_database_missing("items", &[("name", "http".into())])
         .await?;
 
     let error = test
-        .databaseTransaction(|test| {
+        .database_transaction(|test| {
             Box::pin(async {
-                test.artisan(["db:seed"]).await.assertSuccessful();
+                test.artisan(["db:seed"]).await.assert_successful();
                 Err::<(), Box<dyn Error + Send + Sync>>("callback failed".into())
             })
         })
@@ -420,7 +422,7 @@ async fn mysql_test_transaction_shares_http_artisan_and_nested_writes()
     assert_eq!(external.table("items").count("*").await?, 1);
 
     let interrupted = test
-        .databaseTransaction(|test| {
+        .database_transaction(|test| {
             Box::pin(async {
                 let db = test.database().await?;
                 let mut abandoned = db.beginTransaction().await?;
@@ -440,11 +442,11 @@ async fn mysql_test_transaction_shares_http_artisan_and_nested_writes()
 
     {
         let (written, ready) = tokio::sync::oneshot::channel();
-        let test = test.databaseTransaction(|test| {
+        let test = test.database_transaction(|test| {
             Box::pin(async move {
                 test.get("/write")
                     .await?
-                    .assertStatus(StatusCode::NO_CONTENT);
+                    .assert_status(StatusCode::NO_CONTENT);
                 written.send(()).unwrap();
                 std::future::pending::<Result<(), Box<dyn Error + Send + Sync>>>().await
             })
@@ -491,10 +493,10 @@ async fn managed_mysql_test_schemas_keep_ownership_and_close_their_pools()
     first
         .artisan(["migrate", "--seed"])
         .await
-        .assertSuccessful();
-    second.artisan(["migrate"]).await.assertSuccessful();
-    first.assertDatabaseCount("items", 1).await?;
-    second.assertDatabaseCount("items", 0).await?;
+        .assert_successful();
+    second.artisan(["migrate"]).await.assert_successful();
+    first.assert_database_count("items", 1).await?;
+    second.assert_database_count("items", 0).await?;
     let first_db = first.database().await?;
     let second_db = second.database().await?;
     let first_name = first_db.getDatabaseName().to_owned();
@@ -503,8 +505,8 @@ async fn managed_mysql_test_schemas_keep_ownership_and_close_their_pools()
     first
         .artisan(["migrate:fresh", "--seed"])
         .await
-        .assertSuccessful();
-    first.assertDatabaseCount("items", 1).await?;
+        .assert_successful();
+    first.assert_database_count("items", 1).await?;
     first.close().await?;
     assert!(!schema_exists(&mut server, &first_name).await?);
     assert!(
@@ -557,12 +559,12 @@ async fn mysql_recovers_a_fixture_after_process_kill() -> Result<(), Box<dyn Err
     const CHILD_DIRECTORY: &str = "OPENRUST_TEST_MYSQL_RECOVERY_CHILD";
     if let Some(directory) = std::env::var_os(CHILD_DIRECTORY) {
         let directory = Path::new(&directory);
-        let mut fixture = TestApp::mysqlWithRecovery(&url, directory, configure).await?;
+        let mut fixture = TestApp::mysql_with_recovery(&url, directory, configure).await?;
         fixture
             .artisan(["migrate", "--seed"])
             .await
-            .assertSuccessful();
-        fixture.assertDatabaseCount("items", 1).await?;
+            .assert_successful();
+        fixture.assert_database_count("items", 1).await?;
         let database = fixture.database().await?;
         fs::write(directory.join("schema.tmp"), database.getDatabaseName())?;
         fs::rename(directory.join("schema.tmp"), directory.join("ready"))?;
@@ -604,7 +606,7 @@ async fn mysql_recovers_a_fixture_after_process_kill() -> Result<(), Box<dyn Err
     let original = fs::read(&receipt)?;
     let mut server = MySqlConnection::connect(&url).await?;
     assert!(schema_exists(&mut server, &name).await?);
-    let held = TestApp::recoverMysql(&url, &receipt).await.unwrap_err();
+    let held = TestApp::recover_mysql(&url, &receipt).await.unwrap_err();
     assert!(held.to_string().contains("lease is already held"), "{held}");
 
     let mut selected = url::Url::parse(&url)?;
@@ -625,7 +627,7 @@ async fn mysql_recovers_a_fixture_after_process_kill() -> Result<(), Box<dyn Err
         }
     })
     .await??;
-    let busy = TestApp::recoverMysql(&url, &receipt).await.unwrap_err();
+    let busy = TestApp::recover_mysql(&url, &receipt).await.unwrap_err();
     assert!(busy.to_string().contains("busy"), "{busy}");
     foreign.close().await?;
     assert_eq!(fs::read(&receipt)?, original);
@@ -638,7 +640,7 @@ async fn mysql_recovers_a_fixture_after_process_kill() -> Result<(), Box<dyn Err
     restricted.set_username("fixture_no_schema").unwrap();
     restricted.set_password(Some("test-only")).unwrap();
     restricted.set_path("/");
-    let invisible = TestApp::recoverMysql(restricted.as_str(), &receipt)
+    let invisible = TestApp::recover_mysql(restricted.as_str(), &receipt)
         .await
         .unwrap_err();
     assert!(
@@ -653,24 +655,24 @@ async fn mysql_recovers_a_fixture_after_process_kill() -> Result<(), Box<dyn Err
     let mut altered: serde_json::Value = serde_json::from_slice(&original)?;
     altered["server"] = json!("00000000-0000-0000-0000-000000000000");
     fs::write(&receipt, serde_json::to_vec(&altered)?)?;
-    let other = TestApp::recoverMysql(&url, &receipt).await.unwrap_err();
+    let other = TestApp::recover_mysql(&url, &receipt).await.unwrap_err();
     assert!(other.to_string().contains("another server"), "{other}");
     altered = serde_json::from_slice(&original)?;
     altered["token"] = json!("00000000000000000000000000000000");
     fs::write(&receipt, serde_json::to_vec(&altered)?)?;
-    let rejected = TestApp::recoverMysql(&url, &receipt).await.unwrap_err();
+    let rejected = TestApp::recover_mysql(&url, &receipt).await.unwrap_err();
     assert!(
         rejected.to_string().contains("ownership marker"),
         "{rejected}"
     );
     assert!(receipt.exists() && schema_exists(&mut server, &name).await?);
 
-    let mut independent = TestApp::mysqlWithRecovery(&url, journal.path(), configure).await?;
+    let mut independent = TestApp::mysql_with_recovery(&url, journal.path(), configure).await?;
     let other_name = independent.database().await?.getDatabaseName().to_owned();
     let independent_receipt = journal.path().join(format!("{other_name}.json"));
     assert!(independent_receipt.exists());
     fs::write(&receipt, &original)?;
-    TestApp::recoverMysql(&url, &receipt).await?;
+    TestApp::recover_mysql(&url, &receipt).await?;
     assert!(!receipt.exists() && !schema_exists(&mut server, &name).await?);
     assert!(schema_exists(&mut server, &other_name).await?);
     // Replay a receipt left behind after the database was already dropped.
@@ -680,8 +682,8 @@ async fn mysql_recovers_a_fixture_after_process_kill() -> Result<(), Box<dyn Err
         use std::os::unix::fs::PermissionsExt as _;
         fs::set_permissions(&receipt, fs::Permissions::from_mode(0o600))?;
     }
-    TestApp::recoverMysql(&url, &receipt).await?;
-    TestApp::recoverMysql(&url, &receipt).await?;
+    TestApp::recover_mysql(&url, &receipt).await?;
+    TestApp::recover_mysql(&url, &receipt).await?;
     assert!(!receipt.exists());
     independent.close().await?;
     assert!(!independent_receipt.exists() && !schema_exists(&mut server, &other_name).await?);
@@ -718,7 +720,7 @@ async fn mysql_database_truncation_preserves_schema_filters_and_reseeds()
         assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
         return Ok(());
     };
-    let mut test = TestApp::mysqlConnections(&[("mysql", &url), ("reports", &url)], |builder| {
+    let mut test = TestApp::mysql_connections(&[("mysql", &url), ("reports", &url)], |builder| {
         builder.with_providers(vec![
             Box::new(InventoryProvider),
             Box::new(TruncationConfig),
@@ -727,7 +729,7 @@ async fn mysql_database_truncation_preserves_schema_filters_and_reseeds()
     .await?;
     test.artisan(["migrate", "--database=reports", "--seed"])
         .await
-        .assertSuccessful();
+        .assert_successful();
     let manager = test.app().make::<DatabaseManager>().await?;
     let mysql = manager.connection(None)?;
     let reports = manager.connection(Some("reports"))?;
@@ -750,10 +752,10 @@ async fn mysql_database_truncation_preserves_schema_filters_and_reseeds()
         .into(),
         ..Default::default()
     };
-    test.truncateDatabaseTables(options.clone()).await?;
-    test.assertDatabaseHas("items", &[("id", 1_i64.into()), ("name", "second".into())])
+    test.truncate_database_tables(options.clone()).await?;
+    test.assert_database_has("items", &[("id", 1_i64.into()), ("name", "second".into())])
         .await?;
-    test.assertDatabaseCountOn("items", 1, Some("reports"))
+    test.assert_database_count_on("items", 1, Some("reports"))
         .await?;
     mysql
         .unprepared("create table fixture_keep (id int primary key)")
@@ -778,8 +780,8 @@ async fn mysql_database_truncation_preserves_schema_filters_and_reseeds()
     reports.unprepared("insert into notes values (1)").await?;
     test.seed().await?;
 
-    let events = test.fakeEvents(&[QueryExecuted::NAME]).await?;
-    test.truncateDatabaseTables(options.clone()).await?;
+    let events = test.fake_events(&[QueryExecuted::NAME]).await?;
+    test.truncate_database_tables(options.clone()).await?;
     assert!(events.dispatched(QueryExecuted::NAME).iter().all(|event| {
         !event
             .downcast_ref::<QueryExecuted>()
@@ -787,19 +789,20 @@ async fn mysql_database_truncation_preserves_schema_filters_and_reseeds()
             .sql
             .starts_with("truncate table ")
     }));
-    test.assertDatabaseCount("items", 1).await?;
-    test.assertDatabaseHas("items", &[("id", 1_i64.into()), ("name", "second".into())])
+    test.assert_database_count("items", 1).await?;
+    test.assert_database_has("items", &[("id", 1_i64.into()), ("name", "second".into())])
         .await?;
-    test.assertDatabaseCount("keep", 1).await?;
-    test.assertDatabaseCount("history", 1).await?;
-    test.assertDatabaseEmpty("children").await?;
+    test.assert_database_count("keep", 1).await?;
+    test.assert_database_count("history", 1).await?;
+    test.assert_database_empty("children").await?;
     mysql
         .unprepared("insert into fixture_empty values (null)")
         .await?;
-    test.assertDatabaseHas("empty", &[("id", 2_i64.into())])
+    test.assert_database_has("empty", &[("id", 2_i64.into())])
         .await?;
-    test.assertDatabaseEmptyOn("items", Some("reports")).await?;
-    test.assertDatabaseCountOn("notes", 1, Some("reports"))
+    test.assert_database_empty_on("items", Some("reports"))
+        .await?;
+    test.assert_database_count_on("notes", 1, Some("reports"))
         .await?;
     assert!(
         mysql
@@ -810,17 +813,17 @@ async fn mysql_database_truncation_preserves_schema_filters_and_reseeds()
 
     let mut failing = options.clone();
     failing.seeder = Some("UnknownSeeder".into());
-    let error = test.truncateDatabaseTables(failing).await.unwrap_err();
+    let error = test.truncate_database_tables(failing).await.unwrap_err();
     assert!(
         error.to_string().contains("db:seed exited with 1"),
         "{error}"
     );
-    test.assertDatabaseEmpty("items").await?;
-    test.truncateDatabaseTables(options.clone()).await?;
-    test.assertDatabaseHas("items", &[("id", 1_i64.into()), ("name", "second".into())])
+    test.assert_database_empty("items").await?;
+    test.truncate_database_tables(options.clone()).await?;
+    test.assert_database_has("items", &[("id", 1_i64.into()), ("name", "second".into())])
         .await?;
-    test.assertDatabaseCount("keep", 1).await?;
-    test.assertDatabaseCountOn("notes", 1, Some("reports"))
+    test.assert_database_count("keep", 1).await?;
+    test.assert_database_count_on("notes", 1, Some("reports"))
         .await?;
     let entered = Arc::new(tokio::sync::Notify::new());
     let release = Arc::new(tokio::sync::Notify::new());
@@ -839,7 +842,7 @@ async fn mysql_database_truncation_preserves_schema_filters_and_reseeds()
             Ok(())
         })
     });
-    let mut pending = Box::pin(test.truncateDatabaseTables(options));
+    let mut pending = Box::pin(test.truncate_database_tables(options));
     tokio::time::timeout(std::time::Duration::from_secs(5), async {
         tokio::select! {
             () = entered.notified() => {}
@@ -865,7 +868,7 @@ async fn mysql_database_migrations_rebuilds_and_rolls_back_the_owned_schema()
         assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
         return Ok(());
     };
-    let mut test = TestApp::mysqlConnections(&[("mysql", &url), ("reports", &url)], |builder| {
+    let mut test = TestApp::mysql_connections(&[("mysql", &url), ("reports", &url)], |builder| {
         builder
             .with_providers(vec![Box::new(InventoryProvider)])
             .with_routing(Routing::default().web(|| {
@@ -874,15 +877,15 @@ async fn mysql_database_migrations_rebuilds_and_rolls_back_the_owned_schema()
             }))
     })
     .await?;
-    test.artisan(["migrate"]).await.assertSuccessful();
+    test.artisan(["migrate"]).await.assert_successful();
     test.artisan(["migrate", "--database=reports", "--seed"])
         .await
-        .assertSuccessful();
+        .assert_successful();
     let primary = test.database().await?;
     primary
         .unprepared("CREATE VIEW migration_probe AS SELECT 1 AS n")
         .await?;
-    test.runDatabaseMigrations(
+    test.run_database_migrations(
         DatabaseMigrationsOptions {
             drop_views: true,
             seed: true,
@@ -890,21 +893,21 @@ async fn mysql_database_migrations_rebuilds_and_rolls_back_the_owned_schema()
         },
         |test| {
             Box::pin(async {
-                test.assertDatabaseHas("items", &[("name", "second".into())])
+                test.assert_database_has("items", &[("name", "second".into())])
                     .await?;
-                test.assertDatabaseCount("items", 1).await?;
+                test.assert_database_count("items", 1).await?;
                 let db = test.database().await?;
                 assert!(!db.getSchemaBuilder().hasView("migration_probe").await?);
                 test.get("/write")
                     .await?
-                    .assertStatus(StatusCode::NO_CONTENT);
+                    .assert_status(StatusCode::NO_CONTENT);
                 assert_eq!(
                     tokio::spawn(async move { db.table("items").count("*").await }).await??,
                     2
                 );
 
                 let nested = test
-                    .runDatabaseMigrations(DatabaseMigrationsOptions::default(), |_| {
+                    .run_database_migrations(DatabaseMigrationsOptions::default(), |_| {
                         Box::pin(async { Ok(()) })
                     })
                     .await
@@ -916,18 +919,18 @@ async fn mysql_database_migrations_rebuilds_and_rolls_back_the_owned_schema()
     )
     .await?;
     assert!(!primary.getSchemaBuilder().hasTable("items").await?);
-    test.assertDatabaseCountOn("items", 1, Some("reports"))
+    test.assert_database_count_on("items", 1, Some("reports"))
         .await?;
 
     let error = test
-        .runDatabaseMigrations(
+        .run_database_migrations(
             DatabaseMigrationsOptions {
                 seed: true,
                 ..Default::default()
             },
             |test| {
                 Box::pin(async {
-                    test.assertDatabaseCount("items", 1).await?;
+                    test.assert_database_count("items", 1).await?;
                     Err::<(), _>(std::io::Error::other("migration test callback failed").into())
                 })
             },
@@ -938,7 +941,7 @@ async fn mysql_database_migrations_rebuilds_and_rolls_back_the_owned_schema()
     assert!(!primary.getSchemaBuilder().hasTable("items").await?);
 
     let error = test
-        .runDatabaseMigrations::<()>(
+        .run_database_migrations::<()>(
             DatabaseMigrationsOptions {
                 seeder: Some("UnknownSeeder".into()),
                 ..Default::default()
@@ -954,7 +957,7 @@ async fn mysql_database_migrations_rebuilds_and_rolls_back_the_owned_schema()
     assert!(!primary.getSchemaBuilder().hasTable("items").await?);
     use futures_util::FutureExt as _;
     let panicked = std::panic::AssertUnwindSafe(
-        test.runDatabaseMigrations::<()>(DatabaseMigrationsOptions::default(), |_| {
+        test.run_database_migrations::<()>(DatabaseMigrationsOptions::default(), |_| {
             Box::pin(async { panic!("original test panic") })
         }),
     )
@@ -966,8 +969,8 @@ async fn mysql_database_migrations_rebuilds_and_rolls_back_the_owned_schema()
         Some(&"original test panic")
     );
     assert!(!primary.getSchemaBuilder().hasTable("items").await?);
-    test.runDatabaseMigrations(DatabaseMigrationsOptions::default(), |test| {
-        Box::pin(async { test.assertDatabaseEmpty("items").await })
+    test.run_database_migrations(DatabaseMigrationsOptions::default(), |test| {
+        Box::pin(async { test.assert_database_empty("items").await })
     })
     .await?;
     assert!(!primary.getSchemaBuilder().hasTable("items").await?);
@@ -987,10 +990,10 @@ async fn mysql_database_migrations_closes_an_interrupted_test_after_rollback()
         builder.with_providers(vec![Box::new(InventoryProvider)])
     })
     .await?;
-    let events = test.fakeEvents(&[MigrationsEnded::NAME]).await?;
+    let events = test.fake_events(&[MigrationsEnded::NAME]).await?;
     let entered = Arc::new(tokio::sync::Notify::new());
     let signal = entered.clone();
-    let mut pending = Box::pin(test.runDatabaseMigrations(
+    let mut pending = Box::pin(test.run_database_migrations(
         DatabaseMigrationsOptions::default(),
         move |_| {
             Box::pin(async move {
@@ -1025,24 +1028,25 @@ async fn mysql_test_seeders_follow_artisan_order_and_rollback_boundaries()
         assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
         return Ok(());
     };
-    let mut app = TestApp::mysqlConnections(&[("primary", &url), ("reports", &url)], |builder| {
+    let mut app = TestApp::mysql_connections(&[("primary", &url), ("reports", &url)], |builder| {
         builder.with_providers(vec![Box::new(InventoryProvider)])
     })
     .await?;
-    app.artisan(["migrate"]).await.assertSuccessful();
+    app.artisan(["migrate"]).await.assert_successful();
     app.artisan(["migrate", "--database=reports"])
         .await
-        .assertSuccessful();
+        .assert_successful();
 
     app.seed().await?;
-    app.seedWith(&[]).await?;
-    app.seedOn("reports", Some(&[])).await?;
-    app.assertDatabaseCount("items", 1).await?;
-    app.assertDatabaseEmptyOn("items", Some("reports")).await?;
+    app.seed_with(&[]).await?;
+    app.seed_on("reports", Some(&[])).await?;
+    app.assert_database_count("items", 1).await?;
+    app.assert_database_empty_on("items", Some("reports"))
+        .await?;
 
-    app.databaseTransactionOn(&["primary", "reports"], |test| {
+    app.database_transaction_on(&["primary", "reports"], |test| {
         Box::pin(async {
-            test.seedWith(&["Database\\Seeders\\SecondSeeder", "FirstSeeder"])
+            test.seed_with(&["Database\\Seeders\\SecondSeeder", "FirstSeeder"])
                 .await?;
             let order = test
                 .database()
@@ -1060,9 +1064,9 @@ async fn mysql_test_seeders_follow_artisan_order_and_rollback_boundaries()
                     &Value::from("first")
                 ],
             );
-            test.seedOn("reports", None).await?;
+            test.seed_on("reports", None).await?;
             let error = test
-                .seedOn(
+                .seed_on(
                     "reports",
                     Some(&["FirstSeeder", "UnknownSeeder", "SecondSeeder"]),
                 )
@@ -1074,31 +1078,32 @@ async fn mysql_test_seeders_follow_artisan_order_and_rollback_boundaries()
                     .contains("db:seed UnknownSeeder exited with 1"),
                 "{error}"
             );
-            test.assertDatabaseHasOn("items", &[("name", "first".into())], Some("reports"))
+            test.assert_database_has_on("items", &[("name", "first".into())], Some("reports"))
                 .await?;
-            test.assertDatabaseMissingOn("items", &[("name", "second".into())], Some("reports"))
+            test.assert_database_missing_on("items", &[("name", "second".into())], Some("reports"))
                 .await?;
-            test.assertDatabaseCountOn("items", 2, Some("reports"))
+            test.assert_database_count_on("items", 2, Some("reports"))
                 .await
         })
     })
     .await?;
-    app.assertDatabaseCount("items", 1).await?;
-    app.assertDatabaseEmptyOn("items", Some("reports")).await?;
+    app.assert_database_count("items", 1).await?;
+    app.assert_database_empty_on("items", Some("reports"))
+        .await?;
 
     // With only the default connection in a test transaction, reports stays independent.
-    app.databaseTransaction(|test| {
+    app.database_transaction(|test| {
         Box::pin(async {
-            test.seedWith(&["FirstSeeder"]).await?;
-            test.seedOn("reports", Some(&["SecondSeeder"])).await?;
+            test.seed_with(&["FirstSeeder"]).await?;
+            test.seed_on("reports", Some(&["SecondSeeder"])).await?;
             Err::<(), _>(std::io::Error::other("stop the test callback").into())
         })
     })
     .await
     .unwrap_err();
-    app.assertDatabaseMissing("items", &[("name", "first".into())])
+    app.assert_database_missing("items", &[("name", "first".into())])
         .await?;
-    app.assertDatabaseHasOn("items", &[("name", "second".into())], Some("reports"))
+    app.assert_database_has_on("items", &[("name", "second".into())], Some("reports"))
         .await?;
     app.close().await
 }
@@ -1111,7 +1116,7 @@ async fn mysql_counts_queries_through_teardown_on_the_selected_connections()
         return Ok(());
     };
 
-    let mut app = TestApp::mysqlConnections(&[("primary", &url), ("reports", &url)], |builder| {
+    let mut app = TestApp::mysql_connections(&[("primary", &url), ("reports", &url)], |builder| {
         builder
             .with_providers(vec![Box::new(InventoryProvider)])
             .with_routing(Routing::default().web(|| {
@@ -1120,35 +1125,35 @@ async fn mysql_counts_queries_through_teardown_on_the_selected_connections()
             }))
     })
     .await?;
-    app.artisan(["migrate"]).await.assertSuccessful();
+    app.artisan(["migrate"]).await.assert_successful();
     app.artisan(["migrate", "--database=reports"])
         .await
-        .assertSuccessful();
+        .assert_successful();
     let primary = app.database().await?;
     let manager = app.app().make::<DatabaseManager>().await?;
     let reader = manager.connection(Some("reports::read"))?;
     primary.select("SELECT 1", &[]).await?;
     assert!(
-        app.expectsDatabaseQueryCount(0, Some("unknown"))
+        app.expects_database_query_count(0, Some("unknown"))
             .await
             .is_err()
     );
 
     let mut isolated = TestApp::mysql(&url, |builder| builder).await?;
-    isolated.expectsDatabaseQueryCount(1, None).await?;
+    isolated.expects_database_query_count(1, None).await?;
 
-    let events = app.fakeEvents(&[QueryExecuted::NAME]).await?;
-    app.expectsDatabaseQueryCount(4, None).await?;
-    app.expectsDatabaseQueryCount(2, Some("primary")).await?;
-    app.expectsDatabaseQueryCount(1, Some("reports")).await?;
-    app.expectsDatabaseQueryCount(1, Some("reports::read"))
+    let events = app.fake_events(&[QueryExecuted::NAME]).await?;
+    app.expects_database_query_count(4, None).await?;
+    app.expects_database_query_count(2, Some("primary")).await?;
+    app.expects_database_query_count(1, Some("reports")).await?;
+    app.expects_database_query_count(1, Some("reports::read"))
         .await?;
     app.get("/write")
         .await?
-        .assertStatus(StatusCode::NO_CONTENT);
+        .assert_status(StatusCode::NO_CONTENT);
     app.artisan(["db:seed", "--database=reports"])
         .await
-        .assertSuccessful();
+        .assert_successful();
     reader.select("SELECT 1", &[]).await?;
     let preview = primary
         .pretend(|connection| {
@@ -1180,7 +1185,7 @@ async fn mysql_query_count_mismatch_still_cleans_up_the_fixture()
     };
     let mut fixture = TestApp::mysql(&url, |builder| builder).await?;
     let name = fixture.database().await?.getDatabaseName().to_owned();
-    fixture.expectsDatabaseQueryCount(3, None).await?;
+    fixture.expects_database_query_count(3, None).await?;
     let error = fixture.close().await.unwrap_err();
     assert_eq!(
         error.to_string(),
@@ -1190,7 +1195,7 @@ async fn mysql_query_count_mismatch_still_cleans_up_the_fixture()
     assert!(!schema_exists(&mut server, &name).await?);
 
     let mut dropped = TestApp::mysql(&url, |builder| builder).await?;
-    dropped.expectsDatabaseQueryCount(0, None).await?;
+    dropped.expects_database_query_count(0, None).await?;
     dropped.database().await?.select("SELECT 1", &[]).await?;
     let panic =
         std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| drop(dropped))).unwrap_err();
@@ -1235,14 +1240,14 @@ async fn mysql_database_assertions_select_connections_and_include_soft_deleted_m
         assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
         return Ok(());
     };
-    let mut app = TestApp::mysqlConnections(&[("primary", &url), ("reports", &url)], |builder| {
+    let mut app = TestApp::mysql_connections(&[("primary", &url), ("reports", &url)], |builder| {
         builder.with_providers(vec![Box::new(InventoryProvider)])
     })
     .await?;
-    app.artisan(["migrate"]).await.assertSuccessful();
+    app.artisan(["migrate"]).await.assert_successful();
     app.artisan(["migrate", "--database=reports"])
         .await
-        .assertSuccessful();
+        .assert_successful();
     let primary = app.database().await?;
     let reports = app
         .app()
@@ -1262,8 +1267,9 @@ async fn mysql_database_assertions_select_connections_and_include_soft_deleted_m
         })
         .await?;
 
-    app.assertDatabaseEmpty("items").await?;
-    app.assertDatabaseEmptyOn("items", Some("reports")).await?;
+    app.assert_database_empty("items").await?;
+    app.assert_database_empty_on("items", Some("reports"))
+        .await?;
     let name = [("name", "report".into())];
     let row = Record::from([("name".into(), "report".into())]);
     reports
@@ -1271,18 +1277,18 @@ async fn mysql_database_assertions_select_connections_and_include_soft_deleted_m
         .insert(std::slice::from_ref(&row))
         .await?;
     primary.table("items").insert(&[row]).await?;
-    app.assertDatabaseCountOn("items", 1, Some("reports"))
+    app.assert_database_count_on("items", 1, Some("reports"))
         .await?;
-    app.assertDatabaseHasOn("items", &[("description", Value::Null)], Some("reports"))
+    app.assert_database_has_on("items", &[("description", Value::Null)], Some("reports"))
         .await?;
-    app.assertDatabaseMissingOn("items", &[("name", "absent".into())], Some("reports"))
+    app.assert_database_missing_on("items", &[("name", "absent".into())], Some("reports"))
         .await?;
-    app.assertNotSoftDeleted("items", &name).await?;
+    app.assert_not_soft_deleted("items", &name).await?;
 
     let mut model = Report::from_state(ModelState::default());
     model.setAttribute("name", "report");
-    app.assertModelExists(&model).await?;
-    app.assertNotSoftDeletedModel(&model).await?;
+    app.assert_model_exists(&model).await?;
+    app.assert_not_soft_deleted_model(&model).await?;
     reports
         .table("items")
         .r#where("name", "=", "report")
@@ -1291,9 +1297,9 @@ async fn mysql_database_assertions_select_connections_and_include_soft_deleted_m
             "2026-11-17 10:00:00".into(),
         )]))
         .await?;
-    app.assertSoftDeletedModel(&model).await?;
-    app.assertModelExists(&model).await?;
-    app.assertNotSoftDeleted("items", &name).await?;
+    app.assert_soft_deleted_model(&model).await?;
+    app.assert_model_exists(&model).await?;
+    app.assert_not_soft_deleted("items", &name).await?;
     primary
         .table("items")
         .r#where("name", "=", "report")
@@ -1302,22 +1308,23 @@ async fn mysql_database_assertions_select_connections_and_include_soft_deleted_m
             "2026-11-17 10:00:00".into(),
         )]))
         .await?;
-    app.assertSoftDeleted("items", &name).await?;
+    app.assert_soft_deleted("items", &name).await?;
 
     reports
         .table("items")
         .r#where("name", "=", "report")
         .delete()
         .await?;
-    app.assertModelMissing(&model).await?;
-    app.assertDatabaseEmptyOn("items", Some("reports")).await?;
+    app.assert_model_missing(&model).await?;
+    app.assert_database_empty_on("items", Some("reports"))
+        .await?;
     assert!(
-        std::panic::AssertUnwindSafe(app.assertNotSoftDeletedModel(&model))
+        std::panic::AssertUnwindSafe(app.assert_not_soft_deleted_model(&model))
             .catch_unwind()
             .await
             .is_err()
     );
-    app.assertDatabaseCount("items", 1).await?;
+    app.assert_database_count("items", 1).await?;
     app.close().await
 }
 
@@ -1328,7 +1335,7 @@ async fn mysql_refresh_rolls_back_every_selected_connection()
         assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
         return Ok(());
     };
-    let mut app = TestApp::mysqlConnections(&[("primary", &url), ("reports", &url)], |builder| {
+    let mut app = TestApp::mysql_connections(&[("primary", &url), ("reports", &url)], |builder| {
         builder
             .with_providers(vec![Box::new(InventoryProvider)])
             .with_routing(Routing::default().web(|| {
@@ -1339,7 +1346,7 @@ async fn mysql_refresh_rolls_back_every_selected_connection()
     .await?;
     app.artisan(["migrate", "--database=reports", "--seed"])
         .await
-        .assertSuccessful();
+        .assert_successful();
     let options = RefreshDatabaseOptions {
         seed: true,
         connections_to_transact: vec!["primary".into(), "reports".into()],
@@ -1349,15 +1356,15 @@ async fn mysql_refresh_rolls_back_every_selected_connection()
     let primary = manager.connection(None)?;
     let reports = manager.connection(Some("reports"))?;
     assert_ne!(primary.getDatabaseName(), reports.getDatabaseName());
-    app.refreshDatabase(options, |app| {
+    app.refresh_database(options, |app| {
         Box::pin(async {
             app.get("/write")
                 .await?
-                .assertStatus(StatusCode::NO_CONTENT);
+                .assert_status(StatusCode::NO_CONTENT);
             app.artisan(["db:seed", "--database=reports"])
                 .await
-                .assertSuccessful();
-            app.assertDatabaseCount("items", 2).await?;
+                .assert_successful();
+            app.assert_database_count("items", 2).await?;
             let manager = app.app().make::<DatabaseManager>().await?;
             assert_eq!(
                 manager
@@ -1374,18 +1381,18 @@ async fn mysql_refresh_rolls_back_every_selected_connection()
     assert_eq!(primary.table("items").count("*").await?, 1);
     assert_eq!(reports.table("items").count("*").await?, 1);
 
-    app.databaseTransactionOn::<()>(&["primary", "primary::read"], |_| {
+    app.database_transaction_on::<()>(&["primary", "primary::read"], |_| {
         Box::pin(async { panic!("duplicate connection selection must not run the callback") })
     })
     .await
     .unwrap_err();
 
     let failure = app
-        .databaseTransactionOn(&["primary", "reports"], |app| {
+        .database_transaction_on(&["primary", "reports"], |app| {
             Box::pin(async {
                 app.get("/write")
                     .await?
-                    .assertStatus(StatusCode::NO_CONTENT);
+                    .assert_status(StatusCode::NO_CONTENT);
                 let manager = app.app().make::<DatabaseManager>().await?;
                 let reports = manager.connection(Some("reports"))?;
                 drop(reports.beginTransaction().await?);
@@ -1398,14 +1405,14 @@ async fn mysql_refresh_rolls_back_every_selected_connection()
     assert_eq!(primary.table("items").count("*").await?, 1);
     assert_eq!(reports.table("items").count("*").await?, 1);
 
-    app.databaseTransactionOn(&["reports"], |app| {
+    app.database_transaction_on(&["reports"], |app| {
         Box::pin(async {
             app.get("/write")
                 .await?
-                .assertStatus(StatusCode::NO_CONTENT);
+                .assert_status(StatusCode::NO_CONTENT);
             app.artisan(["db:seed", "--database=reports"])
                 .await
-                .assertSuccessful();
+                .assert_successful();
             Ok(())
         })
     })
@@ -1424,7 +1431,7 @@ async fn mysql_multi_connection_setup_failure_unwinds_opened_sessions()
         return Ok(());
     };
     let mut app =
-        TestApp::mysqlConnections(&[("unavailable", &url), ("primary", &url)], |builder| {
+        TestApp::mysql_connections(&[("unavailable", &url), ("primary", &url)], |builder| {
             builder
         })
         .await?;
@@ -1441,7 +1448,7 @@ async fn mysql_multi_connection_setup_failure_unwinds_opened_sessions()
     .execute(&mut server)
     .await?;
     assert!(
-        app.databaseTransactionOn::<()>(&["primary", "unavailable"], |_| {
+        app.database_transaction_on::<()>(&["primary", "unavailable"], |_| {
             Box::pin(async { panic!("partial transaction setup must not run the callback") })
         })
         .await
@@ -1484,7 +1491,7 @@ async fn mysql_refresh_database_prepares_once_and_retries_after_interruption()
         ..Default::default()
     };
     let failure = test
-        .refreshDatabase::<()>(options.clone(), |_| {
+        .refresh_database::<()>(options.clone(), |_| {
             Box::pin(async { panic!("test callback ran before the baseline was prepared") })
         })
         .await
@@ -1496,23 +1503,23 @@ async fn mysql_refresh_database_prepares_once_and_retries_after_interruption()
         "{failure}"
     );
 
-    test.refreshDatabase(options.clone(), |test| {
+    test.refresh_database(options.clone(), |test| {
         Box::pin(async {
-            test.assertDatabaseCount("items", 1).await?;
+            test.assert_database_count("items", 1).await?;
             test.get("/write")
                 .await?
-                .assertStatus(StatusCode::NO_CONTENT);
-            test.assertDatabaseCount("items", 2).await
+                .assert_status(StatusCode::NO_CONTENT);
+            test.assert_database_count("items", 2).await
         })
     })
     .await?;
     let error = test
-        .refreshDatabase(options.clone(), |test| {
+        .refresh_database(options.clone(), |test| {
             Box::pin(async {
-                test.assertDatabaseCount("items", 1).await?;
+                test.assert_database_count("items", 1).await?;
                 test.get("/write")
                     .await?
-                    .assertStatus(StatusCode::NO_CONTENT);
+                    .assert_status(StatusCode::NO_CONTENT);
                 Err::<(), Box<dyn Error + Send + Sync>>("test callback error".into())
             })
         })
@@ -1520,10 +1527,10 @@ async fn mysql_refresh_database_prepares_once_and_retries_after_interruption()
         .unwrap_err();
     assert_eq!(error.to_string(), "test callback error");
     assert_eq!(REFRESH_RUNS.load(Ordering::Relaxed), 2);
-    test.assertDatabaseCount("items", 1).await?;
+    test.assert_database_count("items", 1).await?;
 
     let disrupted = test
-        .refreshDatabase(options.clone(), |test| {
+        .refresh_database(options.clone(), |test| {
             Box::pin(async {
                 let connection = test.database().await?;
                 let abandoned = connection.beginTransaction().await?;
@@ -1534,8 +1541,8 @@ async fn mysql_refresh_database_prepares_once_and_retries_after_interruption()
         .await
         .unwrap_err();
     assert!(disrupted.to_string().contains("transaction"));
-    test.refreshDatabase(options.clone(), |test| {
-        Box::pin(async { test.assertDatabaseCount("items", 1).await })
+    test.refresh_database(options.clone(), |test| {
+        Box::pin(async { test.assert_database_count("items", 1).await })
     })
     .await?;
     assert_eq!(REFRESH_RUNS.load(Ordering::Relaxed), 3);
@@ -1544,14 +1551,14 @@ async fn mysql_refresh_database_prepares_once_and_retries_after_interruption()
         .await?
         .statement("CREATE VIEW refresh_probe AS SELECT id FROM items", &[])
         .await?;
-    test.refreshDatabase(
+    test.refresh_database(
         RefreshDatabaseOptions {
             drop_views: true,
             ..options
         },
         |test| {
             Box::pin(async {
-                test.assertDatabaseCount("items", 1).await?;
+                test.assert_database_count("items", 1).await?;
                 assert!(
                     test.database()
                         .await?
@@ -1574,7 +1581,7 @@ async fn mysql_refresh_database_prepares_once_and_retries_after_interruption()
     };
     PAUSE_REFRESH_SEEDER.store(true, Ordering::Relaxed);
     {
-        let pending = test.refreshDatabase::<()>(options.clone(), |_| {
+        let pending = test.refresh_database::<()>(options.clone(), |_| {
             Box::pin(async { panic!("cancelled test callback should never run") })
         });
         tokio::pin!(pending);
@@ -1585,18 +1592,18 @@ async fn mysql_refresh_database_prepares_once_and_retries_after_interruption()
         }
     }
     RESUME_REFRESH_SEEDER.notify_one();
-    test.refreshDatabase(options, |test| {
-        Box::pin(async { test.assertDatabaseCount("items", 1).await })
+    test.refresh_database(options, |test| {
+        Box::pin(async { test.assert_database_count("items", 1).await })
     })
     .await?;
     assert_eq!(REFRESH_RUNS.load(Ordering::Relaxed), 5);
 
-    test.refreshDatabase(
+    test.refresh_database(
         RefreshDatabaseOptions {
             seed: true,
             ..Default::default()
         },
-        |test| Box::pin(async { test.assertDatabaseCount("items", 1).await }),
+        |test| Box::pin(async { test.assert_database_count("items", 1).await }),
     )
     .await?;
     test.close().await?;

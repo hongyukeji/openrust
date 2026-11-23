@@ -93,7 +93,7 @@ impl Command for WorkCommand {
             let supervisor = input.matches().get_one::<String>("supervisor").cloned();
             let scopedInput = input
                 .shutdown()
-                .map(|shutdown| input.withShutdown(shutdown.child_token()));
+                .map(|shutdown| input.with_shutdown(shutdown.child_token()));
             #[cfg(unix)]
             let parent = rustix::process::getppid();
             let watch = async {

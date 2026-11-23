@@ -28,31 +28,31 @@ impl Model for User {
 }
 
 impl Authenticatable for User {
-    fn getAuthIdentifierName(&self) -> &str {
-        self.0.getAuthIdentifierName()
+    fn get_auth_identifier_name(&self) -> &str {
+        self.0.get_auth_identifier_name()
     }
 
-    fn getAuthIdentifier(&self) -> AuthIdentifier {
-        self.0.getAuthIdentifier()
+    fn get_auth_identifier(&self) -> AuthIdentifier {
+        self.0.get_auth_identifier()
     }
 
-    fn getAuthPasswordName(&self) -> &str {
-        self.0.getAuthPasswordName()
+    fn get_auth_password_name(&self) -> &str {
+        self.0.get_auth_password_name()
     }
 
-    fn getAuthPassword(&self) -> Option<&str> {
-        self.0.getAuthPassword()
+    fn get_auth_password(&self) -> Option<&str> {
+        self.0.get_auth_password()
     }
 
-    fn getRememberToken(&self) -> Option<&str> {
-        self.0.getRememberToken()
+    fn get_remember_token(&self) -> Option<&str> {
+        self.0.get_remember_token()
     }
 
-    fn setRememberToken(&mut self, token: Option<String>) {
-        self.0.setRememberToken(token);
+    fn set_remember_token(&mut self, token: Option<String>) {
+        self.0.set_remember_token(token);
     }
 
-    fn getRememberTokenName(&self) -> &str {
-        self.0.getRememberTokenName()
+    fn get_remember_token_name(&self) -> &str {
+        self.0.get_remember_token_name()
     }
 }

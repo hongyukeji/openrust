@@ -19,14 +19,13 @@ impl Facade for Auth {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Auth {
     pub fn manager() -> AuthResult<Arc<AuthManager>> {
         Self::get_facade_root().map_err(AuthError::backend)
     }
 
     /// Resolves a request's selected guard name, including shouldUse overrides.
-    pub fn guardName(request: &Request, name: Option<&str>) -> AuthResult<String> {
+    pub fn guard_name(request: &Request, name: Option<&str>) -> AuthResult<String> {
         Self::manager()?.guard_name(request, name)
     }
 
@@ -37,11 +36,11 @@ impl Auth {
         Self::manager()?.guard(request, name)
     }
 
-    pub fn sessionGuard<'a>(
+    pub fn session_guard<'a>(
         request: &'a mut Request,
         name: Option<&str>,
     ) -> AuthResult<SessionGuard<'a>> {
-        Self::manager()?.sessionGuard(request, name)
+        Self::manager()?.session_guard(request, name)
     }
 
     pub async fn user(request: &mut Request) -> AuthResult<Option<Arc<dyn Authenticatable>>> {
@@ -49,33 +48,33 @@ impl Auth {
     }
 
     /// Reads a cached request identity without invoking asynchronous authentication.
-    pub fn resolvedUser(name: Option<&str>) -> AuthResult<Option<Arc<dyn Authenticatable>>> {
-        Ok(Self::manager()?.resolvedUser(name))
+    pub fn resolved_user(name: Option<&str>) -> AuthResult<Option<Arc<dyn Authenticatable>>> {
+        Ok(Self::manager()?.resolved_user(name))
     }
 
-    pub async fn onceBasic(
+    pub async fn once_basic(
         request: &mut Request,
         field: &str,
         conditions: &[(String, crate::database::Value)],
     ) -> AuthResult<()> {
-        Self::sessionGuard(request, None)?
-            .onceBasic(field, conditions)
+        Self::session_guard(request, None)?
+            .once_basic(field, conditions)
             .await
     }
 
-    pub async fn logoutOtherDevices(request: &mut Request, password: &str) -> AuthResult<()> {
-        Self::sessionGuard(request, None)?
-            .logoutOtherDevices(password)
+    pub async fn logout_other_devices(request: &mut Request, password: &str) -> AuthResult<()> {
+        Self::session_guard(request, None)?
+            .logout_other_devices(password)
             .await
     }
 
-    pub async fn confirmPassword(request: &mut Request, password: &str) -> AuthResult<bool> {
-        Self::sessionGuard(request, None)?
-            .confirmPassword(password)
+    pub async fn confirm_password(request: &mut Request, password: &str) -> AuthResult<bool> {
+        Self::session_guard(request, None)?
+            .confirm_password(password)
             .await
     }
 
-    pub fn shouldUse(request: &mut Request, name: &str) -> AuthResult<()> {
-        Self::manager()?.shouldUse(request, name)
+    pub fn should_use(request: &mut Request, name: &str) -> AuthResult<()> {
+        Self::manager()?.should_use(request, name)
     }
 }

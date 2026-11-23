@@ -35,11 +35,11 @@ impl RedirectIfTwoFactorAuthenticatable {
             }
         } else {
             let provider =
-                Auth::sessionGuard(request, self.fortify.guard().as_deref())?.getProvider();
+                Auth::session_guard(request, self.fortify.guard().as_deref())?.get_provider();
             Timebox::default()
                 .call(
                     async |_| {
-                        let Some(mut user) = provider.retrieveByCredentials(&credentials).await?
+                        let Some(mut user) = provider.retrieve_by_credentials(&credentials).await?
                         else {
                             return self.failed(request, &credentials, None).await;
                         };
@@ -48,7 +48,7 @@ impl RedirectIfTwoFactorAuthenticatable {
                             credentials.password(),
                         );
                         if !provider
-                            .validateCredentials(user.as_ref(), &password)
+                            .validate_credentials(user.as_ref(), &password)
                             .await?
                         {
                             return self.failed(request, &credentials, Some(user)).await;
@@ -57,7 +57,7 @@ impl RedirectIfTwoFactorAuthenticatable {
                             || self.fortify.truthy("hashing.rehash_on_login")
                         {
                             provider
-                                .rehashPasswordIfRequired(user.as_mut(), &password, false)
+                                .rehash_password_if_required(user.as_mut(), &password, false)
                                 .await?;
                         }
                         Ok(user)
@@ -94,7 +94,7 @@ impl RedirectIfTwoFactorAuthenticatable {
             .put("login.remember", remember.into())
             .map_err(internal)?;
         account.emit(AccountEvent::Challenged).await?;
-        if request.wantsJson() {
+        if request.wants_json() {
             return Ok(Some(Response::json(
                 StatusCode::OK,
                 serde_json::json!({"two_factor":true}),
@@ -115,7 +115,7 @@ impl RedirectIfTwoFactorAuthenticatable {
                 guard: self
                     .fortify
                     .guard()
-                    .unwrap_or(Auth::manager()?.getDefaultDriver()),
+                    .unwrap_or(Auth::manager()?.get_default_driver()),
                 user: user.map(Arc::from),
             },
             &[credentials],

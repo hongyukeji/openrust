@@ -3,14 +3,13 @@ use serde_json::{Map, Value};
 use super::TestResponse;
 use crate::support::{Arr, data_get, php_loose_value_equal};
 
-#[allow(non_snake_case)]
 impl TestResponse {
     fn json_value(&self) -> Value {
         self.json().expect("响应不是有效 JSON")
     }
 
     #[track_caller]
-    pub fn assertJson(&self, expected: &Value, strict: bool) -> &Self {
+    pub fn assert_json(&self, expected: &Value, strict: bool) -> &Self {
         let actual = self.json_value();
         assert!(
             actual.is_array() || actual.is_object(),
@@ -33,7 +32,7 @@ impl TestResponse {
     }
 
     #[track_caller]
-    pub fn assertJsonCount(&self, count: usize, key: Option<&str>) -> &Self {
+    pub fn assert_json_count(&self, count: usize, key: Option<&str>) -> &Self {
         let value = data_get(&self.json_value(), key).unwrap_or(Value::Null);
         let actual = match &value {
             Value::Array(items) => items.len(),
@@ -45,15 +44,15 @@ impl TestResponse {
     }
 
     #[track_caller]
-    pub fn assertJsonPaths(&self, paths: &Map<String, Value>) -> &Self {
+    pub fn assert_json_paths(&self, paths: &Map<String, Value>) -> &Self {
         for (path, value) in paths {
-            self.assertJsonPath(path, value);
+            self.assert_json_path(path, value);
         }
         self
     }
 
     #[track_caller]
-    pub fn assertJsonPathCanonicalizing(&self, path: &str, expected: &Value) -> &Self {
+    pub fn assert_json_path_canonicalizing(&self, path: &str, expected: &Value) -> &Self {
         let actual = data_get(&self.json_value(), Some(path)).unwrap_or(Value::Null);
         assert!(
             canonical_equal(&actual, expected),
@@ -63,30 +62,30 @@ impl TestResponse {
     }
 
     #[track_caller]
-    pub fn assertJsonPathsCanonicalizing(&self, paths: &Map<String, Value>) -> &Self {
+    pub fn assert_json_paths_canonicalizing(&self, paths: &Map<String, Value>) -> &Self {
         for (path, value) in paths {
-            self.assertJsonPathCanonicalizing(path, value);
+            self.assert_json_path_canonicalizing(path, value);
         }
         self
     }
 
     #[track_caller]
-    pub fn assertJsonFragment(&self, expected: &Value) -> &Self {
+    pub fn assert_json_fragment(&self, expected: &Value) -> &Self {
         let found = self.fragment_matches(expected);
         assert!(found.iter().all(|found| *found), "JSON 缺少片段 {expected}");
         self
     }
 
     #[track_caller]
-    pub fn assertJsonFragments(&self, expected: &[Value]) -> &Self {
+    pub fn assert_json_fragments(&self, expected: &[Value]) -> &Self {
         for fragment in expected {
-            self.assertJsonFragment(fragment);
+            self.assert_json_fragment(fragment);
         }
         self
     }
 
     #[track_caller]
-    pub fn assertJsonMissing(&self, unexpected: &Value, exact: bool) -> &Self {
+    pub fn assert_json_missing(&self, unexpected: &Value, exact: bool) -> &Self {
         let found = self.fragment_matches(unexpected);
         assert!(
             if exact {
@@ -100,8 +99,8 @@ impl TestResponse {
     }
 
     #[track_caller]
-    pub fn assertJsonMissingExact(&self, unexpected: &Value) -> &Self {
-        self.assertJsonMissing(unexpected, true)
+    pub fn assert_json_missing_exact(&self, unexpected: &Value) -> &Self {
+        self.assert_json_missing(unexpected, true)
     }
 
     fn fragment_matches(&self, expected: &Value) -> Vec<bool> {
@@ -125,7 +124,7 @@ impl TestResponse {
     }
 
     #[track_caller]
-    pub fn assertJsonMissingPath(&self, path: &str) -> &Self {
+    pub fn assert_json_missing_path(&self, path: &str) -> &Self {
         let actual = self.json_value();
         let exists = if path.contains('*') {
             let pattern = path
@@ -153,21 +152,21 @@ impl TestResponse {
     }
 
     #[track_caller]
-    pub fn assertJsonMissingPaths(&self, paths: &[&str]) -> &Self {
+    pub fn assert_json_missing_paths(&self, paths: &[&str]) -> &Self {
         for path in paths {
-            self.assertJsonMissingPath(path);
+            self.assert_json_missing_path(path);
         }
         self
     }
 
     #[track_caller]
-    pub fn assertExactJsonStructure(&self, structure: &Value) -> &Self {
+    pub fn assert_exact_json_structure(&self, structure: &Value) -> &Self {
         check_structure(&self.json_value(), structure, true);
         self
     }
 
     #[track_caller]
-    pub fn assertSimilarJson(&self, expected: &Value) -> &Self {
+    pub fn assert_similar_json(&self, expected: &Value) -> &Self {
         assert_eq!(
             encode(&sorted(&self.json_value())),
             encode(&sorted(expected)),
@@ -177,14 +176,14 @@ impl TestResponse {
     }
 
     #[track_caller]
-    pub fn assertJsonIsArray(&self, key: Option<&str>) -> &Self {
+    pub fn assert_json_is_array(&self, key: Option<&str>) -> &Self {
         let value = data_get(&self.json_value(), key).unwrap_or(Value::Null);
         assert!(is_php_list(&value), "JSON 路径 {key:?} 不是列表");
         self
     }
 
     #[track_caller]
-    pub fn assertJsonIsObject(&self, key: Option<&str>) -> &Self {
+    pub fn assert_json_is_object(&self, key: Option<&str>) -> &Self {
         let value = data_get(&self.json_value(), key).unwrap_or(Value::Null);
         assert!(
             value.is_object() && !is_php_list(&value),

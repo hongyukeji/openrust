@@ -24,7 +24,7 @@ fn report(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
         "terminal",
     ]
     .into_iter()
-    .find(|name| request.routeIs(&[*name]))
+    .find(|name| request.route_is(&[*name]))
     .unwrap();
     let params = ["tenant", "fallbackPlaceholder", "value"]
         .into_iter()
@@ -67,7 +67,7 @@ fn router_routes(_: &Application) -> Result<Router, RoutingError> {
             .domain("{tenant}.example.test")
             .middleware(Arc::new(Stamp)),
         |router| {
-            assert!(router.fallback(report)?.name("scoped-fallback").isFallback);
+            assert!(router.fallback(report)?.name("scoped-fallback").is_fallback);
             router.get("/known", report)?.name("known");
             router
                 .view(
@@ -372,8 +372,8 @@ async fn route_fallback_flag_can_be_reversed_without_reordering_registrations() 
             .unwrap()
             .name("terminal")
             .fallback()
-            .setFallback(false)
-            .isFallback
+            .set_fallback(false)
+            .is_fallback
     );
     router.get("/{value}", report).unwrap().name("ordinary");
     let (parts, body) = ::http::Request::builder()

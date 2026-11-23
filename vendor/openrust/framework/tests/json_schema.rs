@@ -8,7 +8,7 @@ fn deserialization_matches_fixed_upstream_cases() {
     let fixture: Value = serde_json::from_str(include_str!("reference/json-schema.json")).unwrap();
     for (index, case) in fixture["cases"].as_array().unwrap().iter().enumerate() {
         let result =
-            JsonSchema::fromArray(case["schema"].clone()).and_then(|schema| schema.toArray());
+            JsonSchema::fromArray(case["schema"].clone()).and_then(|schema| schema.to_array());
         if case.get("error") == Some(&Value::Bool(true)) {
             assert!(
                 result.is_err(),
@@ -64,7 +64,7 @@ fn typed_factory_retains_constraints_and_required_parent_semantics() {
             ("enabled", factory.boolean().default(false).into()),
         ])
         .withoutAdditionalProperties();
-    let value = schema.toArray().unwrap();
+    let value = schema.to_array().unwrap();
     assert_eq!(value["required"], json!(["name"]));
     assert_eq!(
         value["properties"]["score"]["type"],
@@ -76,7 +76,7 @@ fn typed_factory_retains_constraints_and_required_parent_semantics() {
     assert_eq!(
         JsonSchema::fromArray(value.clone())
             .unwrap()
-            .toArray()
+            .to_array()
             .unwrap(),
         value
     );
@@ -102,13 +102,13 @@ fn combinations_can_be_nested_and_disabled_flags_are_omitted() {
     .required(true);
     assert_eq!(any.schemas().len(), 2);
     assert_eq!(
-        any.toArray().unwrap(),
+        any.to_array().unwrap(),
         json!({"anyOf":[{"type":"string"},{"type":"integer","minimum":0,"maximum":5,"multipleOf":1,"default":2},{"type":"null"}]})
     );
     let union = JsonSchema::union(["integer", "null", "integer", "string"]).unwrap();
     assert_eq!(union.types(), ["integer", "string"]);
     assert_eq!(
-        union.toArray().unwrap(),
+        union.to_array().unwrap(),
         json!({"type":["integer","string","null"]})
     );
     assert!(JsonSchema::union(["bogus"]).is_err());
@@ -118,13 +118,13 @@ fn combinations_can_be_nested_and_disabled_flags_are_omitted() {
             .unique(false)
             .nullable(false)
             .required(false)
-            .toArray()
+            .to_array()
             .unwrap(),
         json!({"type":"array"})
     );
     assert_eq!(
         JsonSchema::object(Vec::<(String, Type)>::new())
-            .toArray()
+            .to_array()
             .unwrap(),
         json!({"type":"object"})
     );
@@ -132,7 +132,7 @@ fn combinations_can_be_nested_and_disabled_flags_are_omitted() {
 
 #[test]
 fn invalid_numeric_and_reference_inputs_fail_explicitly() {
-    assert!(JsonSchema::number().min(f64::INFINITY).toArray().is_err());
+    assert!(JsonSchema::number().min(f64::INFINITY).to_array().is_err());
     assert!(JsonSchema::number().default(f64::NAN).toString().is_err());
     assert!(JsonSchema::fromArray(json!({"$ref":"#/$defs/a","$defs":{"a":42}})).is_err());
     assert!(
@@ -153,7 +153,7 @@ fn node_budget_and_repeated_references_are_checked_independently() {
     }
     assert!(JsonSchema::fromArray(json!({"type":"object","properties":properties})).is_err());
     let value = json!({"type":"object","properties":{"a":{"$ref":"#/$defs/s"},"b":{"$ref":"#/$defs/s"}},"$defs":{"s":{"type":"string"}}});
-    let result = JsonSchema::fromArray(value).unwrap().toArray().unwrap();
+    let result = JsonSchema::fromArray(value).unwrap().to_array().unwrap();
     assert_eq!(result["properties"]["a"], result["properties"]["b"]);
 }
 
@@ -165,7 +165,7 @@ fn public_contract_builds_typed_properties_without_concrete_factory_dependency()
             .into()
     }
     assert_eq!(
-        schema(&JsonSchemaTypeFactory).toArray().unwrap(),
+        schema(&JsonSchemaTypeFactory).to_array().unwrap(),
         json!({"type":"object","properties":{"name":{"type":"string"}},"required":["name"]})
     );
 }

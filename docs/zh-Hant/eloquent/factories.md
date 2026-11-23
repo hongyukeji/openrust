@@ -339,7 +339,7 @@ fn sample_named_arguments() -> DatabaseResult<(Value, Value)> {
 
 ### Formatter 擴充 {#formatter-extensions}
 
-用 `addExtension` 註冊擴充方法，再透過 `ext(id)` 或 `format("Vendor\Package->method", args)` 查找。擴充識別碼區分大小寫，方法查找忽略 ASCII 大小寫。限定名稱直接查找擴充。未知擴充回傳 `UnknownFakerExtension`，已註冊擴充缺少方法時回傳 `UnknownFakerFormatter`。
+用 `add_extension` 註冊擴充方法，再透過 `ext(id)` 或 `format("Vendor\Package->method", args)` 查找。擴充識別碼區分大小寫，方法查找忽略 ASCII 大小寫。限定名稱直接查找擴充。未知擴充回傳 `UnknownFakerExtension`，已註冊擴充缺少方法時回傳 `UnknownFakerFormatter`。
 
 `Faker\Extension\` 下的內建識別碼包括 `BarcodeExtension`、`BloodExtension`、`ColorExtension`、`FileExtension`（`mimeType`、`extension` 和 `filePath`）、`NumberExtension` 以及 `UuidExtension`（`uuid3`）。再次註冊同一識別碼會取代其方法集。數字、條碼、血型和檔案的產生器具名方法使用已註冊擴充。Rust 型別化方法繼續使用內建實作。取代前取得的擴充控制代碼或 formatter 保留已解析的回呼。
 
@@ -353,7 +353,7 @@ use openrust::database::{
 
 fn sample_extension() -> DatabaseResult<(Value, String)> {
     let faker = Faker::new("en-US")?;
-    faker.addExtension(
+    faker.add_extension(
         r"App\Faker\Code",
         FakerProvider::new().formatter("value", |_, _| Ok("demo".into())),
     );
@@ -898,7 +898,7 @@ fn corpus_sample() -> DatabaseResult<String> {
 
 ### HTML 樣本 {#html-samples}
 
-用 `randomHtml(maxDepth, maxWidth)?` 產生 HTML 文件，其中包含標題、範例登入表單和隨機內文子樹。兩個參數各自傳入 `None` 時預設為四。深度小於或等於一時只產生標題和表單。寬度限制每次隨機產生的同層節點數。表單與連結使用保留的範例網域。數字 ID 在單份文件內唯一，`unique` 單獨記錄完整文件。
+用 `randomHtml(maxDepth, max_width)?` 產生 HTML 文件，其中包含標題、範例登入表單和隨機內文子樹。兩個參數各自傳入 `None` 時預設為四。深度小於或等於一時只產生標題和表單。寬度限制每次隨機產生的同層節點數。表單與連結使用保留的範例網域。數字 ID 在單份文件內唯一，`unique` 單獨記錄完整文件。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -954,14 +954,14 @@ fn named_color_samples() -> DatabaseResult<[Value; 3]> {
 
 ### 瀏覽器 User-Agent {#browser-user-agent-samples}
 
-用 `userAgent()?` 隨機產生瀏覽器樣本，也可用 `firefox()?`、`chrome()`、`internetExplorer()`、`opera()`、`safari()` 或 `msedge()` 指定格式。樣本沿用固定 上游 Faker 的瀏覽器版本與平台識別字串。Firefox 依應用程式時區取樣 Gecko 日期。用 `macProcessor()`、`linuxProcessor()`、`windowsPlatformToken()`、`macPlatformToken()`、`linuxPlatformToken()` 和 `iosMobileToken()` 單獨產生識別字串。以上格式化方法都支援 `unique`。
+用 `user_agent()?` 隨機產生瀏覽器樣本，也可用 `firefox()?`、`chrome()`、`internetExplorer()`、`opera()`、`safari()` 或 `msedge()` 指定格式。樣本沿用固定 上游 Faker 的瀏覽器版本與平台識別字串。Firefox 依應用程式時區取樣 Gecko 日期。用 `macProcessor()`、`linuxProcessor()`、`windowsPlatformToken()`、`macPlatformToken()`、`linuxPlatformToken()` 和 `iosMobileToken()` 單獨產生識別字串。以上格式化方法都支援 `unique`。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn browser_samples() -> DatabaseResult<(String, String)> {
     let faker = fake(None)?;
-    Ok((faker.userAgent()?, faker.unique(false).msedge()?))
+    Ok((faker.user_agent()?, faker.unique(false).msedge()?))
 }
 ```
 

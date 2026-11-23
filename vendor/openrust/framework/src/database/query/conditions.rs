@@ -514,7 +514,7 @@ macro_rules! predicate_methods {
 
         pub fn whereNone(self, columns: &[&str], operator: &str, value: impl Into<Value>) -> Self {
             let value = value.into();
-            self.whereNot(|group| {
+            self.where_not(|group| {
                 columns.iter().fold(group, |group, column| {
                     group.orWhere(column, operator, value.clone())
                 })
@@ -533,7 +533,7 @@ macro_rules! predicate_methods {
             self
         }
 
-        pub fn whereNull(mut self, column: &str) -> Self {
+        pub fn where_null(mut self, column: &str) -> Self {
             self.conditions().null(false, column, false);
             self
         }
@@ -543,7 +543,7 @@ macro_rules! predicate_methods {
             self
         }
 
-        pub fn whereNotNull(mut self, column: &str) -> Self {
+        pub fn where_not_null(mut self, column: &str) -> Self {
             self.conditions().null(false, column, true);
             self
         }
@@ -553,7 +553,7 @@ macro_rules! predicate_methods {
             self
         }
 
-        pub fn whereIn(mut self, column: &str, values: Vec<Value>) -> Self {
+        pub fn where_in(mut self, column: &str, values: Vec<Value>) -> Self {
             self.conditions().in_values(false, column, values, false);
             self
         }
@@ -563,7 +563,7 @@ macro_rules! predicate_methods {
             self
         }
 
-        pub fn whereNotIn(mut self, column: &str, values: Vec<Value>) -> Self {
+        pub fn where_not_in(mut self, column: &str, values: Vec<Value>) -> Self {
             self.conditions().in_values(false, column, values, true);
             self
         }
@@ -603,7 +603,7 @@ macro_rules! predicate_methods {
             self
         }
 
-        pub fn whereNot(mut self, configure: impl FnOnce(Conditions) -> Conditions) -> Self {
+        pub fn where_not(mut self, configure: impl FnOnce(Conditions) -> Conditions) -> Self {
             self.conditions().nested(false, configure, true);
             self
         }

@@ -20,13 +20,13 @@ impl Passport {
         guard: &str,
         client: Option<&ClientRecord>,
     ) -> AuthResult<()> {
-        let user_id = user.getAuthIdentifier().to_string();
+        let user_id = user.get_auth_identifier().to_string();
         let client_id = match client {
             Some(client) => client_id(client).await?,
             None => String::new(),
         };
         Auth::guard(request, Some(guard))?.set_user(user);
-        Auth::shouldUse(request, guard)?;
+        Auth::should_use(request, guard)?;
         request.parts_mut().extensions.remove::<TestingToken>();
         TokenGuard::store(
             request,
@@ -53,7 +53,7 @@ impl Passport {
                 "actingAsClient requires a request without a cached user",
             ));
         }
-        Auth::shouldUse(request, guard)?;
+        Auth::should_use(request, guard)?;
         request
             .parts_mut()
             .extensions

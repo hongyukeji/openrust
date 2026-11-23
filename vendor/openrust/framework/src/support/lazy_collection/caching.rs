@@ -21,7 +21,7 @@ impl<T> LazyCachingIterator<'_, T> {
     }
 
     /// Returns the cache of successful entries already yielded, when enabled.
-    pub fn getCache(&self) -> Option<&Collection<T>> {
+    pub fn get_cache(&self) -> Option<&Collection<T>> {
         self.cache.as_ref().map(|cache| &cache.entries)
     }
 }

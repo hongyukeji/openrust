@@ -132,7 +132,6 @@ pub struct ResourceCollection<T> {
     preserve_keys: Option<bool>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<T> ResourceCollection<T> {
     pub fn new(source: impl Into<ResourceItems<T>>) -> Self {
         Self {
@@ -148,13 +147,13 @@ impl<T> ResourceCollection<T> {
 
     /// Overrides the resource type's policy for retaining numeric keys.
     #[must_use]
-    pub fn preserveKeys(mut self, preserve: bool) -> Self {
+    pub fn preserve_keys(mut self, preserve: bool) -> Self {
         self.preserve_keys = Some(preserve);
         self
     }
 
     #[must_use]
-    pub fn preserveQuery(mut self) -> Self {
+    pub fn preserve_query(mut self) -> Self {
         match &mut self.source {
             ResourceItems::Collection(_) | ResourceItems::KeyedCollection(_) => {}
             ResourceItems::Paginator(page) => {
@@ -171,7 +170,7 @@ impl<T> ResourceCollection<T> {
     }
 
     #[must_use]
-    pub fn withQuery(mut self, query: &[(String, String)]) -> Self {
+    pub fn with_query(mut self, query: &[(String, String)]) -> Self {
         match &mut self.source {
             ResourceItems::Collection(_) | ResourceItems::KeyedCollection(_) => {}
             ResourceItems::Paginator(page) => {
@@ -188,7 +187,7 @@ impl<T> ResourceCollection<T> {
     }
 
     #[must_use]
-    pub fn withPaginationInformation(
+    pub fn with_pagination_information(
         mut self,
         customize: impl Fn(&Request, PaginationInformation) -> ResourceResult<PaginationInformation>
         + Send
@@ -203,21 +202,24 @@ impl<T> ResourceCollection<T> {
 impl<T: JsonResource> JsonResource for ResourceCollection<T> {
     const JSON_API: bool = T::JSON_API;
 
-    fn prepareResponse(&mut self, request: &Request) -> Option<HttpFuture<'_, ResourceResult<()>>> {
-        T::prepareCollection(self.source.items_mut(), request)
+    fn prepare_response(
+        &mut self,
+        request: &Request,
+    ) -> Option<HttpFuture<'_, ResourceResult<()>>> {
+        T::prepare_collection(self.source.items_mut(), request)
     }
 
-    fn resolveResponseData(
+    fn resolve_response_data(
         &self,
         request: &Request,
     ) -> ResourceResult<(Value, Map<String, Value>)> {
         if !Self::JSON_API {
-            return Ok((self.toArray(request)?, self.with(request)?));
+            return Ok((self.to_array(request)?, self.with(request)?));
         }
         let mut primary = Vec::with_capacity(self.items().len());
         let mut included = Vec::new();
         for resource in self.items() {
-            let (data, mut fields) = resource.resolveResponseData(request)?;
+            let (data, mut fields) = resource.resolve_response_data(request)?;
             primary.push(data);
             if let Some(Value::Array(objects)) = fields.shift_remove("included") {
                 included.extend(objects);
@@ -229,24 +231,24 @@ impl<T: JsonResource> JsonResource for ResourceCollection<T> {
         Ok((primary, fields))
     }
 
-    fn jsonOptions(&self) -> JsonOptions {
+    fn json_options(&self) -> JsonOptions {
         self.items()
             .first()
-            .map_or_else(T::defaultJsonOptions, JsonResource::jsonOptions)
+            .map_or_else(T::default_json_options, JsonResource::json_options)
     }
 
-    fn defaultJsonOptions() -> JsonOptions {
-        T::defaultJsonOptions()
+    fn default_json_options() -> JsonOptions {
+        T::default_json_options()
     }
 
-    fn toArray(&self, request: &Request) -> ResourceResult<Value> {
+    fn to_array(&self, request: &Request) -> ResourceResult<Value> {
         let values = self
             .items()
             .iter()
-            .map(|resource| resource.toArray(request));
+            .map(|resource| resource.to_array(request));
         if !Self::JSON_API
             && let Some(keys) = self.source.keys()
-            && (self.preserve_keys.unwrap_or_else(T::preservesKeys)
+            && (self.preserve_keys.unwrap_or_else(T::preserves_keys)
                 || keys.iter().any(|key| !numeric_key(key)))
             && keys.iter().enumerate().any(|(index, key)| {
                 !matches!(key, ArrayKey::Integer(key) if usize::try_from(*key) == Ok(index))

@@ -318,23 +318,23 @@ async fn denies_invalid_origins_and_enforces_connection_limit() {
 struct User;
 
 impl openrust::contracts::auth::Authenticatable for User {
-    fn getAuthIdentifierName(&self) -> &str {
+    fn get_auth_identifier_name(&self) -> &str {
         "id"
     }
-    fn getAuthIdentifier(&self) -> openrust::auth::AuthIdentifier {
+    fn get_auth_identifier(&self) -> openrust::auth::AuthIdentifier {
         openrust::auth::AuthIdentifier::String("0042".into())
     }
-    fn getAuthPasswordName(&self) -> &str {
+    fn get_auth_password_name(&self) -> &str {
         "password"
     }
-    fn getAuthPassword(&self) -> Option<&str> {
+    fn get_auth_password(&self) -> Option<&str> {
         None
     }
-    fn getRememberToken(&self) -> Option<&str> {
+    fn get_remember_token(&self) -> Option<&str> {
         None
     }
-    fn setRememberToken(&mut self, _: Option<String>) {}
-    fn getRememberTokenName(&self) -> &str {
+    fn set_remember_token(&mut self, _: Option<String>) {}
+    fn get_remember_token_name(&self) -> &str {
         "remember_token"
     }
 }
@@ -349,7 +349,7 @@ impl openrust::support::ServiceProvider for RegisterGuard {
         Box::pin(async move {
             app.make::<openrust::auth::AuthManager>()
                 .await?
-                .viaRequest("reverb-test", |request| {
+                .via_request("reverb-test", |request| {
                     Box::pin(async move {
                         Ok(request
                             .headers()
@@ -403,7 +403,7 @@ async fn framework_http(
     >,
     request: axum::extract::Request,
 ) -> axum::response::Response {
-    kernel.handleTransport(request).await
+    kernel.handle_transport(request).await
 }
 
 struct PublishProbe(openrust::console::CommandDefinition);

@@ -6,7 +6,7 @@ The `auth.guards` configuration selects a guard and its provider. The `session` 
 
 ## Manually Authenticating Users
 
-Build `Credentials` from application-selected lookup columns and a password. `attempt` verifies credentials, rehashes the password when configured, and rotates the session ID and CSRF token on success. Use `attemptThrottled` in a login handler and supply a key derived from the normalized account identifier and a trusted client address. The limiter atomically charges attempts, returns 429 with `Retry-After` when exhausted, and clears the counter after verification.
+Build `Credentials` from application-selected lookup columns and a password. `attempt` verifies credentials, rehashes the password when configured, and rotates the session ID and CSRF token on success. Use `attempt_throttled` in a login handler and supply a key derived from the normalized account identifier and a trusted client address. The limiter atomically charges attempts, returns 429 with `Retry-After` when exhausted, and clears the counter after verification.
 
 ```rust
 use openrust::{
@@ -21,15 +21,15 @@ async fn sign_in(
     throttle_key: &str,
     remember: bool,
 ) -> AuthResult<bool> {
-    Auth::sessionGuard(request, None)?
-        .attemptThrottled(credentials, remember, throttle_key, 5, 60)
+    Auth::session_guard(request, None)?
+        .attempt_throttled(credentials, remember, throttle_key, 5, 60)
         .await
 }
 ```
 
 ## Remembering Users and Logging Out
 
-Pass `true` for remember to issue an encrypted, HTTP-only cookie. The guard can restore a session using the persisted remember token and a fingerprint of the current password hash. `logout` removes the current guard and rotates the token. Use `logoutAndInvalidate` when the application also needs to discard the entire session and rotate its CSRF token.
+Pass `true` for remember to issue an encrypted, HTTP-only cookie. The guard can restore a session using the persisted remember token and a fingerprint of the current password hash. `logout` removes the current guard and rotates the token. Use `logout_and_invalidate` when the application also needs to discard the entire session and rotate its CSRF token.
 
 ## HTTP Basic Authentication {#http-basic-authentication}
 
@@ -50,7 +50,7 @@ fn register_basic_routes() -> Result<(), RoutingError> {
 }
 ```
 
-Call `Auth::onceBasic(request, "email", &[]).await?` in an API handler for request-only authentication. Use HTTPS when sending Basic credentials.
+Call `Auth::once_basic(request, "email", &[]).await?` in an API handler for request-only authentication. Use HTTPS when sending Basic credentials.
 
 ## Authentication events {#authentication-events}
 
@@ -91,7 +91,7 @@ fn register_auth_events(dispatcher: &Dispatcher) -> EventResult<()> {
 
 ## Invalidating sessions on other devices {#invalidating-sessions-on-other-devices}
 
-Add `auth.session` after `auth` on routes that should enforce session invalidation. To sign out other devices, validate the request in an authenticated Web handler and call `Auth::logoutOtherDevices(request, password).await?`. The guard verifies the current password, updates its stored hash, refreshes the current remember cookie if needed, and emits `OtherDeviceLogout`. Other sessions carrying the previous fingerprint are rejected when they next visit a protected route.
+Add `auth.session` after `auth` on routes that should enforce session invalidation. To sign out other devices, validate the request in an authenticated Web handler and call `Auth::logout_other_devices(request, password).await?`. The guard verifies the current password, updates its stored hash, refreshes the current remember cookie if needed, and emits `OtherDeviceLogout`. Other sessions carrying the previous fingerprint are rejected when they next visit a protected route.
 
 ```rust
 use openrust::{routing::RoutingError, support::facades::Route, view::view};
@@ -108,7 +108,7 @@ fn register_account_routes() -> Result<(), RoutingError> {
 
 Protect sensitive Web routes with `password.confirm` after `auth`. The middleware uses `auth.password_timeout` in seconds (10,800 by default). Use `password.confirm:password.confirm,300` to override the confirmation route and timeout. When confirmation is required, browsers are redirected to the named route and the intended URL is saved in the session. JSON requests receive HTTP 423.
 
-Make the confirmation form a CSRF-protected POST. `Auth::confirmPassword` verifies the current account through its user provider and records the successful confirmation. A custom confirmation handler can verify the password itself and call `request.session_mut()?.passwordConfirmed()?`.
+Make the confirmation form a CSRF-protected POST. `Auth::confirm_password` verifies the current account through its user provider and records the successful confirmation. A custom confirmation handler can verify the password itself and call `request.session_mut()?.password_confirmed()?`.
 
 ```rust
 use openrust::{
@@ -124,7 +124,7 @@ fn confirm(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
         let password = request.input(Some("password")).await?;
         let password = password.as_ref().and_then(serde_json::Value::as_str)
             .ok_or(HttpError::InvalidRequest)?;
-        if !Auth::confirmPassword(request, password).await? {
+        if !Auth::confirm_password(request, password).await? {
             return Err(abort(StatusCode::UNPROCESSABLE_ENTITY, "Invalid password.", Default::default()));
         }
         Ok(Redirect::intended(request, "/settings", Default::default())?.into())
@@ -164,8 +164,8 @@ let providers = serde_json::json!({
 });
 ```
 
-Declare `Admin` in your application's models module before using it. Adding a model class reference requires rebuilding. `AUTH_MODEL` can select any referenced, compiled model; an unknown class fails when its Eloquent provider is resolved. The linker retains factories even when configuration caching skips the loader. Factories are resolved lazily without querying user tables, and mutable authentication state stays within its application. An explicit second argument, such as `model!(Admin, "app::models::Admin")`, sets a stable class alias. `AuthManager::registerModel` remains available for explicit runtime extensions. Alternatively, configure a `database` provider with a table and column names. Register a provider implementation with `provider` and a stateless request resolver with `viaRequest`. The built-in `token` guard reads the Bearer header and supports hashing tokens before database lookup.
+Declare `Admin` in your application's models module before using it. Adding a model class reference requires rebuilding. `AUTH_MODEL` can select any referenced, compiled model; an unknown class fails when its Eloquent provider is resolved. The linker retains factories even when configuration caching skips the loader. Factories are resolved lazily without querying user tables, and mutable authentication state stays within its application. An explicit second argument, such as `model!(Admin, "app::models::Admin")`, sets a stable class alias. `AuthManager::register_model` remains available for explicit runtime extensions. Alternatively, configure a `database` provider with a table and column names. Register a provider implementation with `provider` and a stateless request resolver with `via_request`. The built-in `token` guard reads the Bearer header and supports hashing tokens before database lookup.
 
-For an identity registered with `AuthManager::registerModel`, `manager.userMorphClass(user)?` returns its actual Eloquent morph discriminator, including the model’s connection and custom `getMorphClass` behavior. This Rust adapter preserves morph-map errors and returns `None` for unregistered identities. Configure non-model causers explicitly instead of guessing a table or type name.
+For an identity registered with `AuthManager::register_model`, `manager.user_morph_class(user)?` returns its actual Eloquent morph discriminator, including the model’s connection and custom `getMorphClass` behavior. This Rust adapter preserves morph-map errors and returns `None` for unregistered identities. Configure non-model causers explicitly instead of guessing a table or type name.
 
-Synchronous callbacks can use `manager.resolvedUser(None)` or `Auth::resolvedUser(None)?` to read an identity already resolved in the current HTTP request, without enabling log listeners. `None` follows `shouldUse` and the default guard; `Some("web")` selects that guard explicitly. These Rust adapters do not run asynchronous authentication or query a user provider. An unresolved guard, guest, or call outside the owning request scope returns `None`; callbacks needing lazy authentication must resolve the guard first in asynchronous middleware.
+Synchronous callbacks can use `manager.resolved_user(None)` or `Auth::resolved_user(None)?` to read an identity already resolved in the current HTTP request, without enabling log listeners. `None` follows `should_use` and the default guard; `Some("web")` selects that guard explicitly. These Rust adapters do not run asynchronous authentication or query a user provider. An unresolved guard, guest, or call outside the owning request scope returns `None`; callbacks needing lazy authentication must resolve the guard first in asynchronous middleware.

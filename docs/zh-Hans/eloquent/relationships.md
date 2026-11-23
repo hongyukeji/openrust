@@ -22,14 +22,14 @@ pub fn posts<P: Model, R: Model>() -> HasMany<P, R> {
 
 ### 带作用域的关系 {#scoped-relationships}
 
-在关系的 `constrain` 闭包中调用 `withAttributes`，为创建的模型提供默认属性。传入 `true` 同时添加等值查询条件，传入 `false` 仅提供默认属性。模型显式设置的属性优先。直接和多态关系仍会设置各自的父键和类型。
+在关系的 `constrain` 闭包中调用 `with_attributes`，为创建的模型提供默认属性。传入 `true` 同时添加等值查询条件，传入 `false` 仅提供默认属性。模型显式设置的属性优先。直接和多态关系仍会设置各自的父键和类型。
 
 ```rust
 use openrust::database::eloquent::{Attributes, Model, relations::HasMany};
 
 pub fn featured_posts<P: Model, R: Model>() -> HasMany<P, R> {
     HasMany::new("id", "author_id").constrain(|query| {
-        query.withAttributes(
+        query.with_attributes(
             Attributes::from([("featured".into(), true.into())]),
             true,
         )
@@ -457,7 +457,7 @@ pub fn configure_subjects<M: Model, P: Model, C: Model>() -> DatabaseResult<Morp
 
 ### 软删除的多态目标 {#soft-deleted-morph-targets}
 
-在 `MorphTo` 上使用 `withTrashed()`、`withoutTrashed()` 或 `onlyTrashed()`。这些选项作用于声明软删除列的加载目标。混合目标中未声明软删除列的模型照常加载。框架先应用这些选项，再应用各目标约束。链式调用会叠加显式的未删除或已删除条件。后续调用 `withTrashed()` 会移除默认作用域并保留这些显式条件。
+在 `MorphTo` 上使用 `with_trashed()`、`without_trashed()` 或 `only_trashed()`。这些选项作用于声明软删除列的加载目标。混合目标中未声明软删除列的模型照常加载。框架先应用这些选项，再应用各目标约束。链式调用会叠加显式的未删除或已删除条件。后续调用 `with_trashed()` 会移除默认作用域并保留这些显式条件。
 
 ```rust
 use openrust::database::eloquent::{Model, relations::MorphTo};
@@ -466,7 +466,7 @@ pub fn subject_including_deleted<M: Model, P: Model, A: Model>() -> MorphTo<M> {
     MorphTo::new("subject_type", "subject_id")
         .target::<P>("post", "id")
         .target::<A>("author", "id")
-        .withTrashed()
+        .with_trashed()
 }
 ```
 
@@ -540,7 +540,7 @@ pub async fn authors_with_posts(connection: &Connection) -> DatabaseResult<Colle
 
 使用 `getRelation::<RelatedCollection<Post>>("posts")` 读取已加载文章。多值关系对每个父模型调用关联模型的 `newCollection`，用 `keys` 和 `getByKey` 访问集合键。非列表键在 JSON 中保留为对象键。集合持有 `Arc<T>` 快照，调用方可以保留已加载的模型。单条关系使用 `Option<Arc<T>>`。关系名不存在表示尚未加载。查询后用 `load` 加载，用 `loadMissing` 保留已加载的结果。
 
-通过 `into_iter` 或 `toBase` 消费已启用自动预加载的集合后，移出的模型共享同批模型快照。首次访问缺失关系时批量查询。查询完成后，其他模型可通过 `relationLoaded`、`getRelation` 和 JSON 序列化直接看到各自的结果，无需另行加载。显式取消关系加载，或修改模型属性、连接后，下次访问会直接查询该模型。
+通过 `into_iter` 或 `toBase` 消费已启用自动预加载的集合后，移出的模型共享同批模型快照。首次访问缺失关系时批量查询。查询完成后，其他模型可通过 `relation_loaded`、`getRelation` 和 JSON 序列化直接看到各自的结果，无需另行加载。显式取消关系加载，或修改模型属性、连接后，下次访问会直接查询该模型。
 
 ```rust
 use openrust::database::{
@@ -564,7 +564,7 @@ pub async fn moved_author_post_counts<Author: Model, Post: Model>(
 
 在每一级模型的 `namedRelations()` 中登记对应关系，再将 `posts.comments` 这样的路径传给 `withPaths`。同一次调用中，共用前缀的路径复用父级查询。已有模型或集合可用 `loadPaths`。未知或格式错误的路径返回错误。
 
-在模型或集合上调用 `loadMissingPaths(&["posts.comments"])`，可沿已登记路径补齐缺失关系。已加载结果会保留，包括空结果。缺失的后代按批加载，多态目标按类型分组，根模型序列化时可读到新增结果。需要给共享的相关模型补齐后代时，OpenRust 会在关系缓存中安装新快照，之前持有的 `Arc` 仍指向旧快照。
+在模型或集合上调用 `load_missing_paths(&["posts.comments"])`，可沿已登记路径补齐缺失关系。已加载结果会保留，包括空结果。缺失的后代按批加载，多态目标按类型分组，根模型序列化时可读到新增结果。需要给共享的相关模型补齐后代时，OpenRust 会在关系缓存中安装新快照，之前持有的 `Arc` 仍指向旧快照。
 
 末级缺失关系需要筛选时，使用 `loadMissingPathWith`。闭包接收分组查询条件和末级关系的表限定名，可与该路径的列选择一起使用。已加载的结果会保留，包括空结果。多态路径的闭包需使用每个可达目标都具备的列。
 
@@ -628,9 +628,9 @@ async fn authors_with_comments(connection: &Connection) -> DatabaseResult<Collec
 
 ### 预加载特定列 {#eager-loading-specific-columns}
 
-在每条路径的末级关系名后加冒号，再列出逗号分隔的字段。若需选择中间关系的列，将中间关系单独列出。保留模型匹配和下一层加载所需的主键及外键。多态关系的各目标都需具有所选列。`loadMissingPaths` 保留已加载的关系值。
+在每条路径的末级关系名后加冒号，再列出逗号分隔的字段。若需选择中间关系的列，将中间关系单独列出。保留模型匹配和下一层加载所需的主键及外键。多态关系的各目标都需具有所选列。`load_missing_paths` 保留已加载的关系值。
 
-同一次调用中，中间关系的显式列配置放在嵌套路径前后都有效。如果同一路径重复指定列，采用首次显式配置。`loadMissingPaths` 会保留已有关系加载时使用的列。
+同一次调用中，中间关系的显式列配置放在嵌套路径前后都有效。如果同一路径重复指定列，采用首次显式配置。`load_missing_paths` 会保留已有关系加载时使用的列。
 
 ```rust
 use openrust::database::{Connection, DatabaseResult, eloquent::{Collection, Model}};
@@ -648,7 +648,7 @@ pub async fn fill_missing_comments<A: Model>(
     authors: &mut Collection<A>,
 ) -> DatabaseResult<()> {
     authors
-        .loadMissingPaths(&["posts:id,author_id", "posts.comments:id,subject_id,body"])
+        .load_missing_paths(&["posts:id,author_id", "posts.comments:id,subject_id,body"])
         .await
 }
 ```

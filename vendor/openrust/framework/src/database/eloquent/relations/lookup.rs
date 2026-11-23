@@ -24,7 +24,7 @@ impl<'a> LookupSelection<'a> {
             }
             Self::Keys(keys) => {
                 let key = query.qualifyColumn(M::metadata().primary_key);
-                query.map_relation_query(|query| query.whereIn(&key, keys.to_vec()))
+                query.map_relation_query(|query| query.where_in(&key, keys.to_vec()))
             }
         }
     }
@@ -48,7 +48,6 @@ pub(in crate::database::eloquent) fn sole_match<M: Model>(mut models: Vec<M>) ->
 macro_rules! relation_lookup {
     ($($delegate:tt)*) => {
         /// Finds one related model by its primary key.
-        #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
         pub async fn find(&self, parent: &P, key: impl Into<crate::database::Value> + Send) -> crate::database::DatabaseResult<Option<R>> {
             let keys = super::lookup::primary_key::<R>(key.into());
             Ok(self$($delegate)*.lookup_models(parent, &keys, 1).await?.into_iter().next())

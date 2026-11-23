@@ -148,7 +148,7 @@ impl ImageManager {
         Ok(self)
     }
 
-    pub fn getDefaultDriver(&self) -> String {
+    pub fn get_default_driver(&self) -> String {
         self.config
             .as_ref()
             .and_then(|config| config.get("images.default"))
@@ -164,7 +164,7 @@ impl ImageManager {
         let name = name
             .filter(|name| !matches!(*name, "" | "0"))
             .map(str::to_owned)
-            .unwrap_or_else(|| self.getDefaultDriver());
+            .unwrap_or_else(|| self.get_default_driver());
         let (creator, generation) = {
             let mut state = self.driver_state();
             if let Some(driver) = state.drivers.get(&name) {
@@ -352,8 +352,8 @@ impl ImageFacade {
             .map(|_| ())
     }
 
-    pub fn getDefaultDriver() -> Result<String> {
-        Ok(Self::get_facade_root()?.getDefaultDriver())
+    pub fn get_default_driver() -> Result<String> {
+        Ok(Self::get_facade_root()?.get_default_driver())
     }
 
     pub fn getDrivers() -> Result<HashMap<String, Arc<dyn Driver>>> {

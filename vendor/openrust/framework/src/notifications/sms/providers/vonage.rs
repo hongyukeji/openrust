@@ -71,14 +71,14 @@ impl Vonage {
             client_reference: self.client_reference.as_deref(),
             callback: self.status_callback.as_deref(),
         };
-        let result = Http::asForm()
+        let result = Http::as_form()
             .map_err(|_| delivery("The Vonage SMS HTTP client is unavailable."))?
-            .redact_payload()
-            .withBasicAuth(&self.key, &self.secret)
-            .acceptJson()
-            .withoutRedirecting()
+            .redact_request_payload_only()
+            .with_basic_auth(&self.key, &self.secret)
+            .accept_json()
+            .without_redirecting()
             .timeout(Duration::from_secs(10))
-            .maxResponseBytes(64 * 1024)
+            .max_response_bytes(64 * 1024)
             .post(self.endpoint.as_str(), &form)
             .await;
         let response = super::checked_response(result)?;

@@ -15,7 +15,7 @@ pub(super) async fn install(app: &Application, output: &mut Output) -> Result<i3
     installation
         .publish("horizon-provider", false, output)
         .await?;
-    installation.registerConfiguration("horizon")?;
+    installation.register_configuration("horizon")?;
     let path = installation.root().join("app/providers/mod.rs");
     let previous = source_edit::read(&path)?;
     if !previous.lines().any(|line| {
@@ -41,7 +41,7 @@ pub(super) async fn install(app: &Application, output: &mut Output) -> Result<i3
             )?;
         }
     }
-    installation.registerProvider(
+    installation.register_provider(
         "crate::app::providers::horizon_service_provider::HorizonServiceProvider",
     )?;
     output.info("Horizon scaffolding installed successfully.");

@@ -25,7 +25,7 @@ pub struct JsonSchemaTypeFactory;
 pub struct Serializer;
 impl Serializer {
     pub fn serialize(schema: impl AsRef<Type>) -> Result<serde_json::Value, SchemaError> {
-        schema.as_ref().toArray()
+        schema.as_ref().to_array()
     }
 }
 

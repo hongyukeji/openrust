@@ -599,7 +599,7 @@ impl<M: RefreshTokenModel> RefreshStore for Typed<M> {
         )
         .constrain(move |mut query| {
             query.r#where("revoked", "=", false).whereNested(|q| {
-                q.whereNull("expires_at")
+                q.where_null("expires_at")
                     .orWhere("expires_at", ">", now.clone())
             });
             query
@@ -656,7 +656,7 @@ impl<M: RefreshTokenModel> RefreshStore for Typed<M> {
             }
             let connection = connection::<M>(parent, database, config)?;
             let mut query = M::queryOn(&connection);
-            query.whereIn("access_token_id", ids);
+            query.where_in("access_token_id", ids);
             let mut found = LoadedRefreshes::new();
             for model in query.get().await? {
                 if let Some(id) = model.getAttributeValue("access_token_id")?

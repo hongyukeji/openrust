@@ -33,7 +33,7 @@ impl Middleware for AuthenticateWithBasicAuth {
         next: Next<'a>,
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
-            Auth::sessionGuard(request, self.guard.as_deref())?
+            Auth::session_guard(request, self.guard.as_deref())?
                 .basic(self.field.as_deref().unwrap_or("email"), &[])
                 .await?;
             Ok(next.run(request).await)

@@ -46,8 +46,7 @@ impl Input {
     }
 
     /// Preserve parsed arguments while supplying a child command's shutdown scope.
-    #[allow(non_snake_case, reason = "Matches the command Input builder naming")]
-    pub fn withShutdown(&self, shutdown: tokio_util::sync::CancellationToken) -> Self {
+    pub fn with_shutdown(&self, shutdown: tokio_util::sync::CancellationToken) -> Self {
         Self {
             syntax: self.syntax.clone(),
             matches: self.matches.clone(),
@@ -85,18 +84,15 @@ impl Output {
         }
     }
 
-    #[allow(non_snake_case, reason = "Matches Symfony's console output metadata")]
-    pub fn isDecorated(&self) -> bool {
+    pub fn is_decorated(&self) -> bool {
         self.decorated
     }
 
-    #[allow(non_snake_case, reason = "Matches Symfony's console output metadata")]
-    pub fn isVerbose(&self) -> bool {
+    pub fn is_verbose(&self) -> bool {
         !self.suppressed && self.verbosity >= 1
     }
 
-    #[allow(non_snake_case, reason = "Matches Symfony's console output metadata")]
-    pub fn isVeryVerbose(&self) -> bool {
+    pub fn is_very_verbose(&self) -> bool {
         !self.suppressed && self.verbosity >= 2
     }
 
@@ -105,7 +101,7 @@ impl Output {
         non_snake_case,
         reason = "Names the Rust raw-output adapter explicitly"
     )]
-    pub fn writeRaw(&mut self, message: &str) -> io::Result<()> {
+    pub fn write_raw(&mut self, message: &str) -> io::Result<()> {
         use std::io::Write as _;
         if self.suppressed {
             return Ok(());
@@ -118,10 +114,6 @@ impl Output {
             self.stdout.push_str(message);
             Ok(())
         }
-    }
-
-    pub(crate) fn is_decorated(&self) -> bool {
-        self.decorated
     }
 
     /// Whether raw output is streamed to the process rather than captured.
@@ -225,14 +217,13 @@ impl fmt::Display for ConsoleError {
 
 impl Error for ConsoleError {}
 
-pub(crate) use confirmToProceed as confirm_production;
+pub(crate) use confirm_to_proceed as confirm_production;
 
 /// Confirms a command before proceeding in production using the shared localized prompt.
 ///
 /// The caller supplies its production condition (confirmation callback).
 /// An absent `--force` option never bypasses confirmation. Non-interactive input refuses.
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-pub fn confirmToProceed(
+pub fn confirm_to_proceed(
     production: bool,
     matches: &clap::ArgMatches,
 ) -> Result<bool, ConsoleError> {

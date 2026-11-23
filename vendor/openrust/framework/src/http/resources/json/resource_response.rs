@@ -14,13 +14,12 @@ use super::{JsonResource, ResourceResult};
 /// Configures the default resource wrapper for the application that owns the request.
 pub struct ResourceWrapping(Option<String>);
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl ResourceWrapping {
     pub fn wrap(name: impl Into<String>) -> Self {
         Self(Some(name.into()))
     }
 
-    pub const fn withoutWrapping() -> Self {
+    pub const fn without_wrapping() -> Self {
         Self(None)
     }
 
@@ -42,7 +41,6 @@ pub struct ResourceResponse<'a, R: ?Sized> {
     additional: Map<String, Value>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'a, R: JsonResource + ?Sized> ResourceResponse<'a, R> {
     pub fn new(resource: &'a R) -> Self {
         Self {
@@ -59,7 +57,7 @@ impl<'a, R: JsonResource + ?Sized> ResourceResponse<'a, R> {
     }
 
     #[must_use]
-    pub fn withoutWrapping(mut self) -> Self {
+    pub fn without_wrapping(mut self) -> Self {
         self.wrapper = Some(None);
         self
     }
@@ -70,8 +68,8 @@ impl<'a, R: JsonResource + ?Sized> ResourceResponse<'a, R> {
         self
     }
 
-    pub fn toResponse(self, request: &Request) -> ResourceResult<Response> {
-        if self.resource.isJsonApi() {
+    pub fn to_response(self, request: &Request) -> ResourceResult<Response> {
+        if self.resource.is_json_api() {
             if self
                 .wrapper
                 .as_ref()
@@ -103,8 +101,8 @@ impl<'a, R: JsonResource + ?Sized> ResourceResponse<'a, R> {
 }
 
 impl<R: JsonResource + Sync + ?Sized> Responsable for ResourceResponse<'_, R> {
-    async fn toResponse(self, request: &mut Request) -> ResourceResult<Response> {
-        ResourceResponse::toResponse(self, request)
+    async fn to_response(self, request: &mut Request) -> ResourceResult<Response> {
+        ResourceResponse::to_response(self, request)
     }
 }
 
@@ -114,26 +112,26 @@ pub(super) fn build<R: JsonResource + ?Sized>(
     wrapper: Option<&str>,
     additional: Map<String, Value>,
 ) -> ResourceResult<Response> {
-    let (data, mut with) = resource.resolveResponseData(request)?;
-    if resource.isJsonApi()
+    let (data, mut with) = resource.resolve_response_data(request)?;
+    if resource.is_json_api()
         && let Some(information) = JsonApi::information()?
     {
         with.insert("jsonapi".into(), information);
     }
-    let payload = wrap(data, wrapper, resource.forceWrapping(), with, additional);
+    let payload = wrap(data, wrapper, resource.force_wrapping(), with, additional);
     let status = resource.status();
     let mut response = if status == StatusCode::RESET_CONTENT {
         Response::empty(status)
     } else {
         Response::json_with(status, || {
             resource
-                .jsonOptions()
+                .json_options()
                 .encode(&payload)
                 .map(String::into_bytes)
         })?
     };
-    resource.withResponse(request, &mut response)?;
-    if resource.isJsonApi() {
+    resource.with_response(request, &mut response)?;
+    if resource.is_json_api() {
         response = response.header(
             http::header::CONTENT_TYPE,
             http::HeaderValue::from_static(MEDIA_TYPE),

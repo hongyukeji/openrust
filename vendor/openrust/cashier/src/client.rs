@@ -201,14 +201,14 @@ impl Client {
         let response = self
             .0
             .http
-            .pendingRequest()
-            .redactPayload()
-            .withoutRedirecting()
+            .pending_request()
+            .redact_payload()
+            .without_redirecting()
             .timeout(Duration::from_secs(15))
-            .maxResponseBytes(1024 * 1024)
-            .acceptJson()
-            .withHeaders(headers)
-            .withBody(body, HeaderValue::from_static(content))
+            .max_response_bytes(1024 * 1024)
+            .accept_json()
+            .with_headers(headers)
+            .with_body(body, HeaderValue::from_static(content))
             .send(method, url.as_str())
             .await
             .map_err(|_| Error::OutcomeUnknown)?;
@@ -279,7 +279,7 @@ impl CashierManager {
             drivers: Mutex::default(),
         }
     }
-    pub fn getDefaultDriver(&self) -> Result<String> {
+    pub fn get_default_driver(&self) -> Result<String> {
         self.config
             .get("cashier.default")
             .and_then(|v| v.as_str().map(str::to_owned))

@@ -128,12 +128,12 @@ impl EmbeddingProvider for HttpEmbeddingProvider {
             if let Some(dimensions) = self.dimensions {
                 body["dimensions"] = json!(dimensions);
             }
-            let mut request = Http::acceptJson()
+            let mut request = Http::accept_json()
                 .map_err(embedding_error)?
                 .timeout(Duration::from_secs(30))
-                .withoutRedirecting();
+                .without_redirecting();
             if !self.token.is_empty() {
-                request = request.withToken(&self.token);
+                request = request.with_token(&self.token);
             }
             let response = request
                 .post(self.endpoint.as_str(), &body)

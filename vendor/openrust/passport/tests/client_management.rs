@@ -394,7 +394,7 @@ async fn serve(app: Application) -> (std::net::SocketAddr, tokio::task::JoinHand
     let address = listener.local_addr().unwrap();
     let kernel = Arc::new(kernel);
     let router = axum::Router::new()
-        .fallback(move |request: axum::extract::Request| kernel.clone().handleTransport(request));
+        .fallback(move |request: axum::extract::Request| kernel.clone().handle_transport(request));
     (
         address,
         tokio::spawn(async move {
@@ -861,26 +861,26 @@ impl Model for ManagementUser {
     }
 }
 impl openrust::contracts::auth::Authenticatable for ManagementUser {
-    fn getAuthIdentifierName(&self) -> &str {
+    fn get_auth_identifier_name(&self) -> &str {
         "subject"
     }
-    fn getAuthIdentifier(&self) -> openrust::auth::AuthIdentifier {
+    fn get_auth_identifier(&self) -> openrust::auth::AuthIdentifier {
         self.getAttribute("subject").unwrap().try_into().unwrap()
     }
-    fn getAuthPasswordName(&self) -> &str {
+    fn get_auth_password_name(&self) -> &str {
         "password"
     }
-    fn getAuthPassword(&self) -> Option<&str> {
+    fn get_auth_password(&self) -> Option<&str> {
         match self.getAttribute("password") {
             Some(Value::Text(password)) => Some(password),
             _ => None,
         }
     }
-    fn getRememberToken(&self) -> Option<&str> {
+    fn get_remember_token(&self) -> Option<&str> {
         None
     }
-    fn setRememberToken(&mut self, _: Option<String>) {}
-    fn getRememberTokenName(&self) -> &str {
+    fn set_remember_token(&mut self, _: Option<String>) {}
+    fn get_remember_token_name(&self) -> &str {
         "remember_token"
     }
 }
@@ -1191,12 +1191,12 @@ fn manage(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
         let internal = |source| HttpError::Internal {
             source: Box::new(source),
         };
-        Auth::onceBasic(request, "email", &[]).await?;
+        Auth::once_basic(request, "email", &[]).await?;
         let user = Auth::user(request).await?.unwrap();
         let user = (user.as_ref() as &dyn std::any::Any)
             .downcast_ref::<ManagementUser>()
             .unwrap();
-        let owner = openrust_passport::ClientOwner::forUser(user).map_err(internal)?;
+        let owner = openrust_passport::ClientOwner::for_user(user).map_err(internal)?;
         let repo = openrust::container::Container::get_instance()
             .make::<ClientRepository>()
             .unwrap();
@@ -1213,7 +1213,7 @@ fn manage(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
                 .map_err(internal)?;
             return Response::json(
                 StatusCode::CREATED,
-                json!({"client":client.toArray().await.map_err(internal)?,"secret":client.getAttributeValue("plain_secret").await.map_err(internal)?.and_then(|v| if let Value::Text(s)=v {Some(s)} else {None})}),
+                json!({"client":client.to_array().await.map_err(internal)?,"secret":client.getAttributeValue("plain_secret").await.map_err(internal)?.and_then(|v| if let Value::Text(s)=v {Some(s)} else {None})}),
             );
         };
         let Some(client) = repo.findForUser(id, &owner).await.map_err(internal)? else {
@@ -1241,7 +1241,7 @@ fn manage(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
         }
         Response::json(
             StatusCode::OK,
-            json!({"client":client.toArray().await.map_err(internal)?}),
+            json!({"client":client.to_array().await.map_err(internal)?}),
         )
     })
 }
@@ -1303,7 +1303,7 @@ async fn managed_app() -> (Root, Application, Arc<DatabaseManager>) {
     app.make::<openrust::auth::AuthManager>()
         .await
         .unwrap()
-        .registerModel::<ManagementUser>("ManagementUser");
+        .register_model::<ManagementUser>("ManagementUser");
     (root, app, manager)
 }
 #[tokio::test]

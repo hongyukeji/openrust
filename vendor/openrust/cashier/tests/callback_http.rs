@@ -88,9 +88,9 @@ async fn signed_http_webhooks_rollback_retry_duplicate_and_preserve_current_subs
         let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
         let http = Factory::new().unwrap();
         let send = |bytes: Vec<u8>| {
-            http.pendingRequest()
-                .withHeaders(headers.clone())
-                .withBody(bytes, http::HeaderValue::from_static("application/json"))
+            http.pending_request()
+                .with_headers(headers.clone())
+                .with_body(bytes, http::HeaderValue::from_static("application/json"))
                 .send(http::Method::POST, &url)
         };
         let mut corrupt = body.clone();

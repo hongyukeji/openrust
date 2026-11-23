@@ -50,11 +50,11 @@ async fn sends_real_requests_and_classifies_responses() {
     let (origin, task) = serve(service).await;
     let factory = Factory::new().unwrap();
     let response = factory
-        .pendingRequest()
-        .baseUrl(format!("{origin}/api"))
-        .acceptJson()
-        .withToken("example")
-        .withQueryParameters([("q".into(), "有 & space".into())])
+        .pending_request()
+        .base_url(format!("{origin}/api"))
+        .accept_json()
+        .with_token("example")
+        .with_query_parameters([("q".into(), "有 & space".into())])
         .post("/echo?existing=yes", &json!({"name": "Rust"}))
         .await
         .unwrap();
@@ -73,9 +73,9 @@ async fn sends_real_requests_and_classifies_responses() {
 
     let url = format!("{origin}/api/echo");
     let form = factory
-        .pendingRequest()
-        .asForm()
-        .withBasicAuth("foo", "bar")
+        .pending_request()
+        .as_form()
+        .with_basic_auth("foo", "bar")
         .put(&url, &[("title", "a b")])
         .await
         .unwrap()
@@ -85,14 +85,14 @@ async fn sends_real_requests_and_classifies_responses() {
     assert_eq!(form["authorization"], "Basic Zm9vOmJhcg==");
     assert_eq!(form["query"], Value::Null);
     let patched = factory
-        .pendingRequest()
-        .beforeSending(|request| {
+        .pending_request()
+        .before_sending(|request| {
             request
                 .headers_mut()
                 .insert(header::ACCEPT, HeaderValue::from_static("text/plain"));
             Ok(())
         })
-        .afterResponse(|response| {
+        .after_response(|response| {
             assert!(response.ok());
             Response::from_json(StatusCode::CREATED, &response.json::<Value>()?)
         })
@@ -102,8 +102,8 @@ async fn sends_real_requests_and_classifies_responses() {
     assert!(patched.created());
     assert_eq!(patched.json::<Value>().unwrap()["accept"], "text/plain");
     let raw = factory
-        .pendingRequest()
-        .withBody("plain", HeaderValue::from_static("text/plain"))
+        .pending_request()
+        .with_body("plain", HeaderValue::from_static("text/plain"))
         .send(Method::PATCH, &url)
         .await
         .unwrap()
@@ -111,7 +111,7 @@ async fn sends_real_requests_and_classifies_responses() {
         .unwrap();
     assert_eq!(raw["body"], "plain");
     let multipart = factory
-        .pendingRequest()
+        .pending_request()
         .attach("file", Part::text("body").file_name("note.txt"))
         .send(Method::POST, &url)
         .await
@@ -134,15 +134,15 @@ async fn sends_real_requests_and_classifies_responses() {
     let redirect = format!("{origin}/redirect");
     assert!(
         factory
-            .pendingRequest()
-            .withoutRedirecting()
+            .pending_request()
+            .without_redirecting()
             .get(&redirect)
             .await
             .unwrap()
             .found()
     );
     let missing = factory.get(&redirect).await.unwrap();
-    assert!(missing.notFound());
+    assert!(missing.not_found());
     assert!(
         matches!(missing.throw(), Err(Error::RequestFailed(response)) if response.body().unwrap().as_ref() == b"missing")
     );
@@ -177,7 +177,7 @@ async fn retries_status_and_times_out_real_requests() {
     let factory = Factory::new().unwrap();
     assert!(
         factory
-            .pendingRequest()
+            .pending_request()
             .retry(3, Duration::ZERO)
             .get(&format!("{origin}/retry"))
             .await
@@ -186,23 +186,23 @@ async fn retries_status_and_times_out_real_requests() {
     );
     assert_eq!(calls.load(Ordering::Relaxed), 2);
     assert!(matches!(
-        factory.pendingRequest().retry(2, Duration::ZERO)
+        factory.pending_request().retry(2, Duration::ZERO)
             .get(&format!("{origin}/failed")).await,
-        Err(Error::RequestFailed(response)) if response.serverError()
+        Err(Error::RequestFailed(response)) if response.server_error()
     ));
     assert!(
         factory
-            .pendingRequest()
+            .pending_request()
             .retry(2, Duration::ZERO)
-            .throwOnRetryFailure(false)
+            .throw_on_retry_failure(false)
             .get(&format!("{origin}/failed"))
             .await
             .unwrap()
-            .serverError()
+            .server_error()
     );
     assert!(matches!(
         factory
-            .pendingRequest()
+            .pending_request()
             .timeout(Duration::from_millis(25))
             .get(&format!("{origin}/slow"))
             .await,
@@ -210,8 +210,8 @@ async fn retries_status_and_times_out_real_requests() {
     ));
     assert!(matches!(
         factory
-            .pendingRequest()
-            .maxResponseBytes(8)
+            .pending_request()
+            .max_response_bytes(8)
             .get(&format!("{origin}/large"))
             .await,
         Err(Error::BodyTooLarge)
@@ -233,15 +233,15 @@ async fn fake_records_retries_and_rejects_stray_requests_per_factory() {
             }
         })
     });
-    left.preventStrayRequests(true);
-    right.stubUrl(
+    left.prevent_stray_requests(true);
+    right.stub_url(
         "example.test/*",
         Response::from_json(StatusCode::OK, &json!({"side": "right"})).unwrap(),
     );
-    right.preventStrayRequests(true);
+    right.prevent_stray_requests(true);
     let url = "https://example.test/resource";
     let response = left
-        .pendingRequest()
+        .pending_request()
         .retry(2, Duration::ZERO)
         .get(url)
         .await
@@ -260,11 +260,11 @@ async fn fake_records_retries_and_rejects_stray_requests_per_factory() {
     assert_eq!(recorded[0].0.url.as_str(), url);
     assert!(recorded[0].1.is_none());
     assert!(recorded[1].1.as_ref().unwrap().ok());
-    right.assertSentCount(1);
-    right.assertSent(|request, response| {
+    right.assert_sent_count(1);
+    right.assert_sent(|request, response| {
         request.url.as_str() == url && response.is_some_and(Response::ok)
     });
-    right.assertNotSent(|request, _| request.method == Method::POST);
+    right.assert_not_sent(|request, _| request.method == Method::POST);
 }
 
 async fn serve(router: Router) -> (String, tokio::task::JoinHandle<()>) {
@@ -279,15 +279,15 @@ async fn batch_dispatches_callbacks_and_preserves_registration_order() {
     use std::{num::NonZeroUsize, sync::Mutex};
 
     let factory = Factory::new().unwrap();
-    factory.stubUrl(
+    factory.stub_url(
         "https://batch.test/ok",
         Response::new(StatusCode::OK, HeaderMap::new(), b"ok"),
     );
-    factory.stubUrl(
+    factory.stub_url(
         "https://batch.test/fail",
         Response::new(StatusCode::BAD_GATEWAY, HeaderMap::new(), b"bad"),
     );
-    factory.preventStrayRequests(true);
+    factory.prevent_stray_requests(true);
     let calls = Mutex::new(Vec::new());
     let results = factory
         .batch(|batch| {
@@ -301,11 +301,11 @@ async fn batch_dispatches_callbacks_and_preserves_registration_order() {
                     calls.lock().unwrap().push("before".into());
                 })
                 .progress(|counts, key, _| {
-                    assert_eq!(counts.processedRequests(), 1);
+                    assert_eq!(counts.processed_requests(), 1);
                     calls.lock().unwrap().push(key.to_owned());
                 })
                 .catch(|counts, key, _| {
-                    assert!(counts.hasFailures());
+                    assert!(counts.has_failures());
                     calls.lock().unwrap().push(key.to_owned());
                 })
                 .then(|_, _| panic!("a failed batch must skip then"))
@@ -362,7 +362,7 @@ async fn http_factory_delivers_typed_events_to_its_own_application() {
     );
     assert!(matches!(
         factory
-            .pendingRequest()
+            .pending_request()
             .timeout(Duration::from_millis(20))
             .get(&format!("{base}/slow"))
             .await,
@@ -406,19 +406,19 @@ async fn http_factory_delivers_typed_events_to_its_own_application() {
 #[tokio::test]
 async fn named_pool_keeps_order_and_per_request_results() {
     let factory = Factory::new().unwrap();
-    let sequence = factory.fakeSequence("https://pool.test/slow");
+    let sequence = factory.fake_sequence("https://pool.test/slow");
     sequence.push(Err(Error::Connection)).push(Ok(Response::new(
         StatusCode::OK,
         HeaderMap::new(),
         b"retried",
     )));
-    factory.stubUrl(
+    factory.stub_url(
         "https://pool.test/fast",
         Response::new(StatusCode::NOT_FOUND, HeaderMap::new(), b"missing"),
     );
-    factory.preventStrayRequests(true);
+    factory.prevent_stray_requests(true);
     let results = factory
-        .poolOrdered(|pool| {
+        .pool_ordered(|pool| {
             pool.r#as("slow", |request| {
                 request
                     .retry(2, Duration::ZERO)
@@ -438,9 +438,9 @@ async fn named_pool_keeps_order_and_per_request_results() {
         results["slow"].as_ref().unwrap().body().unwrap().as_ref(),
         b"retried"
     );
-    assert!(results["fast"].as_ref().unwrap().notFound());
+    assert!(results["fast"].as_ref().unwrap().not_found());
     assert!(matches!(results["unknown"], Err(Error::StrayRequest)));
-    assert!(sequence.isEmpty());
+    assert!(sequence.is_empty());
     assert!(matches!(
         factory.get("https://pool.test/slow").await,
         Err(Error::SequenceExhausted)
@@ -492,11 +492,11 @@ async fn facade_resolves_the_factory_for_each_serving_application() {
             .container()
             .get::<Factory>(ServiceKey::typed::<Factory>())
             .unwrap();
-        factory.stubUrl(
+        factory.stub_url(
             "https://upstream.test/*",
             Response::from_json(StatusCode::OK, &json!({"side": side})).unwrap(),
         );
-        factory.preventStrayRequests(true);
+        factory.prevent_stray_requests(true);
         serve(
             Router::new()
                 .fallback(transport)
@@ -549,13 +549,13 @@ async fn bounded_pool_releases_slots_and_yields_results_in_completion_order() {
     .await;
     let url = |suffix| format!("{base}/{suffix}");
     let (slow, fast, next) = (url("slow"), url("fast"), url("next"));
-    let pending = Factory::new().unwrap().pendingRequest();
+    let pending = Factory::new().unwrap().pending_request();
     let results = pending.pool(NonZeroUsize::new(2).unwrap(), |pool| {
         pool.r#as("4", |request| request.get(&slow))
             .r#as("fast", |request| request.get(&fast))
-            .newRequest(|request| {
+            .new_request(|request| {
                 request
-                    .afterResponse(move |response| {
+                    .after_response(move |response| {
                         release_slow.notify_one();
                         Ok(response)
                     })
@@ -590,17 +590,17 @@ async fn batch_empty_redirect_and_conditional_http_errors_preserve_callback_boun
     let results = factory
         .batch(|batch| {
             batch
-                .newRequest(|request| request.withoutRedirecting().get(&redirect))
-                .newRequest(|request| request.throwIf(|response| response.badRequest()).get(&error))
+                .new_request(|request| request.without_redirecting().get(&redirect))
+                .new_request(|request| request.throw_if(|response| response.bad_request()).get(&error))
                 .progress(|_, _, _| panic!("neither response is successful"))
                 .catch(|counts, key, result| {
                     assert_eq!(key, "1");
                     assert_eq!(counts.failed_requests, 1);
-                    assert!(matches!(result, Err(Error::RequestFailed(response)) if response.badRequest()));
+                    assert!(matches!(result, Err(Error::RequestFailed(response)) if response.bad_request()));
                 })
                 .then(|_, _| panic!("failed batch must skip then"))
                 .finally(|counts, results| {
-                    assert_eq!(counts.processedRequests(), 2);
+                    assert_eq!(counts.processed_requests(), 2);
                     assert_eq!(results.keys().map(String::as_str).collect::<Vec<_>>(), ["0", "1"]);
                 });
         })
@@ -609,12 +609,12 @@ async fn batch_empty_redirect_and_conditional_http_errors_preserve_callback_boun
     assert!(results["0"].as_ref().unwrap().redirect());
     assert!(
         factory
-            .pendingRequest()
-            .throwIf(|_| false)
+            .pending_request()
+            .throw_if(|_| false)
             .get(&error)
             .await
             .unwrap()
-            .badRequest()
+            .bad_request()
     );
     factory
         .batch(|batch| {
@@ -697,16 +697,16 @@ async fn events_cover_redirect_hops_retries_and_the_wire_request_on_failure() {
 
     let dispatcher = Arc::new(Dispatcher::new());
     let events = dispatcher.fake(&[]);
-    let factory = Factory::new().unwrap().withDispatcher(dispatcher);
+    let factory = Factory::new().unwrap().with_dispatcher(dispatcher);
     factory.fake(|_| None);
     let attrs: serde_json::Map<String, Value> =
         serde_json::from_value(json!({"trace": "local"})).unwrap();
     let pending = || {
         factory
-            .pendingRequest()
-            .withToken("local-test-token")
-            .withAttributes(attrs.clone())
-            .beforeSending(|request| {
+            .pending_request()
+            .with_token("local-test-token")
+            .with_attributes(attrs.clone())
+            .before_sending(|request| {
                 request
                     .headers_mut()
                     .insert("x-wire", HeaderValue::from_static("sent"));
@@ -715,10 +715,10 @@ async fn events_cover_redirect_hops_retries_and_the_wire_request_on_failure() {
     };
 
     let response = pending()
-        .maxResponseBytes(16)
+        .max_response_bytes(16)
         .retry(2, Duration::ZERO)
-        .throwOnRetryFailure(false)
-        .afterResponse(|response| {
+        .throw_on_retry_failure(false)
+        .after_response(|response| {
             assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
             Ok(Response::new(
                 StatusCode::BAD_GATEWAY,
@@ -740,7 +740,7 @@ async fn events_cover_redirect_hops_retries_and_the_wire_request_on_failure() {
     ));
     assert!(matches!(
         factory
-            .pendingRequest()
+            .pending_request()
             .timeout(Duration::from_millis(15))
             .get(&format!("{base}/slow"))
             .await,
@@ -883,11 +883,11 @@ async fn digest_auth_replays_the_body_and_never_uses_credentials_on_another_orig
     factory.fake(|_| None);
     let request = || {
         factory
-            .pendingRequest()
-            .withDigestAuth("local-user", "local-key")
+            .pending_request()
+            .with_digest_auth("local-user", "local-key")
     };
     let response = request()
-        .maxResponseBytes(32)
+        .max_response_bytes(32)
         .post(
             &format!("{base}/digest?key=a%20b"),
             &json!({"value": "body"}),
@@ -907,7 +907,7 @@ async fn digest_auth_replays_the_body_and_never_uses_credentials_on_another_orig
             .unwrap()
             .unauthorized()
     );
-    factory.assertSentCount(5);
+    factory.assert_sent_count(5);
     for task in [server, other_server] {
         task.abort();
     }
@@ -923,7 +923,7 @@ async fn expands_uri_templates_before_parsing_the_outgoing_url() {
     let factory = Factory::new().unwrap();
     let parameters =
         |value| serde_json::from_value::<serde_json::Map<String, Value>>(value).unwrap();
-    let request = factory.withUrlParameters(parameters(json!({
+    let request = factory.with_url_parameters(parameters(json!({
         "endpoint": origin, "path": "a/b", "search": "中文", "tags": ["a b", "c"],
         "filters": {"empty":"", "sort":"a:b"}, "absent": null, "unused": {"nested": ["valid JSON"]},
     })));
@@ -937,9 +937,9 @@ async fn expands_uri_templates_before_parsing_the_outgoing_url() {
     );
 
     let nested = factory
-        .pendingRequest()
-        .baseUrl(&origin)
-        .withUrlParameters(parameters(json!({
+        .pending_request()
+        .base_url(&origin)
+        .with_url_parameters(parameters(json!({
             "filters": {"range": {"from": 1, "to": 5}, "flags": [true, false]},
         })))
         .get("/files{?filters*}")
@@ -951,11 +951,11 @@ async fn expands_uri_templates_before_parsing_the_outgoing_url() {
     );
 
     let relative = factory
-        .pendingRequest()
-        .baseUrl("{+endpoint}/api/{version}")
-        .withUrlParameters(parameters(json!({"endpoint":origin,"version":"old"})))
-        .withUrlParameters(parameters(json!({"version":"v2","search":"ignored"})))
-        .withQueryParameters([("actual".to_owned(), "x y".to_owned())])
+        .pending_request()
+        .base_url("{+endpoint}/api/{version}")
+        .with_url_parameters(parameters(json!({"endpoint":origin,"version":"old"})))
+        .with_url_parameters(parameters(json!({"version":"v2","search":"ignored"})))
+        .with_query_parameters([("actual".to_owned(), "x y".to_owned())])
         .get("/folders{?search}")
         .await
         .unwrap();
@@ -976,7 +976,7 @@ async fn expands_uri_templates_before_parsing_the_outgoing_url() {
     );
 
     let malformed = factory
-        .withUrlParameters(parameters(json!({"endpoint":origin})))
+        .with_url_parameters(parameters(json!({"endpoint":origin})))
         .get("{+endpoint}/broken/{page")
         .await;
     assert!(matches!(malformed, Err(Error::InvalidUriTemplate)));
@@ -1003,16 +1003,16 @@ async fn selective_stray_allowance_checks_redirects_and_keeps_fake_priority() {
     )
     .await;
     let factory = Factory::new().unwrap();
-    factory.preventStrayRequests(true);
-    assert!(factory.preventingStrayRequests());
-    factory.allowStrayRequests([format!("{origin}/allowed/*")]);
-    factory.stubUrl(
+    factory.prevent_stray_requests(true);
+    assert!(factory.preventing_stray_requests());
+    factory.allow_stray_requests([format!("{origin}/allowed/*")]);
+    factory.stub_url(
         format!("{origin}/allowed/fake"),
         Response::new(StatusCode::OK, HeaderMap::new(), b"fake"),
     );
 
-    assert!(factory.isAllowedRequestUrl(&format!("{origin}/allowed/live")));
-    assert!(!factory.isAllowedRequestUrl(&format!("{origin}/blocked")));
+    assert!(factory.is_allowed_request_url(&format!("{origin}/allowed/live")));
+    assert!(!factory.is_allowed_request_url(&format!("{origin}/blocked")));
     assert_eq!(
         factory
             .get(&format!("{origin}/allowed/live"))
@@ -1037,10 +1037,10 @@ async fn selective_stray_allowance_checks_redirects_and_keeps_fake_priority() {
         factory.get(&format!("{origin}/allowed/redirect")).await,
         Err(Error::StrayRequest)
     ));
-    factory.assertSentCount(3);
-    assert!(!Factory::new().unwrap().preventingStrayRequests());
+    factory.assert_sent_count(3);
+    assert!(!Factory::new().unwrap().preventing_stray_requests());
 
-    factory.allowStrayRequests([format!("{origin}/blocked")]);
+    factory.allow_stray_requests([format!("{origin}/blocked")]);
     assert!(matches!(
         factory.get(&format!("{origin}/allowed/live")).await,
         Err(Error::StrayRequest)
@@ -1052,7 +1052,7 @@ async fn selective_stray_allowance_checks_redirects_and_keeps_fake_priority() {
             .unwrap()
             .ok()
     );
-    factory.preventStrayRequests(false);
+    factory.prevent_stray_requests(false);
     assert!(
         factory
             .get(&format!("{origin}/allowed/live"))
@@ -1097,10 +1097,10 @@ async fn retry_callback_modifies_the_next_request_and_preserves_changes_on_later
     let body = json!({"preserve":"body"});
     let results = factory
         .pool(NonZeroUsize::MIN, |pool| {
-            pool.newRequest(|request| {
+            pool.new_request(|request| {
                 request
-                    .retryDelays(vec![Duration::ZERO; 2])
-                    .retryWhenRequest(|error, next| {
+                    .retry_delays(vec![Duration::ZERO; 2])
+                    .retry_when_request(|error, next| {
                         let Error::RequestFailed(response) = error else {
                             return Ok(false);
                         };
@@ -1120,25 +1120,25 @@ async fn retry_callback_modifies_the_next_request_and_preserves_changes_on_later
         })
         .await;
     assert!(results["0"].as_ref().unwrap().ok());
-    factory.assertSentCount(3);
+    factory.assert_sent_count(3);
 
     let denied = factory
-        .pendingRequest()
+        .pending_request()
         .retry(3, Duration::ZERO)
-        .retryWhenRequest(|_, _| Ok(false))
+        .retry_when_request(|_, _| Ok(false))
         .post(&url, &body)
         .await;
     assert!(matches!(denied, Err(Error::RequestFailed(response)) if response.unauthorized()));
-    factory.assertSentCount(4);
+    factory.assert_sent_count(4);
 
     let failed = factory
-        .pendingRequest()
+        .pending_request()
         .retry(3, Duration::ZERO)
-        .retryWhenRequest(|_, _| Err(Error::Configuration))
+        .retry_when_request(|_, _| Err(Error::Configuration))
         .post(&url, &body)
         .await;
     assert!(matches!(failed, Err(Error::Configuration)));
-    factory.assertSentCount(5);
+    factory.assert_sent_count(5);
     server.abort();
 }
 
@@ -1174,30 +1174,30 @@ async fn global_middleware_wraps_each_redirect_and_retry_with_network_transfer_s
     let factory = Factory::new().unwrap();
     let phases = Arc::new(Mutex::new(Vec::new()));
     let observed = phases.clone();
-    factory.globalMiddleware(move |request, next| {
+    factory.global_middleware(move |request, next| {
         let observed = observed.clone();
         let path = request.url().path().to_owned();
         Box::pin(async move {
             observed.lock().unwrap().push(format!("enter:{path}"));
             let response = next.run(request).await?;
-            assert!(response.handlerStats()["total_time"] > 0.0);
+            assert!(response.handler_stats()["total_time"] > 0.0);
             observed.lock().unwrap().push(format!("leave:{path}"));
             Ok(response)
         })
     });
-    factory.globalRequestMiddleware(|request| {
+    factory.global_request_middleware(|request| {
         request
             .headers_mut()
             .insert("x-global", HeaderValue::from_static("present"));
         Ok(())
     });
-    factory.globalResponseMiddleware(|response| {
-        assert!(response.handlerStats()["total_time"] > 0.0);
+    factory.global_response_middleware(|response| {
+        assert!(response.handler_stats()["total_time"] > 0.0);
         Ok(response)
     });
     let observed = phases.clone();
     let response = factory
-        .pendingRequest()
+        .pending_request()
         .with_middleware(move |request, next| {
             let observed = observed.clone();
             Box::pin(async move {
@@ -1207,7 +1207,7 @@ async fn global_middleware_wraps_each_redirect_and_retry_with_network_transfer_s
                 Ok(response)
             })
         })
-        .withResponseMiddleware(|response| {
+        .with_response_middleware(|response| {
             Ok(Response::new(
                 response.status(),
                 response.headers().clone(),
@@ -1219,10 +1219,14 @@ async fn global_middleware_wraps_each_redirect_and_retry_with_network_transfer_s
         .await
         .unwrap();
     assert_eq!(response.body().unwrap().as_ref(), b"measured");
-    assert!(response.handlerStats()["total_time"] >= 0.008);
+    assert!(response.handler_stats()["total_time"] >= 0.008);
     assert_eq!(
-        response.handlerStats()["total_time"],
-        response.transferStats.as_ref().unwrap().getTransferTime()
+        response.handler_stats()["total_time"],
+        response
+            .transfer_stats
+            .as_ref()
+            .unwrap()
+            .get_transfer_time()
     );
     let expected: Vec<String> = ["/redirect", "/measured", "/redirect", "/measured"]
         .into_iter()
@@ -1249,8 +1253,8 @@ async fn global_middleware_is_factory_local_snapshotted_and_runs_on_fakes_and_sh
         )
         .unwrap()))
     });
-    let before = factory.pendingRequest();
-    factory.globalRequestMiddleware(|request| {
+    let before = factory.pending_request();
+    factory.global_request_middleware(|request| {
         request
             .headers_mut()
             .insert("x-global", HeaderValue::from_static("present"));
@@ -1264,9 +1268,9 @@ async fn global_middleware_is_factory_local_snapshotted_and_runs_on_fakes_and_sh
         .await
         .unwrap();
     assert_eq!(response.json::<Value>().unwrap()["header"], true);
-    assert_eq!(response.transferStats.unwrap().getTransferTime(), 0.0);
+    assert_eq!(response.transfer_stats.unwrap().get_transfer_time(), 0.0);
     let response = factory.get("https://fixture.test/fake").await.unwrap();
-    assert!(response.handlerStats().is_empty());
+    assert!(response.handler_stats().is_empty());
     let isolated = Factory::new().unwrap();
     isolated.fake(|request| {
         assert!(!request.headers().contains_key("x-global"));
@@ -1278,8 +1282,8 @@ async fn global_middleware_is_factory_local_snapshotted_and_runs_on_fakes_and_sh
     });
     isolated.get("https://fixture.test/isolated").await.unwrap();
     let short = Factory::new().unwrap();
-    short.preventStrayRequests(true);
-    short.globalMiddleware(|_, _| {
+    short.prevent_stray_requests(true);
+    short.global_middleware(|_, _| {
         Box::pin(async {
             Ok(Response::new(
                 StatusCode::ACCEPTED,
@@ -1313,10 +1317,10 @@ async fn global_middleware_observes_failures_and_redacted_events_keep_measured_d
     .await;
     let dispatcher = Arc::new(openrust::events::Dispatcher::new());
     let events = dispatcher.fake(&[]);
-    let factory = Factory::new().unwrap().withDispatcher(dispatcher);
+    let factory = Factory::new().unwrap().with_dispatcher(dispatcher);
     let failures = Arc::new(Mutex::new(Vec::new()));
     let observed = failures.clone();
-    factory.globalMiddleware(move |request, next| {
+    factory.global_middleware(move |request, next| {
         let observed = observed.clone();
         Box::pin(async move {
             let result = next.run(request).await;
@@ -1327,23 +1331,23 @@ async fn global_middleware_observes_failures_and_redacted_events_keep_measured_d
         })
     });
     let response = factory
-        .pendingRequest()
-        .redactPayload()
+        .pending_request()
+        .redact_payload()
         .get(&format!("{base}/slow?secret=hidden"))
         .await
         .unwrap();
-    assert!(response.handlerStats()["total_time"] >= 0.03);
+    assert!(response.handler_stats()["total_time"] >= 0.03);
     let events = events.dispatched(r"OpenRust\Http\Client\Events\ResponseReceived");
     let event = events[0].downcast_ref::<ResponseReceived>().unwrap();
     assert!(event.request.url.query().is_none());
     assert!(event.response.body().unwrap().as_ref().is_empty());
     assert_eq!(
-        event.response.handlerStats()["total_time"],
-        response.handlerStats()["total_time"]
+        event.response.handler_stats()["total_time"],
+        response.handler_stats()["total_time"]
     );
     assert!(matches!(
         factory
-            .pendingRequest()
+            .pending_request()
             .timeout(Duration::from_millis(1))
             .get(&format!("{base}/slow"))
             .await,
@@ -1389,7 +1393,7 @@ async fn handler_stats_include_network_response_body_reads() {
         .await
         .unwrap();
     assert_eq!(response.body().unwrap().as_ref(), b"aa");
-    assert!(response.handlerStats()["total_time"] >= 0.02);
+    assert!(response.handler_stats()["total_time"] >= 0.02);
     server.abort();
 }
 
@@ -1413,10 +1417,10 @@ async fn reference_header_replacement_preserves_other_keys_multi_values_and_sink
     let output = tempfile::tempdir().unwrap();
     let file = output.path().join("response.json");
     let response = factory
-        .pendingRequest()
-        .withHeaders(initial)
-        .replaceHeaders(replacement)
-        .contentType(HeaderValue::from_static("text/plain"))
+        .pending_request()
+        .with_headers(initial)
+        .replace_headers(replacement)
+        .content_type(HeaderValue::from_static("text/plain"))
         .sink(&file)
         .get(&origin)
         .await
@@ -1431,8 +1435,8 @@ async fn reference_header_replacement_preserves_other_keys_multi_values_and_sink
     );
     assert!(matches!(
         factory
-            .pendingRequest()
-            .withHeader(
+            .pending_request()
+            .with_header(
                 http::HeaderName::from_static("x-keep"),
                 HeaderValue::from_static("keep")
             )
@@ -1458,8 +1462,8 @@ async fn multipart_redirect_limits_and_invalid_header_state_use_the_real_transpo
     .await;
     let factory = Factory::new().unwrap();
     let body: Value = factory
-        .pendingRequest()
-        .asMultipart()
+        .pending_request()
+        .as_multipart()
         .post(&format!("{base}/echo"), &json!({"title":"value"}))
         .await
         .unwrap()
@@ -1479,17 +1483,17 @@ async fn multipart_redirect_limits_and_invalid_header_state_use_the_real_transpo
     );
     assert!(matches!(
         factory
-            .pendingRequest()
-            .maxRedirects(0)
+            .pending_request()
+            .max_redirects(0)
             .get(&format!("{base}/redirect"))
             .await,
         Err(Error::RedirectLimit)
     ));
     assert!(matches!(
         factory
-            .pendingRequest()
-            .withToken("invalid\nvalue")
-            .replaceHeaders(HeaderMap::new())
+            .pending_request()
+            .with_token("invalid\nvalue")
+            .replace_headers(HeaderMap::new())
             .get(&base)
             .await,
         Err(Error::InvalidRequest)

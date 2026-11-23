@@ -65,7 +65,7 @@ impl Migration for Definition {
                         .comment(__("schema.columns.updated_at", &Default::default())?);
 
                     for column in table.getColumnsMut() {
-                        match column.getName() {
+                        match column.get_name() {
                             "owner_type" => {
                                 column
                                     .comment(__("schema.columns.owner_type", &Default::default())?);

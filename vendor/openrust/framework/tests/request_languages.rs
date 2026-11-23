@@ -18,9 +18,9 @@ fn request(headers: &[&str]) -> Request {
 #[test]
 fn languages_preserve_priority_ties_and_all_header_lines() {
     let request = request(&["en-US;q=0.4, fr;q=0.8", "zh-Hant;q=0.8, de"]);
-    assert_eq!(request.getLanguages(), ["de", "fr", "zh-Hant", "en-US"]);
+    assert_eq!(request.get_languages(), ["de", "fr", "zh-Hant", "en-US"]);
     assert_eq!(
-        request.getPreferredLanguage(None).unwrap().as_deref(),
+        request.get_preferred_language(None).unwrap().as_deref(),
         Some("de")
     );
 }
@@ -29,7 +29,7 @@ fn languages_preserve_priority_ties_and_all_header_lines() {
 fn languages_use_existing_bcp47_canonicalization_without_chinese_policy() {
     let request = request(&["EN-us-u-nu-latn, zh-CN, zh-Hant-HK, iw-IL, es-419"]);
     assert_eq!(
-        request.getLanguages(),
+        request.get_languages(),
         ["en-US-u-nu-latn", "zh-CN", "zh-Hant-HK", "he-IL", "es-419"]
     );
 }
@@ -37,7 +37,7 @@ fn languages_use_existing_bcp47_canonicalization_without_chinese_policy() {
 #[test]
 fn duplicate_languages_keep_highest_weight_and_first_equal_position() {
     let request = request(&["en;q=0.2, fr;q=0.7, EN;q=0.9, de;q=0.9, en;q=0.9"]);
-    assert_eq!(request.getLanguages(), ["en", "de", "fr"]);
+    assert_eq!(request.get_languages(), ["en", "de", "fr"]);
 }
 
 #[test]
@@ -58,10 +58,10 @@ fn malformed_or_excluded_ranges_do_not_override_valid_preferences() {
         "i-cherokee",
     ] {
         let input = format!("{header}, fr;q=0.5");
-        assert_eq!(request(&[&input]).getLanguages(), ["fr"], "{header}");
+        assert_eq!(request(&[&input]).get_languages(), ["fr"], "{header}");
     }
     assert_eq!(
-        request(&["en;q=1.000, fr;q=0.999, de;q=0.001"]).getLanguages(),
+        request(&["en;q=1.000, fr;q=0.999, de;q=0.001"]).get_languages(),
         ["en", "fr", "de"]
     );
 }
@@ -70,12 +70,12 @@ fn malformed_or_excluded_ranges_do_not_override_valid_preferences() {
 fn absent_empty_and_invalid_text_headers_have_no_preference() {
     for headers in [vec![], vec![""], vec![" , ; "]] {
         let request = request(&headers);
-        assert!(request.getLanguages().is_empty());
-        assert!(request.getPreferredLanguage(None).unwrap().is_none());
-        assert!(request.getPreferredLanguage(Some(&[])).unwrap().is_none());
+        assert!(request.get_languages().is_empty());
+        assert!(request.get_preferred_language(None).unwrap().is_none());
+        assert!(request.get_preferred_language(Some(&[])).unwrap().is_none());
         assert_eq!(
             request
-                .getPreferredLanguage(Some(&["fr", "en"]))
+                .get_preferred_language(Some(&["fr", "en"]))
                 .unwrap()
                 .as_deref(),
             Some("fr")
@@ -90,7 +90,7 @@ fn absent_empty_and_invalid_text_headers_have_no_preference() {
         .parts_mut()
         .headers
         .append("accept-language", "fr".parse().unwrap());
-    assert_eq!(request.getLanguages(), ["fr"]);
+    assert_eq!(request.get_languages(), ["fr"]);
 }
 
 #[test]
@@ -125,7 +125,7 @@ fn upstream_valid_preference_and_dialect_cases_use_bcp47_results() {
     ] {
         assert_eq!(
             request(&[header])
-                .getPreferredLanguage(Some(&locales))
+                .get_preferred_language(Some(&locales))
                 .unwrap()
                 .as_deref(),
             Some(expected),
@@ -139,7 +139,7 @@ fn preferred_language_uses_ordered_fallback_and_wildcard() {
     for header in ["de", "*", "fr;q=0, *;q=1"] {
         assert_eq!(
             request(&[header])
-                .getPreferredLanguage(Some(&["fr", "en"]))
+                .get_preferred_language(Some(&["fr", "en"]))
                 .unwrap()
                 .as_deref(),
             Some("fr")
@@ -147,14 +147,14 @@ fn preferred_language_uses_ordered_fallback_and_wildcard() {
     }
     assert_eq!(
         request(&["en;q=0.9, *;q=0.5"])
-            .getPreferredLanguage(Some(&["fr", "en"]))
+            .get_preferred_language(Some(&["fr", "en"]))
             .unwrap()
             .as_deref(),
         Some("en")
     );
     assert_eq!(
         request(&["*"])
-            .getPreferredLanguage(None)
+            .get_preferred_language(None)
             .unwrap()
             .as_deref(),
         Some("*")
@@ -166,7 +166,7 @@ fn invalid_candidates_fail_even_if_an_earlier_candidate_matches() {
     for candidate in ["en_US", "", "../fr", "*"] {
         assert!(
             request(&["en"])
-                .getPreferredLanguage(Some(&["en", candidate]))
+                .get_preferred_language(Some(&["en", candidate]))
                 .is_err(),
             "{candidate}"
         );
@@ -176,43 +176,43 @@ fn invalid_candidates_fail_even_if_an_earlier_candidate_matches() {
 #[test]
 fn mutating_request_parts_invalidates_the_per_request_language_cache() {
     let mut current = request(&["en"]);
-    assert_eq!(current.getLanguages(), ["en"]);
+    assert_eq!(current.get_languages(), ["en"]);
     current
         .parts_mut()
         .headers
         .insert("accept-language", "zh-Hant".parse().unwrap());
-    assert_eq!(current.getLanguages(), ["zh-Hant"]);
+    assert_eq!(current.get_languages(), ["zh-Hant"]);
     current.parts_mut().headers.remove("accept-language");
-    assert!(current.getLanguages().is_empty());
-    assert_eq!(request(&["fr"]).getLanguages(), ["fr"]);
+    assert!(current.get_languages().is_empty());
+    assert_eq!(request(&["fr"]).get_languages(), ["fr"]);
 }
 
 #[test]
 fn generic_matching_does_not_guess_chinese_script_from_region() {
     assert_eq!(
         request(&["zh-TW"])
-            .getPreferredLanguage(Some(&["zh-Hans", "zh-Hant"]))
+            .get_preferred_language(Some(&["zh-Hans", "zh-Hant"]))
             .unwrap()
             .as_deref(),
         Some("zh-Hans")
     );
     assert_eq!(
         request(&["zh-Hant-TW"])
-            .getPreferredLanguage(Some(&["zh-Hans", "zh-Hant"]))
+            .get_preferred_language(Some(&["zh-Hans", "zh-Hant"]))
             .unwrap()
             .as_deref(),
         Some("zh-Hant")
     );
-    assert_eq!(request(&["zh-1901"]).getLanguages(), ["zh-1901"]);
+    assert_eq!(request(&["zh-1901"]).get_languages(), ["zh-1901"]);
 }
 
 fn inspect(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
-        let preferred = request.getPreferredLanguage(Some(&["en", "fr-FR"]))?;
+        let preferred = request.get_preferred_language(Some(&["en", "fr-FR"]))?;
         Response::json(
             StatusCode::OK,
             json!({
-                "languages":request.getLanguages(),
+                "languages":request.get_languages(),
                 "preferred":preferred,
                 "application_locale":App::current_locale().unwrap(),
             }),
@@ -225,7 +225,11 @@ async fn actual_kernel_consumers_negotiate_without_changing_application_locale()
     let mut app = TestApp::create(|builder| {
         builder
             .with_config(|_, _| {
-                Ok([("app".into(), json!({"locale":"en","fallback_locale":"en"}))].into())
+                Ok([(
+                    "app".into(),
+                    json!({"locale":"en","fallback_locale":"en","supported_locales":[]}),
+                )]
+                .into())
             })
             .with_routing(Routing::default().web(|| Route::get("/languages", inspect)))
     })
@@ -241,14 +245,14 @@ async fn actual_kernel_consumers_negotiate_without_changing_application_locale()
         .await
         .unwrap();
     response
-        .assertOk()
-        .assertJsonPath("languages", &json!(["fr-CA", "en"]))
-        .assertJsonPath("preferred", &json!("fr-FR"))
-        .assertJsonPath("application_locale", &json!("en"));
+        .assert_ok()
+        .assert_json_path("languages", &json!(["fr-CA", "en"]))
+        .assert_json_path("preferred", &json!("fr-FR"))
+        .assert_json_path("application_locale", &json!("en"));
     app.get("http://example.test/languages")
         .await
         .unwrap()
-        .assertOk()
-        .assertJsonPath("languages", &json!([]))
-        .assertJsonPath("preferred", &json!("en"));
+        .assert_ok()
+        .assert_json_path("languages", &json!([]))
+        .assert_json_path("preferred", &json!("en"));
 }

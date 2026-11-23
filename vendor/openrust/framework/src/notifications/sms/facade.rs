@@ -16,10 +16,10 @@ impl Facade for Sms {
 
 impl Sms {
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn getDefaultDriver() -> NotificationResult<String> {
+    pub fn get_default_driver() -> NotificationResult<String> {
         Self::get_facade_root()
             .map_err(delivery)?
-            .getDefaultDriver()
+            .get_default_driver()
     }
 
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]

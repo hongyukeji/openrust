@@ -17,7 +17,7 @@ pub(super) async fn response(
     exception: &ValidationException,
     config: Option<&Exceptions>,
 ) -> Option<Response> {
-    if !request.hasSession() {
+    if !request.has_session() {
         return None;
     }
     let target = exception
@@ -28,7 +28,7 @@ pub(super) async fn response(
             previous_location(request, referer)
         })
         .or_else(|| {
-            let previous = request.session().ok()?.previousUrl()?;
+            let previous = request.session().ok()?.previous_url()?;
             previous_location(request, previous)
         })
         .unwrap_or_else(|| HeaderValue::from_static("/"));
@@ -41,7 +41,7 @@ pub(super) async fn response(
     let bag = input
         .get("_error_bag")
         .and_then(Value::as_str)
-        .unwrap_or_else(|| exception.error_bag())
+        .unwrap_or_else(|| exception.selected_error_bag())
         .to_owned();
     remove_sensitive(&mut input);
     if let Some(config) = config {
@@ -53,8 +53,8 @@ pub(super) async fn response(
         }
     }
     let session = request.session_mut().ok()?;
-    session.flashInput(input).ok()?;
-    session.flashErrors(&bag, exception.errors()).ok()?;
+    session.flash_input(input).ok()?;
+    session.flash_errors(&bag, exception.errors()).ok()?;
     Some(Response::empty(StatusCode::FOUND).header(LOCATION, target))
 }
 

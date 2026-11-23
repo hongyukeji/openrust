@@ -266,8 +266,12 @@ impl FilesystemAdapter {
         }
         let url = (|| {
             let urls = URL::generator()?;
-            let relative =
-                urls.temporarySignedRoute(&name, expiration, &parameters, SignatureMode::Relative)?;
+            let relative = urls.temporary_signed_route(
+                &name,
+                expiration,
+                &parameters,
+                SignatureMode::Relative,
+            )?;
             urls.to(&relative, &[], None)
         })()
         .map_err(
@@ -513,7 +517,7 @@ impl FilesystemAdapter {
         file: &UploadedFile,
         options: WriteOptions,
     ) -> FilesystemResult<Option<String>> {
-        self.putFileAs(directory, file, file.hashName()?, options)
+        self.putFileAs(directory, file, file.hash_name()?, options)
             .await
     }
 
@@ -594,7 +598,7 @@ impl FilesystemAdapter {
         self.list(directory, false, false).await
     }
 
-    pub async fn allFiles(&self, directory: Option<&str>) -> FilesystemResult<Vec<String>> {
+    pub async fn all_files(&self, directory: Option<&str>) -> FilesystemResult<Vec<String>> {
         self.list(directory, true, false).await
     }
 

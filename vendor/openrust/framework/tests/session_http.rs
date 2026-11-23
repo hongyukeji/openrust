@@ -39,9 +39,9 @@ fn route(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
                     "name": request.old(Some("profile.name")),
                     "explicit_null": request.old(Some("profile.description")).is_some(),
                     "all": request.old(None),
-                    "has_name": request.session()?.hasOldInput(Some("profile.name")),
-                    "has_null": request.session()?.hasOldInput(Some("profile.description")),
-                    "has_any": request.session()?.hasOldInput(None),
+                    "has_name": request.session()?.has_old_input(Some("profile.name")),
+                    "has_null": request.session()?.has_old_input(Some("profile.description")),
+                    "has_any": request.session()?.has_old_input(None),
                 }),
             );
         }
@@ -58,7 +58,7 @@ fn route(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
                 session.flash("message", json!("Saved"))?;
             }
             "flash-input" => {
-                session.flashInput(json!({"profile":{"name":"Ada","description":null}}))?
+                session.flash_input(json!({"profile":{"name":"Ada","description":null}}))?
             }
             "keep" => session.keep(&["message"]),
             "rotate" => session.regenerate(true).await?,
@@ -69,7 +69,7 @@ fn route(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         Response::json(
             StatusCode::OK,
             json!({
-                "id": session.getId(),
+                "id": session.get_id(),
                 "token": session.token(),
                 "name": session.get("profile.name"),
                 "message": session.get("message"),
@@ -83,10 +83,14 @@ async fn request_flash_route(request: &mut Request, action: &str) -> Result<Resp
         "flash" => request.flash().await?,
         "only" => {
             request
-                .flashOnly(&["profile.description", "page", "missing"])
+                .flash_only(&["profile.description", "page", "missing"])
                 .await?
         }
-        "except" => request.flashExcept(&["profile.secret", "password"]).await?,
+        "except" => {
+            request
+                .flash_except(&["profile.secret", "password"])
+                .await?
+        }
         "flush" => request.flush()?,
         _ => {}
     }
@@ -98,7 +102,7 @@ async fn request_flash_route(request: &mut Request, action: &str) -> Result<Resp
             "literal": request.old(Some("profile.name")),
             "name": session.get("profile.name"),
             "token": session.token(),
-            "has_any": session.hasOldInput(None),
+            "has_any": session.has_old_input(None),
         }),
     )
 }
@@ -147,7 +151,7 @@ fn session_data_route(request: &mut Request, action: &str) -> Result<Response, H
     session.put("explicit_null", Value::Null)?;
     assert!(session.exists("explicit_null") && !session.has("explicit_null"));
     assert!(!session.missing("explicit_null") && session.missing("absent"));
-    assert!(session.hasAny(&["absent", "profile.name"]));
+    assert!(session.has_any(&["absent", "profile.name"]));
     let only = session.only(&["profile.name", "explicit_null"]);
     let except = session.except(&["profile.note", "mixed"]);
     assert!(!except.contains_key("mixed"));
@@ -227,7 +231,7 @@ async fn session_cache_route(request: &mut Request, action: &str) -> Result<Resp
     Response::json(
         StatusCode::OK,
         json!({
-            "id": request.session()?.getId(),
+            "id": request.session()?.get_id(),
             "marker": request.session()?.get("marker"),
             "banner": banner.as_ref().and_then(CacheValue::as_str),
             "binary": binary.as_ref() == Some(&vec![0, 255].into()),
@@ -256,7 +260,7 @@ fn register_blocked() -> Result<(), RoutingError> {
         Ok(())
     })?;
     Route::getWith("/session/default/{action}", blocked_route, |route| {
-        route.block(10, 2).withoutBlocking();
+        route.block(10, 2).without_blocking();
         Ok(())
     })
 }
@@ -277,7 +281,10 @@ fn blocked_route(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpE
             count += 1;
             session.put("count", json!(count))?;
         }
-        Response::json(StatusCode::OK, json!({"id":session.getId(), "count":count}))
+        Response::json(
+            StatusCode::OK,
+            json!({"id":session.get_id(), "count":count}),
+        )
     })
 }
 
@@ -285,7 +292,7 @@ async fn transport(
     State(kernel): State<Arc<Kernel>>,
     request: axum::extract::Request,
 ) -> axum::response::Response {
-    kernel.handleTransport(request).await
+    kernel.handle_transport(request).await
 }
 
 async fn start(
@@ -1141,13 +1148,13 @@ async fn a_failed_save_preserves_flash_state_for_retry() {
     store.start().await.unwrap();
     store.flash("message", json!("Saved")).unwrap();
     assert!(matches!(store.save().await, Err(SessionError::Storage)));
-    assert!(store.isStarted());
+    assert!(store.is_started());
     assert_eq!(store.get("message"), Some(&json!("Saved")));
     store.save().await.unwrap();
-    assert!(!store.isStarted());
+    assert!(!store.is_started());
 
     let mut reader = Store::new("session", Box::new(storage)).unwrap();
-    reader.setId(Some(store.getId())).unwrap();
+    reader.set_id(Some(store.get_id())).unwrap();
     reader.start().await.unwrap();
     assert_eq!(reader.get("message"), Some(&json!("Saved")));
     reader.save().await.unwrap();
@@ -1363,8 +1370,8 @@ fn session_names_preserve_unicode_and_defer_cookie_validation() {
             Box::new(ArraySessionHandler::new(Duration::from_secs(60))),
         )
         .unwrap();
-        assert_eq!(store.getName(), name);
-        store.setName("另一个会话").unwrap();
-        assert_eq!(store.getName(), "另一个会话");
+        assert_eq!(store.get_name(), name);
+        store.set_name("另一个会话").unwrap();
+        assert_eq!(store.get_name(), "另一个会话");
     }
 }

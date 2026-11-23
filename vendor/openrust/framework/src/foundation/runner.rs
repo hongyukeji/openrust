@@ -27,7 +27,7 @@ pub type RunningService = HttpFuture<'static, RuntimeResult<()>>;
 pub trait Runner: Send + Sync + 'static {
     fn signature(&self) -> &str;
 
-    fn shouldRun(&self) -> HttpFuture<'_, RuntimeResult<bool>> {
+    fn should_run(&self) -> HttpFuture<'_, RuntimeResult<bool>> {
         Box::pin(async { Ok(true) })
     }
 
@@ -115,7 +115,7 @@ pub(super) async fn configured(
         if seen.insert(signature.to_owned())
             && !filter.disables(signature)
             && runner
-                .shouldRun()
+                .should_run()
                 .await
                 .map_err(|error| RunnerErrors(vec![(signature.to_owned(), error)]))?
         {

@@ -19,7 +19,7 @@ async fn browser_get(address: SocketAddr, path: &str, cookie: &str) -> String {
 fn confirm(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
         let input = request.input(Some("password")).await?.unwrap();
-        if !Auth::confirmPassword(request, input.as_str().unwrap()).await? {
+        if !Auth::confirm_password(request, input.as_str().unwrap()).await? {
             return Err(openrust::http::abort(
                 StatusCode::UNPROCESSABLE_ENTITY,
                 "Invalid password.",

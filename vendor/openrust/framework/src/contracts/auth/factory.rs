@@ -11,5 +11,5 @@ pub trait Factory: Send + Sync {
         request: &'a mut Request,
         name: Option<&str>,
     ) -> AuthResult<Box<dyn Guard + 'a>>;
-    fn shouldUse(&self, request: &mut Request, name: &str) -> AuthResult<()>;
+    fn should_use(&self, request: &mut Request, name: &str) -> AuthResult<()>;
 }

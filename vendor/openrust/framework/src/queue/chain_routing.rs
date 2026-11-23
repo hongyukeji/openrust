@@ -13,14 +13,13 @@ pub(super) struct JobDispatch {
     pub(super) delay: Option<Delay>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Payload {
-    pub fn onConnection(mut self, name: impl Into<String>) -> Self {
+    pub fn on_connection(mut self, name: impl Into<String>) -> Self {
         self.dispatch_options.get_or_insert_default().connection = Some(name.into());
         self
     }
 
-    pub fn onQueue(mut self, name: impl Into<String>) -> Self {
+    pub fn on_queue(mut self, name: impl Into<String>) -> Self {
         self.dispatch_options.get_or_insert_default().queue = Some(name.into());
         self
     }

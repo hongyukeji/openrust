@@ -44,18 +44,18 @@ impl EchoController {
             let nested = request.input(Some("team.name")).await?;
             let exact = request.query(Some("team.name"))?;
             let upload = request.file("attachments.0").await?;
-            let has_file = request.hasFile("attachments").await?;
+            let has_file = request.has_file("attachments").await?;
             let raw_size = request.body_bytes().await?.len();
             let response = Response::json(
                 StatusCode::OK,
                 json!({
                     "app": self.0, "input": all, "nested": nested, "query_exact": exact,
                     "file": upload.map(|file| json!({
-                        "name": file.getClientOriginalName(),
-                        "path": file.getClientOriginalPath(),
-                        "mime": file.getClientMimeType(),
+                        "name": file.get_client_original_name(),
+                        "path": file.get_client_original_path(),
+                        "mime": file.get_client_mime_type(),
                         "bytes": file.get().as_ref(),
-                        "size": file.getSize(),
+                        "size": file.get_size(),
                     })),
                     "has_file": has_file, "raw_size": raw_size,
                 }),
@@ -88,9 +88,8 @@ impl EchoController {
 
 struct ContextResponse(&'static str);
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl openrust::contracts::support::Responsable for ContextResponse {
-    async fn toResponse(self, request: &mut Request) -> Result<Response, HttpError> {
+    async fn to_response(self, request: &mut Request) -> Result<Response, HttpError> {
         let slug = request.route("slug").unwrap_or_default().to_owned();
         if slug == "denied" {
             return Err(HttpError::NotFound);
@@ -149,7 +148,7 @@ fn photo_resource() -> ResourceController<EchoController> {
 
 fn upload_names(value: UploadedFileValue) -> Value {
     match value {
-        UploadedFileValue::File(file) => json!(file.getClientOriginalName()),
+        UploadedFileValue::File(file) => json!(file.get_client_original_name()),
         UploadedFileValue::Files(files) => Value::Object(
             files
                 .into_iter()
@@ -165,15 +164,15 @@ fn uploads(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
         Response::json(
             StatusCode::OK,
             json!({
-                "files": upload_names(request.allFiles().await?),
-                "matched": request.fileValue("photos.*.image").await?.map(upload_names),
-                "empty": request.fileValue("empty").await?.is_none(),
-                "skipped": request.fileValue("list.0").await?.is_none(),
+                "files": upload_names(request.all_files().await?),
+                "matched": request.file_value("photos.*.image").await?.map(upload_names),
+                "empty": request.file_value("empty").await?.is_none(),
+                "skipped": request.file_value("list.0").await?.is_none(),
                 "single": request.file("list.1").await?.map(|file| file.get().to_vec()),
-                "has_list": request.hasFile("list").await?,
-                "has_nested": request.hasFile("photos").await?,
-                "has_direct": request.hasFile("photos.0").await?,
-                "has_wildcard": request.hasFile("photos.*.image").await?,
+                "has_list": request.has_file("list").await?,
+                "has_nested": request.has_file("photos").await?,
+                "has_direct": request.has_file("photos.0").await?,
+                "has_wildcard": request.has_file("photos.*.image").await?,
             }),
         )
     })
@@ -182,7 +181,7 @@ fn uploads(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
 fn visible_input(input: &RequestValue) -> Value {
     match input {
         RequestValue::Value(value) => value.clone(),
-        RequestValue::File(file) => json!({"file": file.getClientOriginalName()}),
+        RequestValue::File(file) => json!({"file": file.get_client_original_name()}),
         RequestValue::Array(fields) => Value::Object(
             fields
                 .iter()
@@ -196,7 +195,7 @@ fn all_input(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError
     Box::pin(async move {
         let all = request.all().await?;
         let selected = request
-            .allOnly(&["same", "items.1.photo", "nested.name", "missing"])
+            .all_only(&["same", "items.1.photo", "nested.name", "missing"])
             .await?;
         let required = request
             .only(&["items.*.photo", "document", "null_input", "missing"])
@@ -205,13 +204,13 @@ fn all_input(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError
             .except(&["items.0", "document", "nested.name"])
             .await?;
         let when_has = request
-            .whenHas("document", async |_, value| {
+            .when_has("document", async |_, value| {
                 value.as_ref().map(visible_input)
             })
             .await?
             .flatten();
         let when_filled = request
-            .whenFilled("items.1", async |_, value| {
+            .when_filled("items.1", async |_, value| {
                 value.as_ref().map(visible_input)
             })
             .await?
@@ -226,7 +225,7 @@ fn all_input(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError
                 "except": visible_input(&remainder),
                 "when_has": when_has,
                 "when_filled": when_filled,
-                "same_upload": request.file("same").await?.map(|file| file.getClientOriginalName().to_owned()),
+                "same_upload": request.file("same").await?.map(|file| file.get_client_original_name().to_owned()),
                 "same_input": request.input(Some("same")).await?,
                 "file_only": request.input(Some("document")).await?,
             }),
@@ -246,12 +245,12 @@ fn body_input(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpErro
         let mut user = request.fluent(Some("user")).await?;
         user.set("local", json!(true)).unwrap();
         let fallback = request
-            .fluentOr("nullable", json!({"fallback": true}))
+            .fluent_or("nullable", json!({"fallback": true}))
             .await?;
         let missing = request.fluent(Some("missing")).await?;
         let all = request.fluent(None).await?;
         let fields = request
-            .fluentOnly(&["user.name", "document", "missing"])
+            .fluent_only(&["user.name", "document", "missing"])
             .await?;
         let attachment = fields.get("document");
         let mut scoped = fields.scope("user");
@@ -276,7 +275,7 @@ fn body_input(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpErro
             StatusCode::OK,
             json!({
                 "post": post, "exact": exact, "post_null_is_absent": nullable.is_none(), "post_query": post_query,
-                "fluent_user": user, "fallback": fallback, "missing_is_empty": missing.isEmpty(),
+                "fluent_user": user, "fallback": fallback, "missing_is_empty": missing.is_empty(),
                 "fluent_all": all, "fluent_selected": visible_input(fields.all()),
                 "attachment": attachment.as_ref().map(visible_input),
                 "scoped": visible_input(scoped.all()), "edited_items": edited.get("items").as_ref().map(visible_input),
@@ -309,7 +308,7 @@ fn native_input(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
     Box::pin(async move {
         use axum::extract::ConnectInfo;
 
-        let mut native = request.toHttpRequest().await?;
+        let mut native = request.to_http_request().await?;
         let trace: Vec<_> = native
             .headers()
             .get_all("x-trace")
@@ -326,9 +325,9 @@ fn native_input(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
         Response::json(
             StatusCode::OK,
             json!({
-                "native_uri": native.uri().to_string(), "original_uri": request.originalUri().to_string(),
+                "native_uri": native.uri().to_string(), "original_uri": request.original_uri().to_string(),
                 "effective_host": request.host()?, "native_method": native.method().as_str(),
-                "transport_method": request.getRealMethod().as_str(),
+                "transport_method": request.get_real_method().as_str(),
                 "version_matches": native.version() == request.version(),
                 "trace": trace, "original_trace": request.header("x-trace")?,
                 "extension_matches": request.extensions().get::<ConnectInfo<SocketAddr>>().is_some_and(|info| info.0 == peer),
@@ -364,11 +363,11 @@ impl ServiceProvider for Provider {
                 [
                     (
                         "caps",
-                        ResponseMacro::new(|_| async { Ok(Response::noContent()) }),
+                        ResponseMacro::new(|_| async { Ok(Response::no_content()) }),
                     ),
                     (
                         "replace",
-                        ResponseMacro::new(|_| async { Ok(Response::noContent()) }),
+                        ResponseMacro::new(|_| async { Ok(Response::no_content()) }),
                     ),
                 ],
                 false,
@@ -389,14 +388,14 @@ fn response_macro(request: &mut Request) -> HttpFuture<'_, Result<Response, Http
     Box::pin(async move {
         match request.uri().path() {
             "/macro-flush" => {
-                ResponseFacade::flushMacros().map_err(|source| HttpError::Internal {
+                ResponseFacade::flush_macros().map_err(|source| HttpError::Internal {
                     source: Box::new(source),
                 })?;
-                Ok(Response::noContent())
+                Ok(Response::no_content())
             }
             "/macro-present" => {
                 let present =
-                    ResponseFacade::hasMacro("caps").map_err(|source| HttpError::Internal {
+                    ResponseFacade::has_macro("caps").map_err(|source| HttpError::Internal {
                         source: Box::new(source),
                     })?;
                 Response::json(StatusCode::OK, present)
@@ -422,7 +421,7 @@ fn stream_json(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         let users = futures_util::stream::iter([Ok::<_, std::io::Error>(1), Ok(2)]);
         let empty = futures_util::stream::empty::<Result<i32, std::io::Error>>();
         let counts = futures_util::stream::iter([Ok::<_, std::io::Error>(("active", 2))]);
-        Ok(Response::streamJson(
+        Ok(Response::stream_json(
             StatusCode::OK,
             StreamedJson::object([
                 ("users", StreamedJson::items(users)),
@@ -447,7 +446,7 @@ fn event_stream(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
                 Ok(StreamedEvent::message("before failure")),
                 Err(std::io::Error::other("sse fixture interruption")),
             ]);
-            return Ok(Response::eventStream(events));
+            return Ok(Response::event_stream(events));
         }
         let events = futures_util::stream::iter([
             Ok::<_, HttpError>(StreamedEvent::message("line\r\nnext\rfinal")),
@@ -456,14 +455,14 @@ fn event_stream(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
                 json!({"ready":true,"text":"<é>/\"&'😀\u{2028}"}),
             ),
         ]);
-        Ok(Response::eventStream(events))
+        Ok(Response::event_stream(events))
     })
 }
 
 fn stream_download(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
         let content = futures_util::stream::iter([Ok::<_, std::io::Error>("first"), Ok("second")]);
-        Response::streamDownload(content, Some("résumé.txt"), HeaderMap::new(), "attachment")
+        Response::stream_download(content, Some("résumé.txt"), HeaderMap::new(), "attachment")
     })
 }
 
@@ -520,7 +519,7 @@ fn response_factory(request: &mut Request) -> HttpFuture<'_, Result<Response, Ht
                 };
                 Ok(Response::markdown(status, "# Heading\n"))
             }
-            "/response-empty" => Ok(Response::noContent().header(
+            "/response-empty" => Ok(Response::no_content().header(
                 HeaderName::from_static("x-probe"),
                 HeaderValue::from_static("empty"),
             )),
@@ -552,7 +551,7 @@ fn cache_response(request: &mut Request) -> HttpFuture<'_, Result<Response, Http
                 Response::new(StatusCode::OK, Body::from("cache me"))
                     .header(debug.clone(), HeaderValue::from_static("one"))
                     .header(remove.clone(), HeaderValue::from_static("two"))
-                    .withoutHeaders([debug, remove])
+                    .without_headers([debug, remove])
             }
             "/cache-date" => Response::new(StatusCode::OK, Body::from("date")),
             "/cache-manual" => Response::new(StatusCode::OK, Body::from("manual")).header(
@@ -648,9 +647,9 @@ fn dated_values(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
         });
         let keys = ["user.name", "user.note", "missing", "query"];
         let selected = visible_input(&request.only(&keys).await?);
-        let array = visible_input(&request.arrayOnly(&keys).await?);
+        let array = visible_input(&request.array_only(&keys).await?);
         let collection: Vec<_> = request
-            .collectOnly(&keys)
+            .collect_only(&keys)
             .await?
             .into_iter()
             .map(|(key, value)| (key, visible_input(&value)))
@@ -741,7 +740,7 @@ async fn start_with(
             Route::r#match(&[Method::POST], "/dated-values", dated_values)?;
             Route::r#match(&[Method::POST], "/intervals", interval_values)?;
             Route::resource("photos", photo_resource())?;
-            Route::apiResource(
+            Route::api_resource(
                 "api/albums.photos",
                 photo_resource()
                     .shallow()
@@ -757,7 +756,7 @@ async fn start_with(
                     }),
             )?;
             Route::singleton("profile", photo_resource())?;
-            Route::apiSingleton(
+            Route::api_singleton(
                 "api/albums.thumbnail",
                 photo_resource()
                     .creatable()
@@ -910,7 +909,7 @@ async fn start_with(
 }
 
 fn path_encoding(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
-    Box::pin(async move { Response::json(StatusCode::OK, json!(request.decodedPath())) })
+    Box::pin(async move { Response::json(StatusCode::OK, json!(request.decoded_path())) })
 }
 
 #[tokio::test]
@@ -1014,9 +1013,9 @@ async fn real_http_normalizes_input_bags_and_keeps_application_exceptions_separa
         start_with("custom", root.path().to_owned(), |builder| {
             builder.with_middleware(|middleware| {
                 middleware
-                    .trimStrings(["rows.*.sealed"])
-                    .skipTrimStringsWhen(|request| request.hasHeader("x-no-trim"))
-                    .convertEmptyStringsToNull(|request| {
+                    .trim_strings(["rows.*.sealed"])
+                    .skip_trim_strings_when(|request| request.has_header("x-no-trim"))
+                    .convert_empty_strings_to_null(|request| {
                         request.query(Some("keep")).ok().flatten() == Some(json!("yes"))
                     });
             })
@@ -1113,25 +1112,25 @@ fn mutate_input(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
         let body = request.body_bytes().await?;
         let original = request.input(None).await?;
         let present = request.has(&["nullable", "fallback"]).await?;
-        let any_present = request.hasAny(&["absent", "fallback"]).await?;
+        let any_present = request.has_any(&["absent", "fallback"]).await?;
         let exists = request.exists(&["fallback"]).await?;
         let upload = request
-            .whenHas("document", async |_, value| match value {
+            .when_has("document", async |_, value| match value {
                 Some(RequestValue::File(file)) => Some(file),
                 _ => None,
             })
             .await?
             .flatten();
         let file_is_filled = request.filled(&["document"]).await?;
-        let not_filled = request.isNotFilled(&["blank", "absent"]).await?;
+        let not_filled = request.is_not_filled(&["blank", "absent"]).await?;
         let falsy_is_filled = request.filled(&["zero", "flag", "empty"]).await?;
-        let any_filled = request.anyFilled(&["absent", "fallback"]).await?;
+        let any_filled = request.any_filled(&["absent", "fallback"]).await?;
         let callback = request
-            .whenFilled("flag", async |_, value| value.as_ref().map(visible_input))
+            .when_filled("flag", async |_, value| value.as_ref().map(visible_input))
             .await?;
-        let absent = request.whenMissing("absent", async |_| "missing").await?;
+        let absent = request.when_missing("absent", async |_| "missing").await?;
         request
-            .mergeIfMissing(json!({"nullable":"changed","fallback":"changed","document":"changed","added":" padded "}))
+            .merge_if_missing(json!({"nullable":"changed","fallback":"changed","document":"changed","added":" padded "}))
             .await?;
         let invalid = format!("{}.end", "too.".repeat(128));
         assert!(matches!(
@@ -1143,7 +1142,7 @@ fn mutate_input(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
         assert!(request.missing(&["should_rollback"]).await?);
         request.merge(json!({"profile.age": 42})).await?;
         let merged = request.input(None).await?;
-        let merged_json = if request.isJson() {
+        let merged_json = if request.is_json() {
             request.json(None).await?
         } else {
             None
@@ -1154,7 +1153,7 @@ fn mutate_input(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
             .insert("x-checked", ::http::HeaderValue::from_static("yes"));
         assert_eq!(request.input(None).await?, merged);
         request.replace(json!({"only":true})).await?;
-        let replaced_json = if request.isJson() {
+        let replaced_json = if request.is_json() {
             request.json(None).await?
         } else {
             None
@@ -1171,7 +1170,7 @@ fn mutate_input(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
                 "any_filled": any_filled,
                 "callback": callback,
                 "absent": absent,
-                "upload": upload.map(|file| file.getClientOriginalName().to_string()),
+                "upload": upload.map(|file| file.get_client_original_name().to_string()),
                 "file_is_filled": file_is_filled,
                 "merged": merged,
                 "merged_json": merged_json,
@@ -1180,9 +1179,9 @@ fn mutate_input(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
                 "query": request.query(None)?,
                 "original_uri_query": request.uri().query(),
                 "raw_preserved": request.body_bytes().await? == body,
-                "upload_preserved": request.hasFile("document").await?,
+                "upload_preserved": request.has_file("document").await?,
                 "method": request.method().as_str(),
-                "real_method": request.getRealMethod().as_str(),
+                "real_method": request.get_real_method().as_str(),
             }),
         )
     })
@@ -1283,13 +1282,13 @@ fn negotiate(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError
         Response::json(
             StatusCode::OK,
             json!({
-                "types": request.getAcceptableContentTypes(),
+                "types": request.get_acceptable_content_types(),
                 "preferred": request.prefers(&["html", "json", "text/markdown"]),
                 "format": request.format("fallback"),
-                "accepts": [request.acceptsHtml(), request.acceptsJson(), request.acceptsMarkdown()],
-                "wants": [request.wantsJson(), request.wantsMarkdown()],
-                "expects_json": request.expectsJson(),
-                "is_json": request.isJson(),
+                "accepts": [request.accepts_html(), request.accepts_json(), request.accepts_markdown()],
+                "wants": [request.wants_json(), request.wants_markdown()],
+                "expects_json": request.expects_json(),
+                "is_json": request.is_json(),
             }),
         )
     })
@@ -1424,7 +1423,7 @@ async fn reference_content_negotiation_uses_quality_order_and_media_types_over_h
         .unwrap();
     assert_eq!(response["types"], json!(["text/html"]));
     assert_eq!(response["wants"], json!([false, false]));
-    assert!(Request::matchesType(
+    assert!(Request::matches_type(
         "application/json",
         "application/problem+json"
     ));
@@ -1858,7 +1857,7 @@ async fn native_request_conversion_preserves_a_lazy_body_and_transport_parts() {
         .append("x-trace", ::http::HeaderValue::from_static("second"));
     let framework = Request::from(native);
     assert_eq!(framework.version(), ::http::Version::HTTP_2);
-    assert_eq!(framework.originalUri(), "/raw%2Ftarget?key=%2B");
+    assert_eq!(framework.original_uri(), "/raw%2Ftarget?key=%2B");
     assert_eq!(framework.extensions().get::<u32>(), Some(&42));
     let native: ::http::Request<Body> = framework.into();
     assert_eq!(polls.load(Ordering::Relaxed), 0);
@@ -1875,7 +1874,7 @@ async fn native_request_conversion_preserves_a_lazy_body_and_transport_parts() {
         .body(Body::empty())
         .unwrap();
     assert!(matches!(
-        Request::from(native).toHttpRequest().await,
+        Request::from(native).to_http_request().await,
         Err(HttpError::PayloadTooLarge)
     ));
 }
@@ -1887,7 +1886,7 @@ async fn real_http_native_snapshot_keeps_the_transport_target_and_effective_meth
     let (address, server) = start_with("native", std::env::temp_dir(), |builder| {
         builder.with_middleware(|middleware| {
             middleware
-                .trustProxies(&["127.0.0.1"], TrustedProxyHeaders::DEFAULT)
+                .trust_proxies(&["127.0.0.1"], TrustedProxyHeaders::DEFAULT)
                 .unwrap();
         })
     })
@@ -2417,7 +2416,7 @@ async fn real_http_dispatches_resource_and_api_resource_actions() {
 fn resource_registration_preserves_names_binding_fields_and_atomic_failure() {
     let mut router = Router::new();
     router.resource("photos", photo_resource()).unwrap();
-    let original = router.getRoutes();
+    let original = router.get_routes();
     assert_eq!(original.len(), 7);
     assert!(
         original
@@ -2435,7 +2434,7 @@ fn resource_registration_preserves_names_binding_fields_and_atomic_failure() {
             ..
         })
     ));
-    assert_eq!(router.getRoutes(), original);
+    assert_eq!(router.get_routes(), original);
     assert!(
         router
             .resource(
@@ -2449,10 +2448,10 @@ fn resource_registration_preserves_names_binding_fields_and_atomic_failure() {
             )
             .is_err()
     );
-    assert_eq!(router.getRoutes(), original);
+    assert_eq!(router.get_routes(), original);
 
     router
-        .apiResource(
+        .api_resource(
             "albums.photos",
             photo_resource()
                 .only(&[ResourceAction::Index, ResourceAction::Show])
@@ -2462,7 +2461,7 @@ fn resource_registration_preserves_names_binding_fields_and_atomic_failure() {
                 .names(&[(ResourceAction::Show, "pictures.read")]),
         )
         .unwrap();
-    let routes = router.getRoutes();
+    let routes = router.get_routes();
     assert!(
         routes
             .iter()
@@ -2476,14 +2475,14 @@ fn resource_registration_preserves_names_binding_fields_and_atomic_failure() {
                 && route.uri == "photos/{image:slug}")
     );
     router
-        .apiResource(
+        .api_resource(
             "api/forms",
             photo_resource().only(&[ResourceAction::Create]),
         )
         .unwrap();
     assert!(
         router
-            .getRoutes()
+            .get_routes()
             .iter()
             .any(|route| route.method == "GET|HEAD"
                 && route.uri == "api/forms/create"
@@ -2531,14 +2530,14 @@ async fn real_http_dispatches_singletons_with_lifecycle_and_shallow_paths() {
 fn singleton_routes_apply_explicit_selection_and_keep_binding_metadata() {
     let mut router = Router::new();
     router
-        .apiSingleton(
+        .api_singleton(
             "pages.summary",
             photo_resource()
                 .only(&[ResourceAction::Edit])
                 .names(&[(ResourceAction::Edit, "summary.change")]),
         )
         .unwrap();
-    let routes = router.getRoutes();
+    let routes = router.get_routes();
     assert_eq!(routes.len(), 1);
     assert_eq!(routes[0].method, "GET|HEAD");
     assert_eq!(routes[0].uri, "pages/{page}/summary/edit");
@@ -2552,7 +2551,7 @@ fn singleton_routes_apply_explicit_selection_and_keep_binding_metadata() {
                 .scoped(&[("profile", "slug")]),
         )
         .unwrap();
-    let routes = router.getRoutes();
+    let routes = router.get_routes();
     assert_eq!(routes.len(), 7);
     for (method, path) in [
         ("GET|HEAD", "profiles/{profile:slug}/card/create"),
@@ -2625,7 +2624,7 @@ async fn response_streams_preserve_failure_and_lazy_sources() {
         ready.await.unwrap();
         Ok::<_, std::io::Error>(1)
     });
-    let mut response = Response::streamJson(StatusCode::OK, StreamedJson::items(source));
+    let mut response = Response::stream_json(StatusCode::OK, StreamedJson::items(source));
     let mut body = response.take_body().into_data_stream();
     let first = tokio::time::timeout(std::time::Duration::from_secs(1), body.next()).await;
     assert_eq!(first.unwrap().unwrap().unwrap().as_ref(), b"[");
@@ -2636,13 +2635,13 @@ async fn response_streams_preserve_failure_and_lazy_sources() {
     let source = stream::iter([Err::<StreamedEvent, _>(std::io::Error::other(
         "ended early",
     ))]);
-    let mut response = Response::eventStream(source);
+    let mut response = Response::event_stream(source);
     let mut body = response.take_body().into_data_stream();
     assert!(body.next().await.unwrap().is_err());
     assert!(body.next().await.is_none());
 
     let empty = || stream::empty::<Result<StreamedEvent, std::io::Error>>();
-    let mut response = Response::eventStreamWithEnd(empty(), None);
+    let mut response = Response::event_stream_with_end(empty(), None);
     assert!(
         response
             .take_body()
@@ -2652,7 +2651,7 @@ async fn response_streams_preserve_failure_and_lazy_sources() {
             .is_none()
     );
     let end = StreamedEvent::new("done", "ok").unwrap();
-    let mut response = Response::eventStreamWithEnd(empty(), Some(end));
+    let mut response = Response::event_stream_with_end(empty(), Some(end));
     let mut body = response.take_body().into_data_stream();
     assert_eq!(
         body.next().await.unwrap().unwrap().as_ref(),
@@ -2662,7 +2661,7 @@ async fn response_streams_preserve_failure_and_lazy_sources() {
 
     assert!(StreamedEvent::new("injected\nevent", "data").is_err());
     assert!(
-        Response::streamDownload(
+        Response::stream_download(
             stream::empty::<Result<String, std::io::Error>>(),
             Some("../unsafe"),
             HeaderMap::new(),

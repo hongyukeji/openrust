@@ -33,7 +33,7 @@ pub async fn verify(
 
 ### 自訂驗證郵件 {#custom-verification-email}
 
-在服務提供者的啟動方法中，用 `VerifyEmail::toMailUsing` 替換郵件內容。回呼接收使用者和已產生的連結。可透過 `VerifyEmail::createUrlUsing` 在算繪郵件前提供其他連結。目標路由使用簽署中介軟體時，應產生相應的簽署 URL。
+在服務提供者的啟動方法中，用 `VerifyEmail::to_mail_using` 替換郵件內容。回呼接收使用者和已產生的連結。可透過 `VerifyEmail::create_url_using` 在算繪郵件前提供其他連結。目標路由使用簽署中介軟體時，應產生相應的簽署 URL。
 
 ```rust
 use openrust::{
@@ -42,7 +42,7 @@ use openrust::{
 };
 
 fn customize_verification_mail() -> AuthResult<()> {
-    VerifyEmail::toMailUsing(|_, url| {
+    VerifyEmail::to_mail_using(|_, url| {
         Ok(MailDelivery::Message(Box::new(
             MailMessage::new()
                 .subject("Confirm your email")
@@ -54,6 +54,6 @@ fn customize_verification_mail() -> AuthResult<()> {
 
 ## 重送和保護路由
 
-將重送入口命名為 `verification.send`，使用 `auth` 和 `throttle:6,1`，對尚未驗證的使用者呼叫 `sendEmailVerificationNotification`。
+將重送入口命名為 `verification.send`，使用 `auth` 和 `throttle:6,1`，對尚未驗證的使用者呼叫 `send_email_verification_notification`。
 
 使用 `verified` 保護路由。未驗證使用者請求 HTML 時重新導向到 `verification.notice`，請求 JSON 時回傳 403。可用 `verified:your.route` 指定提示頁。

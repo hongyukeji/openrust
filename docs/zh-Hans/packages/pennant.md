@@ -41,9 +41,9 @@ let both = user.allAreActive(&["new-api", "theme"]).await?;
 
 ## 作用域 {#scopes}
 
-使用 `for` 显式选择作用域，`Scope::fromModel` 转换 Eloquent 模型，`globally` 选择单一全局作用域。全局与匿名作用域彼此独立。模型默认以具体 Rust 类和主键标识；`useMorphMap(true)` 将类部分切换为配置的 morph 别名。`FeatureScopeSerializeable` 配合 `Scope::fromSerializable` 自定义序列化；`FeatureScopeable` 配合 `forScopeable` 按所选 store 转换标识。
+使用 `for` 显式选择作用域，`Scope::from_model` 转换 Eloquent 模型，`globally` 选择单一全局作用域。全局与匿名作用域彼此独立。模型默认以具体 Rust 类和主键标识；`useMorphMap(true)` 将类部分切换为配置的 morph 别名。`FeatureScopeSerializeable` 配合 `Scope::fromSerializable` 自定义序列化；`FeatureScopeable` 配合 `forScopeable` 按所选 store 转换标识。
 
-默认作用域读取原生认证已解析的身份。使用懒加载 guard 时，先调用 `Feature::forRequest(request).await?` 再判断，或先运行认证中间件。`EnsureFeaturesAreActive` 会主动解析默认 guard。非 HTTP 场景请显式指定作用域，或配置 `FeatureManager::resolveScopeUsing`。
+默认作用域读取原生认证已解析的身份。使用懒加载 guard 时，先调用 `Feature::for_request(request).await?` 再判断，或先运行认证中间件。`EnsureFeaturesAreActive` 会主动解析默认 guard。非 HTTP 场景请显式指定作用域，或配置 `FeatureManager::resolveScopeUsing`。
 
 ## 类式特性 {#feature-classes}
 

@@ -202,7 +202,7 @@ async fn load_from_source<'a, M: Model, R: Relation<Parent = M>>(
     name: &str,
     relation: &R,
 ) -> DatabaseResult<&'a R::Output> {
-    if !source.selected().relationLoaded(name) {
+    if !source.selected().relation_loaded(name) {
         source.update(&mut LoadRelation { name, relation }).await?;
     }
     source
@@ -549,7 +549,7 @@ impl<M: Model> Collection<M> {
             .models
             .get(index)
             .ok_or(DatabaseError::InvalidQuery("model collection index"))?;
-        if !model.relationLoaded(name) {
+        if !model.relation_loaded(name) {
             if self.autoload {
                 self.loadMissing(name, relation).await?;
             } else {
@@ -818,15 +818,15 @@ impl<M: Model> Collection<M> {
         self.setAppends(&[])
     }
 
-    pub fn toArray(&self) -> DatabaseResult<Vec<serde_json::Map<String, serde_json::Value>>> {
-        self.iter().map(Model::toArray).collect()
+    pub fn to_array(&self) -> DatabaseResult<Vec<serde_json::Map<String, serde_json::Value>>> {
+        self.iter().map(Model::to_array).collect()
     }
 
-    pub fn toJson(&self) -> DatabaseResult<String> {
-        let rows = self.toArray()?;
+    pub fn to_json(&self) -> DatabaseResult<String> {
+        let rows = self.to_array()?;
         match &self.keys {
             Some(keys) => BaseCollection::fromEntries(keys.iter().zip(rows))
-                .toJson()
+                .to_json()
                 .map_err(|_| DatabaseError::InvalidQuery("model collection JSON")),
             None => serde_json::to_string(&rows)
                 .map_err(|_| DatabaseError::InvalidQuery("model collection JSON")),
@@ -1223,7 +1223,7 @@ impl<M: Model> Collection<M> {
             keys.push(key.clone());
         }
         let mut query = Builder::<M>::new(connection).withoutGlobalScopes();
-        query.whereIn(M::metadata().primary_key, keys);
+        query.where_in(M::metadata().primary_key, keys);
         Ok(query)
     }
 
@@ -1282,7 +1282,7 @@ impl<M: Model> Collection<M> {
             if let Some(casts) = casts {
                 query.casts.clone_from(casts);
             }
-            query.whereIn(M::metadata().primary_key, batch.to_vec());
+            query.where_in(M::metadata().primary_key, batch.to_vec());
             for model in query.get().await? {
                 if let Some(key) = dictionary_key(model.getKey())? {
                     refreshed.insert(key, model);
@@ -1420,7 +1420,7 @@ impl<M: Model> Collection<M> {
     }
 
     /// Loads missing relationships along the supplied registered paths.
-    pub async fn loadMissingPaths(&mut self, paths: &[&str]) -> DatabaseResult<()> {
+    pub async fn load_missing_paths(&mut self, paths: &[&str]) -> DatabaseResult<()> {
         super::NamedRelations::<M>::load_missing(&mut self.models, paths).await
     }
 
@@ -1628,7 +1628,7 @@ pub(super) async fn aggregate_attributes<M: Model>(
         for aggregate in aggregates {
             query = aggregate.apply(query)?;
         }
-        query.whereIn(primary_key, batch.to_vec());
+        query.where_in(primary_key, batch.to_vec());
         for model in query.get().await? {
             if let Some(key) = dictionary_key(model.getKey())? {
                 let attributes = aliases

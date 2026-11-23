@@ -26,7 +26,7 @@ impl Middleware for CreateFreshApiToken {
         Box::pin(async move {
             let passport = openrust::container::Container::get_instance().make::<Passport>()?;
             let name = passport.cookie(None);
-            let initially_authenticated = if request.hasCookie(&name)? {
+            let initially_authenticated = if request.has_cookie(&name)? {
                 Auth::guard(request, self.guard.as_deref())?.check().await?
             } else {
                 false
@@ -35,9 +35,9 @@ impl Middleware for CreateFreshApiToken {
             let user = Auth::guard(request, self.guard.as_deref())?
                 .user()
                 .await?
-                .map(|u| u.getAuthIdentifier());
+                .map(|u| u.get_auth_identifier());
             if initially_authenticated && user.is_none() {
-                return response.withCookie(&Cookie::forget(&name, None, None)?, request);
+                return response.with_cookie(&Cookie::forget(&name, None, None)?, request);
             }
             if request.method() != Method::GET || user.is_none() {
                 return Ok(response);
@@ -60,7 +60,7 @@ impl Middleware for CreateFreshApiToken {
                     source: Box::new(source),
                 },
             )?;
-            response.withCookie(&cookie, request)
+            response.with_cookie(&cookie, request)
         })
     }
 }

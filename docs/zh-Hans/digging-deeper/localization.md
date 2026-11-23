@@ -140,8 +140,8 @@ let redirect = match request.post(Some("redirect")).await? {
     Some(serde_json::Value::String(path)) => path,
     _ => return Err(HttpError::InvalidRequest),
 };
-let target = SetLocale::urlWithoutLocale(request, &redirect)?;
-SetLocale::storePreferenceFromRequest(request, "locale").await?;
+let target = SetLocale::url_without_locale(request, &redirect)?;
+SetLocale::store_preference_from_request(request, "locale").await?;
 Ok(Redirect::to(&target, RedirectOptions {
     status: StatusCode::SEE_OTHER,
     ..Default::default()
@@ -150,14 +150,14 @@ Ok(Redirect::to(&target, RedirectOptions {
 
 欢迎页表单通过请求体字段 `redirect` 提交当前页面路径。其他页面可传 `/account?tab=profile`，保存后返回该页面；缺失、null 或空值兜底为 `/`，错误类型和非站内目标在写入偏好前返回400。查询参数不能补充此字段。这是应用表单约定，不是新增中间件配置。
 
-偏好字段缺失，或其值为数字、布尔、数组、对象时返回 HTTP 400；JSON `null` 或空字符串清除偏好，非空字符串复用现有 BCP 47 和候选校验。查询参数不会补齐请求体字段。字段取自既有输入中间件处理后的请求体；默认裁剪和空字符串转换可能将纯空白转为清除操作。此方法不改变本次请求语言，也不绕过请求方法、Cookie 管线或 CSRF 约束。已有 `storePreference(request, Some("zh-Hans"))` 和 `storePreference(request, None)` 仍可处理经过校验的值。
+偏好字段缺失，或其值为数字、布尔、数组、对象时返回 HTTP 400；JSON `null` 或空字符串清除偏好，非空字符串复用现有 BCP 47 和候选校验。查询参数不会补齐请求体字段。字段取自既有输入中间件处理后的请求体；默认裁剪和空字符串转换可能将纯空白转为清除操作。此方法不改变本次请求语言，也不绕过请求方法、Cookie 管线或 CSRF 约束。已有 `store_preference(request, Some("zh-Hans"))` 和 `store_preference(request, None)` 仍可处理经过校验的值。
 
-`urlWithoutLocale(request, "/")` 返回应用指定的目标，不会再次跳到保存入口。它从目标和当前请求中移除实际语言查询键，保留其他值及编码，使用现有 URL 生成器处理可信代理子路径；请求中的其他值覆盖目标中的同名值。只接受以单个 `/` 开头的本地路径，拒绝外部地址、协议相对地址和反斜杠。它只生成 URL，不保存偏好或创建响应。页面示例需导入 `SetLocale`、`Redirect`、`RedirectOptions` 和 `StatusCode`。
+`url_without_locale(request, "/")` 返回应用指定的目标，不会再次跳到保存入口。它从目标和当前请求中移除实际语言查询键，保留其他值及编码，使用现有 URL 生成器处理可信代理子路径；请求中的其他值覆盖目标中的同名值。只接受以单个 `/` 开头的本地路径，拒绝外部地址、协议相对地址和反斜杠。它只生成 URL，不保存偏好或创建响应。页面示例需导入 `SetLocale`、`Redirect`、`RedirectOptions` 和 `StatusCode`。
 
 使用同一受保护 Cookie 管线的 API 控制器也可以读取自定义 `language` 字段，直接返回 204 或自行生成 JSON：
 
 ```rust
-SetLocale::storePreferenceFromRequest(request, "language").await?;
+SetLocale::store_preference_from_request(request, "language").await?;
 Ok(Response::empty(StatusCode::NO_CONTENT))
 ```
 
@@ -175,7 +175,7 @@ Ok(Response::empty(StatusCode::NO_CONTENT))
 
 同源有状态浏览器 API 只有在管线于 SetLocale 之前完成 Cookie 解密和队列装配后，才可复用相同偏好。内置有状态 API 包装器为可信前端来源提供此管线，普通 API 仍无状态；接入后同样按回调 → URL → Cookie → 请求头排序，写入口保留 CSRF 保护。返回 JSON 本身不会启用偏好。
 
-需要跨设备同步时，在应用账号设置中保存语言，并在认证之后的实例 `localeUsing` 回调中返回已校验的可信候选；账号未设置则返回 `None`，继续 Cookie 与浏览器兜底。框架不要求或创建用户模型字段和账号表。关闭默认实例、将同一个中间件放到依赖之后的示例见[自定义语言选择](#custom-locale-selection)。
+需要跨设备同步时，在应用账号设置中保存语言，并在认证之后的实例 `locale_using` 回调中返回已校验的可信候选；账号未设置则返回 `None`，继续 Cookie 与浏览器兜底。框架不要求或创建用户模型字段和账号表。关闭默认实例、将同一个中间件放到依赖之后的示例见[自定义语言选择](#custom-locale-selection)。
 
 ### 语言偏好请求头 {#locale-header}
 
@@ -187,9 +187,9 @@ Accept-Language: zh-Hans
 
 在 `config/app.rs` 中，`"locale_header": get(env, "APP_LOCALE_HEADER", "Accept-Language")?` 指定应用语言协商请求头。设置 `APP_LOCALE_HEADER=X-Language` 后只读取该头，头名按 HTTP 规则不区分大小写；该头缺失时不再尝试 `Accept-Language`。值继续使用同一 BCP 47 校验、权重、多头合并和候选匹配规则。缺键默认 `Accept-Language`；JSON `null` 仅关闭请求头识别。环境值按字符串读取：`APP_LOCALE_HEADER=null` 表示名为 `null` 的请求头，并不关闭识别；关闭时请在应用配置中设置 JSON `null`。空名称、非法名称或非字符串类型属于配置错误（HTTP 500），即使回调或 URL 已选择语言也会报告。空候选仍关闭整个中间件。
 
-选择顺序为 `localeUsing` 返回 `Some` → 配置的 URL 参数 → 受保护的偏好 Cookie → 配置的请求头 → 应用默认语言及候选兜底；回调返回 `None` 才进入下一来源。配置使用已有仓储和配置缓存，修改源码或环境不会覆盖已加载的缓存，修改 `APP_LOCALE_HEADER` 后需重建配置缓存。请求头和 URL 语言识别均可配置。
+选择顺序为 `locale_using` 返回 `Some` → 配置的 URL 参数 → 受保护的偏好 Cookie → 配置的请求头 → 应用默认语言及候选兜底；回调返回 `None` 才进入下一来源。配置使用已有仓储和配置缓存，修改源码或环境不会覆盖已加载的缓存，修改 `APP_LOCALE_HEADER` 后需重建配置缓存。请求头和 URL 语言识别均可配置。
 
-`Request::getLanguages`／`getPreferredLanguage` 始终描述标准 `Accept-Language`，不受应用配置影响。只有接入翻译资源的文案随语言变化。启用请求头识别时，`Vary` 合并实际配置的头名，保留已有项和 `*`；`null` 不添加语言头的项，仍保留 URL、回调和 `Content-Language`。依赖 Cookie 或用户资料的回调仍需应用设置适当的私有缓存策略及其他 `Vary` 项。
+`Request::get_languages`／`get_preferred_language` 始终描述标准 `Accept-Language`，不受应用配置影响。只有接入翻译资源的文案随语言变化。启用请求头识别时，`Vary` 合并实际配置的头名，保留已有项和 `*`；`null` 不添加语言头的项，仍保留 URL、回调和 `Content-Language`。依赖 Cookie 或用户资料的回调仍需应用设置适当的私有缓存策略及其他 `Vary` 项。
 
 业务、控制器和页面读取实际使用的语言时使用 `App::current_locale()?`；URL、持久化偏好回调或下游 `App::set_locale` 都可能让它不同于请求偏好。例如配置 `APP_LOCALE_HEADER=X-Language`，同时收到 `Accept-Language: en` 和 `X-Language: zh-Hant` 时，Request 仍返回英文偏好，App 与翻译使用繁体中文。停用 SetLocale 后，配置本身不会自动执行语言选择。
 
@@ -197,11 +197,11 @@ Accept-Language: zh-Hans
 
 普通自定义协商头直接设置既有 `APP_LOCALE_HEADER=X-Locale`，不设置时协商 `Accept-Language`。该头位于 URL 和受保护 Cookie 偏好之后；请求缺少配置的自定义头时，使用默认语言或首个候选，不再尝试 `Accept-Language`。这与优先于其他来源的回调不同。常规候选列表使用上方配置，用户或租户语言等业务规则再使用回调。
 
-`localeUsing` 可为当前应用的中间件实例设置同步回调。例如优先读取指定请求头，缺少时依次尝试 URL、受保护的偏好 Cookie 与请求头协商：
+`locale_using` 可为当前应用的中间件实例设置同步回调。例如优先读取指定请求头，缺少时依次尝试 URL、受保护的偏好 Cookie 与请求头协商：
 
 ```rust
 .with_middleware(|middleware| {
-    middleware.localeUsing(|request| {
+    middleware.locale_using(|request| {
         Ok(request.header("X-Locale")?.map(str::to_owned))
     });
 })
@@ -213,7 +213,7 @@ Accept-Language: zh-Hans
 - `Ok(None)` 先尝试配置的 URL 参数和受保护的偏好 Cookie，再使用原有浏览器协商、受支持的应用默认语言或候选首项。
 - `Err(error)` 将原错误交给现有异常处理并停止下游。非法或不受支持的选择作为内部错误处理；若值来自用户输入，可在回调内校验并返回适当的 HTTP 错误。选择失败不切换语言，也不触发 `LocaleUpdated`。
 
-未设置回调时行为不变。候选与回调独立设置，调用顺序不限；候选更新失败保留原候选及回调，重复设置回调使用最后一个。空候选关闭整个实例，不执行回调、不触发事件、不处理响应头，但保留回调以供重新启用。路由实例也提供 `set_locale` 与 `localeUsing`，候选更新与回调只属于该实例，不使用进程全局注册表；回调自身也应避免共享可变用户状态。
+未设置回调时行为不变。候选与回调独立设置，调用顺序不限；候选更新失败保留原候选及回调，重复设置回调使用最后一个。空候选关闭整个实例，不执行回调、不触发事件、不处理响应头，但保留回调以供重新启用。路由实例也提供 `set_locale` 与 `locale_using`，候选更新与回调只属于该实例，不使用进程全局注册表；回调自身也应避免共享可变用户状态。
 
 默认实例在解析后的路由管线执行，位于直接 Cookie 解密／队列之后、普通 Web Session 和认证之前。有状态 API 包装器中则在其 Cookie／Session 保护之后执行。没有这些依赖的路由保持无状态；未匹配错误页和公开静态响应仍执行请求头／URL 选择，不启用 Web 存储。回调可以读取请求头及此时已准备的信息，不能访问后续才提供的依赖。依赖 Session 时，先在 `with_middleware` 调用 `middleware.set_locale(&[]).expect("语言标签有效")` 关闭全局识别，再在 `routes/web.rs` 中注册同一个中间件，放到默认 `web` 组加载 Session 之后：
 
@@ -229,7 +229,7 @@ use openrust::{
 pub fn register() -> Result<(), RoutingError> {
     let mut locale = SetLocale::new(&["en", "zh-Hans", "zh-Hant"])
         .expect("语言标签有效");
-    locale.localeUsing(|request| {
+    locale.locale_using(|request| {
         Ok(request.session()?.get("locale")
             .and_then(|value| value.as_str().map(str::to_owned)))
     });
@@ -493,7 +493,7 @@ APP_LOCALE=zh-Hant ./artisan help list
 
 ## 契约语言设置
 
-Translator 契约、具体实现和 Lang Facade 均提供 `get_locale`、`set_locale`、`getFallback`、`setFallback`。启动时设置应用默认值；请求／队列作用域内设置只影响当前执行。`withLocale` 支持嵌套并在离开后恢复，回退语言独立设置。旧自定义 Loader／Translator 消费者应将契约中的 snake_case 调用迁移为上述原名。
+Translator 契约、具体实现和 Lang Facade 均提供 `get_locale`、`set_locale`、`getFallback`、`set_fallback`。启动时设置应用默认值；请求／队列作用域内设置只影响当前执行。`withLocale` 支持嵌套并在离开后恢复，回退语言独立设置。旧自定义 Loader／Translator 消费者应将契约中的 snake_case 调用迁移为上述原名。
 
 ## 语言设置的所有权
 

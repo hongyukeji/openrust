@@ -15,7 +15,6 @@ pub struct ResetPassword<'a> {
     token: &'a str,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'a> ResetPassword<'a> {
     pub fn new(token: &'a str) -> Self {
         Self { token }
@@ -34,7 +33,7 @@ impl<'a> ResetPassword<'a> {
     }
 
     /// Configure reset link creation for this application.
-    pub fn createUrlUsing(
+    pub fn create_url_using(
         callback: impl Fn(&dyn CanResetPassword, &str) -> AuthResult<String> + Send + Sync + 'static,
     ) -> AuthResult<()> {
         MailCallbacks::get()?
@@ -45,7 +44,7 @@ impl<'a> ResetPassword<'a> {
     }
 
     /// Replace the reset notification email, receiving the user and reset token.
-    pub fn toMailUsing(
+    pub fn to_mail_using(
         callback: impl Fn(&dyn CanResetPassword, &str) -> AuthResult<MailDelivery>
         + Send
         + Sync
@@ -59,8 +58,8 @@ impl<'a> ResetPassword<'a> {
     }
 
     /// Send to the user, applying this application's notification callbacks.
-    pub async fn sendTo(&self, user: &dyn CanResetPassword) -> AuthResult<()> {
-        let email = user.getEmailForPasswordReset();
+    pub async fn send_to(&self, user: &dyn CanResetPassword) -> AuthResult<()> {
+        let email = user.get_email_for_password_reset();
         send_mail("ResetPassword", email, || {
             let (url, mail) = {
                 let callbacks = MailCallbacks::get()?;

@@ -51,7 +51,7 @@ impl ClientRecord {
     pub async fn getKey(&self) -> Option<Value> {
         self.0.key().await
     }
-    pub async fn toArray(&self) -> DatabaseResult<serde_json::Map<String, serde_json::Value>> {
+    pub async fn to_array(&self) -> DatabaseResult<serde_json::Map<String, serde_json::Value>> {
         self.0.to_array().await
     }
     pub async fn confidential(&self) -> bool {
@@ -161,7 +161,7 @@ impl<M: ClientModel> LoadedClient for Loaded<M> {
     fn to_array(
         &self,
     ) -> DatabaseFuture<'_, DatabaseResult<serde_json::Map<String, serde_json::Value>>> {
-        Box::pin(async move { self.model.lock().await.toArray() })
+        Box::pin(async move { self.model.lock().await.to_array() })
     }
     fn confidential(&self) -> DatabaseFuture<'_, bool> {
         Box::pin(async move { self.model.lock().await.confidential() })

@@ -95,11 +95,11 @@ impl ViewRequestQuery {
             check => async {
                 match check {
                     RequestCheck::Authenticated(guard) => Ok(Auth::manager()?
-                        .userForGuard(request, guard.as_deref())
+                        .user_for_guard(request, guard.as_deref())
                         .await?
                         .is_some()),
                     RequestCheck::Authorized(mode, abilities, arguments) => {
-                        let gate = Gate::forRequest(request).await?;
+                        let gate = Gate::for_request(request).await?;
                         let abilities: Vec<_> = abilities.iter().map(String::as_str).collect();
                         let arguments: Vec<&Argument> = arguments
                             .iter()
@@ -148,13 +148,13 @@ impl RequestRead {
                     .map(|value| value.to_owned().into())
                     .unwrap_or(default),
                 Self::Path => request.path().into(),
-                Self::PathInfo => request.getPathInfo().into(),
-                Self::BaseUrl => request.getBaseUrl().into(),
+                Self::PathInfo => request.get_path_info().into(),
+                Self::BaseUrl => request.get_base_url().into(),
                 Self::Url => request.url()?.into(),
-                Self::FullUrl => request.fullUrl()?.into(),
+                Self::FullUrl => request.full_url()?.into(),
                 Self::Method => request.method().as_str().into(),
                 Self::Secure => request.secure().into(),
-                Self::LocaleSelection => serde_json::to_value(request.localeSelection())?.into(),
+                Self::LocaleSelection => serde_json::to_value(request.locale_selection())?.into(),
             })
         }
         .await;

@@ -20,7 +20,7 @@ impl Middleware for StartSession {
             let manager = current_container()
                 .ok_or(SessionError::Configuration)?
                 .get::<SessionManager>("session")?;
-            if !manager.is_configured() || request.hasSession() {
+            if !manager.is_configured() || request.has_session() {
                 return Ok(next.run(request).await);
             }
             if !request.cookie_is_protected(manager.cookie_name()) {
@@ -31,9 +31,9 @@ impl Middleware for StartSession {
             let Some(mut session) = manager.build(request, id)? else {
                 return Ok(next.run(request).await);
             };
-            session.store.setId(id)?;
+            session.store.set_id(id)?;
             let lock = manager
-                .lock(request.session_block, session.store.getId())
+                .lock(request.session_block, session.store.get_id())
                 .await?;
             let response = handle_session(&manager, request, next, session).await;
             if let Some(lock) = lock {
@@ -58,10 +58,10 @@ async fn handle_session(
 ) -> Result<Response, HttpError> {
     session.start().await?;
     manager.collect_garbage(&mut session).await?;
-    request.attachSession(session);
+    request.attach_session(session);
     let mut response = next.run(request).await;
     // Login and logout can change the identity. The guard still needs the active store.
-    if !request.isPrecognitive()
+    if !request.is_precognitive()
         && let Some(database_user) = database_user
         && let Some(user) = Auth::manager()?.database_session_user(request).await?
     {
@@ -72,24 +72,24 @@ async fn handle_session(
         && request.method() == Method::GET
         && !request.ajax()
         && !request.prefetch()
-        && !request.isPrecognitive()
+        && !request.is_precognitive()
         && let Some(path) = request.uri().path_and_query()
         && path.as_str().starts_with('/')
         && !path.as_str().starts_with("//")
     {
-        session.setPreviousUrl(&URL::forRequest(request)?.full()?)?;
-        session.setPreviousRoute(request.route_name.as_deref())?;
+        session.set_previous_url(&URL::for_request(request)?.full()?)?;
+        session.set_previous_route(request.route_name.as_deref())?;
     }
     #[cfg(feature = "sanctum")]
     let stateful_frontend = crate::sanctum::StatefulFrontend::is_active(request);
     #[cfg(not(feature = "sanctum"))]
     let stateful_frontend = false;
     let cookie = manager.cookie(&session, stateful_frontend)?;
-    response.setCookie(&cookie, request.is_secure())?;
-    if !request.isPrecognitive() {
+    response.set_cookie(&cookie, request.is_secure())?;
+    if !request.is_precognitive() {
         session.save().await?;
     }
     // 框架 请求在响应完成后仍可访问 Session，供终止回调及 HTTP 断言读取。
-    request.attachSession(session);
+    request.attach_session(session);
     Ok(response)
 }

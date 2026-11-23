@@ -304,7 +304,7 @@ async fn verify_token_storage(db: &Connection) {
     let store = PersonalAccessTokens::new(db.clone(), "fixture_");
     let expiry = jiff::Timestamp::new(1_900_000_000, 0).unwrap();
     let issued = store
-        .createToken("users", 42, "browser", &["read"], Some(expiry))
+        .create_token("users", 42, "browser", &["read"], Some(expiry))
         .await
         .unwrap();
     let (id, secret) = issued.plain_text_token.split_once('|').unwrap();
@@ -367,8 +367,8 @@ async fn verify_token_storage(db: &Connection) {
         assert!(store.findToken(invalid).await.unwrap().is_none());
     }
     let (a, b) = tokio::join!(
-        store.createToken("users", 42, "one", &["*"], None),
-        store.createToken("users", 42, "two", &["*"], None),
+        store.create_token("users", 42, "one", &["*"], None),
+        store.create_token("users", 42, "two", &["*"], None),
     );
     let (a, b) = (a.unwrap(), b.unwrap());
     assert_ne!(a.plain_text_token.as_str(), b.plain_text_token.as_str());
@@ -664,7 +664,7 @@ async fn verify_batches(db: Connection) {
             .unwrap()
             .unwrap();
         assert_eq!(failure.pending_jobs, 2);
-        assert!(failure.hasFailures());
+        assert!(failure.has_failures());
         assert_eq!(failure.failed_job_ids, ["job-failed"]);
     }
     let retried = repository

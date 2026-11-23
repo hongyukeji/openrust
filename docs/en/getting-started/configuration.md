@@ -6,7 +6,7 @@ Copy `.env.example` to `.env` in the application root to customize local setting
 
 An explicit `APP_URL` takes precedence for `app.url`. When it is unset, a specific `APP_HOST` and `APP_PORT` produce a URL such as `http://example.test:8080` or `http://[2001:db8::1]:8080`. An unset host, a loopback address such as `127.0.0.1` or `::1`, or a wildcard listener such as `0.0.0.0` or `::` uses `http://localhost:{port}`. The environment template sets `APP_URL="http://${APP_HOST}:${APP_PORT}"`, which expands to `http://127.0.0.1:8000` with its default settings.
 
-HTTP URL generation, including `URL::forRequest(request)`, uses the explicit `APP_URL` first. With no explicit URL, it uses the current request origin, then the listener-derived `app.url` if the request has no origin. Artisan uses `app.url` directly.
+HTTP URL generation, including `URL::for_request(request)`, uses the explicit `APP_URL` first. With no explicit URL, it uses the current request origin, then the listener-derived `app.url` if the request has no origin. Artisan uses `app.url` directly.
 
 Set `APP_VERSION` to override the application version stored in `app.version`. When `APP_VERSION` is unset, the version defaults to the Cargo package version captured at compile time by `env!("CARGO_PKG_VERSION")`. The welcome page displays `app.version`.
 
@@ -165,7 +165,7 @@ To check the site during maintenance, open the URL printed by `--with-secret`. T
 
 ```rust
 .with_middleware(|middleware| {
-    middleware.preventRequestsDuringMaintenance(["status/*"]);
+    middleware.prevent_requests_during_maintenance(["status/*"]);
 })
 ```
 

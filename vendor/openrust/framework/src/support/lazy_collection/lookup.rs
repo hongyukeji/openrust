@@ -40,7 +40,7 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
         Ok(false)
     }
 
-    pub fn hasAny<K: Into<ArrayKey>>(
+    pub fn has_any<K: Into<ArrayKey>>(
         &self,
         keys: impl IntoIterator<Item = K>,
     ) -> CollectionResult<bool> {

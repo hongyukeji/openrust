@@ -96,9 +96,9 @@ pub async fn login_bound_user(
     let id = AuthIdentifier::try_from(binding.get("user_id").ok_or(HttpError::InvalidRequest)?)
         .map_err(internal)?;
     {
-        let mut guard = Auth::sessionGuard(request, Some("web")).map_err(internal)?;
+        let mut guard = Auth::session_guard(request, Some("web")).map_err(internal)?;
         if guard
-            .loginUsingId(&id, false)
+            .login_using_id(&id, false)
             .await
             .map_err(internal)?
             .is_none()
@@ -106,7 +106,7 @@ pub async fn login_bound_user(
             return Ok(false);
         }
     }
-    request.session_mut()?.regenerateToken()?;
+    request.session_mut()?.regenerate_token()?;
     Ok(true)
 }
 ```
@@ -145,9 +145,9 @@ pub async fn logout(request: &mut Request, federated: bool) -> Result<Response, 
         .map_err(internal)?
         .takeLogoutHint()
         .ok();
-    Auth::sessionGuard(request, Some("web"))
+    Auth::session_guard(request, Some("web"))
         .map_err(internal)?
-        .logoutAndInvalidate()
+        .logout_and_invalidate()
         .await
         .map_err(internal)?;
     if federated
@@ -167,7 +167,7 @@ pub async fn logout(request: &mut Request, federated: bool) -> Result<Response, 
 }
 ```
 
-`takeLogoutHint()` consumes the hint before native `logoutAndInvalidate()` clears the local Session and renews CSRF. `logoutUrl(&hint)` discovers and checks the allowed `end_session_endpoint`, adds the ID Token hint, client ID, fixed return URI and one-time state, then saves the state in the new anonymous Session. Missing support, unavailable Discovery or invalid metadata still leave local logout complete in this action. Do not take the hint or return destination from request parameters.
+`takeLogoutHint()` consumes the hint before native `logout_and_invalidate()` clears the local Session and renews CSRF. `logoutUrl(&hint)` discovers and checks the allowed `end_session_endpoint`, adds the ID Token hint, client ID, fixed return URI and one-time state, then saves the state in the new anonymous Session. Missing support, unavailable Discovery or invalid metadata still leave local logout complete in this action. Do not take the hint or return destination from request parameters.
 
 In the fixed return handler, call `Oidc::provider("work", request)?.completeLogout().await?` and return a local signed-out page. Completion checks Session binding, configuration, destination, expiry and a shared atomic replay claim. A failed return consumes its attempt; it never logs anyone in. It acknowledges the return state and does not prove that every remote credential was revoked.
 

@@ -113,7 +113,7 @@ async fn custom_language_path_connects_loader_publisher_facade_and_package_overr
         fs::write(package.join("messages.json"), r#"{"greeting":"package"}"#).unwrap();
         app.app().use_lang_path(custom.clone()).unwrap();
         let command = app.artisan(["path:probe"]).await;
-        command.assertSuccessful();
+        command.assert_successful();
         assert_eq!(command.stdout, custom.to_string_lossy());
         let translator = app.app().make::<Translator>().await.unwrap();
         assert_eq!(
@@ -142,7 +142,7 @@ async fn custom_language_path_connects_loader_publisher_facade_and_package_overr
         fs::remove_file(&package_override).unwrap();
         app.artisan(["vendor:publish", "--tag=probe-lang"])
             .await
-            .assertSuccessful();
+            .assert_successful();
         assert!(
             fs::read_to_string(&package_override)
                 .unwrap()
@@ -151,34 +151,34 @@ async fn custom_language_path_connects_loader_publisher_facade_and_package_overr
         fs::write(&package_override, "custom package").unwrap();
         app.artisan(["vendor:publish", "--tag=probe-lang"])
             .await
-            .assertSuccessful();
+            .assert_successful();
         assert_eq!(
             fs::read_to_string(&package_override).unwrap(),
             "custom package"
         );
         app.artisan(["vendor:publish", "--tag=probe-lang", "--force"])
             .await
-            .assertSuccessful();
+            .assert_successful();
         assert!(
             fs::read_to_string(&package_override)
                 .unwrap()
                 .contains("package")
         );
-        app.artisan(["lang:publish"]).await.assertSuccessful();
+        app.artisan(["lang:publish"]).await.assert_successful();
         assert!(custom.join("en/auth.json").is_file());
         assert!(!app.root().join("lang").exists());
         let auth = custom.join("en/auth.json");
         fs::write(&auth, r#"{"failed":"mine"}"#).unwrap();
-        app.artisan(["lang:publish"]).await.assertSuccessful();
+        app.artisan(["lang:publish"]).await.assert_successful();
         assert!(fs::read_to_string(&auth).unwrap().contains("mine"));
         app.artisan(["lang:publish", "--force"])
             .await
-            .assertSuccessful();
+            .assert_successful();
         assert!(!fs::read_to_string(&auth).unwrap().contains("mine"));
         fs::remove_file(&auth).unwrap();
         app.artisan(["lang:publish", "--existing"])
             .await
-            .assertSuccessful();
+            .assert_successful();
         assert!(!auth.exists());
     }
 }

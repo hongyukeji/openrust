@@ -63,7 +63,7 @@ impl Guard {
             if auth.guard_uses_driver(request, name, "sanctum")? {
                 continue;
             }
-            if let Some(user) = auth.userForGuard(request, Some(name)).await? {
+            if let Some(user) = auth.user_for_guard(request, Some(name)).await? {
                 if auth.supports_sanctum_tokens(user.as_ref()) {
                     RequestTokens::insert(request, &self.name, AccessToken::Transient);
                 }

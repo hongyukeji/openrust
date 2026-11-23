@@ -45,10 +45,10 @@ pub trait TokenRepository: Send + Sync {
         user: &'a dyn CanResetPassword,
         token: &'a str,
     ) -> AuthFuture<'a, AuthResult<bool>>;
-    fn recentlyCreatedToken<'a>(
+    fn recently_created_token<'a>(
         &'a self,
         user: &'a dyn CanResetPassword,
     ) -> AuthFuture<'a, AuthResult<bool>>;
     fn delete<'a>(&'a self, user: &'a dyn CanResetPassword) -> AuthFuture<'a, AuthResult<()>>;
-    fn deleteExpired(&self) -> AuthFuture<'_, AuthResult<()>>;
+    fn delete_expired(&self) -> AuthFuture<'_, AuthResult<()>>;
 }

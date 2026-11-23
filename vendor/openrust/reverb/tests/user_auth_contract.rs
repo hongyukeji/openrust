@@ -89,8 +89,8 @@ async fn user_routes_use_named_connections_request_identity_signatures_and_sessi
         )
         .await
         .unwrap();
-    auth.assertOk()
-        .assertSessionHas("notice", Some(&json!("keep")));
+    auth.assert_ok()
+        .assert_session_has("notice", Some(&json!("keep")));
     let data: Value = auth.json().unwrap();
     assert_eq!(
         serde_json::from_str::<Value>(data["user_data"].as_str().unwrap()).unwrap(),
@@ -109,11 +109,11 @@ async fn user_routes_use_named_connections_request_identity_signatures_and_sessi
     )
     .await
     .unwrap()
-    .assertJsonPath("notice", &json!("keep"));
+    .assert_json_path("notice", &json!("keep"));
     app.get("http://example.test/broadcasting/user-auth?socket_id=123.456")
         .await
         .unwrap()
-        .assertStatus(StatusCode::FORBIDDEN);
+        .assert_status(StatusCode::FORBIDDEN);
     app.call(
         axum::http::Request::get("http://example.test/broadcasting/user-auth?socket_id=invalid")
             .header("x-user", "42")
@@ -122,12 +122,12 @@ async fn user_routes_use_named_connections_request_identity_signatures_and_sessi
     )
     .await
     .unwrap()
-    .assertStatus(StatusCode::FORBIDDEN);
+    .assert_status(StatusCode::FORBIDDEN);
     let named = app
         .get("http://example.test/custom/broadcasting/user-auth?socket_id=123.456")
         .await
         .unwrap();
-    named.assertOk();
+    named.assert_ok();
     let named: Value = named.json().unwrap();
     assert!(named["auth"].as_str().unwrap().starts_with("two-key:"));
     assert_eq!(

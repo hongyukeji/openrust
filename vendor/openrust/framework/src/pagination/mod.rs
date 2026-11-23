@@ -125,15 +125,15 @@ macro_rules! paginator_json {
     ($type:ident) => {
         #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
         impl<T: serde::Serialize> $type<T> {
-            pub fn toArray(&self) -> serde_json::Result<serde_json::Value> {
+            pub fn to_array(&self) -> serde_json::Result<serde_json::Value> {
                 serde_json::to_value(self)
             }
 
-            pub fn toJson(&self) -> serde_json::Result<String> {
+            pub fn to_json(&self) -> serde_json::Result<String> {
                 serde_json::to_string(self)
             }
 
-            pub fn toPrettyJson(&self) -> serde_json::Result<String> {
+            pub fn to_pretty_json(&self) -> serde_json::Result<String> {
                 serde_json::to_string_pretty(self)
             }
         }

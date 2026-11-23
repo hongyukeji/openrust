@@ -207,7 +207,7 @@ async fn numeric_limit(parameters: &str, request: &mut Request) -> Result<Limit,
             Ok(max) if max.is_finite() => numeric_attempts(max),
             _ => match &user {
                 Some(user) => user
-                    .getAuthAttribute(attempts)?
+                    .get_auth_attribute(attempts)?
                     .and_then(attribute_attempts),
                 None => None,
             },
@@ -215,7 +215,7 @@ async fn numeric_limit(parameters: &str, request: &mut Request) -> Result<Limit,
     }
     .ok_or_else(invalid)?;
     let key = match user {
-        Some(user) => match user.getAuthIdentifier() {
+        Some(user) => match user.get_auth_identifier() {
             AuthIdentifier::Integer(id) => format!("{prefix}:user:{id}"),
             AuthIdentifier::UnsignedInteger(id) => format!("{prefix}:user:{id}"),
             AuthIdentifier::String(id) => format!("{prefix}:user:{id}"),

@@ -84,17 +84,17 @@ fn explicit_configuration_registration_preserves_customizations_and_rejects_ambi
     fs::write(&path, &original).unwrap();
     let app = Application::configure(root.0.clone()).create().unwrap();
     let installation = SourceInstallation::new(&app).unwrap();
-    assert!(installation.registerConfiguration("../escape").is_err());
-    assert!(installation.registerConfiguration("missing").is_err());
-    installation.registerConfiguration("oidc").unwrap();
+    assert!(installation.register_configuration("../escape").is_err());
+    assert!(installation.register_configuration("missing").is_err());
+    installation.register_configuration("oidc").unwrap();
     let configured = fs::read_to_string(&path).unwrap();
     assert!(configured.contains("mod oidc;"));
     assert!(configured.contains("oidc::load(env)?"));
-    installation.registerConfiguration("oidc").unwrap();
+    installation.register_configuration("oidc").unwrap();
     assert_eq!(fs::read_to_string(&path).unwrap(), configured);
     let custom = configured.replace("oidc::load(env)?", "oidc::custom(env)?");
     fs::write(&path, &custom).unwrap();
-    installation.registerConfiguration("oidc").unwrap();
+    installation.register_configuration("oidc").unwrap();
     assert_eq!(fs::read_to_string(&path).unwrap(), custom);
     fs::write(
         root.0.join("config/reverb.rs"),
@@ -102,12 +102,12 @@ fn explicit_configuration_registration_preserves_customizations_and_rejects_ambi
     )
     .unwrap();
     fs::write(&path, "// custom loader without standard anchors\n").unwrap();
-    assert!(installation.registerConfiguration("reverb").is_err());
+    assert!(installation.register_configuration("reverb").is_err());
     assert_eq!(
         fs::read_to_string(&path).unwrap(),
         "// custom loader without standard anchors\n"
     );
-    assert!(installation.registerConfiguration("../outside").is_err());
+    assert!(installation.register_configuration("../outside").is_err());
 }
 
 fn package_providers() -> Vec<Box<dyn ServiceProvider>> {

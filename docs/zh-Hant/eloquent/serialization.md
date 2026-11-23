@@ -2,7 +2,7 @@
 
 ## 序列化模型與集合
 
-用 `toArray()` 取得可編碼為 JSON 的映射，用 `toJson()` 取得 JSON 字串。兩者都包含已載入的關聯，輸出中的關聯名稱使用底線命名。用 `attributesToArray()` 僅輸出屬性。集合輸出各個模型組成的陣列。
+用 `to_array()` 取得可編碼為 JSON 的映射，用 `to_json()` 取得 JSON 字串。兩者都包含已載入的關聯，輸出中的關聯名稱使用底線命名。用 `attributesToArray()` 僅輸出屬性。集合輸出各個模型組成的陣列。
 
 ## 隱藏 JSON 欄位
 
@@ -17,7 +17,7 @@ use openrust::database::{DatabaseResult, eloquent::Model};
 
 pub fn public_json(record: &mut impl Model) -> DatabaseResult<String> {
     record.makeHidden(&["label"]).append(&["summary"]);
-    record.toJson()
+    record.to_json()
 }
 ```
 
@@ -50,7 +50,7 @@ use openrust::database::{DatabaseResult, eloquent::Model};
 pub fn conditional_json(record: &mut impl Model, may_read: bool) -> DatabaseResult<String> {
     record.makeVisibleIf(may_read, &["label"]);
     record.makeHiddenIf(!may_read, &["label"]);
-    record.toJson()
+    record.to_json()
 }
 ```
 
@@ -65,6 +65,6 @@ use openrust::database::{
 };
 
 pub fn public_json<M: Model>(records: &mut Collection<M>) -> DatabaseResult<String> {
-    records.mergeHidden(&["internal_note"]).withoutAppends().toJson()
+    records.mergeHidden(&["internal_note"]).withoutAppends().to_json()
 }
 ```

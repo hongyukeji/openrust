@@ -34,8 +34,8 @@ fn route(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 fn register() -> Result<(), RoutingError> {
     Route::group(RouteGroup::new().middleware_name("outer"), |router| {
         router.get("/included", route)?;
-        router.get("/excluded", route)?.withoutMiddleware("stamp");
-        router.group(RouteGroup::new().withoutMiddleware("outer"), |router| {
+        router.get("/excluded", route)?.without_middleware("stamp");
+        router.group(RouteGroup::new().without_middleware("outer"), |router| {
             router.get("/group-excluded", route)?;
             Ok(())
         })

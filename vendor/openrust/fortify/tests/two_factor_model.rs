@@ -70,28 +70,28 @@ impl Model for FactorUser {
 }
 
 impl Authenticatable for FactorUser {
-    fn getAuthIdentifierName(&self) -> &str {
+    fn get_auth_identifier_name(&self) -> &str {
         "identity"
     }
-    fn getAuthIdentifier(&self) -> AuthIdentifier {
+    fn get_auth_identifier(&self) -> AuthIdentifier {
         self.getKey().unwrap().try_into().unwrap()
     }
-    fn getAuthPasswordName(&self) -> &str {
+    fn get_auth_password_name(&self) -> &str {
         "password"
     }
-    fn getAuthPassword(&self) -> Option<&str> {
+    fn get_auth_password(&self) -> Option<&str> {
         field(self, "password")
     }
-    fn getRememberToken(&self) -> Option<&str> {
+    fn get_remember_token(&self) -> Option<&str> {
         field(self, "remember_token")
     }
-    fn setRememberToken(&mut self, token: Option<String>) {
+    fn set_remember_token(&mut self, token: Option<String>) {
         self.setAttribute("remember_token", token.map_or(Value::Null, Value::Text));
     }
-    fn getRememberTokenName(&self) -> &str {
+    fn get_remember_token_name(&self) -> &str {
         "remember_token"
     }
-    fn getAuthAttribute(&self, name: &str) -> AuthResult<Option<Value>> {
+    fn get_auth_attribute(&self, name: &str) -> AuthResult<Option<Value>> {
         self.getAttributeValue(name)
             .map_err(|source| AuthError::Backend(Box::new(source)))
     }
@@ -283,7 +283,7 @@ async fn transport(
     State(kernel): State<Arc<Kernel>>,
     request: axum::extract::Request,
 ) -> axum::response::Response {
-    kernel.handleTransport(request).await
+    kernel.handle_transport(request).await
 }
 async fn send(address: SocketAddr, body: Json, status: u16) -> Json {
     timeout(Duration::from_secs(10),async {

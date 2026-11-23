@@ -251,7 +251,7 @@ impl Str {
         value.is_ascii()
     }
 
-    pub fn isJson(value: &str) -> bool {
+    pub fn is_json(value: &str) -> bool {
         serde_json::from_str::<serde_json::Value>(value).is_ok()
     }
 

@@ -43,12 +43,12 @@ impl<T> Collection<T> {
         let mut chunks = Vec::new();
         let mut current = Self::new();
         for (key, item) in self {
-            if !current.isEmpty() && !predicate(&item, &key, &current) {
+            if !current.is_empty() && !predicate(&item, &key, &current) {
                 chunks.push(std::mem::take(&mut current));
             }
             current.put(key, item);
         }
-        if !current.isEmpty() {
+        if !current.is_empty() {
             chunks.push(current);
         }
         Collection::make(chunks)

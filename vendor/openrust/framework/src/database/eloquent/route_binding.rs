@@ -60,8 +60,8 @@ pub(super) async fn lookup<M: Model>(
     {
         return Ok(None);
     }
-    if binding.allowsTrashedBindings() && M::metadata().deleted_at.is_some() {
-        query = query.withTrashed();
+    if binding.allows_trashed_bindings() && M::metadata().deleted_at.is_some() {
+        query = query.with_trashed();
     }
     query.r#where(&query.qualifyColumn(field), "=", value);
     query.first().await

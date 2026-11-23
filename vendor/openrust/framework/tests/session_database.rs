@@ -27,7 +27,7 @@ async fn verify(db: Connection) {
     let mut first = DatabaseSessionHandler::new(db.clone(), "sessions", 120).unwrap();
     let mut second = DatabaseSessionHandler::new(db.clone(), "sessions", 120).unwrap();
     assert!(first.read("unknown").await.unwrap().is_none());
-    first.setMetadata(DatabaseSessionMetadata {
+    first.set_metadata(DatabaseSessionMetadata {
         user_id: Some(7_i64.into()),
         ip_address: Some(Some("127.0.0.1".to_owned())),
         user_agent: Some("é".repeat(510)),
@@ -58,24 +58,24 @@ async fn verify(db: Connection) {
     right.unwrap();
     let race = first.read("race").await.unwrap().unwrap();
     assert!(race == b"first" || race == b"second");
-    assert!(first.validateId("race").await.unwrap());
+    assert!(first.validate_id("race").await.unwrap());
     first.destroy("race").await.unwrap();
-    assert!(!second.validateId("race").await.unwrap());
+    assert!(!second.validate_id("race").await.unwrap());
 
     db.table("sessions")
         .r#where("id", "=", "known")
         .update(Record::from([("last_activity".into(), 1_i64.into())]))
         .await
         .unwrap();
-    assert!(first.validateId("known").await.unwrap());
+    assert!(first.validate_id("known").await.unwrap());
     assert!(first.read("known").await.unwrap().is_none());
     assert_eq!(second.gc(Duration::from_secs(60)).await.unwrap(), Some(1));
-    assert!(!first.validateId("known").await.unwrap());
+    assert!(!first.validate_id("known").await.unwrap());
     assert!(matches!(
         first.write("too-large", &vec![0; 1024 * 1024 + 1]).await,
         Err(SessionError::PayloadTooLarge)
     ));
-    assert!(!second.validateId("too-large").await.unwrap());
+    assert!(!second.validate_id("too-large").await.unwrap());
 
     db.statement("drop table sessions", &[]).await.unwrap();
 }

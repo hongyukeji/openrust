@@ -62,7 +62,7 @@ pub trait HasApiTokens: Model + Authenticatable {
         )
     }
 
-    fn createToken<'a>(
+    fn create_token<'a>(
         &'a self,
         sanctum: &'a Sanctum,
         database: &'a DatabaseManager,
@@ -114,10 +114,10 @@ pub trait HasApiTokens: Model + Authenticatable {
             .or_else(|| {
                 crate::auth::Auth::manager()
                     .ok()
-                    .map(|auth| auth.getDefaultDriver())
+                    .map(|auth| auth.get_default_driver())
             })?;
-        let user = AuthManager::resolved_user(request, &guard)?;
-        (user.getAuthIdentifier() == self.getAuthIdentifier()
+        let user = AuthManager::resolved_user_from_request(request, &guard)?;
+        (user.get_auth_identifier() == self.get_auth_identifier()
             && user.as_ref().type_id() == std::any::TypeId::of::<Self>())
         .then_some(guard)
     }
@@ -147,14 +147,14 @@ impl TokenRelation {
             .await
     }
 
-    pub async fn createToken(
+    pub async fn create_token(
         &self,
         name: &str,
         abilities: &[&str],
         expires_at: Option<Timestamp>,
     ) -> AuthResult<NewAccessToken> {
         self.store
-            .createToken(
+            .create_token(
                 self.owner_type,
                 self.owner_id.clone(),
                 name,
@@ -170,7 +170,7 @@ impl TokenRelation {
             .await
     }
 
-    pub async fn deleteToken(&self, id: impl Into<AuthIdentifier>) -> AuthResult<u64> {
+    pub async fn delete_token(&self, id: impl Into<AuthIdentifier>) -> AuthResult<u64> {
         self.store
             .delete_related(self.owner_type, self.owner_id.clone(), Some(id.into()))
             .await

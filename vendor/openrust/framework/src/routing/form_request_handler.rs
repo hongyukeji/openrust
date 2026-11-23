@@ -42,7 +42,7 @@ where
         Box::pin(async {
             let form = ValidatedFormRequest::resolve(request).await?;
             crate::foundation::Precognition::abort(request)?;
-            (self.action)(form).await?.toResponse(request).await
+            (self.action)(form).await?.to_response(request).await
         })
     }
 

@@ -36,7 +36,6 @@ pub struct ResponseFactory {
     macros: RwLock<HashMap<String, ResponseMacro>>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl ResponseFactory {
     pub fn r#macro<Fut>(
         &self,
@@ -74,14 +73,14 @@ impl ResponseFactory {
         }
     }
 
-    pub fn hasMacro(&self, name: &str) -> bool {
+    pub fn has_macro(&self, name: &str) -> bool {
         self.macros
             .read()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .contains_key(name)
     }
 
-    pub fn flushMacros(&self) {
+    pub fn flush_macros(&self) {
         let removed = std::mem::take(
             &mut *self
                 .macros

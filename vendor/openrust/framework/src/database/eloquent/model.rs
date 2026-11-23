@@ -242,12 +242,12 @@ pub trait Model: Sized + Send + Sync + 'static {
         }
     }
 
-    fn toArray(&self) -> DatabaseResult<serde_json::Map<String, serde_json::Value>> {
+    fn to_array(&self) -> DatabaseResult<serde_json::Map<String, serde_json::Value>> {
         serialization::model(self)
     }
 
-    fn toJson(&self) -> DatabaseResult<String> {
-        serde_json::to_string(&self.toArray()?)
+    fn to_json(&self) -> DatabaseResult<String> {
+        serde_json::to_string(&self.to_array()?)
             .map_err(|_| DatabaseError::InvalidQuery("model JSON"))
     }
 
@@ -902,7 +902,7 @@ pub trait Model: Sized + Send + Sync + 'static {
             .ok_or(DatabaseError::InvalidQuery("missing encrypted collection"))?;
         edit(&mut values)?;
         let value = values
-            .toArray()
+            .to_array()
             .map_err(|_| DatabaseError::InvalidQuery("encrypted collection attribute"))?;
         self.setAttributeValue(column, Value::Json(value))
     }
@@ -1102,7 +1102,7 @@ pub trait Model: Sized + Send + Sync + 'static {
         self.state()
             .connection
             .as_ref()
-            .map(Connection::getName)
+            .map(Connection::get_name)
             .or(Self::metadata().connection)
     }
 
@@ -1207,7 +1207,7 @@ pub trait Model: Sized + Send + Sync + 'static {
         }
     }
 
-    fn relationLoaded(&self, name: &str) -> bool {
+    fn relation_loaded(&self, name: &str) -> bool {
         let state = self.state();
         state.relations.contains(name)
             || state
@@ -1275,7 +1275,7 @@ pub trait Model: Sized + Send + Sync + 'static {
     }
 
     /// Loads missing relationships along the supplied registered paths.
-    fn loadMissingPaths<'a>(
+    fn load_missing_paths<'a>(
         &'a mut self,
         paths: &'a [&'a str],
     ) -> impl Future<Output = DatabaseResult<()>> + Send + 'a {

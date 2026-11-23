@@ -16,7 +16,7 @@ impl Cashier {
     pub fn defaultDriver() -> Result<Client> {
         let manager =
             Self::get_facade_root().map_err(|_| Error::Configuration("application context"))?;
-        manager.driver(&manager.getDefaultDriver()?)
+        manager.driver(&manager.get_default_driver()?)
     }
     pub fn forgetDrivers() -> Result<()> {
         Self::get_facade_root()

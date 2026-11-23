@@ -14,11 +14,11 @@
 
 用 `priority` 傳入依執行順序排列的具體中介軟體型別 ID，例如 `TypeId::of::<Authenticate>()`。框架先展開群組，再將順序顛倒的高優先項目移到它前面遇到的低優先項目之前。未列入優先順序的項目保留彼此的相對順序。同一個執行個體經多次參照時只執行一次。優先順序作用於路由中介軟體鏈。全域中介軟體依設定順序在路由鏈外層執行。
 
-在路由或路由群組上用 `withoutMiddleware("name")` 排除指定的別名或群組。排除也適用於透過巢狀群組引用的同一實例。全域中介軟體仍會執行。
+在路由或路由群組上用 `without_middleware("name")` 排除指定的別名或群組。排除也適用於透過巢狀群組引用的同一實例。全域中介軟體仍會執行。
 
 ## 可終止中介軟體
 
-實作 `TerminableMiddleware`，在 HTTP 傳輸層釋放回應本文後取得請求和回應的中繼資料。在 `with_middleware` 中用 `appendTerminable`、`prependTerminable` 或 `aliasTerminable` 註冊。向群組加入具體實例時用 `MiddlewareEntry::terminable`。
+實作 `TerminableMiddleware`，在 HTTP 傳輸層釋放回應本文後取得請求和回應的中繼資料。在 `with_middleware` 中用 `append_terminable`、`prepend_terminable` 或 `alias_terminable` 註冊。向群組加入具體實例時用 `MiddlewareEntry::terminable`。
 
 核心先按解析後的順序呼叫相符路由的終止回呼，再呼叫全域回呼。請求處理與終止階段使用同一個已註冊實例。傳輸層消費串流本文期間，終止回呼會等待。用戶端斷線且傳輸層釋放本文時也會執行回呼。
 
@@ -36,12 +36,12 @@
 
 ```rust
 .with_middleware(|middleware| {
-    middleware.throttleApi(Some("api"), false);
+    middleware.throttle_api(Some("api"), false);
 })
 ```
 
 參數須明確傳入：`Some("api")` 選擇 `api` 策略，`false` 保持目前後端。傳入其他名稱可選擇對應策略，傳入 `None` 可關閉預設 API 群組內的限流。多次呼叫時使用最後指定的策略；此方法不會代替應用程式註冊策略。
 
-第二個參數傳入 `true` 時會呼叫 `throttleWithRedis()`，將 API 及其他路由的 `throttle` 別名統一切換為 Redis。後續傳入 `false` 不會撤銷該切換。
+第二個參數傳入 `true` 時會呼叫 `throttle_with_redis()`，將 API 及其他路由的 `throttle` 別名統一切換為 Redis。後續傳入 `false` 不會撤銷該切換。
 
-預設 API 群組依次執行 `statefulApi()` 啟用的有狀態工作階段中間件、限流中間件和 `SubstituteBindings`。透過 `group("api", ...)` 明確替換群組時，以自訂群組為準，不受 `throttleApi` 呼叫順序影響。
+預設 API 群組依次執行 `stateful_api()` 啟用的有狀態工作階段中間件、限流中間件和 `SubstituteBindings`。透過 `group("api", ...)` 明確替換群組時，以自訂群組為準，不受 `throttle_api` 呼叫順序影響。

@@ -144,7 +144,7 @@ impl Command for ClientCommand {
                     })
                     .unwrap_or_default();
                 output
-                    .writeRaw(&format!(
+                    .write_raw(&format!(
                         "  Client ID ................................ {id}\n"
                     ))
                     .map_err(error)?;
@@ -158,7 +158,7 @@ impl Command for ClientCommand {
                         _ => zeroize::Zeroizing::new(String::new()),
                     };
                     output
-                        .writeRaw(&format!(
+                        .write_raw(&format!(
                             "  Client Secret ............................ {}\n",
                             plain.as_str()
                         ))

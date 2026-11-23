@@ -61,10 +61,10 @@ impl ProviderDefinition for GithubProvider {
             authorization.set_sensitive(true);
             headers.insert("authorization", authorization);
             let mut user = json(
-                http.pendingRequest()
-                    .withHeaders(headers.clone())
-                    .redactPayload()
-                    .withoutRedirecting()
+                http.pending_request()
+                    .with_headers(headers.clone())
+                    .redact_payload()
+                    .without_redirecting()
                     .get(&self.user)
                     .await?,
             )?;
@@ -74,10 +74,10 @@ impl ProviderDefinition for GithubProvider {
             if scopes.iter().any(|s| s == "user:email") {
                 let emails = async {
                     json(
-                        http.pendingRequest()
-                            .withHeaders(headers)
-                            .redactPayload()
-                            .withoutRedirecting()
+                        http.pending_request()
+                            .with_headers(headers)
+                            .redact_payload()
+                            .without_redirecting()
                             .get(&self.emails)
                             .await?,
                     )

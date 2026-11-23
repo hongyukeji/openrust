@@ -98,13 +98,17 @@ async fn config_facade_follows_the_canonical_repository_in_http_and_artisan()
         first.get("/api/configuration"),
         second.get("/api/configuration")
     );
-    left?.assertOk().assertExactJson(&json!({"name":"First"}));
-    right?.assertOk().assertExactJson(&json!({"name":"Second"}));
+    left?
+        .assert_ok()
+        .assert_exact_json(&json!({"name":"First"}));
+    right?
+        .assert_ok()
+        .assert_exact_json(&json!({"name":"Second"}));
     first
         .get("/api/configuration/check")
         .await?
-        .assertOk()
-        .assertExactJson(&json!(["first", "last"]));
+        .assert_ok()
+        .assert_exact_json(&json!(["first", "last"]));
     assert_eq!(
         first.app().config()?.get("app.name"),
         Some(json!("Updated"))
@@ -119,14 +123,14 @@ async fn config_facade_follows_the_canonical_repository_in_http_and_artisan()
     first
         .get("/api/configuration")
         .await?
-        .assertOk()
-        .assertExactJson(&json!({"name":"Replacement"}));
+        .assert_ok()
+        .assert_exact_json(&json!({"name":"Replacement"}));
     let (left, right) = tokio::join!(
         first.artisan(["fixture:config"]),
         second.artisan(["fixture:config"])
     );
-    left.assertSuccessful().expectsOutput("Replacement");
-    right.assertSuccessful().expectsOutput("Second");
+    left.assert_successful().expects_output("Replacement");
+    right.assert_successful().expects_output("Second");
     assert!(matches!(
         Config::get("app.name"),
         Err(BindingResolutionError::FacadeNotSet)

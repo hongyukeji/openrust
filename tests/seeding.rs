@@ -153,8 +153,8 @@ impl Seeder for Insert {
                 .cloned()
                 .unwrap_or(self.0.into());
             assert_eq!(
-                DB::connection(None)?.getName(),
-                context.connection().getName()
+                DB::connection(None)?.get_name(),
+                context.connection().get_name()
             );
             let attributes = Attributes::from([("name".into(), name)]);
             let guarded = attributes.clone();
@@ -180,8 +180,8 @@ impl Seeder for Failing {
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
         Box::pin(async {
             assert_eq!(
-                DB::connection(None)?.getName(),
-                context.connection().getName()
+                DB::connection(None)?.get_name(),
+                context.connection().get_name()
             );
             SeedItem::new_instance(Attributes::from([("name".into(), "unsaved".into())]))?;
             Err(DatabaseError::InvalidSeeder("fixture failure"))
@@ -475,7 +475,7 @@ impl Seeder for PolymorphicFactories {
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
         Box::pin(async {
             let connection = context.connection();
-            assert_eq!(connection.getName(), "alternate");
+            assert_eq!(connection.get_name(), "alternate");
             let sqlite = DB::connection(Some("sqlite"))?;
             sqlite
                 .statement(
@@ -535,7 +535,7 @@ impl Seeder for PolymorphicFactories {
             ));
             assert_eq!(connection.table("seed_factory_owners").delete().await?, 1);
             let query = || {
-                BulkSeed::queryOn(connection).withAttributes(
+                BulkSeed::queryOn(connection).with_attributes(
                     Attributes::from([("label".into(), "query-default".into())]),
                     false,
                 )
@@ -1788,7 +1788,7 @@ async fn verify_parent_creation(connection: &Connection) -> DatabaseResult<()> {
     assert_eq!(
         connection
             .table("seed_factory_children")
-            .whereNull("owner_id")
+            .where_null("owner_id")
             .count("*")
             .await?,
         9
@@ -3014,7 +3014,7 @@ async fn verify_trashed_factory(db: &Connection) -> DatabaseResult<()> {
     }
     assert!(
         TrashedProbe::queryOn(db)
-            .withTrashed()
+            .with_trashed()
             .get()
             .await?
             .is_empty()
@@ -3042,7 +3042,7 @@ async fn verify_trashed_factory(db: &Connection) -> DatabaseResult<()> {
     assert!(!restored.trashed());
     assert_eq!(TrashedProbe::queryOn(db).get().await?.len(), 1);
     assert_eq!(
-        TrashedProbe::queryOn(db).onlyTrashed().get().await?.len(),
+        TrashedProbe::queryOn(db).only_trashed().get().await?.len(),
         3
     );
     db.getSchemaBuilder().drop("trashed_factory_probe").await?;
@@ -3536,7 +3536,7 @@ async fn verify_deferred_factory_owner(connection: &Connection) -> DatabaseResul
         )
         .await?;
     assert_eq!(overridden.getAttribute("owner_id"), Some(&5_i64.into()));
-    assert!(!overridden.relationLoaded("owner"));
+    assert!(!overridden.relation_loaded("owner"));
 
     let morph_class = ExpansionOwner::from_state(ModelState::default()).getMorphClass()?;
     let morph = MorphTo::<ExpansionChild>::new("owner_type", "owner_id")
@@ -3568,11 +3568,11 @@ async fn verify_deferred_factory_owner(connection: &Connection) -> DatabaseResul
         .createOn(connection)
         .await?;
     assert_eq!(records[0].getAttribute("owner_id"), Some(&5_i64.into()));
-    assert!(!records[0].relationLoaded("owner"));
+    assert!(!records[0].relation_loaded("owner"));
     let generated_key = records[1].getAttribute("owner_id").unwrap();
     assert_ne!(*generated_key, 98_i64.into());
     assert_eq!(Some(generated_key), records[2].getAttribute("owner_id"));
-    assert!(records[1].relationLoaded("owner"));
+    assert!(records[1].relation_loaded("owner"));
     assert_eq!(connection.table("expansion_owners").count("*").await?, 1);
 
     let owner = ExpansionOwner::queryOn(connection)
@@ -3584,7 +3584,7 @@ async fn verify_deferred_factory_owner(connection: &Connection) -> DatabaseResul
         .createOn(connection)
         .await?;
     assert_eq!(replaced.getAttribute("owner_id"), Some(&Value::Null));
-    assert!(!replaced.relationLoaded("owner"));
+    assert!(!replaced.relation_loaded("owner"));
     assert_eq!(connection.table("expansion_children").count("*").await?, 4);
     schema.drop("expansion_children").await?;
     schema.drop("expansion_owners").await?;
@@ -5577,19 +5577,19 @@ async fn verify_factory_relation_cache(connection: &Connection) -> DatabaseResul
                     Ok(())
                 })
                 .afterCreating(|child| {
-                    assert!(!child.relationLoaded("nested"));
+                    assert!(!child.relation_loaded("nested"));
                     Ok(())
                 })
                 .count(2),
         )
         .afterCreating(|owner| {
-            assert!(!owner.relationLoaded("children"));
-            assert!(owner.relationLoaded("known"));
-            assert!(owner.relationLoaded("single"));
+            assert!(!owner.relation_loaded("children"));
+            assert!(owner.relation_loaded("known"));
+            assert!(owner.relation_loaded("single"));
             Ok(())
         });
     let preview = factory.makeOn(connection).await?;
-    assert!(preview.relationLoaded("children"));
+    assert!(preview.relation_loaded("children"));
     let mut owner = factory.createOn(connection).await?;
     let relation = Children::new("id", "owner_id");
     let children = owner.getRelationOrLoad("children", &relation).await?;
@@ -5728,7 +5728,7 @@ async fn verify_factory_pivot_touch(db: &Connection) -> DatabaseResult<()> {
         })
         .createOn(db)
         .await?;
-    assert!(owner.relationLoaded("members"));
+    assert!(owner.relation_loaded("members"));
     assert_eq!(db.table("factory_touch_pivot").count("*").await?, 2);
     assert_eq!(
         db.scalar(
@@ -7034,7 +7034,7 @@ fn faker_qualified_extensions_resolve_and_compose_with_modifiers() -> DatabaseRe
         faker.format(r"Faker\Extension\ColorExtension->rgbColorAsArray", &[])?,
         Value::Json(serde_json::Value::Array(channels)) if channels.len() == 3
     ));
-    faker.addExtension(
+    faker.add_extension(
         NUMBER,
         FakerProvider::new().formatter("numberBetween", |_, _| Ok(12.into())),
     );
@@ -7053,7 +7053,7 @@ fn faker_qualified_extensions_resolve_and_compose_with_modifiers() -> DatabaseRe
     assert!(
         matches!(faker.format(CODE, &[]), Err(DatabaseError::UnknownFakerExtension(id)) if id == CUSTOM)
     );
-    faker.addExtension(
+    faker.add_extension(
         CUSTOM,
         FakerProvider::new()
             .formatter("Value", |_, _| Ok("extension".into()))

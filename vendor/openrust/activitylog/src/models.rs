@@ -150,7 +150,7 @@ pub mod concerns {
             let mut values = Map::new();
             for attribute in self.attributesToBeLoggedWith(defaults) {
                 if attribute.contains('.') {
-                    let snapshot = Value::Object(self.toArray()?);
+                    let snapshot = Value::Object(self.to_array()?);
                     let mut value = &snapshot;
                     for key in attribute.split('.') {
                         value = value.get(key).unwrap_or(&Value::Null);
@@ -361,7 +361,7 @@ pub mod concerns {
             let paths: Vec<&str> = paths.iter().map(String::as_str).collect();
             match transaction {
                 Some(tx) => model.loadPathsInTransaction(&paths, tx).await?,
-                None => model.loadMissingPaths(&paths).await?,
+                None => model.load_missing_paths(&paths).await?,
             }
         }
         Ok(())
@@ -533,7 +533,7 @@ impl Activity {
                 .and_then(|v| v.as_bool())
                 .unwrap_or(false);
         Ok(if include {
-            relation.withTrashed()
+            relation.with_trashed()
         } else {
             relation
         })

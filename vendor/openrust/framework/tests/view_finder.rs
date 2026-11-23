@@ -50,7 +50,7 @@ fn finder_resolves_ordered_locations_extensions_and_namespaces() {
 
     let mut finder = FileViewFinder::new([first.clone(), second.clone()]);
     assert_eq!(finder.find(" admin.index ").unwrap(), primary);
-    finder.addExtension("blade.html").unwrap();
+    finder.add_extension("blade.html").unwrap();
     assert_eq!(finder.find("admin.index").unwrap(), compiled);
     fs::remove_file(&compiled).unwrap();
     assert_eq!(finder.find("admin.index").unwrap(), primary);
@@ -235,7 +235,7 @@ fn view_contracts_resolve_files_namespaces_and_engines() {
         &["literal"],
         Arc::new(move |view| {
             record.lock().unwrap().push("composed");
-            assert_eq!(view.getData()["base"], "creator");
+            assert_eq!(view.get_data()["base"], "creator");
             Ok(())
         }),
     );
@@ -419,25 +419,25 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
     }
 
     impl Authenticatable for ViewIdentity {
-        fn getAuthIdentifierName(&self) -> &str {
+        fn get_auth_identifier_name(&self) -> &str {
             "id"
         }
-        fn getAuthIdentifier(&self) -> AuthIdentifier {
+        fn get_auth_identifier(&self) -> AuthIdentifier {
             AuthIdentifier::String("blade".into())
         }
-        fn getAuthPasswordName(&self) -> &str {
+        fn get_auth_password_name(&self) -> &str {
             "password"
         }
-        fn getAuthPassword(&self) -> Option<&str> {
+        fn get_auth_password(&self) -> Option<&str> {
             None
         }
-        fn getRememberTokenName(&self) -> &str {
+        fn get_remember_token_name(&self) -> &str {
             "remember_token"
         }
-        fn getRememberToken(&self) -> Option<&str> {
+        fn get_remember_token(&self) -> Option<&str> {
             None
         }
-        fn setRememberToken(&mut self, _: Option<String>) {}
+        fn set_remember_token(&mut self, _: Option<String>) {}
     }
 
     struct Badge;
@@ -757,7 +757,7 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
             .get::<AuthManager>("auth")
             .unwrap();
         for (driver, suffix) in [("view-default", "/signed"), ("view-alternate", "/named")] {
-            auth.viaRequest(driver, move |request| {
+            auth.via_request(driver, move |request| {
                 Box::pin(async move {
                     tokio::task::yield_now().await;
                     if request.parts().uri.path().ends_with(suffix) {
@@ -775,14 +775,14 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
             .get::<GateRegistry>("gate")
             .unwrap();
         gate.policy::<Price>(PricePolicy(app == "A"));
-        gate.defineGuest("preview", |_, _| Box::pin(async { Ok(Decision::allow()) }));
-        gate.defineGuest("hidden", |_, _| {
-            Box::pin(async { Ok(Decision::denyAsNotFound("hidden")) })
+        gate.define_guest("preview", |_, _| Box::pin(async { Ok(Decision::allow()) }));
+        gate.define_guest("hidden", |_, _| {
+            Box::pin(async { Ok(Decision::deny_as_not_found("hidden")) })
         });
-        gate.defineGuest("error", |_, _| {
+        gate.define_guest("error", |_, _| {
             Box::pin(async { Err(AuthError::InvalidIdentity) })
         });
-        gate.defineGuest("typed-present", |_, args| {
+        gate.define_guest("typed-present", |_, args| {
             Box::pin(async move {
                 Ok(Decision::from(
                     args.iter().any(|argument| argument.is::<Price>()),

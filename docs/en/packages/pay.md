@@ -97,6 +97,6 @@ Without the helper, call `notification.validate(&expected)` and implement equiva
 
 ## Gateway lifecycle {#gateway-lifecycle}
 
-`PayManager::driver(name)` lazily resolves and reuses a merchant configuration and key snapshot. `getDefaultDriver` reads the current default; `Pay::defaultDriver()` resolves it. `forgetDrivers` applies new configuration to future resolutions, while held `Gateway` clones retain their original snapshot. Managers are application-local. Refresh the relevant instances when rotating keys; never obtain a verification key from an untrusted callback.
+`PayManager::driver(name)` lazily resolves and reuses a merchant configuration and key snapshot. `get_default_driver` reads the current default; `Pay::defaultDriver()` resolves it. `forgetDrivers` applies new configuration to future resolutions, while held `Gateway` clones retain their original snapshot. Managers are application-local. Refresh the relevant instances when rotating keys; never obtain a verification key from an untrusted callback.
 
 Real merchant onboarding, enabled product permissions, public HTTPS callbacks and provider end-to-end verification remain deployment responsibilities. Protocol tests do not establish that a merchant account can move real funds.

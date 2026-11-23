@@ -31,7 +31,7 @@ impl Middleware for AuthenticateSession {
         next: Next<'a>,
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
-            if !request.hasSession() || Auth::user(request).await?.is_none() {
+            if !request.has_session() || Auth::user(request).await?.is_none() {
                 return Ok(next.run(request).await);
             }
             let auth = Auth::manager()?;
@@ -47,15 +47,15 @@ impl Middleware for AuthenticateSession {
                 let Some(stored) = request.session()?.get(&key).cloned() else {
                     continue;
                 };
-                let user = auth.userForGuard(request, Some(guard.as_str())).await?;
+                let user = auth.user_for_guard(request, Some(guard.as_str())).await?;
                 let valid = user.is_some_and(|user| {
-                    let password = user.getAuthPassword();
+                    let password = user.get_auth_password();
                     serde_json::from_value::<Vec<u8>>(stored)
                         .is_ok_and(|stored| bool::from(stored.ct_eq(&self.signer.sign(password))))
                 });
                 if !valid {
-                    auth.sessionGuard(request, Some(guard.as_str()))?
-                        .logoutCurrentDevice()
+                    auth.session_guard(request, Some(guard.as_str()))?
+                        .logout_current_device()
                         .await?;
                     invalid = true;
                 }
@@ -68,8 +68,8 @@ impl Middleware for AuthenticateSession {
 
             let response = next.run(request).await;
             for guard in session_guards {
-                if let Some(user) = AuthManager::resolved_user(request, guard) {
-                    let fingerprint = self.signer.sign(user.getAuthPassword());
+                if let Some(user) = AuthManager::resolved_user_from_request(request, guard) {
+                    let fingerprint = self.signer.sign(user.get_auth_password());
                     request.session_mut()?.put(
                         &format!("password_hash_{guard}"),
                         serde_json::json!(fingerprint),

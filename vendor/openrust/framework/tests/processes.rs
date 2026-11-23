@@ -18,7 +18,7 @@ async fn fake_configuration_and_results_are_isolated() {
     let right_run = right.run(["tool", "value with spaces"]);
     let (left_result, right_result) = tokio::join!(left_run, right_run);
     let left_result = left_result.unwrap();
-    assert_eq!(left_result.exitCode(), 3);
+    assert_eq!(left_result.exit_code(), 3);
     assert_eq!(
         left_result.command(),
         &Command::from(["tool", "value with spaces"])
@@ -27,7 +27,7 @@ async fn fake_configuration_and_results_are_isolated() {
     assert!(matches!(left_result.throw(), Err(Error::Failed(_))));
     assert_eq!(right_result.unwrap().output(), b"right");
     left.assertRan(|process, result| {
-        result.is_some_and(|result| result.exitCode() == 3)
+        result.is_some_and(|result| result.exit_code() == 3)
             && process
                 .environment
                 .get(std::ffi::OsStr::new("MODE"))
@@ -47,7 +47,7 @@ async fn fake_configuration_and_results_are_isolated() {
 async fn uses_registered_fakes_and_keeps_the_recording_across_reconfiguration() {
     let factory = Factory::new();
     factory.preventStrayProcesses(true);
-    factory.fakeSequence(
+    factory.fake_sequence(
         "example",
         [
             Ok(Factory::result("first", "", 0)),
@@ -55,7 +55,7 @@ async fn uses_registered_fakes_and_keeps_the_recording_across_reconfiguration() 
         ],
     );
     assert_eq!(factory.run("example").await.unwrap().output(), b"first");
-    assert_eq!(factory.run("example").await.unwrap().exitCode(), 1);
+    assert_eq!(factory.run("example").await.unwrap().exit_code(), 1);
     assert!(matches!(
         factory.run("example").await,
         Err(Error::SequenceExhausted)
@@ -108,7 +108,7 @@ async fn artisan_resolves_process_fakes_from_each_application() {
                 let result = Process::run("example")
                     .await
                     .map_err(|error| ConsoleError::new(error.to_string()))?;
-                Ok(result.exitCode())
+                Ok(result.exit_code())
             })
         }
     }
@@ -150,7 +150,7 @@ async fn scripted_fakes_play_ordered_chunks_and_track_signals() {
             .errorOutput("diagnostic")
             .replaceOutput("ready\n\n")
             .output("finished")
-            .exitCode(7)
+            .exit_code(7)
             .result(),
     );
     let observed = Arc::new(Mutex::new(Vec::new()));
@@ -195,7 +195,7 @@ async fn scripted_fakes_play_ordered_chunks_and_track_signals() {
         .await
         .unwrap();
     assert_eq!(remaining, [(OutputStream::Stdout, b"finished\n".to_vec())]);
-    assert_eq!(result.exitCode(), 7);
+    assert_eq!(result.exit_code(), 7);
     assert_eq!(result.output(), b"ready\nfinished\n");
     assert_eq!(result.errorOutput(), b"diagnostic\n");
     assert_eq!(observed.lock().unwrap().len(), 3);
@@ -253,10 +253,10 @@ mod unix {
             format!("test\n{}\nfrom stdin", directory.0.display()).as_bytes()
         );
         assert_eq!(result.errorOutput(), b"warning");
-        assert_eq!(result.exitCode(), 7);
+        assert_eq!(result.exit_code(), 7);
         assert!(result.seeInOutput("from stdin"));
         assert!(result.seeInErrorOutput("warning"));
-        assert!(result.throwIf(false).is_ok());
+        assert!(result.throw_if(false).is_ok());
 
         let literal = factory
             .run(["/usr/bin/printf", "%s", "literal $(exit 9); a b"])
@@ -351,7 +351,7 @@ mod unix {
             .unwrap();
         wait_for_output(&mut process, b"ready").await;
         process.signal(Signal::Interrupt).await.unwrap();
-        assert_eq!(process.wait().await.unwrap().exitCode(), 4);
+        assert_eq!(process.wait().await.unwrap().exit_code(), 4);
 
         let result = factory
             .command("(trap '' TERM; sleep 0.3; printf survived > marker) & exit 0")
@@ -377,7 +377,7 @@ mod unix {
             .await
             .unwrap();
         assert_eq!(failed.errorOutput(), b"failure");
-        assert_eq!(failed.exitCode(), 4);
+        assert_eq!(failed.exit_code(), 4);
 
         let directory = TestDirectory::new();
         let results = factory
@@ -400,7 +400,7 @@ mod unix {
             ["first", "second"]
         );
         assert_eq!(results["first"].as_ref().unwrap().output(), b"first");
-        assert_eq!(results["second"].as_ref().unwrap().exitCode(), 7);
+        assert_eq!(results["second"].as_ref().unwrap().exit_code(), 7);
     }
 
     async fn wait_for_output(
@@ -456,7 +456,7 @@ mod unix {
             })
             .await
             .unwrap();
-        assert_eq!(result.exitCode(), 4);
+        assert_eq!(result.exit_code(), 4);
         assert!(result.seeInOutput("done"));
         assert_eq!(remaining, b"done");
     }
@@ -483,7 +483,7 @@ mod unix {
         );
         assert!(!process.running());
         let result = process.wait().await.unwrap();
-        assert_eq!(result.exitCode(), 4);
+        assert_eq!(result.exit_code(), 4);
         assert_eq!(result.output(), b"readydone");
         assert_eq!(result.errorOutput(), b"diagnostic");
     }
@@ -532,7 +532,7 @@ mod unix {
         );
         child.signal(Signal::Raw(libc::SIGUSR1)).await.unwrap();
         let result = child.wait().await.unwrap();
-        assert_eq!(result.exitCode(), 6);
+        assert_eq!(result.exit_code(), 6);
         assert_eq!(result.output(), b"readycaught");
     }
     #[test]

@@ -6,7 +6,7 @@ macro_rules! password_response {
         pub struct $name;
         impl contracts::$name for $name {}
         impl contracts::PasswordResponse for $name {
-            fn toResponse<'a>(
+            fn to_response<'a>(
                 &'a self,
                 request: &'a mut Request,
                 status: PasswordResetStatus,
@@ -31,16 +31,16 @@ async fn render(
     if !success {
         // The fixed upstream responses use literal email even with fortify.email configured.
         let error = invalid("email", message);
-        if request.wantsJson() {
+        if request.wants_json() {
             return Err(HttpError::Validation(Box::new(error)));
         }
         return Ok(Redirect::back(request, None, Default::default())?
-            .onlyInput(request, &["email"])
+            .only_input(request, &["email"])
             .await?
-            .withErrors(request, error.errors(), "default")?
+            .with_errors(request, error.errors(), "default")?
             .into());
     }
-    if request.wantsJson() {
+    if request.wants_json() {
         return Response::json(StatusCode::OK, serde_json::json!({"message":message}));
     }
     let redirect = if reset {
@@ -66,7 +66,7 @@ macro_rules! password_view {
         impl contracts::$name for $name {}
         impl contracts::$name for SimpleViewResponse {}
         impl contracts::Response for $name {
-            fn toResponse<'a>(
+            fn to_response<'a>(
                 &'a self,
                 request: &'a mut Request,
             ) -> HttpFuture<'a, Result<Response, HttpError>> {
@@ -79,7 +79,7 @@ macro_rules! password_view {
                                 "Fortify password reset view has not been configured",
                             ))
                         })?
-                        .toResponse(request)
+                        .to_response(request)
                         .await
                 })
             }

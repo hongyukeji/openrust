@@ -17,9 +17,9 @@ pub async fn logout(request: &mut Request, federated: bool) -> Result<Response, 
         .map_err(internal)?
         .takeLogoutHint()
         .ok();
-    Auth::sessionGuard(request, Some("web"))
+    Auth::session_guard(request, Some("web"))
         .map_err(internal)?
-        .logoutAndInvalidate()
+        .logout_and_invalidate()
         .await
         .map_err(internal)?;
     if federated

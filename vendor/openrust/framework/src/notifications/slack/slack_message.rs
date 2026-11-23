@@ -164,7 +164,7 @@ impl SlackMessage {
     }
 
     /// Returns the outbound Slack JSON fields after checking the Block Kit structure.
-    pub fn toArray(&self) -> NotificationResult<Map<String, Value>> {
+    pub fn to_array(&self) -> NotificationResult<Map<String, Value>> {
         if self.blocks.is_empty() && !self.fields.contains_key("text") {
             return Err(delivery(
                 "A Slack message requires text or at least one block.",
@@ -185,7 +185,7 @@ impl SlackMessage {
 
     /// Builds a Slack Block Kit Builder URL without sending the message.
     pub fn toBlockKitBuilderUrl(&self) -> NotificationResult<String> {
-        let mut fields = self.toArray()?;
+        let mut fields = self.to_array()?;
         for key in ["channel", "text", "username"] {
             fields.remove(key);
         }

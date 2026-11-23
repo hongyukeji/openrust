@@ -22,14 +22,14 @@ pub fn posts<P: Model, R: Model>() -> HasMany<P, R> {
 
 ### Scoped Relationships {#scoped-relationships}
 
-Use `withAttributes` inside the relation’s `constrain` callback to add defaults to newly created models. Pass `true` to also add equality conditions to relation queries, or `false` to supply defaults only. Explicit model values take precedence. Direct and polymorphic relations assign their own parent keys and morph type.
+Use `with_attributes` inside the relation’s `constrain` callback to add defaults to newly created models. Pass `true` to also add equality conditions to relation queries, or `false` to supply defaults only. Explicit model values take precedence. Direct and polymorphic relations assign their own parent keys and morph type.
 
 ```rust
 use openrust::database::eloquent::{Attributes, Model, relations::HasMany};
 
 pub fn featured_posts<P: Model, R: Model>() -> HasMany<P, R> {
     HasMany::new("id", "author_id").constrain(|query| {
-        query.withAttributes(
+        query.with_attributes(
             Attributes::from([("featured".into(), true.into())]),
             true,
         )
@@ -457,7 +457,7 @@ pub fn configure_subjects<M: Model, P: Model, C: Model>() -> DatabaseResult<Morp
 
 ### Soft-deleted morph targets {#soft-deleted-morph-targets}
 
-Use `withTrashed()`, `withoutTrashed()`, or `onlyTrashed()` on a `MorphTo` relation. These options affect loaded targets that declare a soft-delete column. Targets without one load normally, including in a mixed group. The options run before target-specific constraints. As in the framework, explicit live or deleted predicates accumulate when chained. A later `withTrashed()` removes the default scope and preserves those explicit predicates.
+Use `with_trashed()`, `without_trashed()`, or `only_trashed()` on a `MorphTo` relation. These options affect loaded targets that declare a soft-delete column. Targets without one load normally, including in a mixed group. The options run before target-specific constraints. As in the framework, explicit live or deleted predicates accumulate when chained. A later `with_trashed()` removes the default scope and preserves those explicit predicates.
 
 ```rust
 use openrust::database::eloquent::{Model, relations::MorphTo};
@@ -466,7 +466,7 @@ pub fn subject_including_deleted<M: Model, P: Model, A: Model>() -> MorphTo<M> {
     MorphTo::new("subject_type", "subject_id")
         .target::<P>("post", "id")
         .target::<A>("author", "id")
-        .withTrashed()
+        .with_trashed()
 }
 ```
 
@@ -540,7 +540,7 @@ pub async fn authors_with_posts(connection: &Connection) -> DatabaseResult<Colle
 
 To read loaded posts, use `getRelation::<RelatedCollection<Post>>("posts")`. Multi-model relations invoke the related model’s `newCollection` for each parent. The resulting keys are available via `keys` and `getByKey`, and non-list keys are preserved in JSON objects. The collection holds `Arc<T>` snapshots so callers can retain a loaded model. Singular relations use `Option<Arc<T>>`. An absent relation name indicates the relation has yet to be loaded. Use `load` to load it after retrieval and `loadMissing` to preserve values already loaded.
 
-Consuming an autoload-enabled collection with `into_iter` or `toBase` lets the moved models share a batch of peer snapshots. The first missing access loads the peers together. Once it completes, the other models can read their results through `relationLoaded`, `getRelation`, and JSON serialization without another access or query. Explicitly unsetting the relationship or changing the model’s attributes or connection makes the next access query that model directly.
+Consuming an autoload-enabled collection with `into_iter` or `toBase` lets the moved models share a batch of peer snapshots. The first missing access loads the peers together. Once it completes, the other models can read their results through `relation_loaded`, `getRelation`, and JSON serialization without another access or query. Explicitly unsetting the relationship or changing the model’s attributes or connection makes the next access query that model directly.
 
 ```rust
 use openrust::database::{
@@ -564,7 +564,7 @@ pub async fn moved_author_post_counts<Author: Model, Post: Model>(
 
 Register each segment in the corresponding model’s `namedRelations()`. Pass paths such as `posts.comments` to `withPaths`. Shared prefixes in one call are loaded together, so sibling paths reuse the same parent query. Use `loadPaths` on an existing model or collection. Unknown or malformed paths return an error.
 
-Use `loadMissingPaths(&["posts.comments"])` on a model or collection to fill gaps along registered paths. Already-loaded relations, including empty results, keep their values. Missing descendants are loaded in batches, including separate groups for polymorphic targets, and are visible in the root model’s serialization. When adding descendants to a shared related model, OpenRust installs a new snapshot in the loaded relationship. A previously held `Arc` continues to refer to the earlier snapshot.
+Use `load_missing_paths(&["posts.comments"])` on a model or collection to fill gaps along registered paths. Already-loaded relations, including empty results, keep their values. Missing descendants are loaded in batches, including separate groups for polymorphic targets, and are visible in the root model’s serialization. When adding descendants to a shared related model, OpenRust installs a new snapshot in the loaded relationship. A previously held `Arc` continues to refer to the earlier snapshot.
 
 Use `loadMissingPathWith` when a missing terminal relationship needs a predicate. The closure receives the grouped query conditions and the terminal table qualifier. It can be combined with column selection on that path. Loaded results, including empty ones, are preserved. For a polymorphic path the closure must use columns available for each target it can reach.
 
@@ -628,9 +628,9 @@ async fn authors_with_comments(connection: &Connection) -> DatabaseResult<Collec
 
 ### Eager loading specific columns {#eager-loading-specific-columns}
 
-Add a colon and comma-separated columns after the final relation in each path. Use a separate entry to select columns on an intermediate relation. Include the primary and foreign keys needed to match the models and to load any deeper relationships. For a polymorphic target, the listed columns must be available on each selected target. `loadMissingPaths` keeps existing relation values.
+Add a colon and comma-separated columns after the final relation in each path. Use a separate entry to select columns on an intermediate relation. Include the primary and foreign keys needed to match the models and to load any deeper relationships. For a polymorphic target, the listed columns must be available on each selected target. `load_missing_paths` keeps existing relation values.
 
-An explicit selection for an intermediate relation applies even when it follows a nested path in the same call. If several entries select columns for the same relation path, the first explicit selection wins. For `loadMissingPaths`, an existing relation keeps the columns with which it was loaded.
+An explicit selection for an intermediate relation applies even when it follows a nested path in the same call. If several entries select columns for the same relation path, the first explicit selection wins. For `load_missing_paths`, an existing relation keeps the columns with which it was loaded.
 
 ```rust
 use openrust::database::{Connection, DatabaseResult, eloquent::{Collection, Model}};
@@ -648,7 +648,7 @@ pub async fn fill_missing_comments<A: Model>(
     authors: &mut Collection<A>,
 ) -> DatabaseResult<()> {
     authors
-        .loadMissingPaths(&["posts:id,author_id", "posts.comments:id,subject_id,body"])
+        .load_missing_paths(&["posts:id,author_id", "posts.comments:id,subject_id,body"])
         .await
 }
 ```

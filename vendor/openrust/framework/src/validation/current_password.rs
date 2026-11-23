@@ -35,7 +35,7 @@ pub(super) async fn failures(
     let user = if let Some(request) = request {
         Auth::manager()
             .map_err(execution)?
-            .userForGuard(request, guard)
+            .user_for_guard(request, guard)
             .await
             .map_err(execution)?
     } else {
@@ -46,7 +46,7 @@ pub(super) async fn failures(
         })?(guard)?
     };
     let valid = if let Some(user) = user {
-        if let Some(hash) = user.getAuthPassword().filter(|hash| !hash.is_empty()) {
+        if let Some(hash) = user.get_auth_password().filter(|hash| !hash.is_empty()) {
             let value = match value {
                 Value::Null => String::new(),
                 Value::String(value) => value.clone(),

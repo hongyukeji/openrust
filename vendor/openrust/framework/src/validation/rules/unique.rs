@@ -19,7 +19,6 @@ pub(in crate::validation) enum Exclusion {
     Input(String, String),
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Unique {
     pub fn new(table: &str, column: Option<&str>) -> Self {
         Self {
@@ -29,7 +28,7 @@ impl Unique {
         }
     }
 
-    pub fn fromModel(model: &impl Model, column: Option<&str>) -> Self {
+    pub fn from_model(model: &impl Model, column: Option<&str>) -> Self {
         Self {
             target: DatabaseRule::model(model, column),
             exclusion: None,
@@ -53,7 +52,7 @@ impl Unique {
         self
     }
 
-    pub fn ignoreModel(self, model: &impl Model, column: Option<&str>) -> Self {
+    pub fn ignore_model(self, model: &impl Model, column: Option<&str>) -> Self {
         let column = column.unwrap_or_else(|| model.getKeyName());
         self.ignore(
             model.getAttribute(column).cloned().unwrap_or(Value::Null),

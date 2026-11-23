@@ -66,7 +66,7 @@ impl ServiceProvider for FortifyServiceProvider {
                         .unwrap_or(serde_json::Value::Null);
                     let credential = scalar(&credential);
                     let key = if credential.is_empty() || credential == "0" {
-                        request.session()?.getId().to_owned()
+                        request.session()?.get_id().to_owned()
                     } else {
                         credential
                     };

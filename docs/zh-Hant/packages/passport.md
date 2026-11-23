@@ -95,9 +95,9 @@ pub async fn create_client(
 }
 ```
 
-參數順序保留框架原意。Rust 顯式傳遞預設參數：`true` 建立機密用戶端，`owner` 可空，最後的 `false` 不額外啟用裝置授權。使用 `ClientOwner::forUser(&user)` 從編譯註冊的 `Model + Authenticatable` 建立擁有者，取模型主鍵與多型類型，不取可能不同的驗證識別。公開用戶端將機密參數設為 `false`。
+參數順序保留框架原意。Rust 顯式傳遞預設參數：`true` 建立機密用戶端，`owner` 可空，最後的 `false` 不額外啟用裝置授權。使用 `ClientOwner::for_user(&user)` 從編譯註冊的 `Model + Authenticatable` 建立擁有者，取模型主鍵與多型類型，不取可能不同的驗證識別。公開用戶端將機密參數設為 `false`。
 
-`createPersonalAccessGrantClient`、`createPasswordGrantClient`、`createClientCredentialsGrantClient`、`createImplicitGrantClient` 和 `createDeviceAuthorizationGrantClient` 選擇對應授權類型。建立記錄不會啟用可選的 Password 或 Implicit 協定；裝置端點遵循應用裝置開關。`update` 修改名稱和重新導向位址，`regenerateSecret` 產生新秘密；兩者經 Eloquent 儲存並回傳其布林結果。`findForUser` 和 `forUser` 排除已撤銷用戶端，後者按名稱排序。`personalAccessClient(provider)` 選擇對應使用者提供者的最新有效個人用戶端，僅當提供者等於 `auth.guards.api.provider` 時也接受空提供者，找不到時回傳錯誤。
+`createPersonalAccessGrantClient`、`createPasswordGrantClient`、`createClientCredentialsGrantClient`、`createImplicitGrantClient` 和 `createDeviceAuthorizationGrantClient` 選擇對應授權類型。建立記錄不會啟用可選的 Password 或 Implicit 協定；裝置端點遵循應用裝置開關。`update` 修改名稱和重新導向位址，`regenerateSecret` 產生新秘密；兩者經 Eloquent 儲存並回傳其布林結果。`findForUser` 和 `for_user` 排除已撤銷用戶端，後者按名稱排序。`personalAccessClient(provider)` 選擇對應使用者提供者的最新有效個人用戶端，僅當提供者等於 `auth.guards.api.provider` 時也接受空提供者，找不到時回傳錯誤。
 
 機密用戶端重用應用既有的 Eloquent 非同步雜湊服務。建立或輪替的 `Client` 在 `plainSecret` 暫時保留 setter 輸入，重新讀庫不會還原明文。預設 JSON 隱藏 `secret`，不附加明文。只在交付擁有者時複製新產生的秘密，不要記錄日誌。`record.model::<M>()` 回傳的 `Arc<tokio::sync::Mutex<M>>` 指向實際選定模型；`sameInstance` 檢查共用物件身分，不代表兩行模型的主鍵相等。
 
@@ -135,7 +135,7 @@ Rust 在編譯時綁定關聯回傳類型。預設輔助方法回傳預設具體
 
 ## Scope JSON
 
-`Scope::toJson()` 保留 `id`、`description` 欄位順序，以及 PHP 預設的 Unicode 和斜線跳脫。`toJsonWithOptions(ScopeJsonOptions)` 支援 `JSON_HEX_TAG`、`JSON_HEX_AMP`、`JSON_HEX_APOS`、`JSON_HEX_QUOT`、`JSON_NUMERIC_CHECK`、`JSON_UNESCAPED_SLASHES`、`JSON_PRETTY_PRINT`、`JSON_UNESCAPED_UNICODE`、`JSON_PRESERVE_ZERO_FRACTION`、`JSON_UNESCAPED_LINE_TERMINATORS`。以 `|` 組合常數，`fromBits` 可傳入 PHP 選項位元。Rust 字串始終是有效 UTF-8，因此無效 UTF-8 相關旗標不會改變結果。
+`Scope::to_json()` 保留 `id`、`description` 欄位順序，以及 PHP 預設的 Unicode 和斜線跳脫。`toJsonWithOptions(ScopeJsonOptions)` 支援 `JSON_HEX_TAG`、`JSON_HEX_AMP`、`JSON_HEX_APOS`、`JSON_HEX_QUOT`、`JSON_NUMERIC_CHECK`、`JSON_UNESCAPED_SLASHES`、`JSON_PRETTY_PRINT`、`JSON_UNESCAPED_UNICODE`、`JSON_PRESERVE_ZERO_FRACTION`、`JSON_UNESCAPED_LINE_TERMINATORS`。以 `|` 組合常數，`fromBits` 可傳入 PHP 選項位元。Rust 字串始終是有效 UTF-8，因此無效 UTF-8 相關旗標不會改變結果。
 
 ```rust
 use openrust_passport::{Scope, ScopeJsonOptions};
@@ -163,7 +163,7 @@ pub fn consent(request: &mut Request, params: AuthorizationViewParameters)
         Response::json(StatusCode::OK, serde_json::json!({
             "auth_token": params.auth_token,
             "csrf": request.session()?.token(),
-            "user": params.user.getAuthIdentifier(),
+            "user": params.user.get_auth_identifier(),
             "scopes": params.scopes,
         }))
     })
@@ -248,9 +248,9 @@ let current = passport.tokensExpireIn(None);
 
 使用 `artisan passport:client --personal --provider=users` 建立個人用戶端。在應用程式上下文呼叫 `PersonalAccessTokenFactory::make(user_id, "Automation", &["read".into()], "users").await?`。個人授權使用專用伺服器，公開權杖端點不接受它。依 provider 選擇用戶端；無 provider 的用戶端僅能作為已設定 API provider 的回退。
 
-編譯使用者模型可實作 `HasApiTokens`，在 `getProviderName` 明確回傳設定的 provider，再呼叫 `user.createToken("Automation", &["read".into()]).await?`。Rust 要求明確宣告，不推斷 PHP 模型類別名稱。權杖保存使用者、名稱與 scope，沒有重新整理權杖。`personalAccessTokensExpireIn` 預設獨立為一個日曆年。
+編譯使用者模型可實作 `HasApiTokens`，在 `getProviderName` 明確回傳設定的 provider，再呼叫 `user.create_token("Automation", &["read".into()]).await?`。Rust 要求明確宣告，不推斷 PHP 模型類別名稱。權杖保存使用者、名稱與 scope，沒有重新整理權杖。`personalAccessTokensExpireIn` 預設獨立為一個日曆年。
 
-`PersonalAccessTokenResult` 的序列化、`toArray`、`toJson` 提供 `accessTokenId`、`accessToken`、`tokenType`、`expiresIn`。`getToken().await?` 載入並快取真實預設 `Token`，回傳 `Option<PersonalToken<Token>>`，即 `Arc<tokio::sync::Mutex<Token>>`；重複讀取共用同一模型。編譯自訂模型使用 `getTokenFor::<CustomToken>()`。鎖定模型後透過 `TokenModel` 撤銷。Debug 輸出隱藏 Bearer。
+`PersonalAccessTokenResult` 的序列化、`to_array`、`to_json` 提供 `accessTokenId`、`accessToken`、`tokenType`、`expiresIn`。`getToken().await?` 載入並快取真實預設 `Token`，回傳 `Option<PersonalToken<Token>>`，即 `Arc<tokio::sync::Mutex<Token>>`；重複讀取共用同一模型。編譯自訂模型使用 `getTokenFor::<CustomToken>()`。鎖定模型後透過 `TokenModel` 撤銷。Debug 輸出隱藏 Bearer。
 
 ## 權杖作用域 {#token-scopes}
 
@@ -290,7 +290,7 @@ Password 與 Implicit 預設關閉，建立對應用戶端記錄不會啟用協�
 
 透過 `artisan passport:client --password --provider=users` 建立用戶端（`--public` 建立公開用戶端）。向 `POST /oauth/token` 傳送 `grant_type=password`、`client_id`、`username`、`password` 與可選 `scope`；機密用戶端還提供 `client_secret` 或 HTTP Basic。成功回傳簽名存取權杖，用戶端支援時也簽發重新整理權杖，沿用普通存取／重新整理期限。錯誤使用者憑證回傳 400 `invalid_grant`、`The user credentials were incorrect.`；缺少欄位、錯誤用戶端和未知 scope 保留 OAuth 錯誤回應。
 
-`bridge::UserRepository::getUserEntityByUserCredentials` 選擇用戶端 provider，空值回退到 `auth.guards.api.provider`。預設編譯 Eloquent provider 查詢 `email` 並驗證真實密碼雜湊。框架自訂 `UserProvider` 透過 `retrieveByCredentials`、`validateCredentials` 提供模型 `findForPassport` 和 `validateForPassportPasswordGrant` 的原生等價職責，不啟動 Session、不重新雜湊密碼。
+`bridge::UserRepository::getUserEntityByUserCredentials` 選擇用戶端 provider，空值回退到 `auth.guards.api.provider`。預設編譯 Eloquent provider 查詢 `email` 並驗證真實密碼雜湊。框架自訂 `UserProvider` 透過 `retrieve_by_credentials`、`validate_credentials` 提供模型 `findForPassport` 和 `validateForPassportPasswordGrant` 的原生等價職責，不啟動 Session、不重新雜湊密碼。
 
 組合模型鉤子 `findAndValidateForPassport` 使用 `passport.findAndValidateForPassportUsing("users", resolver)` 註冊。原生 `bridge::PasswordGrantResolver` 是接收借用使用者名稱、密碼及 `ClientRecord` 的編譯函數，回傳 `AuthFuture<AuthResult<Option<AuthIdentifier>>>`；它優先處理該 provider，須執行應用程式真實查詢及驗證。明確註冊取代 PHP 執行階段方法探索。例外回傳隱藏敏感資料的 500，不冒充密碼錯誤。
 
@@ -310,7 +310,7 @@ Password 與 Implicit 預設關閉，建立對應用戶端記錄不會啟用協�
 
 自訂關聯目標使用 `client.authCodesFor::<A>()`、`client.tokensFor::<T>()`、`code.clientFor::<C>()`、`token.clientFor::<C>()`、`token.refreshTokenFor::<R>()`、`refresh.accessTokenFor::<T>()`。預設輔助方法保留具體預設回傳型別。PAT 結果使用 `getTokenFor::<T>()`，工廠透過 `ClientFactory::<C>::new()` 選擇型別。
 
-明確模型連線優先於 `passport.connection`，再退回協定的父連線。同一次簽發／消費交易的 OAuth 寫入必須共用真實連線；跨連線身分會報錯並復原，即使兩個別名指向同一資料庫。為 OAuth 資料表統一設定 `PASSPORT_CONNECTION`。使用者 provider 可獨立查詢另一使用者儲存。透過 `AuthManager::registerModel` 或自訂 `UserProvider` 註冊編譯使用者模型，設定 guard 的 provider，並保留模型主鍵與驗證識別的區別。Password 的 provider 鉤子見前文。
+明確模型連線優先於 `passport.connection`，再退回協定的父連線。同一次簽發／消費交易的 OAuth 寫入必須共用真實連線；跨連線身分會報錯並復原，即使兩個別名指向同一資料庫。為 OAuth 資料表統一設定 `PASSPORT_CONNECTION`。使用者 provider 可獨立查詢另一使用者儲存。透過 `AuthManager::register_model` 或自訂 `UserProvider` 註冊編譯使用者模型，設定 guard 的 provider，並保留模型主鍵與驗證識別的區別。Password 的 provider 鉤子見前文。
 
 ## 覆寫路由 {#overriding-routes}
 
@@ -324,7 +324,7 @@ pub fn oauth_routes() -> Result<(), RoutingError> {
         router.post("/token",
             openrust_passport::http::controllers::AccessTokenController::issueToken)?
             .name("passport.token")
-            .withoutMiddleware("web")
+            .without_middleware("web")
             .middleware_name("throttle");
         Ok(())
     })
@@ -338,10 +338,10 @@ pub fn oauth_routes() -> Result<(), RoutingError> {
 同時啟用 `passport`、`sanctum` 預設 Cargo features。分別執行 API 安裝器且不傳 `--force` 會保留既有 API 路由，為第二種 guard 明確加入資源路由並執行其發布遷移。Passport guard（例如 `api`）設定使用者 provider，路由使用 `auth:api`；Sanctum 路由使用 `auth:sanctum`。預設使用者可實作兩套件的 `HasApiTokens`，用完整路徑區分同名方法：
 
 ```rust
-let oauth = openrust_passport::HasApiTokens::createToken(&user, "OAuth", &[]).await?;
-let personal = openrust::sanctum::HasApiTokens::createToken(
+let oauth = openrust_passport::HasApiTokens::create_token(&user, "OAuth", &[]).await?;
+let personal = openrust::sanctum::HasApiTokens::create_token(
     &user, &sanctum, &database, "Sanctum", &["read"], None,
 ).await?;
 ```
 
-除普通使用者 provider 註冊外，另透過 `AuthManager::registerSanctumModel` 註冊 Sanctum 使用者。OAuth JWT 與 Sanctum 個人 Bearer 權杖使用獨立資料表及 guard，不能互換；撤銷一種憑證不影響另一套件的有效憑證。瀏覽器 Session 驗證單獨設定。測試章節的請求內 `actingAs`／`actingAsClient` 仍是指定請求／guard 的明確替身，不安裝用戶端、不產生持久資料庫權杖。
+除普通使用者 provider 註冊外，另透過 `AuthManager::register_sanctum_model` 註冊 Sanctum 使用者。OAuth JWT 與 Sanctum 個人 Bearer 權杖使用獨立資料表及 guard，不能互換；撤銷一種憑證不影響另一套件的有效憑證。瀏覽器 Session 驗證單獨設定。測試章節的請求內 `actingAs`／`actingAsClient` 仍是指定請求／guard 的明確替身，不安裝用戶端、不產生持久資料庫權杖。

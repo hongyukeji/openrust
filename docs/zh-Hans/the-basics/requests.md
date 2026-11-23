@@ -2,26 +2,26 @@
 
 ## 请求头 {#request-headers}
 
-用 `request.header("X-Trace")?` 读取首个文本值，请求头缺失时返回 `None`。内核会将无效名称或非 UTF-8 值产生的错误渲染为 HTTP 400。用 `hasHeader` 检查是否存在，`headers()` 读取完整的请求头映射，`bearerToken()?` 从 Authorization 中提取 Bearer 令牌。
+用 `request.header("X-Trace")?` 读取首个文本值，请求头缺失时返回 `None`。内核会将无效名称或非 UTF-8 值产生的错误渲染为 HTTP 400。用 `has_header` 检查是否存在，`headers()` 读取完整的请求头映射，`bearer_token()?` 从 Authorization 中提取 Bearer 令牌。
 
 ### 浏览器语言偏好 {#language-preferences}
 
-`request.getLanguages()` 按权重从高到低返回有效的 `Accept-Language` 范围，同权保留输入顺序。标签使用 BCP 47，例如 `en-US`、`zh-Hant`；`*` 保留为通配符。多个同名请求头合并处理，重复标签保留最高有效权重。无效标签、非法或重复的权重参数、`q=0` 条目会被忽略；权重必须在 0 到 1 之间，最多三位小数。没有有效范围时返回空列表。
+`request.get_languages()` 按权重从高到低返回有效的 `Accept-Language` 范围，同权保留输入顺序。标签使用 BCP 47，例如 `en-US`、`zh-Hant`；`*` 保留为通配符。多个同名请求头合并处理，重复标签保留最高有效权重。无效标签、非法或重复的权重参数、`q=0` 条目会被忽略；权重必须在 0 到 1 之间，最多三位小数。没有有效范围时返回空列表。
 
 ```rust,ignore
-let languages = request.getLanguages();
-let preferred = request.getPreferredLanguage(Some(&["en", "fr-FR"]))?;
+let languages = request.get_languages();
+let preferred = request.get_preferred_language(Some(&["en", "fr-FR"]))?;
 ```
 
-`getPreferredLanguage` 按请求偏好依次匹配有序候选：先完整标签，再语言／文字体系／地区组合及基础语言。通配符或没有匹配时选择首个候选。传入 `None` 或空候选时，返回请求的首选范围，没有则为 `None`。候选使用其他语言接口相同的 BCP 47 校验；任意候选无效都会返回翻译错误，即使前面的候选已匹配。返回值是 `Result` 包装的独立 `Option<String>`。 这是偏好选择助手，不会自动返回 406；忽略的 `q=0` 条目不形成永久排除清单，无匹配时仍使用有序候选的首项。
+`get_preferred_language` 按请求偏好依次匹配有序候选：先完整标签，再语言／文字体系／地区组合及基础语言。通配符或没有匹配时选择首个候选。传入 `None` 或空候选时，返回请求的首选范围，没有则为 `None`。候选使用其他语言接口相同的 BCP 47 校验；任意候选无效都会返回翻译错误，即使前面的候选已匹配。返回值是 `Result` 包装的独立 `Option<String>`。 这是偏好选择助手，不会自动返回 406；忽略的 `q=0` 条目不形成永久排除清单，无匹配时仍使用有序候选的首项。
 
 这两个方法始终读取标准 `Accept-Language`，不受 `app.locale_header` 影响，不改变应用语言，也不依中文地区推断文字体系。业务、翻译和页面需要当前实际语言时使用 `App::current_locale()?`。全局 `SetLocale` 另按配置来源选择语言，更换其请求头不会改变 Request 标准方法；可通过 `middleware.set_locale(...)` 覆盖候选或关闭识别，见[应用语言协商](../digging-deeper/localization.md#locale-header)。标准解析结果按请求缓存，通过 `parts_mut()` 修改请求头时失效；自定义协商头复用解析器，但不使用该标准头缓存。
 
 ## 请求路径、主机和 URL {#request-path-host-and-method}
 
-`path()` 移除路径两端的斜杠，`decodedPath()` 再进行百分号解码。用 `segments()` 或从 1 开始的 `segment(index)` 读取路径段。`is(pattern)` 匹配解码后的路径，`routeIs(&["reports.*"])` 匹配当前路由名称，`isMethod("GET")` 检查生效的 HTTP 方法。
+`path()` 移除路径两端的斜杠，`decoded_path()` 再进行百分号解码。用 `segments()` 或从 1 开始的 `segment(index)` 读取路径段。`is(pattern)` 匹配解码后的路径，`route_is(&["reports.*"])` 匹配当前路由名称，`is_method("GET")` 检查生效的 HTTP 方法。
 
-`host()?`、`httpHost()?` 和 `schemeAndHttpHost()?` 使用生效的连接信息和可信代理设置。HTTP 主机包含非默认端口。`root()?` 还包含可信代理基础路径。`url()?` 返回去掉查询串的当前 URL。`fullUrl()?` 和 `fullUrlIs(patterns)?` 使用规范化查询串。用 `fullUrlWithQuery(&serde_json::json!({"page": 2}))?` 或 `fullUrlWithoutQuery(&["page"])?` 根据请求查询数据生成地址。这些方法返回新的 URL 字符串。签名验证使用原始请求目标。
+`host()?`、`http_host()?` 和 `scheme_and_http_host()?` 使用生效的连接信息和可信代理设置。HTTP 主机包含非默认端口。`root()?` 还包含可信代理基础路径。`url()?` 返回去掉查询串的当前 URL。`full_url()?` 和 `full_url_is(patterns)?` 使用规范化查询串。用 `full_url_with_query(&serde_json::json!({"page": 2}))?` 或 `full_url_without_query(&["page"])?` 根据请求查询数据生成地址。这些方法返回新的 URL 字符串。签名验证使用原始请求目标。
 
 ## 获取输入
 
@@ -31,7 +31,7 @@ let preferred = request.getPreferredLanguage(Some(&["en", "fr-FR"]))?;
 
 普通输入与上传文件同名时，优先使用普通输入，显式 null 同样优先。嵌套集合保留两边各自独有的字段。上传文件仍可从文件集合读取。
 
-用 `request.allOnly(&["items.1.photo", "name"]).await?` 按路径选取字段，缺失字段保留为 null。用 `request.keys().await?` 依次列出普通输入键和文件键。两边都提供的键会出现两次。
+用 `request.all_only(&["items.1.photo", "name"]).await?` 按路径选取字段，缺失字段保留为 null。用 `request.keys().await?` 依次列出普通输入键和文件键。两边都提供的键会出现两次。
 
 ### 获取单个输入值 {#retrieving-an-input-value}
 
@@ -39,7 +39,7 @@ let preferred = request.getPreferredLanguage(Some(&["en", "fr-FR"]))?;
 
 用 `request.post(None).await?` 读取正文参数集合，或用 `request.post(Some("name")).await?` 读取精确的顶层键。JSON 请求会读取解码后的正文。查询参数和 multipart 上传对象各自通过独立集合读取。显式 null 在完整集合中保留，按名称读取该值时返回 `None`。
 
-用 `request.fluent(Some("user")).await?` 将一组普通输入包装为独立的 `Fluent` 属性集合。传入 `None` 可包装全部普通输入，字段缺失或为 null 时可用 `fluentOr("user", default)` 提供默认属性集合。标量无法构造属性集合，返回 HTTP 400。用 `fluentOnly(&["user.name", "document"]).await?` 获取保留上传对象的独立类型化快照。用 `get` 读取路径，用 `value` 读取精确的顶层键。
+用 `request.fluent(Some("user")).await?` 将一组普通输入包装为独立的 `Fluent` 属性集合。传入 `None` 可包装全部普通输入，字段缺失或为 null 时可用 `fluent_or("user", default)` 提供默认属性集合。标量无法构造属性集合，返回 HTTP 400。用 `fluent_only(&["user.name", "document"]).await?` 获取保留上传对象的独立类型化快照。用 `get` 读取路径，用 `value` 读取精确的顶层键。
 
 用 `scope("user")` 获取独立的子属性集合。标量与文件用索引 `0` 包装。用 `set("user.name", RequestValue::Value(serde_json::json!("Ada")))?` 修改类型化属性集合。通配路径更新已有成员，原请求的输入不受影响。
 
@@ -61,7 +61,7 @@ OpenRust 成功读取正文后保留原始字节，供后续读取。默认上�
 
 用 `request.date("when", None, None).await?` 按应用时区解析日期。用 `request.date("formatted", Some("!d/m/Y H:i:s.u"), Some("Asia/Tokyo")).await?` 指定 PHP 格式和时区。缺失值、null 和空白返回 `None`，无效日期返回 HTTP 400。解析结果保留实际时区和微秒。
 
-测试中，`TestApp::travelTo` 和冻结时间方法为相对日期及格式中省略的字段提供参考时刻。例如，`tomorrow` 从所用时区的冻结日期计算。格式以 `!` 开头时，省略的字段会重置。详见[控制测试时间](../testing/mocking.md#interacting-with-time)。
+测试中，`TestApp::travel_to` 和冻结时间方法为相对日期及格式中省略的字段提供参考时刻。例如，`tomorrow` 从所用时区的冻结日期计算。格式以 `!` 开头时，省略的字段会重置。详见[控制测试时间](../testing/mocking.md#interacting-with-time)。
 
 用 `request.interval("duration", None).await?` 读取 ISO 8601 区间或 `2 hours 30 minutes` 等表达式。字段以指定单位提供值时，使用 `request.interval("seconds", Some("second")).await?`。结果保留日历分量和微秒，显式传入的 90 秒仍在秒分量中。缺失或空白输入返回 `None`，无效区间或单位返回 HTTP 400。
 
@@ -71,7 +71,7 @@ OpenRust 成功读取正文后保留原始字节，供后续读取。默认上�
 
 ### 获取部分输入 {#retrieving-a-portion-of-the-input-data}
 
-用 `request.only(&["user.name", "document"]).await?` 从普通输入和上传文件中选取字段。缺失路径会被省略，显式 null 和类型化文件会保留。`request.except(&["document"]).await?` 移除字段并保留剩余数字键。用 `arrayOnly` 或 `collectOnly` 将选中字段读为类型化数组或集合。
+用 `request.only(&["user.name", "document"]).await?` 从普通输入和上传文件中选取字段。缺失路径会被省略，显式 null 和类型化文件会保留。`request.except(&["document"]).await?` 移除字段并保留剩余数字键。用 `array_only` 或 `collect_only` 将选中字段读为类型化数组或集合。
 
 ## 客户端 IP 地址 {#request-ip-address}
 
@@ -79,39 +79,39 @@ OpenRust 成功读取正文后保留原始字节，供后续读取。默认上�
 
 ## 内容协商 {#content-negotiation}
 
-用 `request.getAcceptableContentTypes()` 读取按质量权重排序的 `Accept` 条目。用 `request.accepts(&["text/html", "application/json"])` 检查是否接受任一类型，或用 `request.prefers(&["html", "json"])` 选择最佳候选。缺少该请求头或候选均不匹配时，`prefers` 返回 `None`。`request.format("html")` 返回首个识别出的响应格式，找不到时返回传入的默认值。
+用 `request.get_acceptable_content_types()` 读取按质量权重排序的 `Accept` 条目。用 `request.accepts(&["text/html", "application/json"])` 检查是否接受任一类型，或用 `request.prefers(&["html", "json"])` 选择最佳候选。缺少该请求头或候选均不匹配时，`prefers` 返回 `None`。`request.format("html")` 返回首个识别出的响应格式，找不到时返回传入的默认值。
 
-`acceptsAnyContentType()`、`acceptsJson()`、`acceptsHtml()` 和 `acceptsMarkdown()` 检查是否接受对应类型。`wantsJson()` 和 `wantsMarkdown()` 检查排序第一的条目。`expectsJson()` 也识别 `Accept` 为空或通配的非 PJAX XMLHttpRequest。`isJson()` 读取请求正文的 `Content-Type`。
+`accepts_any_content_type()`、`accepts_json()`、`accepts_html()` 和 `accepts_markdown()` 检查是否接受对应类型。`wants_json()` 和 `wants_markdown()` 检查排序第一的条目。`expects_json()` 也识别 `Accept` 为空或通配的非 PJAX XMLHttpRequest。`is_json()` 读取请求正文的 `Content-Type`。
 
 重复发送 `Accept` 请求头时，按固定框架实现使用首个字段。需要发送多种类型时，请在一个字段中用逗号分隔。
 
 ### 原生 HTTP 请求 {#native-http-requests}
 
-HTTP 服务将每个原生请求交给 `Kernel::handleTransport`，由它调用 `Request::from(native)` 建立框架请求。可信代理处理和方法覆盖都在本次请求的生命周期内执行。
+HTTP 服务将每个原生请求交给 `Kernel::handle_transport`，由它调用 `Request::from(native)` 建立框架请求。可信代理处理和方法覆盖都在本次请求的生命周期内执行。
 
-与 Rust HTTP 库互操作时，用 `Request::from(native)` 接收拥有所有权的 `http::Request<Body>`，用 `into()` 转回原生请求。所有权转换会移动当前正文流、请求头、协议版本和扩展。在路由中用 `request.toHttpRequest().await?` 创建带缓冲正文的独立原生请求。它使用框架输入的 8 MiB 限额，框架请求仍可读取正文。
+与 Rust HTTP 库互操作时，用 `Request::from(native)` 接收拥有所有权的 `http::Request<Body>`，用 `into()` 转回原生请求。所有权转换会移动当前正文流、请求头、协议版本和扩展。在路由中用 `request.to_http_request().await?` 创建带缓冲正文的独立原生请求。它使用框架输入的 8 MiB 限额，框架请求仍可读取正文。
 
-原生请求携带 `originalUri()` 返回的传输 URI，以及 `method()` 返回的生效方法，包括方法覆盖后的结果。用 `uri()` 读取可信代理处理后的框架 URI，用 `getRealMethod()` 读取原始方法。`version()` 和 `extensions()` 读取对应的传输元数据。
+原生请求携带 `original_uri()` 返回的传输 URI，以及 `method()` 返回的生效方法，包括方法覆盖后的结果。用 `uri()` 读取可信代理处理后的框架 URI，用 `get_real_method()` 读取原始方法。`version()` 和 `extensions()` 读取对应的传输元数据。
 
 返回原生类型的写法见[原生 HTTP 响应](./responses.md#native-http-responses)。
 
 ### 检查输入是否存在 {#input-presence}
 
-用 `request.has(&["profile.name"]).await?` 检查键是否存在，显式设置为 `null` 的键也算存在。用 `hasAny` 检查任意一个键，用 `missing` 检查是否有键缺失。这些检查也识别上传文件。
+用 `request.has(&["profile.name"]).await?` 检查键是否存在，显式设置为 `null` 的键也算存在。用 `has_any` 检查任意一个键，用 `missing` 检查是否有键缺失。这些检查也识别上传文件。
 
-用 `filled`、`isNotFilled` 和 `anyFilled` 检查输入值。缺失值、`null` 和空白字符串算空。布尔值、零和空数组算已填写。只有上传文件的字段可用 `hasFile` 检查。
+用 `filled`、`is_not_filled` 和 `any_filled` 检查输入值。缺失值、`null` 和空白字符串算空。布尔值、零和空数组算已填写。只有上传文件的字段可用 `has_file` 检查。
 
-用 `whenHas`、`whenFilled` 或 `whenMissing` 在条件成立时运行异步回调。`whenHas` 和 `whenFilled` 将合并后的字段作为 `Option<RequestValue>` 传给回调。匹配 `RequestValue::File(file)` 即可操作上传文件。回调执行时返回 `Some(result)`，可用 `unwrap_or_else` 提供默认结果。
+用 `when_has`、`when_filled` 或 `when_missing` 在条件成立时运行异步回调。`when_has` 和 `when_filled` 将合并后的字段作为 `Option<RequestValue>` 传给回调。匹配 `RequestValue::File(file)` 即可操作上传文件。回调执行时返回 `Some(result)`，可用 `unwrap_or_else` 提供默认结果。
 
 ### 合并额外输入 {#merging-additional-input}
 
-用 `request.merge(serde_json::json!({"profile.name": "Ada"})).await?` 按点路径设置输入。`mergeIfMissing` 保留请求已有的键，包括显式 `null`、查询回退值和上传文件。用 `replace` 传入对象或数组可替换当前输入来源。
+用 `request.merge(serde_json::json!({"profile.name": "Ada"})).await?` 按点路径设置输入。`merge_if_missing` 保留请求已有的键，包括显式 `null`、查询回退值和上传文件。用 `replace` 传入对象或数组可替换当前输入来源。
 
 JSON 请求更新 JSON 输入。非 JSON 的 GET 或 HEAD 更新查询数据。其他请求更新表单输入，并继续使用查询回退。这些方法保留原始 URI、原始正文和上传文件。
 
 ## 旧输入 {#old-input}
 
-在使用会话中间件的路由中，用 `request.flash().await?` 保存当前输入供下一次请求读取。用 `request.flashOnly(&["profile.name", "page"]).await?` 选取字段，或用 `request.flashExcept(&["password", "password_confirmation"]).await?` 排除字段。字段选择支持点路径。上传文件保存在文件数据中。
+在使用会话中间件的路由中，用 `request.flash().await?` 保存当前输入供下一次请求读取。用 `request.flash_only(&["profile.name", "page"]).await?` 选取字段，或用 `request.flash_except(&["password", "password_confirmation"]).await?` 排除字段。字段选择支持点路径。上传文件保存在文件数据中。
 
 用 `request.old(Some("profile.name"))` 读取旧输入的一个字段，或用 `request.old(None)` 获取整袋数据。先匹配字面键，再解析点路径。显式空值保留为 `Some(Value::Null)`，缺失时可用 `Option` 方法提供默认值。
 
@@ -119,7 +119,7 @@ JSON 请求更新 JSON 输入。非 JSON 的 GET 或 HEAD 更新查询数据。�
 
 ## Cookie {#cookies}
 
-用 `request.cookie(Some("theme"))?` 读取指定 Cookie，用 `request.cookie(None)?` 读取整个 Cookie 集合。`request.hasCookie("theme")?` 检查 Cookie 是否存在，空字符串也算存在。
+用 `request.cookie(Some("theme"))?` 读取指定 Cookie，用 `request.cookie(None)?` 读取整个 Cookie 集合。`request.has_cookie("theme")?` 检查 Cookie 是否存在，空字符串也算存在。
 
 启用 `EncryptCookies` 后，受保护的 Cookie 会在进入处理器前解密并校验。校验失败时，整个集合仍保留该键，其值为 null。按名称读取会返回 `None`，调用方可用 `Option` 提供默认值。
 
@@ -132,9 +132,9 @@ JSON 请求更新 JSON 输入。非 JSON 的 GET 或 HEAD 更新查询数据。�
 ```rust
 .with_middleware(|middleware| {
     middleware
-        .trimStrings(["rows.*.secret"])
-        .skipTrimStringsWhen(|request| request.is("hooks/*"))
-        .convertEmptyStringsToNull(|request| request.is("hooks/*"));
+        .trim_strings(["rows.*.secret"])
+        .skip_trim_strings_when(|request| request.is("hooks/*"))
+        .convert_empty_strings_to_null(|request| request.is("hooks/*"));
 })
 ```
 
@@ -146,9 +146,9 @@ JSON 请求更新 JSON 输入。非 JSON 的 GET 或 HEAD 更新查询数据。�
 
 用 `request.file("attachments.0").await?` 读取单个 multipart 上传文件。`UploadedFile` 提供文件字节，以及客户端给出的文件名和媒体类型。保存前应校验文件内容。
 
-用 `request.fileValue("photos.*.image").await?` 读取一组文件或通配符匹配结果，用 `request.allFiles().await?` 读取整个文件集合。两者用 `UploadedFileValue` 表示文件和带键集合。没有文件名的上传字段会被移除，有文件名的零字节文件仍可读取，保留其余文件的数字索引。
+用 `request.file_value("photos.*.image").await?` 读取一组文件或通配符匹配结果，用 `request.all_files().await?` 读取整个文件集合。两者用 `UploadedFileValue` 表示文件和带键集合。没有文件名的上传字段会被移除，有文件名的零字节文件仍可读取，保留其余文件的数字索引。
 
-`request.hasFile("attachments").await?` 检查单个文件或集合的直接成员。要检查更深层的文件，请指定嵌套字段或用通配符选取。
+`request.has_file("attachments").await?` 检查单个文件或集合的直接成员。要检查更深层的文件，请指定嵌套字段或用通配符选取。
 
 输入读取和 JSON 响应的完整示例见[控制器](./controllers.md)。
 
@@ -161,7 +161,7 @@ use openrust::http::TrustedProxyHeaders;
 
 .with_middleware(|middleware| {
     middleware
-        .trustProxies(&["192.0.2.10", "10.20.0.0/16"], TrustedProxyHeaders::DEFAULT)
+        .trust_proxies(&["192.0.2.10", "10.20.0.0/16"], TrustedProxyHeaders::DEFAULT)
         .expect("valid trusted proxy policy");
 })
 ```
@@ -170,21 +170,21 @@ use openrust::http::TrustedProxyHeaders;
 
 `Request::secure` 反映生效的协议。URL 生成使用转发来源和前缀，路由匹配使用入站路径。
 
-应用装配未指定代理策略时，HTTP 启动从配置仓库读取 `trustedproxy.proxies`，支持逗号分隔字符串或数组。可选的 `trustedproxy.headers` 支持数值掩码或 `HEADER_X_FORWARDED_AWS_ELB` 等框架预设名。显式 `trustProxies` 优先，包括空地址列表。
+应用装配未指定代理策略时，HTTP 启动从配置仓库读取 `trustedproxy.proxies`，支持逗号分隔字符串或数组。可选的 `trustedproxy.headers` 支持数值掩码或 `HEADER_X_FORWARDED_AWS_ELB` 等框架预设名。显式 `trust_proxies` 优先，包括空地址列表。
 
 ## 配置可信 Host {#configuring-trusted-hosts}
 
-启用 `trustHosts` 可限制原始和转发后的主机名。模式使用不区分大小写的 PCRE 表达式，匹配去掉端口的主机名。未通过校验时，在进入路由前返回 HTTP 400。
+启用 `trust_hosts` 可限制原始和转发后的主机名。模式使用不区分大小写的 PCRE 表达式，匹配去掉端口的主机名。未通过校验时，在进入路由前返回 HTTP 400。
 
 ```rust
 .with_middleware(|middleware| {
     middleware
-        .trustHosts(&[r"^edge\.example\.com$"], true)
+        .trust_hosts(&[r"^edge\.example\.com$"], true)
         .expect("valid host patterns");
 })
 ```
 
-启用 `subdomains` 可同时信任 `app.url` 的主机及其子域。用 `trustHostsWith` 可在每次请求时异步获取模式。环境名恰好为 `local` 或 `testing` 时跳过 Host 校验。
+启用 `subdomains` 可同时信任 `app.url` 的主机及其子域。用 `trust_hosts_with` 可在每次请求时异步获取模式。环境名恰好为 `local` 或 `testing` 时跳过 Host 校验。
 ## 请求元数据
 
-`ajax()` 检查 `X-Requested-With: XMLHttpRequest`，`pjax()` 检查 `X-PJAX`。`prefetch()` 对 `X-Moz`、`Purpose`、`Sec-Purpose` 与 `prefetch` 进行忽略大小写的完整比较。预取请求不会覆盖 Session 上一页地址和路由。`userAgent()` 返回可选请求头值。`fingerprint()` 要求已匹配路由，按方法、域名、URI 和客户端 IP 生成摘要。通过 `user(guard).await` 使用指定 Guard 解析当前用户。
+`ajax()` 检查 `X-Requested-With: XMLHttpRequest`，`pjax()` 检查 `X-PJAX`。`prefetch()` 对 `X-Moz`、`Purpose`、`Sec-Purpose` 与 `prefetch` 进行忽略大小写的完整比较。预取请求不会覆盖 Session 上一页地址和路由。`user_agent()` 返回可选请求头值。`fingerprint()` 要求已匹配路由，按方法、域名、URI 和客户端 IP 生成摘要。通过 `user(guard).await` 使用指定 Guard 解析当前用户。

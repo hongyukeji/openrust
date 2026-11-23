@@ -92,7 +92,7 @@ fn client_projection_hides_raw_secret_and_uses_model_accessors_and_uuid_strategy
     assert!(Client::isValidUniqueId(
         "550e8400-e29b-41d4-a716-446655440000"
     ));
-    let json = client.toArray().unwrap();
+    let json = client.to_array().unwrap();
     assert!(!json.contains_key("secret"));
     assert_eq!(json["revoked"], false);
     assert_eq!(
@@ -169,7 +169,7 @@ async fn secrets_use_existing_eloquent_hashing_and_plaintext_remains_instance_lo
             .unwrap()
     );
     let hash = hash.clone();
-    assert!(!client.toJson().unwrap().contains("plain secret"));
+    assert!(!client.to_json().unwrap().contains("plain secret"));
     assert!(!format!("{client:?}").contains("plain secret"));
     let loaded = Client::from_state(client.state().clone());
     assert!(loaded.plainSecret.is_none());
@@ -266,12 +266,12 @@ fn php_arrays_preserve_associative_keys_and_php_scalar_membership() {
 fn scope_exposes_the_fixed_id_and_description_payload() {
     let scope = openrust_passport::Scope::new("orders:read", "读取订单");
     assert_eq!(
-        scope.toArray(),
+        scope.to_array(),
         json!({"id":"orders:read", "description":"读取订单"})
     );
     assert_eq!(
-        serde_json::from_str::<serde_json::Value>(&scope.toJson().unwrap()).unwrap(),
-        scope.toArray()
+        serde_json::from_str::<serde_json::Value>(&scope.to_json().unwrap()).unwrap(),
+        scope.to_array()
     );
 }
 
@@ -279,25 +279,25 @@ fn scope_exposes_the_fixed_id_and_description_payload() {
 fn plain_secret_appending_reads_the_instance_and_respects_visibility() {
     let mut client = hydrated([("secret", "stored hash".into())]);
     client.plainSecret = Some(zeroize::Zeroizing::new("instance-only secret".to_owned()));
-    assert!(client.toArray().unwrap().get("plain_secret").is_none());
+    assert!(client.to_array().unwrap().get("plain_secret").is_none());
     client.append(&["plain_secret"]);
-    let projected = client.toArray().unwrap();
+    let projected = client.to_array().unwrap();
     assert_eq!(projected["plain_secret"], "instance-only secret");
     assert!(!projected.contains_key("secret"));
     assert!(client.state().getAttribute("plain_secret").is_none());
     client.makeHidden(&["plain_secret"]);
-    assert!(!client.toArray().unwrap().contains_key("plain_secret"));
+    assert!(!client.to_array().unwrap().contains_key("plain_secret"));
     client.makeVisible(&["plain_secret"]);
     assert_eq!(
-        client.toArray().unwrap()["plain_secret"],
+        client.to_array().unwrap()["plain_secret"],
         "instance-only secret"
     );
     client.setVisible(&["secret"]);
-    assert!(!client.toArray().unwrap().contains_key("plain_secret"));
+    assert!(!client.to_array().unwrap().contains_key("plain_secret"));
     let mut hydrated_again = hydrated([("secret", "stored hash".into())]);
     hydrated_again.append(&["plain_secret"]);
     assert_eq!(
-        hydrated_again.toArray().unwrap()["plain_secret"],
+        hydrated_again.to_array().unwrap()["plain_secret"],
         serde_json::Value::Null
     );
 }
@@ -344,16 +344,16 @@ fn existing_eloquent_append_accessors_keep_raw_state_visibility_and_errors() {
     state.setAttribute("label", "current value");
     let mut model = DefaultAccessor::from_state(state);
     assert_eq!(
-        model.toArray().unwrap(),
+        model.to_array().unwrap(),
         serde_json::json!({"summary":"current value"})
             .as_object()
             .unwrap()
             .clone()
     );
     model.state_mut().setAttribute("label", "changed value");
-    assert_eq!(model.toArray().unwrap()["summary"], "changed value");
+    assert_eq!(model.to_array().unwrap()["summary"], "changed value");
     model.makeHidden(&["summary"]);
-    assert!(model.toArray().unwrap().is_empty());
+    assert!(model.to_array().unwrap().is_empty());
     model.append(&["missing"]);
-    assert!(model.toArray().is_err());
+    assert!(model.to_array().is_err());
 }

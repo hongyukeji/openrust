@@ -210,7 +210,7 @@ impl Fluent<RequestValue> {
     pub fn set(&mut self, key: &str, value: RequestValue) -> Result<&mut Self, FluentError> {
         let path = data_path_segments(key)?;
         value.check_depth(0)?;
-        let mut attributes = self.toArray();
+        let mut attributes = self.to_array();
         attributes.set(&path, value, true);
         attributes.check_depth(0)?;
         *self = Self::from_attributes(attributes);
@@ -227,12 +227,12 @@ impl Fluent<RequestValue> {
         Self::from_attributes(value)
     }
 
-    pub fn isEmpty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         matches!(self.all(), RequestValue::Array(fields) if fields.is_empty())
     }
 
-    pub fn isNotEmpty(&self) -> bool {
-        !self.isEmpty()
+    pub fn is_not_empty(&self) -> bool {
+        !self.is_empty()
     }
 }
 
@@ -257,13 +257,13 @@ impl Request {
             .await?
             .unwrap_or_else(|| Value::Array(Vec::new()));
         let mut input = RequestValue::from_input(values);
-        input.merge_files(self.allFiles().await?);
+        input.merge_files(self.all_files().await?);
         Ok(input)
     }
 
     /// Selects fields from all input and files. Missing fields become explicit null.
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn allOnly(&mut self, keys: &[&str]) -> Result<RequestValue, HttpError> {
+    pub async fn all_only(&mut self, keys: &[&str]) -> Result<RequestValue, HttpError> {
         let input = self.all().await?;
         if keys.is_empty() {
             return Ok(input);
@@ -309,12 +309,12 @@ impl Request {
     }
 
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn arrayOnly(&mut self, keys: &[&str]) -> Result<RequestValue, HttpError> {
+    pub async fn array_only(&mut self, keys: &[&str]) -> Result<RequestValue, HttpError> {
         self.only(keys).await
     }
 
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn collectOnly(
+    pub async fn collect_only(
         &mut self,
         keys: &[&str],
     ) -> Result<Collection<RequestValue>, HttpError> {
@@ -326,7 +326,7 @@ impl Request {
 
     /// Wraps selected input and uploads in an independent typed Fluent bag.
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn fluentOnly(&mut self, keys: &[&str]) -> Result<Fluent<RequestValue>, HttpError> {
+    pub async fn fluent_only(&mut self, keys: &[&str]) -> Result<Fluent<RequestValue>, HttpError> {
         Ok(Fluent::from_attributes(self.only(keys).await?))
     }
 }

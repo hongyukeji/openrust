@@ -112,7 +112,7 @@ impl Listener for BatchObserver {
                 }
                 BatchStarted::NAME => {
                     let value = event.downcast_ref::<BatchStarted>().unwrap();
-                    assert!(value.batch.processedJobs() != 0 || value.batch.hasFailures());
+                    assert!(value.batch.processedJobs() != 0 || value.batch.has_failures());
                     (&value.batch, None)
                 }
                 BatchFinished::NAME => {
@@ -310,7 +310,7 @@ impl JobHandler for ChainProbe {
                 )?;
                 let batch = Bus::batch([report])
                     .name(format!("{connection}.edit-batch"))
-                    .onQueue("inner-batch");
+                    .on_queue("inner-batch");
                 context.prependToChain(batch)?;
             }
             match step {
@@ -343,8 +343,8 @@ fn chain_route(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpErr
         let kind = request.route("kind").unwrap();
         let step = |name: &str| Payload::new("chain.step", format!("{connection}.{name}"));
         let chain = Bus::chain([step(kind)?])
-            .onConnection(connection)
-            .onQueue("chain")
+            .on_connection(connection)
+            .on_queue("chain")
             .catch("chain.failed");
         let chain = if kind == "edit-last" {
             chain
@@ -372,14 +372,14 @@ fn route(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
             ];
             let batch = Bus::batch([])
                 .addChain(jobs)
-                .onQueue("chain")
+                .on_queue("chain")
                 .dispatch()
                 .await?;
             return Response::json(StatusCode::OK, &batch);
         }
         if kind == "cancel-explicit" {
             let job = Payload::new("reports.generate", "skipped")?;
-            let batch = Bus::batch([job]).onQueue("explicit").dispatch().await?;
+            let batch = Bus::batch([job]).on_queue("explicit").dispatch().await?;
             Bus::cancelBatch(&batch.id).await?;
             Bus::cancelBatch(&batch.id).await?;
             return Response::json(StatusCode::OK, &batch);
@@ -393,7 +393,7 @@ fn route(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         let batch = match kind {
             "success" => Bus::batch(jobs(&["summary", "detail"])?)
                 .name("monthly reports")
-                .onQueue("batch")
+                .on_queue("batch")
                 .before("reports.before")
                 .progress("reports.broken")
                 .progress("reports.progress")
@@ -401,32 +401,32 @@ fn route(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
                 .finally("reports.finally"),
             "allow" => Bus::batch(jobs(&["after", "failed"])?)
                 .name("allow")
-                .onQueue("batch")
+                .on_queue("batch")
                 .progress("reports.progress")
-                .onFailure("reports.failure")
+                .on_failure("reports.failure")
                 .catch("reports.catch")
                 .then("reports.then")
                 .finally("reports.finally"),
             "cancel" => Bus::batch(jobs(&["failed", "skipped"])?)
                 .name("cancel")
-                .onQueue("batch")
+                .on_queue("batch")
                 .catch("reports.catch")
                 .finally("reports.finally"),
             "rollback" => Bus::batch(jobs(&["first", "second"])?).name("rollback"),
-            "append-loader" => Bus::batch(jobs(&["loader"])?).onQueue("append"),
-            "append-start" => Bus::batch(jobs(&["initial-append"])?).onQueue("append"),
+            "append-loader" => Bus::batch(jobs(&["loader"])?).on_queue("append"),
+            "append-start" => Bus::batch(jobs(&["initial-append"])?).on_queue("append"),
             "redis-batch" => Bus::batch(jobs(&["redis-first", "redis-second"])?)
-                .onConnection("redis")
-                .onQueue("redis-batch"),
+                .on_connection("redis")
+                .on_queue("redis-batch"),
             "database-cross" => Bus::batch(jobs(&["cross-first", "cross-second"])?)
-                .onConnection("destination")
-                .onQueue("database-cross"),
+                .on_connection("destination")
+                .on_queue("database-cross"),
             "beanstalkd" | "sqs" => Bus::batch(jobs(&[
                 &format!("{kind}-external-first"),
                 &format!("{kind}-external-second"),
                 &format!("{kind}-external-third"),
             ])?)
-            .onConnection(kind)
+            .on_connection(kind)
             .then("reports.then"),
             "sqs-chunks" => {
                 let mut jobs = (0..10)
@@ -443,10 +443,10 @@ fn route(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
                         }),
                     )?);
                 }
-                Bus::batch(jobs).onConnection("sqs")
+                Bus::batch(jobs).on_connection("sqs")
             }
             "missing-callback" => Bus::batch(jobs(&["summary"])?).then("reports.missing"),
-            "sync" => Bus::batch(jobs(&["skipped"])?).onConnection("sync"),
+            "sync" => Bus::batch(jobs(&["skipped"])?).on_connection("sync"),
             _ => unreachable!(),
         }
         .dispatch()
@@ -493,8 +493,8 @@ fn batched_chain_route(request: &mut Request) -> HttpFuture<'_, Result<Response,
                 [step("right-first")?, step("right-tail")?],
             ),
         }
-        .onConnection(connection)
-        .onQueue("batched-chains")
+        .on_connection(connection)
+        .on_queue("batched-chains")
         .then("reports.then")
         .dispatch()
         .await?;
@@ -535,20 +535,20 @@ fn chained_batch_route(request: &mut Request) -> HttpFuture<'_, Result<Response,
         let name = format!("chained-{connection}-{kind}");
         let mut batch = Bus::batch(jobs)
             .name(&name)
-            .onQueue("inner-batch")
+            .on_queue("inner-batch")
             .finally("reports.finally");
         if kind == "allow" {
             batch = batch.allowFailures();
         }
         if kind == "cross" {
-            batch = batch.onConnection("database");
+            batch = batch.on_connection("database");
         }
         let first = step(format!("{kind}-first").as_str())?;
         let last = step(format!("{kind}-last").as_str())?;
         let chain = if kind == "pair" {
             let second = Bus::batch([batch_job("second")?])
                 .name(format!("{name}-second"))
-                .onQueue("inner-batch");
+                .on_queue("inner-batch");
             Bus::chain([])
                 .prependBatch(batch)?
                 .appendBatch(second)?
@@ -557,8 +557,8 @@ fn chained_batch_route(request: &mut Request) -> HttpFuture<'_, Result<Response,
             release_chain(first, batch, last)?
         };
         chain
-            .onConnection(connection)
-            .onQueue("chain")
+            .on_connection(connection)
+            .on_queue("chain")
             .catch("chain.batch-failed")
             .dispatch()
             .await?;
@@ -609,7 +609,7 @@ impl JobHandler for ChainRoutingProbe {
 }
 
 fn route_job(job: Payload, connection: &str, queue: &str, delay: Delay) -> Payload {
-    job.onConnection(connection).onQueue(queue).delay(delay)
+    job.on_connection(connection).on_queue(queue).delay(delay)
 }
 
 fn routed_chain_route(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
@@ -646,8 +646,8 @@ fn routed_chain_route(request: &mut Request) -> HttpFuture<'_, Result<Response, 
             ])
         };
         chain
-            .onConnection(source)
-            .onQueue("chain")
+            .on_connection(source)
+            .on_queue("chain")
             .catch("chain.failed")
             .dispatch()
             .await?;
@@ -663,8 +663,8 @@ fn conditional_chain_route(request: &mut Request) -> HttpFuture<'_, Result<Respo
         let head = Payload::new("chain.step", format!("{connection}.{mode}-head"))?;
         let tail = Payload::new("chain.step", format!("{connection}.{mode}-tail"))?;
         let chain = Bus::chain([head, tail])
-            .onConnection(connection)
-            .onQueue("chain");
+            .on_connection(connection)
+            .on_queue("chain");
         let mut calls = 0;
         let result = match mode {
             "if" => dispatch_chain_if(chain, enabled).await?,
@@ -687,7 +687,7 @@ fn conditional_chain_route(request: &mut Request) -> HttpFuture<'_, Result<Respo
             }
             "invalid" => {
                 Bus::chain([])
-                    .onConnection(connection)
+                    .on_connection(connection)
                     .catch("unknown")
                     .dispatchIf(enabled)
                     .await?
@@ -789,7 +789,7 @@ async fn transport(
     State(kernel): State<Arc<Kernel>>,
     request: axum::extract::Request,
 ) -> axum::response::Response {
-    kernel.handleTransport(request).await
+    kernel.handle_transport(request).await
 }
 
 async fn request(address: std::net::SocketAddr, kind: &str, status: u16) -> Option<Json> {

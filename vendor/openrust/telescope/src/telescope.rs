@@ -289,10 +289,10 @@ impl Telescope {
         }
         entry.r#type = Some(kind);
         if let Ok(auth) = openrust::auth::Auth::manager()
-            && let Some(user) = auth.resolvedUser(None)
+            && let Some(user) = auth.resolved_user(None)
             && let (Ok(id), Ok(attributes)) = (
-                serde_json::to_value(user.getAuthIdentifier()),
-                auth.userAttributes(user.as_ref()),
+                serde_json::to_value(user.get_auth_identifier()),
+                auth.user_attributes(user.as_ref()),
             )
         {
             entry = entry.user(

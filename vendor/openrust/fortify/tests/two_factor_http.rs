@@ -55,7 +55,7 @@ fn verify(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
             .and_then(|v| v.as_str().map(str::to_owned))
             .unwrap_or_default();
         match provider.verify(&secret, &code).await {
-            Ok(true) => Ok(Response::noContent()),
+            Ok(true) => Ok(Response::no_content()),
             Ok(false) => Response::json(
                 StatusCode::UNPROCESSABLE_ENTITY,
                 serde_json::json!({"valid":false}),
@@ -75,7 +75,7 @@ async fn transport(
     State(kernel): State<Arc<Kernel>>,
     request: axum::extract::Request,
 ) -> axum::response::Response {
-    kernel.handleTransport(request).await
+    kernel.handle_transport(request).await
 }
 async fn start() -> (SocketAddr, tokio::task::JoinHandle<()>) {
     let app = Application::configure(std::env::temp_dir())

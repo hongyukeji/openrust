@@ -157,20 +157,20 @@ impl Stringable {
         Str::isAscii(&self.0)
     }
 
-    pub fn isJson(&self) -> bool {
-        Str::isJson(&self.0)
+    pub fn is_json(&self) -> bool {
+        Str::is_json(&self.0)
     }
 
     pub fn isUrl(&self, protocols: &[&str]) -> bool {
         Str::isUrl(&self.0, protocols)
     }
 
-    pub fn isEmpty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
 
-    pub fn isNotEmpty(&self) -> bool {
-        !self.isEmpty()
+    pub fn is_not_empty(&self) -> bool {
+        !self.is_empty()
     }
 
     pub fn whenContains(
@@ -252,13 +252,13 @@ impl Stringable {
         self.when(condition, callback)
     }
 
-    pub fn whenEmpty(self, callback: impl FnOnce(Self) -> Self) -> Self {
-        let condition = self.isEmpty();
+    pub fn when_empty(self, callback: impl FnOnce(Self) -> Self) -> Self {
+        let condition = self.is_empty();
         self.when(condition, callback)
     }
 
     pub fn whenNotEmpty(self, callback: impl FnOnce(Self) -> Self) -> Self {
-        let condition = self.isNotEmpty();
+        let condition = self.is_not_empty();
         self.when(condition, callback)
     }
 

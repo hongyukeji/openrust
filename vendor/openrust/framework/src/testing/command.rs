@@ -6,21 +6,20 @@ pub struct TestCommand {
     pub stderr: String,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl TestCommand {
     #[track_caller]
-    pub fn assertExitCode(&self, expected: i32) -> &Self {
+    pub fn assert_exit_code(&self, expected: i32) -> &Self {
         assert_eq!(self.status, expected, "Artisan stderr: {}", self.stderr);
         self
     }
 
     #[track_caller]
-    pub fn assertSuccessful(&self) -> &Self {
-        self.assertExitCode(0)
+    pub fn assert_successful(&self) -> &Self {
+        self.assert_exit_code(0)
     }
 
     #[track_caller]
-    pub fn expectsOutput(&self, expected: &str) -> &Self {
+    pub fn expects_output(&self, expected: &str) -> &Self {
         assert!(
             self.stdout.lines().any(|line| line == expected),
             "expected Artisan output line {expected:?}, got {:?}",

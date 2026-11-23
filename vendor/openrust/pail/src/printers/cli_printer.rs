@@ -39,7 +39,7 @@ impl<'a> CliPrinter<'a> {
     }
 
     fn truncateClassOrType(&self, classOrType: &str) -> String {
-        if self.output.isVerbose() {
+        if self.output.is_verbose() {
             return classOrType.into();
         }
         abbreviate(
@@ -53,7 +53,7 @@ impl<'a> CliPrinter<'a> {
     }
 
     fn truncateMessage(&self, message: &str) -> String {
-        if self.output.isVerbose() {
+        if self.output.is_verbose() {
             return message.into();
         }
         substring(message, self.width().saturating_sub(5).min(145))
@@ -61,7 +61,7 @@ impl<'a> CliPrinter<'a> {
 
     fn file(&self, message: &MessageLogged, classOrType: &str) -> Option<String> {
         let mut file = self.relative(message.file()?);
-        if !self.output.isVerbose() {
+        if !self.output.is_verbose() {
             file = abbreviate(&file, "/");
             let size = self.width().saturating_sub(classOrType.len() + 16).min(145);
             file = substring(&file, size);
@@ -155,7 +155,7 @@ impl<'a> CliPrinter<'a> {
     }
 
     fn trace(&self, message: &MessageLogged) -> Vec<String> {
-        if !self.output.isVeryVerbose() {
+        if !self.output.is_very_verbose() {
             return Vec::new();
         }
         message
@@ -178,7 +178,7 @@ impl<'a> CliPrinter<'a> {
     }
 
     fn style(&self, text: &str, color: &str, bold: bool) -> String {
-        if !self.output.isDecorated() || text.is_empty() {
+        if !self.output.is_decorated() || text.is_empty() {
             return text.into();
         }
         let code = match color {
@@ -197,7 +197,7 @@ impl<'a> CliPrinter<'a> {
 
 impl Printer for CliPrinter<'_> {
     fn print(&mut self, message: &MessageLogged) -> Result<(), ConsoleError> {
-        let verbose = self.output.isVerbose();
+        let verbose = self.output.is_verbose();
         let width = self.width().min(150);
         let class = self.truncateClassOrType(&message.classOrType());
         let date = if verbose {
@@ -263,7 +263,7 @@ impl Printer for CliPrinter<'_> {
             frame.push_str(&self.style(&format!(" {ending}"), "gray", false));
         }
         frame.push('\n');
-        self.output.writeRaw(&frame).map_err(error)
+        self.output.write_raw(&frame).map_err(error)
     }
 }
 

@@ -18,13 +18,15 @@ def paths():
 def parse(name):
     data=(ROOT/name).read_bytes()
     tree=json.loads(subprocess.check_output(['rust-analyzer','parse','--json'],input=data))
-    definitions=[];tokens=[];literals=[]
+    definitions=[];tokens=[];literals=[];lexemes=[]
     def walk(node, ancestors, owner=0):
         kind=node['kind']
         if kind in {'IMPL','TRAIT','MODULE'}:
             owner=node['start'][0]+1
         if node['type']=='Token':
             token=node.get('text','')
+            if kind not in {'WHITESPACE','COMMENT'}:
+                lexemes.append(dict(kind=kind,text=token,start=node['start'][0],end=node['end'][0],line=node['start'][1]+1,context=ancestors[-4:],external='EXTERN_BLOCK' in ancestors,scope=owner))
             if kind=='IDENT':
                 record=dict(file=name,line=node['start'][1]+1,start=node['start'][0],end=node['end'][0],name=token,context=ancestors[-4:],scope=owner)
                 tokens.append(record)
@@ -32,7 +34,7 @@ def parse(name):
                     parent=ancestors[-2]
                     if parent in {'FN','STRUCT','ENUM','TRAIT','TYPE_ALIAS','CONST','STATIC','MODULE','VARIANT','RECORD_FIELD','IDENT_PAT','MACRO_RULES'}:
                         record=dict(record,kind=parent,external='EXTERN_BLOCK' in ancestors)
-                        if parent in {'FN','RECORD_FIELD','IDENT_PAT','MODULE','MACRO_RULES'} and any(c.isupper() for c in token) and (token[0].islower() or parent in {'FN','MACRO_RULES'}):
+                        if parent in {'FN','RECORD_FIELD','IDENT_PAT','MODULE','MACRO_RULES'} and any(c.isupper() for c in token) and (token.lstrip('_')[:1].islower() or parent in {'FN','MACRO_RULES'}):
                             definitions.append(dict(record,target=snake(token)))
                         elif parent in {'CONST','STATIC'} and token.upper()!=token:
                             definitions.append(dict(record,target=snake(token).upper()))
@@ -41,11 +43,18 @@ def parse(name):
             return
         for child in node.get('children',[]):walk(child,ancestors+[kind],owner)
     walk(tree,[])
+    declared={d['start'] for d in definitions}
+    for index, item in enumerate(lexemes[:-1]):
+        next_item=lexemes[index+1]
+        if item['kind']=='FN_KW' and 'TOKEN_TREE' in item['context'] and next_item['kind']=='IDENT':
+            identifier=next_item['text']
+            if any(c.isupper() for c in identifier) and next_item['start'] not in declared:
+                definitions.append(dict(file=name,line=next_item['line'],start=next_item['start'],end=next_item['end'],name=identifier,context=next_item['context'],scope=next_item['scope'],kind='FN_MACRO',target=snake(identifier),external=next_item['external']))
     return definitions,tokens,literals
 
 def main():
     output=ROOT/'target/tmp/rust-naming';output.mkdir(parents=True,exist_ok=True)
-    definitions=[];tokens=[];literals=[];names=paths()
+    definitions=[];tokens=[];literals=[];lexemes=[];names=paths()
     with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
         for defs,refs,strings in pool.map(parse,names):
             definitions+=defs;tokens+=refs;literals+=strings

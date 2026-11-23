@@ -57,7 +57,7 @@ async fn twitter_and_x_mapping_and_endpoints_match_fixed_php() {
         let d = definition(name, None);
         let u = d.mapUserToObject(raw()).unwrap();
         assert_eq!(
-            json!({"id":u.getId(),"nickname":u.getNickname(),"name":u.getName(),"email":u.getEmail(),"avatar":u.getAvatar(),"raw":u.getRaw(),"attributes":u.attributes}),
+            json!({"id":u.get_id(),"nickname":u.getNickname(),"name":u.get_name(),"email":u.getEmail(),"avatar":u.getAvatar(),"raw":u.getRaw(),"attributes":u.attributes}),
             oracle()[name]["user"]
         );
         assert_eq!(
@@ -187,7 +187,7 @@ fn callback(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
                 }
                 Response::json(
                     StatusCode::OK,
-                    json!({"id":user.getId(),"email":user.getEmail()}),
+                    json!({"id":user.get_id(),"email":user.getEmail()}),
                 )
             }
             Err(e) => Response::json(StatusCode::BAD_REQUEST, json!({"error":e.to_string()})),
@@ -209,7 +209,7 @@ async fn rp(remote: &str) -> (String, tokio::task::JoinHandle<()>) {
         State(k): State<Arc<Kernel>>,
         r: axum::extract::Request,
     ) -> axum::response::Response {
-        k.handleTransport(r).await
+        k.handle_transport(r).await
     }
     use axum::handler::Handler as _;
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -237,9 +237,9 @@ fn cookie(r: &openrust::http::client::Response) -> String {
         .into()
 }
 async fn call(http: &Factory, url: &str, cookie: Option<&str>) -> openrust::http::client::Response {
-    let mut r = http.pendingRequest().withoutRedirecting();
+    let mut r = http.pending_request().without_redirecting();
     if let Some(c) = cookie {
-        r = r.withHeaders(http::HeaderMap::from_iter([(
+        r = r.with_headers(http::HeaderMap::from_iter([(
             http::header::COOKIE,
             http::HeaderValue::from_str(c).unwrap(),
         )]));
@@ -364,7 +364,7 @@ async fn stateless_keeps_default_pkce_session_and_literal_state_and_rfc3986_para
             Err(Error::Session(_))
         ));
         assert_eq!(
-            p.userFromToken("access").await.unwrap().getId(),
+            p.userFromToken("access").await.unwrap().get_id(),
             &json!("user-42")
         );
     }

@@ -102,24 +102,24 @@ impl<M: Searchable> Builder<M> {
         });
         self
     }
-    pub fn whereIn(mut self, field: impl Into<String>, values: Vec<Value>) -> Self {
+    pub fn where_in(mut self, field: impl Into<String>, values: Vec<Value>) -> Self {
         let field = field.into();
         self.whereIns.retain(|(key, _)| *key != field);
         self.whereIns.push((field, values));
         self
     }
-    pub fn whereNotIn(mut self, field: impl Into<String>, values: Vec<Value>) -> Self {
+    pub fn where_not_in(mut self, field: impl Into<String>, values: Vec<Value>) -> Self {
         let field = field.into();
         self.whereNotIns.retain(|(key, _)| *key != field);
         self.whereNotIns.push((field, values));
         self
     }
-    pub fn withTrashed(mut self) -> Self {
+    pub fn with_trashed(mut self) -> Self {
         self.wheres.retain(|w| w.field != "__soft_deleted");
         self
     }
-    pub fn onlyTrashed(self) -> Self {
-        self.withTrashed().r#where("__soft_deleted", "=", 1_i64)
+    pub fn only_trashed(self) -> Self {
+        self.with_trashed().r#where("__soft_deleted", "=", 1_i64)
     }
     pub fn take(mut self, limit: usize) -> Self {
         self.limit = Some(limit);
@@ -329,10 +329,10 @@ impl<M: Searchable> Builder<M> {
                 }
             }
             for (field, values) in &self.whereIns {
-                query.whereIn(field, values.clone());
+                query.where_in(field, values.clone());
             }
             for (field, values) in &self.whereNotIns {
-                query.whereNested(|conditions| conditions.whereNotIn(field, values.clone()));
+                query.whereNested(|conditions| conditions.where_not_in(field, values.clone()));
             }
         }
         for (column, direction) in &self.orders {
@@ -344,9 +344,9 @@ impl<M: Searchable> Builder<M> {
         let soft = self.wheres.iter().find(|w| w.field == "__soft_deleted");
         if self.model.getDeletedAtColumn().is_some() {
             query = match soft.map(|w| &w.value) {
-                Some(Value::Integer(1)) => query.onlyTrashed(),
-                Some(Value::Integer(0)) => query.withoutTrashed(),
-                _ if self.manager.boolean("soft_delete") => query.withTrashed(),
+                Some(Value::Integer(1)) => query.only_trashed(),
+                Some(Value::Integer(0)) => query.without_trashed(),
+                _ if self.manager.boolean("soft_delete") => query.with_trashed(),
                 _ => query,
             };
         }

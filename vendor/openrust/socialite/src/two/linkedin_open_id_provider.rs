@@ -47,7 +47,7 @@ impl ProviderDefinition for LinkedInOpenIdProvider {
         Box::pin(async move {
             json(
                 profile_request(http, token)
-                    .withQueryParameters([(
+                    .with_query_parameters([(
                         "projection".into(),
                         "(sub,email,email_verified,name,given_name,family_name,picture)".into(),
                     )])

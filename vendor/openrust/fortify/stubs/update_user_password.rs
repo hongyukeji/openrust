@@ -32,7 +32,7 @@ impl UpdatesUserPasswords for UpdateUserPassword {
                     [
                         Rule::required(),
                         Rule::string(),
-                        Rule::currentPassword(Some("web")),
+                        Rule::current_password(Some("web")),
                     ],
                 )?
                 .field(
@@ -49,11 +49,11 @@ impl UpdatesUserPasswords for UpdateUserPassword {
             )]
             .into();
             super::validator(input, rules, messages)?
-                .validateRequest(request)
+                .validate_request(request)
                 .await
                 .map_err(|mut error| {
                     if let ValidationError::Invalid(exception) = &mut error {
-                        exception.errorBag("updatePassword");
+                        exception.error_bag("updatePassword");
                     }
                     error
                 })?;

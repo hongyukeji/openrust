@@ -46,8 +46,7 @@ impl RouteGroup {
         self
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn withoutMiddleware(mut self, name: impl Into<String>) -> Self {
+    pub fn without_middleware(mut self, name: impl Into<String>) -> Self {
         self.excluded_middleware.push(name.into());
         self
     }

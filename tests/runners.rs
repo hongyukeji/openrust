@@ -49,7 +49,7 @@ impl Runner for Probe {
         self.signature
     }
 
-    fn shouldRun(&self) -> HttpFuture<'_, RuntimeResult<bool>> {
+    fn should_run(&self) -> HttpFuture<'_, RuntimeResult<bool>> {
         Box::pin(async move {
             assert!(
                 !matches!(self.role, Role::Filtered),

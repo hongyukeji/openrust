@@ -58,7 +58,7 @@ impl DatabaseEntriesRepository {
                 .connection
                 .table("telescope_entries_tags")
                 .select(["entry_uuid"])
-                .whereIn(
+                .where_in(
                     "tag",
                     tag.split(',').map(|tag| Value::from(tag.trim())).collect(),
                 );
@@ -75,7 +75,7 @@ impl DatabaseEntriesRepository {
             query = query.r#where("sequence", "<", before);
         }
         if let Some(ids) = options.uuids {
-            query = query.whereIn(
+            query = query.where_in(
                 "uuid",
                 ids.iter().map(|id| Value::from(id.to_string())).collect(),
             );
@@ -232,7 +232,7 @@ impl DatabaseEntriesRepository {
                 self.connection
                     .table("telescope_entries_tags")
                     .whereExactText("entry_uuid", &update.uuid.to_string())
-                    .whereIn(
+                    .where_in(
                         "tag",
                         update
                             .removedTags
@@ -307,7 +307,7 @@ impl DatabaseEntriesRepository {
     pub async fn stopMonitoring(&self, tags: &[String]) -> Result<()> {
         self.connection
             .table("telescope_monitoring")
-            .whereIn("tag", tags.iter().cloned().map(Value::from).collect())
+            .where_in("tag", tags.iter().cloned().map(Value::from).collect())
             .delete()
             .await?;
         Ok(())
@@ -338,7 +338,7 @@ impl DatabaseEntriesRepository {
             total += self
                 .connection
                 .table("telescope_entries")
-                .whereIn("sequence", ids)
+                .where_in("sequence", ids)
                 .delete()
                 .await?;
         }
@@ -362,7 +362,7 @@ impl DatabaseEntriesRepository {
             }
             self.connection
                 .table("telescope_entries")
-                .whereIn("sequence", ids)
+                .where_in("sequence", ids)
                 .delete()
                 .await?;
         }
@@ -383,7 +383,7 @@ impl DatabaseEntriesRepository {
             }
             self.connection
                 .table("telescope_monitoring")
-                .whereIn("tag", tags)
+                .where_in("tag", tags)
                 .delete()
                 .await?;
         }

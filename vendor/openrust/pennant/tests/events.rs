@@ -42,7 +42,7 @@ impl FeatureDefinition for Campaign {
 #[tokio::test]
 async fn feature_classes_override_stored_values_without_persisting_and_handle_null() {
     let mut app = app();
-    let fake = app.fakeEvents(&[]).await.unwrap();
+    let fake = app.fake_events(&[]).await.unwrap();
     let manager = app.app().make::<FeatureManager>().await.unwrap();
     let store = manager.store(None).unwrap();
     let calls = Arc::new(AtomicUsize::new(0));
@@ -129,7 +129,7 @@ async fn feature_classes_override_stored_values_without_persisting_and_handle_nu
 #[tokio::test]
 async fn native_events_follow_cache_and_short_circuit_semantics() {
     let mut app = app();
-    let fake = app.fakeEvents(&[]).await.unwrap();
+    let fake = app.fake_events(&[]).await.unwrap();
     let manager = app.app().make::<FeatureManager>().await.unwrap();
     let store = manager.store(None).unwrap();
     store.defineValue("a", json!(false)).unwrap();
@@ -302,7 +302,7 @@ async fn definitions_bulk_values_and_events_preserve_requested_order() {
 #[tokio::test]
 async fn all_filters_incompatible_scope_definitions_without_resolving_them() {
     let mut app = app();
-    let fake = app.fakeEvents(&[]).await.unwrap();
+    let fake = app.fake_events(&[]).await.unwrap();
     let store = app
         .app()
         .make::<FeatureManager>()

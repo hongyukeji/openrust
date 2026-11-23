@@ -45,7 +45,7 @@ impl Guard for RequestGuard<'_> {
     }
 
     fn id(&mut self) -> AuthFuture<'_, AuthResult<Option<AuthIdentifier>>> {
-        Box::pin(async move { Ok(self.user().await?.map(Authenticatable::getAuthIdentifier)) })
+        Box::pin(async move { Ok(self.user().await?.map(Authenticatable::get_auth_identifier)) })
     }
 
     fn check(&mut self) -> AuthFuture<'_, AuthResult<bool>> {

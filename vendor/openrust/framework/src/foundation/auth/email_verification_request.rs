@@ -24,8 +24,8 @@ impl EmailVerificationRequest {
         let Some(authenticated) = Auth::user(request).await? else {
             return Err(HttpError::Unauthenticated);
         };
-        let id = user.getAuthIdentifier();
-        let valid = authenticated.getAuthIdentifier() == id
+        let id = user.get_auth_identifier();
+        let valid = authenticated.get_auth_identifier() == id
             && request.route("id").is_some_and(|parameter| {
                 bool::from(parameter.as_bytes().ct_eq(route_id(&id).as_bytes()))
             })
@@ -33,7 +33,7 @@ impl EmailVerificationRequest {
                 bool::from(
                     parameter
                         .as_bytes()
-                        .ct_eq(email_hash(user.getEmailForVerification()).as_bytes()),
+                        .ct_eq(email_hash(user.get_email_for_verification()).as_bytes()),
                 )
             });
         if valid {
@@ -51,9 +51,9 @@ impl EmailVerificationRequest {
         user: &mut dyn MustVerifyEmail,
     ) -> Result<(), HttpError> {
         Self::authorize(request, user).await?;
-        if !user.hasVerifiedEmail() && user.markEmailAsVerified().await? {
+        if !user.has_verified_email() && user.mark_email_as_verified().await? {
             Event::dispatch(Verified {
-                user: user.getAuthIdentifier(),
+                user: user.get_auth_identifier(),
             })
             .await
             .map_err(AuthError::backend)?;

@@ -261,7 +261,7 @@ pub async fn enable_notifications(record: &mut impl Model) -> DatabaseResult<boo
 
 ### Custom JSON Codecs {#custom-json-codecs}
 
-Register `Json` in the application's container before using models. Set the encoder with `encodeUsing` and the decoder with `decodeUsing`. The codec applies to stored JSON attributes, collections, enums, `AsFluent`, and JSON values inside encrypted attributes. It also applies to nested JSON updates. SQL `NULL` retains its usual cast behavior. Model `toJson()` and HTTP responses serialize the decoded values with the regular JSON serializer.
+Register `Json` in the application's container before using models. Set the encoder with `encodeUsing` and the decoder with `decodeUsing`. The codec applies to stored JSON attributes, collections, enums, `AsFluent`, and JSON values inside encrypted attributes. It also applies to nested JSON updates. SQL `NULL` retains its usual cast behavior. Model `to_json()` and HTTP responses serialize the decoded values with the regular JSON serializer.
 
 Callbacks receive a Serde JSON value or UTF-8 text. A custom encoder must produce valid JSON for a native JSON column. The database may normalize that text before the decoder reads it.
 

@@ -24,7 +24,6 @@ pub struct PasswordBrokerManager {
     brokers: Mutex<HashMap<String, Arc<PasswordBroker>>>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl PasswordBrokerManager {
     pub(crate) fn new(config: Arc<dyn Repository>, container: Weak<Container>) -> Self {
         Self {
@@ -34,7 +33,7 @@ impl PasswordBrokerManager {
         }
     }
 
-    pub fn getDefaultDriver(&self) -> String {
+    pub fn get_default_driver(&self) -> String {
         self.config
             .get("auth.defaults.passwords")
             .and_then(|value| value.as_str().map(str::to_owned))
@@ -42,7 +41,7 @@ impl PasswordBrokerManager {
     }
 
     pub fn broker(&self, name: Option<&str>) -> AuthResult<Arc<PasswordBroker>> {
-        let default = self.getDefaultDriver();
+        let default = self.get_default_driver();
         let name = name.filter(|name| !name.is_empty()).unwrap_or(&default);
         let mut brokers = self
             .brokers
@@ -74,7 +73,7 @@ impl PasswordBrokerManager {
             .ok_or(AuthError::Configuration("app.key"))?;
         let users = app
             .make::<AuthManager>()?
-            .createUserProvider(config["provider"].as_str().unwrap_or("users"))?;
+            .create_user_provider(config["provider"].as_str().unwrap_or("users"))?;
         let hasher = app.make::<dyn Hasher>()?;
         let duration = |key, default| -> AuthResult<u64> {
             match config.get(key) {

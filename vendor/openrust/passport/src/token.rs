@@ -88,7 +88,7 @@ impl Token {
         authIdentifierName: &'static str,
     ) -> DatabaseResult<openrust::database::eloquent::relations::BelongsTo<Self, U>> {
         let user = U::from_state(ModelState::default());
-        if user.getAuthIdentifierName() != authIdentifierName {
+        if user.get_auth_identifier_name() != authIdentifierName {
             return Err(openrust::database::DatabaseError::InvalidQuery(
                 "token user owner key must match the provider authentication identifier",
             ));

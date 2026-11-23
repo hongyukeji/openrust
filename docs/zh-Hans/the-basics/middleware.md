@@ -14,11 +14,11 @@
 
 用 `priority` 传入按执行顺序排列的具体中间件类型 ID，例如 `TypeId::of::<Authenticate>()`。框架先展开组，再将顺序颠倒的高优先级项移到它前面遇到的低优先级项之前。未列入优先级的条目保留彼此的相对顺序。同一个实例经多次引用时只执行一次。优先级作用于路由中间件链。全局中间件按配置顺序在路由链外层运行。
 
-在路由或路由组上用 `withoutMiddleware("name")` 排除指定的别名或组。排除也适用于通过嵌套组引用的同一实例。全局中间件仍会执行。
+在路由或路由组上用 `without_middleware("name")` 排除指定的别名或组。排除也适用于通过嵌套组引用的同一实例。全局中间件仍会执行。
 
 ## 可终止中间件
 
-实现 `TerminableMiddleware`，在 HTTP 传输层释放响应正文后取得请求和响应的元数据。在 `with_middleware` 中用 `appendTerminable`、`prependTerminable` 或 `aliasTerminable` 注册。向组内加入具体实例时用 `MiddlewareEntry::terminable`。
+实现 `TerminableMiddleware`，在 HTTP 传输层释放响应正文后取得请求和响应的元数据。在 `with_middleware` 中用 `append_terminable`、`prepend_terminable` 或 `alias_terminable` 注册。向组内加入具体实例时用 `MiddlewareEntry::terminable`。
 
 内核先按解析后的顺序调用匹配路由的终止回调，再调用全局回调。请求处理与终止阶段使用同一个已注册实例。传输层消费流式正文期间，终止回调会等待。客户端断开并且传输层释放正文时也会执行回调。
 
@@ -36,12 +36,12 @@
 
 ```rust
 .with_middleware(|middleware| {
-    middleware.throttleApi(Some("api"), false);
+    middleware.throttle_api(Some("api"), false);
 })
 ```
 
 参数须显式传入：`Some("api")` 选择 `api` 策略，`false` 保持当前后端。传入其他名称可选择对应策略，传入 `None` 可关闭默认 API 组内的限流。多次调用时使用最后指定的策略；此方法不会代替应用注册策略。
 
-第二个参数传入 `true` 时会调用 `throttleWithRedis()`，将 API 及其他路由的 `throttle` 别名统一切换为 Redis。后续传入 `false` 不会撤销该切换。
+第二个参数传入 `true` 时会调用 `throttle_with_redis()`，将 API 及其他路由的 `throttle` 别名统一切换为 Redis。后续传入 `false` 不会撤销该切换。
 
-默认 API 组依次执行 `statefulApi()` 启用的有状态会话中间件、限流中间件和 `SubstituteBindings`。通过 `group("api", ...)` 显式替换组时，以自定义组为准，不受 `throttleApi` 调用顺序影响。
+默认 API 组依次执行 `stateful_api()` 启用的有状态会话中间件、限流中间件和 `SubstituteBindings`。通过 `group("api", ...)` 显式替换组时，以自定义组为准，不受 `throttle_api` 调用顺序影响。

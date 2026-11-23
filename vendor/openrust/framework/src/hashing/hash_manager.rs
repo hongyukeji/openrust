@@ -65,7 +65,7 @@ impl HashManager {
         })
     }
 
-    pub fn getDefaultDriver(&self) -> HashResult<String> {
+    pub fn get_default_driver(&self) -> HashResult<String> {
         Ok(read(self.config.as_ref(), "hashing.driver")?.unwrap_or_else(|| "bcrypt".into()))
     }
 
@@ -108,7 +108,7 @@ impl HashManager {
         let name = match name.filter(|name| !matches!(*name, "" | "0")) {
             Some(name) => name,
             None => {
-                default = self.getDefaultDriver()?;
+                default = self.get_default_driver()?;
                 &default
             }
         };

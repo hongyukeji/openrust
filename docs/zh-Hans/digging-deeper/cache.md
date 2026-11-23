@@ -192,7 +192,7 @@ pub async fn report() -> CacheResult<Value> {
 
 ## 仓库设置 {#cache-repository-settings}
 
-`getName`、`getStore` 和 `getEventDispatcher` 分别读取已配置的仓库名称、底层存储和事件分发器。具名仓库关闭缓存事件后仍可读取名称。创建标签仓库时，它会继承来源仓库的名称、事件分发器和默认时长。
+`get_name`、`getStore` 和 `getEventDispatcher` 分别读取已配置的仓库名称、底层存储和事件分发器。具名仓库关闭缓存事件后仍可读取名称。创建标签仓库时，它会继承来源仓库的名称、事件分发器和默认时长。
 
 `putWithDefault` 使用 `getDefaultCacheTime` 返回的时长，初始值为 3600 秒。显式调用 `put(key, value, None)` 会永久保存。用 `setDefaultCacheTime` 修改自有仓库的默认时长，`setStore` 和 `setEventDispatcher` 也用于自有仓库。克隆后的仓库共享底层存储，每份副本可各自替换设置。
 
@@ -299,7 +299,7 @@ Future 被取消或回调 panic 时，Tokio 会调度清理。运行时退出导
 
 ### 并发限制 {#concurrency-limiting}
 
-`Cache::withoutOverlapping(key, callback).await?` 对同一键一次只执行一个回调，最多等待 10 秒。`withoutOverlappingWith(key, callback, lock_for, wait_for, owner)` 以秒指定租期和等待时间，并接受可选的所有者令牌。租期为零时使用驱动默认值。无法获得锁时返回 `CacheError::LockTimeout`。
+`Cache::without_overlapping(key, callback).await?` 对同一键一次只执行一个回调，最多等待 10 秒。`withoutOverlappingWith(key, callback, lock_for, wait_for, owner)` 以秒指定租期和等待时间，并接受可选的所有者令牌。租期为零时使用驱动默认值。无法获得锁时返回 `CacheError::LockTimeout`。
 
 使用 `Cache::funnel` 允许多个回调并行执行。各应用实例须使用同一个共享锁存储、缓存前缀、限制器名称和并发上限。租期应覆盖回调的执行时间，到期后其他调用者可以取得该名额。`null` 仓库允许所有调用通过。
 
@@ -389,7 +389,7 @@ Cache::extend("project", |manager, config| {
 ```rust
 use openrust::{cache::events::CacheHit, contracts::cache::Repository as _};
 
-let events = app.fakeEvents(&[CacheHit::NAME]).await?;
+let events = app.fake_events(&[CacheHit::NAME]).await?;
 let _ = cache.get("reports/latest").await?;
 events.assertDispatched(CacheHit::NAME);
 ```

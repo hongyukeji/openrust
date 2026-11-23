@@ -15,7 +15,7 @@ use crate::{
 
 use super::{
     Body, HeaderMap, HttpError, HttpFuture, Method, Request, ResponseParts, StatusCode,
-    abortResponse,
+    abort_response,
 };
 
 #[derive(Clone)]
@@ -136,8 +136,7 @@ impl From<Response> for http::Response<Body> {
 
 impl Response {
     /// Attaches an exception for application code that inspects this response.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn withException(mut self, error: impl Error + Send + Sync + 'static) -> Self {
+    pub fn with_exception(mut self, error: impl Error + Send + Sync + 'static) -> Self {
         self.parts
             .extensions
             .insert(ResponseException(Arc::new(error)));
@@ -152,9 +151,8 @@ impl Response {
     }
 
     /// Returns an error that exits the handler with this response.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn throwResponse(self) -> HttpError {
-        abortResponse(self)
+    pub fn throw_response(self) -> HttpError {
+        abort_response(self)
     }
 
     pub fn new(status: StatusCode, body: Body) -> Self {
@@ -171,8 +169,7 @@ impl Response {
     }
 
     /// Replaces the body with known bytes, preserving a shared diagnostic snapshot.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn setContent(&mut self, content: impl Into<Bytes>) -> &mut Self {
+    pub fn set_content(&mut self, content: impl Into<Bytes>) -> &mut Self {
         let content = content.into();
         self.body = Body::from(content.clone());
         self.content = Some(Box::new(content));
@@ -185,8 +182,7 @@ impl Response {
     }
 
     /// Returns an already-buffered body without polling a stream.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn getContent(&self) -> Option<&Bytes> {
+    pub fn get_content(&self) -> Option<&Bytes> {
         if self.binary_file.is_some() {
             None
         } else {
@@ -199,8 +195,7 @@ impl Response {
     }
 
     /// Creates an empty 204 response. Use `empty` to select another status.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn noContent() -> Self {
+    pub fn no_content() -> Self {
         Self::empty(StatusCode::NO_CONTENT)
     }
 
@@ -223,12 +218,12 @@ impl Response {
         request: &mut Request,
     ) -> HttpFuture<'_, Result<Self, HttpError>> {
         Box::pin(async move {
-            let mut response = view.render(request).await?.withHeaders(headers);
+            let mut response = view.render(request).await?.with_headers(headers);
             response.parts.status = status;
             if !Self::allows_body(status) {
                 response.body = Body::empty();
                 response.content = Some(Box::new(Bytes::new()));
-                response = response.withoutHeaders([CONTENT_TYPE, CONTENT_LENGTH]);
+                response = response.without_headers([CONTENT_TYPE, CONTENT_LENGTH]);
             }
             Ok(response)
         })
@@ -285,14 +280,12 @@ impl Response {
         self
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn withHeaders(mut self, headers: HeaderMap) -> Self {
+    pub fn with_headers(mut self, headers: HeaderMap) -> Self {
         self.parts.headers.extend(headers);
         self
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn withoutHeader(mut self, name: HeaderName) -> Self {
+    pub fn without_header(mut self, name: HeaderName) -> Self {
         if name == ::http::header::SET_COOKIE {
             self.parts
                 .extensions
@@ -302,54 +295,49 @@ impl Response {
         self
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn withoutHeaders(mut self, names: impl IntoIterator<Item = HeaderName>) -> Self {
+    pub fn without_headers(mut self, names: impl IntoIterator<Item = HeaderName>) -> Self {
         for name in names {
-            self = self.withoutHeader(name);
+            self = self.without_header(name);
         }
         self
     }
 
     /// Attaches a cookie using the given request's HTTPS setting.
     pub fn cookie(self, cookie: &Cookie, request: &Request) -> Result<Self, HttpError> {
-        self.withCookie(cookie, request)
+        self.with_cookie(cookie, request)
     }
 
     /// Attaches one cookie to the response.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn withCookie(mut self, cookie: &Cookie, request: &Request) -> Result<Self, HttpError> {
-        self.setCookie(cookie, request.is_secure())?;
+    pub fn with_cookie(mut self, cookie: &Cookie, request: &Request) -> Result<Self, HttpError> {
+        self.set_cookie(cookie, request.is_secure())?;
         Ok(self)
     }
 
     /// Attaches cookies in order, replacing cookies with the same name, path and domain.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn withCookies<'a>(
+    pub fn with_cookies<'a>(
         mut self,
         cookies: impl IntoIterator<Item = &'a Cookie>,
         request: &Request,
     ) -> Result<Self, HttpError> {
         for cookie in cookies {
-            self.setCookie(cookie, request.is_secure())?;
+            self.set_cookie(cookie, request.is_secure())?;
         }
         Ok(self)
     }
 
     /// Expires one cookie using the application's Cookie factory.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn withoutCookie(
+    pub fn without_cookie(
         self,
         name: &str,
         path: Option<&str>,
         domain: Option<&str>,
         request: &Request,
     ) -> Result<Self, HttpError> {
-        self.withoutCookies([name], path, domain, request)
+        self.without_cookies([name], path, domain, request)
     }
 
     /// Expires cookies using the given path and domain or the application defaults.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn withoutCookies<'a>(
+    pub fn without_cookies<'a>(
         mut self,
         names: impl IntoIterator<Item = &'a str>,
         path: Option<&str>,
@@ -357,7 +345,7 @@ impl Response {
         request: &Request,
     ) -> Result<Self, HttpError> {
         for name in names {
-            self.setCookie(
+            self.set_cookie(
                 &facades::Cookie::forget(name, path, domain)?,
                 request.is_secure(),
             )?;
@@ -366,8 +354,7 @@ impl Response {
     }
 
     /// Sets a cookie, replacing an existing cookie with the same name, path and domain.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn setCookie(&mut self, cookie: &Cookie, secure_default: bool) -> Result<(), HttpError> {
+    pub fn set_cookie(&mut self, cookie: &Cookie, secure_default: bool) -> Result<(), HttpError> {
         use ::http::header::SET_COOKIE;
 
         let header = cookie.to_header(secure_default)?;

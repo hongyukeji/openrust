@@ -74,7 +74,7 @@ impl PayManager {
             drivers: RwLock::default(),
         }
     }
-    pub fn getDefaultDriver(&self) -> Result<String> {
+    pub fn get_default_driver(&self) -> Result<String> {
         self.config
             .get("pay.default")
             .and_then(|v| v.as_str().filter(|s| !s.is_empty()).map(str::to_owned))

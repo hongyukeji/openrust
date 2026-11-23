@@ -36,8 +36,7 @@ pub(super) type FormAction<C, F, T = Response> = for<'a> fn(
     -> HttpFuture<'a, Result<T, HttpError>>;
 
 impl<C: Sync + 'static, T: Send + 'static> ControllerDispatcher<C, T> {
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn withFormRequest<F: FormRequest + Default + 'static>(
+    pub fn with_form_request<F: FormRequest + Default + 'static>(
         action: FormAction<C, F, T>,
     ) -> Self {
         Self {
@@ -64,13 +63,13 @@ impl<C: Send + Sync + 'static, T: Responsable + 'static> Handler for ControllerD
                     "Controller dispatch requires an application scope.",
                 )),
             })?;
-            let controller = request.withContainer(container.make_async::<C>()).await?;
+            let controller = request.with_container(container.make_async::<C>()).await?;
             if !self.form_request {
                 crate::foundation::Precognition::abort(request)?;
             }
             (self.action)(&controller, request)
                 .await?
-                .toResponse(request)
+                .to_response(request)
                 .await
         })
     }

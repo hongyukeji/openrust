@@ -189,9 +189,8 @@ impl StreamedEvent {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Response {
-    pub fn streamJson(status: StatusCode, data: StreamedJson) -> Self {
+    pub fn stream_json(status: StatusCode, data: StreamedJson) -> Self {
         if status.is_informational()
             || matches!(status, StatusCode::NO_CONTENT | StatusCode::NOT_MODIFIED)
         {
@@ -202,17 +201,17 @@ impl Response {
             .header(CONTENT_TYPE, HeaderValue::from_static("application/json"))
     }
 
-    pub fn eventStream<E>(
+    pub fn event_stream<E>(
         source: impl Stream<Item = Result<StreamedEvent, E>> + Send + 'static,
     ) -> Self
     where
         E: Into<StreamError> + 'static,
     {
-        Self::eventStreamWithEnd(source, Some(StreamedEvent::message("</stream>")))
+        Self::event_stream_with_end(source, Some(StreamedEvent::message("</stream>")))
     }
 
     /// Supplies a custom final event, or disables the final event with `None`.
-    pub fn eventStreamWithEnd<E>(
+    pub fn event_stream_with_end<E>(
         source: impl Stream<Item = Result<StreamedEvent, E>> + Send + 'static,
         end: Option<StreamedEvent>,
     ) -> Self
@@ -255,7 +254,7 @@ impl Response {
             .header(CACHE_CONTROL, HeaderValue::from_static("no-cache, private"))
     }
 
-    pub fn streamDownload<T, E>(
+    pub fn stream_download<T, E>(
         source: impl Stream<Item = Result<T, E>> + Send + 'static,
         name: Option<&str>,
         mut headers: HeaderMap,
@@ -270,6 +269,6 @@ impl Response {
         }
         Ok(Self::new(StatusCode::OK, Body::from_stream(source))
             .with_kind(super::ResponseKind::Stream)
-            .withHeaders(headers))
+            .with_headers(headers))
     }
 }

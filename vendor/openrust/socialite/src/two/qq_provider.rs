@@ -46,10 +46,10 @@ impl QqProvider {
             params.push(("unionid".into(), "1".into()));
         }
         let me = checked(
-            http.pendingRequest()
-                .redactPayload()
-                .withoutRedirecting()
-                .withQueryParameters(params)
+            http.pending_request()
+                .redact_payload()
+                .without_redirecting()
+                .with_query_parameters(params)
                 .get(&self.me)
                 .await?,
         )?;
@@ -58,10 +58,10 @@ impl QqProvider {
             return Err(Error::InvalidResponse);
         }
         let profile = checked(
-            http.pendingRequest()
-                .redactPayload()
-                .withoutRedirecting()
-                .withQueryParameters([
+            http.pending_request()
+                .redact_payload()
+                .without_redirecting()
+                .with_query_parameters([
                     ("access_token".into(), token.into()),
                     ("openid".into(), id.into()),
                     ("oauth_consumer_key".into(), config.client_id.clone()),
@@ -104,10 +104,10 @@ impl ProviderDefinition for QqProvider {
                 .collect::<Result<_>>()?;
             params.push(("fmt".into(), "json".into()));
             let response = checked(
-                http.pendingRequest()
-                    .redactPayload()
-                    .withoutRedirecting()
-                    .withQueryParameters(params)
+                http.pending_request()
+                    .redact_payload()
+                    .without_redirecting()
+                    .with_query_parameters(params)
                     .get(&self.endpoints.token)
                     .await?,
             )?;
@@ -123,10 +123,10 @@ impl ProviderDefinition for QqProvider {
     ) -> Option<ProviderFuture<'a, Value>> {
         Some(Box::pin(async move {
             let response = checked(
-                http.pendingRequest()
-                    .redactPayload()
-                    .withoutRedirecting()
-                    .withQueryParameters([
+                http.pending_request()
+                    .redact_payload()
+                    .without_redirecting()
+                    .with_query_parameters([
                         ("grant_type".into(), "refresh_token".into()),
                         ("client_id".into(), config.client_id.clone()),
                         ("client_secret".into(), config.client_secret.to_string()),

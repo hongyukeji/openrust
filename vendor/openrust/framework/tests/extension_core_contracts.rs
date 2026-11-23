@@ -2,7 +2,7 @@
 
 use openrust::{
     auth::{AuthIdentifier, AuthManager},
-    console::confirmToProceed,
+    console::confirm_to_proceed,
     contracts::{auth::Authenticatable, container::Container as _, foundation::Application as _},
     database::{
         DatabaseManager,
@@ -34,23 +34,23 @@ impl Model for Account {
     }
 }
 impl Authenticatable for Account {
-    fn getAuthIdentifierName(&self) -> &str {
+    fn get_auth_identifier_name(&self) -> &str {
         "id"
     }
-    fn getAuthIdentifier(&self) -> AuthIdentifier {
+    fn get_auth_identifier(&self) -> AuthIdentifier {
         7_u64.into()
     }
-    fn getAuthPasswordName(&self) -> &str {
+    fn get_auth_password_name(&self) -> &str {
         "password"
     }
-    fn getAuthPassword(&self) -> Option<&str> {
+    fn get_auth_password(&self) -> Option<&str> {
         None
     }
-    fn getRememberToken(&self) -> Option<&str> {
+    fn get_remember_token(&self) -> Option<&str> {
         None
     }
-    fn setRememberToken(&mut self, _: Option<String>) {}
-    fn getRememberTokenName(&self) -> &str {
+    fn set_remember_token(&mut self, _: Option<String>) {}
+    fn get_remember_token_name(&self) -> &str {
         "remember_token"
     }
 }
@@ -78,8 +78,8 @@ async fn registered_auth_model_uses_its_own_morph_map_and_preserves_errors() {
     let second = application().await;
     let first_auth = first.container().make::<AuthManager>().unwrap();
     let second_auth = second.container().make::<AuthManager>().unwrap();
-    first_auth.registerModel::<Account>("accounts");
-    second_auth.registerModel::<Account>("accounts");
+    first_auth.register_model::<Account>("accounts");
+    second_auth.register_model::<Account>("accounts");
     MorphMap::enforceMorphMap(&first, [MorphMapEntry::model::<Account>("staff")], false).unwrap();
     MorphMap::enforceMorphMap(&second, [MorphMapEntry::model::<Account>("member")], false).unwrap();
     let db = first
@@ -99,23 +99,32 @@ async fn registered_auth_model_uses_its_own_morph_map_and_preserves_errors() {
     assert_eq!(account.getFillable(), &["name"]);
     assert_eq!(account.getGuarded(), &["password"]);
     assert_eq!(account.getDeletedAtColumn(), Some("removed_at"));
-    assert_eq!(first_auth.userMorphClass(&account).unwrap(), Some("staff"));
     assert_eq!(
-        first_auth.userClass(&account),
+        first_auth.user_morph_class(&account).unwrap(),
+        Some("staff")
+    );
+    assert_eq!(
+        first_auth.user_class(&account),
         Some(std::any::type_name::<Account>())
     );
-    assert_eq!(second_auth.userMorphClass(&member).unwrap(), Some("member"));
+    assert_eq!(
+        second_auth.user_morph_class(&member).unwrap(),
+        Some("member")
+    );
     // Resolution follows the actual model connection, even through another manager.
-    assert_eq!(first_auth.userMorphClass(&member).unwrap(), Some("member"));
+    assert_eq!(
+        first_auth.user_morph_class(&member).unwrap(),
+        Some("member")
+    );
     MorphMap::enforceMorphMap(&first, [], false).unwrap();
-    assert!(first_auth.userMorphClass(&account).is_err());
+    assert!(first_auth.user_morph_class(&account).is_err());
     let unregistered = application().await;
     assert_eq!(
         unregistered
             .container()
             .make::<AuthManager>()
             .unwrap()
-            .userClass(&member),
+            .user_class(&member),
         None
     );
     assert_eq!(
@@ -123,7 +132,7 @@ async fn registered_auth_model_uses_its_own_morph_map_and_preserves_errors() {
             .container()
             .make::<AuthManager>()
             .unwrap()
-            .userMorphClass(&member)
+            .user_morph_class(&member)
             .unwrap(),
         None
     );
@@ -141,8 +150,8 @@ fn production_confirmation_accepts_optional_flags_and_refuses_non_interactive() 
     let quiet = command()
         .try_get_matches_from(["clean", "--no-interaction"])
         .unwrap();
-    assert!(confirmToProceed(false, &quiet).unwrap());
-    assert!(!confirmToProceed(true, &quiet).unwrap());
+    assert!(confirm_to_proceed(false, &quiet).unwrap());
+    assert!(!confirm_to_proceed(true, &quiet).unwrap());
     let forced = command()
         .arg(
             clap::Arg::new("force")
@@ -151,11 +160,11 @@ fn production_confirmation_accepts_optional_flags_and_refuses_non_interactive() 
         )
         .try_get_matches_from(["clean", "--force", "--no-interaction"])
         .unwrap();
-    assert!(confirmToProceed(true, &forced).unwrap());
+    assert!(confirm_to_proceed(true, &forced).unwrap());
     let plain = clap::Command::new("plain")
         .try_get_matches_from(["plain"])
         .unwrap();
-    assert!(confirmToProceed(false, &plain).unwrap());
+    assert!(confirm_to_proceed(false, &plain).unwrap());
 }
 
 fn cached_identity(
@@ -165,8 +174,8 @@ fn cached_identity(
         use openrust::{contracts::auth::Factory as _, support::facades::Auth};
         use std::sync::Arc;
         let auth = Auth::manager().unwrap();
-        assert!(auth.resolvedUser(None).is_none());
-        assert!(Auth::resolvedUser(Some("first")).unwrap().is_none());
+        assert!(auth.resolved_user(None).is_none());
+        assert!(Auth::resolved_user(Some("first")).unwrap().is_none());
         // No log listeners are installed. Reading cached identities must still work.
         assert!(openrust::log::context::Origin::current().is_none());
         if request.path() == "guest" {
@@ -175,29 +184,29 @@ fn cached_identity(
         auth.guard(request, Some("first"))
             .unwrap()
             .set_user(Box::new(Account::from_state(Default::default())));
-        let first = Auth::resolvedUser(None).unwrap().unwrap();
-        auth.shouldUse(request, "second").unwrap();
-        assert!(Auth::resolvedUser(None).unwrap().is_none());
+        let first = Auth::resolved_user(None).unwrap().unwrap();
+        auth.should_use(request, "second").unwrap();
+        assert!(Auth::resolved_user(None).unwrap().is_none());
         assert!(Arc::ptr_eq(
             &first,
-            &auth.resolvedUser(Some("first")).unwrap()
+            &auth.resolved_user(Some("first")).unwrap()
         ));
         auth.guard(request, Some("second"))
             .unwrap()
             .set_user(Box::new(Account::from_state(Default::default())));
-        let second = Auth::resolvedUser(None).unwrap().unwrap();
+        let second = Auth::resolved_user(None).unwrap().unwrap();
         assert!(!Arc::ptr_eq(&first, &second));
-        assert!(auth.resolvedUser(Some("unknown")).is_none());
+        assert!(auth.resolved_user(Some("unknown")).is_none());
         let foreign = request
             .attributes()
             .get("foreign")
             .unwrap()
             .downcast::<Arc<AuthManager>>()
             .unwrap();
-        assert!(foreign.resolvedUser(None).is_none());
+        assert!(foreign.resolved_user(None).is_none());
         let child = auth.clone();
         assert!(
-            tokio::spawn(async move { child.resolvedUser(None).is_none() })
+            tokio::spawn(async move { child.resolved_user(None).is_none() })
                 .await
                 .unwrap()
         );
@@ -207,11 +216,11 @@ fn cached_identity(
         tokio::time::sleep(std::time::Duration::from_millis(5)).await;
         assert!(Arc::ptr_eq(
             &second,
-            &Auth::resolvedUser(None).unwrap().unwrap()
+            &Auth::resolved_user(None).unwrap().unwrap()
         ));
         assert!(Arc::ptr_eq(
             &first,
-            &auth.resolvedUser(Some("first")).unwrap()
+            &auth.resolved_user(Some("first")).unwrap()
         ));
         Ok(openrust::http::Response::from("authenticated"))
     })
@@ -258,7 +267,7 @@ async fn resolved_identity_is_guard_aware_without_logging_and_cannot_escape_its_
         .container()
         .make::<AuthManager>()
         .unwrap();
-    auth.viaRequest("cached", |_| {
+    auth.via_request("cached", |_| {
         panic!("cached identity lookup must not invoke a resolver")
     });
     let request = |path: &str| {
@@ -278,7 +287,7 @@ async fn resolved_identity_is_guard_aware_without_logging_and_cannot_escape_its_
     let (one, two) = tokio::join!(kernel.handle(&mut first), kernel.handle(&mut second));
     assert_eq!(one.status(), StatusCode::OK);
     assert_eq!(two.status(), StatusCode::OK);
-    assert!(auth.resolvedUser(None).is_none());
+    assert!(auth.resolved_user(None).is_none());
     let mut cancelled = request("/cancel");
     assert!(
         tokio::time::timeout(
@@ -288,8 +297,8 @@ async fn resolved_identity_is_guard_aware_without_logging_and_cannot_escape_its_
         .await
         .is_err()
     );
-    assert!(auth.resolvedUser(None).is_none());
+    assert!(auth.resolved_user(None).is_none());
     let mut guest = request("/guest");
     assert_eq!(kernel.handle(&mut guest).await.status(), StatusCode::OK);
-    assert!(auth.resolvedUser(None).is_none());
+    assert!(auth.resolved_user(None).is_none());
 }

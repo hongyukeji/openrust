@@ -64,7 +64,7 @@ fn manages_null_values_stacks_counters_and_hidden_fields() {
     ));
     assert_eq!(context.get("attempt"), Some(json!(i64::MAX)));
     context.flush();
-    assert!(context.isEmpty());
+    assert!(context.is_empty());
 }
 
 #[tokio::test]
@@ -184,7 +184,7 @@ async fn application_tasks_use_distinct_repository_instances() {
     });
     let second = container.scope(async {
         let context = container.make::<Repository>().unwrap();
-        assert!(context.isEmpty());
+        assert!(context.is_empty());
         context.addHidden("task", json!(2));
         tokio::task::yield_now().await;
         assert!(context.missing("task"));
@@ -194,7 +194,7 @@ async fn application_tasks_use_distinct_repository_instances() {
     assert!(!std::sync::Arc::ptr_eq(&first, &second));
     container
         .scope(async {
-            assert!(container.make::<Repository>().unwrap().isEmpty());
+            assert!(container.make::<Repository>().unwrap().is_empty());
         })
         .await;
     assert!(container.make::<Repository>().is_err());

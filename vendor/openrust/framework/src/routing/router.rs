@@ -33,7 +33,7 @@ impl Handler for RouteDispatcher<'_> {
         &'a self,
         request: &'a mut Request,
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
-        if request.isPrecognitive() {
+        if request.is_precognitive() {
             self.0.handle_precognitive(request)
         } else {
             self.0.handle(request)
@@ -123,7 +123,7 @@ impl Router {
         let mut urls = super::url_generator::UrlRoutes::default();
         for (index, route) in self.routes.iter().enumerate() {
             if active.contains(&index)
-                && let Some(name) = route.getName()
+                && let Some(name) = route.get_name()
             {
                 urls.named
                     .entry(name.to_owned())
@@ -147,7 +147,7 @@ impl Router {
     }
 
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn getRoutes(&self) -> Vec<RouteInfo> {
+    pub fn get_routes(&self) -> Vec<RouteInfo> {
         self.routes_with_info().map(|(_, info)| info).collect()
     }
 
@@ -204,7 +204,7 @@ impl Router {
                         domain: route.domain.clone(),
                         method: methods.join("|"),
                         uri: uri.to_owned(),
-                        name: route.getName().map(str::to_owned),
+                        name: route.get_name().map(str::to_owned),
                         action: route
                             .controller_action
                             .as_deref()
@@ -389,7 +389,7 @@ impl Router {
 
     #[track_caller]
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn permanentRedirect(
+    pub fn permanent_redirect(
         &mut self,
         uri: &str,
         target: &str,
@@ -534,7 +534,7 @@ impl Router {
             if !matches(&index) {
                 return false;
             }
-            if self.routes[index].isFallback {
+            if self.routes[index].is_fallback {
                 fallback.get_or_insert(index);
                 return false;
             }
@@ -613,7 +613,7 @@ impl Router {
 
     /// 使用当前请求重新绑定命名路由，并运行目标路由的中间件与处理器。
     #[allow(non_snake_case, reason = "沿用固定上游 Router 公开方法")]
-    pub async fn respondWithRoute(
+    pub async fn respond_with_route(
         &self,
         name: &str,
         request: &mut Request,
@@ -625,7 +625,7 @@ impl Router {
                 self.routes.iter().enumerate().find_map(|(index, route)| {
                     (route.domain.is_some() == domain
                         && active.contains(&index)
-                        && route.getName() == Some(name))
+                        && route.get_name() == Some(name))
                     .then_some(route)
                 })
             })

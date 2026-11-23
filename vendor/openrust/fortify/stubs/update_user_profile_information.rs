@@ -24,11 +24,11 @@ impl UpdatesUserProfileInformation for UpdateUserProfileInformation {
                         Rule::string(),
                         Rule::email(),
                         Rule::max(255),
-                        Unique::new("users", None).ignoreModel(&user, None).into(),
+                        Unique::new("users", None).ignore_model(&user, None).into(),
                     ],
                 )?;
             super::validator(input, rules, Default::default())?
-                .validateWithBag("updateProfileInformation")
+                .validate_with_bag("updateProfileInformation")
                 .await?;
             let email = super::text(input, "email")?;
             let changed = user.getAttribute("email") != Some(&Value::Text(email.into()));
@@ -41,7 +41,7 @@ impl UpdatesUserProfileInformation for UpdateUserProfileInformation {
             }
             user.forceFill(attributes)?.save().await?;
             if changed {
-                user.sendEmailVerificationNotification()
+                user.send_email_verification_notification()
                     .await
                     .map_err(|source| HttpError::Internal {
                         source: Box::new(source),

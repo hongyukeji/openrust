@@ -11,7 +11,7 @@ fn scan_matches_fixed_php_format_matrix() {
             assert!(result.is_err(), "{input:?}, {format:?}");
         } else {
             assert_eq!(
-                result.unwrap().toArray().unwrap(),
+                result.unwrap().to_array().unwrap(),
                 expected,
                 "{input:?}, {format:?}"
             );
@@ -30,6 +30,6 @@ fn scan_exposes_byte_captures_and_defers_serialization_of_nonfinite_float() {
     assert_eq!(fields.get(2), Some(&Some(ScanValue::Integer(3))));
     let fields = Str::of("1e999").scan("%f").unwrap();
     assert_eq!(fields.get(0), Some(&Some(ScanValue::Float(f64::INFINITY))));
-    assert!(fields.toJson().is_err());
+    assert!(fields.to_json().is_err());
     assert_eq!(Str::of("x").scan("%1$s%s"), Err(ScanError::MixedPositions));
 }

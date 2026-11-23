@@ -139,7 +139,7 @@ async fn selected_models_are_application_local_and_records_retain_the_actual_ins
     ));
     model.lock().await.setAttribute("pk", 42_i64);
     assert_eq!(shared.getKey().await, Some(42.into()));
-    assert_eq!(shared.toArray().await.unwrap()["pk"], 42);
+    assert_eq!(shared.to_array().await.unwrap()["pk"], 42);
     first.usePasskeyModel::<Passkey>();
     assert_eq!(first.passkeyModel(), second.passkeyModel());
     assert_eq!(record.getKey().await, Some(42.into()));

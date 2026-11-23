@@ -36,8 +36,7 @@ impl<'a> BindingContext<'a> {
         self.field
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn allowsTrashedBindings(&self) -> bool {
+    pub fn allows_trashed_bindings(&self) -> bool {
         self.with_trashed
     }
 

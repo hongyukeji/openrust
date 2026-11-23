@@ -57,7 +57,7 @@ impl openrust::support::ServiceProvider for AuthProvider {
         Box::pin(async move {
             app.make::<openrust::auth::AuthManager>()
                 .await?
-                .viaRequest("pulse-test", |request| {
+                .via_request("pulse-test", |request| {
                     let user = request
                         .uri()
                         .query()
@@ -93,13 +93,15 @@ async fn provider_is_lazy_and_native_http_lifecycles_record_canonical_route_path
             .await
             .unwrap()
     );
-    app.artisan(["migrate", "--force"]).await.assertSuccessful();
-    app.get("/api/items/12").await.unwrap().assertOk();
-    app.get("/api/items/99").await.unwrap().assertOk();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+    app.get("/api/items/12").await.unwrap().assert_ok();
+    app.get("/api/items/99").await.unwrap().assert_ok();
     app.get("/api/missing")
         .await
         .unwrap()
-        .assertStatus(openrust::http::StatusCode::NOT_FOUND);
+        .assert_status(openrust::http::StatusCode::NOT_FOUND);
     let rows = storage
         .connection()
         .table("pulse_entries")
@@ -117,19 +119,21 @@ async fn provider_is_lazy_and_native_http_lifecycles_record_canonical_route_path
     }
     app.artisan(["vendor:publish", "--tag=pulse-config"])
         .await
-        .assertSuccessful();
+        .assert_successful();
     let config = app.root().join("config/pulse.rs");
     std::fs::write(&config, "// custom").unwrap();
     app.artisan(["vendor:publish", "--tag=pulse-config"])
         .await
-        .assertSuccessful();
+        .assert_successful();
     assert_eq!(std::fs::read_to_string(config).unwrap(), "// custom");
 }
 #[tokio::test]
 async fn scoped_buffers_share_filters_but_never_measure_pulse_own_storage() {
     let mut app = app();
     app.boot().await.unwrap();
-    app.artisan(["migrate", "--force"]).await.assertSuccessful();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
     let application = app.app();
     let pulse = application.make::<Pulse>().await.unwrap();
     pulse.filter(|item| Ok(!matches!(item,openrust_pulse::Item::Entry(e) if e.key=="hidden")));
@@ -179,7 +183,9 @@ async fn scoped_buffers_share_filters_but_never_measure_pulse_own_storage() {
 async fn native_dashboard_gate_published_view_and_metrics_reject_invalid_periods() {
     use openrust::contracts::foundation::Application as _;
     let mut app = app();
-    app.artisan(["migrate", "--force"]).await.assertSuccessful();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
     let response = app.get("/pulse").await.unwrap();
     assert_eq!(
         response.status().as_u16(),
@@ -190,11 +196,11 @@ async fn native_dashboard_gate_published_view_and_metrics_reject_invalid_periods
     app.get("/pulse/api/metrics?period=1h")
         .await
         .unwrap()
-        .assertOk();
+        .assert_ok();
     app.get("/pulse/api/metrics?period=bad")
         .await
         .unwrap()
-        .assertStatus(openrust::http::StatusCode::BAD_REQUEST);
+        .assert_status(openrust::http::StatusCode::BAD_REQUEST);
     app.app()
         .config()
         .unwrap()
@@ -203,15 +209,15 @@ async fn native_dashboard_gate_published_view_and_metrics_reject_invalid_periods
     app.get("/pulse")
         .await
         .unwrap()
-        .assertStatus(openrust::http::StatusCode::FORBIDDEN);
+        .assert_status(openrust::http::StatusCode::FORBIDDEN);
     app.app()
         .make::<openrust::auth::access::GateRegistry>()
         .await
         .unwrap()
-        .defineGuest("viewPulse", |_, _| {
+        .define_guest("viewPulse", |_, _| {
             Box::pin(async { Ok(openrust::auth::access::Response::allow()) })
         });
-    app.get("/pulse").await.unwrap().assertOk();
+    app.get("/pulse").await.unwrap().assert_ok();
     let pulse = app.app().make::<Pulse>().await.unwrap();
     let stylesheet = app.root().join("custom.css");
     std::fs::write(&stylesheet, ".custom{color:red}").unwrap();
@@ -222,7 +228,7 @@ async fn native_dashboard_gate_published_view_and_metrics_reject_invalid_periods
     ]);
     assert_eq!(pulse.css().unwrap().matches(".custom").count(), 1);
     let response = app.get("/pulse").await.unwrap();
-    response.assertOk();
+    response.assert_ok();
     let html = String::from_utf8_lossy(response.body());
     assert!(html.contains(".custom{color:red}"));
     assert!(html.contains(".html{color:blue}"));
@@ -231,10 +237,10 @@ async fn native_dashboard_gate_published_view_and_metrics_reject_invalid_periods
     app.get("/pulse")
         .await
         .unwrap()
-        .assertStatus(openrust::http::StatusCode::INTERNAL_SERVER_ERROR);
+        .assert_status(openrust::http::StatusCode::INTERNAL_SERVER_ERROR);
     app.artisan(["vendor:publish", "--tag=pulse-dashboard"])
         .await
-        .assertSuccessful();
+        .assert_successful();
     std::fs::write(
         app.root()
             .join("resources/views/vendor/pulse/dashboard.html"),
@@ -250,14 +256,16 @@ async fn native_dashboard_gate_published_view_and_metrics_reject_invalid_periods
     app.get("/pulse")
         .await
         .unwrap()
-        .assertOk()
-        .assertContent("<h1>Custom dashboard</h1>");
+        .assert_ok()
+        .assert_content("<h1>Custom dashboard</h1>");
 }
 #[tokio::test]
 async fn native_server_beats_throttle_and_commands_use_configured_cache() {
     use openrust_pulse::recorders::{Memory, Servers};
     let mut app = app();
-    app.artisan(["migrate", "--force"]).await.assertSuccessful();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
     let application = app.app();
     let servers = application.make::<Servers>().await.unwrap();
     servers.detectCpuUsing(Some(Arc::new(|| 23)));
@@ -268,7 +276,7 @@ async fn native_server_beats_throttle_and_commands_use_configured_cache() {
     // Application scope is installed by Artisan; its SharedBeat invokes the same sampler.
     app.artisan(["pulse:check", "--once"])
         .await
-        .assertSuccessful();
+        .assert_successful();
     let storage = app.app().make::<DatabaseStorage>().await.unwrap();
     let values = storage.values("system", None).await.unwrap();
     assert_eq!(values.len(), 1);
@@ -280,37 +288,37 @@ async fn native_server_beats_throttle_and_commands_use_configured_cache() {
     assert_eq!(value["memory_used"], 2048);
     app.artisan(["pulse:work", "--stop-when-empty"])
         .await
-        .assertSuccessful();
-    app.artisan(["pulse:restart"]).await.assertSuccessful();
+        .assert_successful();
+    app.artisan(["pulse:restart"]).await.assert_successful();
     app.artisan(["pulse:clear", "--type=cpu", "--force"])
         .await
-        .assertSuccessful();
+        .assert_successful();
     assert_eq!(storage.values("system", None).await.unwrap().len(), 1);
     app.artisan(["pulse:purge", "--force"])
         .await
-        .assertSuccessful();
+        .assert_successful();
     assert!(storage.values("system", None).await.unwrap().is_empty());
 }
 
 struct Identity;
 impl openrust::contracts::auth::Authenticatable for Identity {
-    fn getAuthIdentifierName(&self) -> &str {
+    fn get_auth_identifier_name(&self) -> &str {
         "id"
     }
-    fn getAuthIdentifier(&self) -> openrust::auth::AuthIdentifier {
+    fn get_auth_identifier(&self) -> openrust::auth::AuthIdentifier {
         42_u64.into()
     }
-    fn getAuthPasswordName(&self) -> &str {
+    fn get_auth_password_name(&self) -> &str {
         "password"
     }
-    fn getAuthPassword(&self) -> Option<&str> {
+    fn get_auth_password(&self) -> Option<&str> {
         None
     }
-    fn getRememberToken(&self) -> Option<&str> {
+    fn get_remember_token(&self) -> Option<&str> {
         None
     }
-    fn setRememberToken(&mut self, _: Option<String>) {}
-    fn getRememberTokenName(&self) -> &str {
+    fn set_remember_token(&mut self, _: Option<String>) {}
+    fn get_remember_token_name(&self) -> &str {
         "remember_token"
     }
 }
@@ -382,7 +390,9 @@ async fn native_recorders_capture_real_client_sql_cache_and_typed_errors_without
             .with_routing(Routing::default().api(routes))
     })
     .unwrap();
-    app.artisan(["migrate", "--force"]).await.assertSuccessful();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
     let config = app.app().config().unwrap();
     config
         .set(
@@ -397,8 +407,8 @@ async fn native_recorders_capture_real_client_sql_cache_and_typed_errors_without
         )
         .unwrap();
     config.set("pulse.recorders",json!({"SlowRequests":{"threshold":0},"SlowQueries":{"threshold":0,"location":false},"SlowOutgoingRequests":{"threshold":0},"CacheInteractions":{"groups":[[r"/^feature:\d+$/","feature:*"]]},"Exceptions":{"location":false},"UserRequests":{}})).unwrap();
-    app.get("/api/observe?user=1").await.unwrap().assertOk();
-    app.get("/api/observe?drop=1").await.unwrap().assertOk();
+    app.get("/api/observe?user=1").await.unwrap().assert_ok();
+    app.get("/api/observe?drop=1").await.unwrap().assert_ok();
     peer.await.unwrap();
     let storage = app.app().make::<DatabaseStorage>().await.unwrap();
     let connection = storage.connection();
@@ -447,7 +457,7 @@ async fn native_recorders_capture_real_client_sql_cache_and_typed_errors_without
     }
     let rows = connection
         .table("pulse_entries")
-        .whereIn("type", vec!["cache_hit".into(), "cache_miss".into()])
+        .where_in("type", vec!["cache_hit".into(), "cache_miss".into()])
         .get()
         .await
         .unwrap();
@@ -464,7 +474,9 @@ async fn native_recorders_capture_real_client_sql_cache_and_typed_errors_without
 async fn cancelled_nested_ignore_restores_recording_and_rescues_failed_lazy_callbacks() {
     use std::sync::atomic::{AtomicUsize, Ordering};
     let mut app = app();
-    app.artisan(["migrate", "--force"]).await.assertSuccessful();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
     let pulse = app.app().make::<Pulse>().await.unwrap();
     let errors = Arc::new(AtomicUsize::new(0));
     let count = errors.clone();
@@ -557,8 +569,8 @@ async fn compiled_custom_recorders_register_native_event_listeners_in_each_appli
     fixture
         .artisan(["migrate", "--force"])
         .await
-        .assertSuccessful();
-    fixture.get("/api/probe").await.unwrap().assertOk();
+        .assert_successful();
+    fixture.get("/api/probe").await.unwrap().assert_ok();
     let storage = fixture.app().make::<DatabaseStorage>().await.unwrap();
     assert_eq!(
         storage
@@ -574,7 +586,7 @@ async fn compiled_custom_recorders_register_native_event_listeners_in_each_appli
     other
         .artisan(["migrate", "--force"])
         .await
-        .assertSuccessful();
+        .assert_successful();
     assert!(
         !other
             .app()
@@ -604,7 +616,9 @@ impl openrust_pulse::ResolvesUsers for ReadOnlyUsers {
 async fn public_rescue_and_user_resolver_errors_and_documented_metrics_are_observable() {
     use std::sync::atomic::{AtomicUsize, Ordering};
     let mut app = app();
-    app.artisan(["migrate", "--force"]).await.assertSuccessful();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
     let pulse = app.app().make::<Pulse>().await.unwrap();
     let errors = Arc::new(AtomicUsize::new(0));
     let observed = errors.clone();
@@ -649,7 +663,7 @@ async fn public_rescue_and_user_resolver_errors_and_documented_metrics_are_obser
             .name,
         "42"
     );
-    app.get("/api/metric-example").await.unwrap().assertOk();
+    app.get("/api/metric-example").await.unwrap().assert_ok();
 }
 fn metric_example(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {

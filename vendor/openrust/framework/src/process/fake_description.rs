@@ -38,7 +38,7 @@ impl FakeProcessDescription {
         self.runsFor(iterations)
     }
 
-    pub fn exitCode(mut self, code: i32) -> Self {
+    pub fn exit_code(mut self, code: i32) -> Self {
         self.exit_code = code;
         self
     }

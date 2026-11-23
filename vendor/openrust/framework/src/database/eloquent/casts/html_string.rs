@@ -26,7 +26,7 @@ impl CastableObject for HtmlString {
         }
     }
 
-    fn toAttributes(value: Option<&Self>, _: &str, _: &Attributes) -> DatabaseResult<CastWrite> {
+    fn to_attributes(value: Option<&Self>, _: &str, _: &Attributes) -> DatabaseResult<CastWrite> {
         Ok(CastWrite::Value(value.map_or(Value::Null, |html| {
             Value::Text(html.toHtml().to_owned())
         })))

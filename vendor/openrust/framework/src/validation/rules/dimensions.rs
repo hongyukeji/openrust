@@ -28,11 +28,10 @@ macro_rules! dimensions {
     };
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Dimensions {
     dimensions!(
-        width => width, height => height, minWidth => min_width, minHeight => min_height,
-        maxWidth => max_width, maxHeight => max_height,
+        width => width, height => height, min_width => min_width, min_height => min_height,
+        max_width => max_width, max_height => max_height,
     );
 
     pub fn ratio(mut self, value: impl ToString) -> Self {
@@ -40,18 +39,18 @@ impl Dimensions {
         self
     }
 
-    pub fn minRatio(mut self, value: impl ToString) -> Self {
+    pub fn min_ratio(mut self, value: impl ToString) -> Self {
         self.min_ratio = Some(value.to_string());
         self
     }
 
-    pub fn maxRatio(mut self, value: impl ToString) -> Self {
+    pub fn max_ratio(mut self, value: impl ToString) -> Self {
         self.max_ratio = Some(value.to_string());
         self
     }
 
-    pub fn ratioBetween(self, min: impl ToString, max: impl ToString) -> Self {
-        self.minRatio(min).maxRatio(max)
+    pub fn ratio_between(self, min: impl ToString, max: impl ToString) -> Self {
+        self.min_ratio(min).max_ratio(max)
     }
 
     pub(in crate::validation) fn parse(arguments: &str) -> ValidationResult<Self> {
@@ -62,13 +61,13 @@ impl Dimensions {
             rule = match key {
                 "width" => rule.width(value.parse().map_err(|_| invalid())?),
                 "height" => rule.height(value.parse().map_err(|_| invalid())?),
-                "min_width" => rule.minWidth(value.parse().map_err(|_| invalid())?),
-                "min_height" => rule.minHeight(value.parse().map_err(|_| invalid())?),
-                "max_width" => rule.maxWidth(value.parse().map_err(|_| invalid())?),
-                "max_height" => rule.maxHeight(value.parse().map_err(|_| invalid())?),
+                "min_width" => rule.min_width(value.parse().map_err(|_| invalid())?),
+                "min_height" => rule.min_height(value.parse().map_err(|_| invalid())?),
+                "max_width" => rule.max_width(value.parse().map_err(|_| invalid())?),
+                "max_height" => rule.max_height(value.parse().map_err(|_| invalid())?),
                 "ratio" => rule.ratio(value),
-                "min_ratio" => rule.minRatio(value),
-                "max_ratio" => rule.maxRatio(value),
+                "min_ratio" => rule.min_ratio(value),
+                "max_ratio" => rule.max_ratio(value),
                 _ => return Err(invalid()),
             };
         }

@@ -5,6 +5,8 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+static NEXT_ROOT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
 struct AppRoot(PathBuf);
 
 impl AppRoot {
@@ -14,8 +16,9 @@ impl AppRoot {
             .unwrap()
             .as_nanos();
         let root = std::env::temp_dir().join(format!(
-            "openrust-mail-generator-{}-{stamp}",
-            std::process::id()
+            "openrust-mail-generator-{}-{}-{stamp}",
+            std::process::id(),
+            NEXT_ROOT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
         ));
         fs::create_dir(&root).unwrap();
         Self(root)

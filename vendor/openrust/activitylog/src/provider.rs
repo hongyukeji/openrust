@@ -145,8 +145,9 @@ impl ServiceProvider for ActivitylogServiceProvider {
                         .withIdentityResolvers(
                             Arc::new(move |id| {
                                 let auth = idAuth.clone();
-                                let driver =
-                                    idDriver.clone().unwrap_or_else(|| auth.getDefaultDriver());
+                                let driver = idDriver
+                                    .clone()
+                                    .unwrap_or_else(|| auth.get_default_driver());
                                 let config = idConfig.clone();
                                 Box::pin(async move {
                                     let provider = config
@@ -154,57 +155,58 @@ impl ServiceProvider for ActivitylogServiceProvider {
                                         .and_then(|v| v.as_str().map(str::to_owned))
                                         .ok_or(crate::Error::InvalidConfiguration)?;
                                     let user = auth
-                                        .createUserProvider(&provider)
+                                        .create_user_provider(&provider)
                                         .map_err(|_| crate::Error::InvalidConfiguration)?
-                                        .retrieveById(&id)
+                                        .retrieve_by_id(&id)
                                         .await
                                         .map_err(|_| crate::Error::InvalidActivity)?
                                         .ok_or(crate::Error::InvalidActivity)?;
                                     let kind = auth
-                                        .userMorphClass(user.as_ref())
+                                        .user_morph_class(user.as_ref())
                                         .map_err(|_| crate::Error::InvalidActivity)?
                                         .ok_or(crate::Error::InvalidActivity)?;
                                     let attributes = auth
-                                        .userAttributes(user.as_ref())
+                                        .user_attributes(user.as_ref())
                                         .map_err(|_| crate::Error::InvalidActivity)?;
                                     Ok((
                                         crate::Subject::new(
                                             kind,
-                                            user.getAuthIdentifier().to_string(),
+                                            user.get_auth_identifier().to_string(),
                                         )?,
                                         attributes.into(),
                                     ))
                                 })
                             }),
                             Arc::new(move |subject| {
-                                let Some(user) = defaultAuth.resolvedUser(defaultDriver.as_deref())
+                                let Some(user) =
+                                    defaultAuth.resolved_user(defaultDriver.as_deref())
                                 else {
                                     return Ok(serde_json::json!({}));
                                 };
-                                if user.getAuthIdentifier().to_string() != subject.id {
+                                if user.get_auth_identifier().to_string() != subject.id {
                                     return Ok(serde_json::json!({}));
                                 }
                                 let kind = defaultAuth
-                                    .userMorphClass(user.as_ref())
+                                    .user_morph_class(user.as_ref())
                                     .map_err(|_| crate::Error::InvalidActivity)?;
                                 if kind != Some(subject.kind.as_str()) {
                                     return Ok(serde_json::json!({}));
                                 }
                                 defaultAuth
-                                    .userAttributes(user.as_ref())
+                                    .user_attributes(user.as_ref())
                                     .map(Into::into)
                                     .map_err(|_| crate::Error::InvalidActivity)
                             }),
                         )
                         .withDefaultResolver(move || {
-                            let Some(user) = auth.resolvedUser(driver.as_deref()) else {
+                            let Some(user) = auth.resolved_user(driver.as_deref()) else {
                                 return Ok(None);
                             };
                             let kind = auth
-                                .userMorphClass(user.as_ref())
+                                .user_morph_class(user.as_ref())
                                 .map_err(|_| crate::Error::InvalidActivity)?
                                 .ok_or(crate::Error::InvalidActivity)?;
-                            crate::Subject::new(kind, user.getAuthIdentifier().to_string())
+                            crate::Subject::new(kind, user.get_auth_identifier().to_string())
                                 .map(Some)
                         }),
                 ))
@@ -328,7 +330,7 @@ impl openrust::console::Command for CleanCommand {
             let production = config
                 .get("app.env")
                 .is_some_and(|value| value.as_str() == Some("production"));
-            if !openrust::console::confirmToProceed(production, input.matches())? {
+            if !openrust::console::confirm_to_proceed(production, input.matches())? {
                 return Ok(1);
             }
             output.comment("Cleaning activity log...");

@@ -4,7 +4,7 @@ Precognition 在最終提交前執行表單請求的授權與驗證。成功回�
 
 ## 啟用 Precognition
 
-為需要預驗證的路由加入內建 `precognitive` 中介軟體。使用注入式 `ValidatedFormRequest` 或 `ControllerDispatcher::withFormRequest`，讓驗證在控制器動作前執行。
+為需要預驗證的路由加入內建 `precognitive` 中介軟體。使用注入式 `ValidatedFormRequest` 或 `ControllerDispatcher::with_form_request`，讓驗證在控制器動作前執行。
 
 ```rust
 use openrust::{
@@ -26,7 +26,7 @@ fn routes() -> Result<(), RoutingError> {
 }
 ```
 
-`StoreUser` 實作 [FormRequest](../the-basics/validation.md)。只有中介軟體確認精確請求標頭 `Precognition: true` 後，請求才進入預驗證模式。`Request::isAttemptingPrecognition()` 檢查請求標頭，`Request::isPrecognitive()` 檢查伺服器確認狀態。未啟用中介軟體的路由即使收到該標頭，仍正常執行並儲存 Session。
+`StoreUser` 實作 [FormRequest](../the-basics/validation.md)。只有中介軟體確認精確請求標頭 `Precognition: true` 後，請求才進入預驗證模式。`Request::is_attempting_precognition()` 檢查請求標頭，`Request::is_precognitive()` 檢查伺服器確認狀態。未啟用中介軟體的路由即使收到該標頭，仍正常執行並儲存 Session。
 
 ## 選擇驗證規則
 
@@ -36,7 +36,7 @@ fn routes() -> Result<(), RoutingError> {
 
 ## 請求生命週期與副作用
 
-中介軟體、控制器建構、表單建構、輸入準備與授權仍會執行。注入式表單驗證成功後，在動作執行前短路。存在 `Precognition-Validate-Only` 時，成功掛鉤還會跳過 `passedValidation`；未傳送該標頭時，先執行 `passedValidation` 再停止分派。避免在這些掛鉤和依賴工廠中進行非預期寫入。
+中介軟體、控制器建構、表單建構、輸入準備與授權仍會執行。注入式表單驗證成功後，在動作執行前短路。存在 `Precognition-Validate-Only` 時，成功掛鉤還會跳過 `passed_validation`；未傳送該標頭時，先執行 `passed_validation` 再停止分派。避免在這些掛鉤和依賴工廠中進行非預期寫入。
 
 確認的預驗證請求正常啟動並讀取 Session、回傳 Cookie，但不儲存 Session，也不更新上一頁 URL。因此快閃資料被保留，中介軟體的一般 Session 修改不會持久化。Precognition 不回滾中介軟體、依賴建構、自訂驗證規則、外部服務或明確 Session 操作產生的寫入。
 
@@ -44,7 +44,7 @@ fn routes() -> Result<(), RoutingError> {
 
 伺服器按一般[檔案規則](../the-basics/validation.md)驗證實際上傳的檔案。前端 helper 預設省略檔案，需要即時上傳驗證時呼叫 `validateFiles()`。用戶端省略必填檔案後，除非調整規則，否則仍會觸發 `required`。
 
-覆寫 `FormRequest::validationRules(&self, request: &Request)`，根據 `request.isPrecognitive()` 選擇規則。預設實作委託 `rules()`。例如只在最終提交時要求密碼或檔案，同時保留已上傳檔案的類型和大小檢查。
+覆寫 `FormRequest::validation_rules(&self, request: &Request)`，根據 `request.is_precognitive()` 選擇規則。預設實作委託 `rules()`。例如只在最終提交時要求密碼或檔案，同時保留已上傳檔案的類型和大小檢查。
 
 ## JavaScript helper
 

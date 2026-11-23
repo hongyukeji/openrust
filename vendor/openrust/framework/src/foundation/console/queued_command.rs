@@ -28,14 +28,12 @@ impl PendingQueuedCommand {
         }
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn onConnection(mut self, name: impl Into<String>) -> Self {
+    pub fn on_connection(mut self, name: impl Into<String>) -> Self {
         self.options.connection = Some(name.into());
         self
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn onQueue(mut self, name: impl Into<String>) -> Self {
+    pub fn on_queue(mut self, name: impl Into<String>) -> Self {
         self.options.queue = Some(name.into());
         self
     }

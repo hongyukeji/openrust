@@ -15,7 +15,7 @@ impl<R> ResourceResponder<R> {
 }
 
 impl<R: JsonResource + Send> Responsable for ResourceResponder<R> {
-    async fn toResponse(mut self, request: &mut Request) -> ResourceResult<Response> {
-        self.0.toResponseAsync(request).await
+    async fn to_response(mut self, request: &mut Request) -> ResourceResult<Response> {
+        self.0.to_response_async(request).await
     }
 }

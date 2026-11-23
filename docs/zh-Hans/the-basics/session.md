@@ -34,11 +34,11 @@ fn remember(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
 }
 ```
 
-`only` 筛选顶层键，`except` 从副本中移除指定键或点号路径。`exists` 和 `missing` 区分显式空值与缺失键，`has` 和 `hasAny` 检查非空值。`remember` 接收返回 `Result` 的闭包，只在键缺失或值为空时计算并保存。
+`only` 筛选顶层键，`except` 从副本中移除指定键或点号路径。`exists` 和 `missing` 区分显式空值与缺失键，`has` 和 `has_any` 检查非空值。`remember` 接收返回 `Result` 的闭包，只在键缺失或值为空时计算并保存。
 
 用 `push` 向数组或关联数组追加值。`increment` 和 `decrement` 接收显式整数步长，返回更新后的 JSON 值。输入无效时返回错误并保留原值。
 
-用 `putMany` 同时写入多个键，支持点号路径。`replace` 更新指定键并保留其他属性。`hasOldInput(Some(key))` 检查指定闪存字段是否非空，`hasOldInput(None)` 检查旧输入是否包含任何条目。
+用 `putMany` 同时写入多个键，支持点号路径。`replace` 更新指定键并保留其他属性。`has_old_input(Some(key))` 检查指定闪存字段是否非空，`has_old_input(None)` 检查旧输入是否包含任何条目。
 
 ## 闪存数据
 
@@ -85,7 +85,7 @@ Route::getWith("/profile", remember, |route| {
 
 第一个参数是锁的有效期，第二个参数是等待已被占用的锁的最长时间。中间件在读取会话前获取锁，保存后释放。等待超时交由异常处理器处理，默认返回 HTTP 500。
 
-用 `SESSION_BLOCK=true` 为所有启动会话的路由启用阻塞。用 `SESSION_BLOCK_LOCK_SECONDS` 和 `SESSION_BLOCK_WAIT_SECONDS` 设置默认值，两者均默认 10 秒。路由上的显式设置覆盖默认值。`withoutBlocking()` 清除路由级设置。开启全局阻塞后，这条路由仍使用全局设置。
+用 `SESSION_BLOCK=true` 为所有启动会话的路由启用阻塞。用 `SESSION_BLOCK_LOCK_SECONDS` 和 `SESSION_BLOCK_WAIT_SECONDS` 设置默认值，两者均默认 10 秒。路由上的显式设置覆盖默认值。`without_blocking()` 清除路由级设置。开启全局阻塞后，这条路由仍使用全局设置。
 
 用 `SESSION_BLOCK_STORE` 选择支持原子锁的缓存存储，例如 `redis`。省略该配置时使用默认缓存存储。多个应用进程需要使用共享存储，`array` 缓存只协调同一进程中的请求。
 
@@ -124,4 +124,4 @@ impl ServiceProvider for AppSessionProvider {
 
 ## 读取会话配置
 
-`SessionManager::shouldBlock()` 读取 `session.block`，`blockDriver()` 读取 `session.block_store`。`defaultRouteBlockLockSeconds()` 和 `defaultRouteBlockWaitSeconds()` 返回锁持有与等待时长，均默认 10 秒。`getSessionConfig()` 返回创建管理器时使用的配置快照，保留自定义键；创建后修改配置仓库不会更新该快照。
+`SessionManager::should_block()` 读取 `session.block`，`block_driver()` 读取 `session.block_store`。`default_route_block_lock_seconds()` 和 `default_route_block_wait_seconds()` 返回锁持有与等待时长，均默认 10 秒。`get_session_config()` 返回创建管理器时使用的配置快照，保留自定义键；创建后修改配置仓库不会更新该快照。

@@ -75,7 +75,7 @@ impl Paths {
                     let scheme = request.uri().scheme_str().unwrap_or("http");
                     let url = format!(
                         "{scheme}://{authority}{}{}",
-                        request.getBaseUrl(),
+                        request.get_base_url(),
                         request
                             .uri()
                             .path_and_query()

@@ -18,7 +18,7 @@ use openrust::{
     foundation::{Application, configuration::Routing, http::Kernel},
     http::{
         Body, HttpError, HttpFuture, HttpResponseException, Method, Request, Response, StatusCode,
-        abortResponsable, abortResponse,
+        abort_responsable, abort_response,
     },
     routing::{Router, RoutingError},
     support::facades::Redirect,
@@ -74,16 +74,16 @@ fn ready_response(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
                 "text/plain".parse().unwrap(),
             )
             .header("x-prepared".parse().unwrap(), "kept".parse().unwrap())
-            .withException(PrivateSource);
-        Err(response.throwResponse())
+            .with_exception(PrivateSource);
+        Err(response.throw_response())
     })
 }
 
 fn ready_redirect(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
         Err(Redirect::away("/done", Default::default())?
-            .withException(PrivateSource)
-            .throwResponse())
+            .with_exception(PrivateSource)
+            .throw_response())
     })
 }
 
@@ -256,7 +256,7 @@ async fn custom_renderers_precede_fallback_and_debug_sources_are_escaped() {
                     "/no-content" => Some(Response::empty(StatusCode::NO_CONTENT)),
                     _ => None,
                 })
-                .shouldRenderJsonWhen(|request, _| request.expectsJson())
+                .shouldRenderJsonWhen(|request, _| request.expects_json())
                 .respond(|mut response, _, _| {
                     response
                         .parts_mut()
@@ -320,8 +320,8 @@ async fn prepared_responses_keep_their_payload_and_run_exception_hooks() {
                         Some(Response::new(StatusCode::CONFLICT, Body::from("override")))
                     }
                     "/ready-taken" => {
-                        let response = error.takeResponse().unwrap();
-                        assert!(error.takeResponse().is_none());
+                        let response = error.take_response().unwrap();
+                        assert!(error.take_response().is_none());
                         Some(response.header("x-taken".parse().unwrap(), "yes".parse().unwrap()))
                     }
                     _ => None,
@@ -374,7 +374,7 @@ async fn abort_accepts_native_and_request_aware_responses_over_http() {
     struct RequestResponse;
 
     impl Responsable for RequestResponse {
-        async fn toResponse(self, request: &mut Request) -> Result<Response, HttpError> {
+        async fn to_response(self, request: &mut Request) -> Result<Response, HttpError> {
             let subject = request.route("subject").unwrap().to_owned();
             if subject == "missing" {
                 return Err(HttpError::NotFound);
@@ -388,7 +388,7 @@ async fn abort_accepts_native_and_request_aware_responses_over_http() {
     }
 
     fn context(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
-        Box::pin(async move { Err(abortResponsable(RequestResponse, request).await) })
+        Box::pin(async move { Err(abort_responsable(RequestResponse, request).await) })
     }
 
     let root = Root::new();
@@ -403,7 +403,7 @@ async fn abort_accepts_native_and_request_aware_responses_over_http() {
                     .header("x-native", "kept")
                     .body(Body::from("native payload"))
                     .unwrap();
-                Err::<Response, _>(abortResponse(native))
+                Err::<Response, _>(abort_response(native))
             })?;
             router.get("/abort-context/{subject}", context)?;
             Ok(router)

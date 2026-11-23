@@ -414,7 +414,7 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
                         None => break,
                     }
                 }
-                (!chunk.isEmpty()).then_some(Ok(chunk))
+                (!chunk.is_empty()).then_some(Ok(chunk))
             }))
         })
     }

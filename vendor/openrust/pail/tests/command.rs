@@ -106,7 +106,7 @@ async fn server(root: &Root) -> (std::net::SocketAddr, tokio::task::JoinHandle<(
     let address = listener.local_addr().unwrap();
     let kernel = Arc::new(kernel);
     let router = axum::Router::new()
-        .fallback(move |request: axum::extract::Request| kernel.clone().handleTransport(request));
+        .fallback(move |request: axum::extract::Request| kernel.clone().handle_transport(request));
     (
         address,
         tokio::spawn(async move {
@@ -229,7 +229,7 @@ async fn captured() {
         .is_err()
     );
     wait_sessions(&root, 0).await;
-    assert!(!output.isVerbose());
+    assert!(!output.is_verbose());
     let args: Vec<OsString> = ["pail", "--timeout=1"]
         .into_iter()
         .map(Into::into)

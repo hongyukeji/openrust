@@ -69,18 +69,20 @@ impl FormRequest for Update {
         RuleSet::parse([("name", "required|string")])
     }
 
-    fn errorBag(&self) -> &str {
+    fn error_bag(&self) -> &str {
         "profile"
     }
 
-    fn redirectTo(&self) -> Option<&str> {
+    fn redirect_to(&self) -> Option<&str> {
         self.explicit.then_some("/edit?from=explicit")
     }
 }
 
 fn submit(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
-        Update { explicit: false }.validateResolved(request).await?;
+        Update { explicit: false }
+            .validate_resolved(request)
+            .await?;
         Ok(Response::empty(StatusCode::NO_CONTENT))
     })
 }
@@ -93,7 +95,7 @@ fn manual(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
     Box::pin(async move {
         let data = Data::new(request.input(None).await?.unwrap_or_default())?;
         Validator::make(data, RuleSet::parse([("name", "required")])?)?
-            .validateWithBag("manual")
+            .validate_with_bag("manual")
             .await?;
         Ok(Response::empty(StatusCode::NO_CONTENT))
     })
@@ -103,7 +105,7 @@ async fn transport(
     State(kernel): State<Arc<Kernel>>,
     request: axum::extract::Request,
 ) -> axum::response::Response {
-    kernel.handleTransport(request).await
+    kernel.handle_transport(request).await
 }
 
 struct TestServer {

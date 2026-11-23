@@ -34,23 +34,23 @@ struct Probe(Arc<Item>, Arc<String>, Arc<String>, bool);
 struct Identity(String);
 
 impl Authenticatable for Identity {
-    fn getAuthIdentifierName(&self) -> &str {
+    fn get_auth_identifier_name(&self) -> &str {
         "id"
     }
-    fn getAuthIdentifier(&self) -> AuthIdentifier {
+    fn get_auth_identifier(&self) -> AuthIdentifier {
         self.0.as_str().into()
     }
-    fn getAuthPasswordName(&self) -> &str {
+    fn get_auth_password_name(&self) -> &str {
         "password"
     }
-    fn getAuthPassword(&self) -> Option<&str> {
+    fn get_auth_password(&self) -> Option<&str> {
         None
     }
-    fn getRememberToken(&self) -> Option<&str> {
+    fn get_remember_token(&self) -> Option<&str> {
         None
     }
-    fn setRememberToken(&mut self, _: Option<String>) {}
-    fn getRememberTokenName(&self) -> &str {
+    fn set_remember_token(&mut self, _: Option<String>) {}
+    fn get_remember_token_name(&self) -> &str {
         "remember_token"
     }
 }
@@ -99,7 +99,7 @@ impl AuthProbe {
             assert!(self.0.bind(&mut other_request).is_err());
             let id = |user: &Option<Arc<dyn Authenticatable>>| {
                 user.as_ref()
-                    .map(|user| user.getAuthIdentifier().to_string())
+                    .map(|user| user.get_auth_identifier().to_string())
             };
             let guard_id = self.0.bind(request)?.id().await?.map(|id| id.to_string());
             assert_eq!(guard_id, id(&self.1));
@@ -162,7 +162,7 @@ impl Middleware for Attach {
                 container
                     .make::<AuthManager>()
                     .unwrap()
-                    .shouldUse(request, "api")?;
+                    .should_use(request, "api")?;
             }
             Ok(next.run(request).await)
         })
@@ -212,7 +212,7 @@ fn invalid_guard(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpE
         let container = Container::get_instance();
         let attribute = ClassAttribute::contextual(|| Ok(Auth::new("unknown")));
         request
-            .withContainer(container.resolve_from_attribute_async(
+            .with_container(container.resolve_from_attribute_async(
                 &attribute,
                 AttributeParameter {
                     name: "guard",
@@ -233,7 +233,7 @@ fn resolve_auth(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
                 .attributes()
                 .insert("block-auth", ParameterValue::service(started.clone()));
             tokio::select! {
-                result = request.withContainer(container.make_async::<AuthProbe>()) => {
+                result = request.with_container(container.make_async::<AuthProbe>()) => {
                     panic!("expected the request driver to block, resolved={}", result.is_ok());
                 }
                 () = started.notified() => {}
@@ -241,7 +241,7 @@ fn resolve_auth(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
             request.attributes().remove("block-auth");
         }
         let probe = request
-            .withContainer(container.make_async::<AuthProbe>())
+            .with_container(container.make_async::<AuthProbe>())
             .await?;
         probe.show(request).await
     })
@@ -313,7 +313,7 @@ async fn server(label: &'static str) -> (SocketAddr, tokio::task::JoinHandle<()>
         .make::<AuthManager>()
         .unwrap();
     for (driver, name) in [("header-web", "web"), ("header-api", "api")] {
-        auth.viaRequest(driver, move |request| {
+        auth.via_request(driver, move |request| {
             Box::pin(async move {
                 if let Some(started) = request.attributes().get("block-auth") {
                     started

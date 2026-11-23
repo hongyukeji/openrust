@@ -443,7 +443,7 @@ impl Arr {
         Self::r#where(value, |item, key| !predicate(item, key))
     }
 
-    pub fn whereNotNull(value: &Value) -> Value {
+    pub fn where_not_null(value: &Value) -> Value {
         Self::reject(value, |item, _| item.is_null())
     }
 

@@ -10,11 +10,11 @@ use crate::{
 /// Accesses the state loaded for an HTTP request.
 #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub trait Session: Send + Sync {
-    fn getName(&self) -> &str;
-    fn setName(&mut self, name: &str) -> SessionResult<()>;
-    fn getId(&self) -> &str;
-    fn setId(&mut self, id: Option<&str>) -> SessionResult<()>;
-    fn isStarted(&self) -> bool;
+    fn get_name(&self) -> &str;
+    fn set_name(&mut self, name: &str) -> SessionResult<()>;
+    fn get_id(&self) -> &str;
+    fn set_id(&mut self, id: Option<&str>) -> SessionResult<()>;
+    fn is_started(&self) -> bool;
     fn start(&mut self) -> SessionFuture<'_, SessionResult<()>>;
     fn save(&mut self) -> SessionFuture<'_, SessionResult<()>>;
 
@@ -65,7 +65,7 @@ pub trait Session: Send + Sync {
         !self.exists(key)
     }
 
-    fn hasAny(&self, keys: &[&str]) -> bool {
+    fn has_any(&self, keys: &[&str]) -> bool {
         keys.iter().any(|key| self.has(key))
     }
 
@@ -120,7 +120,7 @@ pub trait Session: Send + Sync {
     fn keep(&mut self, keys: &[&str]);
 
     fn token(&self) -> Option<&str>;
-    fn regenerateToken(&mut self) -> SessionResult<()>;
+    fn regenerate_token(&mut self) -> SessionResult<()>;
     fn migrate(&mut self, destroy: bool) -> SessionFuture<'_, SessionResult<()>>;
     fn regenerate(&mut self, destroy: bool) -> SessionFuture<'_, SessionResult<()>>;
     fn invalidate(&mut self) -> SessionFuture<'_, SessionResult<()>>;

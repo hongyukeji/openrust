@@ -151,7 +151,7 @@ fn long_wait_notification_selects_explicit_routes_and_builds_channel_messages() 
         .to_legacy_slack(&recipient)
         .unwrap()
         .unwrap()
-        .toArray();
+        .to_array();
     assert_eq!(slack["username"], "OpenRust Horizon");
     assert_eq!(
         slack["text"],
@@ -173,7 +173,7 @@ fn notification_response(_: &mut Request) -> HttpFuture<'_, Result<Response, Htt
         Horizon::routeSlackNotificationsTo("https://example.test/webhook").unwrap();
         Horizon::routeSmsNotificationsTo("+15555550100").unwrap();
         let fake = Notifications::fake().unwrap();
-        fake.assertNothingSent();
+        fake.assert_nothing_sent();
         let notification = notification();
         Notifications::send(&[&recipient()], &notification)
             .await
@@ -197,7 +197,7 @@ async fn long_wait_notifications_use_the_native_notification_fake() {
             )
     })
     .unwrap();
-    app.get("/api/notification").await.unwrap().assertOk();
+    app.get("/api/notification").await.unwrap().assert_ok();
     assert!(Horizon::routeMailNotificationsTo("outside@example.test").is_err());
 }
 

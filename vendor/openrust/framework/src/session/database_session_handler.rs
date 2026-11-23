@@ -35,7 +35,6 @@ pub struct DatabaseSessionHandler {
     request_user: Option<Arc<OnceLock<Value>>>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl DatabaseSessionHandler {
     pub fn new(
         connection: Connection,
@@ -59,7 +58,7 @@ impl DatabaseSessionHandler {
         })
     }
 
-    pub fn setMetadata(&mut self, metadata: DatabaseSessionMetadata) -> &mut Self {
+    pub fn set_metadata(&mut self, metadata: DatabaseSessionMetadata) -> &mut Self {
         self.metadata = metadata;
         self
     }
@@ -69,7 +68,7 @@ impl DatabaseSessionHandler {
     }
 
     /// Checks row existence, including expired rows that have not been collected.
-    pub async fn validateId(&self, id: &str) -> SessionResult<bool> {
+    pub async fn validate_id(&self, id: &str) -> SessionResult<bool> {
         self.query()
             .select(["id"])
             .r#where("id", "=", id)

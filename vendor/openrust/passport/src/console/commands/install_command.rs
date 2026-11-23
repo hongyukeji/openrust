@@ -120,7 +120,7 @@ impl Command for InstallCommand {
                 .and_then(|mut values| values.next())
                 .cloned();
             tokio::task::spawn_blocking(move || {
-                ApiInstallCommand::runPendingMigrations(
+                ApiInstallCommand::run_pending_migrations(
                     &root,
                     environment.as_deref(),
                     noninteractive,
@@ -226,7 +226,7 @@ pub(crate) fn initialize<'a>(
             }
         }
         publish_resources(installation, options.force, output).await?;
-        ApiInstallCommand::configurePassportInstallation(installation)
+        ApiInstallCommand::configure_passport_installation(installation)
     })
 }
 
@@ -240,5 +240,5 @@ async fn publish_resources(
             .publish(tag, force && tag != "passport-migrations", output)
             .await?;
     }
-    ApiInstallCommand::configurePassportResources(installation)
+    ApiInstallCommand::configure_passport_resources(installation)
 }

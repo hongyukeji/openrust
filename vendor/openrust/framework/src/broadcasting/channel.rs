@@ -229,7 +229,7 @@ impl ChannelRegistry {
                 .map_err(|error| BroadcastException::Backend(Box::new(error)))?
             {
                 let authorization = self.authorize_matching(channel, user, Some(&parts)).await?;
-                return Ok((Some(user.getAuthIdentifier()), authorization));
+                return Ok((Some(user.get_auth_identifier()), authorization));
             }
         }
         Ok((None, ChannelAuthorization::Denied))

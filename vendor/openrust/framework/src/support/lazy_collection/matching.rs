@@ -33,12 +33,12 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
         })
     }
 
-    pub fn isEmpty(&self) -> CollectionResult<bool> {
+    pub fn is_empty(&self) -> CollectionResult<bool> {
         Ok(self.first()?.is_none())
     }
 
-    pub fn isNotEmpty(&self) -> CollectionResult<bool> {
-        Ok(!self.isEmpty()?)
+    pub fn is_not_empty(&self) -> CollectionResult<bool> {
+        Ok(!self.is_empty()?)
     }
 
     pub fn contains(&self, value: &T) -> CollectionResult<bool>

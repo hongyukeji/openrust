@@ -120,7 +120,7 @@ Use `mimeType` to check content signatures, with a filename extension or `applic
 
 ### File Uploads
 
-Get an upload from a multipart request with `Request::file`. Use `store` and `storeAs` on the uploaded file, or `putFile` and `putFileAs` on the disk. `storePublicly` and `storePubliclyAs` request public visibility. Generated names use 40 random characters and a content-derived extension when recognized. The client filename and media type are metadata. Apply your application’s upload validation before saving.
+Get an upload from a multipart request with `Request::file`. Use `store` and `store_as` on the uploaded file, or `putFile` and `putFileAs` on the disk. `store_publicly` and `store_publicly_as` request public visibility. Generated names use 40 random characters and a content-derived extension when recognized. The client filename and media type are metadata. Apply your application’s upload validation before saving.
 
 ```rust
 use openrust::{
@@ -131,7 +131,7 @@ use openrust::{
 pub async fn store_attachment(request: &mut Request) -> Result<Response, HttpError> {
     let attachment = request.file("attachment").await?.ok_or(HttpError::InvalidRequest)?;
     let disk = Storage::disk(Some("public"))?;
-    let path = attachment.storePublicly("attachments", Some("public")).await?
+    let path = attachment.store_publicly("attachments", Some("public")).await?
         .ok_or_else(|| HttpError::Internal {
             source: std::io::Error::other("Could not store attachment").into(),
         })?;
@@ -221,14 +221,14 @@ Register `buildTemporaryUrlsUsing` or `buildTemporaryUploadUrlsUsing` on the loc
 
 ## Directories {#directories}
 
-Use `files` and `directories` to list direct children on a local disk. Use `allFiles` and `allDirectories` to include descendants. Pass `None` for the disk root. Results are disk-relative paths with `/` separators. File lists are sorted by path, and a missing directory returns an empty list.
+Use `files` and `directories` to list direct children on a local disk. Use `all_files` and `allDirectories` to include descendants. Pass `None` for the disk root. Results are disk-relative paths with `/` separators. File lists are sorted by path, and a missing directory returns an empty list.
 
 ```rust
 use openrust::filesystem::{FilesystemAdapter, FilesystemResult};
 
 async fn daily_reports(disk: &FilesystemAdapter) -> FilesystemResult<Vec<String>> {
     disk.makeDirectory("reports/daily").await?;
-    disk.allFiles(Some("reports")).await
+    disk.all_files(Some("reports")).await
 }
 ```
 

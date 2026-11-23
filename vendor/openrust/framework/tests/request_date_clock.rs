@@ -64,7 +64,7 @@ fn uri(input: &str, format: Option<&str>, timezone: Option<&str>) -> String {
 #[tokio::test]
 async fn request_date_matches_carbon_with_a_frozen_application_clock() -> TestResult {
     let mut app = fixture()?;
-    app.travelTo(date("2024-12-31T23:41:22.123456Z"));
+    app.travel_to(date("2024-12-31T23:41:22.123456Z"));
 
     // Fixed InteractsWithData and Carbon 3.8.4 on PHP 8.5, Asia/Tokyo.
     for (input, format, expected) in [
@@ -143,7 +143,7 @@ async fn request_date_matches_carbon_with_a_frozen_application_clock() -> TestRe
         ("@0", None, "1970-01-01 00:00:00.000000 +00:00 +00:00"),
     ] {
         let response = app.get(&uri(input, format, None)).await?;
-        response.assertOk();
+        response.assert_ok();
         assert_eq!(
             response.json::<String>()?,
             expected,
@@ -152,11 +152,11 @@ async fn request_date_matches_carbon_with_a_frozen_application_clock() -> TestRe
     }
     app.get(&uri(" ", None, None))
         .await?
-        .assertOk()
-        .assertExactJson(&serde_json::Value::Null);
+        .assert_ok()
+        .assert_exact_json(&serde_json::Value::Null);
     app.get(&uri("not a date", None, None))
         .await?
-        .assertStatus(StatusCode::BAD_REQUEST);
+        .assert_status(StatusCode::BAD_REQUEST);
     Ok(())
 }
 
@@ -165,23 +165,23 @@ async fn relative_request_dates_restore_the_previous_clock_and_follow_explicit_t
 -> TestResult {
     let mut first = fixture()?;
     let mut second = fixture()?;
-    first.travelTo(date("2024-12-31T23:41:22.123456Z"));
-    second.travelTo(date("2020-02-28T23:00:00Z"));
+    first.travel_to(date("2024-12-31T23:41:22.123456Z"));
+    second.travel_to(date("2020-02-28T23:00:00Z"));
     let request = uri("tomorrow", None, Some("UTC"));
     let (left, right) = tokio::join!(first.get(&request), second.get(&request));
     left?
-        .assertOk()
-        .assertExactJson(&serde_json::json!("2025-01-01 00:00:00.000000 +00:00 UTC"));
+        .assert_ok()
+        .assert_exact_json(&serde_json::json!("2025-01-01 00:00:00.000000 +00:00 UTC"));
     right?
-        .assertOk()
-        .assertExactJson(&serde_json::json!("2020-02-29 00:00:00.000000 +00:00 UTC"));
+        .assert_ok()
+        .assert_exact_json(&serde_json::json!("2020-02-29 00:00:00.000000 +00:00 UTC"));
     first
-        .travelToFor(date("2024-03-10T06:30:00Z"), async |app, _| {
+        .travel_to_for(date("2024-03-10T06:30:00Z"), async |app, _| {
             let request = uri("tomorrow", None, Some("America/New_York"));
             app.get(&request)
                 .await?
-                .assertOk()
-                .assertExactJson(&serde_json::json!(
+                .assert_ok()
+                .assert_exact_json(&serde_json::json!(
                     "2024-03-11 00:00:00.000000 -04:00 America/New_York"
                 ));
             Ok(())
@@ -190,7 +190,7 @@ async fn relative_request_dates_restore_the_previous_clock_and_follow_explicit_t
     first
         .get(&request)
         .await?
-        .assertOk()
-        .assertExactJson(&serde_json::json!("2025-01-01 00:00:00.000000 +00:00 UTC"));
+        .assert_ok()
+        .assert_exact_json(&serde_json::json!("2025-01-01 00:00:00.000000 +00:00 UTC"));
     Ok(())
 }

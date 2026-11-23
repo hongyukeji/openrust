@@ -26,7 +26,6 @@ pub struct PasswordBroker {
     timebox: Duration,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl PasswordBroker {
     pub fn new(
         tokens: Arc<dyn TokenRepository>,
@@ -42,7 +41,7 @@ impl PasswordBroker {
         }
     }
 
-    pub async fn getUser(
+    pub async fn get_user(
         &self,
         credentials: &Credentials,
     ) -> AuthResult<Option<Box<dyn Authenticatable>>> {
@@ -54,7 +53,7 @@ impl PasswordBroker {
                 .map(|(field, value)| (field.as_str(), value.clone())),
             "",
         );
-        let user = self.users.retrieveByCredentials(&lookup).await?;
+        let user = self.users.retrieve_by_credentials(&lookup).await?;
         if user
             .as_ref()
             .is_some_and(|user| user.as_password_reset().is_none())
@@ -66,23 +65,23 @@ impl PasswordBroker {
         Ok(user)
     }
 
-    pub fn getRepository(&self) -> &dyn TokenRepository {
+    pub fn get_repository(&self) -> &dyn TokenRepository {
         self.tokens.as_ref()
     }
 
-    pub async fn createToken(&self, user: &dyn CanResetPassword) -> AuthResult<String> {
+    pub async fn create_token(&self, user: &dyn CanResetPassword) -> AuthResult<String> {
         self.tokens.create(user).await
     }
 
-    pub async fn deleteToken(&self, user: &dyn CanResetPassword) -> AuthResult<()> {
+    pub async fn delete_token(&self, user: &dyn CanResetPassword) -> AuthResult<()> {
         self.tokens.delete(user).await
     }
 
-    pub async fn tokenExists(&self, user: &dyn CanResetPassword, token: &str) -> AuthResult<bool> {
+    pub async fn token_exists(&self, user: &dyn CanResetPassword, token: &str) -> AuthResult<bool> {
         self.tokens.exists(user, token).await
     }
 
-    pub async fn sendResetLink(
+    pub async fn send_reset_link(
         &self,
         credentials: &Credentials,
         callback: Option<&ResetLinkCallback<'_>>,
@@ -100,7 +99,7 @@ impl PasswordBroker {
         credentials: &Credentials,
         callback: Option<&ResetLinkCallback<'_>>,
     ) -> AuthResult<Status> {
-        let Some(user) = self.getUser(credentials).await? else {
+        let Some(user) = self.get_user(credentials).await? else {
             return Ok(Status::InvalidUser);
         };
         let user = user.as_password_reset().ok_or(AuthError::Configuration(
@@ -114,11 +113,11 @@ impl PasswordBroker {
                 .await?
                 .unwrap_or(Status::ResetLinkSent));
         }
-        user.sendPasswordResetNotification(&token).await?;
+        user.send_password_reset_notification(&token).await?;
         self.events
             .dispatch(
                 Arc::new(crate::auth::events::PasswordResetLinkSent {
-                    user: user.getAuthIdentifier(),
+                    user: user.get_auth_identifier(),
                 }),
                 &mut EventContext::new(),
             )
@@ -152,7 +151,7 @@ impl PasswordBroker {
         password: &[u8],
         callback: &ResetCallback<'_>,
     ) -> AuthResult<Status> {
-        let Some(mut user) = self.getUser(credentials).await? else {
+        let Some(mut user) = self.get_user(credentials).await? else {
             return Ok(Status::InvalidUser);
         };
         let user = user
@@ -164,7 +163,7 @@ impl PasswordBroker {
             return Ok(Status::InvalidToken);
         };
         // Finalize using the email at validation time even if the callback changes the user.
-        let email = user.getEmailForPasswordReset().to_owned();
+        let email = user.get_email_for_password_reset().to_owned();
         let result = callback(user, password).await;
         let completion = self.tokens.finish(&email, claim, result.is_ok()).await;
         result?;
@@ -174,12 +173,12 @@ impl PasswordBroker {
 }
 
 impl Contract for PasswordBroker {
-    fn sendResetLink<'a>(
+    fn send_reset_link<'a>(
         &'a self,
         credentials: &'a Credentials,
         callback: Option<&'a ResetLinkCallback<'a>>,
     ) -> AuthFuture<'a, AuthResult<Status>> {
-        Box::pin(self.sendResetLink(credentials, callback))
+        Box::pin(self.send_reset_link(credentials, callback))
     }
 
     fn reset<'a>(

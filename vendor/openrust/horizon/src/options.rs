@@ -101,7 +101,7 @@ impl SupervisorOptions {
         options.queue = queue.into().split(',').map(str::to_owned).collect();
         options
     }
-    pub fn toArray(&self) -> Result<serde_json::Value> {
+    pub fn to_array(&self) -> Result<serde_json::Value> {
         serde_json::to_value(self).map_err(|_| Error::InvalidConfiguration)
     }
     pub fn fromArray(value: serde_json::Value) -> Result<Self> {
@@ -110,7 +110,7 @@ impl SupervisorOptions {
         options.validate()?;
         Ok(options)
     }
-    pub fn toJson(&self) -> Result<String> {
+    pub fn to_json(&self) -> Result<String> {
         serde_json::to_string(self).map_err(|_| Error::InvalidConfiguration)
     }
     /// Literal argv for the native worker; no shell interpolation is used.

@@ -69,11 +69,11 @@ pub struct NewAccessToken {
 )]
 impl NewAccessToken {
     /// Includes the plaintext credential for the issuance response.
-    pub fn toArray(&self) -> serde_json::Result<serde_json::Value> {
+    pub fn to_array(&self) -> serde_json::Result<serde_json::Value> {
         serde_json::to_value(self.issuance_payload())
     }
 
-    pub fn toJson(&self) -> serde_json::Result<Zeroizing<String>> {
+    pub fn to_json(&self) -> serde_json::Result<Zeroizing<String>> {
         serde_json::to_string(&self.issuance_payload()).map(Zeroizing::new)
     }
 
@@ -121,7 +121,7 @@ impl PersonalAccessTokens {
         }
     }
 
-    pub async fn createToken(
+    pub async fn create_token(
         &self,
         tokenable_type: &str,
         tokenable_id: impl Into<AuthIdentifier>,

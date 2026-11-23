@@ -74,7 +74,7 @@ async fn verify(config: Json, id: &str) {
     let options = record.getValueObject::<Fluent>("options").unwrap().unwrap();
     assert!(
         options
-            .toJson()
+            .to_json()
             .unwrap()
             .starts_with(r#"{"z":{"enabled":null},"z.enabled":"literal","#)
     );
@@ -84,16 +84,16 @@ async fn verify(config: Json, id: &str) {
     assert!(!options.has("z.missing"));
     assert_eq!(options.get("items.*.name"), Some(json!(["first", "last"])));
     assert_eq!(options.get("items.{last}.name"), Some(json!("last")));
-    assert_eq!(options.scope("indexed").toArray(), json!(["item"]));
+    assert_eq!(options.scope("indexed").to_array(), json!(["item"]));
     assert_eq!(options.value("empty"), Some(&json!([])));
     assert!(!record.isDirty().unwrap());
 
     record
         .editValueObject::<Fluent>("options", |options| {
             options.set("items.*.enabled", json!(true)).unwrap();
-            let before = options.toArray();
+            let before = options.to_array();
             assert!(options.set(&"path.".repeat(128), json!(true)).is_err());
-            assert_eq!(options.toArray(), before);
+            assert_eq!(options.to_array(), before);
             Ok(())
         })
         .unwrap();
@@ -112,10 +112,10 @@ async fn verify(config: Json, id: &str) {
     assert!(record.save().await.unwrap());
     let mut record = query().findOrFail(key.clone()).await.unwrap();
     assert_eq!(
-        record.toArray().unwrap()["options"]["items"][1]["enabled"],
+        record.to_array().unwrap()["options"]["items"][1]["enabled"],
         true
     );
-    assert_eq!(record.toArray().unwrap()["options"]["z"]["enabled"], true);
+    assert_eq!(record.to_array().unwrap()["options"]["z"]["enabled"], true);
 
     record.setAttributeValue("options", "scalar").unwrap();
     assert!(record.save().await.unwrap());
@@ -132,7 +132,7 @@ async fn verify(config: Json, id: &str) {
         .unwrap();
     assert!(record.save().await.unwrap());
     let mut record = query().findOrFail(key.clone()).await.unwrap();
-    assert_eq!(record.toArray().unwrap()["options"], json!([]));
+    assert_eq!(record.to_array().unwrap()["options"], json!([]));
     record.setAttributeValue("options", Value::Null).unwrap();
     assert!(record.save().await.unwrap());
     let mut record = query().findOrFail(key).await.unwrap();

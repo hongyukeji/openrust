@@ -4,7 +4,7 @@ Precognition runs a form request's authorization and validation before a user su
 
 ## Enabling Precognition
 
-Apply the built-in `precognitive` middleware to the routes you want to validate. Use an injected `ValidatedFormRequest` or `ControllerDispatcher::withFormRequest` so validation runs before the controller action.
+Apply the built-in `precognitive` middleware to the routes you want to validate. Use an injected `ValidatedFormRequest` or `ControllerDispatcher::with_form_request` so validation runs before the controller action.
 
 ```rust
 use openrust::{
@@ -26,7 +26,7 @@ fn routes() -> Result<(), RoutingError> {
 }
 ```
 
-`StoreUser` implements [FormRequest](../the-basics/validation.md). A request becomes precognitive only when the middleware confirms the exact header `Precognition: true`. `Request::isAttemptingPrecognition()` checks the header; `Request::isPrecognitive()` checks the server's confirmation. Sending the header to a route without the middleware leaves ordinary execution and Session persistence intact.
+`StoreUser` implements [FormRequest](../the-basics/validation.md). A request becomes precognitive only when the middleware confirms the exact header `Precognition: true`. `Request::is_attempting_precognition()` checks the header; `Request::is_precognitive()` checks the server's confirmation. Sending the header to a route without the middleware leaves ordinary execution and Session persistence intact.
 
 ## Selecting validation rules
 
@@ -36,7 +36,7 @@ The middleware adds `Precognition: true` to attempted requests and appends `Prec
 
 ## Request lifecycle and side effects
 
-Middleware, controller construction, form construction, input preparation and authorization still run. A successful injected form request stops before the action executes. With `Precognition-Validate-Only`, the success hook also stops before `passedValidation`; without that header, `passedValidation` runs before dispatch stops. Keep these hooks and dependency factories free of unintended writes.
+Middleware, controller construction, form construction, input preparation and authorization still run. A successful injected form request stops before the action executes. With `Precognition-Validate-Only`, the success hook also stops before `passed_validation`; without that header, `passed_validation` runs before dispatch stops. Keep these hooks and dependency factories free of unintended writes.
 
 Confirmed requests start and read the normal Session and return its cookie, but skip saving it and updating the previous URL. This preserves flash data and prevents ordinary middleware Session changes from being persisted. Precognition does not roll back writes made by middleware, dependency constructors, custom validation rules, external services or explicit Session operations.
 
@@ -44,7 +44,7 @@ Confirmed requests start and read the normal Session and return its cookie, but 
 
 The server validates uploaded files using the normal [file rules](../the-basics/validation.md). Frontend helpers omit files by default. Call `validateFiles()` when live validation should upload them. A required file omitted by the client still fails `required` unless you adjust the rules.
 
-Override `FormRequest::validationRules(&self, request: &Request)` to select rules based on `request.isPrecognitive()`. Its default delegates to `rules()`. For example, require a password or file only for the final submission while keeping type and size checks on files that are sent.
+Override `FormRequest::validation_rules(&self, request: &Request)` to select rules based on `request.is_precognitive()`. Its default delegates to `rules()`. For example, require a password or file only for the final submission while keeping type and size checks on files that are sent.
 
 ## JavaScript helper
 

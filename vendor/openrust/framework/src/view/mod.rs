@@ -311,7 +311,7 @@ impl From<crate::contracts::container::BindingResolutionError> for ViewError {
 
 #[allow(non_snake_case)]
 impl crate::contracts::support::Responsable for View {
-    async fn toResponse(self, request: &mut Request) -> Result<Response, HttpError> {
+    async fn to_response(self, request: &mut Request) -> Result<Response, HttpError> {
         self.render(request).await
     }
 }

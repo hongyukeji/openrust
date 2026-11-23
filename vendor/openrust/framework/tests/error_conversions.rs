@@ -166,12 +166,12 @@ async fn config_facade_question_mark_preserves_failure_type_reporting_and_redact
         }).unwrap();
         let response = app.get("/config").await.unwrap();
         if valid {
-            response.assertOk().assertContent("\"locale\"");
+            response.assert_ok().assert_content("\"locale\"");
         } else {
-            response.assertStatus(StatusCode::INTERNAL_SERVER_ERROR);
+            response.assert_status(StatusCode::INTERNAL_SERVER_ERROR);
             response
-                .assertDontSee("private-token", false)
-                .assertDontSee("locale_form_field", false);
+                .assert_dont_see("private-token", false)
+                .assert_dont_see("locale_form_field", false);
         }
     }
     assert_eq!(reported.load(std::sync::atomic::Ordering::SeqCst), 2);

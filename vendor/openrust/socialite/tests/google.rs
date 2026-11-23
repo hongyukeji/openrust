@@ -111,7 +111,7 @@ fn provider<'a>(request: &'a mut Request, base: &str, client_id: &str) -> Abstra
     AbstractProvider::new(request,ProviderConfig::from_config(&json!({"client_id":client_id,"client_secret":"secret","redirect":"https://rp.test/callback"})).unwrap(),Arc::new(Factory::new().unwrap()),Arc::new(GoogleProvider::withEndpoints(ProviderEndpoints::new(format!("{base}/authorize"),format!("{base}/token"),format!("{base}/user")),format!("{base}/certs"))))
 }
 fn mapped(user: &openrust_socialite::two::User) -> Value {
-    json!({"id":user.getId(),"nickname":user.getNickname(),"name":user.getName(),"email":user.getEmail(),"avatar":user.getAvatar(),"raw":user.getRaw(),"attributes":user.attributes})
+    json!({"id":user.get_id(),"nickname":user.getNickname(),"name":user.get_name(),"email":user.getEmail(),"avatar":user.getAvatar(),"raw":user.getRaw(),"attributes":user.attributes})
 }
 #[tokio::test]
 async fn google_default_fields_mapping_and_oauth_exchange_refresh_match_fixed_php() {
@@ -194,7 +194,7 @@ async fn google_jwks_rotation_and_code_exchange_jwt_path_keep_client_audience_is
     let mut p = provider(&mut request, &base, "client");
     p.stateless();
     *remote.mode.lock().unwrap() = "jwt".into();
-    assert_eq!(p.user().await.unwrap().getId(), &json!("user-42"));
+    assert_eq!(p.user().await.unwrap().get_id(), &json!("user-42"));
     *remote.keys.lock().unwrap() = fixture()["rotated_keys"].clone();
     let rotated = fixture()["jwt"]["rotation"]["token"]
         .as_str()

@@ -131,7 +131,7 @@ impl Filesystem for Adapter {
     ) -> Future<'a, Result<Vec<String>>> {
         Box::pin(async move {
             if recursive {
-                Self::allFiles(self, path).await
+                Self::all_files(self, path).await
             } else {
                 Self::files(self, path).await
             }

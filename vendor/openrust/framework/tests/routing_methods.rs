@@ -75,7 +75,7 @@ fn facade_routes() -> Result<(), RoutingError> {
     Route::post("/literal/overlap", last)?;
     Route::group(RouteGroup::new(), |router| {
         let info = router
-            .getRoutes()
+            .get_routes()
             .into_iter()
             .find(|r| r.uri == "api/post/{id}")
             .unwrap();
@@ -282,7 +282,7 @@ fn dedicated_methods_preserve_registration_errors_and_caller() {
     ));
     let line = line!() + 1;
     router.post("/x", echo).unwrap().name("create");
-    let info = &router.getRoutes()[0];
+    let info = &router.get_routes()[0];
     assert_eq!(info.path, format!("{}:{line}", file!()));
     assert_eq!(info.name.as_deref(), Some("create"));
     assert!(info.action.ends_with("::echo"));

@@ -48,7 +48,7 @@ impl Broadcast {
                         "/broadcasting/user-auth",
                         handler,
                     )?
-                    .withoutMiddleware("framework.prevent_request_forgery");
+                    .without_middleware("framework.prevent_request_forgery");
                 Ok(())
             },
         )

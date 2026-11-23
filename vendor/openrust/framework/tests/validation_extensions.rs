@@ -31,7 +31,7 @@ async fn extensions_match_real_fixed_php_scheduling_parameters_and_messages() {
                              value: Option<&Value>,
                              parameters: &[String],
                              validator: &openrust::validation::Validator| {
-            assert!(validator.getValue(attribute).is_ok());
+            assert!(validator.get_value(attribute).is_ok());
             log.lock()
                 .unwrap()
                 .push(json!({"attribute":attribute,"value":value,"parameters":parameters}));
@@ -41,10 +41,12 @@ async fn extensions_match_real_fixed_php_scheduling_parameters_and_messages() {
             "extend" => {
                 factory.extend("CustomRule", callback, Some("Invalid :attribute (:token)."))
             }
-            "extendImplicit" => {
-                factory.extendImplicit("CustomRule", callback, Some("Invalid :attribute (:token)."))
-            }
-            "extendDependent" => factory.extendDependent(
+            "extendImplicit" => factory.extend_implicit(
+                "CustomRule",
+                callback,
+                Some("Invalid :attribute (:token)."),
+            ),
+            "extendDependent" => factory.extend_dependent(
                 "CustomRule",
                 callback,
                 Some("Invalid :attribute (:token)."),
@@ -102,7 +104,7 @@ async fn factory_snapshots_and_resolver_callbacks_preserve_instance_isolation() 
             .upgrade()
             .unwrap()
             .extend("next", |_, _, _, _| Ok(true), None);
-        validator.addExtension("local", |_, _, _, _| Ok(true));
+        validator.add_extension("local", |_, _, _, _| Ok(true));
         Ok(validator)
     });
     factory.extend("custom", |_, _, _, _| Ok(true), Some("new :attribute"));
@@ -123,19 +125,19 @@ async fn factory_snapshots_and_resolver_callbacks_preserve_instance_isolation() 
 async fn bulk_and_single_registration_preserve_implicit_flags_and_factory_precedence() {
     let factory = Factory::default();
     factory.extend("custom", |_, _, _, _| Ok(true), None);
-    factory.extendImplicit("custom", |_, _, _, _| Ok(false), Some("implicit"));
-    factory.extendDependent("custom", |_, _, _, _| Ok(true), None);
+    factory.extend_implicit("custom", |_, _, _, _| Ok(false), Some("implicit"));
+    factory.extend_dependent("custom", |_, _, _, _| Ok(true), None);
     let mut validator = make(&factory, json!({}), "nullable|custom");
     assert!(validator.validate().await.is_ok());
     let fails: ValidationExtension = Arc::new(|_, _, _, _| Ok(false));
-    validator.addImplicitExtensions([("OtherRule".to_owned(), fails.clone())]);
-    validator.addDependentExtensions([("OtherRule".to_owned(), fails.clone())]);
-    validator.addExtensions([("OtherRule".to_owned(), fails)]);
-    validator.setRules(RuleSet::parse([("value", "nullable|other_rule")]).unwrap());
-    validator.setCustomMessages([("other_rule".into(), "missing :attribute".into())].into());
+    validator.add_implicit_extensions([("OtherRule".to_owned(), fails.clone())]);
+    validator.add_dependent_extensions([("OtherRule".to_owned(), fails.clone())]);
+    validator.add_extensions([("OtherRule".to_owned(), fails)]);
+    validator.set_rules(RuleSet::parse([("value", "nullable|other_rule")]).unwrap());
+    validator.set_custom_messages([("other_rule".into(), "missing :attribute".into())].into());
     assert!(validator.validate().await.is_err());
     assert_eq!(validator.errors().first(None, None), "missing value");
-    validator.addExtension("OtherRule", |_, value, _, _| Ok(value.is_none()));
+    validator.add_extension("OtherRule", |_, value, _, _| Ok(value.is_none()));
     assert!(validator.errors().is_empty());
     assert!(validator.validate().await.is_ok());
 }
@@ -150,13 +152,13 @@ async fn replacers_receive_builtin_parameters_and_follow_custom_message_selectio
     });
     let mut validator = make(&factory, json!({"value":1}), "Integer|min:3");
     validator
-        .setCustomMessages([("value.min".into(), "minimum :min for :attribute".into())].into());
+        .set_custom_messages([("value.min".into(), "minimum :min for :attribute".into())].into());
     assert!(validator.validate().await.is_err());
     assert_eq!(
         validator.errors().first(None, None),
         "minimum :min for value/replaced"
     );
-    validator.setRules(
+    validator.set_rules(
         RuleSet::new()
             .field("value", [Rule::integer(), Rule::min(3)])
             .unwrap(),
@@ -166,7 +168,7 @@ async fn replacers_receive_builtin_parameters_and_follow_custom_message_selectio
         validator.errors().first(None, None),
         "minimum :min for value/replaced"
     );
-    validator.addReplacer("Min", |_, _, _, parameters, _| parameters.join(","));
+    validator.add_replacer("Min", |_, _, _, parameters, _| parameters.join(","));
     assert!(validator.validate().await.is_err());
     assert_eq!(validator.errors().first(None, None), "3");
 }
@@ -187,15 +189,15 @@ async fn unknown_rules_fail_only_when_scheduled_and_callback_errors_propagate() 
         Err(ValidationError::InvalidRule)
     ));
     let mut validator = make(&factory, json!({"value":"x"}), "custom");
-    validator.addExtension("custom", |_, _, _, _| Err(ValidationError::InvalidPath));
+    validator.add_extension("custom", |_, _, _, _| Err(ValidationError::InvalidPath));
     assert!(matches!(
         validator.validate().await,
         Err(ValidationError::InvalidPath)
     ));
-    validator.addExtension("custom", |_, _, _, _| Ok(true));
+    validator.add_extension("custom", |_, _, _, _| Ok(true));
     assert!(validator.validate().await.is_ok());
     // 类型化异步应用规则仍沿原有入口执行。
-    validator.setRules(RuleSet::new().field("value", [Rule::required()]).unwrap());
+    validator.set_rules(RuleSet::new().field("value", [Rule::required()]).unwrap());
     assert!(validator.validate().await.is_ok());
 }
 
@@ -211,9 +213,9 @@ async fn unvalidated_array_key_policy_matches_fixed_php_and_is_snapshotted_at_cr
     {
         let factory = Factory::default();
         if case["exclude"].as_bool().unwrap() {
-            factory.excludeUnvalidatedArrayKeys();
+            factory.exclude_unvalidated_array_keys();
         } else {
-            factory.includeUnvalidatedArrayKeys();
+            factory.include_unvalidated_array_keys();
         }
         let rules = RuleSet::parse(
             case["rules"]
@@ -232,7 +234,7 @@ async fn unvalidated_array_key_policy_matches_fixed_php_and_is_snapshotted_at_cr
             )
             .unwrap();
         assert_eq!(
-            validator.excludeUnvalidatedArrayKeys,
+            validator.exclude_unvalidated_array_keys,
             case["exclude"].as_bool().unwrap()
         );
         let result = validator.validate().await;
@@ -263,17 +265,17 @@ async fn unvalidated_array_key_policy_matches_fixed_php_and_is_snapshotted_at_cr
             Default::default(),
         )
         .unwrap();
-    factory.includeUnvalidatedArrayKeys();
+    factory.include_unvalidated_array_keys();
     assert_eq!(
         before.validate().await.unwrap().into_value(),
         json!({"user":{"name":"Ada"}})
     );
-    before.excludeUnvalidatedArrayKeys = false;
+    before.exclude_unvalidated_array_keys = false;
     assert_eq!(
         before.validated().unwrap().into_value(),
         json!({"user":{"name":"Ada","secret":"hidden"}})
     );
-    before.excludeUnvalidatedArrayKeys = true;
+    before.exclude_unvalidated_array_keys = true;
     assert_eq!(
         before.safe().unwrap().into_value(),
         json!({"user":{"name":"Ada"}})
@@ -289,7 +291,7 @@ async fn factory_contract_exposes_registration_to_dynamic_consumers() {
         Arc::new(|_, _, _, _| Ok(false)),
         Some("bad :attribute"),
     );
-    contract.extendImplicit(
+    contract.extend_implicit(
         "mandatory",
         Arc::new(|_, value, _, _| Ok(value.is_some())),
         Some("missing :attribute"),

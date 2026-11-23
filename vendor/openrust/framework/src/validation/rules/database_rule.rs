@@ -105,13 +105,13 @@ impl DatabaseRule {
         self.conditions
             .iter()
             .fold(query, |query, condition| match condition {
-                Condition::Compare(column, "=", Value::Null) => query.whereNull(column),
-                Condition::Compare(column, "!=", Value::Null) => query.whereNotNull(column),
+                Condition::Compare(column, "=", Value::Null) => query.where_null(column),
+                Condition::Compare(column, "!=", Value::Null) => query.where_not_null(column),
                 Condition::Compare(column, operator, value) => {
                     query.r#where(column, operator, value.clone())
                 }
-                Condition::In(column, values, false) => query.whereIn(column, values.clone()),
-                Condition::In(column, values, true) => query.whereNotIn(column, values.clone()),
+                Condition::In(column, values, false) => query.where_in(column, values.clone()),
+                Condition::In(column, values, true) => query.where_not_in(column, values.clone()),
                 Condition::Callback(callback) => {
                     query.whereNested(|conditions| callback(conditions))
                 }
@@ -126,35 +126,35 @@ macro_rules! database_conditions {
             self
         }
 
-        pub fn whereNot(mut self, column: &str, value: impl Into<Value>) -> Self {
+        pub fn where_not(mut self, column: &str, value: impl Into<Value>) -> Self {
             self.target.compare(column, "!=", value.into());
             self
         }
 
-        pub fn whereNull(self, column: &str) -> Self {
+        pub fn where_null(self, column: &str) -> Self {
             self.r#where(column, Value::Null)
         }
 
-        pub fn whereNotNull(self, column: &str) -> Self {
-            self.whereNot(column, Value::Null)
+        pub fn where_not_null(self, column: &str) -> Self {
+            self.where_not(column, Value::Null)
         }
 
-        pub fn whereIn(mut self, column: &str, values: Vec<Value>) -> Self {
+        pub fn where_in(mut self, column: &str, values: Vec<Value>) -> Self {
             self.target.in_set(column, values, false);
             self
         }
 
-        pub fn whereNotIn(mut self, column: &str, values: Vec<Value>) -> Self {
+        pub fn where_not_in(mut self, column: &str, values: Vec<Value>) -> Self {
             self.target.in_set(column, values, true);
             self
         }
 
-        pub fn withoutTrashed(self, column: Option<&str>) -> Self {
-            self.whereNull(column.unwrap_or("deleted_at"))
+        pub fn without_trashed(self, column: Option<&str>) -> Self {
+            self.where_null(column.unwrap_or("deleted_at"))
         }
 
-        pub fn onlyTrashed(self, column: Option<&str>) -> Self {
-            self.whereNotNull(column.unwrap_or("deleted_at"))
+        pub fn only_trashed(self, column: Option<&str>) -> Self {
+            self.where_not_null(column.unwrap_or("deleted_at"))
         }
 
         pub fn using(

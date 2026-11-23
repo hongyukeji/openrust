@@ -202,7 +202,7 @@ async fn morph_aggregate_helpers_preserve_scopes_null_targets_aliases_and_cached
         ),
         Some(20.)
     );
-    let before = activity.toArray().unwrap();
+    let before = activity.to_array().unwrap();
     assert!(
         activity
             .loadMorphSum(
@@ -217,7 +217,7 @@ async fn morph_aggregate_helpers_preserve_scopes_null_targets_aliases_and_cached
             .is_err()
     );
     assert_eq!(
-        activity.toArray().unwrap(),
+        activity.to_array().unwrap(),
         before,
         "SQL 失败不能部分改写缓存目标"
     );
@@ -227,5 +227,5 @@ async fn morph_aggregate_helpers_preserve_scopes_null_targets_aliases_and_cached
             .await
             .is_err()
     );
-    assert_eq!(activity.toArray().unwrap(), before);
+    assert_eq!(activity.to_array().unwrap(), before);
 }

@@ -4,7 +4,7 @@ Precognition 在最终提交前执行表单请求的授权与验证。成功返�
 
 ## 启用 Precognition
 
-为需要预验证的路由添加内置 `precognitive` 中间件。使用注入式 `ValidatedFormRequest` 或 `ControllerDispatcher::withFormRequest`，让验证在控制器动作前执行。
+为需要预验证的路由添加内置 `precognitive` 中间件。使用注入式 `ValidatedFormRequest` 或 `ControllerDispatcher::with_form_request`，让验证在控制器动作前执行。
 
 ```rust
 use openrust::{
@@ -26,7 +26,7 @@ fn routes() -> Result<(), RoutingError> {
 }
 ```
 
-`StoreUser` 实现 [FormRequest](../the-basics/validation.md)。只有中间件确认精确请求头 `Precognition: true` 后，请求才进入预验证模式。`Request::isAttemptingPrecognition()` 检查请求头，`Request::isPrecognitive()` 检查服务端确认状态。未启用中间件的路由即使收到该头，仍正常执行并保存 Session。
+`StoreUser` 实现 [FormRequest](../the-basics/validation.md)。只有中间件确认精确请求头 `Precognition: true` 后，请求才进入预验证模式。`Request::is_attempting_precognition()` 检查请求头，`Request::is_precognitive()` 检查服务端确认状态。未启用中间件的路由即使收到该头，仍正常执行并保存 Session。
 
 ## 选择验证规则
 
@@ -36,7 +36,7 @@ fn routes() -> Result<(), RoutingError> {
 
 ## 请求生命周期与副作用
 
-中间件、控制器构造、表单构造、输入准备与授权仍会执行。注入式表单验证成功后，在动作执行前短路。存在 `Precognition-Validate-Only` 时，成功钩子还会跳过 `passedValidation`；未发送该头时，先执行 `passedValidation` 再停止分发。避免在这些钩子和依赖工厂中进行非预期写入。
+中间件、控制器构造、表单构造、输入准备与授权仍会执行。注入式表单验证成功后，在动作执行前短路。存在 `Precognition-Validate-Only` 时，成功钩子还会跳过 `passed_validation`；未发送该头时，先执行 `passed_validation` 再停止分发。避免在这些钩子和依赖工厂中进行非预期写入。
 
 确认的预验证请求正常启动并读取 Session、返回 Cookie，但不保存 Session，也不更新上一页 URL。因此闪存被保留，中间件的常规 Session 修改不会持久化。Precognition 不回滚中间件、依赖构造、自定义验证规则、外部服务或显式 Session 操作产生的写入。
 
@@ -44,7 +44,7 @@ fn routes() -> Result<(), RoutingError> {
 
 服务端按常规[文件规则](../the-basics/validation.md)验证实际上传的文件。前端 helper 默认省略文件，需要实时上传验证时调用 `validateFiles()`。客户端省略必填文件后，除非调整规则，否则仍会触发 `required`。
 
-重写 `FormRequest::validationRules(&self, request: &Request)`，根据 `request.isPrecognitive()` 选择规则。默认实现委托 `rules()`。例如只在最终提交时要求密码或文件，同时保留已上传文件的类型和大小检查。
+重写 `FormRequest::validation_rules(&self, request: &Request)`，根据 `request.is_precognitive()` 选择规则。默认实现委托 `rules()`。例如只在最终提交时要求密码或文件，同时保留已上传文件的类型和大小检查。
 
 ## JavaScript helper
 

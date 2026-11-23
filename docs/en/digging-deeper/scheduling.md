@@ -11,9 +11,9 @@ pub(crate) fn register() -> Result<(), ConsoleError> {
     Schedule::configure(|schedule| {
         schedule
             .command("inspire", [])
-            .dailyAt("08:30")?
+            .daily_at("08:30")?
             .timezone(openrust::support::Date::timezone("Asia/Shanghai").expect("known IANA time zone"))
-            .withoutOverlapping();
+            .without_overlapping();
 
         Ok(())
     })
@@ -22,29 +22,29 @@ pub(crate) fn register() -> Result<(), ConsoleError> {
 
 Use `call` for an async callback, `command` for a registered Artisan command, `exec` for an external program, and `job` to dispatch a queue payload. Pass program and arguments separately. `exec` runs from the application base path. The callback receives the application and the command output. Each scheduled queue dispatch creates a fresh job ID.
 
-Use `cron` for a five-field expression, `dailyAt` for a daily wall-clock time, and `everyMinute` or a sub-minute frequency such as `everyTenSeconds` for repeated tasks. The scheduler uses `app.schedule_timezone`, then `app.timezone`, then UTC. Use `timezone` to override it for one task. `environments`, `when` and `skip` filter execution. At daylight-saving transitions a local time can occur twice or be skipped.
+Use `cron` for a five-field expression, `daily_at` for a daily wall-clock time, and `every_minute` or a sub-minute frequency such as `every_ten_seconds` for repeated tasks. The scheduler uses `app.schedule_timezone`, then `app.timezone`, then UTC. Use `timezone` to override it for one task. `environments`, `when` and `skip` filter execution. At daylight-saving transitions a local time can occur twice or be skipped.
 
 ### Maintenance mode {#maintenance-mode}
 
-By default, scheduled tasks are skipped while the application is in [maintenance mode](../getting-started/configuration.md#maintenance-mode). To keep a task eligible during maintenance, add `evenInMaintenanceMode()` inside `Schedule::configure`.
+By default, scheduled tasks are skipped while the application is in [maintenance mode](../getting-started/configuration.md#maintenance-mode). To keep a task eligible during maintenance, add `even_in_maintenance_mode()` inside `Schedule::configure`.
 
 ```rust
-schedule.command("inspire", []).evenInMaintenanceMode();
+schedule.command("inspire", []).even_in_maintenance_mode();
 ```
 
 When a sub-minute run observes maintenance mode, ordinary tasks stay suspended until that run ends. After `./artisan up`, the next `./artisan schedule:run` can run ordinary tasks again.
 
 ### Pausing scheduled tasks {#pausing-scheduled-tasks}
 
-Pause the scheduler with `./artisan schedule:pause`. Resume it with `./artisan schedule:resume` or its alias `./artisan schedule:continue`. The pause is stored in the application's default cache, so use a shared default cache and namespace when separate scheduler processes must see the same state. Use `schedule.useCache(...)` to select the store for scheduling mutexes.
+Pause the scheduler with `./artisan schedule:pause`. Resume it with `./artisan schedule:resume` or its alias `./artisan schedule:continue`. The pause is stored in the application's default cache, so use a shared default cache and namespace when separate scheduler processes must see the same state. Use `schedule.use_cache(...)` to select the store for scheduling mutexes.
 
-Add `evenWhenPaused()` inside `Schedule::configure` to keep a task eligible while the scheduler is paused.
+Add `even_when_paused()` inside `Schedule::configure` to keep a task eligible while the scheduler is paused.
 
 ```rust
-schedule.command("inspire", []).evenWhenPaused();
+schedule.command("inspire", []).even_when_paused();
 ```
 
-Sub-minute runners observe both pause and resume during the same run. A pause lets a running task finish. To disable pausing for an application, call `schedule.doNotAllowPausing()` inside `Schedule::configure`. Listen for `SchedulePaused`, `ScheduleResumed`, and `ScheduledTaskSkipped` from `openrust::console::events`.
+Sub-minute runners observe both pause and resume during the same run. A pause lets a running task finish. To disable pausing for an application, call `schedule.do_not_allow_pausing()` inside `Schedule::configure`. Listen for `SchedulePaused`, `ScheduleResumed`, and `ScheduledTaskSkipped` from `openrust::console::events`.
 
 ### Schedule groups {#schedule-groups}
 
@@ -53,7 +53,7 @@ Apply shared scheduling attributes to multiple tasks with `group` inside `Schedu
 ```rust
 schedule
     .timezone(openrust::support::Date::timezone("Asia/Tokyo").expect("known IANA time zone"))
-    .dailyAt("17:00")?
+    .daily_at("17:00")?
     .group(|schedule| {
         schedule.command("inspire", []);
         Ok(())
@@ -64,9 +64,9 @@ Nested groups inherit the outer settings. A nested group or individual task can 
 
 ## Preventing overlaps and selecting one server
 
-`withoutOverlapping()` holds a cache lock during execution and releases it on completion, including task errors. Its default lease is 1,440 minutes. Set a different lease with `withoutOverlappingFor(minutes)`. `onOneServer()` elects one runner for an event in each minute. Give a callback or job a stable, distinct `name` before enabling either mutex.
+`without_overlapping()` holds a cache lock during execution and releases it on completion, including task errors. Its default lease is 1,440 minutes. Set a different lease with `without_overlapping_for(minutes)`. `on_one_server()` elects one runner for an event in each minute. Give a callback or job a stable, distinct `name` before enabling either mutex.
 
-All runners must use the same shared cache store and namespace for cross-server locking. Use the application's default shared store or select one with `schedule.useCache("redis")`.
+All runners must use the same shared cache store and namespace for cross-server locking. Use the application's default shared store or select one with `schedule.use_cache("redis")`.
 
 ## Running the scheduler
 
@@ -96,7 +96,7 @@ Use `./artisan schedule:test --name=reports:daily` to run a selected task immedi
 
 ### Testing scheduled tasks {#testing-scheduled-tasks}
 
-The scheduler uses the `TestApp` clock to decide when tasks are due and to compute the next times shown by `schedule:list`. An explicit `Schedule::useClock` takes precedence. In an active repeat minute, `schedule:list` shows the next seconds boundary. Sub-minute timers still measure elapsed time. See [Testing time](../testing/mocking.md#interacting-with-time).
+The scheduler uses the `TestApp` clock to decide when tasks are due and to compute the next times shown by `schedule:list`. An explicit `Schedule::use_clock` takes precedence. In an active repeat minute, `schedule:list` shows the next seconds boundary. Sub-minute timers still measure elapsed time. See [Testing time](../testing/mocking.md#interacting-with-time).
 
 ```rust
 use openrust::{support::facades::Schedule, testing::TestApp};
@@ -105,30 +105,30 @@ use openrust::{support::facades::Schedule, testing::TestApp};
 async fn runs_a_task_with_a_frozen_clock() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut app = TestApp::create(|builder| {
         builder.with_commands(|_| Schedule::configure(|schedule| {
-            schedule.doNotAllowPausing();
+            schedule.do_not_allow_pausing();
             schedule.call(|_, output| Box::pin(async move {
                 output.stdout.push_str("scheduled task ran\n");
                 Ok(())
-            })).everyMinute();
+            })).every_minute();
             Ok(())
         }))
     })?;
 
-    app.freezeSecond().await?;
+    app.freeze_second().await?;
     app.artisan(["schedule:run"]).await
-        .assertSuccessful()
-        .expectsOutput("scheduled task ran");
+        .assert_successful()
+        .expects_output("scheduled task ran");
     Ok(())
 }
 ```
 
 ## Task output {#task-output}
 
-Use `sendOutputTo` to replace a file or `appendOutputTo` to append to it. Both capture stdout and stderr from scheduled Artisan commands and executables, including commands that exit unsuccessfully. Relative paths are resolved from the application root.
+Use `send_output_to` to replace a file or `append_output_to` to append to it. Both capture stdout and stderr from scheduled Artisan commands and executables, including commands that exit unsuccessfully. Relative paths are resolved from the application root.
 
 ```rust
-schedule.command("reports:daily", []).sendOutputTo("storage/logs/daily.log");
-schedule.command("reports:audit", []).appendOutputTo("storage/logs/audit.log");
+schedule.command("reports:daily", []).send_output_to("storage/logs/daily.log");
+schedule.command("reports:audit", []).append_output_to("storage/logs/audit.log");
 ```
 
 Use `emailOutputTo(["ops@example.com"])` to send nonempty output after a run. `emailOutputOnFailure(["ops@example.com"])` sends only on a failed run, including failures without output. Both use the application mailer.
@@ -145,17 +145,17 @@ schedule
     .then(hook("task-then"));
 ```
 
-The scheduler runs `before` hooks before the task. `after` and `then` are aliases. `onSuccess` and `onFailure` run when the task completes with the corresponding result. After hooks run in registration order. Nested groups inherit the outer hooks and add their own. A failing hook is reported through the application exception handler.
+The scheduler runs `before` hooks before the task. `after` and `then` are aliases. `on_success` and `on_failure` run when the task completes with the corresponding result. After hooks run in registration order. Nested groups inherit the outer hooks and add their own. A failing hook is reported through the application exception handler.
 
-Use `thenWithOutput`, `onSuccessWithOutput`, or `onFailureWithOutput` for a hook that receives captured bytes as its third argument. Pass `true` as the second argument to skip empty output. An explicit output file supplies its full contents, including earlier runs in append mode.
+Use `then_with_output`, `on_success_with_output`, or `on_failure_with_output` for a hook that receives captured bytes as its third argument. Pass `true` as the second argument to skip empty output. An explicit output file supplies its full contents, including earlier runs in append mode.
 
 ### Pinging URLs {#pinging-urls}
 
-Use `pingBefore`, `thenPing`, `pingOnSuccess`, and `pingOnFailure` to send HTTP GET requests at the corresponding hook. Their `If` variants take a boolean followed by the URL. Failed requests are reported and the scheduler continues.
+Use `ping_before`, `then_ping`, `ping_on_success`, and `ping_on_failure` to send HTTP GET requests at the corresponding hook. Their `If` variants take a boolean followed by the URL. Failed requests are reported and the scheduler continues.
 
 ## Background tasks {#background-tasks}
 
-Call `runInBackground()` on a scheduled command or executable. OpenRust runs the task and its after hooks in a separate instance of the application binary. The parent runs the before hooks and can exit while the task continues. Use a shared cache store such as file or Redis with `withoutOverlapping()`.
+Call `run_in_background()` on a scheduled command or executable. OpenRust runs the task and its after hooks in a separate instance of the application binary. The parent runs the before hooks and can exit while the task continues. Use a shared cache store such as file or Redis with `without_overlapping()`.
 
 `ScheduledBackgroundTaskFinished` is dispatched by the child after completion and lock release. It carries the task and exit code, including on failure. Register listeners for `console.scheduled_background_task_finished` during application assembly.
 
@@ -183,4 +183,4 @@ A task skipped by a filter, pause, server election, or overlap lock emits `Sched
 
 ## Long-running task callbacks
 
-Use `Schedule::whenTaskRunsLongerThan(Duration, callback)` for finished or failed tasks whose runtime is strictly greater than the threshold. Equality does not trigger it, nor does a failure without runtime. The callback receives the task and duration; it uses existing lifecycle events. Distinguish the background parent’s finish event from the child’s later completion event.
+Use `Schedule::when_task_runs_longer_than(Duration, callback)` for finished or failed tasks whose runtime is strictly greater than the threshold. Equality does not trigger it, nor does a failure without runtime. The callback receives the task and duration; it uses existing lifecycle events. Distinguish the background parent’s finish event from the child’s later completion event.

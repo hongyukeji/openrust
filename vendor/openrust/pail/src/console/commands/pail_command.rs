@@ -58,11 +58,11 @@ impl Command for PailCommand {
                 .await;
             session.0.destroy().map_err(error)?;
             match result? {
-                ProcessOutcome::Interrupted => output.writeRaw("\n").map_err(error)?,
+                ProcessOutcome::Interrupted => output.write_raw("\n").map_err(error)?,
                 ProcessOutcome::TimedOut => {
                     let label = label(output);
                     output
-                        .writeRaw(&format!("\n  {label} Maximum execution time exceeded.\n\n"))
+                        .write_raw(&format!("\n  {label} Maximum execution time exceeded.\n\n"))
                         .map_err(error)?;
                 }
             }
@@ -74,7 +74,7 @@ fn error(error: impl std::fmt::Display) -> ConsoleError {
     ConsoleError::new(error.to_string())
 }
 fn label(output: &Output) -> &'static str {
-    if output.isDecorated() {
+    if output.is_decorated() {
         "\x1b[44;37m INFO \x1b[0m"
     } else {
         " INFO "
@@ -90,7 +90,7 @@ fn banner(output: &mut Output) -> Result<(), ConsoleError> {
     let hint = "Press Ctrl+C to exit";
     let details = "Use -v|-vv to show more details";
     let color = |value: &str| {
-        if output.isDecorated() {
+        if output.is_decorated() {
             format!("\x1b[90m{value}\x1b[0m")
         } else {
             value.into()
@@ -104,7 +104,7 @@ fn banner(output: &mut Output) -> Result<(), ConsoleError> {
         " ".repeat(width.saturating_sub(details.len())),
         color(details)
     );
-    output.writeRaw(&banner).map_err(error)
+    output.write_raw(&banner).map_err(error)
 }
 struct Session(File);
 impl Session {

@@ -18,7 +18,7 @@ impl ProcessResult {
         &self.command
     }
 
-    pub fn exitCode(&self) -> i32 {
+    pub fn exit_code(&self) -> i32 {
         self.exit_code
     }
 
@@ -53,7 +53,7 @@ impl ProcessResult {
         Ok(self)
     }
 
-    pub fn throwIf(self, condition: bool) -> Result<Self> {
+    pub fn throw_if(self, condition: bool) -> Result<Self> {
         if condition { self.throw() } else { Ok(self) }
     }
 }

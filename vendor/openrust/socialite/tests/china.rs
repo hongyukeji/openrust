@@ -246,10 +246,10 @@ async fn three_drivers_exchange_profiles_refresh_and_redact_real_http() {
         let mut p = manager.driver(name, &mut req).unwrap().oauth2().unwrap();
         p.stateless().withUnionId(true);
         let user = p.user().await.unwrap();
-        assert_eq!(user.getId(), "id-one");
+        assert_eq!(user.get_id(), "id-one");
         assert_eq!(user.getNickname(), Some("读者"));
         assert_eq!(user.getEmail(), None);
-        assert_eq!(user.getName(), None);
+        assert_eq!(user.get_name(), None);
         assert_eq!(user.attributes["unionid"], "union-id");
         assert_eq!(
             user.getAvatar(),
@@ -267,7 +267,7 @@ async fn three_drivers_exchange_profiles_refresh_and_redact_real_http() {
         }
         assert_eq!(user.credentials.as_ref().unwrap().expiresIn, Some(7200));
         let calls = remote.calls.lock().unwrap().len();
-        assert_eq!(p.user().await.unwrap().getId(), "id-one");
+        assert_eq!(p.user().await.unwrap().get_id(), "id-one");
         assert_eq!(calls, remote.calls.lock().unwrap().len());
         assert_eq!(
             p.refreshToken("private-refresh")
@@ -299,7 +299,7 @@ async fn weixin_silent_scope_and_direct_token_require_explicit_openid() {
         .unwrap();
     p.stateless().setScopes(vec!["snsapi_base".into()]);
     let user = p.user().await.unwrap();
-    assert_eq!(user.getId(), "id-one");
+    assert_eq!(user.get_id(), "id-one");
     assert_eq!(user.getNickname(), None);
     assert_eq!(remote.calls.lock().unwrap().len(), 1);
     for name in ["weixin", "weixinweb"] {
@@ -314,7 +314,7 @@ async fn weixin_silent_scope_and_direct_token_require_explicit_openid() {
             p.userFromToken("private-token-direct")
                 .await
                 .unwrap()
-                .getId(),
+                .get_id(),
             "id-direct"
         );
     }
@@ -374,8 +374,8 @@ async fn shared_driver_keeps_simultaneous_openids_and_unionid_options_isolated()
         b.stateless();
         let (a, b) = tokio::join!(a.user(), b.user());
         let (a, b) = (a.unwrap(), b.unwrap());
-        assert_eq!(a.getId(), "id-A");
-        assert_eq!(b.getId(), "id-B");
+        assert_eq!(a.get_id(), "id-A");
+        assert_eq!(b.get_id(), "id-B");
         if *name == "qq" {
             assert_eq!(a.attributes["unionid"], "union-id");
             assert_eq!(b.attributes["unionid"], "");
@@ -409,7 +409,7 @@ fn callback_as<'a>(
             .user()
             .await;
         match result {
-            Ok(user) => Response::json(StatusCode::OK, json!({"id":user.getId()})),
+            Ok(user) => Response::json(StatusCode::OK, json!({"id":user.get_id()})),
             Err(Error::InvalidState) => {
                 Response::json(StatusCode::BAD_REQUEST, json!({"error":"state"}))
             }
@@ -470,7 +470,7 @@ async fn rp(base: &str) -> (String, tokio::task::JoinHandle<()>) {
         State(kernel): State<Arc<Kernel>>,
         request: axum::extract::Request,
     ) -> axum::response::Response {
-        kernel.handleTransport(request).await
+        kernel.handle_transport(request).await
     }
     use axum::handler::Handler as _;
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -506,8 +506,8 @@ async fn browser_session_state_is_consumed_and_cross_application_callbacks_are_r
     let client = Factory::new().unwrap();
     for name in NAMES {
         let start = client
-            .pendingRequest()
-            .withoutRedirecting()
+            .pending_request()
+            .without_redirecting()
             .get(&format!("{one}/{name}/login"))
             .await
             .unwrap();
@@ -530,12 +530,12 @@ async fn browser_session_state_is_consumed_and_cross_application_callbacks_are_r
             state: &str,
         ) -> openrust::http::client::Response {
             client
-                .pendingRequest()
-                .withHeaders(http::HeaderMap::from_iter([(
+                .pending_request()
+                .with_headers(http::HeaderMap::from_iter([(
                     http::header::COOKIE,
                     http::HeaderValue::from_str(session).unwrap(),
                 )]))
-                .withoutRedirecting()
+                .without_redirecting()
                 .get(&format!(
                     "{base}/{name}/callback?code=browser&state={state}"
                 ))
@@ -590,7 +590,7 @@ async fn three_driver_mappings_and_auth_fields_match_fixed_php_reference() {
         let mut p = local.driver(name, &mut req).unwrap().oauth2().unwrap();
         p.setOpenId("id-fixed").withUnionId(true);
         let user = p.userFromToken("private-token-fixed").await.unwrap();
-        let actual = json!({"id":user.getId(),"nickname":user.getNickname(),"name":user.getName(),"email":user.getEmail(),"avatar":user.getAvatar(),"raw":user.getRaw(),"attributes":user.attributes});
+        let actual = json!({"id":user.get_id(),"nickname":user.getNickname(),"name":user.get_name(),"email":user.getEmail(),"avatar":user.getAvatar(),"raw":user.getRaw(),"attributes":user.attributes});
         assert_eq!(actual, expected[name]["user"], "{name}");
     }
     task.abort();

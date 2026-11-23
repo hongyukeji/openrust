@@ -140,7 +140,6 @@ pub struct SessionGuard<'a> {
     owner: Weak<Container>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'a> SessionGuard<'a> {
     pub fn new(
         name: impl Into<String>,
@@ -191,7 +190,7 @@ impl<'a> SessionGuard<'a> {
     }
 
     /// Installs a user for the current request and dispatches `Authenticated`.
-    pub async fn setUser(&mut self, user: Box<dyn Authenticatable>) -> AuthResult<()> {
+    pub async fn set_user_async(&mut self, user: Box<dyn Authenticatable>) -> AuthResult<()> {
         let user: Arc<dyn Authenticatable> = user.into();
         self.authenticate(user).await
     }
@@ -208,14 +207,14 @@ impl<'a> SessionGuard<'a> {
         .await
     }
 
-    pub fn getProvider(&self) -> Arc<dyn UserProvider> {
+    pub fn get_provider(&self) -> Arc<dyn UserProvider> {
         self.provider.clone()
     }
 
-    pub fn getName(&self) -> &str {
+    pub fn get_name(&self) -> &str {
         &self.session_key
     }
-    pub fn getRecallerName(&self) -> &str {
+    pub fn get_recaller_name(&self) -> &str {
         &self.recaller
     }
 
@@ -238,7 +237,7 @@ impl<'a> SessionGuard<'a> {
     }
 
     /// Authenticates an HTTP Basic request for the current request only.
-    pub async fn onceBasic(
+    pub async fn once_basic(
         &mut self,
         field: &str,
         conditions: &[(String, crate::database::Value)],
@@ -281,13 +280,13 @@ impl<'a> SessionGuard<'a> {
             .and_then(|session| session.get(&self.session_key))
             .and_then(|value| serde_json::from_value::<AuthIdentifier>(value.clone()).ok());
         if let Some(id) = id
-            && let Some(user) = self.provider.retrieveById(&id).await?
+            && let Some(user) = self.provider.retrieve_by_id(&id).await?
         {
-            return self.setUser(user).await;
+            return self.set_user_async(user).await;
         }
         if let Some(user) = self.recall().await? {
             let user: Arc<dyn Authenticatable> = user.into();
-            self.update_session(&user.getAuthIdentifier()).await?;
+            self.update_session(&user.get_auth_identifier()).await?;
             AuthContext::set_shared(self.request, &self.name, Some(user.clone()), true);
             return self
                 .emit(
@@ -305,7 +304,7 @@ impl<'a> SessionGuard<'a> {
     }
 
     async fn recall(&mut self) -> AuthResult<Option<Box<dyn Authenticatable>>> {
-        if !self.request.hasSession() {
+        if !self.request.has_session() {
             return Ok(None);
         }
         let Some(value) = self.request.cookie(Some(&self.recaller))? else {
@@ -322,7 +321,7 @@ impl<'a> SessionGuard<'a> {
         };
         let user = self
             .provider
-            .retrieveByToken(&recaller.id, &recaller.token)
+            .retrieve_by_token(&recaller.id, &recaller.token)
             .await?;
         Ok(user.filter(|user| {
             fingerprint(user.as_ref()).is_some_and(|current| {
@@ -347,17 +346,17 @@ impl<'a> SessionGuard<'a> {
             )
             .await?;
         }
-        let candidate = self.provider.retrieveByCredentials(credentials).await?;
+        let candidate = self.provider.retrieve_by_credentials(credentials).await?;
         if let Some(user) = &candidate
             && self
                 .provider
-                .validateCredentials(user.as_ref(), credentials)
+                .validate_credentials(user.as_ref(), credentials)
                 .await?
         {
             self.emit(
                 Validated {
                     guard: self.name.clone(),
-                    user: user.getAuthIdentifier(),
+                    user: user.get_auth_identifier(),
                 },
                 &[user.as_ref() as &Argument],
             )
@@ -379,7 +378,7 @@ impl<'a> SessionGuard<'a> {
     }
 
     /// Atomically charges a login attempt before checking credentials.
-    pub async fn attemptThrottled(
+    pub async fn attempt_throttled(
         &mut self,
         credentials: &Credentials,
         remember: bool,
@@ -425,10 +424,13 @@ impl<'a> SessionGuard<'a> {
         };
         if self.rehash {
             self.provider
-                .rehashPasswordIfRequired(user.as_mut(), credentials, false)
+                .rehash_password_if_required(user.as_mut(), credentials, false)
                 .await?;
             if remember {
-                return self.provider.retrieveById(&user.getAuthIdentifier()).await;
+                return self
+                    .provider
+                    .retrieve_by_id(&user.get_auth_identifier())
+                    .await;
             }
         }
         Ok(Some(user))
@@ -440,7 +442,7 @@ impl<'a> SessionGuard<'a> {
         remember: bool,
     ) -> AuthResult<()> {
         self.session()?;
-        let id = user.getAuthIdentifier();
+        let id = user.get_auth_identifier();
         if matches!(&id, AuthIdentifier::String(id) if id.is_empty()) {
             return Err(AuthError::InvalidIdentity);
         }
@@ -449,12 +451,12 @@ impl<'a> SessionGuard<'a> {
                 return Err(AuthError::UnprotectedRememberCookie);
             }
             let password = fingerprint(user.as_ref()).ok_or(AuthError::InvalidIdentity)?;
-            let token = match user.getRememberToken().filter(|token| !token.is_empty()) {
+            let token = match user.get_remember_token().filter(|token| !token.is_empty()) {
                 Some(token) => token.to_owned(),
                 None => {
                     let token = random_token()?;
                     self.provider
-                        .updateRememberToken(user.as_mut(), &token)
+                        .update_remember_token(user.as_mut(), &token)
                         .await?;
                     token
                 }
@@ -500,7 +502,7 @@ impl<'a> SessionGuard<'a> {
     }
 
     /// Changes the password fingerprint while keeping the current session authenticated.
-    pub async fn logoutOtherDevices(&mut self, password: &str) -> AuthResult<()> {
+    pub async fn logout_other_devices(&mut self, password: &str) -> AuthResult<()> {
         self.resolve().await?;
         let Some(state) = self.state() else {
             return Ok(());
@@ -509,11 +511,11 @@ impl<'a> SessionGuard<'a> {
             return Ok(());
         };
         let remembered = state.via_remember;
-        let id = user.getAuthIdentifier();
+        let id = user.get_auth_identifier();
         self.session()?;
         let mut user = self
             .provider
-            .retrieveById(&id)
+            .retrieve_by_id(&id)
             .await?
             .ok_or(AuthError::InvalidIdentity)?;
         let credentials = Credentials::new(
@@ -522,7 +524,7 @@ impl<'a> SessionGuard<'a> {
         );
         if !self
             .provider
-            .validateCredentials(user.as_ref(), &credentials)
+            .validate_credentials(user.as_ref(), &credentials)
             .await?
         {
             return Err(AuthError::InvalidPassword);
@@ -532,11 +534,11 @@ impl<'a> SessionGuard<'a> {
             && (self.request.cookie(Some(&self.recaller))?.is_some()
                 || Cookie::hasQueued(&self.recaller, None)?);
         self.provider
-            .rehashPasswordIfRequired(user.as_mut(), &credentials, true)
+            .rehash_password_if_required(user.as_mut(), &credentials, true)
             .await?;
         let user: Arc<dyn Authenticatable> = self
             .provider
-            .retrieveById(&id)
+            .retrieve_by_id(&id)
             .await?
             .ok_or(AuthError::InvalidIdentity)?
             .into();
@@ -549,12 +551,12 @@ impl<'a> SessionGuard<'a> {
         if let Some(owner) = self.owner.upgrade() {
             let config = owner.get::<dyn Repository>("config")?;
             let value =
-                SessionFingerprint::from_config(config.as_ref()).sign(user.getAuthPassword());
+                SessionFingerprint::from_config(config.as_ref()).sign(user.get_auth_password());
             let key = SessionFingerprint::session_key(&self.name);
             self.session()?.put(&key, serde_json::json!(value))?;
         }
         if refresh_cookie
-            && let Some(token) = user.getRememberToken().filter(|token| !token.is_empty())
+            && let Some(token) = user.get_remember_token().filter(|token| !token.is_empty())
         {
             let cookie = self.remember_cookie(id, token.to_owned(), changed)?;
             Cookie::queue(cookie)?;
@@ -571,11 +573,11 @@ impl<'a> SessionGuard<'a> {
     }
 
     /// Verifies the current user's password and records a confirmation.
-    pub async fn confirmPassword(&mut self, password: &str) -> AuthResult<bool> {
+    pub async fn confirm_password(&mut self, password: &str) -> AuthResult<bool> {
         let Some(id) = self.id().await? else {
             return Ok(false);
         };
-        let Some(user) = self.provider.retrieveById(&id).await? else {
+        let Some(user) = self.provider.retrieve_by_id(&id).await? else {
             return Ok(false);
         };
         let credentials = Credentials::new(
@@ -584,21 +586,21 @@ impl<'a> SessionGuard<'a> {
         );
         if !self
             .provider
-            .validateCredentials(user.as_ref(), &credentials)
+            .validate_credentials(user.as_ref(), &credentials)
             .await?
         {
             return Ok(false);
         }
-        self.session()?.passwordConfirmed()?;
+        self.session()?.password_confirmed()?;
         Ok(true)
     }
 
     /// Logs out, invalidates the application session and rotates its CSRF token.
-    pub async fn logoutAndInvalidate(&mut self) -> AuthResult<()> {
+    pub async fn logout_and_invalidate(&mut self) -> AuthResult<()> {
         self.logout().await?;
         let session = self.session()?;
         session.invalidate().await?;
-        session.regenerateToken().map_err(AuthError::backend)
+        session.regenerate_token().map_err(AuthError::backend)
     }
 
     async fn end(&mut self, current_device_only: bool) -> AuthResult<()> {
@@ -619,15 +621,15 @@ impl<'a> SessionGuard<'a> {
             }
             if let Some(user) = &user
                 && user
-                    .getRememberToken()
+                    .get_remember_token()
                     .is_some_and(|token| !token.is_empty())
                 && let Some(mut current) = self
                     .provider
-                    .retrieveById(&user.getAuthIdentifier())
+                    .retrieve_by_id(&user.get_auth_identifier())
                     .await?
             {
                 self.provider
-                    .updateRememberToken(current.as_mut(), &random_token()?)
+                    .update_remember_token(current.as_mut(), &random_token()?)
                     .await?;
             }
             self.emit(
@@ -644,7 +646,7 @@ impl<'a> SessionGuard<'a> {
         result
     }
 
-    pub async fn logoutCurrentDevice(&mut self) -> AuthResult<()> {
+    pub async fn logout_current_device(&mut self) -> AuthResult<()> {
         self.end(true).await
     }
 
@@ -661,7 +663,7 @@ impl<'a> SessionGuard<'a> {
 }
 
 fn fingerprint(user: &dyn Authenticatable) -> Option<String> {
-    Some(URL_SAFE_NO_PAD.encode(digest(&SHA256, user.getAuthPassword()?.as_bytes())))
+    Some(URL_SAFE_NO_PAD.encode(digest(&SHA256, user.get_auth_password()?.as_bytes())))
 }
 
 fn random_token() -> AuthResult<String> {
@@ -679,7 +681,7 @@ impl Guard for SessionGuard<'_> {
     }
 
     fn id(&mut self) -> AuthFuture<'_, AuthResult<Option<AuthIdentifier>>> {
-        Box::pin(async move { Ok(self.user().await?.map(Authenticatable::getAuthIdentifier)) })
+        Box::pin(async move { Ok(self.user().await?.map(Authenticatable::get_auth_identifier)) })
     }
 
     fn check(&mut self) -> AuthFuture<'_, AuthResult<bool>> {
@@ -728,10 +730,10 @@ impl StatefulGuard for SessionGuard<'_> {
             };
             if self.rehash {
                 self.provider
-                    .rehashPasswordIfRequired(user.as_mut(), credentials, false)
+                    .rehash_password_if_required(user.as_mut(), credentials, false)
                     .await?;
             }
-            self.setUser(user).await?;
+            self.set_user_async(user).await?;
             Ok(true)
         })
     }
@@ -750,7 +752,7 @@ impl StatefulGuard for SessionGuard<'_> {
         remember: bool,
     ) -> AuthFuture<'a, AuthResult<Option<&'a dyn Authenticatable>>> {
         Box::pin(async move {
-            let Some(user) = self.provider.retrieveById(id).await? else {
+            let Some(user) = self.provider.retrieve_by_id(id).await? else {
                 return Ok(None);
             };
             self.persist(user, remember).await?;
@@ -760,10 +762,10 @@ impl StatefulGuard for SessionGuard<'_> {
 
     fn once_using_id<'a>(&'a mut self, id: &'a AuthIdentifier) -> AuthFuture<'a, AuthResult<bool>> {
         Box::pin(async move {
-            let Some(user) = self.provider.retrieveById(id).await? else {
+            let Some(user) = self.provider.retrieve_by_id(id).await? else {
                 return Ok(false);
             };
-            self.setUser(user).await?;
+            self.set_user_async(user).await?;
             Ok(true)
         })
     }

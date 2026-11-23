@@ -125,7 +125,7 @@ impl Drop for Root {
 }
 fn inspect(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
-        let first = request.getLanguages();
+        let first = request.get_languages();
         tokio::task::yield_now().await;
         Response::json(
             StatusCode::OK,
@@ -133,7 +133,7 @@ fn inspect(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
                 "locale":App::current_locale().unwrap(),"translation":Lang::get("message.hello",&BTreeMap::new(),None).unwrap(),
                 "preference":request.extensions().get::<LocaleSelection>().and_then(|selection|selection.preference.clone()),
                 "can_store":request.extensions().get::<LocaleSelection>().is_some_and(|selection|selection.can_store),
-                "languages":first,"after":request.getLanguages(),"session":request.hasSession()
+                "languages":first,"after":request.get_languages(),"session":request.has_session()
             }),
         )
     })
@@ -146,7 +146,7 @@ fn switch(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 }
 fn store(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
-        SetLocale::storePreference(
+        SetLocale::store_preference(
             request,
             request.route("locale").filter(|locale| *locale != "auto"),
         )?;
@@ -155,21 +155,21 @@ fn store(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 }
 fn unsafe_store(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
-        SetLocale::storePreference(request, Some("en"))?;
+        SetLocale::store_preference(request, Some("en"))?;
         Ok(Response::from("unsafe"))
     })
 }
 fn store_body(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
         let field = request.route("field").unwrap().to_owned();
-        SetLocale::storePreferenceFromRequest(request, &field).await?;
+        SetLocale::store_preference_from_request(request, &field).await?;
         Ok(Response::empty(StatusCode::NO_CONTENT))
     })
 }
 fn store_body_json(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
         let field = request.route("field").unwrap().to_owned();
-        SetLocale::storePreferenceFromRequest(request, &field).await?;
+        SetLocale::store_preference_from_request(request, &field).await?;
         inspect(request).await
     })
 }
@@ -182,7 +182,7 @@ fn return_url(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpErro
             .unwrap_or("/");
         Response::json(
             StatusCode::OK,
-            json!({"url":SetLocale::urlWithoutLocale(request, target)?}),
+            json!({"url":SetLocale::url_without_locale(request, target)?}),
         )
     })
 }
@@ -225,9 +225,9 @@ async fn send_body(
     }
     let mut request = Request::from(raw.body(Body::from(body.to_owned())).unwrap());
     // 在 Kernel 之前缓存标准头，协商自定义头也不得污染它。
-    let standard = request.getLanguages().to_vec();
+    let standard = request.get_languages().to_vec();
     let (parts, body) = kernel.handle(&mut request).await.into_parts();
-    assert_eq!(request.getLanguages(), standard);
+    assert_eq!(request.get_languages(), standard);
     let bytes = axum::body::to_bytes(body, 128 * 1024).await.unwrap();
     let value = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
     (parts.status, parts.headers, value)
@@ -377,7 +377,7 @@ async fn callback_query_cookie_header_default_priority_and_disabled_sources() {
             4,
             false,
             |m| {
-                m.localeUsing(|request| {
+                m.locale_using(|request| {
                     Ok(request
                         .headers()
                         .get("x-user-language")
@@ -581,7 +581,7 @@ async fn stateful_browser_api_uses_protected_preference_only_for_trusted_origins
             ("session".into(),json!({"driver":"array","cookie":"stateful-session","path":"/","lottery":[0,100]})),
             ("sanctum".into(),json!({"stateful":["localhost"],"middleware":{"authenticate_session":false}})),
         ])))
-        .with_middleware(|m|{m.statefulApi();})
+        .with_middleware(|m|{m.stateful_api();})
         .with_routing(Routing::default().api(|| {Route::get("/probe",inspect)?;Route::post("/preference/{locale}",store)?;Route::post("/body/{field}",store_body)?;Ok(())})).create().unwrap();
     let mut kernel = Kernel::new(app);
     kernel.bootstrap().await.unwrap();
@@ -847,7 +847,7 @@ async fn request_body_is_required_and_invalid_values_never_clear_or_write_a_pref
     // 保留原始空白以验收非空非法标签；默认 TrimStrings 会先把空白转换为空值。
     let kernel = root
         .kernel(json!({}), 32, false, |m| {
-            m.trimStrings(["locale"]);
+            m.trim_strings(["locale"]);
         })
         .await;
     let (_, headers, _) = send(&kernel, "POST", "/preference/zh-Hans", "", &[]).await;
@@ -1010,7 +1010,7 @@ async fn return_url_reuses_trusted_proxy_subpath_without_duplicate_slashes() {
     let root = Root::new();
     let kernel = root
         .kernel(json!({}), 37, false, |m| {
-            m.trustProxies(&["127.0.0.1"], openrust::http::TrustedProxyHeaders::DEFAULT)
+            m.trust_proxies(&["127.0.0.1"], openrust::http::TrustedProxyHeaders::DEFAULT)
                 .unwrap();
         })
         .await;

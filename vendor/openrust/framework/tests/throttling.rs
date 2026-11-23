@@ -57,7 +57,7 @@ impl ServiceProvider for Limits {
                             .after(|response| response.status() == StatusCode::NO_CONTENT)
                             .response(|_, headers| {
                                 Response::new(StatusCode::TOO_MANY_REQUESTS, "async denial".into())
-                                    .withHeaders(headers)
+                                    .with_headers(headers)
                             })
                             .into(),
                         _ => Limit::perMinute(1).by(key).into(),
@@ -85,7 +85,7 @@ impl ServiceProvider for Limits {
                     .after(|response| response.status() == StatusCode::BAD_REQUEST)
                     .response(|_, headers| {
                         Response::new(StatusCode::TOO_MANY_REQUESTS, "custom denial".into())
-                            .withHeaders(headers)
+                            .with_headers(headers)
                     })
             })?;
             RateLimiter::r#for("infinite", |_| Limit::none())?;
@@ -97,26 +97,26 @@ impl ServiceProvider for Limits {
 struct Identity(String);
 
 impl Authenticatable for Identity {
-    fn getAuthIdentifierName(&self) -> &str {
+    fn get_auth_identifier_name(&self) -> &str {
         "id"
     }
-    fn getAuthIdentifier(&self) -> AuthIdentifier {
+    fn get_auth_identifier(&self) -> AuthIdentifier {
         AuthIdentifier::String(self.0.clone())
     }
-    fn getAuthPasswordName(&self) -> &str {
+    fn get_auth_password_name(&self) -> &str {
         "password"
     }
-    fn getAuthPassword(&self) -> Option<&str> {
+    fn get_auth_password(&self) -> Option<&str> {
         None
     }
-    fn getRememberToken(&self) -> Option<&str> {
+    fn get_remember_token(&self) -> Option<&str> {
         None
     }
-    fn setRememberToken(&mut self, _: Option<String>) {}
-    fn getRememberTokenName(&self) -> &str {
+    fn set_remember_token(&mut self, _: Option<String>) {}
+    fn get_remember_token_name(&self) -> &str {
         "remember_token"
     }
-    fn getAuthAttribute(&self, name: &str) -> AuthResult<Option<Value>> {
+    fn get_auth_attribute(&self, name: &str) -> AuthResult<Option<Value>> {
         Ok(match name {
             "upload_limit" => Some(Value::Text(" 3.9 ".into())),
             "job_limit" => Some(Value::Integer(2)),
@@ -133,7 +133,7 @@ impl ServiceProvider for Authentication {
         Box::pin(async move {
             app.container()
                 .make::<AuthManager>()?
-                .viaRequest("header", |request| {
+                .via_request("header", |request| {
                     Box::pin(async move {
                         Ok(request
                             .headers()
@@ -215,7 +215,7 @@ fn routes() -> Result<(), RoutingError> {
         router
             .get("/excluded", empty)?
             .middleware_name("throttle:short")
-            .withoutMiddleware("throttle:short");
+            .without_middleware("throttle:short");
         router
             .get("/multi", empty)?
             .middleware_name("throttle:multi");
@@ -258,7 +258,7 @@ async fn transport(
     State(kernel): State<Arc<Kernel>>,
     request: axum::extract::Request,
 ) -> axum::response::Response {
-    kernel.handleTransport(request).await
+    kernel.handle_transport(request).await
 }
 
 async fn start(redis: bool) -> (SocketAddr, tokio::task::JoinHandle<()>) {
@@ -295,7 +295,7 @@ async fn start(redis: bool) -> (SocketAddr, tokio::task::JoinHandle<()>) {
         .with_providers(vec![Box::new(Limits), Box::new(Authentication)])
         .with_middleware(move |middleware| {
             if redis {
-                middleware.throttleWithRedis();
+                middleware.throttle_with_redis();
             }
         })
         .with_routing(Routing::default().web(routes))

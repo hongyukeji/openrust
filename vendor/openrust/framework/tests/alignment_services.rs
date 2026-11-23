@@ -296,7 +296,7 @@ async fn translation_contract_names_observe_nested_locales_and_fallback() {
     {
         let contract: &mut dyn Contract = &mut translator;
         contract.set_locale("zh-CN").unwrap();
-        contract.setFallback("en").unwrap();
+        contract.set_fallback("en").unwrap();
         assert_eq!(contract.get_locale(), "zh-CN");
         assert_eq!(contract.getFallback(), "en");
     }
@@ -372,14 +372,14 @@ async fn url_policies_are_owned_by_each_generator_and_affect_named_and_signed_ur
     app.boot().await.unwrap();
     let original = app.container().make::<UrlGenerator>().unwrap();
     let mut urls = (*original).clone();
-    urls.forceRootUrl(Some("http://forced.test"));
-    urls.forceHttps(true);
+    urls.force_root_url(Some("http://forced.test"));
+    urls.force_https(true);
     assert_eq!(urls.to("/a", &[], None).unwrap(), "https://forced.test/a");
     assert_eq!(
         original.to("/a", &[], None).unwrap(),
         "http://example.test/base/a"
     );
-    urls.formatPathUsing(|path, _| format!("/prefix{path}"));
+    urls.format_path_using(|path, _| format!("/prefix{path}"));
     assert_eq!(
         urls.route(
             "items.show",
@@ -390,7 +390,7 @@ async fn url_policies_are_owned_by_each_generator_and_affect_named_and_signed_ur
         "https://forced.test/prefix/items/7"
     );
     let signed = urls
-        .signedRoute(
+        .signed_route(
             "items.show",
             &[openrust::routing::RouteParameter::named("id", "7")],
             None,
@@ -402,7 +402,7 @@ async fn url_policies_are_owned_by_each_generator_and_affect_named_and_signed_ur
         openrust::http::Body::empty(),
     );
     assert!(
-        urls.hasValidSignature(
+        urls.has_valid_signature(
             &request,
             openrust::routing::SignatureMode::Absolute,
             openrust::routing::SignatureQueryFilter::Keys(&[])
@@ -420,7 +420,7 @@ async fn url_policies_are_owned_by_each_generator_and_affect_named_and_signed_ur
     );
     assert!(
         !urls
-            .hasValidSignature(
+            .has_valid_signature(
                 &request,
                 openrust::routing::SignatureMode::Absolute,
                 openrust::routing::SignatureQueryFilter::Keys(&[])
@@ -436,7 +436,7 @@ async fn url_policies_are_owned_by_each_generator_and_affect_named_and_signed_ur
         .unwrap(),
         "/prefix/items/a%20b"
     );
-    urls.formatHostUsing(|root, _| root.replace("example.test", "formatted.test"));
+    urls.format_host_using(|root, _| root.replace("example.test", "formatted.test"));
     assert_eq!(
         urls.route(
             "tenant.show",
@@ -449,7 +449,7 @@ async fn url_policies_are_owned_by_each_generator_and_affect_named_and_signed_ur
         .unwrap(),
         "https://team.formatted.test/prefix/tenant/a%20b"
     );
-    urls.forceHttps(false);
+    urls.force_https(false);
     assert!(urls.to("/a", &[], None).unwrap().starts_with("http://"));
     let first_request = openrust::http::Request::from_parts(
         http::Request::get("http://first.test/a")
@@ -467,11 +467,11 @@ async fn url_policies_are_owned_by_each_generator_and_affect_named_and_signed_ur
             .0,
         openrust::http::Body::empty(),
     );
-    let mut first = original.forRequest(&first_request);
-    let second = original.forRequest(&second_request);
+    let mut first = original.for_request(&first_request);
+    let second = original.for_request(&second_request);
     let (first, second) = tokio::join!(
         async move {
-            first.forceHttps(true);
+            first.force_https(true);
             tokio::task::yield_now().await;
             first.to("/value", &[], None).unwrap()
         },
@@ -619,19 +619,19 @@ async fn builder_schedule_registers_lazily_and_long_task_thresholds_cover_succes
             registered.fetch_add(1, Ordering::SeqCst);
             let captured = captured.clone();
             schedule
-                .whenTaskRunsLongerThan(Duration::ZERO, move |task, runtime| {
+                .when_task_runs_longer_than(Duration::ZERO, move |task, runtime| {
                     captured.lock().unwrap().push((task.clone(), runtime));
                     Ok(())
                 })
                 .map_err(|error| openrust::console::ConsoleError::new(error.to_string()))?;
-            schedule.exec("true", []).everyMinute();
+            schedule.exec("true", []).every_minute();
             Ok(())
         })
     })
     .unwrap();
     app.boot().await.unwrap();
     assert_eq!(configured.load(Ordering::SeqCst), 0);
-    app.artisan(["schedule:run"]).await.assertSuccessful();
+    app.artisan(["schedule:run"]).await.assert_successful();
     assert_eq!(configured.load(Ordering::SeqCst), 1);
     let task = tasks.lock().unwrap()[0].0.clone();
     let exact = Arc::new(AtomicUsize::new(0));
@@ -641,7 +641,7 @@ async fn builder_schedule_registers_lazily_and_long_task_thresholds_cover_succes
             Callback::new(&[], move |_| async move {
                 let schedule = openrust::console::scheduling::Schedule::default();
                 schedule
-                    .whenTaskRunsLongerThan(Duration::from_secs(1), move |_, _| {
+                    .when_task_runs_longer_than(Duration::from_secs(1), move |_, _| {
                         count.fetch_add(1, Ordering::SeqCst);
                         Ok(())
                     })
@@ -1107,7 +1107,7 @@ async fn view_and_translation_facades_keep_boot_defaults_and_concurrent_scopes_s
         .make::<openrust::translation::Translator>()
         .unwrap();
     translator.set_locale("en").unwrap();
-    translator.setFallback("en").unwrap();
+    translator.set_fallback("en").unwrap();
     let [one, two] = ["fr", "de"].map(|expected| {
         let expected = expected.to_owned();
         app.container().scope(app.call(
@@ -1115,7 +1115,7 @@ async fn view_and_translation_facades_keep_boot_defaults_and_concurrent_scopes_s
                 assert_eq!(Lang::get_locale().unwrap(), "en");
                 assert_eq!(View::getShared().unwrap()["shared"].as_str(), Some("boot"));
                 Lang::set_locale(&expected).unwrap();
-                Lang::setFallback("en").unwrap();
+                Lang::set_fallback("en").unwrap();
                 View::share("shared", expected.clone()).unwrap();
                 tokio::task::yield_now().await;
                 assert_eq!(Lang::get_locale().unwrap(), expected);
@@ -1197,7 +1197,7 @@ async fn translation_defaults_come_from_cached_configuration_without_reloading_e
     app.container()
         .scope(async {
             translator.set_locale("fr").unwrap();
-            translator.setFallback("de").unwrap();
+            translator.set_fallback("de").unwrap();
             assert_eq!(translator.get_locale(), "fr");
         })
         .await;

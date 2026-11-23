@@ -26,16 +26,15 @@ use super::{
 
 /// 测试工具捕获正文的资源上限，不影响实际监听器的传输配置。
 #[derive(Clone, Copy, Debug)]
-#[allow(non_snake_case)]
 pub struct ResponseCaptureOptions {
-    pub maxBytes: usize,
+    pub max_bytes: usize,
     pub timeout: Duration,
 }
 
 impl Default for ResponseCaptureOptions {
     fn default() -> Self {
         Self {
-            maxBytes: 1024 * 1024,
+            max_bytes: 1024 * 1024,
             timeout: Duration::from_secs(5),
         }
     }
@@ -95,8 +94,7 @@ impl TestApp {
     }
 
     /// 为此测试应用配置正文捕获上限；后续请求立即使用新配置。
-    #[allow(non_snake_case)]
-    pub fn withResponseCapture(&mut self, options: ResponseCaptureOptions) -> &mut Self {
+    pub fn with_response_capture(&mut self, options: ResponseCaptureOptions) -> &mut Self {
         self.response_capture = options;
         self
     }
@@ -153,10 +151,10 @@ impl TestApp {
             .app
             .container()
             .get::<crate::routing::UrlGenerator>("url")?
-            .forRequest(&request);
+            .for_request(&request);
         let body = tokio::time::timeout(
             self.response_capture.timeout,
-            axum::body::to_bytes(body, self.response_capture.maxBytes),
+            axum::body::to_bytes(body, self.response_capture.max_bytes),
         )
         .await;
         use crate::contracts::session::Session as _;
@@ -231,8 +229,7 @@ impl TestApp {
     }
 
     /// Boots the application and records the selected events. An empty slice selects all.
-    #[allow(non_snake_case, reason = "Matches the event testing API naming")]
-    pub async fn fakeEvents(
+    pub async fn fake_events(
         &mut self,
         events: &[&str],
     ) -> Result<Arc<EventFake>, Box<dyn Error + Send + Sync>> {

@@ -45,7 +45,7 @@ fn update(
         installed::UpdateUserPassword
             .updateFromRequest(request, user.as_ref(), &input)
             .await?;
-        Ok(openrust::http::Response::noContent())
+        Ok(openrust::http::Response::no_content())
     })
 }
 fn routes() -> Result<(), openrust::routing::RoutingError> {
@@ -85,7 +85,7 @@ async fn installed_password_action_checks_web_guard_independently_of_the_updated
             .make(password.as_bytes(), &HashOptions::new())
             .await
             .unwrap();
-        manager.viaRequest(driver, move |_| {
+        manager.via_request(driver, move |_| {
             let mut user = app::models::User::from_state(ModelState::default());
             user.setAttribute("password", hash.clone());
             Box::pin(async move { Ok(Some(Box::new(user) as Box<dyn Authenticatable>)) })
@@ -104,7 +104,7 @@ async fn installed_password_action_checks_web_guard_independently_of_the_updated
             .header("content-type", "application/json")
             .body(axum::body::Body::from(input.to_string()))
             .unwrap();
-        let response = kernel.clone().handleTransport(request).await;
+        let response = kernel.clone().handle_transport(request).await;
         assert_eq!(response.status(), 422);
         let body = axum::body::to_bytes(response.into_body(), 10240)
             .await

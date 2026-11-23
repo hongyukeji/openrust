@@ -520,7 +520,7 @@ impl Extensions {
             output.info("Passport: install keys, migrations, User token support and the independent api guard; /user remains auth:sanctum. Register OAuth clients for your consumers.\n");
         }
         if self.has("fortify") {
-            output.info("Fortify / Passkeys: install authentication actions, provider, configuration and migrations. New configuration uses views=false and email-verification; Passkeys is enabled when selected. Existing custom configuration is preserved. Configure the frontend password.reset route or ResetPassword::createUrlUsing. Verify mail delivery and HTTPS / exact WebAuthn origins before production use.\n");
+            output.info("Fortify / Passkeys: install authentication actions, provider, configuration and migrations. New configuration uses views=false and email-verification; Passkeys is enabled when selected. Existing custom configuration is preserved. Configure the frontend password.reset route or ResetPassword::create_url_using. Verify mail delivery and HTTPS / exact WebAuthn origins before production use.\n");
         }
         if self.has("socialite") {
             output.comment("Socialite: enable package; external configuration pending: provider credentials, callbacks and explicit local account binding.\n");

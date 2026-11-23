@@ -136,7 +136,7 @@ The example uses an application customizer registered as `invoice.trace`. For an
 
 ### Previewing mail notifications {#previewing-mail-notifications}
 
-Use `render().await` for the body or return `toResponse().await` from a route. The response is HTML or plain text according to the selected view. Preview renders the template without sending mail, resolving ordinary attachments, or running message customizers.
+Use `render().await` for the body or return `to_response().await` from a route. The response is HTML or plain text according to the selected view. Preview renders the template without sending mail, resolving ordinary attachments, or running message customizers.
 
 ```rust
 use openrust::{mail::Mailable, notifications::messages::MailMessage};
@@ -146,7 +146,7 @@ let mail = MailMessage::new()
     .theme("billing")
     .priority(2);
 
-let response = mail.toResponse().await?;
+let response = mail.to_response().await?;
 ```
 
 ### Mail priority {#mail-priority}
@@ -247,7 +247,7 @@ fn review_message() -> NotificationResult<SlackMessage> {
 }
 ```
 
-A repeated static option key replaces the previous one without changing its position. `initialOption` looks up the original key and returns an error for an unknown key. Slack receives the normalized lowercase value. `focus(false)` sends an explicit false flag. Use `toArray` to check a typed message before delivery.
+A repeated static option key replaces the previous one without changing its position. `initialOption` looks up the original key and returns an error for an unknown key. Slack receives the normalized lowercase value. `focus(false)` sends an explicit false flag. Use `to_array` to check a typed message before delivery.
 
 ### Headers, dividers, and images {#slack-block-kit-visual-blocks}
 

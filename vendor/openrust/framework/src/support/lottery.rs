@@ -101,7 +101,7 @@ impl Lottery {
 
     pub fn forceResultWithSequence(
         sequence: impl IntoIterator<Item = bool>,
-        whenMissing: Option<Arc<ResultFactory>>,
+        when_missing: Option<Arc<ResultFactory>>,
     ) {
         let sequence = Mutex::new(sequence.into_iter().collect::<VecDeque<_>>());
         Self::setResultFactory(move |chances, out_of| {
@@ -110,7 +110,7 @@ impl Lottery {
                 .unwrap_or_else(std::sync::PoisonError::into_inner)
                 .pop_front();
             next.unwrap_or_else(|| {
-                whenMissing.as_ref().map_or_else(
+                when_missing.as_ref().map_or_else(
                     || normal_result(chances, out_of),
                     |callback| callback(chances, out_of),
                 )

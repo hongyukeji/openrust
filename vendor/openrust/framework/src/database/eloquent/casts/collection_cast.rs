@@ -85,7 +85,7 @@ impl JsonCollectionCast {
     pub(super) fn read(self, value: &Value, codec: &super::Json) -> DatabaseResult<Value> {
         self.collection(value, codec)?
             .map_or(Ok(Value::Null), |values| {
-                values.toArray().map(Value::Json).map_err(|_| invalid())
+                values.to_array().map(Value::Json).map_err(|_| invalid())
             })
     }
 

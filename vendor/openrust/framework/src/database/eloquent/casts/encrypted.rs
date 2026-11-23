@@ -98,7 +98,7 @@ impl EncryptedCast {
                 factory,
                 mapper,
             )?
-            .toArray()
+            .to_array()
             .map(Value::Json)
             .map_err(|_| collection_cast::invalid());
         }

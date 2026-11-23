@@ -179,7 +179,7 @@ async fn actual_http_preserves_outputs_errors_json_html_and_recovery() {
         .with_config(config)
         .with_routing(openrust::foundation::configuration::Routing::new(routes))
         .with_exceptions(|e| {
-            e.shouldRenderJsonWhen(|r, _| r.expectsJson());
+            e.shouldRenderJsonWhen(|r, _| r.expects_json());
         })
         .create()
         .unwrap();
@@ -191,7 +191,7 @@ async fn actual_http_preserves_outputs_errors_json_html_and_recovery() {
     let address = listener.local_addr().unwrap();
     let kernel = Arc::new(kernel);
     let router = axum::Router::new()
-        .fallback(move |request: axum::extract::Request| kernel.clone().handleTransport(request));
+        .fallback(move |request: axum::extract::Request| kernel.clone().handle_transport(request));
     let server = tokio::spawn(async move {
         axum::serve(listener, router).await.unwrap();
     });

@@ -686,8 +686,8 @@ impl Translator {
     pub fn getFallback(&self) -> String {
         self.locales().fallback
     }
-    pub fn setFallback(&self, fallback: &str) -> TranslationResult<()> {
-        <Self as Contract>::setFallback(self, fallback)
+    pub fn set_fallback(&self, fallback: &str) -> TranslationResult<()> {
+        <Self as Contract>::set_fallback(self, fallback)
     }
 }
 
@@ -695,7 +695,7 @@ impl Contract for Translator {
     fn getFallback(&self) -> String {
         self.getFallback()
     }
-    fn setFallback(&self, fallback: &str) -> TranslationResult<()> {
+    fn set_fallback(&self, fallback: &str) -> TranslationResult<()> {
         let fallback = canonical_locale(fallback)?;
         self.change_locales(|locales| locales.fallback = fallback);
         Ok(())

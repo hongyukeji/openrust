@@ -58,28 +58,28 @@ fn text<'a>(u: &'a User, key: &str) -> Option<&'a str> {
     }
 }
 impl Authenticatable for User {
-    fn getAuthIdentifierName(&self) -> &str {
+    fn get_auth_identifier_name(&self) -> &str {
         "id"
     }
-    fn getAuthIdentifier(&self) -> AuthIdentifier {
+    fn get_auth_identifier(&self) -> AuthIdentifier {
         AuthIdentifier::try_from(self.getKey().unwrap()).unwrap()
     }
-    fn getAuthPasswordName(&self) -> &str {
+    fn get_auth_password_name(&self) -> &str {
         "password"
     }
-    fn getAuthPassword(&self) -> Option<&str> {
+    fn get_auth_password(&self) -> Option<&str> {
         text(self, "password")
     }
-    fn getRememberToken(&self) -> Option<&str> {
+    fn get_remember_token(&self) -> Option<&str> {
         text(self, "remember_token")
     }
-    fn setRememberToken(&mut self, v: Option<String>) {
+    fn set_remember_token(&mut self, v: Option<String>) {
         self.setAttribute("remember_token", v.map_or(DbValue::Null, DbValue::Text));
     }
-    fn getRememberTokenName(&self) -> &str {
+    fn get_remember_token_name(&self) -> &str {
         "remember_token"
     }
-    fn getAuthAttribute(&self, key: &str) -> AuthResult<Option<DbValue>> {
+    fn get_auth_attribute(&self, key: &str) -> AuthResult<Option<DbValue>> {
         self.getAttributeValue(key)
             .map_err(|e| AuthError::Backend(Box::new(e)))
     }
@@ -171,18 +171,18 @@ fn who(r: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         let session = r.session()?;
         Response::json(
             StatusCode::OK,
-            json!({"user":user.as_ref().map(|u|u.getAuthIdentifier().to_string()),"session":session.getId(),"csrf":session.token()}),
+            json!({"user":user.as_ref().map(|u|u.get_auth_identifier().to_string()),"session":session.get_id(),"csrf":session.token()}),
         )
     })
 }
 fn logout(r: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
-        Auth::sessionGuard(r, Some("web"))
+        Auth::session_guard(r, Some("web"))
             .map_err(internal)?
-            .logoutAndInvalidate()
+            .logout_and_invalidate()
             .await
             .map_err(internal)?;
-        Ok(Response::noContent())
+        Ok(Response::no_content())
     })
 }
 #[derive(Default)]
@@ -271,7 +271,7 @@ async fn app(remote: &str, url: &str, letter: &str) -> App {
     app.make::<AuthManager>()
         .await
         .unwrap()
-        .registerModel::<User>("SocialiteLocalUser");
+        .register_model::<User>("SocialiteLocalUser");
     let manager = app.make::<SocialiteManager>().await.unwrap();
     for provider in ["github", "work"] {
         manager.extend(
@@ -311,7 +311,7 @@ async fn app(remote: &str, url: &str, letter: &str) -> App {
         State(k): State<Arc<Kernel>>,
         r: axum::extract::Request,
     ) -> axum::response::Response {
-        k.handleTransport(r).await
+        k.handle_transport(r).await
     }
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base = format!("http://{}", listener.local_addr().unwrap());
@@ -343,9 +343,9 @@ impl Client {
         }
     }
     async fn get(&mut self, path: &str) -> openrust::http::client::Response {
-        let mut r = self.http.pendingRequest().withoutRedirecting();
+        let mut r = self.http.pending_request().without_redirecting();
         if let Some(cookie) = &self.cookie {
-            r = r.withHeaders(http::HeaderMap::from_iter([(
+            r = r.with_headers(http::HeaderMap::from_iter([(
                 http::header::COOKIE,
                 http::HeaderValue::from_str(cookie).unwrap(),
             )]));
@@ -393,9 +393,9 @@ impl Client {
     async fn logout(&mut self, csrf: &str) -> openrust::http::client::Response {
         let response = self
             .http
-            .pendingRequest()
-            .withoutRedirecting()
-            .withHeaders(http::HeaderMap::from_iter([
+            .pending_request()
+            .without_redirecting()
+            .with_headers(http::HeaderMap::from_iter([
                 (
                     http::header::COOKIE,
                     http::HeaderValue::from_str(self.cookie.as_deref().unwrap()).unwrap(),
@@ -405,7 +405,7 @@ impl Client {
                     http::HeaderValue::from_str(csrf).unwrap(),
                 ),
             ]))
-            .asForm()
+            .as_form()
             .post(&format!("{}/logout", self.base), &json!({}))
             .await
             .unwrap();

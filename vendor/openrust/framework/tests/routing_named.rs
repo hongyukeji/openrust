@@ -36,7 +36,7 @@ fn report(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
     Box::pin(async move {
         // 让并发请求交错，不能依靠碰巧串行来证明请求隔离。
         tokio::task::yield_now().await;
-        let named = if request.routeIs(&["named-fallback"]) {
+        let named = if request.route_is(&["named-fallback"]) {
             "named-fallback"
         } else {
             "target"
@@ -74,28 +74,28 @@ fn report(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
 }
 
 fn to_fallback(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
-    Box::pin(Route::respondWithRoute("named-fallback", request))
+    Box::pin(Route::respond_with_route("named-fallback", request))
 }
 fn to_target(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
-    Box::pin(Route::respondWithRoute("target", request))
+    Box::pin(Route::respond_with_route("target", request))
 }
 fn unknown(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
-    Box::pin(Route::respondWithRoute("absent", request))
+    Box::pin(Route::respond_with_route("absent", request))
 }
 fn failure(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async { Err(HttpError::AuthorizationDenied("拒绝访问".into())) })
 }
 fn to_failure(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
-    Box::pin(Route::respondWithRoute("failure", request))
+    Box::pin(Route::respond_with_route("failure", request))
 }
 fn pending(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(std::future::pending())
 }
 fn to_pending(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
-    Box::pin(Route::respondWithRoute("pending", request))
+    Box::pin(Route::respond_with_route("pending", request))
 }
 fn nested(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
-    Box::pin(Route::respondWithRoute("intermediate", request))
+    Box::pin(Route::respond_with_route("intermediate", request))
 }
 fn routes(_: &Application) -> Result<Router, RoutingError> {
     let mut router = Router::new();
@@ -232,7 +232,7 @@ async fn named_routes_use_default_runtime_binding_and_preserve_cache_and_applica
     assert!(Route::get_facade_root().is_err());
     let mut outside = request("/target/outside");
     assert!(
-        Route::respondWithRoute("target", &mut outside)
+        Route::respond_with_route("target", &mut outside)
             .await
             .is_err()
     );
@@ -261,29 +261,29 @@ async fn router_named_binding_does_not_require_matching_uri_or_method_and_handle
     let mut unrelated = request("/different");
     unrelated.parts_mut().method = ::http::Method::POST;
     let response = router
-        .respondWithRoute("constrained", &mut unrelated)
+        .respond_with_route("constrained", &mut unrelated)
         .await
         .unwrap();
     assert_eq!(response.status(), 403);
     assert_eq!(unrelated.route("value"), Some("default"));
-    assert!(unrelated.routeIs(&["constrained"]));
+    assert!(unrelated.route_is(&["constrained"]));
     assert!(matches!(
-        router.respondWithRoute("absent", &mut unrelated).await,
+        router.respond_with_route("absent", &mut unrelated).await,
         Err(HttpError::Internal { .. })
     ));
     // 缺少名字不能先破坏原有路由状态。
-    assert!(unrelated.routeIs(&["constrained"]));
+    assert!(unrelated.route_is(&["constrained"]));
     let mut suspended = request("/original");
-    let mut future = Box::pin(router.respondWithRoute("pending", &mut suspended));
+    let mut future = Box::pin(router.respond_with_route("pending", &mut suspended));
     assert!(futures_util::poll!(&mut future).is_pending());
     drop(future);
-    assert!(suspended.routeIs(&["pending"]));
+    assert!(suspended.route_is(&["pending"]));
     let response = router
-        .respondWithRoute("failure", &mut suspended)
+        .respond_with_route("failure", &mut suspended)
         .await
         .unwrap();
     assert_eq!(response.status(), 403);
-    assert!(suspended.routeIs(&["failure"]));
+    assert!(suspended.route_is(&["failure"]));
     assert_eq!(suspended.route("old"), None);
 }
 
@@ -322,7 +322,7 @@ impl Middleware for Probe {
                 "outer.before"
             });
             let response = next.run(request).await;
-            assert!(request.routeIs(&["target"]));
+            assert!(request.route_is(&["target"]));
             assert_eq!(request.route("old"), None);
             self.lifecycle.0.lock().unwrap().push(if self.target {
                 "target.after"

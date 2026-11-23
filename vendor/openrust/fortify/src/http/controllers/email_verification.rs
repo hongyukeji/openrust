@@ -32,7 +32,7 @@ impl EmailVerificationPromptController {
             let user = user.as_email_verification().ok_or_else(|| {
                 internal(std::io::Error::other("User must implement MustVerifyEmail"))
             })?;
-            if user.hasVerifiedEmail() {
+            if user.has_verified_email() {
                 intended(request)
             } else {
                 super::respond::<dyn contracts::VerifyEmailViewResponse>(request).await
@@ -50,14 +50,14 @@ impl EmailVerificationNotificationController {
             let user = user.as_email_verification().ok_or_else(|| {
                 internal(std::io::Error::other("User must implement MustVerifyEmail"))
             })?;
-            if user.hasVerifiedEmail() {
-                return if request.wantsJson() {
-                    Ok(Response::noContent())
+            if user.has_verified_email() {
+                return if request.wants_json() {
+                    Ok(Response::no_content())
                 } else {
                     intended(request)
                 };
             }
-            user.sendEmailVerificationNotification().await?;
+            user.send_email_verification_notification().await?;
             super::respond::<dyn contracts::EmailVerificationNotificationSentResponse>(request)
                 .await
         })
@@ -76,7 +76,7 @@ impl VerifyEmailController {
             let mut account = crate::email_verification_model::account(user.as_ref())?;
             account.verify().await?;
             let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;
-            Auth::sessionGuard(request, fortify.guard().as_deref())?.set_user(account.into_user());
+            Auth::session_guard(request, fortify.guard().as_deref())?.set_user(account.into_user());
             super::respond::<dyn contracts::VerifyEmailResponse>(request).await
         })
     }

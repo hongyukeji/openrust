@@ -434,7 +434,7 @@ fn confirm_database_creation(
             output,
             "The database {:?} does not exist on the {:?} connection.",
             connection.getDatabaseName(),
-            connection.getName()
+            connection.get_name()
         )
     }
     .map_err(DatabaseError::SchemaIo)?;

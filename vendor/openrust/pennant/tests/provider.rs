@@ -20,7 +20,7 @@ impl ServiceProvider for Definitions {
         Box::pin(async move {
             app.make::<openrust::auth::AuthManager>()
                 .await?
-                .viaRequest("pennant-test", |_| Box::pin(async { Ok(None) }));
+                .via_request("pennant-test", |_| Box::pin(async { Ok(None) }));
             let manager = app.make::<FeatureManager>().await?;
             let store = manager.store(None)?;
             let count = self.0.clone();
@@ -81,26 +81,26 @@ async fn http_scopes_preserve_definitions_and_isolate_array_state_and_middleware
     let mut one = application();
     let mut two = application();
     assert_eq!(
-        one.get("/api/counter").await.unwrap().assertOk().body(),
+        one.get("/api/counter").await.unwrap().assert_ok().body(),
         b"[0,0]"
     );
     assert_eq!(
-        one.get("/api/counter").await.unwrap().assertOk().body(),
+        one.get("/api/counter").await.unwrap().assert_ok().body(),
         b"[1,1]"
     );
     assert_eq!(
-        two.get("/api/counter").await.unwrap().assertOk().body(),
+        two.get("/api/counter").await.unwrap().assert_ok().body(),
         b"[0,0]"
     );
     one.get("/api/blocked")
         .await
         .unwrap()
-        .assertStatus(StatusCode::BAD_REQUEST);
+        .assert_status(StatusCode::BAD_REQUEST);
     one.get("/api/custom")
         .await
         .unwrap()
-        .assertStatus(StatusCode::NOT_FOUND);
-    one.get("/api/allowed").await.unwrap().assertOk();
+        .assert_status(StatusCode::NOT_FOUND);
+    one.get("/api/allowed").await.unwrap().assert_ok();
     std::fs::write(
         one.root().join("Cargo.toml"),
         "[package]\nname=\"pennant-fixture\"\nversion=\"0.0.0\"\n",
@@ -108,7 +108,7 @@ async fn http_scopes_preserve_definitions_and_isolate_array_state_and_middleware
     .unwrap();
     one.artisan(["pennant:feature", "NewApi"])
         .await
-        .assertSuccessful();
+        .assert_successful();
     let feature = one.root().join("app/features/new_api.rs");
     assert!(
         std::fs::read_to_string(&feature)
@@ -118,19 +118,19 @@ async fn http_scopes_preserve_definitions_and_isolate_array_state_and_middleware
     std::fs::write(&feature, "// customized").unwrap();
     one.artisan(["pennant:feature", "NewApi"])
         .await
-        .assertExitCode(1);
+        .assert_exit_code(1);
     assert_eq!(std::fs::read_to_string(&feature).unwrap(), "// customized");
     one.artisan(["pennant:feature", "../Outside"])
         .await
-        .assertExitCode(1);
+        .assert_exit_code(1);
     one.artisan(["pennant:feature", "NewApi", "--force"])
         .await
-        .assertSuccessful();
+        .assert_successful();
     one.artisan(["help", "pennant:purge"])
         .await
-        .assertSuccessful();
+        .assert_successful();
     let cleared = one.artisan(["pennant:clear", "--except-registered"]).await;
-    cleared.assertSuccessful();
+    cleared.assert_successful();
     assert!(
         cleared
             .stdout
@@ -138,15 +138,15 @@ async fn http_scopes_preserve_definitions_and_isolate_array_state_and_middleware
     );
     one.artisan(["pennant:purge", "--store=missing"])
         .await
-        .assertExitCode(1);
+        .assert_exit_code(1);
     one.artisan(["vendor:publish", "--tag=pennant-config"])
         .await
-        .assertSuccessful();
+        .assert_successful();
     let path = one.root().join("config/pennant.rs");
     std::fs::write(&path, "// application override").unwrap();
     one.artisan(["vendor:publish", "--tag=pennant-config"])
         .await
-        .assertSuccessful();
+        .assert_successful();
     assert_eq!(
         std::fs::read_to_string(path).unwrap(),
         "// application override"

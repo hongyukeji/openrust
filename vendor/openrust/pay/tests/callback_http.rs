@@ -141,9 +141,9 @@ async fn signed_http_callbacks_acknowledge_only_committed_business_and_recover_d
         let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
         let http = Factory::new().unwrap();
         let send = |bytes: Vec<u8>| {
-            http.pendingRequest()
-                .withHeaders(headers.clone())
-                .withBody(
+            http.pending_request()
+                .with_headers(headers.clone())
+                .with_body(
                     bytes,
                     headers
                         .get("content-type")

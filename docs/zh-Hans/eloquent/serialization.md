@@ -2,7 +2,7 @@
 
 ## 序列化模型与集合
 
-用 `toArray()` 得到可编码为 JSON 的映射，用 `toJson()` 得到 JSON 字符串。两者都会包含已加载的关系，输出中的关系名使用下划线命名。用 `attributesToArray()` 仅输出属性。集合输出各个模型组成的数组。
+用 `to_array()` 得到可编码为 JSON 的映射，用 `to_json()` 得到 JSON 字符串。两者都会包含已加载的关系，输出中的关系名使用下划线命名。用 `attributesToArray()` 仅输出属性。集合输出各个模型组成的数组。
 
 ## 隐藏 JSON 字段
 
@@ -17,7 +17,7 @@ use openrust::database::{DatabaseResult, eloquent::Model};
 
 pub fn public_json(record: &mut impl Model) -> DatabaseResult<String> {
     record.makeHidden(&["label"]).append(&["summary"]);
-    record.toJson()
+    record.to_json()
 }
 ```
 
@@ -50,7 +50,7 @@ use openrust::database::{DatabaseResult, eloquent::Model};
 pub fn conditional_json(record: &mut impl Model, may_read: bool) -> DatabaseResult<String> {
     record.makeVisibleIf(may_read, &["label"]);
     record.makeHiddenIf(!may_read, &["label"]);
-    record.toJson()
+    record.to_json()
 }
 ```
 
@@ -65,6 +65,6 @@ use openrust::database::{
 };
 
 pub fn public_json<M: Model>(records: &mut Collection<M>) -> DatabaseResult<String> {
-    records.mergeHidden(&["internal_note"]).withoutAppends().toJson()
+    records.mergeHidden(&["internal_note"]).withoutAppends().to_json()
 }
 ```

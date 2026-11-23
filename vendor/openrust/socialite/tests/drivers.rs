@@ -88,7 +88,7 @@ fn definition(name: &str, base: Option<&str>) -> Arc<dyn ProviderDefinition> {
     }
 }
 fn profile(user: &openrust_socialite::two::User) -> Value {
-    json!({"id":user.getId(),"nickname":user.getNickname(),"name":user.getName(),"email":user.getEmail(),"avatar":user.getAvatar(),"raw":user.getRaw(),"attributes":user.attributes})
+    json!({"id":user.get_id(),"nickname":user.getNickname(),"name":user.get_name(),"email":user.getEmail(),"avatar":user.getAvatar(),"raw":user.getRaw(),"attributes":user.attributes})
 }
 #[tokio::test]
 async fn six_driver_scopes_parameters_and_user_mappings_match_fixed_php_sources() {

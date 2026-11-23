@@ -84,7 +84,7 @@ fn submit(
 ) -> openrust::http::HttpFuture<'_, Result<openrust::http::Response, openrust::http::HttpError>> {
     use openrust::foundation::http::FormRequest as _;
     Box::pin(async move {
-        let input = EmailForm.validateResolved(request).await?;
+        let input = EmailForm.validate_resolved(request).await?;
         openrust::http::Response::json(openrust::http::StatusCode::OK, input.into_value())
     })
 }
@@ -111,7 +111,7 @@ async fn email_form_request_runs_over_real_tcp() {
         axum::extract::State(kernel): axum::extract::State<Arc<Kernel>>,
         request: axum::extract::Request,
     ) -> axum::response::Response {
-        kernel.handleTransport(request).await
+        kernel.handle_transport(request).await
     }
     let root = std::env::temp_dir().join(format!("openrust-email-{:016x}", fastrand::u64(..)));
     std::fs::create_dir_all(&root).unwrap();

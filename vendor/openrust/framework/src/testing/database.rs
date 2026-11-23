@@ -28,7 +28,7 @@ use super::{
 
 const FILE: &str = "testing.sqlite";
 
-/// MySQL migration and seeding options for `TestApp::refreshDatabase`.
+/// MySQL migration and seeding options for `TestApp::refresh_database`.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RefreshDatabaseOptions {
     /// Include views when rebuilding the schema.
@@ -85,7 +85,6 @@ impl ServiceProvider for Sqlite {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl TestApp {
     /// Creates a test application with a private SQLite file.
     ///
@@ -108,12 +107,12 @@ impl TestApp {
         admin_url: &str,
         configure: impl FnOnce(ApplicationBuilder) -> ApplicationBuilder,
     ) -> Result<Self, Box<dyn Error + Send + Sync>> {
-        Self::mysqlConnections(&[("mysql", admin_url)], configure).await
+        Self::mysql_connections(&[("mysql", admin_url)], configure).await
     }
 
     /// Creates an owned MySQL test schema for each named connection.
     /// The first connection is the application's default.
-    pub async fn mysqlConnections(
+    pub async fn mysql_connections(
         connections: &[(&str, &str)],
         configure: impl FnOnce(ApplicationBuilder) -> ApplicationBuilder,
     ) -> Result<Self, Box<dyn Error + Send + Sync>> {
@@ -121,16 +120,16 @@ impl TestApp {
     }
 
     /// Creates an owned test schema and records it in an existing private directory.
-    pub async fn mysqlWithRecovery(
+    pub async fn mysql_with_recovery(
         admin_url: &str,
         directory: &Path,
         configure: impl FnOnce(ApplicationBuilder) -> ApplicationBuilder,
     ) -> Result<Self, Box<dyn Error + Send + Sync>> {
-        Self::mysqlConnectionsWithRecovery(&[("mysql", admin_url)], directory, configure).await
+        Self::mysql_connections_with_recovery(&[("mysql", admin_url)], directory, configure).await
     }
 
     /// Creates owned schemas with independent recovery receipts for each named connection.
-    pub async fn mysqlConnectionsWithRecovery(
+    pub async fn mysql_connections_with_recovery(
         connections: &[(&str, &str)],
         directory: &Path,
         configure: impl FnOnce(ApplicationBuilder) -> ApplicationBuilder,
@@ -141,7 +140,7 @@ impl TestApp {
     /// Cleans up one abandoned schema on the original dedicated MySQL test server.
     /// A missing receipt is a no-op. Ownership, busy-schema, or lease failures
     /// retain the receipt so cleanup can be retried after inspection.
-    pub async fn recoverMysql(admin_url: &str, receipt: &Path) -> io::Result<()> {
+    pub async fn recover_mysql(admin_url: &str, receipt: &Path) -> io::Result<()> {
         MySqlTestDatabase::recover(admin_url, receipt).await
     }
 
@@ -237,16 +236,19 @@ impl TestApp {
 
     /// Runs the registered default `DatabaseSeeder` through Artisan.
     pub async fn seed(&mut self) -> Result<(), Box<dyn Error + Send + Sync>> {
-        self.seedWith(&[seeder::DEFAULT]).await
+        self.seed_with(&[seeder::DEFAULT]).await
     }
 
     /// Runs the named seeders in the supplied order on the default connection.
-    pub async fn seedWith(&mut self, seeders: &[&str]) -> Result<(), Box<dyn Error + Send + Sync>> {
+    pub async fn seed_with(
+        &mut self,
+        seeders: &[&str],
+    ) -> Result<(), Box<dyn Error + Send + Sync>> {
         self.run_seeders(seeders, None).await
     }
 
     /// Runs seeders on the selected connection. Pass `None` for the default seeder.
-    pub async fn seedOn(
+    pub async fn seed_on(
         &mut self,
         connection: &str,
         seeders: Option<&[&str]>,
@@ -289,19 +291,19 @@ impl TestApp {
     /// Prepare the schema and any shared fixtures before entering the callback.
     /// Requests dispatched by this test application and its Artisan commands
     /// participate when they use its default connection on the current task.
-    pub async fn databaseTransaction<T>(
+    pub async fn database_transaction<T>(
         &mut self,
         test: impl for<'a> FnOnce(
             &'a mut TestApp,
         )
             -> DatabaseFuture<'a, Result<T, Box<dyn Error + Send + Sync>>>,
     ) -> Result<T, Box<dyn Error + Send + Sync>> {
-        self.databaseTransactionOn(&[], test).await
+        self.database_transaction_on(&[], test).await
     }
 
     /// Runs one test in a rollback transaction on each selected MySQL connection.
     /// An empty list selects the default.
-    pub async fn databaseTransactionOn<T>(
+    pub async fn database_transaction_on<T>(
         &mut self,
         names: &[&str],
         test: impl for<'a> FnOnce(
@@ -320,7 +322,7 @@ impl TestApp {
     /// The first use, a change of options, or an interrupted transaction
     /// triggers a fresh migration. A test error with a successful rollback
     /// preserves the prepared baseline for the next call.
-    pub async fn refreshDatabase<T>(
+    pub async fn refresh_database<T>(
         &mut self,
         options: RefreshDatabaseOptions,
         test: impl for<'a> FnOnce(
@@ -330,7 +332,7 @@ impl TestApp {
     ) -> Result<T, Box<dyn Error + Send + Sync>> {
         if self.mysql.is_empty() {
             return Err(
-                io::Error::other("refreshDatabase requires a managed MySQL test schema").into(),
+                io::Error::other("refresh_database requires a managed MySQL test schema").into(),
             );
         }
         self.boot().await?;
@@ -346,7 +348,7 @@ impl TestApp {
             || connections.iter().any(test_transaction::active)
         {
             return Err(io::Error::other(
-                "refreshDatabase requires the owned default connection outside a test transaction",
+                "refresh_database requires the owned default connection outside a test transaction",
             )
             .into());
         }
@@ -387,7 +389,7 @@ impl TestApp {
             .map_err(crate::database::DatabaseError::Unavailable)?;
         Ok(owners
             .0
-            .get(connection.getName())
+            .get(connection.get_name())
             .is_some_and(|owner| owner.is_schema(connection.getDatabaseName())))
     }
 
@@ -408,7 +410,7 @@ impl TestApp {
         let command = result??;
         if command.status != 0 {
             return Err(io::Error::other(format!(
-                "refreshDatabase migration exited with {}: {}",
+                "refresh_database migration exited with {}: {}",
                 command.status,
                 command.stderr.trim()
             ))

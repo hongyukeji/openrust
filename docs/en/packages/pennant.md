@@ -41,9 +41,9 @@ let both = user.allAreActive(&["new-api", "theme"]).await?;
 
 ## Scopes {#scopes}
 
-Use an explicit scope with `for`, `Scope::fromModel` for an Eloquent model, or `globally` for a single global scope. Global and anonymous scopes are distinct. Models use the concrete Rust class and primary key; `useMorphMap(true)` switches the class portion to its configured morph alias. `FeatureScopeSerializeable` and `Scope::fromSerializable` support custom serialization; `FeatureScopeable` and `forScopeable` select an identifier for the chosen store.
+Use an explicit scope with `for`, `Scope::from_model` for an Eloquent model, or `globally` for a single global scope. Global and anonymous scopes are distinct. Models use the concrete Rust class and primary key; `useMorphMap(true)` switches the class portion to its configured morph alias. `FeatureScopeSerializeable` and `Scope::fromSerializable` support custom serialization; `FeatureScopeable` and `forScopeable` select an identifier for the chosen store.
 
-The default scope reads the identity already resolved by native authentication. For a lazy guard, call `Feature::forRequest(request).await?` before checking features, or run authentication middleware first. `EnsureFeaturesAreActive` resolves the default guard itself. Outside HTTP, use an explicit scope or configure `FeatureManager::resolveScopeUsing`.
+The default scope reads the identity already resolved by native authentication. For a lazy guard, call `Feature::for_request(request).await?` before checking features, or run authentication middleware first. `EnsureFeaturesAreActive` resolves the default guard itself. Outside HTTP, use an explicit scope or configure `FeatureManager::resolveScopeUsing`.
 
 ## Feature classes {#feature-classes}
 

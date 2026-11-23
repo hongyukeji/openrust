@@ -78,7 +78,7 @@ impl AttemptToAuthenticate {
         let success = if let Some(callback) = self.fortify.authenticate_callback() {
             match callback(request).await? {
                 Some(user) => {
-                    Auth::sessionGuard(request, self.fortify.guard().as_deref())?
+                    Auth::session_guard(request, self.fortify.guard().as_deref())?
                         .login(user, remember)
                         .await?;
                     true
@@ -89,7 +89,7 @@ impl AttemptToAuthenticate {
                             guard: self.fortify.guard().unwrap_or(
                                 Resolver::<openrust::auth::AuthManager>::get_facade_root()
                                     .map_err(internal)?
-                                    .getDefaultDriver(),
+                                    .get_default_driver(),
                             ),
                             user: None,
                         },
@@ -100,7 +100,7 @@ impl AttemptToAuthenticate {
                 }
             }
         } else {
-            Auth::sessionGuard(request, self.fortify.guard().as_deref())?
+            Auth::session_guard(request, self.fortify.guard().as_deref())?
                 .attempt(&credentials, remember)
                 .await?
         };
@@ -128,7 +128,7 @@ impl EnsureLoginIsNotThrottled {
                 guard: self.fortify.guard().unwrap_or(
                     Resolver::<openrust::auth::AuthManager>::get_facade_root()
                         .map_err(internal)?
-                        .getDefaultDriver(),
+                        .get_default_driver(),
                 ),
                 retry_after: self.limiter.availableIn(request).await?,
             },
@@ -137,7 +137,7 @@ impl EnsureLoginIsNotThrottled {
         .await?;
         let response = Resolver::<dyn contracts::LockoutResponse>::get_facade_root()
             .map_err(internal)?
-            .toResponse(request)
+            .to_response(request)
             .await?;
         Ok(Some(response))
     }
@@ -165,7 +165,7 @@ impl PrepareAuthenticatedSession {
         Self { limiter }
     }
     pub async fn handle(&self, request: &mut Request) -> Result<(), HttpError> {
-        if request.hasSession() {
+        if request.has_session() {
             request
                 .session_mut()
                 .map_err(internal)?
@@ -199,7 +199,7 @@ impl ConfirmPassword {
             return Ok(false);
         };
         let username = self.fortify.username();
-        let value = user.getAuthAttribute(&username)?.unwrap_or(Value::Null);
+        let value = user.get_auth_attribute(&username)?.unwrap_or(Value::Null);
         guard
             .validate(&Credentials::new([(username, value)], password))
             .await

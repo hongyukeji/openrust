@@ -22,7 +22,7 @@ Scout 为 Eloquent 模型提供搜索引擎、模型生命周期同步和队列�
 
 ## 可搜索模型 {#searchable-models}
 
-为已有 `Model + Clone` 实现 `openrust_scout::Searchable`。默认 `toSearchableArray` 使用 `toArray`，可以覆盖以选择字段。`shouldBeSearchable` 控制搜索资格，`searchIndexShouldBeUpdated` 控制自动更新。
+为已有 `Model + Clone` 实现 `openrust_scout::Searchable`。默认 `toSearchableArray` 使用 `to_array`，可以覆盖以选择字段。`shouldBeSearchable` 控制搜索资格，`searchIndexShouldBeUpdated` 控制自动更新。
 
 ```rust
 use openrust_scout::{EngineManager, Searchable};
@@ -44,12 +44,12 @@ app.make::<EngineManager>().await?
 
 ```rust
 let page = Article::search("rust")?
-    .whereIn("category", vec![1_i64.into(), 2_i64.into()])
+    .where_in("category", vec![1_i64.into(), 2_i64.into()])
     .orderBy("id", "asc")
     .paginate(15, 1).await?;
 ```
 
-支持 `where(field, operator, value)`、`whereIn`、`whereNotIn`、`orderBy`、`orderByDesc`、`latest`、`oldest` 和 `take`。Rust 使用显式运算符参数表达 PHP 两参数 `where` 的重载。集合引擎未指定排序时按 Scout 键倒序。`withTrashed` 和 `onlyTrashed` 控制软删除结果。分页使用原生分页器，页大小须为正数；集合分页统计所有匹配模型，设置 `take` 不改变该总数。
+支持 `where(field, operator, value)`、`where_in`、`where_not_in`、`orderBy`、`orderByDesc`、`latest`、`oldest` 和 `take`。Rust 使用显式运算符参数表达 PHP 两参数 `where` 的重载。集合引擎未指定排序时按 Scout 键倒序。`with_trashed` 和 `only_trashed` 控制软删除结果。分页使用原生分页器，页大小须为正数；集合分页统计所有匹配模型，设置 `take` 不改变该总数。
 
 `raw` 返回有序 ID、总数和提供方 JSON。`keys`、`first`、`get`、`paginate` 和 `simplePaginate` 返回 ID、模型或分页。`cursor` 返回流：集合匹配先确定 ID，再通过原生 SQL 按结果顺序流式读取模型。`query(callback)` 修改模型加载查询；`callback` 替换集合引擎初始数据库筛选；`withRawResults` 在映射模型前调整原始结果。回调返回 `Result` 并保留错误。`within` 和 `options` 向自定义引擎传递设置；集合引擎没有命名索引。
 

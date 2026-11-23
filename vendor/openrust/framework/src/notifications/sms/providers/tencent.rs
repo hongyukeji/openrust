@@ -87,8 +87,8 @@ impl SmsDriver for Tencent {
             ];
             let payload = response(
                 request()?
-                    .withHeaders(signed_headers(&headers, &authorization)?)
-                    .withBody(body, http::HeaderValue::from_static(CONTENT_TYPE))
+                    .with_headers(signed_headers(&headers, &authorization)?)
+                    .with_body(body, http::HeaderValue::from_static(CONTENT_TYPE))
                     .post(self.endpoint.as_str(), &())
                     .await,
             )?;

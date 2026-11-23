@@ -203,12 +203,12 @@ fn rpc_endpoint(profile: &Value, default: &str) -> NotificationResult<Url> {
 }
 
 fn request() -> NotificationResult<PendingRequest> {
-    Ok(Http::acceptJson()
+    Ok(Http::accept_json()
         .map_err(|_| delivery("The SMS HTTP client is unavailable."))?
-        .redact_payload()
-        .withoutRedirecting()
+        .redact_request_payload_only()
+        .without_redirecting()
         .timeout(Duration::from_secs(10))
-        .maxResponseBytes(64 * 1024))
+        .max_response_bytes(64 * 1024))
 }
 
 pub(in crate::notifications) fn checked_response(

@@ -31,9 +31,8 @@ impl Facade for Http {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Http {
-    pub fn globalMiddleware(
+    pub fn global_middleware(
         middleware: impl for<'a> Fn(super::Request, super::Next<'a>) -> HttpFuture<'a, Result<Response>>
         + Send
         + Sync
@@ -41,110 +40,110 @@ impl Http {
     ) -> Result<()> {
         Self::get_facade_root()
             .map_err(Error::Unavailable)?
-            .globalMiddleware(middleware);
+            .global_middleware(middleware);
         Ok(())
     }
 
-    pub fn globalRequestMiddleware(
+    pub fn global_request_middleware(
         middleware: impl Fn(&mut super::Request) -> Result<()> + Send + Sync + 'static,
     ) -> Result<()> {
         Self::get_facade_root()
             .map_err(Error::Unavailable)?
-            .globalRequestMiddleware(middleware);
+            .global_request_middleware(middleware);
         Ok(())
     }
 
-    pub fn globalResponseMiddleware(
+    pub fn global_response_middleware(
         middleware: impl Fn(Response) -> Result<Response> + Send + Sync + 'static,
     ) -> Result<()> {
         Self::get_facade_root()
             .map_err(Error::Unavailable)?
-            .globalResponseMiddleware(middleware);
+            .global_response_middleware(middleware);
         Ok(())
     }
 
     pub fn sink(sink: impl Into<super::Sink>) -> Result<PendingRequest> {
-        Ok(Self::pendingRequest()?.sink(sink))
+        Ok(Self::pending_request()?.sink(sink))
     }
 
-    pub fn pendingRequest() -> Result<PendingRequest> {
+    pub fn pending_request() -> Result<PendingRequest> {
         Ok(Self::get_facade_root()
             .map_err(Error::Unavailable)?
-            .pendingRequest())
+            .pending_request())
     }
 
     pub async fn get(url: &str) -> Result<Response> {
-        Self::pendingRequest()?.get(url).await
+        Self::pending_request()?.get(url).await
     }
 
     pub async fn head(url: &str) -> Result<Response> {
-        Self::pendingRequest()?.head(url).await
+        Self::pending_request()?.head(url).await
     }
 
     pub async fn post(url: &str, data: &(impl Serialize + ?Sized)) -> Result<Response> {
-        Self::pendingRequest()?.post(url, data).await
+        Self::pending_request()?.post(url, data).await
     }
 
     pub async fn put(url: &str, data: &(impl Serialize + ?Sized)) -> Result<Response> {
-        Self::pendingRequest()?.put(url, data).await
+        Self::pending_request()?.put(url, data).await
     }
 
     pub async fn patch(url: &str, data: &(impl Serialize + ?Sized)) -> Result<Response> {
-        Self::pendingRequest()?.patch(url, data).await
+        Self::pending_request()?.patch(url, data).await
     }
 
     pub async fn delete(url: &str, data: &(impl Serialize + ?Sized)) -> Result<Response> {
-        Self::pendingRequest()?.delete(url, data).await
+        Self::pending_request()?.delete(url, data).await
     }
 
-    pub fn acceptJson() -> Result<PendingRequest> {
-        Ok(Self::pendingRequest()?.acceptJson())
+    pub fn accept_json() -> Result<PendingRequest> {
+        Ok(Self::pending_request()?.accept_json())
     }
 
-    pub fn withHeaders(headers: HeaderMap) -> Result<PendingRequest> {
-        Ok(Self::pendingRequest()?.withHeaders(headers))
+    pub fn with_headers(headers: HeaderMap) -> Result<PendingRequest> {
+        Ok(Self::pending_request()?.with_headers(headers))
     }
 
-    pub fn withToken(token: &str) -> Result<PendingRequest> {
-        Ok(Self::pendingRequest()?.withToken(token))
+    pub fn with_token(token: &str) -> Result<PendingRequest> {
+        Ok(Self::pending_request()?.with_token(token))
     }
 
-    pub fn withUserAgent(user_agent: &str) -> Result<PendingRequest> {
-        Ok(Self::pendingRequest()?.withUserAgent(user_agent))
+    pub fn with_user_agent(user_agent: &str) -> Result<PendingRequest> {
+        Ok(Self::pending_request()?.with_user_agent(user_agent))
     }
 
-    pub fn withoutVerifying() -> Result<PendingRequest> {
-        Ok(Self::pendingRequest()?.withoutVerifying())
+    pub fn without_verifying() -> Result<PendingRequest> {
+        Ok(Self::pending_request()?.without_verifying())
     }
 
-    pub fn withBasicAuth(username: &str, password: &str) -> Result<PendingRequest> {
-        Ok(Self::pendingRequest()?.withBasicAuth(username, password))
+    pub fn with_basic_auth(username: &str, password: &str) -> Result<PendingRequest> {
+        Ok(Self::pending_request()?.with_basic_auth(username, password))
     }
 
-    pub fn withDigestAuth(username: &str, password: &str) -> Result<PendingRequest> {
-        Ok(Self::pendingRequest()?.withDigestAuth(username, password))
+    pub fn with_digest_auth(username: &str, password: &str) -> Result<PendingRequest> {
+        Ok(Self::pending_request()?.with_digest_auth(username, password))
     }
 
-    pub fn baseUrl(url: impl Into<String>) -> Result<PendingRequest> {
-        Ok(Self::pendingRequest()?.baseUrl(url))
+    pub fn base_url(url: impl Into<String>) -> Result<PendingRequest> {
+        Ok(Self::pending_request()?.base_url(url))
     }
 
-    pub fn withUrlParameters(
+    pub fn with_url_parameters(
         parameters: serde_json::Map<String, serde_json::Value>,
     ) -> Result<PendingRequest> {
-        Ok(Self::pendingRequest()?.withUrlParameters(parameters))
+        Ok(Self::pending_request()?.with_url_parameters(parameters))
     }
 
-    pub fn asForm() -> Result<PendingRequest> {
-        Ok(Self::pendingRequest()?.asForm())
+    pub fn as_form() -> Result<PendingRequest> {
+        Ok(Self::pending_request()?.as_form())
     }
 
     pub fn timeout(duration: Duration) -> Result<PendingRequest> {
-        Ok(Self::pendingRequest()?.timeout(duration))
+        Ok(Self::pending_request()?.timeout(duration))
     }
 
     pub fn retry(attempts: usize, delay: Duration) -> Result<PendingRequest> {
-        Ok(Self::pendingRequest()?.retry(attempts, delay))
+        Ok(Self::pending_request()?.retry(attempts, delay))
     }
 
     pub async fn pool<'a>(
@@ -157,12 +156,12 @@ impl Http {
             .await)
     }
 
-    pub async fn poolOrdered<'a>(
+    pub async fn pool_ordered<'a>(
         build: impl FnOnce(&mut Pool<'a>),
     ) -> Result<indexmap::IndexMap<String, Result<Response>>> {
         Ok(Self::get_facade_root()
             .map_err(Error::Unavailable)?
-            .poolOrdered(build)
+            .pool_ordered(build)
             .await)
     }
 
@@ -181,69 +180,71 @@ impl Http {
         Ok(())
     }
 
-    pub fn fakeSequence(pattern: impl Into<String>) -> Result<ResponseSequence> {
+    pub fn fake_sequence(pattern: impl Into<String>) -> Result<ResponseSequence> {
         Ok(Self::get_facade_root()
             .map_err(Error::Unavailable)?
-            .fakeSequence(pattern))
+            .fake_sequence(pattern))
     }
 
-    pub fn preventStrayRequests(prevent: bool) -> Result<()> {
+    pub fn prevent_stray_requests(prevent: bool) -> Result<()> {
         Self::get_facade_root()
             .map_err(Error::Unavailable)?
-            .preventStrayRequests(prevent);
+            .prevent_stray_requests(prevent);
         Ok(())
     }
 
-    pub fn allowStrayRequests(patterns: impl IntoIterator<Item = impl Into<String>>) -> Result<()> {
+    pub fn allow_stray_requests(
+        patterns: impl IntoIterator<Item = impl Into<String>>,
+    ) -> Result<()> {
         Self::get_facade_root()
             .map_err(Error::Unavailable)?
-            .allowStrayRequests(patterns);
+            .allow_stray_requests(patterns);
         Ok(())
     }
 
-    pub fn preventingStrayRequests() -> Result<bool> {
+    pub fn preventing_stray_requests() -> Result<bool> {
         Ok(Self::get_facade_root()
             .map_err(Error::Unavailable)?
-            .preventingStrayRequests())
+            .preventing_stray_requests())
     }
 
-    pub fn isAllowedRequestUrl(url: &str) -> Result<bool> {
+    pub fn is_allowed_request_url(url: &str) -> Result<bool> {
         Ok(Self::get_facade_root()
             .map_err(Error::Unavailable)?
-            .isAllowedRequestUrl(url))
+            .is_allowed_request_url(url))
     }
 
     #[track_caller]
-    pub fn assertSent(
+    pub fn assert_sent(
         predicate: impl Fn(&RecordedRequest, Option<&Response>) -> bool,
     ) -> Result<()> {
         Self::get_facade_root()
             .map_err(Error::Unavailable)?
-            .assertSent(predicate);
+            .assert_sent(predicate);
         Ok(())
     }
 
     #[track_caller]
-    pub fn assertNotSent(
+    pub fn assert_not_sent(
         predicate: impl Fn(&RecordedRequest, Option<&Response>) -> bool,
     ) -> Result<()> {
         Self::get_facade_root()
             .map_err(Error::Unavailable)?
-            .assertNotSent(predicate);
+            .assert_not_sent(predicate);
         Ok(())
     }
 
     #[track_caller]
-    pub fn assertSentCount(expected: usize) -> Result<()> {
+    pub fn assert_sent_count(expected: usize) -> Result<()> {
         Self::get_facade_root()
             .map_err(Error::Unavailable)?
-            .assertSentCount(expected);
+            .assert_sent_count(expected);
         Ok(())
     }
 
     #[track_caller]
-    pub fn assertNothingSent() -> Result<()> {
-        Self::assertSentCount(0)
+    pub fn assert_nothing_sent() -> Result<()> {
+        Self::assert_sent_count(0)
     }
 
     pub fn recorded() -> Result<Vec<(RecordedRequest, Option<Response>)>> {
@@ -264,7 +265,7 @@ impl ServiceProvider for HttpClientServiceProvider {
                         service: "http.client",
                         source: Box::new(source),
                     })?;
-                Ok(Arc::new(factory.withDispatcher(
+                Ok(Arc::new(factory.with_dispatcher(
                     container.make::<crate::events::Dispatcher>()?,
                 )))
             })?;

@@ -256,7 +256,7 @@ fn api(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
                         )
                         .await?;
                     }
-                    let options = EntryQueryOptions::fromRequest(request).await?;
+                    let options = EntryQueryOptions::from_request(request).await?;
                     let mut result = json!({"entries":repository.get(Some(*kind), options).await.map_err(failure)?,"status":status(watcher).await?});
                     if *kind == EntryType::Dump {
                         result["dump"] = "true".into();
@@ -326,7 +326,7 @@ async fn status(watcher: &str) -> Result<&'static str, HttpError> {
     Ok(if enabled { "enabled" } else { "off" })
 }
 impl EntryQueryOptions {
-    pub async fn fromRequest(request: &mut Request) -> Result<Self, HttpError> {
+    pub async fn from_request(request: &mut Request) -> Result<Self, HttpError> {
         let values = request.input(None).await?.unwrap_or(json!({}));
         let string = |key| -> Result<Option<String>, HttpError> {
             match values.get(key) {

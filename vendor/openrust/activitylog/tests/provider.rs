@@ -104,34 +104,34 @@ async fn http_and_artisan_share_migrations_and_keep_applications_isolated() {
     for app in [&mut one, &mut two] {
         app.artisan(["migrate", "--force", "--no-interaction"])
             .await
-            .assertSuccessful();
+            .assert_successful();
         app.artisan(["help", "activitylog:clean"])
             .await
-            .assertSuccessful();
+            .assert_successful();
     }
     one.get("/api/activity/disabled")
         .await
         .unwrap()
-        .assertOk()
-        .assertContent("disabled");
+        .assert_ok()
+        .assert_content("disabled");
     one.get("/api/activity")
         .await
         .unwrap()
-        .assertOk()
-        .assertContent("1");
+        .assert_ok()
+        .assert_content("1");
     one.get("/api/activity")
         .await
         .unwrap()
-        .assertOk()
-        .assertContent("2");
+        .assert_ok()
+        .assert_content("2");
     two.get("/api/activity")
         .await
         .unwrap()
-        .assertOk()
-        .assertContent("1");
+        .assert_ok()
+        .assert_content("1");
     one.artisan(["activitylog:clean", "--days=365"])
         .await
-        .assertSuccessful();
+        .assert_successful();
     assert_ne!(
         one.artisan(["activitylog:clean", "--days=0"]).await.status,
         0
@@ -148,7 +148,7 @@ async fn http_and_artisan_share_migrations_and_keep_applications_isolated() {
         "--no-interaction",
     ])
     .await
-    .assertSuccessful();
+    .assert_successful();
     let published = one.root().join("config/activitylog.rs");
     assert!(published.exists());
     std::fs::write(&published, "// customized").unwrap();
@@ -158,7 +158,7 @@ async fn http_and_artisan_share_migrations_and_keep_applications_isolated() {
         "--no-interaction",
     ])
     .await
-    .assertSuccessful();
+    .assert_successful();
     assert_eq!(
         std::fs::read_to_string(&published).unwrap(),
         "// customized"
@@ -170,13 +170,13 @@ async fn http_and_artisan_share_migrations_and_keep_applications_isolated() {
         "--no-interaction",
     ])
     .await
-    .assertSuccessful();
+    .assert_successful();
     assert!(
         std::fs::read_to_string(&published)
             .unwrap()
             .contains("clean_after_days")
     );
-    one.artisan(["migrate:status"]).await.assertSuccessful();
+    one.artisan(["migrate:status"]).await.assert_successful();
 }
 
 fn disabled(
@@ -218,7 +218,7 @@ async fn cleaner_selects_log_names_validates_days_and_reuses_production_confirma
     let mut app = application();
     app.artisan(["migrate", "--force", "--no-interaction"])
         .await
-        .assertSuccessful();
+        .assert_successful();
     let repository = app.app().make::<ActivityRepository>().await.unwrap();
     for name in ["accounts", "other"] {
         let mut activity = Activity::new("expired").useLog(name);
@@ -228,7 +228,7 @@ async fn cleaner_selects_log_names_validates_days_and_reuses_production_confirma
     let result = app
         .artisan(["activitylog:clean", "accounts", "--days=1"])
         .await;
-    result.assertSuccessful();
+    result.assert_successful();
     assert!(
         result
             .stdout
@@ -261,7 +261,7 @@ async fn cleaner_selects_log_names_validates_days_and_reuses_production_confirma
     assert_eq!(repository.query().get().await.unwrap().len(), 1);
     app.artisan(["activitylog:clean", "--force", "--no-interaction"])
         .await
-        .assertSuccessful();
+        .assert_successful();
     assert!(repository.query().get().await.unwrap().is_empty());
 }
 
@@ -284,24 +284,24 @@ impl openrust::database::eloquent::Model for Actor {
     }
 }
 impl openrust::contracts::auth::Authenticatable for Actor {
-    fn getAuthIdentifierName(&self) -> &str {
+    fn get_auth_identifier_name(&self) -> &str {
         "id"
     }
-    fn getAuthIdentifier(&self) -> openrust::auth::AuthIdentifier {
+    fn get_auth_identifier(&self) -> openrust::auth::AuthIdentifier {
         use openrust::database::eloquent::Model;
         openrust::auth::AuthIdentifier::try_from(self.getKey().unwrap()).unwrap()
     }
-    fn getAuthPasswordName(&self) -> &str {
+    fn get_auth_password_name(&self) -> &str {
         "password"
     }
-    fn getAuthPassword(&self) -> Option<&str> {
+    fn get_auth_password(&self) -> Option<&str> {
         None
     }
-    fn getRememberToken(&self) -> Option<&str> {
+    fn get_remember_token(&self) -> Option<&str> {
         None
     }
-    fn setRememberToken(&mut self, _: Option<String>) {}
-    fn getRememberTokenName(&self) -> &str {
+    fn set_remember_token(&mut self, _: Option<String>) {}
+    fn get_remember_token_name(&self) -> &str {
         "remember_token"
     }
 }
@@ -360,14 +360,16 @@ async fn default_auth_causer_uses_configured_guard_real_morph_and_request_isolat
         .with_routing(openrust::foundation::configuration::Routing::default().api(authenticated_routes))
     ).unwrap();
     std::fs::File::create(app.root().join("activity.sqlite")).unwrap();
-    app.artisan(["migrate", "--force"]).await.assertSuccessful();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
     let auth = app
         .app()
         .make::<openrust::auth::AuthManager>()
         .await
         .unwrap();
-    auth.registerModel::<Actor>("actors");
-    auth.viaRequest("cached", |_| {
+    auth.register_model::<Actor>("actors");
+    auth.via_request("cached", |_| {
         panic!("already resolved identity must not perform another lookup")
     });
     MorphMap::enforceMorphMap(app.app(), [MorphMapEntry::model::<Actor>("staff")], false).unwrap();
@@ -378,7 +380,7 @@ async fn default_auth_causer_uses_configured_guard_real_morph_and_request_isolat
         "/api/guest",
         "/api/identity",
     ] {
-        app.get(path).await.unwrap().assertOk();
+        app.get(path).await.unwrap().assert_ok();
     }
     let rows = repository.query().get().await.unwrap();
     assert_eq!(rows.len(), 4);
@@ -389,7 +391,7 @@ async fn default_auth_causer_uses_configured_guard_real_morph_and_request_isolat
     assert!(rows[1].causer.is_none() && rows[2].causer.is_none());
     assert_eq!(rows[3].causer, rows[0].causer);
     assert_eq!(rows[0].description, "request Actor 2");
-    assert!(auth.resolvedUser(Some("second")).is_none());
+    assert!(auth.resolved_user(Some("second")).is_none());
     let connection = app
         .app()
         .make::<openrust::database::DatabaseManager>()
@@ -416,8 +418,8 @@ async fn default_auth_causer_uses_configured_guard_real_morph_and_request_isolat
         ])])
         .await
         .unwrap();
-    app.get("/api/lookup").await.unwrap().assertOk();
-    app.get("/api/missing").await.unwrap().assertOk();
+    app.get("/api/lookup").await.unwrap().assert_ok();
+    app.get("/api/missing").await.unwrap().assert_ok();
     let rows = repository.query().get().await.unwrap();
     assert_eq!(rows.len(), 5);
     assert_eq!(rows[0].description, "request Lookup actor");
@@ -468,7 +470,9 @@ fn buffered_activity(
 #[tokio::test]
 async fn automatic_buffer_flushes_success_and_error_original_scope_but_not_cancelled_request() {
     let mut app = application();
-    app.artisan(["migrate", "--force"]).await.assertSuccessful();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
     app.app()
         .config()
         .unwrap()
@@ -476,10 +480,10 @@ async fn automatic_buffer_flushes_success_and_error_original_scope_but_not_cance
         .unwrap();
     let repository = app.app().make::<ActivityRepository>().await.unwrap();
     assert!(repository.query().get().await.unwrap().is_empty());
-    app.get("/api/buffer/ok").await.unwrap().assertOk();
+    app.get("/api/buffer/ok").await.unwrap().assert_ok();
     assert_eq!(repository.query().get().await.unwrap().len(), 2);
     let failed = app.get("/api/buffer/failed").await.unwrap();
-    failed.assertStatus(http::StatusCode::UNPROCESSABLE_ENTITY);
+    failed.assert_status(http::StatusCode::UNPROCESSABLE_ENTITY);
     assert_eq!(repository.query().get().await.unwrap().len(), 4);
     assert!(
         tokio::time::timeout(
@@ -490,7 +494,7 @@ async fn automatic_buffer_flushes_success_and_error_original_scope_but_not_cance
         .is_err()
     );
     assert_eq!(repository.query().get().await.unwrap().len(), 4);
-    app.get("/api/buffer/ok").await.unwrap().assertOk();
+    app.get("/api/buffer/ok").await.unwrap().assert_ok();
     assert_eq!(repository.query().get().await.unwrap().len(), 6);
 }
 
@@ -521,7 +525,9 @@ async fn configured_model_and_actions_resolve_native_named_bindings() {
         models::ActivityModel,
     };
     let mut app = application();
-    app.artisan(["migrate", "--force"]).await.assertSuccessful();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
     let manager = app
         .app()
         .make::<openrust::database::DatabaseManager>()
@@ -564,8 +570,8 @@ async fn configured_model_and_actions_resolve_native_named_bindings() {
     app.get("/api/activity")
         .await
         .unwrap()
-        .assertOk()
-        .assertContent("1");
+        .assert_ok()
+        .assert_content("1");
     let repository = app.app().make::<ActivityRepository>().await.unwrap();
     assert_eq!(
         repository.query().get().await.unwrap()[0].description,
@@ -592,7 +598,7 @@ async fn configured_model_and_actions_resolve_native_named_bindings() {
         .unwrap();
     app.artisan(["activitylog:clean", "--days=1"])
         .await
-        .assertSuccessful();
+        .assert_successful();
     assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 1);
     assert_eq!(repository.query().get().await.unwrap().len(), 1);
     assert!(
@@ -685,7 +691,9 @@ fn buffer_commands() -> Result<(), openrust::console::ConsoleError> {
 #[tokio::test]
 async fn automatic_buffer_flushes_success_nonzero_and_failed_artisan_commands() {
     let mut app = application();
-    app.artisan(["migrate", "--force"]).await.assertSuccessful();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
     app.app()
         .config()
         .unwrap()

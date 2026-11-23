@@ -54,13 +54,13 @@ impl SoftDeleteMacros {
         if let Some(column) = R::metadata().deleted_at
             && self.remove_scope
         {
-            query = query.withTrashed();
+            query = query.with_trashed();
             let column = query.qualifyColumn(column);
             if self.require_live {
-                query.whereNested(|conditions| conditions.whereNull(&column));
+                query.whereNested(|conditions| conditions.where_null(&column));
             }
             if self.require_deleted {
-                query.whereNested(|conditions| conditions.whereNotNull(&column));
+                query.whereNested(|conditions| conditions.where_not_null(&column));
             }
         }
         query
@@ -492,23 +492,23 @@ impl<P: Model> MorphTo<P> {
 
     /// Includes soft-deleted targets when loading this relation.
     #[must_use]
-    pub fn withTrashed(mut self) -> Self {
+    pub fn with_trashed(mut self) -> Self {
         self.soft_deletes.remove_scope = true;
         self
     }
 
     /// Requires targets with a soft-delete column to be live.
     #[must_use]
-    pub fn withoutTrashed(mut self) -> Self {
+    pub fn without_trashed(mut self) -> Self {
         self.soft_deletes.require_live = true;
-        self.withTrashed()
+        self.with_trashed()
     }
 
     /// Requires targets with a soft-delete column to be deleted.
     #[must_use]
-    pub fn onlyTrashed(mut self) -> Self {
+    pub fn only_trashed(mut self) -> Self {
         self.soft_deletes.require_deleted = true;
-        self.withTrashed()
+        self.with_trashed()
     }
 
     /// Registers a compiled target under the alias selected by this connection's morph map.
@@ -1021,7 +1021,7 @@ impl<M: Model> ProjectableModel for M {
     }
 
     fn project(&self) -> DatabaseResult<serde_json::Value> {
-        self.toArray().map(serde_json::Value::Object)
+        self.to_array().map(serde_json::Value::Object)
     }
 
     fn queueable_relations(&self) -> Vec<String> {

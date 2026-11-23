@@ -90,7 +90,7 @@ async fn verify(config: Json, id: &str) {
     let query = || Account::queryOn(&db);
     let account = query().create(password("plain password")).await.unwrap();
     let key = account.getKey().unwrap().clone();
-    assert!(!account.toArray().unwrap().contains_key("password"));
+    assert!(!account.to_array().unwrap().contains_key("password"));
     let mut account = query().findOrFail(key.clone()).await.unwrap();
     let first = hash_of(&account).to_owned();
     assert!(first.starts_with("$2y$05$"));

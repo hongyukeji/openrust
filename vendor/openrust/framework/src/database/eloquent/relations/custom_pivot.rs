@@ -83,7 +83,7 @@ impl CustomPivot {
                 let mut model = hydrated::<M>(attributes, connection, identity)?;
                 model.state_mut().relations = inverses;
                 relations.insert_pivot_model(accessor.into(), model, |model| {
-                    model.toArray().map(serde_json::Value::Object).map(Some)
+                    model.to_array().map(serde_json::Value::Object).map(Some)
                 });
                 Ok(())
             },

@@ -12,9 +12,9 @@ pub trait Provider {
     fn user(&mut self) -> ProviderFuture<'_, SocialiteUser>;
 }
 pub trait User {
-    fn getId(&self) -> &Value;
+    fn get_id(&self) -> &Value;
     fn getNickname(&self) -> Option<&str>;
-    fn getName(&self) -> Option<&str>;
+    fn get_name(&self) -> Option<&str>;
     fn getEmail(&self) -> Option<&str>;
     fn getAvatar(&self) -> Option<&str>;
 }
@@ -32,14 +32,14 @@ impl Provider for AbstractProvider<'_> {
     }
 }
 impl User for SocialiteUser {
-    fn getId(&self) -> &Value {
-        self.getId()
+    fn get_id(&self) -> &Value {
+        self.get_id()
     }
     fn getNickname(&self) -> Option<&str> {
         self.getNickname()
     }
-    fn getName(&self) -> Option<&str> {
-        self.getName()
+    fn get_name(&self) -> Option<&str> {
+        self.get_name()
     }
     fn getEmail(&self) -> Option<&str> {
         self.getEmail()

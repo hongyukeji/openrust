@@ -83,7 +83,7 @@ impl Command for TestCommand {
                     }
                 });
                 return tokio::select! {
-                    result = run => Ok(result.map_err(process_error)?.exitCode()),
+                    result = run => Ok(result.map_err(process_error)?.exit_code()),
                     result = tokio::signal::ctrl_c() => {
                         result.map_err(|error| ConsoleError::new(error.to_string()))?;
                         Ok(130)
@@ -98,7 +98,7 @@ impl Command for TestCommand {
             output
                 .stderr
                 .push_str(&String::from_utf8_lossy(result.errorOutput()));
-            Ok(result.exitCode())
+            Ok(result.exit_code())
         })
     }
 }

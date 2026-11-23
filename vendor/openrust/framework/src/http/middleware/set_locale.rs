@@ -64,7 +64,6 @@ impl SetLocale {
     }
 
     /// 原子替换候选，保留已有回调；空列表关闭整个中间件。
-    #[allow(non_snake_case, reason = "沿用中间件配置方法的命名风格")]
     pub fn set_locale(&mut self, locales: &[&str]) -> TranslationResult<&mut Self> {
         self.supported = Self::new(locales)?.supported;
         self.discover = false;
@@ -121,8 +120,7 @@ impl SetLocale {
 
     /// 为此实例选择语言；None 继续 URL 参数、受保护 Cookie 及请求头选择，错误交给 HTTP 异常处理。
     /// Some 的标签规范化后须精确属于候选，非法或不支持的值报错；空候选时不执行回调。
-    #[allow(non_snake_case, reason = "沿用项目回调配置方法的命名风格")]
-    pub fn localeUsing(
+    pub fn locale_using(
         &mut self,
         callback: impl Fn(&Request) -> Result<Option<String>, HttpError> + Send + Sync + 'static,
     ) -> &mut Self {
@@ -132,8 +130,7 @@ impl SetLocale {
 
     /// 保存或清除当前浏览器的手动偏好；须在 Cookie 解密、队列和写入请求保护之后调用。
     /// None 恢复自动，Some 仅接受当前候选中的 BCP 47 标签；不会再次切换本次语言。
-    #[allow(non_snake_case, reason = "沿用中间件公开方法命名")]
-    pub fn storePreference(request: &Request, locale: Option<&str>) -> Result<(), HttpError> {
+    pub fn store_preference(request: &Request, locale: Option<&str>) -> Result<(), HttpError> {
         if matches!(
             *request.method(),
             http::Method::GET | http::Method::HEAD | http::Method::OPTIONS
@@ -165,8 +162,7 @@ impl SetLocale {
 
     /// 从请求体的指定顶层字段保存偏好；不读取查询参数。
     /// null 或空字符串恢复自动，缺字段及其他类型报错；沿用 storePreference 的安全约束。
-    #[allow(non_snake_case, reason = "沿用中间件公开方法命名")]
-    pub async fn storePreferenceFromRequest(
+    pub async fn store_preference_from_request(
         request: &mut Request,
         field: &str,
     ) -> Result<(), HttpError> {
@@ -178,13 +174,12 @@ impl SetLocale {
             serde_json::Value::String(locale) => Some(locale.as_str()),
             _ => return Err(HttpError::InvalidRequest),
         };
-        Self::storePreference(request, locale)
+        Self::store_preference(request, locale)
     }
 
     /// 生成应用指定的本地返回 URL，移除实际语言查询参数并保留其他查询值。
     /// 目标必须是以单个 / 开头的应用内路径；不接受外部返回地址，也不创建响应或保存偏好。
-    #[allow(non_snake_case, reason = "沿用中间件公开方法命名")]
-    pub fn urlWithoutLocale(request: &Request, path: &str) -> Result<String, HttpError> {
+    pub fn url_without_locale(request: &Request, path: &str) -> Result<String, HttpError> {
         use crate::{contracts::routing::UrlGenerator as _, support::facades::URL};
 
         if !path.starts_with('/')
@@ -207,7 +202,7 @@ impl SetLocale {
         };
         let (path, fragment) = path.split_once('#').unwrap_or((path, ""));
         let (path, query) = path.split_once('?').unwrap_or((path, ""));
-        let urls = URL::forRequest(request)?;
+        let urls = URL::for_request(request)?;
         let target = urls.query(
             path,
             &filtered(crate::http::parse_query(query)?)?,

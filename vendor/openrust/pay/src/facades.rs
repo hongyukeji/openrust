@@ -15,7 +15,7 @@ impl Pay {
     }
     pub fn defaultDriver() -> Result<Gateway> {
         let manager = Self::get_facade_root().map_err(|_| Error::Context)?;
-        manager.driver(&manager.getDefaultDriver()?)
+        manager.driver(&manager.get_default_driver()?)
     }
     pub fn forgetDrivers() -> Result<()> {
         Self::get_facade_root()

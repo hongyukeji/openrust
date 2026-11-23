@@ -196,11 +196,11 @@ impl ProviderDefinition for FacebookProvider {
                 ));
             }
             json(
-                http.pendingRequest()
-                    .acceptJson()
-                    .redactPayload()
-                    .withoutRedirecting()
-                    .withQueryParameters(params)
+                http.pending_request()
+                    .accept_json()
+                    .redact_payload()
+                    .without_redirecting()
+                    .with_query_parameters(params)
                     .get(&Self::versioned(&self.endpoints.user, options))
                     .await?,
             )

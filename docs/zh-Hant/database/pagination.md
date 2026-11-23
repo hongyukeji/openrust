@@ -268,7 +268,7 @@ fn numbered_links<T>(page: &LengthAwarePaginator<T>) -> UrlWindowLinks {
 }
 ```
 
-`toArray()` 傳回 JSON 物件。`toJson()` 和 `toPrettyJson()` 編碼相同的中繼資料與記錄。手動呼叫 `LengthAwarePaginator::new` 可傳入頁容量零，`lastPage()` 依每頁一筆計算。查詢分頁仍要求頁容量為正。
+`to_array()` 傳回 JSON 物件。`to_json()` 和 `to_pretty_json()` 編碼相同的中繼資料與記錄。手動呼叫 `LengthAwarePaginator::new` 可傳入頁容量零，`lastPage()` 依每頁一筆計算。查詢分頁仍要求頁容量為正。
 
 ## JSON 和分頁連結
 

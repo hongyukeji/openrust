@@ -2,7 +2,7 @@
 
 在 `routes/web.rs` 宣告 Web 路由。應用程式啟動時透過 `openrust::routing::Router` 註冊這些路由及 `/up` 健康檢查。需要讀取請求的處理器接收可變的 `Request`，並傳回非同步 HTTP 結果。框架呼叫 Web 路由模組的 `register()` 時繫結目前應用程式的 Router。匯入 `openrust::support::facades::Route` 後，可以用 `Route::get("/", || view("welcome"))` 宣告具名檢視。
 
-執行 `./artisan install:api` 按需產生並註冊 `routes/api.rs` 和 `config/api.rs`。在 `routes/api.rs` 中定義 API 路由。應用程式從 `config/api.rs` 載入 `api.prefix`，並套用 `api` 中介軟體群組。預設前綴為 `/api`。在 `.env` 中設定 `API_PREFIX=api/admin` 可掛載至 `/api/admin`，設定 `API_PREFIX=` 可省略前綴。在 `with_routing` 中明確呼叫 `Routing::apiPrefix(...)` 時，以該呼叫為準。 重複安裝時保留既有的 `config/api.rs`，包括使用 `--force` 時。
+執行 `./artisan install:api` 按需產生並註冊 `routes/api.rs` 和 `config/api.rs`。在 `routes/api.rs` 中定義 API 路由。應用程式從 `config/api.rs` 載入 `api.prefix`，並套用 `api` 中介軟體群組。預設前綴為 `/api`。在 `.env` 中設定 `API_PREFIX=api/admin` 可掛載至 `/api/admin`，設定 `API_PREFIX=` 可省略前綴。在 `with_routing` 中明確呼叫 `Routing::api_prefix(...)` 時，以該呼叫為準。 重複安裝時保留既有的 `config/api.rs`，包括使用 `--force` 時。
 
 在 `routes/api.rs` 的無參數 `register() -> Result<(), RoutingError>` 中使用 `Route` Facade 宣告 API 端點。路由路徑相對於 API 前綴。GET 路由需要命名、模型繫結或路由層級中介軟體時，可使用 `Route::getWith`。
 
@@ -66,10 +66,10 @@ Route::fallback(NotFoundController::show)?;
 
 一般路由始終優先，即使後備路由先宣告。多個後備路由可符合時按註冊順序選擇；同一方法、網域與註冊路徑的後宣告覆蓋先宣告。未符合的 POST 在後備路由符合其路徑時傳回 405 和 `Allow: GET, HEAD`；自動 OPTIONS 傳回 200。後備路由也是已註冊路由，優先於下文的靜態檔案掛載。
 
-Facade 需要設定時使用 `Route::fallbackWith(handler, |route| { route.name("missing"); Ok(()) })`。`Router::fallback` 傳回可變路由；`route.fallback()` 可標記既有路由，`route.setFallback(false)` 取消標記。路由快取保持該優先順序。
+Facade 需要設定時使用 `Route::fallbackWith(handler, |route| { route.name("missing"); Ok(()) })`。`Router::fallback` 傳回可變路由；`route.fallback()` 可標記既有路由，`route.set_fallback(false)` 取消標記。路由快取保持該優先順序。
 
 
-處理器可以明確傳回另一條命名路由的回應。`respondWithRoute` 使用同一個請求 URI 重新綁定目標路由、執行其路由中介軟體，並取代請求的目前路由參數與名稱；不會產生重新導向，也不會將請求 URI 改成目標路徑。
+處理器可以明確傳回另一條命名路由的回應。`respond_with_route` 使用同一個請求 URI 重新綁定目標路由、執行其路由中介軟體，並取代請求的目前路由參數與名稱；不會產生重新導向，也不會將請求 URI 改成目標路徑。
 
 ```rust
 use openrust::{
@@ -78,7 +78,7 @@ use openrust::{
 };
 
 fn show_missing(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
-    Box::pin(Route::respondWithRoute("missing", request))
+    Box::pin(Route::respond_with_route("missing", request))
 }
 ```
 
@@ -122,7 +122,7 @@ curl -i -H 'Accept: application/json' http://localhost:8000/up
 ./artisan route:list -vv --json --middleware=SubstituteBindings
 ```
 
-路由清單保留 `{post:slug}` 等繫結欄位、選用標記和 `{tenant}.example.test` 等網域樣板。文字和 JSON 輸出皆包含透過 `setAction` 登記的控制器動作。相同方法、網域和路徑的後一次註冊會取代前一次，即使繫結欄位不同。其他 HTTP 方法仍使用原路由。
+路由清單保留 `{post:slug}` 等繫結欄位、選用標記和 `{tenant}.example.test` 等網域樣板。文字和 JSON 輸出皆包含透過 `set_action` 登記的控制器動作。相同方法、網域和路徑的後一次註冊會取代前一次，即使繫結欄位不同。其他 HTTP 方法仍使用原路由。
 
 ```sh
 ./artisan route:list --domain=example.test --action=PostController --json
@@ -180,7 +180,7 @@ fn register() -> Result<(), RoutingError> {
 
 未設定 `CORS_PATHS` 時，`cors.paths` 沿用 預設路徑 `api/*` 和 `sanctum/csrf-cookie`。API 路由前綴與 CORS 路徑各自設定。若 API 掛載到 `/v1`，可設定 `CORS_PATHS=v1/*,sanctum/csrf-cookie` 為這些路徑啟用 CORS。設定 `CORS_PATHS=*` 可涵蓋所有路徑，設定 `CORS_PATHS=` 可停用 CORS。跨來源憑證預設關閉。路徑映射可按主機覆寫路徑，用數字字串鍵表示共用路徑。`allowed_origins_patterns` 使用 Rust 正規表示式引擎支援的模式。HTTP 核心在啟動時載入並驗證策略。
 
-在 `with_middleware` 中呼叫 `middleware.skipCorsWhen(|request| request.is("api/internal/*"));`，可在目前的應用程式中依請求略過 CORS。任一回呼傳回 `true` 時，`HandleCors` 將請求交給後續中介軟體並保留既有回應標頭。預檢 `OPTIONS` 同樣適用。
+在 `with_middleware` 中呼叫 `middleware.skip_cors_when(|request| request.is("api/internal/*"));`，可在目前的應用程式中依請求略過 CORS。任一回呼傳回 `true` 時，`HandleCors` 將請求交給後續中介軟體並保留既有回應標頭。預檢 `OPTIONS` 同樣適用。
 
 ```bash
 curl -i -X OPTIONS http://127.0.0.1:8000/api/example \
@@ -218,11 +218,11 @@ fn upload(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 
 用 `middleware_name("throttle:30,0.5,uploads:")` 將額度設為每 30 秒 30 次。只寫 `throttle` 時預設每分鐘 60 次。`throttle:5|20,1,uploads:` 分別給訪客和已驗證使用者每分鐘 5 次和 20 次。訪客依路由宣告的網域和連線對端 IP 共用額度，已驗證請求依驗證識別碼共用額度。為不同規則設定不同的前綴即可分別計數。
 
-使用 `throttle:5|upload_limit,1,uploads:` 可以從已驗證的使用者讀取 `upload_limit`，訪客仍使用固定配額。資料庫使用者提供器可讀取欄位。應用程式模型可透過 `Authenticatable::getAuthAttribute` 提供屬性，並委由 `Model::getAttributeValue` 套用存取器與型別轉換。配額接受有號 64 位元範圍內的非負數和數值字串。屬性缺失或非數字屬於設定錯誤。
+使用 `throttle:5|upload_limit,1,uploads:` 可以從已驗證的使用者讀取 `upload_limit`，訪客仍使用固定配額。資料庫使用者提供器可讀取欄位。應用程式模型可透過 `Authenticatable::get_auth_attribute` 提供屬性，並委由 `Model::getAttributeValue` 套用存取器與型別轉換。配額接受有號 64 位元範圍內的非負數和數值字串。屬性缺失或非數字屬於設定錯誤。
 
 ### 使用 Redis 節流
 
-在 `with_middleware` 中呼叫 `middleware.throttleWithRedis()`，讓命名和數字節流別名使用預設 Redis 連線。使用相同 Redis 連線設定和鍵前綴的程序共用配額。Redis 原子檢查並消耗各項額度。使用 `after` 的規則在回應回傳後計數。
+在 `with_middleware` 中呼叫 `middleware.throttle_with_redis()`，讓命名和數字節流別名使用預設 Redis 連線。使用相同 Redis 連線設定和鍵前綴的程序共用配額。Redis 原子檢查並消耗各項額度。使用 `after` 的規則在回應回傳後計數。
 
 使用[預設 Redis 叢集](../database/redis.md#clusters)時，同一命名策略的計數器位於同一雜湊槽，Redis 可以一起檢查和計數。不同命名策略可以使用不同的槽。從舊叢集鍵格式升級後，命名策略開啟新的計數視窗，舊計數器依原到期時間清除。
 
@@ -230,8 +230,8 @@ fn upload(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 
 使用 `Route::model::<Post>("post")?` 在應用程式 Router 註冊顯式繫結。也可以透過 Router 回傳的路由呼叫 `.model::<Post>("post")?`，為該路由宣告模型參數。使用 `request.route_model::<Post>("post")` 讀取已解析的模型。模型缺失回傳 404，可透過 `missing` 自訂回應。
 
-模型預設按主鍵查詢。可覆寫 `getRouteKeyName` 使用 slug，也可為單條路由指定 `{post:slug}`。巢狀的自訂鍵透過前一個已繫結的模型限定查詢範圍。使用 `scopeBindings` 為預設鍵啟用作用域，或透過 `withoutScopedBindings` 關閉。子模型透過 `resolveChildRouteBinding` 選擇型別化關聯。`withTrashed` 可包含軟刪除記錄。預設 `web` 和 `api` 群組在處理器前執行繫結。
+模型預設按主鍵查詢。可覆寫 `getRouteKeyName` 使用 slug，也可為單條路由指定 `{post:slug}`。巢狀的自訂鍵透過前一個已繫結的模型限定查詢範圍。使用 `scope_bindings` 為預設鍵啟用作用域，或透過 `without_scoped_bindings` 關閉。子模型透過 `resolveChildRouteBinding` 選擇型別化關聯。`with_trashed` 可包含軟刪除記錄。預設 `web` 和 `api` 群組在處理器前執行繫結。
 
 ## 重新導向路由
 
-使用 `Route::redirect` 註冊重新導向並指定 HTTP 狀態。`Route::permanentRedirect` 傳回 301。`/articles/{id}` 這類目的地可以沿用符合的路由參數。
+使用 `Route::redirect` 註冊重新導向並指定 HTTP 狀態。`Route::permanent_redirect` 傳回 301。`/articles/{id}` 這類目的地可以沿用符合的路由參數。

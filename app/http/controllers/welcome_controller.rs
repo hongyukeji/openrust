@@ -30,8 +30,8 @@ impl WelcomeController {
                 Some(serde_json::Value::String(path)) => path,
                 _ => return Err(HttpError::InvalidRequest),
             };
-            let target = SetLocale::urlWithoutLocale(request, &redirect)?;
-            SetLocale::storePreferenceFromRequest(
+            let target = SetLocale::url_without_locale(request, &redirect)?;
+            SetLocale::store_preference_from_request(
                 request,
                 &Config::string("app.locale_form_field")?,
             )

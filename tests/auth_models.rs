@@ -70,11 +70,11 @@ impl ServiceProvider for EarlyAuth {
             let auth = app.container().make::<AuthManager>()?;
             let user = models::User::from_state(Default::default());
             assert_eq!(
-                auth.userClass(&user),
+                auth.user_class(&user),
                 Some(std::any::type_name::<models::User>())
             );
             // Constructing a provider must not query an unmigrated users table.
-            auth.createUserProvider("users")?;
+            auth.create_user_provider("users")?;
             Ok(())
         })
     }
@@ -129,14 +129,14 @@ async fn custom_models(database: Value) {
     let auth = app.container().make::<AuthManager>().unwrap();
     let user = custom_user::User::from_state(Default::default());
     assert_eq!(
-        auth.userClass(&user),
+        auth.user_class(&user),
         Some(std::any::type_name::<custom_user::User>())
     );
     assert_eq!(
-        auth.userClass(&models::User::from_state(Default::default())),
+        auth.user_class(&models::User::from_state(Default::default())),
         Some(std::any::type_name::<models::User>())
     );
-    let provider = auth.createUserProvider("users").unwrap();
+    let provider = auth.create_user_provider("users").unwrap();
     let config = app
         .container()
         .get::<dyn openrust::contracts::config::Repository>("config")
@@ -149,7 +149,7 @@ async fn custom_models(database: Value) {
             }),
         )
         .unwrap();
-    assert!(auth.createUserProvider("concrete").is_ok());
+    assert!(auth.create_user_provider("concrete").is_ok());
     let connection = app
         .container()
         .make::<DatabaseManager>()
@@ -165,19 +165,19 @@ async fn custom_models(database: Value) {
         .await
         .unwrap();
     let user = provider
-        .retrieveById(&AuthIdentifier::Integer(7))
+        .retrieve_by_id(&AuthIdentifier::Integer(7))
         .await
         .unwrap()
         .unwrap();
     assert_eq!(user.type_id(), std::any::TypeId::of::<custom_user::User>());
     assert_eq!(
-        auth.userAttributes(user.as_ref()).unwrap()["email"],
+        auth.user_attributes(user.as_ref()).unwrap()["email"],
         "user@example.test"
     );
 
     // Compiled classes are available like autoloadable PHP classes, but runtime
     // registrations and configuration still belong to their application.
-    auth.registerModel::<custom_user::User>("runtime::Only");
+    auth.register_model::<custom_user::User>("runtime::Only");
     let other_root = Directory::new();
     let mut other = Application::configure(other_root.0.clone())
         .with_config(|_, _| {
@@ -191,12 +191,12 @@ async fn custom_models(database: Value) {
     other.boot().await.unwrap();
     let other_auth = other.container().make::<AuthManager>().unwrap();
     assert!(matches!(
-        other_auth.createUserProvider("users"),
+        other_auth.create_user_provider("users"),
         Err(AuthError::Configuration("compiled Eloquent model"))
     ));
     // Explicit registration remains available for application extensions.
-    other_auth.registerModel::<custom_user::User>("runtime::Only");
-    assert!(other_auth.createUserProvider("users").is_ok());
+    other_auth.register_model::<custom_user::User>("runtime::Only");
+    assert!(other_auth.create_user_provider("users").is_ok());
     connection.statement("DROP TABLE users", &[]).await.unwrap();
 }
 
@@ -236,7 +236,7 @@ async fn configuration_class_references_resolve_without_application_wiring() {
         .unwrap();
     app.boot().await.unwrap();
     let auth = app.container().make::<AuthManager>().unwrap();
-    assert!(auth.createUserProvider("users").is_ok());
+    assert!(auth.create_user_provider("users").is_ok());
 }
 
 #[tokio::test]
@@ -259,7 +259,7 @@ async fn ambiguous_class_names_fail_instead_of_depending_on_link_order() {
         app.container()
             .make::<AuthManager>()
             .unwrap()
-            .createUserProvider("users"),
+            .create_user_provider("users"),
         Err(AuthError::Configuration("ambiguous Eloquent model class"))
     ));
 }

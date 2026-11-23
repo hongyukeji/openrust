@@ -11,7 +11,6 @@ pub struct Exists {
     pub(in crate::validation) target: DatabaseRule,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Exists {
     pub fn new(table: &str, column: Option<&str>) -> Self {
         Self {
@@ -19,7 +18,7 @@ impl Exists {
         }
     }
 
-    pub fn fromModel(model: &impl Model, column: Option<&str>) -> Self {
+    pub fn from_model(model: &impl Model, column: Option<&str>) -> Self {
         Self {
             target: DatabaseRule::model(model, column),
         }

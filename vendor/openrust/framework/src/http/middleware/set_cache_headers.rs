@@ -112,7 +112,7 @@ impl SetCacheHeaders {
                 tag = HeaderValue::from_str(&format!("\"{hash:032x}\"")).ok();
             }
             let falsey = bytes.as_ref() == b"0";
-            response.setContent(bytes);
+            response.set_content(bytes);
             if falsey && method != Method::HEAD {
                 return Ok(response);
             }
@@ -128,8 +128,8 @@ impl SetCacheHeaders {
         apply_cache_control(headers, &self.directives, self.public);
         if is_not_modified(request_headers, headers) {
             response.parts_mut().status = StatusCode::NOT_MODIFIED;
-            response.setContent(axum::body::Bytes::new());
-            response = response.withoutHeaders([
+            response.set_content(axum::body::Bytes::new());
+            response = response.without_headers([
                 ALLOW,
                 CONTENT_ENCODING,
                 CONTENT_LANGUAGE,

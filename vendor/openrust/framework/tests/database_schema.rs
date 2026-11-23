@@ -6059,7 +6059,7 @@ async fn verify_blueprint_context(db: Connection, table_ref: &str) {
             assert_eq!(
                 table
                     .getAddedColumns()
-                    .map(ColumnDefinition::getName)
+                    .map(ColumnDefinition::get_name)
                     .collect::<Vec<_>>(),
                 ["id", "code"]
             );
@@ -6077,20 +6077,20 @@ async fn verify_blueprint_context(db: Connection, table_ref: &str) {
             assert_eq!(
                 table
                     .getColumns()
-                    .map(ColumnDefinition::getName)
+                    .map(ColumnDefinition::get_name)
                     .collect::<Vec<_>>(),
                 ["code", "quantity"]
             );
             assert!(
                 table
                     .getChangedColumns()
-                    .map(ColumnDefinition::getName)
+                    .map(ColumnDefinition::get_name)
                     .eq(["code"])
             );
             assert!(
                 table
                     .getAddedColumns()
-                    .map(ColumnDefinition::getName)
+                    .map(ColumnDefinition::get_name)
                     .eq(["quantity"])
             );
         })
@@ -6153,7 +6153,7 @@ async fn sqlite_scopes_blueprint_resolvers_to_the_builder_and_transaction() {
                 assert!(
                     table
                         .getAddedColumns()
-                        .any(|c| c.getName() == "from_resolver")
+                        .any(|c| c.get_name() == "from_resolver")
                 );
                 table.string("from_callback", 16);
             })
@@ -6172,7 +6172,7 @@ async fn sqlite_scopes_blueprint_resolvers_to_the_builder_and_transaction() {
                 assert!(
                     table
                         .getAddedColumns()
-                        .any(|c| c.getName() == "updated_resolver")
+                        .any(|c| c.get_name() == "updated_resolver")
                 );
                 table.integer("quantity").default(0);
             })

@@ -44,7 +44,7 @@ fn daily(schedule: &mut openrust::console::scheduling::Schedule) -> Result<(), C
             })
         })
         .name("Clock task")
-        .dailyAt("09:30")?;
+        .daily_at("09:30")?;
     Ok(())
 }
 
@@ -54,7 +54,7 @@ fn register(_: &mut Artisan) -> Result<(), ConsoleError> {
 
 fn custom(_: &mut Artisan) -> Result<(), ConsoleError> {
     Schedule::configure(|schedule| {
-        schedule.useClock(|| UNIX_EPOCH + Duration::from_secs(30 * 60));
+        schedule.use_clock(|| UNIX_EPOCH + Duration::from_secs(30 * 60));
         daily(schedule)
     })
 }
@@ -69,11 +69,11 @@ fn repeating(_: &mut Artisan) -> Result<(), ConsoleError> {
                 })
             })
             .name("Clock repeat")
-            .everySecond();
+            .every_second();
         schedule
             .call(|_, _| Box::pin(async { Ok(()) }))
             .name("Five-second repeat")
-            .everyFiveSeconds();
+            .every_five_seconds();
         Ok(())
     })
 }
@@ -82,20 +82,20 @@ fn repeating(_: &mut Artisan) -> Result<(), ConsoleError> {
 async fn schedule_commands_read_each_fixtures_clock_and_timezone() -> TestResult {
     let mut first = TestApp::create(|builder| configure(builder).with_commands(register))?;
     let mut second = TestApp::create(|builder| configure(builder).with_commands(register))?;
-    first.travelTo(date("2024-01-01T00:30:04Z"));
-    second.travelTo(date("1969-12-31T00:31:04Z"));
+    first.travel_to(date("2024-01-01T00:30:04Z"));
+    second.travel_to(date("1969-12-31T00:31:04Z"));
 
     let (left, right) = tokio::join!(
         first.artisan(["schedule:run"]),
         second.artisan(["schedule:run"])
     );
-    left.assertSuccessful().expectsOutput("clock task ran");
-    right.assertSuccessful();
+    left.assert_successful().expects_output("clock task ran");
+    right.assert_successful();
     assert!(!right.stdout.contains("clock task ran"));
     let list = second
         .artisan(["schedule:list", "--timezone=Asia/Tokyo", "-v"])
         .await;
-    list.assertSuccessful();
+    list.assert_successful();
     assert!(
         list.stdout.contains("1970-01-01 09:30:00 +09:00"),
         "{}",
@@ -103,9 +103,9 @@ async fn schedule_commands_read_each_fixtures_clock_and_timezone() -> TestResult
     );
 
     first
-        .travelToFor(date("2030-01-02T00:31:04Z"), async |fixture, _| {
+        .travel_to_for(date("2030-01-02T00:31:04Z"), async |fixture, _| {
             let command = fixture.artisan(["schedule:run"]).await;
-            command.assertSuccessful();
+            command.assert_successful();
             assert!(!command.stdout.contains("clock task ran"));
             Ok(())
         })
@@ -113,23 +113,23 @@ async fn schedule_commands_read_each_fixtures_clock_and_timezone() -> TestResult
     first
         .artisan(["schedule:run"])
         .await
-        .assertSuccessful()
-        .expectsOutput("clock task ran");
+        .assert_successful()
+        .expects_output("clock task ran");
     Ok(())
 }
 
 #[tokio::test]
 async fn explicit_scheduler_clock_takes_precedence_over_the_fixture_clock() -> TestResult {
     let mut app = TestApp::create(|builder| configure(builder).with_commands(custom))?;
-    app.travelTo(date("2024-01-01T00:31:04Z"));
+    app.travel_to(date("2024-01-01T00:31:04Z"));
     app.artisan(["schedule:run"])
         .await
-        .assertSuccessful()
-        .expectsOutput("clock task ran");
+        .assert_successful()
+        .expects_output("clock task ran");
     let list = app
         .artisan(["schedule:list", "--timezone=Asia/Tokyo", "-v"])
         .await;
-    list.assertSuccessful();
+    list.assert_successful();
     assert!(
         list.stdout.contains("1970-01-02 09:30:00 +09:00"),
         "{}",
@@ -163,11 +163,11 @@ async fn sub_minute_tasks_keep_the_elapsed_time_deadline() -> TestResult {
             "2024-01-01 09:31:00 +09:00",
         ),
     ] {
-        app.travelTo(date(at));
+        app.travel_to(date(at));
         let listing = app
             .artisan(["schedule:list", "--timezone=Asia/Tokyo", "-v"])
             .await;
-        listing.assertSuccessful();
+        listing.assert_successful();
         assert!(
             listing
                 .stdout
@@ -177,10 +177,10 @@ async fn sub_minute_tasks_keep_the_elapsed_time_deadline() -> TestResult {
             listing.stdout
         );
     }
-    app.travelTo(date("2024-01-01T00:30:59.900Z"));
+    app.travel_to(date("2024-01-01T00:30:59.900Z"));
     let result =
         tokio::time::timeout(Duration::from_secs(2), app.artisan(["schedule:run"])).await?;
-    result.assertSuccessful().expectsOutput("tick");
+    result.assert_successful().expects_output("tick");
     assert_eq!(
         result.stdout.lines().filter(|line| *line == "tick").count(),
         1
@@ -226,12 +226,12 @@ fn list_json(_: &mut Artisan) -> Result<(), ConsoleError> {
                 .timezone(Date::timezone(timezone).unwrap())
                 .environments(&["production"]);
             if index == 0 {
-                event.onOneServer();
+                event.on_one_server();
             }
         }
         schedule
             .call(|_, _| Box::pin(async { Ok(()) }))
-            .everyFiveSeconds();
+            .every_five_seconds();
         Ok(())
     })
 }
@@ -254,7 +254,7 @@ fn relative_list(_: &mut Artisan) -> Result<(), ConsoleError> {
 #[tokio::test]
 async fn schedule_list_json_shifts_cron_and_keeps_reference_metadata() -> TestResult {
     let mut app = TestApp::create(|builder| configure(builder).with_commands(list_json))?;
-    app.travelTo(date("2023-10-29T00:00:00Z"));
+    app.travel_to(date("2023-10-29T00:00:00Z"));
     let reply = app
         .artisan([
             "schedule:list",
@@ -263,7 +263,7 @@ async fn schedule_list_json_shifts_cron_and_keeps_reference_metadata() -> TestRe
             "--environment=production",
         ])
         .await;
-    reply.assertSuccessful();
+    reply.assert_successful();
     let entries: Vec<Value> = serde_json::from_str(&reply.stdout)?;
     let callback = &entries[0];
     let location = callback["command"].as_str().unwrap();
@@ -293,7 +293,7 @@ async fn schedule_list_json_shifts_cron_and_keeps_reference_metadata() -> TestRe
     let filtered = app
         .artisan(["schedule:list", "--json", "--environment=local"])
         .await;
-    filtered.assertSuccessful();
+    filtered.assert_successful();
     let entries: Vec<Value> = serde_json::from_str(&filtered.stdout)?;
     assert_eq!(entries.len(), 1);
     assert_eq!(entries[0]["command"], callback["command"]);
@@ -301,7 +301,7 @@ async fn schedule_list_json_shifts_cron_and_keeps_reference_metadata() -> TestRe
     let empty = TestApp::create(configure)?
         .artisan(["schedule:list", "--json"])
         .await;
-    empty.assertSuccessful();
+    empty.assert_successful();
     assert_eq!(empty.stdout, "[]\n");
     Ok(())
 }
@@ -309,9 +309,9 @@ async fn schedule_list_json_shifts_cron_and_keeps_reference_metadata() -> TestRe
 #[tokio::test]
 async fn schedule_list_json_uses_complete_calendar_units_for_relative_dates() -> TestResult {
     let mut app = TestApp::create(|builder| configure(builder).with_commands(relative_list))?;
-    app.travelTo(date("2023-01-31T00:00:00Z"));
+    app.travel_to(date("2023-01-31T00:00:00Z"));
     let reply = app.artisan(["schedule:list", "--json"]).await;
-    reply.assertSuccessful();
+    reply.assert_successful();
     let entries: Vec<Value> = serde_json::from_str(&reply.stdout)?;
     assert_eq!(entries[0]["next_due_date_human"], "4 weeks from now");
     assert_eq!(entries[1]["next_due_date_human"], "1 month from now");

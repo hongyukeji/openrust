@@ -23,7 +23,7 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
         self.r#where(project, expected)
     }
 
-    pub fn whereIn<U: PartialEq>(
+    pub fn where_in<U: PartialEq>(
         self,
         project: impl Fn(&T) -> U + 'source,
         expected: &'source [U],
@@ -31,7 +31,7 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
         self.filter(move |item, _| expected.contains(&project(item)))
     }
 
-    pub fn whereNotIn<U: PartialEq>(
+    pub fn where_not_in<U: PartialEq>(
         self,
         project: impl Fn(&T) -> U + 'source,
         expected: &'source [U],
@@ -44,7 +44,7 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
         project: impl Fn(&T) -> U + 'source,
         expected: &'source [U],
     ) -> Self {
-        self.whereIn(project, expected)
+        self.where_in(project, expected)
     }
 
     pub fn whereNotInStrict<U: PartialEq>(
@@ -52,7 +52,7 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
         project: impl Fn(&T) -> U + 'source,
         expected: &'source [U],
     ) -> Self {
-        self.whereNotIn(project, expected)
+        self.where_not_in(project, expected)
     }
 
     pub fn whereBetween<U: PartialOrd + 'source>(
@@ -96,11 +96,11 @@ impl<'source, T: PartialEq + 'source> LazyCollection<'source, T> {
 
 #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'source, T: 'source> LazyCollection<'source, Option<T>> {
-    pub fn whereNull(self) -> Self {
+    pub fn where_null(self) -> Self {
         self.filter(|value, _| value.is_none())
     }
 
-    pub fn whereNotNull(self) -> Self {
+    pub fn where_not_null(self) -> Self {
         self.filter(|value, _| value.is_some())
     }
 }
@@ -112,11 +112,11 @@ impl<'source> LazyCollection<'source, Value> {
         self.filter(|value, _| truthy(value))
     }
 
-    pub fn whereNull(self) -> Self {
+    pub fn where_null(self) -> Self {
         self.filter(|value, _| value.is_null())
     }
 
-    pub fn whereNotNull(self) -> Self {
+    pub fn where_not_null(self) -> Self {
         self.reject(|value, _| value.is_null())
     }
 

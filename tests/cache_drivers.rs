@@ -137,7 +137,7 @@ async fn custom_driver_facade_runs_before_artisan() {
     let mut app =
         TestApp::create(|builder| configure(builder).with_providers(vec![Box::new(ProjectCache)]))
             .unwrap();
-    let events = app.fakeEvents(&[CacheHit::NAME]).await.unwrap();
+    let events = app.fake_events(&[CacheHit::NAME]).await.unwrap();
     let store = app
         .app()
         .container()

@@ -65,7 +65,7 @@ pub(super) fn formatter(name: &str) -> Option<Builtin> {
         "ipv6" => |faker, _| Ok(faker.ipv6().into()),
         "localipv4" => |faker, _| Ok(faker.localIpv4().into()),
         "macaddress" => |faker, _| Ok(faker.macAddress().into()),
-        "useragent" => |faker, _| faker.userAgent().map(Value::from),
+        "useragent" => |faker, _| faker.user_agent().map(Value::from),
         "firefox" => |faker, _| faker.firefox().map(Value::from),
         "chrome" => |faker, _| Ok(faker.chrome().into()),
         "msedge" => |faker, _| Ok(faker.msedge().into()),

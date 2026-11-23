@@ -35,28 +35,28 @@ fn text<'a>(u: &'a User, key: &str) -> Option<&'a str> {
     }
 }
 impl Authenticatable for User {
-    fn getAuthIdentifierName(&self) -> &str {
+    fn get_auth_identifier_name(&self) -> &str {
         "id"
     }
-    fn getAuthIdentifier(&self) -> AuthIdentifier {
+    fn get_auth_identifier(&self) -> AuthIdentifier {
         AuthIdentifier::try_from(self.getKey().unwrap()).unwrap()
     }
-    fn getAuthPasswordName(&self) -> &str {
+    fn get_auth_password_name(&self) -> &str {
         "password"
     }
-    fn getAuthPassword(&self) -> Option<&str> {
+    fn get_auth_password(&self) -> Option<&str> {
         text(self, "password")
     }
-    fn getRememberToken(&self) -> Option<&str> {
+    fn get_remember_token(&self) -> Option<&str> {
         text(self, "remember_token")
     }
-    fn setRememberToken(&mut self, v: Option<String>) {
+    fn set_remember_token(&mut self, v: Option<String>) {
         self.setAttribute("remember_token", v.map_or(DbValue::Null, DbValue::Text));
     }
-    fn getRememberTokenName(&self) -> &str {
+    fn get_remember_token_name(&self) -> &str {
         "remember_token"
     }
-    fn getAuthAttribute(&self, key: &str) -> AuthResult<Option<DbValue>> {
+    fn get_auth_attribute(&self, key: &str) -> AuthResult<Option<DbValue>> {
         self.getAttributeValue(key)
             .map_err(|e| AuthError::Backend(Box::new(e)))
     }

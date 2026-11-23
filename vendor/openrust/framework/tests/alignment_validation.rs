@@ -88,7 +88,7 @@ async fn after_runs_on_failure_and_stop_is_global_while_safe_excludes_unvalidate
             Default::default(),
         )
         .unwrap();
-    validator.stopOnFirstFailure(true).after(|validator| {
+    validator.stop_on_first_failure(true).after(|validator| {
         validator.errors_mut().add("after", "额外检查失败");
         Ok(())
     });

@@ -16,9 +16,9 @@ impl Listener for SendEmailVerificationNotification {
         Box::pin(async move {
             if let Some(event) = event.downcast_ref::<Registered>()
                 && let Some(user) = event.user.as_email_verification()
-                && !user.hasVerifiedEmail()
+                && !user.has_verified_email()
             {
-                user.sendEmailVerificationNotification()
+                user.send_email_verification_notification()
                     .await
                     .map_err(|source| EventError::Listener {
                         source: Box::new(source),

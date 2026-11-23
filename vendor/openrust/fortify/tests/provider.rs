@@ -110,7 +110,7 @@ async fn passkey_routes_use_fortify_prefix_guard_domain_and_confirmation_policy(
         let output = app
             .artisan(["route:list", "--json", "--name=passkey."])
             .await;
-        output.assertSuccessful();
+        output.assert_successful();
         let routes: serde_json::Value = serde_json::from_str(&output.stdout).unwrap();
         assert_eq!(routes.as_array().unwrap().len(), 7);
         for route in routes.as_array().unwrap() {

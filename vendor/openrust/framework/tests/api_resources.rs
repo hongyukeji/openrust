@@ -140,23 +140,23 @@ struct IndexedAccounts(ResourceCollection<ModelResource<IndexedAccount>>);
 impl UseResource for IndexedAccount {
     type Resource = ModelResource<Self>;
 
-    fn resourceCollection(source: ResourceItems<Self>) -> impl JsonResource + Send {
+    fn resource_collection(source: ResourceItems<Self>) -> impl JsonResource + Send {
         assert!(!source.items().is_empty());
-        IndexedAccounts(ModelResource::collection(source).preserveKeys(true))
+        IndexedAccounts(ModelResource::collection(source).preserve_keys(true))
     }
 }
 
 impl JsonResource for IndexedAccounts {
-    fn toArray(&self, request: &Request) -> ResourceResult<Json> {
-        self.0.toArray(request)
+    fn to_array(&self, request: &Request) -> ResourceResult<Json> {
+        self.0.to_array(request)
     }
 
     fn wrap(&self) -> Option<&str> {
         Some("accounts")
     }
 
-    fn jsonOptions(&self) -> JsonOptions {
-        JsonOptions::default().prettyPrint()
+    fn json_options(&self) -> JsonOptions {
+        JsonOptions::default().pretty_print()
     }
 
     fn with(&self, request: &Request) -> ResourceResult<Map<String, Json>> {
@@ -165,7 +165,7 @@ impl JsonResource for IndexedAccounts {
         Ok(fields)
     }
 
-    fn withResponse(&self, _: &Request, response: &mut Response) -> ResourceResult<()> {
+    fn with_response(&self, _: &Request, response: &mut Response) -> ResourceResult<()> {
         response
             .parts_mut()
             .headers
@@ -175,7 +175,7 @@ impl JsonResource for IndexedAccounts {
 }
 
 impl JsonResource for AccountResource {
-    fn toArray(&self, request: &Request) -> ResourceResult<Json> {
+    fn to_array(&self, request: &Request) -> ResourceResult<Json> {
         let mut fields = self.0.attributesToArray().map_err(internal)?;
         Conditional::insert(
             &mut fields,
@@ -187,13 +187,13 @@ impl JsonResource for AccountResource {
         Conditional::insert(
             &mut fields,
             "reports",
-            Conditional::whenLoaded::<RelatedCollection<Account>>(&self.0, "directReports")
+            Conditional::when_loaded::<RelatedCollection<Account>>(&self.0, "directReports")
                 .map(|accounts| json!(accounts.len())),
         );
         Conditional::insert(
             &mut fields,
             "report_count",
-            Conditional::whenCounted(&self.0, "directReports").map(|count| match count {
+            Conditional::when_counted(&self.0, "directReports").map(|count| match count {
                 Value::Integer(value) => json!(value),
                 Value::Unsigned(value) => json!(value),
                 _ => panic!("expected an integer count"),
@@ -209,7 +209,7 @@ impl JsonResource for AccountResource {
         )]))
     }
 
-    fn withResponse(&self, _: &Request, response: &mut Response) -> ResourceResult<()> {
+    fn with_response(&self, _: &Request, response: &mut Response) -> ResourceResult<()> {
         response
             .parts_mut()
             .headers
@@ -246,11 +246,11 @@ impl JsonApiResource for PersonResource {
         &self.account
     }
 
-    fn modelMut(&mut self) -> Option<&mut Self::Model> {
+    fn model_mut(&mut self) -> Option<&mut Self::Model> {
         Some(&mut self.account)
     }
 
-    fn includePath(path: &str) -> Option<&'static str> {
+    fn include_path(path: &str) -> Option<&'static str> {
         match path {
             "reports" | "visibleReports" => Some("directReports"),
             "reports.reports" | "visibleReports.reports" => Some("directReports.directReports"),
@@ -258,23 +258,23 @@ impl JsonApiResource for PersonResource {
         }
     }
 
-    fn respectFieldsAndIncludesInQueryString(&self) -> bool {
+    fn respect_fields_and_includes_in_query_string(&self) -> bool {
         !self.ignore_query
     }
 
-    fn includePreviouslyLoadedRelationships(&self) -> bool {
+    fn include_previously_loaded_relationships(&self) -> bool {
         self.include_loaded
     }
 
-    fn toId(&self, _: &Request) -> Option<String> {
+    fn to_id(&self, _: &Request) -> Option<String> {
         self.use_alias.then(|| "profile-1".into())
     }
 
-    fn toType(&self, _: &Request) -> Option<String> {
+    fn to_type(&self, _: &Request) -> Option<String> {
         self.use_alias.then(|| "profiles".into())
     }
 
-    fn lazyAttributes<'a>(&'a self, request: &'a Request) -> JsonApiAttributes<'a> {
+    fn lazy_attributes<'a>(&'a self, request: &'a Request) -> JsonApiAttributes<'a> {
         JsonApiAttributes::default().attribute("score", || {
             if request.headers().contains_key("x-fail-lazy") {
                 return Err(HttpError::InvalidRequest);
@@ -283,9 +283,9 @@ impl JsonApiResource for PersonResource {
         })
     }
 
-    fn toRelationships<'a>(&'a self, request: &'a Request) -> JsonApiRelationships<'a> {
+    fn to_relationships<'a>(&'a self, request: &'a Request) -> JsonApiRelationships<'a> {
         JsonApiRelationships::default()
-            .toMany("reports", || {
+            .to_many("reports", || {
                 if request.headers().contains_key("x-fail-relationship") {
                     return Err(HttpError::InvalidRequest);
                 }
@@ -299,7 +299,7 @@ impl JsonApiResource for PersonResource {
                     })
                     .collect())
             })
-            .toCollection("visibleReports", || {
+            .to_collection("visibleReports", || {
                 if request.headers().contains_key("x-fail-collection") {
                     return Err(HttpError::InvalidRequest);
                 }
@@ -316,15 +316,15 @@ impl JsonApiResource for PersonResource {
                     .collect();
                 Ok(ResourceCollection::new(reports))
             })
-            .toOne::<PersonResource>("manager", || Ok(None))
-            .toOne("thing", || Ok(Some(thing(json!(99)))))
+            .to_one::<PersonResource>("manager", || Ok(None))
+            .to_one("thing", || Ok(Some(thing(json!(99)))))
     }
 
-    fn toLinks(&self, _: &Request) -> ResourceResult<Map<String, Json>> {
+    fn to_links(&self, _: &Request) -> ResourceResult<Map<String, Json>> {
         Ok(Map::from_iter([("self".into(), json!("/api/person"))]))
     }
 
-    fn toMeta(&self, _: &Request) -> ResourceResult<Map<String, Json>> {
+    fn to_meta(&self, _: &Request) -> ResourceResult<Map<String, Json>> {
         Ok(Map::from_iter([("verified".into(), json!(false))]))
     }
 }
@@ -333,18 +333,18 @@ struct FractionalResource(f64);
 
 #[allow(non_snake_case, reason = "Implements the JSON resource contract")]
 impl JsonResource for FractionalResource {
-    fn toArray(&self, _: &Request) -> ResourceResult<Json> {
+    fn to_array(&self, _: &Request) -> ResourceResult<Json> {
         Ok(json!({"reading_time":self.0,"path":"/café/😀"}))
     }
 
-    fn defaultJsonOptions() -> JsonOptions {
+    fn default_json_options() -> JsonOptions {
         JsonOptions::default()
-            .prettyPrint()
-            .escapeSlashes()
-            .escapeUnicode()
+            .pretty_print()
+            .escape_slashes()
+            .escape_unicode()
     }
 
-    fn withResponse(&self, _: &Request, response: &mut Response) -> ResourceResult<()> {
+    fn with_response(&self, _: &Request, response: &mut Response) -> ResourceResult<()> {
         response
             .parts_mut()
             .headers
@@ -357,17 +357,17 @@ struct Preserved(Json);
 
 #[allow(non_snake_case, reason = "Implements the JSON resource contract")]
 impl JsonResource for Preserved {
-    fn toArray(&self, _: &Request) -> ResourceResult<Json> {
+    fn to_array(&self, _: &Request) -> ResourceResult<Json> {
         Ok(self.0.clone())
     }
 
-    fn preservesKeys() -> bool {
+    fn preserves_keys() -> bool {
         true
     }
 }
 
 impl JsonResource for Plain {
-    fn toArray(&self, _: &Request) -> ResourceResult<Json> {
+    fn to_array(&self, _: &Request) -> ResourceResult<Json> {
         Ok(self.0.clone())
     }
 }
@@ -410,7 +410,7 @@ fn routes() -> Result<(), RoutingError> {
             .get()
             .await
             .map_err(internal)?;
-        Ok(accounts.toResourceCollection())
+        Ok(accounts.to_resource_collection())
     })?;
     Route::get("/page", page)?;
     Route::get("/simple", || async {
@@ -419,7 +419,7 @@ fn routes() -> Result<(), RoutingError> {
             .simplePaginate(2)
             .await
             .map_err(internal)?;
-        Ok(page.toResourceCollection())
+        Ok(page.to_resource_collection())
     })?;
     Route::get("/cursor", || async {
         let page = Account::query()
@@ -427,7 +427,7 @@ fn routes() -> Result<(), RoutingError> {
             .cursorPaginate(2)
             .await
             .map_err(internal)?;
-        Ok(page.toResourceCollectionWith::<AccountResource>())
+        Ok(page.to_resource_collection_with::<AccountResource>())
     })?;
     Route::get("/empty", || ResourceCollection::new(Vec::<Plain>::new()))?;
     Route::get("/already", || Plain(json!({"data":{"id":9}})))?;
@@ -516,7 +516,7 @@ fn json_api_routes() -> Result<(), RoutingError> {
             .paginate(2)
             .await
             .map_err(internal)?;
-        Ok(page.toResourceCollectionWith::<PersonResource>())
+        Ok(page.to_resource_collection_with::<PersonResource>())
     })?;
     Route::get("/person/compound", || async {
         let person = Account::query()
@@ -551,7 +551,7 @@ fn json_api_routes() -> Result<(), RoutingError> {
         let account = Account::findOrFail(1).await.map_err(internal)?;
         Ok(
             PersonResource::collection(Collection::fromEntries([("first", account)]))
-                .preserveKeys(true),
+                .preserve_keys(true),
         )
     })?;
     Route::get("/person/page", || async {
@@ -560,7 +560,7 @@ fn json_api_routes() -> Result<(), RoutingError> {
             .paginate(2)
             .await
             .map_err(internal)?;
-        Ok(page.toResourceCollectionWith::<PersonResource>())
+        Ok(page.to_resource_collection_with::<PersonResource>())
     })?;
     Route::get("/person/empty", || {
         PersonResource::collection(Vec::<Account>::new())
@@ -605,8 +605,8 @@ fn encoded_document(request: &mut Request) -> HttpFuture<'_, ResourceResult<Resp
         Response::json(
             openrust::http::StatusCode::OK,
             json!({
-                "compact": resource.toJson(request)?,
-                "pretty": resource.toPrettyJson(request)?,
+                "compact": resource.to_json(request)?,
+                "pretty": resource.to_pretty_json(request)?,
             }),
         )
     })
@@ -620,7 +620,7 @@ fn resolved_routes() -> Result<(), RoutingError> {
             .get()
             .await
             .map_err(internal)?;
-        Ok(models.toResourceCollection())
+        Ok(models.to_resource_collection())
     })?;
     Route::get("/resolved/page", || async {
         let page = IndexedAccount::query()
@@ -628,7 +628,7 @@ fn resolved_routes() -> Result<(), RoutingError> {
             .paginate(2)
             .await
             .map_err(internal)?;
-        Ok(page.toResourceCollection())
+        Ok(page.to_resource_collection())
     })?;
     Route::get("/resolved/explicit", || async {
         let models = IndexedAccount::query()
@@ -637,14 +637,15 @@ fn resolved_routes() -> Result<(), RoutingError> {
             .get()
             .await
             .map_err(internal)?;
-        Ok(models.toResourceCollectionWith::<ModelResource<_>>())
+        Ok(models.to_resource_collection_with::<ModelResource<_>>())
     })?;
     Route::get("/resolved/empty", || {
-        ModelCollection::<IndexedAccount>::new(Vec::new()).toResourceCollection()
+        ModelCollection::<IndexedAccount>::new(Vec::new()).to_resource_collection()
     })?;
     Route::get("/resolved/empty-custom", || {
-        ModelCollection::<IndexedAccount>::new(Vec::new())
-            .toResourceCollectionUsing(|source| IndexedAccounts(ModelResource::collection(source)))
+        ModelCollection::<IndexedAccount>::new(Vec::new()).to_resource_collection_using(|source| {
+            IndexedAccounts(ModelResource::collection(source))
+        })
     })?;
     Ok(())
 }
@@ -664,10 +665,10 @@ fn keyed_routes() -> Result<(), RoutingError> {
         ResourceCollection::new(ResourceItems::from(input()).map(Preserved))
     })?;
     Route::get("/keys/reset", move || {
-        ResourceCollection::new(ResourceItems::from(input()).map(Preserved)).preserveKeys(false)
+        ResourceCollection::new(ResourceItems::from(input()).map(Preserved)).preserve_keys(false)
     })?;
     Route::get("/keys/empty", || {
-        ResourceCollection::new(Collection::<Plain>::new()).preserveKeys(true)
+        ResourceCollection::new(Collection::<Plain>::new()).preserve_keys(true)
     })?;
     Route::get("/keys/mixed", || async {
         let mut accounts = Account::query()
@@ -700,8 +701,8 @@ fn keyed_routes() -> Result<(), RoutingError> {
             .unwrap()
             .clone();
         let items = ResourceItems::from(reports)
-            .map(|account| Plain(account.toArray().map(Json::Object).unwrap()));
-        Ok(ResourceCollection::new(items).preserveKeys(true))
+            .map(|account| Plain(account.to_array().map(Json::Object).unwrap()));
+        Ok(ResourceCollection::new(items).preserve_keys(true))
     })?;
     Route::get("/keys/page", || async {
         let page = IndexedAccount::query()
@@ -711,7 +712,7 @@ fn keyed_routes() -> Result<(), RoutingError> {
             .map_err(internal)?;
         Ok(
             ResourceCollection::new(ResourceItems::from(page).map(ModelResource))
-                .preserveKeys(true),
+                .preserve_keys(true),
         )
     })?;
     Route::get("/keys/simple", || async {
@@ -722,7 +723,7 @@ fn keyed_routes() -> Result<(), RoutingError> {
             .map_err(internal)?;
         Ok(
             ResourceCollection::new(ResourceItems::from(page).map(ModelResource))
-                .preserveKeys(true),
+                .preserve_keys(true),
         )
     })?;
     Route::get("/keys/cursor", || async {
@@ -733,7 +734,7 @@ fn keyed_routes() -> Result<(), RoutingError> {
             .map_err(internal)?;
         Ok(
             ResourceCollection::new(ResourceItems::from(page).map(ModelResource))
-                .preserveKeys(true),
+                .preserve_keys(true),
         )
     })?;
     Ok(())
@@ -759,8 +760,8 @@ fn conditional(request: &mut Request) -> HttpFuture<'_, ResourceResult<Plain>> {
             model.append(&["label"]);
         }
         let mut fields = Map::from_iter([("status".into(), json!("base"))]);
-        Conditional::mergeWhen(&mut fields, false, || panic!("skipped merge ran"));
-        Conditional::mergeUnless(&mut fields, load, || {
+        Conditional::merge_when(&mut fields, false, || panic!("skipped merge ran"));
+        Conditional::merge_unless(&mut fields, load, || {
             Map::from_iter([
                 ("status".into(), json!("override")),
                 ("guest".into(), json!(true)),
@@ -769,7 +770,7 @@ fn conditional(request: &mut Request) -> HttpFuture<'_, ResourceResult<Plain>> {
         Conditional::insert(
             &mut fields,
             "appended",
-            Conditional::whenAppended(&model, "label", || {
+            Conditional::when_appended(&model, "label", || {
                 model
                     .attributesToArray()
                     .map(|values| values["label"].clone())
@@ -777,9 +778,9 @@ fn conditional(request: &mut Request) -> HttpFuture<'_, ResourceResult<Plain>> {
             .transpose()
             .map_err(internal)?,
         );
-        let related = Conditional::whenLoadedOne::<Account, _>(&model, "firstReport", |report| {
+        let related = Conditional::when_loaded_one::<Account, _>(&model, "firstReport", |report| {
             assert!(id != 3, "projection of a loaded null relation");
-            report.toArray().map(|values| values["name"].clone())
+            report.to_array().map(|values| values["name"].clone())
         });
         let related = related
             .map(|value| value.transpose())
@@ -793,7 +794,7 @@ fn conditional(request: &mut Request) -> HttpFuture<'_, ResourceResult<Plain>> {
         Conditional::insert(
             &mut fields,
             "known_null",
-            Conditional::whenNull(&Json::Null, || Json::Null),
+            Conditional::when_null(&Json::Null, || Json::Null),
         );
         let picked = Conditional::attributes(&model, &["name", "password"])?;
         Conditional::merge(&mut fields, || picked);
@@ -842,7 +843,7 @@ async fn pivots() -> ResourceResult<Plain> {
     Conditional::insert(
         &mut fields,
         "ordinary",
-        Conditional::whenPivotLoaded(member, TABLE, || {
+        Conditional::when_pivot_loaded(member, TABLE, || {
             let row = member.getRelation::<Pivot>("pivot").unwrap();
             assert_eq!(row.getTable(), TABLE);
             level(row.getAttribute("level"))
@@ -851,12 +852,12 @@ async fn pivots() -> ResourceResult<Plain> {
     Conditional::insert(
         &mut fields,
         "custom",
-        Conditional::whenPivotLoadedAs(subscriber, "membership", TABLE, || json!(true)),
+        Conditional::when_pivot_loaded_as(subscriber, "membership", TABLE, || json!(true)),
     );
     Conditional::insert(
         &mut fields,
         "typed",
-        Conditional::whenPivotLoadedAsType::<Membership, _>(subscriber, "membership", |row| {
+        Conditional::when_pivot_loaded_as_type::<Membership, _>(subscriber, "membership", |row| {
             assert_eq!(row.getTable(), TABLE);
             level(row.getAttribute("level"))
         }),
@@ -864,23 +865,25 @@ async fn pivots() -> ResourceResult<Plain> {
     for (name, value) in [
         (
             "wrong_table",
-            Conditional::whenPivotLoadedAs(subscriber, "membership", "wrong", || {
+            Conditional::when_pivot_loaded_as(subscriber, "membership", "wrong", || {
                 panic!("wrong table matched")
             }),
         ),
         (
             "wrong_accessor",
-            Conditional::whenPivotLoaded(subscriber, TABLE, || panic!("wrong accessor matched")),
+            Conditional::when_pivot_loaded(subscriber, TABLE, || panic!("wrong accessor matched")),
         ),
         (
             "wrong_type",
-            Conditional::whenPivotLoadedAsType::<Account, Json>(subscriber, "membership", |_| {
-                panic!("wrong type matched")
-            }),
+            Conditional::when_pivot_loaded_as_type::<Account, Json>(
+                subscriber,
+                "membership",
+                |_| panic!("wrong type matched"),
+            ),
         ),
         (
             "unloaded",
-            Conditional::whenPivotLoaded(&owner, TABLE, || panic!("unloaded pivot matched")),
+            Conditional::when_pivot_loaded(&owner, TABLE, || panic!("unloaded pivot matched")),
         ),
     ] {
         Conditional::insert(&mut fields, name, value);
@@ -903,18 +906,18 @@ fn page(request: &mut Request) -> HttpFuture<'_, ResourceResult<Response>> {
             .await
             .map_err(internal)?;
         ResourceCollection::new(ResourceItems::from(page).map(AccountResource))
-            .preserveQuery()
-            .withPaginationInformation(|_, mut info| {
+            .preserve_query()
+            .with_pagination_information(|_, mut info| {
                 info.meta.insert("source".into(), json!("page"));
                 Ok(info)
             })
             .response()
-            .withoutWrapping()
+            .without_wrapping()
             .additional(Map::from_iter([(
                 "meta".into(),
                 json!({"request":"accepted"}),
             )]))
-            .toResponse(request)
+            .to_response(request)
     })
 }
 
@@ -922,8 +925,8 @@ fn unwrapped(request: &mut Request) -> HttpFuture<'_, ResourceResult<Response>> 
     Box::pin(async move {
         Plain(json!({"id":1}))
             .response()
-            .withoutWrapping()
-            .toResponse(request)
+            .without_wrapping()
+            .to_response(request)
     })
 }
 
@@ -931,7 +934,7 @@ fn metadata(request: &mut Request) -> HttpFuture<'_, ResourceResult<Response>> {
     Box::pin(async move {
         Plain(json!({"id":1}))
             .response()
-            .withoutWrapping()
+            .without_wrapping()
             .additional(Map::from_iter([(
                 "meta".into(),
                 json!({"tags":["a"],"version":1}),
@@ -940,7 +943,7 @@ fn metadata(request: &mut Request) -> HttpFuture<'_, ResourceResult<Response>> {
                 "meta".into(),
                 json!({"tags":["b"],"version":2}),
             )]))
-            .toResponse(request)
+            .to_response(request)
     })
 }
 
@@ -948,7 +951,7 @@ async fn transport(
     State(kernel): State<Arc<Kernel>>,
     request: axum::extract::Request,
 ) -> axum::response::Response {
-    kernel.handleTransport(request).await
+    kernel.handle_transport(request).await
 }
 
 async fn request(
@@ -1537,11 +1540,11 @@ struct ForcedResource;
 
 #[allow(non_snake_case, reason = "Implements the JSON resource contract")]
 impl JsonResource for ForcedResource {
-    fn toArray(&self, _: &Request) -> ResourceResult<Json> {
+    fn to_array(&self, _: &Request) -> ResourceResult<Json> {
         Ok(json!({"items":{"id":1}}))
     }
 
-    fn forceWrapping(&self) -> bool {
+    fn force_wrapping(&self) -> bool {
         true
     }
 }
@@ -1551,7 +1554,7 @@ fn explicitly_wrapped(request: &mut Request) -> HttpFuture<'_, ResourceResult<Re
         Plain(json!({"id":1}))
             .response()
             .wrap("data")
-            .toResponse(request)
+            .to_response(request)
     })
 }
 
@@ -1561,7 +1564,7 @@ fn wrapping_metadata(request: &mut Request) -> HttpFuture<'_, ResourceResult<Res
         let response = resource
             .response()
             .additional(Map::from_iter([("meta".into(), json!({"total":1}))]));
-        Responsable::toResponse(response, request).await
+        Responsable::to_response(response, request).await
     })
 }
 
@@ -1570,7 +1573,10 @@ struct PreparedResource(Option<Json>);
 
 #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl JsonResource for PreparedResource {
-    fn prepareResponse(&mut self, request: &Request) -> Option<HttpFuture<'_, ResourceResult<()>>> {
+    fn prepare_response(
+        &mut self,
+        request: &Request,
+    ) -> Option<HttpFuture<'_, ResourceResult<()>>> {
         let name = request.query(Some("name"));
         Some(Box::pin(async move {
             tokio::task::yield_now().await;
@@ -1579,7 +1585,7 @@ impl JsonResource for PreparedResource {
         }))
     }
 
-    fn toArray(&self, _: &Request) -> ResourceResult<Json> {
+    fn to_array(&self, _: &Request) -> ResourceResult<Json> {
         Ok(json!({"name": self.0}))
     }
 
@@ -1590,7 +1596,7 @@ impl JsonResource for PreparedResource {
         )]))
     }
 
-    fn withResponse(&self, _: &Request, response: &mut Response) -> ResourceResult<()> {
+    fn with_response(&self, _: &Request, response: &mut Response) -> ResourceResult<()> {
         response
             .parts_mut()
             .headers
@@ -1606,7 +1612,7 @@ impl ResourceController {
         &'a self,
         _: &'a mut Request,
     ) -> HttpFuture<'a, ResourceResult<ResourceResponder<PreparedResource>>> {
-        Box::pin(async { Ok(PreparedResource::default().intoResponsable()) })
+        Box::pin(async { Ok(PreparedResource::default().into_responsable()) })
     }
 }
 
@@ -1645,7 +1651,7 @@ fn wrapping_routes() -> Result<(), RoutingError> {
         ControllerDispatcher::new(ResourceController::show),
     )?;
     Route::get("/collection", || {
-        ResourceCollection::new(vec![Plain(json!({"id":1}))]).intoResponsable()
+        ResourceCollection::new(vec![Plain(json!({"id":1}))]).into_responsable()
     })?;
     Route::get("/named", || {
         IndexedAccounts(ResourceCollection::new(Vec::new()))
@@ -1660,8 +1666,8 @@ fn wrapping_routes() -> Result<(), RoutingError> {
         )
         .unwrap();
         ResourceCollection::new(page)
-            .preserveQuery()
-            .intoResponsable()
+            .preserve_query()
+            .into_responsable()
     })?;
     Ok(())
 }
@@ -1704,16 +1710,16 @@ async fn resource_wrapping_is_scoped_to_each_http_application() {
         vec![],
         Map::from_iter([("app".into(), json!("left"))]),
     )
-    .maxRelationshipDepth(1);
+    .max_relationship_depth(1);
     let right_configuration = JsonApi::configure(
         None,
         vec![],
         vec!["https://example.test/profile".into()],
         Map::from_iter([("app".into(), json!("right"))]),
     )
-    .maxRelationshipDepth(2);
+    .max_relationship_depth(2);
     let (left, left_task) =
-        wrapping_server(ResourceWrapping::withoutWrapping(), left_configuration).await;
+        wrapping_server(ResourceWrapping::without_wrapping(), left_configuration).await;
     let (right, right_task) =
         wrapping_server(ResourceWrapping::wrap("items"), right_configuration).await;
     let include_path = "/api/person?include=reports.reports.reports";

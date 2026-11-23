@@ -103,14 +103,14 @@ async fn fixture_time_is_visible_to_http_artisan_and_model_timestamps() -> TestR
     let mut first = app()?;
     let mut second = app()?;
     let before = instant("2024-03-09T17:00:00.123456Z");
-    first.travelTo(before.clone());
-    second.travelTo(instant("2024-11-19T01:00:00Z"));
+    first.travel_to(before.clone());
+    second.travel_to(instant("2024-11-19T01:00:00Z"));
     let (left, right) = tokio::join!(first.get("/clock"), second.get("/clock"));
-    left?.assertOk().assertExactJson(&serde_json::json!([
+    left?.assert_ok().assert_exact_json(&serde_json::json!([
         "2024-03-09T12:00:00.123456-05:00",
         "2024-03-09T00:00:00-05:00"
     ]));
-    right?.assertOk().assertExactJson(&serde_json::json!([
+    right?.assert_ok().assert_exact_json(&serde_json::json!([
         "2024-11-18T20:00:00-05:00",
         "2024-11-18T00:00:00-05:00"
     ]));
@@ -122,22 +122,26 @@ async fn fixture_time_is_visible_to_http_artisan_and_model_timestamps() -> TestR
             .asDateTime()
             .timestamp()
     );
-    assert_eq!(first.freezeTime().await?, after);
+    assert_eq!(first.freeze_time().await?, after);
     assert_eq!(
-        first.freezeSecond().await?.asDateTime().subsec_nanosecond(),
+        first
+            .freeze_second()
+            .await?
+            .asDateTime()
+            .subsec_nanosecond(),
         0
     );
     first
         .artisan(["clock:probe"])
         .await
-        .assertSuccessful()
-        .expectsOutput("2024-03-10T12:00:00-04:00");
+        .assert_successful()
+        .expects_output("2024-03-10T12:00:00-04:00");
     first.database().await?.statement("CREATE TABLE stamps (id INTEGER PRIMARY KEY, label TEXT, created_at DATETIME, updated_at DATETIME)", &[]).await?;
     first
         .get("/stamp")
         .await?
-        .assertOk()
-        .assertExactJson(&serde_json::json!([
+        .assert_ok()
+        .assert_exact_json(&serde_json::json!([
             "2024-03-10 12:00:00",
             "2024-03-10 12:00:00"
         ]));
@@ -153,7 +157,7 @@ async fn fixture_time_is_visible_to_http_artisan_and_model_timestamps() -> TestR
     );
     assert!(first.travel(i64::MAX).milliseconds().await.is_err());
     let wall_clock = Timestamp::now();
-    let restored = first.travelBack().await?.asDateTime().timestamp();
+    let restored = first.travel_back().await?.asDateTime().timestamp();
     assert!((wall_clock..=Timestamp::now()).contains(&restored));
     Ok(())
 }
@@ -162,9 +166,9 @@ async fn fixture_time_is_visible_to_http_artisan_and_model_timestamps() -> TestR
 async fn scoped_time_restores_after_nested_errors_and_cancellation() -> TestResult {
     let mut fixture = app()?;
     let outer = instant("2024-01-31T17:00:00.525Z");
-    fixture.travelTo(outer.clone());
+    fixture.travel_to(outer.clone());
     let value = fixture
-        .freezeSecondFor(async |fixture, time| {
+        .freeze_second_for(async |fixture, time| {
             assert_eq!(Date::now(None)?, time);
             let shifted = fixture.travel(1).month().await?;
             assert_eq!(
@@ -175,7 +179,7 @@ async fn scoped_time_restores_after_nested_errors_and_cancellation() -> TestResu
                 "2024-03-02T12:00:00-05:00"
             );
             let rejected = fixture
-                .travelToFor(outer.clone(), async |_, _| -> TestResult {
+                .travel_to_for(outer.clone(), async |_, _| -> TestResult {
                     Err(std::io::Error::other("scope failed").into())
                 })
                 .await;
@@ -187,7 +191,7 @@ async fn scoped_time_restores_after_nested_errors_and_cancellation() -> TestResu
     assert_eq!(value, 42);
     assert_eq!(
         fixture
-            .freezeTimeFor(async |_, time| Ok(time))
+            .freeze_time_for(async |_, time| Ok(time))
             .await?
             .asDateTime()
             .timestamp(),
@@ -196,7 +200,7 @@ async fn scoped_time_restores_after_nested_errors_and_cancellation() -> TestResu
 
     let cancelled = tokio::time::timeout(
         Duration::ZERO,
-        fixture.travelToFor(instant("2030-01-01T12:00:00Z"), async |_, _| {
+        fixture.travel_to_for(instant("2030-01-01T12:00:00Z"), async |_, _| {
             std::future::pending::<TestResult>().await
         }),
     )
@@ -205,8 +209,8 @@ async fn scoped_time_restores_after_nested_errors_and_cancellation() -> TestResu
     fixture
         .artisan(["clock:probe"])
         .await
-        .assertSuccessful()
-        .expectsOutput("2024-01-31T12:00:00.525-05:00");
+        .assert_successful()
+        .expects_output("2024-01-31T12:00:00.525-05:00");
     Ok(())
 }
 
@@ -248,14 +252,14 @@ async fn freezing_seconds_before_the_epoch_keeps_the_beginning_of_the_second() -
     let mut fixture = app()?;
     let fractional = instant("1969-12-31T23:59:59.900Z");
     let expected: Timestamp = "1969-12-31T23:59:59Z".parse()?;
-    fixture.travelTo(fractional.clone());
+    fixture.travel_to(fractional.clone());
     assert_eq!(
-        fixture.freezeSecond().await?.asDateTime().timestamp(),
+        fixture.freeze_second().await?.asDateTime().timestamp(),
         expected
     );
-    fixture.travelTo(fractional);
+    fixture.travel_to(fractional);
     fixture
-        .freezeSecondFor(async |_, now| {
+        .freeze_second_for(async |_, now| {
             assert_eq!(now.asDateTime().timestamp(), expected);
             assert_eq!(Date::now(None)?.asDateTime().timestamp(), expected);
             Ok(())

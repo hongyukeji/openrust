@@ -41,13 +41,13 @@ async fn test_app_route_cache_fixture() -> Result<(), Box<dyn Error + Send + Syn
         "APP_ROUTES_CACHE=private/fixture.json\n",
     )?;
     let cache = fixture.root().canonicalize()?.join("private/fixture.json");
-    fixture.artisan(["route:cache"]).await.assertSuccessful();
+    fixture.artisan(["route:cache"]).await.assert_successful();
     assert_eq!(
         fixture.app().get_cached_routes_path(),
         Some(cache.as_path())
     );
     assert!(cache.is_file());
-    fixture.artisan(["route:clear"]).await.assertSuccessful();
+    fixture.artisan(["route:clear"]).await.assert_successful();
     assert!(!cache.exists());
     Ok(())
 }
@@ -152,18 +152,20 @@ async fn selects_local_testing_environment_on_http_and_artisan_first_boot()
         first.get("/fixture"),
         second.artisan(["config:show", "app.label"])
     );
-    http?.assertOk().assertExactJson(&json!({"label": "first"}));
+    http?
+        .assert_ok()
+        .assert_exact_json(&json!({"label": "first"}));
     artisan
-        .assertSuccessful()
-        .expectsOutput("  app.label  second");
+        .assert_successful()
+        .expects_output("  app.label  second");
     second
         .get("/fixture")
         .await?
-        .assertExactJson(&json!({"label": "second"}));
+        .assert_exact_json(&json!({"label": "second"}));
     fallback
         .get("/fixture")
         .await?
-        .assertExactJson(&json!({"label": "fallback"}));
+        .assert_exact_json(&json!({"label": "fallback"}));
     for fixture in [&first, &second, &fallback] {
         assert_eq!(
             fixture.app().config()?.get("app.env"),
@@ -202,22 +204,22 @@ async fn dispatches_http_and_captures_artisan_output_without_leaking_state()
     fixture
         .get("/fixture")
         .await?
-        .assertOk()
-        .assertHeader("content-type", "application/json")
-        .assertExactJson(&json!({"fixture": true}));
-    fixture.get("/fixture").await?.assertOk();
+        .assert_ok()
+        .assert_header("content-type", "application/json")
+        .assert_exact_json(&json!({"fixture": true}));
+    fixture.get("/fixture").await?.assert_ok();
 
     let command = fixture.artisan(["fixture:probe"]).await;
-    command.assertSuccessful().expectsOutput("fixture output");
+    command.assert_successful().expects_output("fixture output");
     assert!(command.stderr.is_empty());
 
     let mut other = TestApp::create(|builder| builder)?;
     other
         .get("/fixture")
         .await?
-        .assertStatus(StatusCode::NOT_FOUND);
+        .assert_status(StatusCode::NOT_FOUND);
     let missing = other.artisan(["fixture:probe"]).await;
-    missing.assertExitCode(1);
+    missing.assert_exit_code(1);
     assert!(missing.stdout.is_empty());
     assert!(missing.stderr.contains("fixture:probe"));
     Ok(())
@@ -282,11 +284,11 @@ async fn artisan_publishes_registered_package_assets_and_migrations()
 
     test.artisan(["vendor:publish", "--no-interaction"])
         .await
-        .assertSuccessful();
+        .assert_successful();
     let absent = test
         .artisan(["vendor:publish", "--all", "--existing"])
         .await;
-    absent.assertSuccessful();
+    absent.assert_successful();
     assert!(
         absent
             .stdout
@@ -302,7 +304,7 @@ async fn artisan_publishes_registered_package_assets_and_migrations()
             "--tag=fixture",
         ])
         .await;
-    result.assertSuccessful();
+    result.assert_successful();
     assert!(result.stdout.contains("Publishing [fixture] assets"));
     assert!(result.stdout.contains("Copying file [embedded"));
     assert!(result.stdout.contains("to [config/fixture.rs]"));
@@ -324,7 +326,7 @@ async fn artisan_publishes_registered_package_assets_and_migrations()
 
     test.artisan(["vendor:publish", "--all"])
         .await
-        .assertSuccessful();
+        .assert_successful();
     assert_eq!(fs::read(&stylesheet)?, b"stylesheet");
     let published = fs::read_dir(&migrations)?
         .map(|entry| entry.map(|entry| entry.path()))
@@ -353,20 +355,20 @@ async fn artisan_publishes_registered_package_assets_and_migrations()
     fs::write(&migration, "local edit")?;
     test.artisan(["vendor:publish", "--tag=fixture-migrations"])
         .await
-        .assertSuccessful();
+        .assert_successful();
     assert_eq!(fs::read(&migration)?, b"local edit");
     test.artisan(["vendor:publish", "--tag=fixture-migrations", "--existing"])
         .await
-        .assertSuccessful();
+        .assert_successful();
     assert_eq!(fs::read(&migration)?, b"migration");
     test.artisan(["vendor:publish", "--tag=fixture-migrations", "--force"])
         .await
-        .assertSuccessful();
+        .assert_successful();
     assert_eq!(fs::read_dir(&migrations)?.count(), published.len());
 
     let mut other = TestApp::create(|builder| builder)?;
     let result = other.artisan(["vendor:publish", "--tag=fixture"]).await;
-    result.assertSuccessful();
+    result.assert_successful();
     assert!(
         result
             .stdout
@@ -400,7 +402,7 @@ async fn artisan_honors_migration_publish_settings_and_intersects_source_paths()
         fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
             Box::pin(async move {
                 if ID == 3 {
-                    VendorPublishCommand::dontUpdateMigrationDates(app);
+                    VendorPublishCommand::dont_update_migration_dates(app);
                     return Ok(());
                 }
                 self.publishes_migration_paths(
@@ -456,20 +458,20 @@ async fn artisan_honors_migration_publish_settings_and_intersects_source_paths()
 
         app.artisan(["vendor:publish", "--provider=FirstPackage", "--tag=shared"])
             .await
-            .assertSuccessful();
+            .assert_successful();
         assert_eq!(fs::read_to_string(root.join("public/first.txt"))?, "asset");
         assert!(!root.join("public/second.txt").exists());
 
         app.artisan(["vendor:publish", "--tag=migrations"])
             .await
-            .assertSuccessful();
+            .assert_successful();
         let directory = root.join("database/migrations");
         let name = fs::read_dir(&directory)?.next().unwrap()?.file_name();
         assert_eq!(name == source_name, !enabled || opt_out);
         assert_eq!(fs::read_to_string(directory.join(&name))?, "migration");
         app.artisan(["vendor:publish", "--tag=migrations", "--force"])
             .await
-            .assertSuccessful();
+            .assert_successful();
         assert_eq!(fs::read_dir(&directory)?.count(), 1);
     }
     Ok(())
@@ -519,14 +521,14 @@ async fn artisan_publishes_directories_and_dispatches_registered_paths()
     fs::create_dir_all(target.join("nested"))?;
     fs::write(target.join("nested/site.css"), "local edit")?;
     let name = "OpenRust\\Foundation\\Events\\VendorTagPublished";
-    let events = app.fakeEvents(&[name]).await?;
+    let events = app.fake_events(&[name]).await?;
 
     app.artisan(["vendor:publish", "--tag=unknown"])
         .await
-        .assertSuccessful();
+        .assert_successful();
     app.artisan(["vendor:publish", "--no-interaction"])
         .await
-        .assertSuccessful();
+        .assert_successful();
     events.assertDispatchedTimes(name, 0);
 
     app.artisan([
@@ -536,7 +538,7 @@ async fn artisan_publishes_directories_and_dispatches_registered_paths()
         "--force",
     ])
     .await
-    .assertSuccessful();
+    .assert_successful();
     assert_eq!(
         fs::read(target.join("nested/site.css"))?,
         b"package version"
@@ -547,7 +549,7 @@ async fn artisan_publishes_directories_and_dispatches_registered_paths()
     let directory = app
         .artisan(["vendor:publish", "--tag=package-assets"])
         .await;
-    directory.assertSuccessful();
+    directory.assert_successful();
     assert!(directory.stdout.contains("Copying directory"));
     assert!(directory.stdout.contains("to [public"));
     assert_eq!(fs::read(target.join("nested/site.css"))?, b"local edit");
@@ -557,7 +559,7 @@ async fn artisan_publishes_directories_and_dispatches_registered_paths()
 
     app.artisan(["vendor:publish", "--tag=package-assets"])
         .await
-        .assertSuccessful();
+        .assert_successful();
     app.artisan([
         "vendor:publish",
         "--tag=package-assets",
@@ -566,7 +568,7 @@ async fn artisan_publishes_directories_and_dispatches_registered_paths()
         "--force",
     ])
     .await
-    .assertSuccessful();
+    .assert_successful();
     assert_eq!(
         fs::read(target.join("nested/site.css"))?,
         b"package version"
@@ -575,11 +577,11 @@ async fn artisan_publishes_directories_and_dispatches_registered_paths()
     let missing = app
         .artisan(["vendor:publish", "--tag=package-missing"])
         .await;
-    missing.assertSuccessful();
+    missing.assert_successful();
     assert!(missing.stderr.contains("Can't locate path"));
     app.artisan(["vendor:publish", "--all", "--tag=unknown"])
         .await
-        .assertSuccessful();
+        .assert_successful();
 
     events.assertDispatchedTimes(name, 7);
     let published = events.dispatched(name);
@@ -617,7 +619,7 @@ async fn publishes_pagination_templates_and_preserves_overrides()
     let destination = app.root().join("resources/views/vendor/pagination");
     app.artisan(["vendor:publish", "--tag=laravel-pagination"])
         .await
-        .assertSuccessful();
+        .assert_successful();
     for name in [
         "tailwind",
         "simple-tailwind",
@@ -637,11 +639,11 @@ async fn publishes_pagination_templates_and_preserves_overrides()
     fs::write(&file, "my pagination view")?;
     app.artisan(["vendor:publish", "--tag=laravel-pagination"])
         .await
-        .assertSuccessful();
+        .assert_successful();
     assert_eq!(fs::read_to_string(&file)?, "my pagination view");
     app.artisan(["vendor:publish", "--tag=laravel-pagination", "--force"])
         .await
-        .assertSuccessful();
+        .assert_successful();
     assert_eq!(fs::read(file)?, original);
     Ok(())
 }
@@ -708,7 +710,7 @@ async fn artisan_rejects_publish_paths_through_application_symlinks()
         let result = app
             .artisan(["vendor:publish", &format!("--tag={tag}"), "--force"])
             .await;
-        result.assertExitCode(1);
+        result.assert_exit_code(1);
         assert!(
             result.stderr.contains("Unsupported publish path"),
             "{}",
@@ -768,32 +770,32 @@ async fn package_manifest_rebuilds_clears_and_uses_linked_providers()
         .canonicalize()?
         .join("bootstrap/cache/packages.json");
     assert!(app.app().get_cached_packages_path().is_none());
-    app.get("/discovered").await?.assertOk();
+    app.get("/discovered").await?.assert_ok();
     assert_eq!(app.app().get_cached_packages_path(), Some(cache.as_path()));
     assert!(!cache.exists());
-    app.artisan(["package:discover"]).await.assertSuccessful();
+    app.artisan(["package:discover"]).await.assert_successful();
     let original = fs::read(&cache)?;
     assert_eq!(
         serde_json::from_slice::<serde_json::Value>(&original)?[0]["name"],
         "fixture"
     );
     fs::write(&cache, r#"[{"name":"unlinked"}]"#)?;
-    app.get("/discovered").await?.assertOk();
-    app.artisan(["package:discover"]).await.assertSuccessful();
+    app.get("/discovered").await?.assert_ok();
+    app.artisan(["package:discover"]).await.assert_successful();
     assert_eq!(fs::read(&cache)?, original);
     fs::write(cache.with_file_name("unrelated.json"), "keep")?;
-    app.artisan(["clear-compiled"]).await.assertSuccessful();
+    app.artisan(["clear-compiled"]).await.assert_successful();
     assert!(!cache.exists());
     assert!(cache.with_file_name("unrelated.json").is_file());
-    app.artisan(["clear-compiled"]).await.assertSuccessful();
-    app.get("/discovered").await?.assertOk();
+    app.artisan(["clear-compiled"]).await.assert_successful();
+    app.get("/discovered").await?.assert_ok();
     assert!(!cache.exists());
 
     let mut excluded = TestApp::create(|builder| builder.with_routing(Routing::default()))?;
     excluded
         .get("/discovered")
         .await?
-        .assertStatus(openrust::http::StatusCode::NOT_FOUND);
+        .assert_status(openrust::http::StatusCode::NOT_FOUND);
     assert!(
         !excluded
             .root()
@@ -834,7 +836,7 @@ async fn relative_test_requests_use_configured_origin_and_preserve_absolute_addr
                     let url = fs::read_to_string(root.join("test-url")).ok();
                     Ok([("app".into(), json!({"env":"testing","url":url}))].into())
                 })
-                .with_routing(Routing::default().apiPrefix("").api(|| {
+                .with_routing(Routing::default().api_prefix("").api(|| {
                     Route::get("/probe", probe)?;
                     Route::get("/sub/probe", probe)
                 }))
@@ -846,7 +848,7 @@ async fn relative_test_requests_use_configured_origin_and_preserve_absolute_addr
         app.get(relative)
             .await
             .unwrap()
-            .assertJsonPath("uri", &json!(expected));
+            .assert_json_path("uri", &json!(expected));
         app.call(
             http::Request::get("https://absolute.test/probe?x=2")
                 .body(Body::empty())
@@ -854,6 +856,6 @@ async fn relative_test_requests_use_configured_origin_and_preserve_absolute_addr
         )
         .await
         .unwrap()
-        .assertJsonPath("uri", &json!("https://absolute.test/probe?x=2"));
+        .assert_json_path("uri", &json!("https://absolute.test/probe?x=2"));
     }
 }

@@ -34,7 +34,7 @@ impl DeviceCodeController {
                 .and_then(|v| v.as_object().cloned())
                 .unwrap_or_default();
             let server = AuthorizationServer::get_facade_root().map_err(internal)?;
-            let uri = URL::forRequest(request)
+            let uri = URL::for_request(request)
                 .map_err(internal)?
                 .route("passport.device", &[], true)
                 .map_err(internal)?;
@@ -97,10 +97,10 @@ impl DeviceAuthorizationController {
             let Some(device) = server.deviceCodeByUserCode(&code).await.map_err(internal)? else {
                 request
                     .session_mut()?
-                    .flashInput(json!({"user_code":code}))?;
+                    .flash_input(json!({"user_code":code}))?;
                 let mut errors = MessageBag::default();
                 errors.add("user_code", "Incorrect code.");
-                request.session_mut()?.flashErrors("default", &errors)?;
+                request.session_mut()?.flash_errors("default", &errors)?;
                 return redirect(request, "passport.device", None);
             };
             use openrust::database::Value as DbValue;
@@ -136,7 +136,7 @@ impl DeviceAuthorizationController {
                 "deviceCode",
                 serde_json::to_value(PendingDevice {
                     code: id,
-                    user: user.getAuthIdentifier(),
+                    user: user.get_auth_identifier(),
                 })
                 .map_err(internal)?,
             )?;
@@ -190,7 +190,7 @@ fn complete(request: &mut Request, approved: bool) -> HttpFuture<'_, Result<Resp
         let pending: PendingDevice =
             serde_json::from_value(pending.ok_or(HttpError::InvalidRequest)?)
                 .map_err(|_| HttpError::InvalidRequest)?;
-        if pending.user != user.getAuthIdentifier() {
+        if pending.user != user.get_auth_identifier() {
             return Err(HttpError::Unauthenticated);
         }
         let server = AuthorizationServer::get_facade_root().map_err(internal)?;
@@ -228,7 +228,7 @@ fn redirect(request: &Request, route: &str, code: Option<&str>) -> Result<Respon
             )]
         })
         .unwrap_or_default();
-    let target = URL::forRequest(request)
+    let target = URL::for_request(request)
         .map_err(internal)?
         .route(route, &parameters, true)
         .map_err(internal)?;

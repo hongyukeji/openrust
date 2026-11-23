@@ -136,7 +136,7 @@ pub fn primary_keys<M: Model>(models: &Collection<M>) -> BaseCollection<Option<V
 
 ### 保留模型集合的鍵
 
-用 `mapModelsWithKeys` 產生帶有明確鍵的 Eloquent 集合，也可用 `Collection::fromEntries` 從鍵與模型配對建構。依集合鍵取得模型用 `getByKey`，依模型主鍵查找用 `find`，索引用來存取位置。`keys`、`map`、`mapModels`、`fresh`、`toBase` 和 `toJson` 保留集合鍵。`all` 和 `toArray` 回傳依位置排列的值。`only`、`except`、`merge`、`unique`、`diff` 和 `intersect` 對結果重新編號。
+用 `mapModelsWithKeys` 產生帶有明確鍵的 Eloquent 集合，也可用 `Collection::fromEntries` 從鍵與模型配對建構。依集合鍵取得模型用 `getByKey`，依模型主鍵查找用 `find`，索引用來存取位置。`keys`、`map`、`mapModels`、`fresh`、`toBase` 和 `to_json` 保留集合鍵。`all` 和 `to_array` 回傳依位置排列的值。`only`、`except`、`merge`、`unique`、`diff` 和 `intersect` 對結果重新編號。
 
 ```rust
 use openrust::database::eloquent::{Collection, Model};

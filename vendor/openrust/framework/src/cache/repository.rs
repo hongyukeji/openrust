@@ -50,7 +50,7 @@ impl Repository {
     }
 
     /// Runs a single callback under an exclusive lock, waiting up to ten seconds.
-    pub async fn withoutOverlapping<T, F>(
+    pub async fn without_overlapping<T, F>(
         &self,
         key: &str,
         callback: impl FnOnce() -> F,
@@ -130,7 +130,7 @@ impl Repository {
     }
 
     /// Returns the name assigned when the repository was constructed.
-    pub fn getName(&self) -> Option<&str> {
+    pub fn get_name(&self) -> Option<&str> {
         self.name.as_deref()
     }
 

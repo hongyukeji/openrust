@@ -279,7 +279,7 @@ Pail 通过共享路径服务解析 `Application::storage_path("pail")`。在首
 
 底部显示 HTTP 方法／路径和认证信息，或队列／任务／命令，以及公开 Context。数字键与 null、PHP 风格值导出、HTML 文本和多行消息按固定 Pail 规则处理。边框宽度上限为 150 个终端列；原始消息和长底部信息可能像上游一样溢出。Rust 的 `::` 类型命名空间及 Windows 本机路径分隔符适配到缩略和相对来源显示。
 
-Rust JSON 无符号整数保留原始精度；超过 PHP 有符号整数范围的值，其显示可能与 PHP 的浮点近似不同。Rust 直接生成消息框，通过 `Output::writeRaw` 写入已渲染文本。真实 Artisan 输出立即写出，捕获输出保留在缓冲区。`--ansi`、`--no-ansi`、`--quiet` 和 `--silent` 生效，写入错误沿调用链传播；格式错误在写入消息框前返回。输出详细级别随调用作用域保存和恢复。`PAIL_TESTS` 用于捕获测试，显示的日期、文件和堆栈保留实际记录值，不采用 PHP 测试夹具中的替换值。
+Rust JSON 无符号整数保留原始精度；超过 PHP 有符号整数范围的值，其显示可能与 PHP 的浮点近似不同。Rust 直接生成消息框，通过 `Output::write_raw` 写入已渲染文本。真实 Artisan 输出立即写出，捕获输出保留在缓冲区。`--ansi`、`--no-ansi`、`--quiet` 和 `--silent` 生效，写入错误沿调用链传播；格式错误在写入消息框前返回。输出详细级别随调用作用域保存和恢复。`PAIL_TESTS` 用于捕获测试，显示的日期、文件和堆栈保留实际记录值，不采用 PHP 测试夹具中的替换值。
 
 [实时 Pail 命令](#tailing-log-messages-using-pail)使用此打印器，加载 Provider 后也会向 [Artisan dev](../digging-deeper/artisan.md#the-dev-command)添加默认 `logs` 进程。
 

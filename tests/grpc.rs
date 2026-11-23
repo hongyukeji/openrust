@@ -469,7 +469,7 @@ mod process {
                 State(kernel): State<Arc<Kernel>>,
                 request: axum::extract::Request,
             ) -> axum::response::Response {
-                kernel.handleTransport(request).await
+                kernel.handle_transport(request).await
             }
             axum::serve(
                 listener,

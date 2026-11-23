@@ -48,11 +48,10 @@ pub(super) struct TruncationState {
     pending: Option<JoinHandle<TestResult<()>>>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl TestApp {
     /// Rebuilds the default schema on the first call, then clears and reseeds the
     /// selected schemas before subsequent tests on this fixture.
-    pub async fn truncateDatabaseTables(
+    pub async fn truncate_database_tables(
         &mut self,
         options: DatabaseTruncationOptions,
     ) -> TestResult<()> {
@@ -104,7 +103,7 @@ impl TestApp {
             for target in selected {
                 let filters = options
                     .tables_by_connection
-                    .get(target.getName())
+                    .get(target.get_name())
                     .unwrap_or(&options.tables);
                 truncate_connection(&target, filters, &ledger).await?;
             }

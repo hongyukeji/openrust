@@ -1073,7 +1073,7 @@ pub fn current_user_parameter() -> ConstructorParam {
 }
 ```
 
-Controller construction can resolve these attributes directly. For asynchronous container calls in a closure handler, use `request.withContainer(container.make_async::<T>()).await` to make the same request available to the resolver. Bind the injected guard with `guard.bind(request)?` to run its operations against the live session and cached identity. The handle is valid during the originating HTTP dispatch.
+Controller construction can resolve these attributes directly. For asynchronous container calls in a closure handler, use `request.with_container(container.make_async::<T>()).await` to make the same request available to the resolver. Bind the injected guard with `guard.bind(request)?` to run its operations against the live session and cached identity. The handle is valid during the originating HTTP dispatch.
 
 ### Request and Route Parameters
 

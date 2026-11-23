@@ -119,7 +119,7 @@ async fn suite(width: u64) {
         assert_eq!(status, 0, "{}", output.stderr);
         let mut record = state.lock().unwrap().take().unwrap();
         record["id"] = vector["id"].clone();
-        assert!(!output.isVerbose());
+        assert!(!output.is_verbose());
         record["output"] = output.stdout.into();
         evidence.push(record);
     }

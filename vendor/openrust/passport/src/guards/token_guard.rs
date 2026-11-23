@@ -17,7 +17,7 @@ pub struct TokenGuard;
 impl TokenGuard {
     #[allow(non_snake_case)]
     pub fn currentToken(request: &Request) -> Option<&AccessToken> {
-        let guard = openrust::auth::Auth::guardName(request, None).ok()?;
+        let guard = openrust::auth::Auth::guard_name(request, None).ok()?;
         Self::token(request, &guard)
     }
 
@@ -54,10 +54,10 @@ impl TokenGuard {
                 tokens.0.remove(guard);
             }
             request.parts_mut().extensions.remove::<AccessToken>();
-            if request.bearerToken()?.is_none() {
+            if request.bearer_token()?.is_none() {
                 let container = openrust::container::Container::get_instance();
                 let passport = container.make::<crate::Passport>().map_err(backend)?;
-                if !request.hasCookie(&passport.cookie(None))? {
+                if !request.has_cookie(&passport.cookie(None))? {
                     return Ok(None);
                 }
                 let encrypter = container
@@ -76,8 +76,8 @@ impl TokenGuard {
                 let user = container
                     .make::<AuthManager>()
                     .map_err(backend)?
-                    .createUserProvider(provider)?
-                    .retrieveById(&user_id)
+                    .create_user_provider(provider)?
+                    .retrieve_by_id(&user_id)
                     .await
                     .unwrap_or(None);
                 if user.is_some() {
@@ -132,8 +132,8 @@ impl TokenGuard {
             }
             let manager = container.make::<AuthManager>().map_err(backend)?;
             let user = manager
-                .createUserProvider(provider)?
-                .retrieveById(&AuthIdentifier::from(id))
+                .create_user_provider(provider)?
+                .retrieve_by_id(&AuthIdentifier::from(id))
                 .await
                 .unwrap_or(None);
             if user.is_some() {

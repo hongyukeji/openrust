@@ -122,7 +122,7 @@ async fn credential(request: &mut Request, registration: bool) -> Result<Value, 
     Validator::get_facade_root()
         .map_err(internal)?
         .make(
-            Data::fromRequest(request).await?,
+            Data::from_request(request).await?,
             rules,
             Default::default(),
             Default::default(),
@@ -141,7 +141,7 @@ async fn user(
     request: &mut Request,
     service: &Passkeys,
 ) -> Result<Box<dyn openrust::contracts::auth::Authenticatable>, HttpError> {
-    let mut guard = Auth::sessionGuard(request, Some(&service.string("passkeys.guard", "web")))?;
+    let mut guard = Auth::session_guard(request, Some(&service.string("passkeys.guard", "web")))?;
     let user = guard.user().await?.ok_or(HttpError::Unauthenticated)?;
     service.model()?.clone_user(user).ok_or_else(|| {
         internal(crate::PasskeyError::Configuration(
@@ -155,7 +155,7 @@ async fn respond<T: contracts::Response + ?Sized + 'static>(
 ) -> Result<Response, HttpError> {
     Resolver::<T>::get_facade_root()
         .map_err(internal)?
-        .toResponse(request, passkey)
+        .to_response(request, passkey)
         .await
 }
 
@@ -287,7 +287,7 @@ impl PasskeyLoginController {
                 return Err(invalid("Unable to sign in with this account."));
             }
             let remember = request.boolean("remember", false, false).await?;
-            Auth::sessionGuard(request, Some(&service.string("passkeys.guard", "web")))?
+            Auth::session_guard(request, Some(&service.string("passkeys.guard", "web")))?
                 .login(owner, remember)
                 .await?;
             request.session_mut()?.regenerate(false).await?;
@@ -330,7 +330,7 @@ impl PasskeyConfirmationController {
             VerifyPasskey(service)
                 .call(value, &state, Some(user.as_ref()))
                 .await?;
-            request.session_mut()?.passwordConfirmed()?;
+            request.session_mut()?.password_confirmed()?;
             respond::<dyn contracts::PasskeyConfirmationResponse>(request, None).await
         })
     }
@@ -346,10 +346,10 @@ pub struct PasskeyDeletedResponse;
 impl contracts::PasskeyDeletedResponse for PasskeyDeletedResponse {}
 macro_rules! redirect_response {
     ($name:ident,$fallback:expr)=>{impl contracts::Response for $name {
-        fn toResponse<'a>(&'a self,request:&'a mut Request,_:Option<&'a PasskeyRecord>)->HttpFuture<'a,Result<Response,HttpError>> {Box::pin(async move {
+        fn to_response<'a>(&'a self,request:&'a mut Request,_:Option<&'a PasskeyRecord>)->HttpFuture<'a,Result<Response,HttpError>> {Box::pin(async move {
             let service=Resolver::<Passkeys>::get_facade_root().map_err(internal)?;
             let response:Response=Redirect::intended(request,&service.string($fallback.0,$fallback.1),Default::default())?.into();
-            if request.wantsJson() {let target=response.headers().get("location").and_then(|v|v.to_str().ok()).unwrap_or("/");return Response::json(StatusCode::OK,json!({"redirect":target}));}
+            if request.wants_json() {let target=response.headers().get("location").and_then(|v|v.to_str().ok()).unwrap_or("/");return Response::json(StatusCode::OK,json!({"redirect":target}));}
             Ok(response)
         })}
     }};
@@ -361,8 +361,8 @@ redirect_response!(
 );
 macro_rules! status_response {
     ($name:ident,$status:expr)=>{impl contracts::Response for $name {
-        fn toResponse<'a>(&'a self,request:&'a mut Request,passkey:Option<&'a PasskeyRecord>)->HttpFuture<'a,Result<Response,HttpError>> {Box::pin(async move {
-            if request.wantsJson() {let mut data=json!({"status":$status});if let Some(passkey)=passkey {data["id"]=passkey.getKey().await.as_ref().and_then(crate::contracts::scalar).unwrap_or_default().into();data["name"]=passkey.getAttributeValue("name").await.map_err(internal)?.as_ref().and_then(crate::contracts::scalar).unwrap_or_default().into();}return Response::json(StatusCode::OK,data);}
+        fn to_response<'a>(&'a self,request:&'a mut Request,passkey:Option<&'a PasskeyRecord>)->HttpFuture<'a,Result<Response,HttpError>> {Box::pin(async move {
+            if request.wants_json() {let mut data=json!({"status":$status});if let Some(passkey)=passkey {data["id"]=passkey.getKey().await.as_ref().and_then(crate::contracts::scalar).unwrap_or_default().into();data["name"]=passkey.getAttributeValue("name").await.map_err(internal)?.as_ref().and_then(crate::contracts::scalar).unwrap_or_default().into();}return Response::json(StatusCode::OK,data);}
             Ok(Redirect::back(request,None,Default::default())?.with(request,"status",$status.into())?.into())
         })}
     }};

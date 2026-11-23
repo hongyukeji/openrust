@@ -320,7 +320,7 @@ async fn fixed_php_email_verification_controllers_and_responses_match_native_htt
 struct UpdatedVerificationResponse;
 impl contracts::VerifyEmailResponse for UpdatedVerificationResponse {}
 impl contracts::Response for UpdatedVerificationResponse {
-    fn toResponse<'a>(
+    fn to_response<'a>(
         &'a self,
         request: &'a mut Request,
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
@@ -328,7 +328,7 @@ impl contracts::Response for UpdatedVerificationResponse {
             let user = Auth::user(request).await?.unwrap();
             Response::json(
                 StatusCode::OK,
-                json!({"verified":user.as_email_verification().unwrap().hasVerifiedEmail()}),
+                json!({"verified":user.as_email_verification().unwrap().has_verified_email()}),
             )
         })
     }

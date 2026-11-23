@@ -94,7 +94,7 @@ impl Command for PulseCommand {
                         .and_then(|v| v.as_str().map(str::to_owned))
                         .as_deref()
                         == Some("production");
-                    if !openrust::console::confirmToProceed(production, input.matches())? {
+                    if !openrust::console::confirm_to_proceed(production, input.matches())? {
                         return Ok(1);
                     }
                     let types = input

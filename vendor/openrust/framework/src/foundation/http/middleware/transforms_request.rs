@@ -28,14 +28,13 @@ impl Default for TrimStrings {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl TrimStrings {
     pub fn except(&mut self, patterns: impl IntoIterator<Item = impl Into<String>>) -> &mut Self {
         self.except.extend(patterns.into_iter().map(Into::into));
         self
     }
 
-    pub fn skipWhen(
+    pub fn skip_when(
         &mut self,
         callback: impl Fn(&Request) -> bool + Send + Sync + 'static,
     ) -> &mut Self {
@@ -78,8 +77,7 @@ pub struct ConvertEmptyStringsToNull {
 }
 
 impl ConvertEmptyStringsToNull {
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn skipWhen(
+    pub fn skip_when(
         &mut self,
         callback: impl Fn(&Request) -> bool + Send + Sync + 'static,
     ) -> &mut Self {

@@ -12,7 +12,7 @@ pub(super) fn matches_token(user: &dyn Authenticatable, token: &str) -> bool {
     use subtle::ConstantTimeEq as _;
     !token.is_empty()
         && user
-            .getRememberToken()
+            .get_remember_token()
             .is_some_and(|stored| bool::from(stored.as_bytes().ct_eq(token.as_bytes())))
 }
 
@@ -26,7 +26,7 @@ pub(super) async fn validate(
     user: &dyn Authenticatable,
     credentials: &Credentials,
 ) -> AuthResult<bool> {
-    let Some(hash) = user.getAuthPassword() else {
+    let Some(hash) = user.get_auth_password() else {
         return Ok(false);
     };
     hasher
@@ -45,16 +45,16 @@ pub(super) async fn update_token(
     user: &mut dyn Authenticatable,
     token: &str,
 ) -> AuthResult<()> {
-    let field = user.getRememberTokenName();
+    let field = user.get_remember_token_name();
     if field.is_empty() {
         return Err(AuthError::Configuration("remember token column"));
     }
     let affected = connection
         .table(table)
         .r#where(
-            user.getAuthIdentifierName(),
+            user.get_auth_identifier_name(),
             "=",
-            Value::from(user.getAuthIdentifier()),
+            Value::from(user.get_auth_identifier()),
         )
         .update(std::collections::BTreeMap::from([(
             field.to_owned(),
@@ -64,7 +64,7 @@ pub(super) async fn update_token(
     if affected == 0 {
         return Err(AuthError::InvalidIdentity);
     }
-    user.setRememberToken(Some(token.to_owned()));
+    user.set_remember_token(Some(token.to_owned()));
     Ok(())
 }
 
@@ -76,7 +76,7 @@ pub(super) async fn rehash(
     credentials: &Credentials,
     force: bool,
 ) -> AuthResult<()> {
-    let Some(old) = user.getAuthPassword() else {
+    let Some(old) = user.get_auth_password() else {
         return Ok(());
     };
     let options = HashOptions::default();
@@ -86,13 +86,13 @@ pub(super) async fn rehash(
     let new = hasher
         .make(credentials.password().as_bytes(), &options)
         .await?;
-    let field = user.getAuthPasswordName();
+    let field = user.get_auth_password_name();
     let affected = connection
         .table(table)
         .r#where(
-            user.getAuthIdentifierName(),
+            user.get_auth_identifier_name(),
             "=",
-            Value::from(user.getAuthIdentifier()),
+            Value::from(user.get_auth_identifier()),
         )
         .r#where(field, "=", old)
         .update(std::collections::BTreeMap::from([(

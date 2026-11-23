@@ -23,7 +23,6 @@ impl Validator {
     }
 }
 
-#[allow(non_snake_case)]
 impl Validator {
     pub fn extend(
         rule: &str,
@@ -45,7 +44,7 @@ impl Validator {
             .extend(rule, extension, message);
         Ok(())
     }
-    pub fn extendImplicit(
+    pub fn extend_implicit(
         rule: &str,
         extension: impl Fn(
             &str,
@@ -62,10 +61,10 @@ impl Validator {
             .map_err(|source| ValidationError::Execution {
                 source: Box::new(source),
             })?
-            .extendImplicit(rule, extension, message);
+            .extend_implicit(rule, extension, message);
         Ok(())
     }
-    pub fn extendDependent(
+    pub fn extend_dependent(
         rule: &str,
         extension: impl Fn(
             &str,
@@ -82,7 +81,7 @@ impl Validator {
             .map_err(|source| ValidationError::Execution {
                 source: Box::new(source),
             })?
-            .extendDependent(rule, extension, message);
+            .extend_dependent(rule, extension, message);
         Ok(())
     }
     pub fn replacer(
@@ -114,22 +113,21 @@ impl Validator {
     }
 }
 
-#[allow(non_snake_case)]
 impl Validator {
-    pub fn includeUnvalidatedArrayKeys() -> ValidationResult<()> {
+    pub fn include_unvalidated_array_keys() -> ValidationResult<()> {
         Self::get_facade_root()
             .map_err(|source| ValidationError::Execution {
                 source: Box::new(source),
             })?
-            .includeUnvalidatedArrayKeys();
+            .include_unvalidated_array_keys();
         Ok(())
     }
-    pub fn excludeUnvalidatedArrayKeys() -> ValidationResult<()> {
+    pub fn exclude_unvalidated_array_keys() -> ValidationResult<()> {
         Self::get_facade_root()
             .map_err(|source| ValidationError::Execution {
                 source: Box::new(source),
             })?
-            .excludeUnvalidatedArrayKeys();
+            .exclude_unvalidated_array_keys();
         Ok(())
     }
 }

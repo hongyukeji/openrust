@@ -117,7 +117,7 @@ impl Arr {
         !keys.is_empty() && keys.iter().all(|key| Self::has(value, key))
     }
 
-    pub fn hasAny(value: &Value, keys: &[&str]) -> bool {
+    pub fn has_any(value: &Value, keys: &[&str]) -> bool {
         keys.iter().any(|key| Self::has(value, key))
     }
 

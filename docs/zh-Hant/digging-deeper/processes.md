@@ -18,7 +18,7 @@ let result = processes.command(["/bin/sh", "-c", r#"printf '%s' "$MODE""#])
 assert_eq!(result.output(), b"test");
 ```
 
-用 `path` 設定工作目錄，用 `env` 和 `removeEnv` 增刪環境變數，用 `input` 傳送位元組。預設逾時為 60 秒。`idleTimeout` 限制沒有輸出的時間，`forever` 取消總逾時。`exitCode` 可讀取非零結束代碼，`throw` 可將其轉成錯誤。
+用 `path` 設定工作目錄，用 `env` 和 `removeEnv` 增刪環境變數，用 `input` 傳送位元組。預設逾時為 60 秒。`idleTimeout` 限制沒有輸出的時間，`forever` 取消總逾時。`exit_code` 可讀取非零結束代碼，`throw` 可將其轉成錯誤。
 
 ## 非同步執行 {#running-asynchronously}
 
@@ -82,7 +82,7 @@ let mut process = Process::command(
 assert!(process.waitUntil(|_, bytes| bytes == b"ready").await?);
 process.signal(Signal::Raw(number)).await?;
 let result = process.wait().await?;
-assert_eq!(result.exitCode(), 6);
+assert_eq!(result.exit_code(), 6);
 assert_eq!(result.output(), b"readycaught");
 ```
 
@@ -114,7 +114,7 @@ processes.fakeCommand("worker", Factory::describe()
     .runsFor(2)
     .errorOutput("ready")
     .output("finished")
-    .exitCode(0)
+    .exit_code(0)
     .result());
 processes.preventStrayProcesses(true);
 

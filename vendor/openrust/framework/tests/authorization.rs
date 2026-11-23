@@ -40,29 +40,29 @@ use tokio::{
 struct Identity(&'static str);
 
 impl Authenticatable for Identity {
-    fn getAuthIdentifierName(&self) -> &str {
+    fn get_auth_identifier_name(&self) -> &str {
         "id"
     }
-    fn getAuthIdentifier(&self) -> AuthIdentifier {
+    fn get_auth_identifier(&self) -> AuthIdentifier {
         AuthIdentifier::String(self.0.into())
     }
-    fn getAuthPasswordName(&self) -> &str {
+    fn get_auth_password_name(&self) -> &str {
         "password"
     }
-    fn getAuthPassword(&self) -> Option<&str> {
+    fn get_auth_password(&self) -> Option<&str> {
         None
     }
-    fn getRememberToken(&self) -> Option<&str> {
+    fn get_remember_token(&self) -> Option<&str> {
         None
     }
-    fn setRememberToken(&mut self, _: Option<String>) {}
-    fn getRememberTokenName(&self) -> &str {
+    fn set_remember_token(&mut self, _: Option<String>) {}
+    fn get_remember_token_name(&self) -> &str {
         "remember_token"
     }
 }
 
 fn identity(user: Option<&dyn Authenticatable>, expected: &str) -> bool {
-    matches!(user.map(Authenticatable::getAuthIdentifier),
+    matches!(user.map(Authenticatable::get_auth_identifier),
         Some(AuthIdentifier::String(id)) if id == expected)
 }
 
@@ -110,7 +110,7 @@ impl Policy<Document> for DocumentPolicy {
     ) -> AuthFuture<'a, AuthResult<Option<Decision>>> {
         Box::pin(async move {
             let decision = match ability {
-                "conceal" => Decision::denyAsNotFound("Document is unavailable."),
+                "conceal" => Decision::deny_as_not_found("Document is unavailable."),
                 "create" => Decision::from(document.is_none() && identity(user, "owner")),
                 "update"
                     if document.is_some_and(|document| {
@@ -137,12 +137,12 @@ fn status(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 fn explicit(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
         let _ = Gate::authorize(request, "user-only", &[]).await?;
-        let scope = Gate::forUser(Some(Arc::new(Identity("owner"))))?;
+        let scope = Gate::for_user(Some(Arc::new(Identity("owner"))))?;
         assert!(scope.check(&["user-only", "public"], &[]).await?);
         assert!(scope.any(&["unknown", "public"], &[]).await?);
         assert!(scope.none(&["unknown", "denied"], &[]).await?);
-        assert!(scope.allowIf(|user| identity(Some(user), "owner")).is_ok());
-        assert!(scope.denyIf(|user| identity(Some(user), "owner")).is_err());
+        assert!(scope.allow_if(|user| identity(Some(user), "owner")).is_ok());
+        assert!(scope.deny_if(|user| identity(Some(user), "owner")).is_err());
         Response::json(StatusCode::OK, json!({"ok":true}))
     })
 }
@@ -185,7 +185,7 @@ async fn transport(
     State(kernel): State<Arc<Kernel>>,
     request: axum::extract::Request,
 ) -> axum::response::Response {
-    kernel.handleTransport(request).await
+    kernel.handle_transport(request).await
 }
 
 async fn request(address: SocketAddr, path: &str, user: &str, status: u16) -> Json {
@@ -200,7 +200,7 @@ async fn request(address: SocketAddr, path: &str, user: &str, status: u16) -> Js
 }
 
 fn register(registry: &GateRegistry, observed: &Arc<AtomicUsize>, public: bool) {
-    registry.defineGuest("public", move |_, _| {
+    registry.define_guest("public", move |_, _| {
         Box::pin(async move { Ok(public.into()) })
     });
     registry.define("user-only", |_, _| {
@@ -211,7 +211,7 @@ fn register(registry: &GateRegistry, observed: &Arc<AtomicUsize>, public: bool) 
     });
     registry.define("status", |_, _| {
         Box::pin(async {
-            Ok(Decision::denyWithStatus(
+            Ok(Decision::deny_with_status(
                 StatusCode::CONFLICT,
                 "Document is locked.",
             ))
@@ -222,7 +222,7 @@ fn register(registry: &GateRegistry, observed: &Arc<AtomicUsize>, public: bool) 
         Box::pin(async { Ok(Decision::deny("Named callback was reached.")) })
     });
     registry.policy(DocumentPolicy);
-    registry.defaultDenialResponse(Decision::deny("No applicable ability."));
+    registry.default_denial_response(Decision::deny("No applicable ability."));
     registry.before(|user, ability, _| {
         Box::pin(async move {
             Ok((ability == "before" && identity(user, "admin")).then(Decision::allow))
@@ -271,7 +271,7 @@ async fn start(
         .connection(None)
         .unwrap();
     let auth = app.container().make::<AuthManager>().unwrap();
-    auth.viaRequest("header", |request| {
+    auth.via_request("header", |request| {
         Box::pin(async move {
             let user = match request
                 .headers()
@@ -419,7 +419,7 @@ async fn gate_evaluated_delivers_original_arguments_and_raw_result_over_http() {
                 );
                 assert_eq!(arguments[0].downcast_ref::<Subject>().unwrap().0, 17);
                 assert_eq!(arguments[1].downcast_ref::<String>().unwrap(), "original");
-                let user = event.user.as_deref().map(|user| user.getAuthIdentifier());
+                let user = event.user.as_deref().map(|user| user.get_auth_identifier());
                 let identity = match user {
                     Some(AuthIdentifier::String(user)) => user,
                     None => "guest".into(),
@@ -443,7 +443,7 @@ async fn gate_evaluated_delivers_original_arguments_and_raw_result_over_http() {
     fn probe(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         Box::pin(async move {
             let ability = request.query(Some("ability"))?.unwrap();
-            let gate = Gate::forRequest(request).await?;
+            let gate = Gate::for_request(request).await?;
             let result = gate
                 .inspect(
                     ability.as_str().unwrap(),
@@ -451,7 +451,7 @@ async fn gate_evaluated_delivers_original_arguments_and_raw_result_over_http() {
                 )
                 .await?;
             assert_eq!(
-                gate.allowIf(|_| true).is_ok(),
+                gate.allow_if(|_| true).is_ok(),
                 request.headers().get("x-test-user").unwrap() == "owner"
             );
             Response::json(
@@ -481,7 +481,7 @@ async fn gate_evaluated_delivers_original_arguments_and_raw_result_over_http() {
     app.container()
         .make::<AuthManager>()
         .unwrap()
-        .viaRequest("event-test", |request| {
+        .via_request("event-test", |request| {
             Box::pin(async move {
                 Ok((request.headers().get("x-test-user").unwrap() == "owner")
                     .then(|| Box::new(Identity("owner")) as Box<dyn Authenticatable>))
@@ -499,7 +499,7 @@ async fn gate_evaluated_delivers_original_arguments_and_raw_result_over_http() {
         )
         .unwrap();
     let gate = app.container().make::<GateRegistry>().unwrap();
-    gate.defaultDenialResponse(Decision::denyAsNotFound("missing"));
+    gate.default_denial_response(Decision::deny_as_not_found("missing"));
     gate.before({
         let trace = trace.clone();
         move |_, ability, _| {
@@ -514,14 +514,14 @@ async fn gate_evaluated_delivers_original_arguments_and_raw_result_over_http() {
             Box::pin(async move {
                 assert_eq!(decision.is_some(), ability == "before");
                 Ok((ability == "hook")
-                    .then(|| Decision::denyWithStatus(StatusCode::CONFLICT, "hook")))
+                    .then(|| Decision::deny_with_status(StatusCode::CONFLICT, "hook")))
             })
         }
     });
-    gate.defineGuest("before", |_, _| {
+    gate.define_guest("before", |_, _| {
         Box::pin(async { panic!("the before hook already decided") })
     });
-    gate.defineGuest("error", |_, _| {
+    gate.define_guest("error", |_, _| {
         Box::pin(async { Err(AuthError::InvalidIdentity) })
     });
 
@@ -568,16 +568,16 @@ async fn gate_evaluated_delivers_original_arguments_and_raw_result_over_http() {
 
 #[test]
 fn response_status_setters_preserve_decision_and_can_clear_status() {
-    let allowed = Decision::allow().asNotFound();
+    let allowed = Decision::allow().as_not_found();
     assert!(allowed.allowed());
     assert_eq!(allowed.status(), Some(StatusCode::NOT_FOUND));
-    let denied = Decision::deny("拒绝访问").withStatus(StatusCode::CONFLICT);
+    let denied = Decision::deny("拒绝访问").with_status(StatusCode::CONFLICT);
     assert!(denied.denied());
     assert_eq!(denied.status(), Some(StatusCode::CONFLICT));
     assert_eq!(denied.message(), "拒绝访问");
-    let missing = denied.asNotFound();
+    let missing = denied.as_not_found();
     assert_eq!(missing.status(), Some(StatusCode::NOT_FOUND));
-    let cleared = missing.withStatus(None);
+    let cleared = missing.with_status(None);
     assert_eq!(cleared.status(), None);
     assert!(cleared.denied());
     assert_eq!(cleared.message(), "拒绝访问");

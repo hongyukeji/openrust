@@ -299,7 +299,7 @@ impl DatabaseStorage {
             let query = self.connection.table(table);
             if let Some(types) = types {
                 query
-                    .whereIn("type", types.iter().cloned().map(Sql::Text).collect())
+                    .where_in("type", types.iter().cloned().map(Sql::Text).collect())
                     .delete()
                     .await?;
             } else {
@@ -347,7 +347,7 @@ impl DatabaseStorage {
             .select(["timestamp", "key", "value"])
             .r#where("type", "=", r#type);
         if let Some(keys) = keys.filter(|k| !k.is_empty()) {
-            q = q.whereIn("key", keys.iter().cloned().map(Sql::Text).collect());
+            q = q.where_in("key", keys.iter().cloned().map(Sql::Text).collect());
         }
         Ok(q.get().await?)
     }

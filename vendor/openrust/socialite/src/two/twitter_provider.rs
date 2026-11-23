@@ -67,11 +67,11 @@ impl ProviderDefinition for TwitterProvider {
     ) -> ProviderFuture<'a, Value> {
         Box::pin(async move {
             let response = json(
-                http.pendingRequest()
-                    .withToken(token)
-                    .redactPayload()
-                    .withoutRedirecting()
-                    .withQueryParameters([(
+                http.pending_request()
+                    .with_token(token)
+                    .redact_payload()
+                    .without_redirecting()
+                    .with_query_parameters([(
                         "user.fields".into(),
                         "profile_image_url,confirmed_email".into(),
                     )])

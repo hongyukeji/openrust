@@ -31,7 +31,7 @@ The default file is `database/schema/<connection>-schema.sql`. Use `--database` 
 
 ## Migration Structure
 
-Implement `up` to apply a migration and `down` to reverse it. Use the supplied `MigrationContext` for schema changes and SQL so the migrator can collect the statements in pretend mode. Implement `getConnection` to select a different connection for the migration, or `shouldRun` to conditionally skip it.
+Implement `up` to apply a migration and `down` to reverse it. Use the supplied `MigrationContext` for schema changes and SQL so the migrator can collect the statements in pretend mode. Implement `getConnection` to select a different connection for the migration, or `should_run` to conditionally skip it.
 
 `getConnection` receives the owning configuration repository and returns `DatabaseResult<Option<String>>`. The returned name is owned, allowing runtime configuration lookup without PHP globals or cross-application state. Return `Ok(None)` to use the command-selected connection. Passport's publishable migrations use this contract for `passport.connection`.
 
@@ -118,7 +118,7 @@ Use `--pending` to list only pending migrations. Use `--pending=17` to make the 
 ./artisan migrate:status --pending=17
 ```
 
-Before the first pending migration, a migration whose `shouldRun` condition is false appears as `Skipped`. Subsequent unrecorded migrations appear as `Pending` because earlier migrations may change the database state used by their conditions.
+Before the first pending migration, a migration whose `should_run` condition is false appears as `Skipped`. Subsequent unrecorded migrations appear as `Pending` because earlier migrations may change the database state used by their conditions.
 
 ### Reporting Migration Failures as Warnings {#graceful-migrations}
 
@@ -441,7 +441,7 @@ fn prepare_status(table: &mut Blueprint) {
 
     if !table
         .getColumns()
-        .any(|column| column.getName() == "status")
+        .any(|column| column.get_name() == "status")
     {
         table.string("status", 24).default("pending");
     }

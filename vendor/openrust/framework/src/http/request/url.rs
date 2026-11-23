@@ -18,7 +18,7 @@ impl Request {
     }
 
     /// Returns the effective host and any non-default port.
-    pub fn httpHost(&self) -> Result<String, HttpError> {
+    pub fn http_host(&self) -> Result<String, HttpError> {
         let authority = self.effective_authority()?;
         let host = host_name(&authority);
         match authority.port_u16() {
@@ -29,17 +29,17 @@ impl Request {
         }
     }
 
-    pub fn schemeAndHttpHost(&self) -> Result<String, HttpError> {
+    pub fn scheme_and_http_host(&self) -> Result<String, HttpError> {
         let scheme = if self.secure() { "https" } else { "http" };
-        Ok(format!("{scheme}://{}", self.httpHost()?))
+        Ok(format!("{scheme}://{}", self.http_host()?))
     }
 
     /// Returns the origin and trusted proxy base path.
     pub fn root(&self) -> Result<String, HttpError> {
         Ok(format!(
             "{}{}",
-            self.schemeAndHttpHost()?,
-            self.getBaseUrl()
+            self.scheme_and_http_host()?,
+            self.get_base_url()
         ))
     }
 
@@ -53,7 +53,7 @@ impl Request {
     }
 
     /// Returns the current request URL with its normalized query.
-    pub fn fullUrl(&self) -> Result<String, HttpError> {
+    pub fn full_url(&self) -> Result<String, HttpError> {
         let url = self.url()?;
         let query = query::canonical(self.uri().query().unwrap_or_default())?;
         Ok(if query.is_empty() {
@@ -64,25 +64,25 @@ impl Request {
     }
 
     /// Checks the full request URL against any supplied wildcard pattern.
-    pub fn fullUrlIs(&self, patterns: &[&str]) -> Result<bool, HttpError> {
-        let url = self.fullUrl()?;
+    pub fn full_url_is(&self, patterns: &[&str]) -> Result<bool, HttpError> {
+        let url = self.full_url()?;
         Ok(patterns
             .iter()
             .any(|pattern| matches_pattern(&url, pattern)))
     }
 
     /// Returns the URL with the supplied top-level query values merged in.
-    pub fn fullUrlWithQuery(&self, additional: &Value) -> Result<String, HttpError> {
+    pub fn full_url_with_query(&self, additional: &Value) -> Result<String, HttpError> {
         if !Arr::accessible(additional) {
             return Err(HttpError::InvalidRequest);
         }
         let current = self.query(None)?.unwrap_or_default();
         let (url, query) = if empty_query(&current) {
-            (self.fullUrl()?, additional.clone())
+            (self.full_url()?, additional.clone())
         } else {
             let query = Collection::fromValue(current)
                 .merge(Collection::fromValue(additional.clone()))
-                .toArray()?;
+                .to_array()?;
             (self.url()?, query)
         };
         let query = query::encode(&query)?;
@@ -90,7 +90,7 @@ impl Request {
     }
 
     /// Returns the URL with the supplied query keys or dotted paths removed.
-    pub fn fullUrlWithoutQuery(&self, keys: &[&str]) -> Result<String, HttpError> {
+    pub fn full_url_without_query(&self, keys: &[&str]) -> Result<String, HttpError> {
         let mut current = self.query(None)?.unwrap_or_default();
         for key in keys {
             Arr::forget(&mut current, key).map_err(|_| HttpError::InvalidRequest)?;
@@ -108,7 +108,7 @@ impl Request {
     }
 
     fn query_separator(&self) -> &'static str {
-        if self.getBaseUrl().is_empty() && self.uri().path() == "/" {
+        if self.get_base_url().is_empty() && self.uri().path() == "/" {
             "/?"
         } else {
             "?"

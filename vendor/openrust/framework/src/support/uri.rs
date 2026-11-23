@@ -94,13 +94,13 @@ impl Uri {
     }
 
     /// 判断 URI 是否为空引用。
-    pub fn isEmpty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         self.value.is_empty()
     }
 
     /// 判断 URI 是否包含内容。
-    pub fn isNotEmpty(&self) -> bool {
-        !self.isEmpty()
+    pub fn is_not_empty(&self) -> bool {
+        !self.is_empty()
     }
 
     /// 取得规范化后的 scheme。
@@ -204,7 +204,7 @@ impl Uri {
     }
 
     /// 设置编码后的片段，空字符串保留显式的 `#` 分隔符。
-    pub fn withFragment(&self, fragment: &str) -> Result<Self, InvalidUri> {
+    pub fn with_fragment(&self, fragment: &str) -> Result<Self, InvalidUri> {
         parse::validate_component(fragment)?;
         let mut parts = self.parts.clone();
         parts.fragment = Some(parse::encode_query_or_fragment(fragment));
@@ -212,7 +212,7 @@ impl Uri {
     }
 
     /// 移除片段及其分隔符。
-    pub fn withoutFragment(&self) -> Result<Self, InvalidUri> {
+    pub fn without_fragment(&self) -> Result<Self, InvalidUri> {
         let mut parts = self.parts.clone();
         parts.fragment = None;
         Self::checked_parts(parts)
@@ -245,22 +245,22 @@ impl Uri {
         Self::generated(URL::action(action, parameters, absolute)?)
     }
 
-    pub fn signedRoute(
+    pub fn signed_route(
         name: &str,
         parameters: &[RouteParameter],
         expiration: Option<SystemTime>,
         mode: SignatureMode,
     ) -> UrlResult<Self> {
-        Self::generated(URL::signedRoute(name, parameters, expiration, mode)?)
+        Self::generated(URL::signed_route(name, parameters, expiration, mode)?)
     }
 
-    pub fn temporarySignedRoute(
+    pub fn temporary_signed_route(
         name: &str,
         expiration: SystemTime,
         parameters: &[RouteParameter],
         mode: SignatureMode,
     ) -> UrlResult<Self> {
-        Self::generated(URL::temporarySignedRoute(
+        Self::generated(URL::temporary_signed_route(
             name, expiration, parameters, mode,
         )?)
     }

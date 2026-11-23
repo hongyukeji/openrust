@@ -1371,7 +1371,7 @@ impl Connection {
         self.model_timezone.clone()
     }
 
-    pub fn getName(&self) -> &str {
+    pub fn get_name(&self) -> &str {
         &self.name
     }
 

@@ -12,18 +12,17 @@ use crate::{
 ///
 /// Streaming bodies are never polled or buffered to create this event. Metadata and
 /// the attribute map are detached snapshots; shared values retain their normal ownership.
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub struct RequestHandled {
     pub request: RequestParts,
     pub response: ResponseParts,
     /// Shared bytes only for responses whose content is already buffered.
-    pub responseContent: Option<axum::body::Bytes>,
+    pub response_content: Option<axum::body::Bytes>,
     pub attributes: HashMap<String, ParameterValue>,
-    pub routeName: Option<String>,
+    pub route_name: Option<String>,
     /// Already-decoded input; an unread body is not consumed for observation.
     pub payload: Option<serde_json::Value>,
     /// Unix milliseconds captured when the kernel begins handling the request.
-    pub requestStartedAt: i64,
+    pub request_started_at: i64,
     /// Elapsed time measured by a monotonic clock.
     pub duration: Duration,
 }
@@ -40,11 +39,11 @@ impl RequestHandled {
         Self {
             request: parts,
             response: response.parts().clone(),
-            responseContent: response.getContent().cloned(),
+            response_content: response.get_content().cloned(),
             attributes: request.attributes().snapshot(),
-            routeName: request.route_name.clone(),
-            payload: request.inputSnapshot(),
-            requestStartedAt: request_started_at,
+            route_name: request.route_name.clone(),
+            payload: request.input_snapshot(),
+            request_started_at,
             duration,
         }
     }

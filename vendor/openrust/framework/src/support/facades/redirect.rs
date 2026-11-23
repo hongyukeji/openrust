@@ -10,7 +10,6 @@ use super::URL;
 /// Creates redirect responses for the current application.
 pub struct Redirect;
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Redirect {
     pub fn redirector() -> UrlResult<Redirector> {
         Ok(Redirector::new(URL::generator()?))
@@ -32,22 +31,22 @@ impl Redirect {
         Self::redirector()?.away(target, options)
     }
 
-    pub fn signedRoute(
+    pub fn signed_route(
         name: &str,
         parameters: &[RouteParameter],
         expiration: Option<SystemTime>,
         options: RedirectOptions,
     ) -> UrlResult<RedirectResponse> {
-        Self::redirector()?.signedRoute(name, parameters, expiration, options)
+        Self::redirector()?.signed_route(name, parameters, expiration, options)
     }
 
-    pub fn temporarySignedRoute(
+    pub fn temporary_signed_route(
         name: &str,
         expiration: SystemTime,
         parameters: &[RouteParameter],
         options: RedirectOptions,
     ) -> UrlResult<RedirectResponse> {
-        Self::redirector()?.temporarySignedRoute(name, expiration, parameters, options)
+        Self::redirector()?.temporary_signed_route(name, expiration, parameters, options)
     }
 
     pub fn route(
@@ -90,11 +89,11 @@ impl Redirect {
         Self::redirector()?.intended(request, fallback, options)
     }
 
-    pub fn getIntendedUrl(request: &Request) -> UrlResult<Option<&str>> {
-        Self::redirector()?.getIntendedUrl(request)
+    pub fn get_intended_url(request: &Request) -> UrlResult<Option<&str>> {
+        Self::redirector()?.get_intended_url(request)
     }
 
-    pub fn setIntendedUrl(request: &mut Request, target: &str) -> UrlResult<()> {
-        Self::redirector()?.setIntendedUrl(request, target)
+    pub fn set_intended_url(request: &mut Request, target: &str) -> UrlResult<()> {
+        Self::redirector()?.set_intended_url(request, target)
     }
 }

@@ -19,7 +19,7 @@ impl Request {
         self.has(keys).await
     }
 
-    pub async fn hasAny(&mut self, keys: &[&str]) -> Result<bool, HttpError> {
+    pub async fn has_any(&mut self, keys: &[&str]) -> Result<bool, HttpError> {
         let data = self.all().await?;
         Ok(keys.iter().any(|key| data.get(key).is_some()))
     }
@@ -35,18 +35,18 @@ impl Request {
     }
 
     /// Tests whether every input value is missing, null or a blank string.
-    pub async fn isNotFilled(&mut self, keys: &[&str]) -> Result<bool, HttpError> {
+    pub async fn is_not_filled(&mut self, keys: &[&str]) -> Result<bool, HttpError> {
         let data = self.input(None).await?.unwrap_or_else(empty);
         Ok(keys.iter().all(|key| blank(&data, key)))
     }
 
-    pub async fn anyFilled(&mut self, keys: &[&str]) -> Result<bool, HttpError> {
+    pub async fn any_filled(&mut self, keys: &[&str]) -> Result<bool, HttpError> {
         let data = self.input(None).await?.unwrap_or_else(empty);
         Ok(keys.iter().any(|key| !blank(&data, key)))
     }
 
     /// Calls the callback for a present key with its combined input or file value.
-    pub async fn whenHas<T>(
+    pub async fn when_has<T>(
         &mut self,
         key: &str,
         callback: impl AsyncFnOnce(&mut Self, Option<RequestValue>) -> T,
@@ -59,7 +59,7 @@ impl Request {
         Ok(Some(callback(self, value).await))
     }
 
-    pub async fn whenFilled<T>(
+    pub async fn when_filled<T>(
         &mut self,
         key: &str,
         callback: impl AsyncFnOnce(&mut Self, Option<RequestValue>) -> T,
@@ -72,7 +72,7 @@ impl Request {
         Ok(Some(callback(self, value).await))
     }
 
-    pub async fn whenMissing<T>(
+    pub async fn when_missing<T>(
         &mut self,
         key: &str,
         callback: impl AsyncFnOnce(&mut Self) -> T,
@@ -89,7 +89,7 @@ impl Request {
     }
 
     /// Merges paths that are absent from the original input and upload snapshot.
-    pub async fn mergeIfMissing(&mut self, input: Value) -> Result<&mut Self, HttpError> {
+    pub async fn merge_if_missing(&mut self, input: Value) -> Result<&mut Self, HttpError> {
         self.merge_input(input, true).await
     }
 

@@ -80,7 +80,7 @@ async fn sqlite_uses_default_file_and_rejects_bad_connections_and_driver_errors(
         matches!(db.connection(Some("missing")), Err(DatabaseError::UnknownConnection(name)) if name == "missing")
     );
     let conn = db.connection(None).unwrap();
-    assert_eq!(conn.getName(), "sqlite");
+    assert_eq!(conn.get_name(), "sqlite");
     assert_eq!(
         conn.getDatabaseName(),
         root.0.join("database/database.sqlite").to_str().unwrap()
@@ -855,7 +855,7 @@ async fn sqlite_direct_alias_uses_the_writer_and_reports_its_own_name() {
         }}),
     );
     let direct = db.connection(Some("split::direct")).unwrap();
-    assert_eq!(direct.getName(), "split::direct");
+    assert_eq!(direct.get_name(), "split::direct");
     direct.enableQueryLog();
     direct.unprepared("PRAGMA user_version = 21").await.unwrap();
     assert_eq!(
@@ -882,7 +882,7 @@ async fn sqlite_direct_alias_uses_the_writer_and_reports_its_own_name() {
         Some(&21.into())
     );
     let reconnected = db.reconnect(Some("split::direct")).await.unwrap();
-    assert_eq!(reconnected.getName(), "split::direct");
+    assert_eq!(reconnected.get_name(), "split::direct");
     assert_eq!(
         reconnected
             .scalar("PRAGMA user_version", &[])
@@ -917,7 +917,7 @@ async fn postgres_direct_endpoint_and_migration_role_resolve_without_connecting(
     assert_eq!(base.getDatabaseName(), "write_db");
     let direct = manager.connection(Some("split::direct")).unwrap();
     assert!(direct.hasDirectConnection());
-    assert_eq!(direct.getName(), "split::direct");
+    assert_eq!(direct.get_name(), "split::direct");
     assert_eq!(direct.getDatabaseName(), "direct_db");
     assert_eq!(direct.getTablePrefix(), "app_");
 
@@ -972,7 +972,7 @@ async fn mysql_read_write_routing_recovers_after_a_server_disconnect() {
         }}),
     );
     let direct = db.connection(Some("split::direct")).unwrap();
-    assert_eq!(direct.getName(), "split::direct");
+    assert_eq!(direct.get_name(), "split::direct");
     assert!(!direct.hasDirectConnection());
     direct
         .statement("SET @openrust_direct_probe = 23", &[])
@@ -1464,7 +1464,7 @@ impl Listener for TransactionRecorder {
                 (level > 0).then_some(level)
             );
             let scoped = DB::connection(None).map_err(EventError::Transaction)?;
-            assert_eq!(connection.getName(), scoped.getName());
+            assert_eq!(connection.get_name(), scoped.get_name());
             assert_eq!(connection.getDatabaseName(), scoped.getDatabaseName());
             self.calls.lock().unwrap().push((name, level));
             if *self.fail.lock().unwrap() == Some(name) {
@@ -2087,7 +2087,7 @@ async fn verify_before_executing(connection: Connection) {
     connection.beforeExecuting(move |sql, bindings, connection, transaction| {
         let recorded = recorded.clone();
         Box::pin(async move {
-            assert_eq!(connection.getName(), "fixture");
+            assert_eq!(connection.get_name(), "fixture");
             recorded.lock().unwrap().push(format!("first {sql}"));
             if sql == "INSERT INTO query_hook_probe VALUES (99)" {
                 return Err(DatabaseError::InvalidConfiguration(

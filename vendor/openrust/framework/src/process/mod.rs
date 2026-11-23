@@ -73,7 +73,7 @@ impl fmt::Display for Error {
             Self::Failed(result) => write!(
                 formatter,
                 "process exited with status {}",
-                result.exitCode()
+                result.exit_code()
             ),
             Self::SequenceExhausted => formatter.write_str("process fake sequence is exhausted"),
             Self::StrayProcess => formatter.write_str("process has no matching fake"),

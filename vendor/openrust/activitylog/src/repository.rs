@@ -134,7 +134,7 @@ impl ActivityRepository {
         self
     }
     pub(crate) fn usesConnection(&self, connection: &Connection) -> bool {
-        self.connection.getName() == connection.getName()
+        self.connection.get_name() == connection.get_name()
             && self.connection.getDatabaseName() == connection.getDatabaseName()
     }
     pub(crate) fn isEnabled(&self) -> bool {
@@ -281,7 +281,7 @@ impl ActivityRepository {
                             return Ok(0);
                         }
                         tx.table(table)
-                            .whereIn("id", ids)
+                            .where_in("id", ids)
                             .r#where("created_at", "<", before.clone())
                             .delete()
                             .await
@@ -378,7 +378,7 @@ impl ActivityQuery {
         self.filters.push(("causer_id", subject.id.clone()));
         self
     }
-    pub fn forRequest(mut self, id: impl Into<String>) -> Self {
+    pub fn for_request(mut self, id: impl Into<String>) -> Self {
         self.filters.push(("request_id", id.into()));
         self
     }
@@ -400,7 +400,7 @@ impl ActivityQuery {
             query = query.whereExactText(column, &value);
         }
         for names in self.logGroups {
-            query = query.whereIn("log_name", names.into_iter().map(Value::from).collect());
+            query = query.where_in("log_name", names.into_iter().map(Value::from).collect());
         }
         if let Some(id) = self.after {
             if id <= 0 {

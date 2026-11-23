@@ -172,13 +172,13 @@ async fn container_account_actions_web_intended_and_broker_failure_preserve_effe
 struct CustomProfileResponse;
 impl contracts::ProfileInformationUpdatedResponse for CustomProfileResponse {}
 impl contracts::Response for CustomProfileResponse {
-    fn toResponse<'a>(
+    fn to_response<'a>(
         &'a self,
         request: &'a mut Request,
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
             let user = Auth::user(request).await?.unwrap();
-            let email = user.getAuthAttribute("email")?.unwrap();
+            let email = user.get_auth_attribute("email")?.unwrap();
             let Value::Text(email) = email else {
                 panic!("native model email")
             };

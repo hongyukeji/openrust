@@ -51,10 +51,10 @@ impl ProviderDefinition for BitbucketProvider {
     ) -> ProviderFuture<'a, Value> {
         Box::pin(async move {
             let mut user = json(
-                http.pendingRequest()
-                    .withToken(token)
-                    .redactPayload()
-                    .withoutRedirecting()
+                http.pending_request()
+                    .with_token(token)
+                    .redact_payload()
+                    .without_redirecting()
                     .get(&self.endpoints.user)
                     .await?,
             )?;
@@ -69,10 +69,10 @@ impl ProviderDefinition for BitbucketProvider {
                         .as_deref()
                         .ok_or(crate::Error::Configuration("Bitbucket email URL"))?;
                     json(
-                        http.pendingRequest()
-                            .withToken(token)
-                            .redactPayload()
-                            .withoutRedirecting()
+                        http.pending_request()
+                            .with_token(token)
+                            .redact_payload()
+                            .without_redirecting()
                             .get(url)
                             .await?,
                     )

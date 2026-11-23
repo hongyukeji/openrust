@@ -23,33 +23,35 @@ use serde_json::json;
 struct ResetUser(String);
 
 impl Authenticatable for ResetUser {
-    fn getAuthIdentifierName(&self) -> &str {
+    fn get_auth_identifier_name(&self) -> &str {
         "email"
     }
-    fn getAuthIdentifier(&self) -> AuthIdentifier {
+    fn get_auth_identifier(&self) -> AuthIdentifier {
         AuthIdentifier::String(self.0.clone())
     }
-    fn getAuthPasswordName(&self) -> &str {
+    fn get_auth_password_name(&self) -> &str {
         "password"
     }
-    fn getAuthPassword(&self) -> Option<&str> {
+    fn get_auth_password(&self) -> Option<&str> {
         None
     }
-    fn getRememberToken(&self) -> Option<&str> {
+    fn get_remember_token(&self) -> Option<&str> {
         None
     }
-    fn setRememberToken(&mut self, _: Option<String>) {}
-    fn getRememberTokenName(&self) -> &str {
+    fn set_remember_token(&mut self, _: Option<String>) {}
+    fn get_remember_token_name(&self) -> &str {
         "remember_token"
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl CanResetPassword for ResetUser {
-    fn getEmailForPasswordReset(&self) -> &str {
+    fn get_email_for_password_reset(&self) -> &str {
         &self.0
     }
-    fn sendPasswordResetNotification<'a>(&'a self, _: &'a str) -> AuthFuture<'a, AuthResult<()>> {
+    fn send_password_reset_notification<'a>(
+        &'a self,
+        _: &'a str,
+    ) -> AuthFuture<'a, AuthResult<()>> {
         Box::pin(async { Ok(()) })
     }
 }
@@ -101,13 +103,13 @@ async fn database_reset_tokens(configured: serde_json::Value) {
     .unwrap();
     let user = ResetUser("one@example.test".into());
     let other = ResetUser("two@example.test".into());
-    assert!(!store.recentlyCreatedToken(&user).await.unwrap());
+    assert!(!store.recently_created_token(&user).await.unwrap());
     let (first, competing) = tokio::join!(store.issue(&user), store.issue(&user));
     let first = match (first.unwrap(), competing.unwrap()) {
         (Some(token), None) | (None, Some(token)) => token,
         _ => panic!("exactly one concurrent issue must succeed"),
     };
-    assert!(store.recentlyCreatedToken(&user).await.unwrap());
+    assert!(store.recently_created_token(&user).await.unwrap());
     let Value::Text(hash) = db
         .table("password_reset_tokens")
         .value("token")
@@ -130,14 +132,14 @@ async fn database_reset_tokens(configured: serde_json::Value) {
     };
     assert!(!store.exists(&user, &second).await.unwrap());
     store
-        .finish(user.getEmailForPasswordReset(), claim, false)
+        .finish(user.get_email_for_password_reset(), claim, false)
         .await
         .unwrap();
     assert!(store.exists(&user, &second).await.unwrap());
     let claim = store.claim(&user, &second).await.unwrap().unwrap();
     let third = store.create(&user).await.unwrap();
     store
-        .finish(user.getEmailForPasswordReset(), claim, false)
+        .finish(user.get_email_for_password_reset(), claim, false)
         .await
         .unwrap();
     assert!(!store.exists(&user, &second).await.unwrap());
@@ -147,8 +149,8 @@ async fn database_reset_tokens(configured: serde_json::Value) {
         .await
         .unwrap();
     assert!(!store.exists(&user, &third).await.unwrap());
-    assert!(!store.recentlyCreatedToken(&user).await.unwrap());
-    store.deleteExpired().await.unwrap();
+    assert!(!store.recently_created_token(&user).await.unwrap());
+    store.delete_expired().await.unwrap();
     assert_eq!(
         db.table("password_reset_tokens").count("*").await.unwrap(),
         0
@@ -224,7 +226,7 @@ async fn cache_reset_tokens_obey_redis_ttl_and_user_scope() {
     let user = ResetUser("one@example.test".into());
     let other = ResetUser("two@example.test".into());
     let token = store.create(&user).await.unwrap();
-    assert!(store.recentlyCreatedToken(&user).await.unwrap());
+    assert!(store.recently_created_token(&user).await.unwrap());
     assert!(!store.exists(&other, &token).await.unwrap());
     assert!(store.exists(&user, &token).await.unwrap());
     tokio::time::timeout(Duration::from_secs(3), async {
@@ -234,7 +236,7 @@ async fn cache_reset_tokens_obey_redis_ttl_and_user_scope() {
     })
     .await
     .unwrap();
-    assert!(!store.recentlyCreatedToken(&user).await.unwrap());
+    assert!(!store.recently_created_token(&user).await.unwrap());
     let next = store.create(&user).await.unwrap();
     let (claim, competing) = tokio::join!(store.claim(&user, &next), store.claim(&user, &next));
     let claim = match (claim.unwrap(), competing.unwrap()) {
@@ -242,12 +244,12 @@ async fn cache_reset_tokens_obey_redis_ttl_and_user_scope() {
         _ => panic!("exactly one callback may claim the Redis token"),
     };
     store
-        .finish(user.getEmailForPasswordReset(), claim, false)
+        .finish(user.get_email_for_password_reset(), claim, false)
         .await
         .unwrap();
     let claim = store.claim(&user, &next).await.unwrap().unwrap();
     store
-        .finish(user.getEmailForPasswordReset(), claim, true)
+        .finish(user.get_email_for_password_reset(), claim, true)
         .await
         .unwrap();
     assert!(!store.exists(&user, &next).await.unwrap());

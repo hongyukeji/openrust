@@ -346,7 +346,7 @@ impl Pulse {
         use openrust::support::facades::Auth;
         let key = Auth::manager()
             .ok()
-            .and_then(|auth| auth.resolvedUser(None))
+            .and_then(|auth| auth.resolved_user(None))
             .and_then(|user| self.userResolver().key(user.as_ref()));
         move |pulse| key.clone().or_else(|| pulse.resolveAuthenticatedUserId())
     }
@@ -354,7 +354,7 @@ impl Pulse {
         use openrust::support::facades::Auth;
         Auth::manager()
             .ok()
-            .and_then(|a| a.resolvedUser(None))
+            .and_then(|a| a.resolved_user(None))
             .and_then(|u| self.userResolver().key(u.as_ref()))
             .or_else(|| {
                 self.rememberedUserId

@@ -952,7 +952,7 @@ impl Notice for SlackNotice {
             assert_eq!(json["blocks"].as_array().unwrap().len(), 6);
             assert_eq!(
                 json["metadata"],
-                Json::Object(invoice_slack_metadata().toArray())
+                Json::Object(invoice_slack_metadata().to_array())
             );
             assert_eq!(json["thread_ts"], "1710000000.001");
             assert_eq!(json["reply_broadcast"], false);
@@ -1153,7 +1153,7 @@ fn notification_preview_from_http(
             Some("template") => message.template("notice-template"),
             _ => message.view("missing", data()),
         };
-        let response = message.toResponse().await?;
+        let response = message.to_response().await?;
         assert!(Mail::mailer(None).unwrap().sent().unwrap().is_empty());
         Ok(response)
     })
@@ -1358,7 +1358,7 @@ impl Command for AssertFakes {
             let notifications = Notification::fake().unwrap();
             let kind = Receipt.kind();
             mail.assertNothingOutgoing();
-            notifications.assertNothingSent();
+            notifications.assert_nothing_sent();
 
             let named = Mail::mailer(Some("unconfigured-provider")).unwrap();
             let queued = Mail::to("queue@example.test")
@@ -2373,7 +2373,7 @@ async fn artisan_sends_themed_markdown_mail_through_smtp() {
     let result = fixture
         .artisan(["fixture:send-mail", "smtp", "--markdown"])
         .await;
-    result.assertExitCode(1);
+    result.assert_exit_code(1);
     assert!(
         result
             .stderr
@@ -2439,7 +2439,7 @@ async fn artisan_mail_markdown_extensions_and_secured_echo_are_application_local
                 "--markdown-options",
             ])
             .await
-            .assertSuccessful();
+            .assert_successful();
     }
     let client = reqwest::Client::new();
     let api = format!("http://127.0.0.1:{http}/api/v1");
@@ -2505,7 +2505,7 @@ async fn artisan_mail_markdown_extensions_and_secured_echo_are_application_local
     let result = fixture
         .artisan(["fixture:send-mail", "array", "--markdown"])
         .await;
-    result.assertExitCode(1);
+    result.assert_exit_code(1);
     assert!(
         result
             .stderr
@@ -2881,7 +2881,7 @@ async fn mailable_preview_renders_body_over_http_without_resolving_delivery() {
     }
 
     fn html_preview(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
-        Box::pin(async { markdown().toResponse().await })
+        Box::pin(async { markdown().to_response().await })
     }
 
     fn text_preview(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
@@ -2890,7 +2890,7 @@ async fn mailable_preview_renders_body_over_http_without_resolving_delivery() {
                 text: Some("<Client>".into()),
                 ..Default::default()
             })
-            .toResponse()
+            .to_response()
             .await
         })
     }
@@ -2905,7 +2905,7 @@ async fn mailable_preview_renders_body_over_http_without_resolving_delivery() {
                     "<img alt=missing src='cid:missing@images.example.test'>",
                 ).into()),
                 ..Default::default()
-            }).toResponse().await
+            }).to_response().await
         })
     }
 
@@ -2915,7 +2915,7 @@ async fn mailable_preview_renders_body_over_http_without_resolving_delivery() {
                 view: Some("unavailable-view".into()),
                 ..Default::default()
             })
-            .toResponse()
+            .to_response()
             .await
         })
     }
@@ -3062,12 +3062,12 @@ async fn artisan_mail_fixture() {
     let args: Vec<OsString> = args.into_iter().map(OsString::from).collect();
     if markdown {
         let mut fixture = openrust::testing::TestApp::create(|_| app_builder(&root)).unwrap();
-        fixture.travelTo(Date::fromUtc(
+        fixture.travel_to(Date::fromUtc(
             "2030-01-01T01:00:00Z".parse().unwrap(),
             jiff::tz::TimeZone::UTC,
         ));
         let result = fixture.artisan(args).await;
-        result.assertSuccessful();
+        result.assert_successful();
         print!("{}", result.stdout);
     } else {
         assert_eq!(app(&root).handle_command(&args).await.unwrap(), 0);
@@ -3941,7 +3941,7 @@ fn slack_visual_blocks_validate_identifiers_alt_text_and_image_bounds() {
             image.id("i".repeat(255)).alt("a".repeat(2000));
             image.title("界".repeat(667));
         })
-        .toArray()
+        .to_array()
         .unwrap();
     assert_eq!(blocks["blocks"][0], json!({"type":"divider"}));
     assert_eq!(
@@ -3970,7 +3970,7 @@ fn slack_visual_blocks_validate_identifiers_alt_text_and_image_bounds() {
             block.imageWith("url", |_| {});
         }),
     ] {
-        assert!(invalid.toArray().is_err());
+        assert!(invalid.to_array().is_err());
     }
 }
 
@@ -3991,7 +3991,7 @@ fn slack_block_kit_matches_text_and_identifier_boundaries() {
                     dialog.text("**Confirm**").markdown().verbatim();
                 });
         })
-        .toArray()
+        .to_array()
         .unwrap();
     let blocks = &payload["blocks"];
     assert_eq!(blocks[0]["text"]["text"], format!("{}...", "界".repeat(49)));
@@ -4039,7 +4039,7 @@ fn slack_block_kit_matches_text_and_identifier_boundaries() {
             block.staticSelect("");
         }),
     ] {
-        assert!(invalid.toArray().is_err());
+        assert!(invalid.to_array().is_err());
     }
 }
 

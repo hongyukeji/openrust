@@ -119,7 +119,7 @@ impl MasterSupervisor {
                     .wait()
                     .await
                     .map_err(|_| Error::Process)?;
-                supervisor.dead = matches!(result.exitCode(), 0 | 2 | 13);
+                supervisor.dead = matches!(result.exit_code(), 0 | 2 | 13);
                 if !supervisor.dead {
                     self.failures = self.failures.saturating_add(1);
                 }

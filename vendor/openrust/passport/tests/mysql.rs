@@ -110,7 +110,7 @@ async fn mysql_published_schema_matches_fixed_php_and_migration_connections_are_
             .all(|v| v == "v13.40.0")
     );
     let mut unregistered = application(false);
-    unregistered.artisan(["migrate"]).await.assertSuccessful();
+    unregistered.artisan(["migrate"]).await.assert_successful();
     let manager = unregistered.app().make::<DatabaseManager>().await.unwrap();
     let main = manager.connection(None).unwrap();
     let oauth = manager.connection(Some("oauth")).unwrap();
@@ -126,10 +126,10 @@ async fn mysql_published_schema_matches_fixed_php_and_migration_connections_are_
     let mut first = application(true);
     let mut second = application(true);
     let (a, b) = tokio::join!(first.artisan(["migrate"]), second.artisan(["migrate"]));
-    a.assertSuccessful();
-    b.assertSuccessful();
+    a.assert_successful();
+    b.assert_successful();
     let repeated = first.artisan(["migrate"]).await;
-    repeated.assertSuccessful();
+    repeated.assert_successful();
     assert!(repeated.stdout.contains("Nothing to migrate."));
     let a = first.app().make::<DatabaseManager>().await.unwrap();
     let b = second.app().make::<DatabaseManager>().await.unwrap();
@@ -228,18 +228,24 @@ async fn mysql_published_schema_matches_fixed_php_and_migration_connections_are_
         Some("oauth")
     );
     config_a.set("passport.connection", json!("oauth")).unwrap();
-    first.artisan(["migrate:rollback"]).await.assertSuccessful();
+    first
+        .artisan(["migrate:rollback"])
+        .await
+        .assert_successful();
     for table in TABLES {
         assert!(!oauth.getSchemaBuilder().hasTable(table).await.unwrap());
         assert!(other.getSchemaBuilder().hasTable(table).await.unwrap());
     }
-    first.artisan(["migrate"]).await.assertSuccessful();
-    first.artisan(["migrate:status"]).await.assertSuccessful();
-    first.artisan(["migrate:rollback"]).await.assertSuccessful();
+    first.artisan(["migrate"]).await.assert_successful();
+    first.artisan(["migrate:status"]).await.assert_successful();
+    first
+        .artisan(["migrate:rollback"])
+        .await
+        .assert_successful();
     second
         .artisan(["migrate:rollback"])
         .await
-        .assertSuccessful();
+        .assert_successful();
     for table in TABLES {
         main.getSchemaBuilder()
             .drop(&format!("reference_{table}"))

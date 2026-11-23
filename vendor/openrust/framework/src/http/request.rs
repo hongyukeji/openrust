@@ -64,7 +64,7 @@ pub struct Request {
 impl Request {
     /// Resolves constructor or method dependencies that need this HTTP request.
     #[allow(non_snake_case, reason = "Matches the container assembly API")]
-    pub async fn withContainer<T>(&mut self, resolve: impl std::future::Future<Output = T>) -> T {
+    pub async fn with_container<T>(&mut self, resolve: impl std::future::Future<Output = T>) -> T {
         context::resolving(self, resolve).await
     }
 
@@ -122,7 +122,7 @@ impl Request {
 
     /// Returns the transport method before a POST method override.
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn getRealMethod(&self) -> &Method {
+    pub fn get_real_method(&self) -> &Method {
         self.real_method.as_ref().unwrap_or(&self.parts.method)
     }
 
@@ -174,7 +174,7 @@ impl Request {
     }
 
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn userAgent(&self) -> Option<&str> {
+    pub fn user_agent(&self) -> Option<&str> {
         self.headers()
             .get("user-agent")
             .and_then(|value| value.to_str().ok())
@@ -185,7 +185,7 @@ impl Request {
         guard: Option<&str>,
     ) -> crate::auth::AuthResult<Option<Arc<dyn crate::contracts::auth::Authenticatable>>> {
         crate::support::facades::Auth::manager()?
-            .userForGuard(self, guard)
+            .user_for_guard(self, guard)
             .await
     }
 
@@ -235,13 +235,13 @@ impl Request {
     }
 
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn hasHeader(&self, name: &str) -> bool {
+    pub fn has_header(&self, name: &str) -> bool {
         self.headers().contains_key(name)
     }
 
     /// Extracts the token after the last ASCII case-insensitive Bearer marker.
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn bearerToken(&self) -> Result<Option<&str>, super::HttpError> {
+    pub fn bearer_token(&self) -> Result<Option<&str>, super::HttpError> {
         Ok(self.header("authorization")?.and_then(|header| {
             let position = header
                 .as_bytes()
@@ -259,7 +259,7 @@ impl Request {
 
     /// An empty cookie is present. Missing values and failed decryptions are absent.
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn hasCookie(&self, key: &str) -> Result<bool, super::HttpError> {
+    pub fn has_cookie(&self, key: &str) -> Result<bool, super::HttpError> {
         Ok(self.cookie_value(Some(key))?.is_some())
     }
 
@@ -305,7 +305,7 @@ impl Request {
     }
 
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn hasSession(&self) -> bool {
+    pub fn has_session(&self) -> bool {
         self.session.is_some()
     }
 
@@ -324,7 +324,7 @@ impl Request {
     }
 
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub(crate) fn attachSession(&mut self, session: crate::session::Store) {
+    pub(crate) fn attach_session(&mut self, session: crate::session::Store) {
         context::set_session_cache(self, Some(session.cache_attributes().clone()));
         self.session = Some(session);
     }
@@ -359,13 +359,13 @@ impl Request {
     }
 
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn getBaseUrl(&self) -> &str {
+    pub fn get_base_url(&self) -> &str {
         &self.proxy.prefix
     }
 
     /// 返回应用路径，保留开头斜杠及已有编码，不包含可信代理的部署前缀。
     #[allow(non_snake_case, reason = "Matches Symfony Request's inherited API")]
-    pub fn getPathInfo(&self) -> &str {
+    pub fn get_path_info(&self) -> &str {
         self.uri().path()
     }
 
@@ -377,13 +377,13 @@ impl Request {
 
     /// Percent-decodes the request path.
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn decodedPath(&self) -> Cow<'_, str> {
+    pub fn decoded_path(&self) -> Cow<'_, str> {
         percent_decode_str(self.path()).decode_utf8_lossy()
     }
 
     /// Returns the nonempty segments of the decoded path.
     pub fn segments(&self) -> Vec<String> {
-        self.decodedPath()
+        self.decoded_path()
             .split('/')
             .filter(|segment| !segment.is_empty())
             .map(str::to_owned)
@@ -392,7 +392,7 @@ impl Request {
 
     /// Returns the decoded segment at a one-based index.
     pub fn segment(&self, index: usize) -> Option<String> {
-        self.decodedPath()
+        self.decoded_path()
             .split('/')
             .filter(|segment| !segment.is_empty())
             .nth(index.checked_sub(1)?)
@@ -400,13 +400,13 @@ impl Request {
     }
 
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn isMethod(&self, method: &str) -> bool {
+    pub fn is_method(&self, method: &str) -> bool {
         self.method().as_str().eq_ignore_ascii_case(method)
     }
 
     /// Matches the resolved route name against any supplied wildcard pattern.
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn routeIs(&self, patterns: &[&str]) -> bool {
+    pub fn route_is(&self, patterns: &[&str]) -> bool {
         self.route_name.as_deref().is_some_and(|name| {
             patterns
                 .iter()
@@ -416,17 +416,17 @@ impl Request {
 
     /// Matches the decoded request path against a pattern where `*` spans any characters.
     pub fn is(&self, pattern: &str) -> bool {
-        matches_pattern(&self.decodedPath(), pattern)
+        matches_pattern(&self.decoded_path(), pattern)
     }
 
     /// Matches paths below the API prefix. An empty prefix has no path-based match.
     #[allow(non_snake_case, reason = "Matches the application routing API")]
-    pub fn isApiPath(&self) -> bool {
+    pub fn is_api_path(&self) -> bool {
         self.api_prefix
             .as_deref()
             .filter(|prefix| !prefix.is_empty())
             .is_some_and(|prefix| {
-                self.decodedPath()
+                self.decoded_path()
                     .strip_prefix(prefix)
                     .is_some_and(|suffix| suffix.starts_with('/'))
             })
@@ -453,7 +453,7 @@ impl Request {
                 .path_and_query()
                 .map_or("/", ::http::uri::PathAndQuery::as_str);
             matches_pattern(
-                &format!("{scheme}://{authority}{}{target}", self.getBaseUrl()),
+                &format!("{scheme}://{authority}{}{target}", self.get_base_url()),
                 pattern,
             )
         })
@@ -462,7 +462,7 @@ impl Request {
     /// 当前请求实际执行的语言中间件选择状态；未启用时为空。
     /// 当前实际语言请使用 App::current_locale。
     #[allow(non_snake_case, reason = "沿用请求方法命名")]
-    pub fn localeSelection(&self) -> Option<&super::middleware::LocaleSelection> {
+    pub fn locale_selection(&self) -> Option<&super::middleware::LocaleSelection> {
         self.extensions()
             .get::<super::middleware::LocaleSelection>()
     }

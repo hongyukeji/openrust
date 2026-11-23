@@ -16,7 +16,6 @@ pub type ValidationExceptionFactory = fn(MessageBag, Option<&Translator>) -> Val
 type AfterValidation = dyn Fn(&mut Validator) -> ValidationResult<()> + Send + Sync;
 
 /// Evaluates the configured rules against one input value.
-#[allow(non_snake_case, reason = "保留公开策略字段名称")]
 pub struct Validator {
     data: Data,
     pub(super) extensions: super::extensions::Extensions,
@@ -31,7 +30,7 @@ pub struct Validator {
     values: BTreeMap<String, BTreeMap<String, String>>,
     errors: MessageBag,
     result: Option<ValidatedInput>,
-    pub excludeUnvalidatedArrayKeys: bool,
+    pub exclude_unvalidated_array_keys: bool,
     after: Vec<Arc<AfterValidation>>,
     stop_on_first_failure: bool,
     fake_dns_lookups: bool,
@@ -61,7 +60,7 @@ impl Validator {
             values: BTreeMap::new(),
             errors: MessageBag::default(),
             result: None,
-            excludeUnvalidatedArrayKeys: true,
+            exclude_unvalidated_array_keys: true,
             after: Vec::new(),
             stop_on_first_failure: false,
             fake_dns_lookups: false,
@@ -74,22 +73,19 @@ impl Validator {
         self.errors = MessageBag::default();
     }
 
-    #[allow(non_snake_case)]
-    pub fn getData(&self) -> &Data {
+    pub fn get_data(&self) -> &Data {
         &self.data
     }
 
     /// 替换数据后恢复初始规则，移除运行期 addRules/sometimes 追加项。
-    #[allow(non_snake_case)]
-    pub fn setData(&mut self, data: Data) -> &mut Self {
+    pub fn set_data(&mut self, data: Data) -> &mut Self {
         self.data = data;
         self.rules = self.initial_rules.clone();
         self.invalidate();
         self
     }
 
-    #[allow(non_snake_case)]
-    pub fn getValue(&self, attribute: &str) -> ValidationResult<Option<&Value>> {
+    pub fn get_value(&self, attribute: &str) -> ValidationResult<Option<&Value>> {
         if path::parse(attribute)?
             .iter()
             .any(|part| matches!(part, path::Segment::Any))
@@ -105,9 +101,8 @@ impl Validator {
     }
 
     /// 原子更新单值；替换上传字段时同步移除旧文件引用。
-    #[allow(non_snake_case)]
-    pub fn setValue(&mut self, attribute: &str, value: Value) -> ValidationResult<()> {
-        self.getValue(attribute)?;
+    pub fn set_value(&mut self, attribute: &str, value: Value) -> ValidationResult<()> {
+        self.get_value(attribute)?;
         let mut data = self.data.clone();
         data.forget(attribute)?;
         let mut input = data.as_value().clone();
@@ -120,8 +115,7 @@ impl Validator {
     }
 
     /// 返回当前数据展开后的规则，具体键仍使用原生转义路径。
-    #[allow(non_snake_case)]
-    pub fn getRules(&self) -> ValidationResult<Vec<(String, Vec<Rule>)>> {
+    pub fn get_rules(&self) -> ValidationResult<Vec<(String, Vec<Rule>)>> {
         let mut expanded: Vec<(String, Vec<Rule>)> = Vec::new();
         let mut budget = path::Budget::default();
         for (index, (pattern, rules)) in self.rules.fields.iter().enumerate() {
@@ -143,51 +137,44 @@ impl Validator {
         Ok(expanded)
     }
 
-    #[allow(non_snake_case)]
-    pub fn setRules(&mut self, rules: RuleSet) -> &mut Self {
+    pub fn set_rules(&mut self, rules: RuleSet) -> &mut Self {
         self.initial_rules = rules.clone();
         self.rules = rules;
         self.invalidate();
         self
     }
 
-    #[allow(non_snake_case)]
-    pub fn addRules(&mut self, rules: RuleSet) -> ValidationResult<()> {
+    pub fn add_rules(&mut self, rules: RuleSet) -> ValidationResult<()> {
         let merged = self.rules.merged(rules)?;
         self.rules = merged;
         self.invalidate();
         Ok(())
     }
 
-    #[allow(non_snake_case)]
-    pub fn appendRules(&mut self, rules: RuleSet) -> ValidationResult<&mut Self> {
+    pub fn append_rules(&mut self, rules: RuleSet) -> ValidationResult<&mut Self> {
         let merged = self.rules.merged(rules)?;
-        Ok(self.setRules(merged))
+        Ok(self.set_rules(merged))
     }
 
-    #[allow(non_snake_case)]
-    pub fn setCustomMessages(&mut self, messages: BTreeMap<String, String>) -> &mut Self {
+    pub fn set_custom_messages(&mut self, messages: BTreeMap<String, String>) -> &mut Self {
         self.messages.extend(messages);
         self.invalidate();
         self
     }
 
-    #[allow(non_snake_case)]
-    pub fn setAttributeNames(&mut self, attributes: BTreeMap<String, String>) -> &mut Self {
+    pub fn set_attribute_names(&mut self, attributes: BTreeMap<String, String>) -> &mut Self {
         self.attributes = attributes;
         self.invalidate();
         self
     }
 
-    #[allow(non_snake_case)]
-    pub fn addCustomAttributes(&mut self, attributes: BTreeMap<String, String>) -> &mut Self {
+    pub fn add_custom_attributes(&mut self, attributes: BTreeMap<String, String>) -> &mut Self {
         self.attributes.extend(attributes);
         self.invalidate();
         self
     }
 
-    #[allow(non_snake_case)]
-    pub fn setValueNames(
+    pub fn set_value_names(
         &mut self,
         values: BTreeMap<String, BTreeMap<String, String>>,
     ) -> &mut Self {
@@ -196,8 +183,7 @@ impl Validator {
         self
     }
 
-    #[allow(non_snake_case)]
-    pub fn addCustomValues(
+    pub fn add_custom_values(
         &mut self,
         values: BTreeMap<String, BTreeMap<String, String>>,
     ) -> &mut Self {
@@ -206,39 +192,33 @@ impl Validator {
         self
     }
 
-    #[allow(non_snake_case)]
-    pub fn getTranslator(&self) -> Option<&Arc<Translator>> {
+    pub fn get_translator(&self) -> Option<&Arc<Translator>> {
         self.translator.as_ref()
     }
 
-    #[allow(non_snake_case)]
-    pub fn setTranslator(&mut self, translator: Arc<Translator>) {
+    pub fn set_translator(&mut self, translator: Arc<Translator>) {
         self.translator = Some(translator);
         self.invalidate();
     }
 
-    #[allow(non_snake_case)]
-    pub fn getException(&self) -> ValidationExceptionFactory {
+    pub fn get_exception(&self) -> ValidationExceptionFactory {
         self.exception
     }
 
-    #[allow(non_snake_case)]
-    pub fn setException(&mut self, exception: ValidationExceptionFactory) -> &mut Self {
+    pub fn set_exception(&mut self, exception: ValidationExceptionFactory) -> &mut Self {
         self.exception = exception;
         self.invalidate();
         self
     }
 
     /// 仅作用于当前验证器，避免异步请求共享测试开关。
-    #[allow(non_snake_case)]
-    pub fn fakeDnsLookups(&mut self, value: bool) -> &mut Self {
+    pub fn fake_dns_lookups(&mut self, value: bool) -> &mut Self {
         self.fake_dns_lookups = value;
         self
     }
 
     /// 允许应用或隔离测试指定DNS 解析器的服务器、超时及重试配置；查询绕过 hosts 和合成记录。
-    #[allow(non_snake_case)]
-    pub fn setDnsResolver(&mut self, resolver: hickory_resolver::TokioResolver) -> &mut Self {
+    pub fn set_dns_resolver(&mut self, resolver: hickory_resolver::TokioResolver) -> &mut Self {
         self.dns_resolver = Some(resolver);
         self
     }
@@ -251,8 +231,7 @@ impl Validator {
         self
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn stopOnFirstFailure(&mut self, stop: bool) -> &mut Self {
+    pub fn stop_on_first_failure(&mut self, stop: bool) -> &mut Self {
         self.stop_on_first_failure = stop;
         self
     }
@@ -302,11 +281,10 @@ impl Validator {
         Ok(self)
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn validateWithBag(&mut self, error_bag: &str) -> ValidationResult<ValidatedInput> {
+    pub async fn validate_with_bag(&mut self, error_bag: &str) -> ValidationResult<ValidatedInput> {
         self.validate().await.map_err(|mut error| {
             if let ValidationError::Invalid(exception) = &mut error {
-                exception.errorBag(error_bag);
+                exception.error_bag(error_bag);
             }
             error
         })
@@ -314,8 +292,7 @@ impl Validator {
 
     /// Supplies identities explicitly when validation runs outside an HTTP request.
     /// The resolver receives the rule's guard argument; None means the application's default.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn setUserResolver(
+    pub fn set_user_resolver(
         &mut self,
         resolver: impl Fn(
             Option<&str>,
@@ -329,8 +306,7 @@ impl Validator {
     }
 
     /// Validates using this request's real named authentication guards.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn validateRequest(
+    pub async fn validate_request(
         &mut self,
         request: &mut crate::http::Request,
     ) -> ValidationResult<ValidatedInput> {
@@ -563,11 +539,11 @@ impl Validator {
     }
 
     fn project_validated(&self) -> ValidationResult<ValidatedInput> {
-        let rules = self.getRules()?;
+        let rules = self.get_rules()?;
         let array_fields = rules
             .iter()
             .filter(|(_, rules)| {
-                self.excludeUnvalidatedArrayKeys
+                self.exclude_unvalidated_array_keys
                     && contains(rules, |rule| {
                         matches!(rule, Kind::Array)
                             || matches!(rule, Kind::Scalar(rule) if rule.name() == "list")
@@ -899,7 +875,7 @@ impl Validator {
         }
         let file = self.data.file(attribute);
         if let Some(file) = file {
-            let observed = bigdecimal::BigDecimal::from(file.getSize() as u64) / 1024;
+            let observed = bigdecimal::BigDecimal::from(file.get_size() as u64) / 1024;
             let (kind, bounds, passes) = match rule {
                 Kind::Min(bound) => ("min", vec![("min", bound)], observed >= *bound),
                 Kind::Max(bound) => ("max", vec![("max", bound)], observed <= *bound),
@@ -1592,7 +1568,7 @@ fn validation_size(
 ) -> ValidationResult<Option<bigdecimal::BigDecimal>> {
     if let Some(file) = file {
         return Ok(Some(
-            bigdecimal::BigDecimal::from(file.getSize() as u64) / 1024,
+            bigdecimal::BigDecimal::from(file.get_size() as u64) / 1024,
         ));
     }
     if numeric {

@@ -120,7 +120,7 @@ impl Faker {
     }
 
     /// Registers an extension under a case-sensitive container identifier.
-    pub fn addExtension(&self, id: &str, provider: FakerProvider) {
+    pub fn add_extension(&self, id: &str, provider: FakerProvider) {
         let replaced = self
             .extensions
             .write()

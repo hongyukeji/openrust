@@ -18,7 +18,7 @@ macro_rules! events {
         impl EventContract for $name {fn name(&self)->&str {concat!("OpenRust\\Passkeys\\Events\\",stringify!($name))}}
         impl $name { pub fn user<'a,T:Authenticatable>(&self,context:&EventContext<'a>)->Option<&'a T> {context.arguments_for(self)?.first()?.downcast_ref()} pub fn passkey<'a,T:crate::PasskeyModel>(&self,context:&EventContext<'a>)->Option<&'a T> {context.arguments_for(self)?.get(1)?.downcast_ref()} }
         pub(crate) async fn $emit(user:&dyn Authenticatable,passkey:&PasskeyRecord)->Result<(),HttpError> {
-            let event=Arc::new($name{user:user.getAuthIdentifier(),passkey:passkey.clone()});
+            let event=Arc::new($name{user:user.get_auth_identifier(),passkey:passkey.clone()});
             let snapshot=passkey.snapshot().await;
             let arguments=[user as &(dyn std::any::Any+Send+Sync),snapshot.as_ref()];
             let mut context=EventContext::with_arguments(event.as_ref(),&arguments);

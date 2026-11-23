@@ -134,10 +134,10 @@ fn worker_options_preserve_literals_aliases_zero_values_and_all_backoff_forms() 
         }));
         assert_eq!(options.withQueue("urgent").queue, ["urgent"]);
         assert_eq!(options.queue, ["emails", "reports"]);
-        let encoded = options.toJson().unwrap();
+        let encoded = options.to_json().unwrap();
         let decoded =
             SupervisorOptions::fromArray(serde_json::from_str(&encoded).unwrap()).unwrap();
-        assert_eq!(decoded.toArray().unwrap(), options.toArray().unwrap());
+        assert_eq!(decoded.to_array().unwrap(), options.to_array().unwrap());
     }
     for backoff in [
         json!([]),

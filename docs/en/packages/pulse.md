@@ -27,7 +27,7 @@ Visit `/pulse`. Customize the entry point with `PULSE_PATH` and `PULSE_DOMAIN`. 
 
 ```rust
 let gate = app.make::<openrust::auth::access::GateRegistry>().await?;
-gate.defineGuest("viewPulse", |user, _| Box::pin(async move {
+gate.define_guest("viewPulse", |user, _| Box::pin(async move {
     Ok(if user.is_some() {
         openrust::auth::access::Response::allow()
     } else {

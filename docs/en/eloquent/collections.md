@@ -136,7 +136,7 @@ pub fn primary_keys<M: Model>(models: &Collection<M>) -> BaseCollection<Option<V
 
 ### Keeping Keys on Model Collections
 
-Use `mapModelsWithKeys` to produce an Eloquent collection with explicit keys, or `Collection::fromEntries` to build one from key-model pairs. Use `getByKey` for a collection key, `find` for a model primary key, and indexing for a position. `keys`, `map`, `mapModels`, `fresh`, `toBase`, and `toJson` preserve collection keys. `all` and `toArray` return positional values. `only`, `except`, `merge`, `unique`, `diff`, and `intersect` return reindexed results.
+Use `mapModelsWithKeys` to produce an Eloquent collection with explicit keys, or `Collection::fromEntries` to build one from key-model pairs. Use `getByKey` for a collection key, `find` for a model primary key, and indexing for a position. `keys`, `map`, `mapModels`, `fresh`, `toBase`, and `to_json` preserve collection keys. `all` and `to_array` return positional values. `only`, `except`, `merge`, `unique`, `diff`, and `intersect` return reindexed results.
 
 ```rust
 use openrust::database::eloquent::{Collection, Model};

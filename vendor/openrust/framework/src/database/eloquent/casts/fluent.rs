@@ -41,7 +41,7 @@ impl CastableObject for Fluent {
         Self::make(decoded).map(Some).map_err(|_| invalid())
     }
 
-    fn toAttributes(
+    fn to_attributes(
         value: Option<&Self>,
         name: &str,
         raw: &Attributes,
@@ -63,7 +63,7 @@ impl CastableObject for Fluent {
     }
 
     fn serialize(&self) -> DatabaseResult<Value> {
-        Ok(Value::Json(self.toArray()))
+        Ok(Value::Json(self.to_array()))
     }
 }
 

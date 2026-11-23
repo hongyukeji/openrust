@@ -27,7 +27,7 @@ fn transaction_connection<M: Model>(
         None => model
             .resolveConnectionName()?
             .as_deref()
-            .is_some_and(|name| name != connection.getName()),
+            .is_some_and(|name| name != connection.get_name()),
     };
     if mismatch {
         return Err(DatabaseError::InvalidQuery("model transaction connection"));

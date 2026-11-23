@@ -56,7 +56,7 @@ fn model_appends_label_but_icons_require_explicit_opt_in() {
             .into(),
         )
         .unwrap();
-        let array = passkey.toArray().unwrap();
+        let array = passkey.to_array().unwrap();
         assert_eq!(
             array.get("authenticator"),
             Some(&json!(Aaguids::labelFor(id)))
@@ -64,7 +64,7 @@ fn model_appends_label_but_icons_require_explicit_opt_in() {
         assert!(!array.contains_key("authenticator_icon_light"));
         assert!(!array.contains_key("authenticator_icon_dark"));
         passkey.append(&["authenticator_icon_light", "authenticator_icon_dark"]);
-        let array = passkey.toArray().unwrap();
+        let array = passkey.to_array().unwrap();
         assert_eq!(
             array["authenticator_icon_light"],
             json!(Aaguids::iconFor(id, "light").unwrap())
@@ -74,6 +74,6 @@ fn model_appends_label_but_icons_require_explicit_opt_in() {
             json!(Aaguids::iconFor(id, "dark").unwrap())
         );
     }
-    let absent = Passkey::default().toArray().unwrap();
+    let absent = Passkey::default().to_array().unwrap();
     assert_eq!(absent["authenticator"], json!(null));
 }

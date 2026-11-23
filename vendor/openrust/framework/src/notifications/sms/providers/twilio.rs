@@ -69,8 +69,8 @@ impl SmsDriver for Twilio {
             }
             let payload = response(
                 request()?
-                    .asForm()
-                    .withBasicAuth(&self.api_key_sid, &self.api_key_secret)
+                    .as_form()
+                    .with_basic_auth(&self.api_key_sid, &self.api_key_secret)
                     .post(self.endpoint.as_str(), &fields)
                     .await,
             )?;

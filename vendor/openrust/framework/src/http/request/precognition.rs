@@ -4,13 +4,13 @@ use super::Request;
 
 #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Request {
-    pub fn isAttemptingPrecognition(&self) -> bool {
+    pub fn is_attempting_precognition(&self) -> bool {
         self.headers()
             .get("precognition")
             .is_some_and(|value| value == "true")
     }
 
-    pub fn isPrecognitive(&self) -> bool {
+    pub fn is_precognitive(&self) -> bool {
         self.attributes()
             .get("precognitive")
             .and_then(|value| value.downcast::<bool>().ok())
@@ -18,7 +18,7 @@ impl Request {
     }
 
     /// Selects concrete attributes after the validator expands wildcard rules.
-    pub fn filterPrecognitiveRules(&self, rules: RuleSet) -> ValidationResult<RuleSet> {
+    pub fn filter_precognitive_rules(&self, rules: RuleSet) -> ValidationResult<RuleSet> {
         match self.headers().get("precognition-validate-only") {
             Some(value) => rules.precognitive(value.as_bytes()),
             None => Ok(rules),

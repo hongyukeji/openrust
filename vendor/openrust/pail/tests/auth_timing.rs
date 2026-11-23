@@ -53,27 +53,26 @@ impl Drop for Root {
 
 struct User(String);
 impl Authenticatable for User {
-    fn getAuthIdentifierName(&self) -> &str {
+    fn get_auth_identifier_name(&self) -> &str {
         "id"
     }
-    fn getAuthIdentifier(&self) -> AuthIdentifier {
+    fn get_auth_identifier(&self) -> AuthIdentifier {
         AuthIdentifier::String(self.0.clone())
     }
-    fn getAuthPasswordName(&self) -> &str {
+    fn get_auth_password_name(&self) -> &str {
         "password"
     }
-    fn getAuthPassword(&self) -> Option<&str> {
+    fn get_auth_password(&self) -> Option<&str> {
         None
     }
-    fn getRememberToken(&self) -> Option<&str> {
+    fn get_remember_token(&self) -> Option<&str> {
         None
     }
-    fn setRememberToken(&mut self, _: Option<String>) {}
-    fn getRememberTokenName(&self) -> &str {
+    fn set_remember_token(&mut self, _: Option<String>) {}
+    fn get_remember_token_name(&self) -> &str {
         "remember_token"
     }
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn getAuthAttribute(
+    fn get_auth_attribute(
         &self,
         name: &str,
     ) -> openrust::auth::AuthResult<Option<openrust::database::Value>> {
@@ -84,40 +83,40 @@ impl Authenticatable for User {
 
 struct EmptyProvider;
 impl UserProvider for EmptyProvider {
-    fn retrieveById<'a>(
+    fn retrieve_by_id<'a>(
         &'a self,
         _: &'a AuthIdentifier,
     ) -> AuthFuture<'a, AuthResult<Option<Box<dyn Authenticatable>>>> {
         Box::pin(async { Ok(None) })
     }
-    fn retrieveByToken<'a>(
+    fn retrieve_by_token<'a>(
         &'a self,
         _: &'a AuthIdentifier,
         _: &'a str,
     ) -> AuthFuture<'a, AuthResult<Option<Box<dyn Authenticatable>>>> {
         Box::pin(async { Ok(None) })
     }
-    fn updateRememberToken<'a>(
+    fn update_remember_token<'a>(
         &'a self,
         _: &'a mut dyn Authenticatable,
         _: &'a str,
     ) -> AuthFuture<'a, AuthResult<()>> {
         Box::pin(async { panic!("unexpected provider write") })
     }
-    fn retrieveByCredentials<'a>(
+    fn retrieve_by_credentials<'a>(
         &'a self,
         _: &'a Credentials,
     ) -> AuthFuture<'a, AuthResult<Option<Box<dyn Authenticatable>>>> {
         Box::pin(async { Ok(None) })
     }
-    fn validateCredentials<'a>(
+    fn validate_credentials<'a>(
         &'a self,
         _: &'a dyn Authenticatable,
         _: &'a Credentials,
     ) -> AuthFuture<'a, AuthResult<bool>> {
         Box::pin(async { Ok(false) })
     }
-    fn rehashPasswordIfRequired<'a>(
+    fn rehash_password_if_required<'a>(
         &'a self,
         _: &'a mut dyn Authenticatable,
         _: &'a Credentials,
@@ -143,7 +142,7 @@ impl ServiceProvider for Probe {
             auth.provider("empty", |_, _| Ok(Arc::new(EmptyProvider)));
             let counts = self.counts.clone();
             let prefix = self.prefix;
-            auth.viaRequest("timing", move |request| -> AuthFuture<'_, _> {
+            auth.via_request("timing", move |request| -> AuthFuture<'_, _> {
                 let counts = counts.clone();
                 let id = request.route("id").unwrap().to_owned();
                 Box::pin(async move {
@@ -256,9 +255,9 @@ fn timing(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
         if id == "sequence" {
             Auth::manager()
                 .unwrap()
-                .shouldUse(request, "other")
+                .should_use(request, "other")
                 .unwrap();
-            Auth::sessionGuard(request, Some("other"))
+            Auth::session_guard(request, Some("other"))
                 .unwrap()
                 .login(Box::new(User("session".into())), false)
                 .await
@@ -266,7 +265,7 @@ fn timing(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
             Log::logWithRequest(request, Level::Info, "login", &LogContext::new())
                 .await
                 .unwrap();
-            Auth::sessionGuard(request, Some("other"))
+            Auth::session_guard(request, Some("other"))
                 .unwrap()
                 .logout()
                 .await
@@ -274,7 +273,7 @@ fn timing(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
             Log::logWithRequest(request, Level::Info, "logout", &LogContext::new())
                 .await
                 .unwrap();
-            Auth::manager().unwrap().shouldUse(request, "web").unwrap();
+            Auth::manager().unwrap().should_use(request, "web").unwrap();
             Log::logWithRequest(request, Level::Info, "back", &LogContext::new())
                 .await
                 .unwrap();
@@ -305,7 +304,7 @@ async fn server(
     let address = listener.local_addr().unwrap();
     let kernel = Arc::new(kernel);
     let router = axum::Router::new()
-        .fallback(move |request: axum::extract::Request| kernel.clone().handleTransport(request));
+        .fallback(move |request: axum::extract::Request| kernel.clone().handle_transport(request));
     (
         address,
         tokio::spawn(async move {

@@ -44,7 +44,7 @@ impl Middleware for EnsureFeaturesAreActive {
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
             let features: Vec<_> = self.features.iter().map(String::as_str).collect();
-            if Feature::forRequest(request)
+            if Feature::for_request(request)
                 .await?
                 .someAreInactive(&features)
                 .await?

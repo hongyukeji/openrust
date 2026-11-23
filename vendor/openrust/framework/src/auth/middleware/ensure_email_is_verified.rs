@@ -29,11 +29,11 @@ impl Middleware for EnsureEmailIsVerified {
             let user = Auth::user(request).await?;
             if user.as_ref().is_some_and(|user| {
                 user.as_email_verification()
-                    .is_none_or(|user| user.hasVerifiedEmail())
+                    .is_none_or(|user| user.has_verified_email())
             }) {
                 return Ok(next.run(request).await);
             }
-            if request.expectsJson() {
+            if request.expects_json() {
                 return Err(HttpError::AuthorizationDenied(
                     "Your email address is not verified.".into(),
                 ));

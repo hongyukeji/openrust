@@ -590,7 +590,7 @@ fn resolves_cached_stacks_with_severity_bubbling_and_fresh_driver_settings() {
         .unwrap();
     assert!(!root.read("second.log").contains("discard"));
     manager.setDefaultDriver("second").unwrap();
-    assert_eq!(manager.getDefaultDriver().as_deref(), Some("second"));
+    assert_eq!(manager.get_default_driver().as_deref(), Some("second"));
     let old = manager.channel(None).unwrap();
     config
         .set("logging.channels.second.path", json!("new.log"))
@@ -604,7 +604,7 @@ fn resolves_cached_stacks_with_severity_bubbling_and_fresh_driver_settings() {
         .set("logging.channels.null", json!({"driver":"null"}))
         .unwrap();
     config.set("logging.default", Value::Null).unwrap();
-    assert_eq!(manager.getDefaultDriver(), None);
+    assert_eq!(manager.get_default_driver(), None);
     manager
         .info("test null default", &LogContext::new())
         .unwrap();
@@ -746,7 +746,7 @@ fn log_exception(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
 
 fn record(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
-        assert!(Context::isEmpty().unwrap());
+        assert!(Context::is_empty().unwrap());
         let id = request.route("id").unwrap();
         Context::add("id", json!(format!("request-{id}"))).unwrap();
         Context::add("scope_only", json!("public")).unwrap();
@@ -960,7 +960,7 @@ async fn real_http_logs_concurrent_requests_to_their_own_application() {
 
 fn console_routes() -> Result<(), ConsoleError> {
     Artisan::command("log:probe", |_| {
-        assert!(Context::isEmpty().unwrap());
+        assert!(Context::is_empty().unwrap());
         Context::add("command", json!("log:probe")).unwrap();
         Context::addHidden("token", json!("private-artisan-token")).unwrap();
         Context::scopeSync(

@@ -284,7 +284,7 @@ impl<M: Model> ModelIdentifier<M> {
                 .await?
         };
         let paths: Vec<_> = self.relations.iter().map(String::as_str).collect();
-        model.loadMissingPaths(&paths).await?;
+        model.load_missing_paths(&paths).await?;
         Ok(model)
     }
 }
@@ -374,7 +374,7 @@ impl<M: Model> ModelCollectionIdentifier<M> {
         let bindings: Vec<_> = bindings.into_values().collect();
         for batch in bindings.chunks(500) {
             let mut query = restoration_query::<M>(self.connection.as_deref())?;
-            query.whereIn(M::metadata().primary_key, batch.to_vec());
+            query.where_in(M::metadata().primary_key, batch.to_vec());
             for model in query.get_models_with_transaction(None).await? {
                 if let Some(key) = dictionary_key(model.getKey())? {
                     found.insert(key, model);
@@ -389,7 +389,7 @@ impl<M: Model> ModelCollectionIdentifier<M> {
         let mut collection = M::newCollection(models);
         if !collection.is_empty() {
             let paths: Vec<_> = self.relations.iter().map(String::as_str).collect();
-            collection.loadMissingPaths(&paths).await?;
+            collection.load_missing_paths(&paths).await?;
         }
         Ok(collection)
     }

@@ -23,7 +23,7 @@ async fn transactional_pipeline_defers_execution_and_commits_or_rolls_back_on_se
         Ok([("app".into(),json!({"env":"testing","timezone":"UTC"})),("database".into(),json!({"default":"primary","connections":{"primary":connection.clone(),"audit":connection}}))].into())
     })
     })?;
-    app.freezeTimeFor(async |_, _| {
+    app.freeze_time_for(async |_, _| {
         let connection = DB::connection(Some("audit"))?;
         connection
             .statement("create table pipeline_rows (id integer primary key)", &[])
@@ -32,7 +32,7 @@ async fn transactional_pipeline_defers_execution_and_commits_or_rolls_back_on_se
         let begins = Arc::new(AtomicUsize::new(0));
         let counter = begins.clone();
         connection.beforeStartingTransaction(move |connection, _| {
-            assert_eq!(connection.getName(), "audit");
+            assert_eq!(connection.get_name(), "audit");
             counter.fetch_add(1, Ordering::SeqCst);
             Box::pin(async { Ok(()) })
         });
@@ -42,7 +42,7 @@ async fn transactional_pipeline_defers_execution_and_commits_or_rolls_back_on_se
             .withinTransaction(Some("audit"))
             .pipe(move |value, mut next| {
                 Box::pin(async move {
-                    assert_eq!(next.context().getConnection().getName(), "audit");
+                    assert_eq!(next.context().getConnection().get_name(), "audit");
                     pipes.lock().unwrap().push("pipe");
                     next.context()
                         .statement(
@@ -142,7 +142,7 @@ async fn transactional_pipeline_defers_execution_and_commits_or_rolls_back_on_se
             Pipeline::<_, DatabaseError, _, Transaction>::send(9)
                 .withinTransaction(None)
                 .then(|value, transaction| Box::pin(async move {
-                    assert_eq!(transaction.getConnection().getName(), "primary");
+                    assert_eq!(transaction.getConnection().get_name(), "primary");
                     Ok(value)
                 }))
                 .await?,

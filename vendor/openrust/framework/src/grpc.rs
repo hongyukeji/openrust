@@ -53,8 +53,7 @@ impl ApplicationRunner for ConfiguredServer {
         "grpc"
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn shouldRun(&self) -> HttpFuture<'_, RuntimeResult<bool>> {
+    fn should_run(&self) -> HttpFuture<'_, RuntimeResult<bool>> {
         Box::pin(async move {
             match self.config.get("grpc.host") {
                 None | Some(Value::Null) => Ok(false),

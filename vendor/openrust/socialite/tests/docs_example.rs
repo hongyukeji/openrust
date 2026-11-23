@@ -33,7 +33,7 @@ pub fn callback(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
         Response::json(
             StatusCode::OK,
             serde_json::json!({
-                "id": user.getId(), "name": user.getName(), "email": user.getEmail(),
+                "id": user.get_id(), "name": user.get_name(), "email": user.getEmail(),
             }),
         )
     })

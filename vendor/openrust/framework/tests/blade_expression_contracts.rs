@@ -339,7 +339,7 @@ async fn actual_http_unpacks_native_data_recovers_from_failures_and_isolates_app
         let address = listener.local_addr().unwrap();
         let kernel = Arc::new(kernel);
         let router = axum::Router::new().fallback(move |request: axum::extract::Request| {
-            kernel.clone().handleTransport(request)
+            kernel.clone().handle_transport(request)
         });
         servers.push(tokio::spawn(async move {
             axum::serve(listener, router).await.unwrap();

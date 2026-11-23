@@ -24,8 +24,8 @@ impl JoinClause {
         Self(self.0.orWhere(column, operator, value))
     }
 
-    pub fn whereNull(self, column: &str) -> Self {
-        Self(self.0.whereNull(column))
+    pub fn where_null(self, column: &str) -> Self {
+        Self(self.0.where_null(column))
     }
 
     pub fn onNested(self, configure: impl FnOnce(Self) -> Self) -> Self {

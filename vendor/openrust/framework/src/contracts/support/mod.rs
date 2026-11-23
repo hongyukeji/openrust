@@ -9,14 +9,14 @@ use crate::{
 /// Builds a response for the request that produced this object.
 #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub trait Responsable: Send {
-    fn toResponse(
+    fn to_response(
         self,
         request: &mut Request,
     ) -> impl Future<Output = Result<Response, HttpError>> + Send;
 }
 
 impl<T: ResponseOutput + Send> Responsable for T {
-    async fn toResponse(self, _: &mut Request) -> Result<Response, HttpError> {
+    async fn to_response(self, _: &mut Request) -> Result<Response, HttpError> {
         self.into_response()
     }
 }

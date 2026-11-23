@@ -72,7 +72,7 @@ let page = Article::searchOn(&db, "openrust")
     .await?;
 ```
 
-Within the application, use `Article::search(term)?` to resolve the model’s connection. Use `withTrashed` or `onlyTrashed` to change soft-delete filtering. A blank term keeps the model’s regular filters. The database maintains the index as part of the write transaction.
+Within the application, use `Article::search(term)?` to resolve the model’s connection. Use `with_trashed` or `only_trashed` to change soft-delete filtering. A blank term keeps the model’s regular filters. The database maintains the index as part of the write transaction.
 
 PostgreSQL model searches with full-text columns use `ts_rank` followed by descending primary key when no explicit sort is supplied. Both the rank and the tie-breaker apply before pagination. Override the default full-text settings on a model with `fullTextOptions()`.
 

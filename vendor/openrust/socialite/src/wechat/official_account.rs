@@ -73,10 +73,10 @@ impl ProviderDefinition for WeixinProvider {
         Some(Box::pin(async move {
             let code = identifier(fields, "code")?;
             let response = checked(
-                http.pendingRequest()
-                    .redactPayload()
-                    .withoutRedirecting()
-                    .withQueryParameters([
+                http.pending_request()
+                    .redact_payload()
+                    .without_redirecting()
+                    .with_query_parameters([
                         ("appid".into(), config.client_id.clone()),
                         ("secret".into(), config.client_secret.to_string()),
                         ("code".into(), code.into()),
@@ -106,10 +106,10 @@ impl ProviderDefinition for WeixinProvider {
     ) -> Option<ProviderFuture<'a, Value>> {
         Some(Box::pin(async move {
             let response = checked(
-                http.pendingRequest()
-                    .redactPayload()
-                    .withoutRedirecting()
-                    .withQueryParameters([
+                http.pending_request()
+                    .redact_payload()
+                    .without_redirecting()
+                    .with_query_parameters([
                         ("appid".into(), config.client_id.clone()),
                         ("grant_type".into(), "refresh_token".into()),
                         ("refresh_token".into(), refreshToken.into()),
@@ -148,10 +148,10 @@ impl ProviderDefinition for WeixinProvider {
                 return Ok(serde_json::json!({"openid":id}));
             }
             let user = checked(
-                http.pendingRequest()
-                    .redactPayload()
-                    .withoutRedirecting()
-                    .withQueryParameters([
+                http.pending_request()
+                    .redact_payload()
+                    .without_redirecting()
+                    .with_query_parameters([
                         ("access_token".into(), token.into()),
                         ("openid".into(), id.into()),
                         ("lang".into(), "zh_CN".into()),

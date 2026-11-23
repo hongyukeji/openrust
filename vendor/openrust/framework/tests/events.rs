@@ -322,7 +322,7 @@ async fn transport(
     State(kernel): State<Arc<Kernel>>,
     request: axum::extract::Request,
 ) -> axum::response::Response {
-    kernel.handleTransport(request).await
+    kernel.handle_transport(request).await
 }
 
 async fn start(app: Application) -> (SocketAddr, tokio::task::JoinHandle<()>) {
@@ -642,8 +642,8 @@ async fn discovery_policy_filters_http_and_artisan_per_application() {
     let arguments = ["event:list", "--event=order.ready", "--json"];
     let (included, excluded) =
         tokio::join!(production.artisan(arguments), testing.artisan(arguments));
-    included.assertSuccessful();
-    excluded.assertSuccessful();
+    included.assert_successful();
+    excluded.assert_successful();
     let entries: Json = serde_json::from_str(&included.stdout).unwrap();
     assert_eq!(entries[0]["event"], "order.ready");
     assert_eq!(
@@ -854,9 +854,9 @@ async fn test_app_event_cache_fixture() {
         .canonicalize()
         .unwrap()
         .join("private/fixture.json");
-    fixture.artisan(["event:cache"]).await.assertSuccessful();
+    fixture.artisan(["event:cache"]).await.assert_successful();
     assert_eq!(fixture.app().get_cached_events_path(), Some(path.as_path()));
     assert!(path.is_file());
-    fixture.artisan(["event:clear"]).await.assertSuccessful();
+    fixture.artisan(["event:clear"]).await.assert_successful();
     assert!(!path.exists());
 }

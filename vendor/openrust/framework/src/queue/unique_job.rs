@@ -33,7 +33,7 @@ pub(super) async fn acquire(
     let manager = cache_manager(app)?;
     let store = match policy.via {
         Some(store) => store,
-        None => manager.getDefaultDriver().map_err(backend)?,
+        None => manager.get_default_driver().map_err(backend)?,
     };
     let repository = manager.store(Some(&store)).map_err(backend)?;
     // Frame the name so separators in job names or IDs cannot alias other jobs.

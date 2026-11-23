@@ -19,7 +19,7 @@ async fn password_and_confirmed_match_fixed_reference_validator() {
                 "sometimes" => Password::sometimes(),
                 "min1" => Password::min(0),
                 "max8" => Password::min(3).max(8),
-                "strong" => Password::min(3).mixedCase().letters().numbers().symbols(),
+                "strong" => Password::min(3).mixed_case().letters().numbers().symbols(),
                 _ => Password::default(),
             };
             let mut rules = Vec::new();
@@ -120,7 +120,7 @@ async fn fortify_policy_validates_confirmation_and_localized_password_failures()
             RuleSet::new()
                 .field(
                     "password",
-                    [Password::min(8).mixedCase().numbers().symbols().into()],
+                    [Password::min(8).mixed_case().numbers().symbols().into()],
                 )
                 .unwrap(),
             Default::default(),
@@ -158,7 +158,7 @@ fn submit(
 ) -> openrust::http::HttpFuture<'_, Result<openrust::http::Response, openrust::http::HttpError>> {
     use openrust::foundation::http::FormRequest as _;
     Box::pin(async move {
-        let input = PasswordForm.validateResolved(request).await?;
+        let input = PasswordForm.validate_resolved(request).await?;
         openrust::http::Response::json(openrust::http::StatusCode::OK, input.into_value())
     })
 }
@@ -185,7 +185,7 @@ async fn password_form_request_runs_over_real_tcp() {
         axum::extract::State(kernel): axum::extract::State<Arc<Kernel>>,
         request: axum::extract::Request,
     ) -> axum::response::Response {
-        kernel.handleTransport(request).await
+        kernel.handle_transport(request).await
     }
     let root = std::env::temp_dir().join(format!("openrust-password-{:016x}", fastrand::u64(..)));
     std::fs::create_dir_all(&root).unwrap();

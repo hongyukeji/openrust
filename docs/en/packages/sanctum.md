@@ -4,9 +4,9 @@
 
 Run `./artisan install:api` to create and register `routes/api.rs` and enable Sanctum in the application’s default Cargo features. The installer offers to run pending migrations in an interactive terminal. If you accept, it rebuilds the application before migrating. For CI, use `--without-migration-prompt` and run `./artisan migrate` separately. Use `--force` to replace an existing API routes file. If the installer cannot update a custom bootstrap, it preserves the generated route and prints the manual registration instruction. The route returns the registered authenticated model’s visible attributes. If an optional migration fails, the installer displays the error and retains the API scaffolding. Run `./artisan migrate` separately when automation needs the migration exit code.
 
-The default application skeleton ships without Sanctum-specific configuration or user model registration. After enabling the Cargo feature, the package supplies its default configuration. In a new application, `install:api` publishes the token migration and wires the published configuration and default user model. A custom model must implement `HasApiTokens` and be referenced with `openrust::auth::model!(YourUser, sanctum)` in `config/auth.rs`. Explicit runtime extensions may use `AuthManager::registerSanctumModel`. The installer updates the model capability and configuration class reference, preserving `AppServiceProvider`. When enabling the feature manually, publish migrations with `vendor:publish --tag=sanctum-migrations` and editable configuration with `vendor:publish --tag=sanctum-config`. After manual publication, declare the module in `config/mod.rs` and register its loader result under `sanctum`.
+The default application skeleton ships without Sanctum-specific configuration or user model registration. After enabling the Cargo feature, the package supplies its default configuration. In a new application, `install:api` publishes the token migration and wires the published configuration and default user model. A custom model must implement `HasApiTokens` and be referenced with `openrust::auth::model!(YourUser, sanctum)` in `config/auth.rs`. Explicit runtime extensions may use `AuthManager::register_sanctum_model`. The installer updates the model capability and configuration class reference, preserving `AppServiceProvider`. When enabling the feature manually, publish migrations with `vendor:publish --tag=sanctum-migrations` and editable configuration with `vendor:publish --tag=sanctum-config`. After manual publication, declare the module in `config/mod.rs` and register its loader result under `sanctum`.
 
-Run `vendor:publish` in a terminal to choose a provider or tag. Package providers register compiled files in `boot` with `publishes` or `publishes_migrations`. A new migration gets a fresh timestamp when `database.migrations.update_date_on_publish` is enabled. Disable it or call `VendorPublishCommand::dontUpdateMigrationDates` in a provider to preserve source dates. Republishing reuses the existing filename, so the migration ledger stays stable. Rebuild the application after publishing a migration to `database/migrations/` to include it in the compiled list.
+Run `vendor:publish` in a terminal to choose a provider or tag. Package providers register compiled files in `boot` with `publishes` or `publishes_migrations`. A new migration gets a fresh timestamp when `database.migrations.update_date_on_publish` is enabled. Disable it or call `VendorPublishCommand::dont_update_migration_dates` in a provider to preserve source dates. Republishing reuses the existing filename, so the migration ledger stays stable. Rebuild the application after publishing a migration to `database/migrations/` to include it in the compiled list.
 
 ## Token table migration {#token-table-migration}
 
@@ -31,7 +31,7 @@ use openrust::{auth::AuthResult, database::DatabaseManager, sanctum::{NewAccessT
 
 async fn issue(sanctum: &Sanctum, database: &DatabaseManager, user_id: u64) -> AuthResult<NewAccessToken> {
     sanctum.personalAccessTokens(database, "")?
-        .createToken("app::models::User", user_id, "browser", &["reports:read"], None)
+        .create_token("app::models::User", user_id, "browser", &["reports:read"], None)
         .await
 }
 ```
@@ -48,7 +48,7 @@ The application service exposes its registered model type through `personalAcces
 
 ## Model token relationship {#model-token-relationship}
 
-Implement `HasApiTokens` on the Eloquent owner. Use `user.tokens(&sanctum, &database)?` to list or revoke its tokens and `user.createToken(&sanctum, &database, name, abilities, expires_at)` to issue one. The relationship uses the configured token model and the owner’s morph alias and primary key. `deleteToken` and `delete` use scoped bulk deletion. A persisted token can resolve its owner with `tokenable`. Read the request’s token and abilities through `currentAccessToken`, `tokenCan` and `tokenCant` on the owner.
+Implement `HasApiTokens` on the Eloquent owner. Use `user.tokens(&sanctum, &database)?` to list or revoke its tokens and `user.create_token(&sanctum, &database, name, abilities, expires_at)` to issue one. The relationship uses the configured token model and the owner’s morph alias and primary key. `delete_token` and `delete` use scoped bulk deletion. A persisted token can resolve its owner with `tokenable`. Read the request’s token and abilities through `currentAccessToken`, `tokenCan` and `tokenCant` on the owner.
 
 For a chainable Eloquent query, use `user.tokensQuery::<DefaultPersonalAccessToken>(&sanctum, &database)?`. Use `user.tokensRelation::<DefaultPersonalAccessToken>(&sanctum)?` with Eloquent’s `with("tokens", relation)` to eager-load. Substitute the registered model type for a custom model. The nested token in the issuance response uses the model’s casts, accessors, appended fields, and visibility, and always omits the digest. Hide the `token` field in custom models when serializing them directly.
 
@@ -71,11 +71,11 @@ Use the registered provider model name as the token owner type. The default appl
 
 Register `getAccessTokenFromRequestUsing` to replace Bearer extraction. Register `authenticateAccessTokensUsing` to decide whether a found token is valid. The callback receives the token and the built-in expiration and provider decision. The owner must still resolve.
 
-Register token-capable owners with `AuthManager::registerSanctumModel`. Use `NewAccessToken::toJson()` or `toArray()` explicitly to return the plaintext credential at issuance. The nested token omits its stored digest. The event payload is `TokenAuthenticated::token`.
+Register token-capable owners with `AuthManager::register_sanctum_model`. Use `NewAccessToken::to_json()` or `to_array()` explicitly to return the plaintext credential at issuance. The nested token omits its stored digest. The event payload is `TokenAuthenticated::token`.
 
 ## SPA authentication {#spa-authentication}
 
-In the existing `with_middleware` closure in `bootstrap/app.rs`, call `middleware.statefulApi();`. Set `SANCTUM_STATEFUL_DOMAINS` to the comma-separated first-party frontend hosts, including any non-default port. With the default route configuration, request `GET /sanctum/csrf-cookie`, then sign in through the application's web session login. Send cookies on subsequent API requests and pass the URL-decoded `XSRF-TOKEN` cookie value in the `X-XSRF-TOKEN` header for requests that require CSRF protection.
+In the existing `with_middleware` closure in `bootstrap/app.rs`, call `middleware.stateful_api();`. Set `SANCTUM_STATEFUL_DOMAINS` to the comma-separated first-party frontend hosts, including any non-default port. With the default route configuration, request `GET /sanctum/csrf-cookie`, then sign in through the application's web session login. Send cookies on subsequent API requests and pass the URL-decoded `XSRF-TOKEN` cookie value in the `X-XSRF-TOKEN` header for requests that require CSRF protection.
 
 For a cross-origin first-party frontend, enable credentialed CORS for its exact origin. A matching Referer or Origin activates the session, cookie and CSRF middleware. Sanctum checks the authenticated session before the Bearer token. First-party sessions pass token ability checks. Apply application authorization policies to control what the user can do.
 

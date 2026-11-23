@@ -150,8 +150,7 @@ impl<C> ResourceController<C> {
         self
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn actionWithFormRequest<F: FormRequest + Default + 'static>(
+    pub fn action_with_form_request<F: FormRequest + Default + 'static>(
         mut self,
         action: ResourceAction,
         handler: FormAction<C, F, impl Responsable + 'static>,
@@ -161,7 +160,7 @@ impl<C> ResourceController<C> {
     {
         self.actions.insert(
             action,
-            Arc::new(ControllerDispatcher::withFormRequest(handler)),
+            Arc::new(ControllerDispatcher::with_form_request(handler)),
         );
         self
     }
@@ -245,7 +244,6 @@ impl<C> ResourceController<C> {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Router {
     #[track_caller]
     pub fn resource<C: Send + Sync + 'static>(
@@ -257,7 +255,7 @@ impl Router {
     }
 
     #[track_caller]
-    pub fn apiResource<C: Send + Sync + 'static>(
+    pub fn api_resource<C: Send + Sync + 'static>(
         &mut self,
         name: &str,
         controller: ResourceController<C>,
@@ -285,7 +283,7 @@ impl Router {
     }
 
     #[track_caller]
-    pub fn apiSingleton<C: Send + Sync + 'static>(
+    pub fn api_singleton<C: Send + Sync + 'static>(
         &mut self,
         name: &str,
         controller: ResourceController<C>,
@@ -367,7 +365,7 @@ impl Router {
             });
             route.definition = definition;
             route.name(&route_name);
-            route.setAction(&format!("{}@{}", type_name::<C>(), action.name()))?;
+            route.set_action(&format!("{}@{}", type_name::<C>(), action.name()))?;
             if let Some(configure) = &controller.configure {
                 configure(action, &mut route)?;
             }

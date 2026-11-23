@@ -20,8 +20,8 @@ HTTP 内核运行[中间件](../the-basics/middleware.md)，并通过框架[路�
 
 ## 请求完成事件 {#request-handled}
 
-中间件执行结束或异常渲染为响应后，HTTP Kernel 在当前应用作用域派发 `openrust::foundation::http::events::RequestHandled`。使用现有 `Event::listen` 或 `Event::listenClass` 监听 `OpenRust\Foundation\Http\Events\RequestHandled`。事件提供 `request`、`response` 元数据快照（`RequestParts` / `ResponseParts`）、独立的 `attributes` 属性映射、`routeName` 及单调时钟计量的 `duration: Duration`。创建事件不读取或缓冲正文，流式响应保持流式；事件表示响应生成完成，不表示下载发送完成。请求在生成响应前被取消时不派发。
+中间件执行结束或异常渲染为响应后，HTTP Kernel 在当前应用作用域派发 `openrust::foundation::http::events::RequestHandled`。使用现有 `Event::listen` 或 `Event::listenClass` 监听 `OpenRust\Foundation\Http\Events\RequestHandled`。事件提供 `request`、`response` 元数据快照（`RequestParts` / `ResponseParts`）、独立的 `attributes` 属性映射、`route_name` 及单调时钟计量的 `duration: Duration`。创建事件不读取或缓冲正文，流式响应保持流式；事件表示响应生成完成，不表示下载发送完成。请求在生成响应前被取消时不派发。
 
-`RequestHandled.requestStartedAt` 为请求开始时的 Unix 毫秒时间（`i64`），在中间件和错误渲染前采集。`duration` 继续用单调时钟计算；统计窗口应直接使用开始时间判断。
+`RequestHandled.request_started_at` 为请求开始时的 Unix 毫秒时间（`i64`），在中间件和错误渲染前采集。`duration` 继续用单调时钟计算；统计窗口应直接使用开始时间判断。
 
-`RequestHandled.responseContent` 仅共享 JSON／文本构造或 `Response::setContent` 已缓冲的字节，`Response::getContent` 可读取这些已知内容。不透明正文和流返回 `None`；观察事件不会读取或缓冲流。
+`RequestHandled.response_content` 仅共享 JSON／文本构造或 `Response::set_content` 已缓冲的字节，`Response::get_content` 可读取这些已知内容。不透明正文和流返回 `None`；观察事件不会读取或缓冲流。

@@ -69,7 +69,7 @@ async fn exercise_tags(initial: i64) -> CacheResult<()> {
     let ordered = memo.tags(&["memo-first", "memo-second"])?;
     let reversed = memo.tags(&["memo-second", "memo-first"])?;
     let unrelated = memo.tags(&["memo-unrelated"])?;
-    assert_eq!(ordered.getName(), Some("redis"));
+    assert_eq!(ordered.get_name(), Some("redis"));
 
     live.forever("key", &initial.into()).await?;
     first.forever("key", &2.into()).await?;
@@ -128,7 +128,7 @@ async fn transport(
     State(kernel): State<Arc<Kernel>>,
     incoming: axum::extract::Request,
 ) -> axum::response::Response {
-    kernel.handleTransport(incoming).await
+    kernel.handle_transport(incoming).await
 }
 
 async fn request(address: SocketAddr) -> i64 {

@@ -416,13 +416,13 @@ impl<'connection, M: Model> Builder<'connection, M> {
         self
     }
 
-    pub fn whereIn(&mut self, column: &str, values: Vec<Value>) -> &mut Self {
-        self.predicates = mem::take(&mut self.predicates).whereIn(column, values);
+    pub fn where_in(&mut self, column: &str, values: Vec<Value>) -> &mut Self {
+        self.predicates = mem::take(&mut self.predicates).where_in(column, values);
         self
     }
 
-    pub fn whereNull(&mut self, column: &str) -> &mut Self {
-        self.predicates = mem::take(&mut self.predicates).whereNull(column);
+    pub fn where_null(&mut self, column: &str) -> &mut Self {
+        self.predicates = mem::take(&mut self.predicates).where_null(column);
         self
     }
 
@@ -581,9 +581,9 @@ impl<'connection, M: Model> Builder<'connection, M> {
             }
             Key::Many(values) => {
                 if not {
-                    group.whereNotIn(&column, values)
+                    group.where_not_in(&column, values)
                 } else {
-                    group.whereIn(&column, values)
+                    group.where_in(&column, values)
                 }
             }
         };
@@ -798,29 +798,29 @@ impl<'connection, M: Model> Builder<'connection, M> {
     }
 
     #[must_use]
-    pub fn withTrashed(mut self) -> Self {
+    pub fn with_trashed(mut self) -> Self {
         self.trashed = Trashed::Include;
         self.withoutGlobalScope(std::any::type_name::<super::SoftDeletingScope>())
     }
 
     #[must_use]
-    pub fn withoutTrashed(mut self) -> Self {
-        self = self.withTrashed();
+    pub fn without_trashed(mut self) -> Self {
+        self = self.with_trashed();
         self.trashed = Trashed::Without;
         if let Some(column) = M::metadata().deleted_at {
-            self.whereNull(&self.qualifyColumn(column));
+            self.where_null(&self.qualifyColumn(column));
         }
         self
     }
 
     #[must_use]
-    pub fn onlyTrashed(mut self) -> Self {
-        self = self.withTrashed();
+    pub fn only_trashed(mut self) -> Self {
+        self = self.with_trashed();
         self.trashed = Trashed::Only;
         // 不支持软删除的模型仍在执行时显式报错。
         if let Some(column) = M::metadata().deleted_at {
             let column = self.qualifyColumn(column);
-            self.predicates = mem::take(&mut self.predicates).whereNotNull(&column);
+            self.predicates = mem::take(&mut self.predicates).where_not_null(&column);
         }
         self
     }
@@ -916,7 +916,7 @@ impl<M: Model> Builder<'static, M> {
         for (column, value) in attributes {
             let column = self.qualifyColumn(column);
             self.query = if matches!(value, Value::Null) {
-                self.query.whereNull(&column)
+                self.query.where_null(&column)
             } else {
                 self.query.r#where(&column, "=", value.clone())
             };
@@ -935,7 +935,7 @@ impl<M: Model> Builder<'static, M> {
     pub(super) fn restrict_relation(mut self, column: &str, keys: &[Value]) -> Self {
         // Keep relation keys in the base query so an OR inside a related
         // query constraint cannot admit a different parent's records.
-        self.query = self.query.whereIn(column, keys.to_vec());
+        self.query = self.query.where_in(column, keys.to_vec());
         if keys.len() > 1 {
             self.query = self.query.group_limit(column);
         }
@@ -1191,7 +1191,7 @@ impl<M: Model> Builder<'static, M> {
         self.predicates = if or {
             self.predicates.orWhereIn(&foreign_key, keys)
         } else {
-            self.predicates.whereIn(&foreign_key, keys)
+            self.predicates.where_in(&foreign_key, keys)
         };
         Ok(self)
     }
@@ -1306,13 +1306,13 @@ impl<M: Model> Builder<'static, M> {
                     conditions.orWhereNested(|group| {
                         group
                             .whereNullSafeEquals(&morph_type, alias)
-                            .whereIn(&morph_id, keys)
+                            .where_in(&morph_id, keys)
                     })
                 })
         };
         self.predicates = match (or, negated) {
             (false, false) => self.predicates.whereNested(configure),
-            (false, true) => self.predicates.whereNot(configure),
+            (false, true) => self.predicates.where_not(configure),
             (true, false) => self.predicates.orWhereNested(configure),
             (true, true) => self.predicates.orWhereNot(configure),
         };
@@ -1666,7 +1666,7 @@ impl<M: Model> Builder<'static, M> {
 
     /// Supplies model defaults and optionally adds matching query conditions.
     #[must_use]
-    pub fn withAttributes(mut self, attributes: Attributes, as_conditions: bool) -> Self {
+    pub fn with_attributes(mut self, attributes: Attributes, as_conditions: bool) -> Self {
         if as_conditions {
             for (column, value) in &attributes {
                 let column = self.qualifyColumn(column);
@@ -2392,7 +2392,7 @@ impl<M: Model> Builder<'static, M> {
             .deleted_at
             .ok_or_else(soft_deletes::unsupported)?;
         if matches!(self.trashed, Trashed::Exclude) {
-            self = self.withTrashed();
+            self = self.with_trashed();
         }
         self.update(Attributes::from([(column.into(), Value::Null)]))
             .await
@@ -2401,7 +2401,7 @@ impl<M: Model> Builder<'static, M> {
     pub async fn forceDelete(mut self) -> DatabaseResult<u64> {
         self.scopes.clear();
         if matches!(self.trashed, Trashed::Exclude) {
-            self = self.withTrashed();
+            self = self.with_trashed();
         }
         self.scoped()?.0.delete().await
     }

@@ -138,7 +138,7 @@ impl SlackAttachment {
                 "fields".into(),
                 self.fields
                     .values()
-                    .map(SlackAttachmentField::toArray)
+                    .map(SlackAttachmentField::to_array)
                     .collect(),
             );
         }
@@ -183,7 +183,7 @@ impl SlackAttachmentField {
         self
     }
 
-    pub fn toArray(&self) -> Value {
+    pub fn to_array(&self) -> Value {
         json!({"title": self.title, "value": self.content, "short": self.short})
     }
 }

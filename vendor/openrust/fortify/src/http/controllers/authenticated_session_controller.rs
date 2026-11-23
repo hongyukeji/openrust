@@ -49,13 +49,13 @@ impl AuthenticatedSessionController {
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
             let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;
-            Auth::sessionGuard(request, fortify.guard().as_deref())?
+            Auth::session_guard(request, fortify.guard().as_deref())?
                 .logout()
                 .await?;
-            if request.hasSession() {
+            if request.has_session() {
                 let session = request.session_mut().map_err(internal)?;
                 session.invalidate().await.map_err(internal)?;
-                session.regenerateToken().map_err(internal)?;
+                session.regenerate_token().map_err(internal)?;
             }
             super::respond::<dyn contracts::LogoutResponse>(request).await
         })

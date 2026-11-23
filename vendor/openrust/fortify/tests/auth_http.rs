@@ -41,28 +41,28 @@ struct Account {
 }
 
 impl Authenticatable for Account {
-    fn getAuthIdentifierName(&self) -> &str {
+    fn get_auth_identifier_name(&self) -> &str {
         "id"
     }
-    fn getAuthIdentifier(&self) -> AuthIdentifier {
+    fn get_auth_identifier(&self) -> AuthIdentifier {
         "001".into()
     }
-    fn getAuthPasswordName(&self) -> &str {
+    fn get_auth_password_name(&self) -> &str {
         "password"
     }
-    fn getAuthPassword(&self) -> Option<&str> {
+    fn get_auth_password(&self) -> Option<&str> {
         Some(&self.hash)
     }
-    fn getRememberToken(&self) -> Option<&str> {
+    fn get_remember_token(&self) -> Option<&str> {
         self.token.as_deref()
     }
-    fn setRememberToken(&mut self, token: Option<String>) {
+    fn set_remember_token(&mut self, token: Option<String>) {
         self.token = token;
     }
-    fn getRememberTokenName(&self) -> &str {
+    fn get_remember_token_name(&self) -> &str {
         "remember_token"
     }
-    fn getAuthAttribute(&self, name: &str) -> AuthResult<Option<Value>> {
+    fn get_auth_attribute(&self, name: &str) -> AuthResult<Option<Value>> {
         Ok(match name {
             "email" => Some("a@example.test".into()),
             "username" => Some("tester".into()),
@@ -83,39 +83,39 @@ impl Accounts {
 }
 
 impl UserProvider for Accounts {
-    fn retrieveById<'a>(
+    fn retrieve_by_id<'a>(
         &'a self,
         id: &'a AuthIdentifier,
     ) -> AuthFuture<'a, AuthResult<Option<Box<dyn Authenticatable>>>> {
         Box::pin(async { Ok((*id == AuthIdentifier::from("001")).then(|| self.snapshot())) })
     }
 
-    fn retrieveByToken<'a>(
+    fn retrieve_by_token<'a>(
         &'a self,
         id: &'a AuthIdentifier,
         token: &'a str,
     ) -> AuthFuture<'a, AuthResult<Option<Box<dyn Authenticatable>>>> {
         Box::pin(async {
             Ok(self
-                .retrieveById(id)
+                .retrieve_by_id(id)
                 .await?
-                .filter(|user| user.getRememberToken() == Some(token)))
+                .filter(|user| user.get_remember_token() == Some(token)))
         })
     }
 
-    fn updateRememberToken<'a>(
+    fn update_remember_token<'a>(
         &'a self,
         user: &'a mut dyn Authenticatable,
         token: &'a str,
     ) -> AuthFuture<'a, AuthResult<()>> {
         Box::pin(async {
             self.user.lock().unwrap().token = Some(token.to_owned());
-            user.setRememberToken(Some(token.to_owned()));
+            user.set_remember_token(Some(token.to_owned()));
             Ok(())
         })
     }
 
-    fn retrieveByCredentials<'a>(
+    fn retrieve_by_credentials<'a>(
         &'a self,
         credentials: &'a Credentials,
     ) -> AuthFuture<'a, AuthResult<Option<Box<dyn Authenticatable>>>> {
@@ -133,7 +133,7 @@ impl UserProvider for Accounts {
         })
     }
 
-    fn validateCredentials<'a>(
+    fn validate_credentials<'a>(
         &'a self,
         user: &'a dyn Authenticatable,
         credentials: &'a Credentials,
@@ -142,7 +142,7 @@ impl UserProvider for Accounts {
             self.hasher
                 .check(
                     credentials.password().as_bytes(),
-                    user.getAuthPassword().unwrap(),
+                    user.get_auth_password().unwrap(),
                     &HashOptions::new(),
                 )
                 .await
@@ -150,7 +150,7 @@ impl UserProvider for Accounts {
         })
     }
 
-    fn rehashPasswordIfRequired<'a>(
+    fn rehash_password_if_required<'a>(
         &'a self,
         _: &'a mut dyn Authenticatable,
         credentials: &'a Credentials,
@@ -188,13 +188,13 @@ fn current(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
         let session = request.session()?;
         Response::json(
             StatusCode::OK,
-            json!({"user":user,"id":session.getId(),"csrf":session.token(),"confirmed":session.get("auth.password_confirmed_at"),"errors":session.get("errors")}),
+            json!({"user":user,"id":session.get_id(),"csrf":session.token(),"confirmed":session.get("auth.password_confirmed_at"),"errors":session.get("errors")}),
         )
     })
 }
 fn intended(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
-        Redirect::setIntendedUrl(request, "/settings?tab=security")?;
+        Redirect::set_intended_url(request, "/settings?tab=security")?;
         current(request).await
     })
 }
@@ -224,7 +224,7 @@ async fn transport(
     State(kernel): State<Arc<Kernel>>,
     request: axum::extract::Request,
 ) -> axum::response::Response {
-    kernel.handleTransport(request).await
+    kernel.handle_transport(request).await
 }
 struct Server {
     address: SocketAddr,
@@ -314,7 +314,7 @@ async fn start_with_store(
         app.container()
             .make::<AuthManager>()
             .unwrap()
-            .registerModel::<SqlUser>("FortifyUser");
+            .register_model::<SqlUser>("FortifyUser");
         database = Some(connection);
     }
     configure(&app);
@@ -552,7 +552,7 @@ async fn authentication_and_password_confirmation_callbacks_are_application_scop
         }));
         fortify.confirmPasswordsUsing(Arc::new(|user, password| {
             Box::pin(async move {
-                Ok(user.getAuthIdentifier() == AuthIdentifier::from("001")
+                Ok(user.get_auth_identifier() == AuthIdentifier::from("001")
                     && password == Some("custom-confirm"))
             })
         }));
@@ -644,28 +644,28 @@ impl Model for SqlUser {
 }
 
 impl Authenticatable for SqlUser {
-    fn getAuthIdentifierName(&self) -> &str {
+    fn get_auth_identifier_name(&self) -> &str {
         "identity"
     }
-    fn getAuthIdentifier(&self) -> AuthIdentifier {
+    fn get_auth_identifier(&self) -> AuthIdentifier {
         self.getKey().unwrap().try_into().unwrap()
     }
-    fn getAuthPasswordName(&self) -> &str {
+    fn get_auth_password_name(&self) -> &str {
         "password"
     }
-    fn getAuthPassword(&self) -> Option<&str> {
+    fn get_auth_password(&self) -> Option<&str> {
         field(self, "password")
     }
-    fn getRememberToken(&self) -> Option<&str> {
+    fn get_remember_token(&self) -> Option<&str> {
         field(self, "remember_token")
     }
-    fn setRememberToken(&mut self, token: Option<String>) {
+    fn set_remember_token(&mut self, token: Option<String>) {
         self.setAttribute("remember_token", token.map_or(Value::Null, Value::Text));
     }
-    fn getRememberTokenName(&self) -> &str {
+    fn get_remember_token_name(&self) -> &str {
         "remember_token"
     }
-    fn getAuthAttribute(&self, name: &str) -> AuthResult<Option<Value>> {
+    fn get_auth_attribute(&self, name: &str) -> AuthResult<Option<Value>> {
         self.getAttributeValue(name)
             .map_err(|source| AuthError::Backend(Box::new(source)))
     }
@@ -806,7 +806,10 @@ async fn named_limiter_replaces_builtin_login_attempt_limit() {
 struct AcceptedLogin;
 impl openrust_fortify::contracts::LoginResponse for AcceptedLogin {}
 impl openrust_fortify::contracts::Response for AcceptedLogin {
-    fn toResponse<'a>(&'a self, _: &'a mut Request) -> HttpFuture<'a, Result<Response, HttpError>> {
+    fn to_response<'a>(
+        &'a self,
+        _: &'a mut Request,
+    ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async { Response::json(StatusCode::ACCEPTED, json!({"replaced":true})) })
     }
 }

@@ -231,7 +231,7 @@ impl ViewFinder for FileViewFinder {
         self.replace_hints(namespace, hints)
     }
 
-    fn addExtension(&mut self, extension: &str) -> ViewResult<()> {
+    fn add_extension(&mut self, extension: &str) -> ViewResult<()> {
         if !extension.split('.').all(valid_segment) {
             return Err(ViewError::InvalidName);
         }

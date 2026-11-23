@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | N-01 | 验收通过 | 语法树盘点、workspace 清单、调用位置、字符串边界及碰撞检查；无运行代码改动 |
 | N-02 | 验收通过 | 177 个基础方法族及跨 crate 消费者；20 项应用、59 项框架、独立生成测试、实际 HTTP／CLI、workspace 与可选 feature 严格 Clippy |
-| N-03 | 待实施 | HTTP、路由、认证、中间件、Session、命令、安装与生成源码 |
+| N-03 | 验收通过 | HTTP／路由／认证／命令及同名调度接口完成命名迁移；隔离构建、实际HTTP/CLI、MySQL、Redis调度、生成器与三语消费验证通过 |
 | N-04 | 待实施 | 数据库、集合、缓存、Redis、翻译、视图、日志和异常 |
 | N-05 | 待实施 | 异步服务、协议和全部扩展 |
 | N-06 | 待实施 | 全仓复核、三语、Rustdoc、CI、防回归及最终真实消费者 |
@@ -61,3 +61,38 @@ N-01 已提交 `f4c755e962d50a607c02d2751fa25b3654b9f6a3`，无推送。本批�
 8. 受影响 Rust 文件格式化、git diff --check 与 117 处必要品牌标识守卫通过；后续批次继续按实际消费者复验，不以本批编译代替模块验收。
 
 证据目录 `target/tmp/rust-naming/N-02/`：root-tests-final.log、framework-tests-final.log、workspace-clippy-final.log、optional-features-clippy.log、http-cli-results.json、generated-consumer-final.log、docs-build.log、docs-worker-control.log、literal-differences.json、source-hashes.json。独立基线副本已在退出后清理，保留 Git 基线、文件 SHA 和原失败日志；生成消费者与构建缓存保留供后续复用，未删数据库、日志或下载。收尾可用约 40 GiB，大于 32 GB 停线。原暂存两项许可删除和无关改动排除。
+
+
+## N-03：请求、路由、认证、命令与生成消费者
+
+N-02 已提交 `27c8802cdd94e8d48b6365ba51abccace132bba6`，未推送。本批按 registry 的方法族迁移，不按文本全文替换。Console 下调度方法及 Validation 与 Query 共用的方法族需同时接线，因此相应 spelling 提前纳入本批，N-05 仍需收尾异步服务剩余范围。
+
+### 公开契约与冲突裁决
+
+- 重复别名 hasUser/setUser、StatefulGuard 与路由 scoped-binding 包装合并到既有原生接口，不长期保留两套大小写。Output 与 MessageBag 的重复原生包装合并，保留相同输出/判空行为。
+- SessionGuard 原异步 setUser 改为 `set_user_async`，原同步 Guard::set_user 保持同步。直接转成同名会让已有同步调用创建未轮询 Future，已在全 workspace 警告与真实认证测试中核对，不能用丢弃 Future 掩盖。
+- AuthManager 私有请求缓存入口改为 resolved_user_from_request，ValidationException 私有包名读取为 selected_error_bag；公开设置/读取接口不互相遮蔽。HTTP 客户端请求级内部脱敏改名 redact_request_payload_only，公开请求/响应同时脱敏保持原语义，SMS 内部调用按原请求级语义迁移。
+- CommandFinished、调度输出、RequestHandled、Response、Route、TestApp、Validator 涉及的9个字段均非直接Serde序列化字段；字段访问同步，事件名、JSON键、SQL、环境、CLI、Cookie、URL和模板表达式字符串独立保留。
+- 宏实际展开暴露首轮 AST NAME 声明盘点未覆盖的方法。补登记状态断言、尺寸和数据库条件宏；同步定义与消费者。盘点工具新增宏体 FN_KW/IDENT 检测和前导下划线绑定入口，并用真实 Rust 解析器做正反边界检查。N-04 未迁移的关系/Faker宏仅保留原有精确属性，不新增全局关闭。
+- Faker user_agent 的 Unique 键保持显式 `userAgent`，格式化器名保留；未来 Faker宏的 stringify 稳定键列为 N-04 专项核对。Google prettyPrint、Fortify confirmPassword、Node exitCode、Playwright setContent/maxRedirects 等外部标识不因Rust方法同名而改写。
+- Rust生成模板、Passport安装PROBE、Fortify及模型验收脚本内明确的Rust源代码、安装提示API及三语断言同步。原生代码块与Blade/PHP/JS块分开处理；后者协议不机械改名。
+
+### 真实验收与版本边界
+
+- 工作区请求/路由/认证/Session/验证/观测共16组128项通过，含并行IP单元的11项；6个IP文件与冻结SHA一致。这是组合交集，不代表本批拥有或提交该新增功能。
+- 独立命名候选（排除并行Request/IP新增Provider、上下文、路由借用与门面方法）重新构建：应用9组87项通过、1个gRPC子进程夹具ignore不当额外通过；测试中未提供环境的Postgres/MySQL早退不能当真实后端通过。
+- 实际临时MySQL 8.4.13：强制环境入口运行Session认证、数据库Session、认证模型、内置迁移共4个MySQL消费者通过；默认单元中SQLite内存分支只是回归，不宣称发布矩阵完成。临时容器及匿名资源已清理，未使用用户数据卷。
+- 独立命名候选的HTTP客户端/选项/流式sink、命令观测、消息包、时钟共6组44项通过；真实本地HTTP、事件及输出断言保持。
+- 临时Redis 8下真实schedule:run、schedule:list、输出邮件、覆盖/追加、钩子、事件、锁、暂停/维护、应用隔离通过；scheduling 17项和clock 5项，2个自启动夹具ignore由父进程场景消费，不计额外独立通过。临时Redis已清理。
+- 独立候选 `cargo clippy --workspace --all-targets -- -D warnings` 通过；不是只用工作区并行功能组合的结果。根实际二进制帮助、inspire、未知命令退出码0/1核对，API/CORS及配置前缀优先级TCP测试属于startup真实场景。
+- 独立三语站点构建/内容检查通过，根与/docs/桌面/移动浏览器12组通过；文档原生API更新，必要Blade调用保留。更多feature和全仓Rustdoc仍由N-05/N-06复核。
+
+### 修复发现的测试夹具遗留
+
+request_languages 的请求语言算法测试原意不启用自动识别，现显式 supported_locales=[]，保持原en断言；这是与N-02已复现默认语言中间件同因的夹具条件。Schema注释夹具改为读取现已内置框架的三语资源，不假设应用lang仍附带schema.json；目录与正式资源一致。邮件生成器并发时间戳目录发生一次冲突，加入原子计数器保证进程内隔离；未改生产生成逻辑。三者均实际复验通过，不靠更改预期值掩盖行为变化。
+
+### 并行与磁盘
+
+Request门面负责人在本批期间另获授权新增IP及完整门面。其新增源码、Provider、代理状态、上下文和路由调用借用均排除本批；共享源文件从HEAD只应用核定标识符迁移构造候选，三语新IP段落也保留为其工作区在途差异。工作区与索引不重置、不覆盖。目录 `candidate-overrides/` 是本地提交候选，不是回写他人工作。
+
+HTTP代码生成曾触32GB停线，守卫安全终止且持锁清理全部项目编译profile，释放72,809,451,520字节；停止的一轮不计通过。源码/下载/数据/日志与原索引保留，空间恢复后完整重试。证据均在 `target/tmp/rust-naming/N-03/`：http-tests-combination.log、ip-intersection-final-sha.json、isolated-root-tests-final.log、isolated-fixture-regressions.log、mysql-acceptance.log、mysql-consumer-*.log、client-console-tests.log、scheduling-redis.log、isolated-clippy-final.log、docs-isolated-build.log、docs-browser.log。下一批沿用热缓存，退出后清理重复源码副本和临时容器；历史失败日志保留。

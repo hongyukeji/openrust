@@ -192,7 +192,7 @@ pub async fn report() -> CacheResult<Value> {
 
 ## 儲存庫設定 {#cache-repository-settings}
 
-`getName`、`getStore` 和 `getEventDispatcher` 分別讀取已設定的儲存庫名稱、底層儲存空間和事件分派器。具名儲存庫停用快取事件後仍可讀取名稱。建立標籤儲存庫時，會繼承來源儲存庫的名稱、事件分派器和預設有效時間。
+`get_name`、`getStore` 和 `getEventDispatcher` 分別讀取已設定的儲存庫名稱、底層儲存空間和事件分派器。具名儲存庫停用快取事件後仍可讀取名稱。建立標籤儲存庫時，會繼承來源儲存庫的名稱、事件分派器和預設有效時間。
 
 `putWithDefault` 使用 `getDefaultCacheTime` 回傳的時間，初始值為 3600 秒。明確呼叫 `put(key, value, None)` 會永久保存。使用 `setDefaultCacheTime` 修改自有儲存庫的預設有效時間。`setStore` 和 `setEventDispatcher` 也用於自有儲存庫。複製後的儲存庫共用底層儲存空間，每份副本可以各自取代設定。
 
@@ -299,7 +299,7 @@ Future 被取消或回呼 panic 時，Tokio 會排程清理。執行階段結束
 
 ### 並行限制 {#concurrency-limiting}
 
-`Cache::withoutOverlapping(key, callback).await?` 對同一個鍵一次只執行一個回呼，最多等待 10 秒。`withoutOverlappingWith(key, callback, lock_for, wait_for, owner)` 以秒指定租期和等待時間，並接受選用的擁有者權杖。租期為零時使用驅動程式的預設值。無法取得鎖時回傳 `CacheError::LockTimeout`。
+`Cache::without_overlapping(key, callback).await?` 對同一個鍵一次只執行一個回呼，最多等待 10 秒。`withoutOverlappingWith(key, callback, lock_for, wait_for, owner)` 以秒指定租期和等待時間，並接受選用的擁有者權杖。租期為零時使用驅動程式的預設值。無法取得鎖時回傳 `CacheError::LockTimeout`。
 
 使用 `Cache::funnel` 允許多個回呼並行執行。各應用程式執行個體須使用同一個共用鎖儲存空間、快取前綴、限制器名稱和並行上限。租期應涵蓋回呼的執行時間，到期後其他呼叫端可以取得該名額。`null` 儲存庫允許所有呼叫通過。
 
@@ -389,7 +389,7 @@ Cache::extend("project", |manager, config| {
 ```rust
 use openrust::{cache::events::CacheHit, contracts::cache::Repository as _};
 
-let events = app.fakeEvents(&[CacheHit::NAME]).await?;
+let events = app.fake_events(&[CacheHit::NAME]).await?;
 let _ = cache.get("reports/latest").await?;
 events.assertDispatched(CacheHit::NAME);
 ```

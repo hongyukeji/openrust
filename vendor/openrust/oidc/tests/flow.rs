@@ -242,7 +242,7 @@ fn alter(r: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
             _ => attempt["verifier"] = json!("short"),
         }
         r.session_mut()?.put("oidc.attempts.work", attempt)?;
-        Ok(Response::noContent())
+        Ok(Response::no_content())
     })
 }
 fn who(r: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
@@ -250,7 +250,7 @@ fn who(r: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         let u = openrust::auth::Auth::user(r).await.map_err(internal)?;
         Response::json(
             StatusCode::OK,
-            json!({"user":u.map(|u|u.getAuthIdentifier().to_string())}),
+            json!({"user":u.map(|u|u.get_auth_identifier().to_string())}),
         )
     })
 }
@@ -338,7 +338,7 @@ async fn rp(
         app.make::<openrust::auth::AuthManager>()
             .await
             .unwrap()
-            .registerModel::<user::User>("OidcUser");
+            .register_model::<user::User>("OidcUser");
     }
     let manager = app.make::<OidcManager>().await.unwrap();
     if let Some(barrier) = barrier {
@@ -351,7 +351,7 @@ async fn rp(
         State(k): State<Arc<Kernel>>,
         r: axum::extract::Request,
     ) -> axum::response::Response {
-        k.handleTransport(r).await
+        k.handle_transport(r).await
     }
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base = format!("http://{}", listener.local_addr().unwrap());
@@ -371,9 +371,9 @@ async fn rp(
 }
 async fn call(base: &str, path: &str, cookie: Option<&str>) -> openrust::http::client::Response {
     let http = Factory::new().unwrap();
-    let mut r = http.pendingRequest().withoutRedirecting();
+    let mut r = http.pending_request().without_redirecting();
     if let Some(c) = cookie {
-        r = r.withHeaders(http::HeaderMap::from_iter([(
+        r = r.with_headers(http::HeaderMap::from_iter([(
             http::header::COOKIE,
             http::HeaderValue::from_str(c).unwrap(),
         )]));
@@ -398,8 +398,8 @@ async fn begin(rp: &Rp) -> (String, String) {
     let url = url::Url::parse(location).unwrap();
     let r = Factory::new()
         .unwrap()
-        .pendingRequest()
-        .withoutRedirecting()
+        .pending_request()
+        .without_redirecting()
         .get(url.as_str())
         .await
         .unwrap();

@@ -6,7 +6,7 @@
 
 `app.url` 优先使用显式设置的 `APP_URL`。未设置时，使用具体的 `APP_HOST` 和 `APP_PORT` 生成 URL，例如 `http://example.test:8080` 或 `http://[2001:db8::1]:8080`。未设置主机，或使用 `127.0.0.1`、`::1` 等回环地址或 `0.0.0.0`、`::` 等通配监听地址时，使用 `http://localhost:{port}`。环境模板设置了 `APP_URL="http://${APP_HOST}:${APP_PORT}"`，使用模板默认值时展开为 `http://127.0.0.1:8000`。
 
-HTTP 请求内生成 URL 时，包括使用 `URL::forRequest(request)`，优先使用显式设置的 `APP_URL`，其次是当前请求的来源。请求没有来源时，使用从监听配置推导的 `app.url`。Artisan 直接使用 `app.url`。
+HTTP 请求内生成 URL 时，包括使用 `URL::for_request(request)`，优先使用显式设置的 `APP_URL`，其次是当前请求的来源。请求没有来源时，使用从监听配置推导的 `app.url`。Artisan 直接使用 `app.url`。
 
 设置 `APP_VERSION` 可覆盖 `app.version` 中的应用版本。未设置时，默认取编译时由 `env!("CARGO_PKG_VERSION")` 读取的 Cargo 包版本。欢迎页显示 `app.version`。
 
@@ -165,7 +165,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ```rust
 .with_middleware(|middleware| {
-    middleware.preventRequestsDuringMaintenance(["status/*"]);
+    middleware.prevent_requests_during_maintenance(["status/*"]);
 })
 ```
 

@@ -26,14 +26,14 @@ pub(super) fn routes() -> Result<(), openrust::routing::RoutingError> {
         r.post("/logout", logout)?
             .middleware(Arc::new(CreateFreshApiToken::using(Some("web"))));
         r.get("/cookie-resource", resource)?
-            .withoutMiddleware("web")
+            .without_middleware("web")
             .middleware_name("auth:api");
         r.get("/cookie-scope", ok)?
-            .withoutMiddleware("web")
+            .without_middleware("web")
             .middleware_name("auth:api")
             .middleware(CheckToken::shared(["unregistered", "other"]));
         r.get("/cookie-machine", ok)?
-            .withoutMiddleware("web")
+            .without_middleware("web")
             .middleware_name("auth:api")
             .middleware(EnsureClientIsResourceOwner::shared(["unregistered"]));
 
@@ -75,7 +75,7 @@ fn pat(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
             .map_err(|_| HttpError::InvalidRequest)?
             .unwrap_or_default();
         let result =
-            PersonalAccessTokenFactory::make(user.getAuthIdentifier(), &name, &scopes, "users")
+            PersonalAccessTokenFactory::make(user.get_auth_identifier(), &name, &scopes, "users")
                 .await;
         match result {
             Ok(result) => Response::json(StatusCode::OK, result),
@@ -375,8 +375,8 @@ async fn mysql_personal_access_uses_provider_subject_name_lifetime_and_camel_res
                 );
                 assert!(!format!("{result:?}").contains(&result.accessToken));
                 assert_eq!(
-                    serde_json::from_str::<J>(&result.toJson().unwrap()).unwrap(),
-                    result.toArray()
+                    serde_json::from_str::<J>(&result.to_json().unwrap()).unwrap(),
+                    result.to_array()
                 );
                 let instance = result.getToken().await.unwrap().unwrap();
                 assert!(Arc::ptr_eq(
@@ -570,12 +570,12 @@ fn explicit_cookie(request: &mut Request) -> HttpFuture<'_, Result<Response, Htt
     Box::pin(async move {
         let csrf = request.session()?.token().unwrap();
         let cookie = openrust_passport::ApiTokenCookieFactory::make(88u64, csrf).unwrap();
-        Response::empty(StatusCode::OK).withCookie(&cookie, request)
+        Response::empty(StatusCode::OK).with_cookie(&cookie, request)
     })
 }
 fn logout(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
-        Auth::sessionGuard(request, Some("web"))?.logout().await?;
+        Auth::session_guard(request, Some("web"))?.logout().await?;
         Ok(Response::empty(StatusCode::NO_CONTENT))
     })
 }
@@ -916,7 +916,7 @@ async fn mysql_native_user_token_trait_and_testing_substitutions_stay_in_one_req
                 let mut query = User::query().unwrap();
                 query.r#where("subject", "=", 77);
                 let user = query.first().await.unwrap().unwrap();
-                let issued = user.createToken("Native", &["read".into()]).await.unwrap();
+                let issued = user.create_token("Native", &["read".into()]).await.unwrap();
                 assert_eq!(
                     issued
                         .getToken()
@@ -940,7 +940,7 @@ async fn mysql_native_user_token_trait_and_testing_substitutions_stay_in_one_req
                         .await
                         .unwrap()
                         .unwrap()
-                        .getAuthIdentifier()
+                        .get_auth_identifier()
                         .to_string(),
                     "77"
                 );

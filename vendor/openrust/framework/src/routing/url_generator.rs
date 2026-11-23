@@ -236,45 +236,37 @@ impl UrlGenerator {
         }
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn forceScheme(&mut self, scheme: Option<&str>) {
+    pub fn force_scheme(&mut self, scheme: Option<&str>) {
         self.force_scheme = scheme.map(str::to_owned);
     }
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn forceHttps(&mut self, force: bool) {
-        self.forceScheme(force.then_some("https"));
+    pub fn force_https(&mut self, force: bool) {
+        self.force_scheme(force.then_some("https"));
     }
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn forceRootUrl(&mut self, root: Option<&str>) {
+    pub fn force_root_url(&mut self, root: Option<&str>) {
         self.force_root = root.map(|root| root.trim_end_matches('/').to_owned());
     }
     /// 设置路由 URL 的来源；None 恢复请求或配置中的来源。
-    #[allow(non_snake_case)]
-    pub fn useOrigin(&mut self, root: Option<&str>) {
-        self.forceRootUrl(root.filter(|value| !value.is_empty()));
+    pub fn use_origin(&mut self, root: Option<&str>) {
+        self.force_root_url(root.filter(|value| !value.is_empty()));
     }
 
     /// 设置资源来源；None 显式取消 CDN 来源，恢复普通 URL 来源。
-    #[allow(non_snake_case)]
-    pub fn useAssetOrigin(&mut self, root: Option<&str>) {
+    pub fn use_asset_origin(&mut self, root: Option<&str>) {
         self.asset_origin = Some(
             root.filter(|value| !value.is_empty())
                 .map(|value| value.trim_end_matches('/').to_owned()),
         );
     }
 
-    #[allow(non_snake_case)]
-    pub fn getDefaultParameters(&self) -> &HashMap<String, String> {
+    pub fn get_default_parameters(&self) -> &HashMap<String, String> {
         &self.defaults
     }
 
-    #[allow(non_snake_case)]
-    pub fn secureAsset(&self, path: &str) -> UrlResult<String> {
+    pub fn secure_asset(&self, path: &str) -> UrlResult<String> {
         self.asset(path, Some(true))
     }
 
-    #[allow(non_snake_case)]
-    pub fn assetFrom(&self, root: &str, path: &str, secure: Option<bool>) -> UrlResult<String> {
+    pub fn asset_from(&self, root: &str, path: &str, secure: Option<bool>) -> UrlResult<String> {
         if path.contains('\\') || path.bytes().any(|byte| byte.is_ascii_control()) {
             return Err(UrlError::InvalidParameter);
         }
@@ -292,15 +284,13 @@ impl UrlGenerator {
         ))
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn formatHostUsing(
+    pub fn format_host_using(
         &mut self,
         formatter: impl Fn(&str, Option<&RouteUrlGenerator>) -> String + Send + Sync + 'static,
     ) {
         self.host_formatter = Some(Arc::new(formatter));
     }
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn formatPathUsing(
+    pub fn format_path_using(
         &mut self,
         formatter: impl Fn(&str, Option<&RouteUrlGenerator>) -> String + Send + Sync + 'static,
     ) {
@@ -343,8 +333,7 @@ impl UrlGenerator {
     }
 
     /// Returns a generator with additional defaults, without mutating the application service.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn withDefaults(mut self, defaults: &[(&str, &str)]) -> Self {
+    pub fn with_defaults(mut self, defaults: &[(&str, &str)]) -> Self {
         self.defaults.extend(
             defaults
                 .iter()
@@ -378,11 +367,10 @@ impl UrlGenerator {
         );
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn forRequest(&self, request: &Request) -> Self {
+    pub fn for_request(&self, request: &Request) -> Self {
         let mut urls = self
             .with_uri(Some(request_uri(request)))
-            .with_base_url(request.getBaseUrl().to_owned());
+            .with_base_url(request.get_base_url().to_owned());
         urls.merge_defaults(request.attributes());
         let same_origin = |target: &&str| {
             let target = *target;
@@ -397,7 +385,7 @@ impl UrlGenerator {
             .get(::http::header::REFERER)
             .and_then(|value| value.to_str().ok())
             .filter(same_origin)
-            .or_else(|| request.session().ok()?.previousUrl().filter(same_origin))
+            .or_else(|| request.session().ok()?.previous_url().filter(same_origin))
             .map(str::to_owned);
         urls
     }
@@ -493,7 +481,7 @@ impl UrlGenerator {
             format!(
                 "{}{base}{path}",
                 root.origin().ascii_serialization(),
-                base = request.getBaseUrl()
+                base = request.get_base_url()
             )
         } else {
             format!("/{}", request.uri().path().trim_matches('/'))
@@ -549,7 +537,6 @@ fn is_expired(expires: &str, now: u64) -> bool {
         .is_ok_and(|seconds| (now as f64) > seconds)
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Contract for UrlGenerator {
     fn full(&self) -> UrlResult<String> {
         let root = self.root(None)?;
@@ -559,7 +546,7 @@ impl Contract for UrlGenerator {
         }
     }
 
-    fn previousPath(&self, fallback: Option<&str>) -> UrlResult<String> {
+    fn previous_path(&self, fallback: Option<&str>) -> UrlResult<String> {
         let previous = self.previous(fallback)?;
         let uri = valid_http_url(&previous)?;
         let root = self.root(None)?;
@@ -743,7 +730,7 @@ impl Contract for UrlGenerator {
         ))
     }
 
-    fn signedRoute(
+    fn signed_route(
         &self,
         name: &str,
         parameters: &[RouteParameter],
@@ -777,17 +764,17 @@ impl Contract for UrlGenerator {
         Ok(target)
     }
 
-    fn temporarySignedRoute(
+    fn temporary_signed_route(
         &self,
         name: &str,
         expiration: SystemTime,
         parameters: &[RouteParameter],
         mode: SignatureMode,
     ) -> UrlResult<String> {
-        self.signedRoute(name, parameters, Some(expiration), mode)
+        self.signed_route(name, parameters, Some(expiration), mode)
     }
 
-    fn hasValidSignature(
+    fn has_valid_signature(
         &self,
         request: &Request,
         mode: SignatureMode,

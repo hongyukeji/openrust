@@ -110,7 +110,7 @@ Use `Event::defer(None, async { … })` to collect events and deliver them in or
 
 ## Testing {#testing}
 
-`TestApp::fakeEvents` records selected dispatches in the fixture. Inside an active application scope you can also use `Event::fake`. Use an empty slice to select every event. Pass exact event names to limit the fake, or call `except` to let selected events reach their listeners.
+`TestApp::fake_events` records selected dispatches in the fixture. Inside an active application scope you can also use `Event::fake`. Use an empty slice to select every event. Pass exact event names to limit the fake, or call `except` to let selected events reach their listeners.
 
 ```rust
 use openrust::{
@@ -123,7 +123,7 @@ use std::sync::Arc;
 #[tokio::test]
 async fn records_order_events() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut app = TestApp::create(|builder| builder)?;
-    let fake = app.fakeEvents(&["orders.created"]).await?;
+    let fake = app.fake_events(&["orders.created"]).await?;
     let dispatcher = app.app().make::<Dispatcher>().await?;
     dispatcher.dispatch(
         Arc::new(NamedEvent::new("orders.created", 42_u64)),

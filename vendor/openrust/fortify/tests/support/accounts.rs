@@ -69,30 +69,29 @@ fn field<'a>(user: &'a AccountUser, name: &str) -> Option<&'a str> {
         _ => None,
     }
 }
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Authenticatable for AccountUser {
-    fn getAuthIdentifierName(&self) -> &str {
+    fn get_auth_identifier_name(&self) -> &str {
         "identity"
     }
-    fn getAuthIdentifier(&self) -> AuthIdentifier {
+    fn get_auth_identifier(&self) -> AuthIdentifier {
         field(self, "identity").unwrap().into()
     }
-    fn getAuthPasswordName(&self) -> &str {
+    fn get_auth_password_name(&self) -> &str {
         "password"
     }
-    fn getAuthPassword(&self) -> Option<&str> {
+    fn get_auth_password(&self) -> Option<&str> {
         field(self, "password")
     }
-    fn getRememberToken(&self) -> Option<&str> {
+    fn get_remember_token(&self) -> Option<&str> {
         field(self, "remember_token")
     }
-    fn setRememberToken(&mut self, token: Option<String>) {
+    fn set_remember_token(&mut self, token: Option<String>) {
         self.setAttribute("remember_token", token.map_or(Value::Null, Value::Text));
     }
-    fn getRememberTokenName(&self) -> &str {
+    fn get_remember_token_name(&self) -> &str {
         "remember_token"
     }
-    fn getAuthAttribute(&self, name: &str) -> AuthResult<Option<Value>> {
+    fn get_auth_attribute(&self, name: &str) -> AuthResult<Option<Value>> {
         self.getAttributeValue(name)
             .map_err(|e| AuthError::Backend(Box::new(e)))
     }
@@ -107,33 +106,33 @@ impl Authenticatable for AccountUser {
     }
 }
 impl CanResetPassword for AccountUser {
-    fn getEmailForPasswordReset(&self) -> &str {
+    fn get_email_for_password_reset(&self) -> &str {
         field(self, "email").unwrap()
     }
-    fn sendPasswordResetNotification<'a>(
+    fn send_password_reset_notification<'a>(
         &'a self,
         token: &'a str,
     ) -> AuthFuture<'a, AuthResult<()>> {
         Box::pin(async move {
-            RESET_NOTIFICATIONS
-                .lock()
-                .unwrap()
-                .push((self.getEmailForPasswordReset().to_owned(), token.to_owned()));
+            RESET_NOTIFICATIONS.lock().unwrap().push((
+                self.get_email_for_password_reset().to_owned(),
+                token.to_owned(),
+            ));
             Ok(())
         })
     }
 }
 impl MustVerifyEmail for AccountUser {
-    fn hasVerifiedEmail(&self) -> bool {
+    fn has_verified_email(&self) -> bool {
         self.getAttribute("email_verified_at")
             .is_some_and(|v| *v != Value::Null)
     }
-    fn markEmailAsVerified(&mut self) -> AuthFuture<'_, AuthResult<bool>> {
+    fn mark_email_as_verified(&mut self) -> AuthFuture<'_, AuthResult<bool>> {
         Box::pin(async move {
             if MARK_EMAIL_RETURNS_FALSE.load(std::sync::atomic::Ordering::Relaxed) {
                 return Ok(false);
             }
-            if self.hasVerifiedEmail() {
+            if self.has_verified_email() {
                 return Ok(false);
             }
             self.setAttribute("email_verified_at", "2026-11-20 00:00:00");
@@ -142,16 +141,16 @@ impl MustVerifyEmail for AccountUser {
                 .map_err(|error| AuthError::Backend(Box::new(error)))
         })
     }
-    fn markEmailAsUnverified(&mut self) -> AuthFuture<'_, AuthResult<bool>> {
+    fn mark_email_as_unverified(&mut self) -> AuthFuture<'_, AuthResult<bool>> {
         Box::pin(async { Ok(false) })
     }
-    fn sendEmailVerificationNotification(&self) -> AuthFuture<'_, AuthResult<()>> {
+    fn send_email_verification_notification(&self) -> AuthFuture<'_, AuthResult<()>> {
         Box::pin(async {
             NOTIFICATIONS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             Ok(())
         })
     }
-    fn getEmailForVerification(&self) -> &str {
+    fn get_email_for_verification(&self) -> &str {
         field(self, "email").unwrap()
     }
 }
@@ -188,7 +187,7 @@ fn policy(values: &RequestValue, bag: &str, email: bool, password: bool) -> Resu
         return Ok(());
     }
     let mut error = ValidationException::new(errors);
-    error.errorBag(bag);
+    error.error_bag(bag);
     Err(HttpError::Validation(Box::new(error)))
 }
 struct Actions {
@@ -264,7 +263,7 @@ impl contracts::UpdatesUserProfileInformation for Actions {
                     ),
                 ])?,
             )?
-            .validateWithBag("updateProfileInformation")
+            .validate_with_bag("updateProfileInformation")
             .await?;
             policy(values, "updateProfileInformation", true, false)?;
             let email = input(values, "email");
@@ -284,7 +283,7 @@ impl contracts::UpdatesUserProfileInformation for Actions {
             .save()
             .await?;
             if changed {
-                user.sendEmailVerificationNotification().await?;
+                user.send_email_verification_notification().await?;
             }
             Ok(Box::new(user) as Box<dyn contracts::User>)
         })
@@ -304,7 +303,7 @@ impl contracts::UpdatesUserPasswords for Actions {
                     ("password", "required|string|min:8"),
                 ])?,
             )?
-            .validateWithBag("updatePassword")
+            .validate_with_bag("updatePassword")
             .await?;
             policy(values, "updatePassword", false, true)?;
             let password = input(values, "current_password");
@@ -313,7 +312,7 @@ impl contracts::UpdatesUserPasswords for Actions {
                 .hasher
                 .check(
                     password.as_bytes(),
-                    user.getAuthPassword().unwrap(),
+                    user.get_auth_password().unwrap(),
                     &HashOptions::new(),
                 )
                 .await?
@@ -324,7 +323,7 @@ impl contracts::UpdatesUserPasswords for Actions {
                     "The provided password does not match your current password.",
                 );
                 let mut error = ValidationException::new(bag);
-                error.errorBag("updatePassword");
+                error.error_bag("updatePassword");
                 return Err(HttpError::Validation(Box::new(error)));
             }
             let mut user = (user as &dyn std::any::Any)
@@ -351,7 +350,7 @@ fn current(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
         let session = request.session()?;
         let email = user
             .as_ref()
-            .map(|u| u.getAuthAttribute("email"))
+            .map(|u| u.get_auth_attribute("email"))
             .transpose()?
             .flatten();
         let email = match email {
@@ -360,7 +359,7 @@ fn current(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
         };
         Response::json(
             StatusCode::OK,
-            json!({"user":user.map(|u|u.getAuthIdentifier()),"email":email,"id":session.getId(),"csrf":session.token(),"status":session.get("status"),"errors":session.get("errors")}),
+            json!({"user":user.map(|u|u.get_auth_identifier()),"email":email,"id":session.get_id(),"csrf":session.token(),"status":session.get("status"),"errors":session.get("errors")}),
         )
     })
 }
@@ -369,15 +368,15 @@ fn seed_tokens(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpErr
         let user = Auth::user(request).await?.unwrap();
         let user = user.as_password_reset().unwrap();
         Password::broker(Some("accounts"))?
-            .createToken(user)
+            .create_token(user)
             .await?;
-        Password::broker(Some("users"))?.createToken(user).await?;
-        Ok(Response::noContent())
+        Password::broker(Some("users"))?.create_token(user).await?;
+        Ok(Response::no_content())
     })
 }
 fn intended(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
-        openrust::support::facades::Redirect::setIntendedUrl(request, "/account/settings")?;
+        openrust::support::facades::Redirect::set_intended_url(request, "/account/settings")?;
         current(request).await
     })
 }
@@ -398,7 +397,7 @@ async fn transport(
     State(kernel): State<Arc<Kernel>>,
     request: axum::extract::Request,
 ) -> axum::response::Response {
-    kernel.handleTransport(request).await
+    kernel.handle_transport(request).await
 }
 struct Server {
     address: SocketAddr,
@@ -516,7 +515,7 @@ async fn start(settings: Json, callbacks: bool, configure: impl FnOnce(&Applicat
     app.make::<AuthManager>()
         .await
         .unwrap()
-        .registerModel::<AccountUser>("AccountUser");
+        .register_model::<AccountUser>("AccountUser");
     let fortify = app.make::<Fortify>().await.unwrap();
     fortify.registerEmailVerification::<AccountUser>();
     fortify.registerPasswordReset::<AccountUser>();
@@ -651,7 +650,7 @@ fn verification_link(request: &mut Request) -> HttpFuture<'_, Result<Response, H
         } else {
             std::time::SystemTime::now() + Duration::from_secs(600)
         };
-        let url = URL::forRequest(request)?.temporarySignedRoute(
+        let url = URL::for_request(request)?.temporary_signed_route(
             "verification.verify",
             expires,
             &[

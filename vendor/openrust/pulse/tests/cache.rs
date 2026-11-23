@@ -123,7 +123,9 @@ async fn native_cache_driver_throttles_by_instance_and_shares_restart_signal() {
         })
         .await
         .unwrap();
-    app.artisan(["migrate", "--force"]).await.assertSuccessful();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
     let calls = Arc::new(AtomicUsize::new(0));
     let counter = calls.clone();
     let servers = app.app().make::<Servers>().await.unwrap();
@@ -145,7 +147,7 @@ async fn native_cache_driver_throttles_by_instance_and_shares_restart_signal() {
     assert_eq!(calls.load(Ordering::SeqCst), 3);
     let storage = app.app().make::<DatabaseStorage>().await.unwrap();
     assert_eq!(storage.values("system", None).await.unwrap().len(), 1);
-    app.artisan(["pulse:restart"]).await.assertSuccessful();
+    app.artisan(["pulse:restart"]).await.assert_successful();
     let cache = app
         .app()
         .make::<openrust::cache::CacheManager>()

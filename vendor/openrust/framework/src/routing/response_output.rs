@@ -51,13 +51,13 @@ trait Output {
 
 impl<T: Responsable> Output for T {
     async fn respond(self, request: &mut Request) -> Result<Response, HttpError> {
-        self.toResponse(request).await
+        self.to_response(request).await
     }
 }
 
 impl<T: Responsable> Output for Result<T, HttpError> {
     async fn respond(self, request: &mut Request) -> Result<Response, HttpError> {
-        self?.toResponse(request).await
+        self?.to_response(request).await
     }
 }
 

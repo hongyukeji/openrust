@@ -37,7 +37,7 @@ impl CollectionEngine {
         Ok(SearchResults {
             ids: models.iter().filter_map(Searchable::getScoutKey).collect(),
             total,
-            raw: json!({"results":models.iter().map(|m|m.toArray()).collect::<openrust::database::DatabaseResult<Vec<_>>>()?, "total":total}),
+            raw: json!({"results":models.iter().map(|m|m.to_array()).collect::<openrust::database::DatabaseResult<Vec<_>>>()?, "total":total}),
         })
     }
 }

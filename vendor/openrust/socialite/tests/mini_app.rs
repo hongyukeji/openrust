@@ -66,7 +66,7 @@ async fn default_endpoint_and_fields_follow_easywechat_without_redirect_or_sessi
     assert_eq!(session.unionid.as_deref(), Some("union-one"));
     assert_eq!(session.session_key.as_str(), "private-session");
     let user = session.user();
-    assert_eq!(user.getId(), "id-one");
+    assert_eq!(user.get_id(), "id-one");
     assert_eq!(
         user.getRaw(),
         &json!({"openid":"id-one","unionid":"union-one"})
@@ -89,7 +89,7 @@ async fn default_endpoint_and_fields_follow_easywechat_without_redirect_or_sessi
 #[tokio::test]
 async fn invalid_configuration_and_empty_codes_fail_before_http() {
     let http = Arc::new(Factory::new().unwrap());
-    http.preventStrayRequests(true);
+    http.prevent_stray_requests(true);
     for config in [
         Value::Null,
         json!({}),
@@ -288,7 +288,7 @@ fn login_handler(
             .await
             .map_err(|_| openrust::http::HttpError::InvalidRequest)?;
         let user = session.user();
-        openrust::http::Response::json(http::StatusCode::OK, json!({"id":user.getId()}))
+        openrust::http::Response::json(http::StatusCode::OK, json!({"id":user.get_id()}))
     })
 }
 #[tokio::test]
@@ -325,7 +325,7 @@ async fn registered_manager_and_facade_work_in_json_api_without_web_session() {
     });
     let manager = app.make::<SocialiteManager>().await.unwrap();
     assert_eq!(
-        mini_login(&manager, "example").await.unwrap().getId(),
+        mini_login(&manager, "example").await.unwrap().get_id(),
         "id-example"
     );
     let mut kernel = Kernel::new(app);
@@ -336,7 +336,7 @@ async fn registered_manager_and_facade_work_in_json_api_without_web_session() {
         .header("content-type", "application/json")
         .body(openrust::http::Body::from(r#"{"code":"request"}"#))
         .unwrap();
-    let result = Arc::new(kernel).handleTransport(request).await;
+    let result = Arc::new(kernel).handle_transport(request).await;
     assert_eq!(result.status(), http::StatusCode::OK);
     assert!(!result.headers().contains_key("set-cookie"));
     let body = axum::body::to_bytes(result.into_body(), 65536)

@@ -31,7 +31,7 @@ OpenRust 在构建时自动发现 `database/migrations/` 中的 Rust 迁移。�
 
 ## 迁移结构
 
-在 `up` 中执行迁移，在 `down` 中撤销。通过传入的 `MigrationContext` 执行 Schema 和 SQL 操作，预演时迁移器才能收集语句。实现 `getConnection` 可指定迁移连接，实现 `shouldRun` 可按条件跳过迁移。
+在 `up` 中执行迁移，在 `down` 中撤销。通过传入的 `MigrationContext` 执行 Schema 和 SQL 操作，预演时迁移器才能收集语句。实现 `getConnection` 可指定迁移连接，实现 `should_run` 可按条件跳过迁移。
 
 `getConnection` 接收所属应用的配置仓储，返回 `DatabaseResult<Option<String>>`。返回连接名拥有独立所有权，可按运行配置查询，无需 PHP 全局状态，也不会在应用间串用。返回 `Ok(None)` 时使用命令选择的连接。Passport 发布迁移用此契约读取 `passport.connection`。
 
@@ -118,7 +118,7 @@ fn withinTransaction(&self) -> bool {
 ./artisan migrate:status --pending=17
 ```
 
-遇到第一个待执行迁移前，`shouldRun` 返回 false 的迁移显示为 `Skipped`。此后的未登记迁移显示为 `Pending`，因为前序迁移可能改变后续条件所依赖的数据库状态。
+遇到第一个待执行迁移前，`should_run` 返回 false 的迁移显示为 `Skipped`。此后的未登记迁移显示为 `Pending`，因为前序迁移可能改变后续条件所依赖的数据库状态。
 
 ### 以警告报告迁移失败 {#graceful-migrations}
 
@@ -441,7 +441,7 @@ fn prepare_status(table: &mut Blueprint) {
 
     if !table
         .getColumns()
-        .any(|column| column.getName() == "status")
+        .any(|column| column.get_name() == "status")
     {
         table.string("status", 24).default("pending");
     }

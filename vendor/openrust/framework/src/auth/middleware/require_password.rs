@@ -60,7 +60,7 @@ impl Middleware for RequirePassword {
             if confirmed.is_some_and(|time| unix_seconds().saturating_sub(time) <= timeout) {
                 return Ok(next.run(request).await);
             }
-            if request.expectsJson() {
+            if request.expects_json() {
                 return Response::json(
                     StatusCode::LOCKED,
                     serde_json::json!({"message": "Password confirmation required."}),

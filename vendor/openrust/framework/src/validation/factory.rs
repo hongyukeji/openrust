@@ -38,8 +38,7 @@ impl Factory {
         }
     }
 
-    #[allow(non_snake_case)]
-    pub fn setPresenceVerifier(&mut self, verifier: DatabasePresenceVerifier) {
+    pub fn set_presence_verifier(&mut self, verifier: DatabasePresenceVerifier) {
         self.presence = Some(verifier);
     }
 
@@ -88,7 +87,7 @@ impl Contract for Factory {
             validator = resolver(validator)?;
         }
         validator.presence = self.presence.clone();
-        validator.excludeUnvalidatedArrayKeys = !registrations.include_unvalidated_array_keys;
+        validator.exclude_unvalidated_array_keys = !registrations.include_unvalidated_array_keys;
         validator
             .extensions
             .implicit
@@ -131,9 +130,8 @@ impl Contract for Factory {
         );
     }
 
-    #[allow(non_snake_case)]
-    fn extendImplicit(&self, rule: &str, extension: ValidationExtension, message: Option<&str>) {
-        Factory::extendImplicit(
+    fn extend_implicit(&self, rule: &str, extension: ValidationExtension, message: Option<&str>) {
+        Factory::extend_implicit(
             self,
             rule,
             move |attribute, value, parameters, validator| {
@@ -154,7 +152,6 @@ impl Contract for Factory {
     }
 }
 
-#[allow(non_snake_case)]
 impl Factory {
     pub fn extend(
         &self,
@@ -176,7 +173,7 @@ impl Factory {
                 .insert(rule, message.to_owned());
         }
     }
-    pub fn extendImplicit(
+    pub fn extend_implicit(
         &self,
         rule: &str,
         extension: impl Fn(&str, Option<&super::Value>, &[String], &Validator) -> ValidationResult<bool>
@@ -196,7 +193,7 @@ impl Factory {
                 .insert(rule, message.to_owned());
         }
     }
-    pub fn extendDependent(
+    pub fn extend_dependent(
         &self,
         rule: &str,
         extension: impl Fn(&str, Option<&super::Value>, &[String], &Validator) -> ValidationResult<bool>
@@ -218,15 +215,14 @@ impl Factory {
     }
 }
 
-#[allow(non_snake_case)]
 impl Factory {
-    pub fn includeUnvalidatedArrayKeys(&self) {
+    pub fn include_unvalidated_array_keys(&self) {
         self.registrations
             .write()
             .expect("验证器注册锁损坏")
             .include_unvalidated_array_keys = true;
     }
-    pub fn excludeUnvalidatedArrayKeys(&self) {
+    pub fn exclude_unvalidated_array_keys(&self) {
         self.registrations
             .write()
             .expect("验证器注册锁损坏")

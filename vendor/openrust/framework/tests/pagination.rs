@@ -591,7 +591,7 @@ fn find_related_or_new(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpE
     Box::pin(async {
         let parent = Article::query()?.find(1).await?.unwrap();
         let children = HasMany::<Article, Comment>::new("id", "article_id").constrain(|query| {
-            query.withAttributes(
+            query.with_attributes(
                 Attributes::from([("visible".into(), Value::Integer(1))]),
                 true,
             )
@@ -947,7 +947,7 @@ fn morph_page(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpErro
                 assert_eq!(std::ptr::from_ref(loaded).addr(), identity);
                 Response::json(
                     StatusCode::OK,
-                    page.map(|item| item.toArray().expect("activity serializes")),
+                    page.map(|item| item.to_array().expect("activity serializes")),
                 )
             }};
         }
@@ -1143,7 +1143,7 @@ fn model_cursor_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpErr
             )
             .cursor();
         let first = rows.try_next().await?.unwrap();
-        assert!(!first.relationLoaded("article"));
+        assert!(!first.relation_loaded("article"));
         assert_eq!(first.getAttribute("retrieved"), Some(&Value::Bool(true)));
         drop(rows);
 
@@ -1153,7 +1153,7 @@ fn model_cursor_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpErr
         }
         assert!(rows.try_next().await.is_err());
         assert!(rows.try_next().await?.is_none());
-        Response::json(StatusCode::OK, first.toArray()?)
+        Response::json(StatusCode::OK, first.to_array()?)
     })
 }
 
@@ -1204,7 +1204,7 @@ fn relationship_cursor_page(_: &mut Request) -> HttpFuture<'_, Result<Response, 
             assert!(subject.cursor(&draft).try_next().await?.is_none());
             draft.setAttribute("subject_id", 16);
             assert!(subject.cursor(&draft).try_next().await?.is_none());
-            let subject = subject.withTrashed();
+            let subject = subject.with_trashed();
             let target = subject.cursor(&draft).try_next().await?.unwrap();
             assert_eq!(id(target.downcast_ref::<Comment>().unwrap().getKey()), 16);
             draft.setAttribute("subject_type", "unregistered");
@@ -1492,7 +1492,7 @@ fn inverse_chunk_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
                         let target = models.first().unwrap();
                         assert_eq!(target.alias(), "article");
                         let article = target.downcast_ref::<Article>().unwrap();
-                        assert!(article.relationLoaded("comments"));
+                        assert!(article.relation_loaded("comments"));
                         owners.push(json!([page, id(article.getKey())]));
                         ready(Ok(true))
                     })
@@ -1536,7 +1536,7 @@ fn inverse_chunk_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
             assert!(subject.chunk(&draft, 1, |_, _| unexpected_batch()).await?);
             draft.setAttribute("subject_id", 16);
             assert!(subject.chunk(&draft, 1, |_, _| unexpected_batch()).await?);
-            let subject = subject.withTrashed();
+            let subject = subject.with_trashed();
             subject
                 .chunk(&draft, 1, |models, _| {
                     assert_eq!(
@@ -1868,7 +1868,7 @@ fn chunk_by_id_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpErro
                 .await?;
             assert_eq!(batches, 0);
             reference
-                .withTrashed()
+                .with_trashed()
                 .chunkById(
                     &draft,
                     1,
@@ -2117,7 +2117,7 @@ fn lazy_batch_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError
                 .try_next()
                 .await?
                 .unwrap();
-            assert!(eager.relationLoaded("comments"));
+            assert!(eager.relation_loaded("comments"));
 
             let labels = BelongsToMany::<Article, KeyedLabel>::new(
                 "pagination_memberships",
@@ -2273,7 +2273,7 @@ fn singular_relation_pages(_: &mut Request) -> HttpFuture<'_, Result<Response, H
                 .setAttribute("subject_type", "comment")
                 .setAttribute("subject_id", 16);
             assert!(morph.simplePaginate(&draft, 2).await?.items().is_empty());
-            let morph = morph.withTrashed();
+            let morph = morph.with_trashed();
             assert_eq!(
                 id(morph.simplePaginate(&draft, 2).await?.items()[0]
                     .downcast_ref::<Comment>()
@@ -2492,7 +2492,7 @@ async fn transport(
     State(kernel): State<Arc<Kernel>>,
     request: axum::extract::Request,
 ) -> axum::response::Response {
-    kernel.handleTransport(request).await
+    kernel.handle_transport(request).await
 }
 
 async fn request(address: SocketAddr, path: &str) -> Json {
@@ -3536,9 +3536,9 @@ fn manual_paginators_serialize_and_keep_link_boundaries() {
     };
     macro_rules! assert_json {
         ($page:expr) => {{
-            let object = $page.toArray().unwrap();
-            let compact = $page.toJson().unwrap();
-            let pretty = $page.toPrettyJson().unwrap();
+            let object = $page.to_array().unwrap();
+            let compact = $page.to_json().unwrap();
+            let pretty = $page.to_pretty_json().unwrap();
             assert_eq!(serde_json::from_str::<Json>(&compact).unwrap(), object);
             assert_eq!(serde_json::from_str::<Json>(&pretty).unwrap(), object);
             assert!(!compact.contains('\n') && pretty.contains("\n  "));
@@ -3567,7 +3567,7 @@ fn manual_paginators_serialize_and_keep_link_boundaries() {
 
     let empty = LengthAwarePaginator::<i32>::new(vec![], 0, 2, None, options).unwrap();
     assert_eq!(empty.lastPage(), 1);
-    assert!(empty.isEmpty() && empty.onFirstPage() && empty.onLastPage() && !empty.hasPages());
+    assert!(empty.is_empty() && empty.onFirstPage() && empty.onLastPage() && !empty.hasPages());
 
     let cursor = CursorPaginator::new(vec![1, 2], 1, None, options, |id| {
         [("id", Value::Integer(*id))]
@@ -3587,7 +3587,7 @@ fn manual_paginators_serialize_and_keep_link_boundaries() {
     .unwrap();
     assert!(empty.nextPageUrl().unwrap().is_none());
     assert!(empty.previousPageUrl().unwrap().is_none());
-    assert!(empty.isEmpty() && empty.onFirstPage());
+    assert!(empty.is_empty() && empty.onFirstPage());
 }
 
 fn custom_pagination_resolvers() -> ViewResult<()> {

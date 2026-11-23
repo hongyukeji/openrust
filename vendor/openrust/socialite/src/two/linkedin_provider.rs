@@ -8,14 +8,14 @@ use http::{HeaderMap, HeaderValue};
 use openrust::http::client::{Factory, PendingRequest};
 use serde_json::Value;
 pub(super) fn profile_request(http: &Factory, token: &str) -> PendingRequest {
-    http.pendingRequest()
-        .withToken(token)
-        .withHeaders(HeaderMap::from_iter([(
+    http.pending_request()
+        .with_token(token)
+        .with_headers(HeaderMap::from_iter([(
             "x-restli-protocol-version".parse().unwrap(),
             HeaderValue::from_static("2.0.0"),
         )]))
-        .redactPayload()
-        .withoutRedirecting()
+        .redact_payload()
+        .without_redirecting()
 }
 #[derive(Clone)]
 pub struct LinkedInProvider {
@@ -69,7 +69,10 @@ impl ProviderDefinition for LinkedInProvider {
             }
             let mut user = json(
                 profile_request(http, token)
-                    .withQueryParameters([("projection".into(), format!("({})", fields.join(",")))])
+                    .with_query_parameters([(
+                        "projection".into(),
+                        format!("({})", fields.join(",")),
+                    )])
                     .get(&self.endpoints.user)
                     .await?,
             )?;
@@ -80,7 +83,7 @@ impl ProviderDefinition for LinkedInProvider {
                 .ok_or(Error::Configuration("LinkedIn email URL"))?;
             let emails = json(
                 profile_request(http, token)
-                    .withQueryParameters([
+                    .with_query_parameters([
                         ("q".into(), "members".into()),
                         ("projection".into(), "(elements*(handle~))".into()),
                     ])

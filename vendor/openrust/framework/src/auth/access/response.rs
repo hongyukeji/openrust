@@ -8,7 +8,6 @@ pub struct Response {
     status: Option<StatusCode>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Response {
     pub fn allow() -> Self {
         Self {
@@ -26,26 +25,26 @@ impl Response {
         }
     }
 
-    pub fn denyWithStatus(status: StatusCode, message: impl Into<String>) -> Self {
+    pub fn deny_with_status(status: StatusCode, message: impl Into<String>) -> Self {
         Self {
             status: Some(status),
             ..Self::deny(message)
         }
     }
 
-    pub fn denyAsNotFound(message: impl Into<String>) -> Self {
-        Self::denyWithStatus(StatusCode::NOT_FOUND, message)
+    pub fn deny_as_not_found(message: impl Into<String>) -> Self {
+        Self::deny_with_status(StatusCode::NOT_FOUND, message)
     }
 
     /// 设置可选 HTTP 状态，保留授权结论和原因。
-    pub fn withStatus(mut self, status: impl Into<Option<StatusCode>>) -> Self {
+    pub fn with_status(mut self, status: impl Into<Option<StatusCode>>) -> Self {
         self.status = status.into();
         self
     }
 
     /// 将响应状态设置为 404，保留授权结论和原因。
-    pub fn asNotFound(self) -> Self {
-        self.withStatus(StatusCode::NOT_FOUND)
+    pub fn as_not_found(self) -> Self {
+        self.with_status(StatusCode::NOT_FOUND)
     }
 
     pub fn allowed(&self) -> bool {

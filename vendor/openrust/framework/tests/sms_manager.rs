@@ -51,7 +51,7 @@ async fn named_drivers_are_reused_and_configuration_refresh_is_explicit() {
         count.fetch_add(1, Ordering::SeqCst);
         Ok(Arc::new(Driver(profile.clone())))
     });
-    assert_eq!(manager.getDefaultDriver().unwrap(), "primary");
+    assert_eq!(manager.get_default_driver().unwrap(), "primary");
     assert_eq!(builds.load(Ordering::SeqCst), 0);
     let first = manager.default_driver().unwrap();
     manager.driver("primary").unwrap();
@@ -74,7 +74,7 @@ async fn named_drivers_are_reused_and_configuration_refresh_is_explicit() {
         "first"
     );
     config.set("sms.default", json!("secondary")).unwrap();
-    assert_eq!(manager.getDefaultDriver().unwrap(), "secondary");
+    assert_eq!(manager.get_default_driver().unwrap(), "secondary");
     assert_eq!(
         manager
             .default_driver()
@@ -203,7 +203,7 @@ async fn managers_and_facade_cache_resets_are_application_local() {
     for app in [&first, &second, &first] {
         app.call(
             Callback::new(&[], |_| async {
-                assert_eq!(Sms::getDefaultDriver().unwrap(), "log");
+                assert_eq!(Sms::get_default_driver().unwrap(), "log");
                 Sms::forgetDrivers().unwrap();
                 Sms::send_text("+12025550123", "local").await.unwrap();
                 Ok(())
@@ -219,7 +219,7 @@ async fn managers_and_facade_cache_resets_are_application_local() {
 async fn missing_configuration_does_not_invent_a_default_or_builtin_profile() {
     let (_root, _app, config, manager) = application().await;
     config.set("sms", json!({})).unwrap();
-    assert!(manager.getDefaultDriver().is_err());
+    assert!(manager.get_default_driver().is_err());
     assert!(manager.default_driver().is_err());
     assert!(manager.driver("log").is_err());
     assert!(manager.driver("vonage").is_err());

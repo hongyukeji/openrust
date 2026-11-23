@@ -25,7 +25,7 @@ struct Definition {
 }
 
 impl Migration for Definition {
-    fn shouldRun<'a>(
+    fn should_run<'a>(
         &'a self,
         _: &'a mut MigrationContext,
     ) -> DatabaseFuture<'a, DatabaseResult<bool>> {
@@ -381,44 +381,44 @@ async fn mysql_artisan_excludes_named_pending_migrations_per_application() {
     migrator.withoutMigrations(&[FIRST_PATH]);
 
     let planned = app.artisan(["migrate", "--pretend"]).await;
-    planned.assertSuccessful();
+    planned.assert_successful();
     assert!(planned.stdout.contains("0002_create_third"));
     assert!(!planned.stdout.contains("0001_create_first"));
     let mut other = create();
     let independent = other
         .artisan(["migrate", "--pretend", "--path", FIRST_PATH])
         .await;
-    independent.assertSuccessful();
+    independent.assert_successful();
     assert!(independent.stdout.contains("0001_create_first"));
 
     migrator.withoutMigrations(&["0001_create_first"]);
     let excluded = app.artisan(["migrate", "--path", FIRST_PATH]).await;
-    excluded.assertSuccessful();
+    excluded.assert_successful();
     assert!(excluded.stdout.contains("Nothing to migrate"));
     app.artisan(["migrate"])
         .await
-        .assertSuccessful()
-        .expectsOutput("0002_create_third DONE");
+        .assert_successful()
+        .expects_output("0002_create_third DONE");
     app.artisan(["migrate:status"])
         .await
-        .assertSuccessful()
-        .expectsOutput("0001_create_first Pending")
-        .expectsOutput("0002_create_third [1] Ran");
+        .assert_successful()
+        .expects_output("0001_create_first Pending")
+        .expects_output("0002_create_third [1] Ran");
     migrator.withoutMigrations(&[]);
     app.artisan(["migrate", "--path", FIRST_PATH])
         .await
-        .assertSuccessful()
-        .expectsOutput("0001_create_first DONE");
+        .assert_successful()
+        .expects_output("0001_create_first DONE");
     migrator.withoutMigrations(&["0001_create_first"]);
     app.artisan(["migrate:rollback", "--step=1"])
         .await
-        .assertSuccessful()
-        .expectsOutput("0001_create_first DONE");
+        .assert_successful()
+        .expects_output("0001_create_first DONE");
     app.artisan(["migrate:status"])
         .await
-        .assertSuccessful()
-        .expectsOutput("0001_create_first Pending")
-        .expectsOutput("0002_create_third [1] Ran");
+        .assert_successful()
+        .expects_output("0001_create_first Pending")
+        .expects_output("0002_create_third [1] Ran");
 }
 
 #[tokio::test]
@@ -456,34 +456,34 @@ async fn mysql_artisan_status_distinguishes_initial_skips_from_pending() {
 
     app.artisan(["migrate:status", "--pending=17"])
         .await
-        .assertExitCode(1);
-    app.artisan(["migrate:install"]).await.assertExitCode(0);
+        .assert_exit_code(1);
+    app.artisan(["migrate:install"]).await.assert_exit_code(0);
     let status = app.artisan(["migrate:status"]).await;
     status
-        .assertExitCode(0)
-        .expectsOutput("0001_initial_skip Skipped")
-        .expectsOutput("0002_ready Pending")
-        .expectsOutput("0003_later_skip Pending");
+        .assert_exit_code(0)
+        .expects_output("0001_initial_skip Skipped")
+        .expects_output("0002_ready Pending")
+        .expects_output("0003_later_skip Pending");
     let pending = app.artisan(["migrate:status", "--pending=17"]).await;
     pending
-        .assertExitCode(17)
-        .expectsOutput("0002_ready Pending");
+        .assert_exit_code(17)
+        .expects_output("0002_ready Pending");
     assert!(!pending.stdout.contains("0001_initial_skip"));
     let filtered = app
         .artisan(["migrate:status", "--pending=17", "--path", FIRST_PATH])
         .await;
-    filtered.assertExitCode(0);
+    filtered.assert_exit_code(0);
     assert!(filtered.stdout.contains("No pending migrations"));
     app.artisan(["migrate", "--path", SECOND_PATH])
         .await
-        .assertExitCode(0);
+        .assert_exit_code(0);
     app.artisan(["migrate:status"])
         .await
-        .assertExitCode(0)
-        .expectsOutput("0002_ready [1] Ran")
-        .expectsOutput("0003_later_skip Skipped");
+        .assert_exit_code(0)
+        .expects_output("0002_ready [1] Ran")
+        .expects_output("0003_later_skip Skipped");
     let finished = app.artisan(["migrate:status", "--pending=17"]).await;
-    finished.assertExitCode(0);
+    finished.assert_exit_code(0);
     assert!(finished.stdout.contains("No pending migrations"));
 }
 
@@ -594,12 +594,12 @@ async fn destructive_migration_prohibition_is_local_to_the_application() {
     protected
         .artisan(["migrate", "--force"])
         .await
-        .assertSuccessful();
+        .assert_successful();
     let mut independent = create(false);
     independent
         .artisan(["migrate", "--force"])
         .await
-        .assertSuccessful();
+        .assert_successful();
     for command in [
         "db:wipe",
         "migrate:fresh",
@@ -608,17 +608,17 @@ async fn destructive_migration_prohibition_is_local_to_the_application() {
         "migrate:rollback",
     ] {
         let result = protected.artisan([command, "--force"]).await;
-        result.assertExitCode(1);
+        result.assert_exit_code(1);
         assert!(result.stdout.contains("This command is prohibited"));
     }
     independent
         .artisan(["db:wipe", "--force"])
         .await
-        .assertSuccessful();
+        .assert_successful();
     protected
         .artisan(["migrate:status"])
         .await
-        .assertSuccessful();
+        .assert_successful();
 }
 
 #[tokio::test]
@@ -764,7 +764,7 @@ async fn mysql_artisan_dispatches_migration_and_schema_lifecycle_events() {
                     }
                     SchemaDumped::NAME => {
                         let e = event.downcast_ref::<SchemaDumped>().unwrap();
-                        assert_eq!(e.connection.getName(), "mysql");
+                        assert_eq!(e.connection.get_name(), "mysql");
                         assert!(e.path.is_file());
                         format!("dump:{}", e.connectionName)
                     }
@@ -778,7 +778,7 @@ async fn mysql_artisan_dispatches_migration_and_schema_lifecycle_events() {
                         let e = event.downcast_ref::<MigrationsPruned>().unwrap();
                         assert!(e.path.join("mod.rs").is_file());
                         assert!(!e.path.join("0001_events_first.rs").exists());
-                        assert_eq!(e.connection.getName(), "mysql");
+                        assert_eq!(e.connection.get_name(), "mysql");
                         format!("prune:{}", e.connectionName)
                     }
                     name => panic!("unexpected event {name}"),

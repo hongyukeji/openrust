@@ -54,7 +54,7 @@ impl FeatureManager {
             stores: Arc::new(ScopedStores::default()),
         }
     }
-    pub fn getDefaultDriver(&self) -> Result<String> {
+    pub fn get_default_driver(&self) -> Result<String> {
         if let Some(name) = self
             .registry
             .defaultDriver
@@ -84,7 +84,7 @@ impl FeatureManager {
         let name = name
             .map(str::to_owned)
             .map(Ok)
-            .unwrap_or_else(|| self.getDefaultDriver())?;
+            .unwrap_or_else(|| self.get_default_driver())?;
         if let Some(store) = self
             .stores
             .0
@@ -187,7 +187,7 @@ impl FeatureManager {
         let name = name
             .map(str::to_owned)
             .map(Ok)
-            .unwrap_or_else(|| self.getDefaultDriver())?;
+            .unwrap_or_else(|| self.get_default_driver())?;
         self.stores
             .0
             .write()
@@ -262,16 +262,16 @@ impl FeatureManager {
         if let Some(resolver) = resolver {
             return resolver(store);
         }
-        let Some(user) = self.auth.resolvedUser(None) else {
+        let Some(user) = self.auth.resolved_user(None) else {
             return Ok(Scope::Null);
         };
         let class = self
             .auth
-            .userClass(user.as_ref())
+            .user_class(user.as_ref())
             .ok_or(Error::InvalidScope)?;
         let morph = if self.registry.useMorphMap.load(Ordering::Relaxed) {
             self.auth
-                .userMorphClass(user.as_ref())
+                .user_morph_class(user.as_ref())
                 .map_err(|_| Error::InvalidScope)?
                 .map(str::to_owned)
         } else {
@@ -280,11 +280,11 @@ impl FeatureManager {
         Ok(Scope::Model {
             class: class.into(),
             morph,
-            key: user.getAuthIdentifier().to_string(),
+            key: user.get_auth_identifier().to_string(),
         })
     }
     /// Resolves a lazy guard when the caller has the native HTTP request.
-    pub async fn forRequest(
+    pub async fn for_request(
         &self,
         request: &mut openrust::http::Request,
     ) -> Result<PendingScopedFeatureInteraction> {

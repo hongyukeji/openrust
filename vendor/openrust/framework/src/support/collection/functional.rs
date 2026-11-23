@@ -158,13 +158,13 @@ impl<T> Collection<T> {
         self.when(!condition, callback)
     }
 
-    pub fn whenEmpty(self, callback: impl FnOnce(Self) -> Self) -> Self {
-        let condition = self.isEmpty();
+    pub fn when_empty(self, callback: impl FnOnce(Self) -> Self) -> Self {
+        let condition = self.is_empty();
         self.when(condition, callback)
     }
 
     pub fn whenNotEmpty(self, callback: impl FnOnce(Self) -> Self) -> Self {
-        let condition = self.isNotEmpty();
+        let condition = self.is_not_empty();
         self.when(condition, callback)
     }
 
@@ -173,7 +173,7 @@ impl<T> Collection<T> {
     }
 
     pub fn unlessNotEmpty(self, callback: impl FnOnce(Self) -> Self) -> Self {
-        self.whenEmpty(callback)
+        self.when_empty(callback)
     }
 
     pub fn ensure(self, predicate: impl FnMut(&T, &ArrayKey) -> bool) -> CollectionResult<Self> {
@@ -190,11 +190,11 @@ impl<T> Collection<T> {
         self.r#where(project, expected)
     }
 
-    pub fn whereIn<U: PartialEq>(self, mut project: impl FnMut(&T) -> U, expected: &[U]) -> Self {
+    pub fn where_in<U: PartialEq>(self, mut project: impl FnMut(&T) -> U, expected: &[U]) -> Self {
         self.filter(|item, _| expected.contains(&project(item)))
     }
 
-    pub fn whereNotIn<U: PartialEq>(
+    pub fn where_not_in<U: PartialEq>(
         self,
         mut project: impl FnMut(&T) -> U,
         expected: &[U],
@@ -203,7 +203,7 @@ impl<T> Collection<T> {
     }
 
     pub fn whereInStrict<U: PartialEq>(self, project: impl FnMut(&T) -> U, expected: &[U]) -> Self {
-        self.whereIn(project, expected)
+        self.where_in(project, expected)
     }
 
     pub fn whereNotInStrict<U: PartialEq>(
@@ -211,7 +211,7 @@ impl<T> Collection<T> {
         project: impl FnMut(&T) -> U,
         expected: &[U],
     ) -> Self {
-        self.whereNotIn(project, expected)
+        self.where_not_in(project, expected)
     }
 
     pub fn whereBetween<U: PartialOrd>(
@@ -231,7 +231,7 @@ impl<T> Collection<T> {
     }
 
     pub fn randItem(&self) -> CollectionResult<&T> {
-        if self.isEmpty() {
+        if self.is_empty() {
             return Err(CollectionError::ItemNotFound);
         }
         let index = sample_index(self.count())?;
@@ -325,11 +325,11 @@ impl<T> Collection<Vec<T>> {
 
 #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<T> Collection<Option<T>> {
-    pub fn whereNull(self) -> Self {
+    pub fn where_null(self) -> Self {
         self.filter(|value, _| value.is_none())
     }
 
-    pub fn whereNotNull(self) -> Self {
+    pub fn where_not_null(self) -> Self {
         self.filter(|value, _| value.is_some())
     }
 }

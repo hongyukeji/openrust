@@ -80,7 +80,7 @@ fn faker_user_agents_match_pinned_browser_and_platform_formats() {
         let sample = faker.opera();
         assert!((160..=355).contains(&number(&opera.captures(&sample).unwrap()[1])));
         assert!(ie.is_match(&faker.internetExplorer()));
-        let sample = faker.userAgent().unwrap();
+        let sample = faker.user_agent().unwrap();
         assert!(
             [&firefox, &chrome, &edge, &edge_ios, &safari, &opera, &ie]
                 .iter()
@@ -122,8 +122,8 @@ fn faker_platform_tokens_preserve_catalogs_and_unique_history() {
                 .is_match(&sample)
         );
     }
-    let first = unique.userAgent().unwrap();
-    assert_ne!(unique.userAgent().unwrap(), first);
+    let first = unique.user_agent().unwrap();
+    assert_ne!(unique.user_agent().unwrap(), first);
     let first = unique.firefox().unwrap();
     assert_ne!(unique.firefox().unwrap(), first);
 }

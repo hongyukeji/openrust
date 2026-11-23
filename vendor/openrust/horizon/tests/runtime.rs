@@ -42,12 +42,12 @@ async fn dashboard_denies_by_default_and_authorization_is_application_local_and_
         .get("/api/horizon")
         .await
         .unwrap()
-        .assertStatus(http::StatusCode::FORBIDDEN);
+        .assert_status(http::StatusCode::FORBIDDEN);
     authorized
         .get("/api/horizon/api/stats")
         .await
         .unwrap()
-        .assertStatus(http::StatusCode::FORBIDDEN);
+        .assert_status(http::StatusCode::FORBIDDEN);
     let request = http::Request::builder()
         .uri("/api/horizon")
         .header("x-test-operator", "operator")
@@ -55,26 +55,29 @@ async fn dashboard_denies_by_default_and_authorization_is_application_local_and_
         .unwrap();
     let response = authorized.call(request).await.unwrap();
     response
-        .assertOk()
-        .assertHeader("cache-control", "no-store");
+        .assert_ok()
+        .assert_header("cache-control", "no-store");
     assert!(String::from_utf8_lossy(response.body()).contains("Recent attempts"));
     denied
         .get("/api/horizon")
         .await
         .unwrap()
-        .assertStatus(http::StatusCode::FORBIDDEN);
-    denied.artisan(["help", "horizon"]).await.assertSuccessful();
+        .assert_status(http::StatusCode::FORBIDDEN);
+    denied
+        .artisan(["help", "horizon"])
+        .await
+        .assert_successful();
     denied
         .artisan(["vendor:publish", "--tag=horizon-config"])
         .await
-        .assertSuccessful();
+        .assert_successful();
     let path = denied.root().join("config/horizon.rs");
     assert!(path.exists());
     std::fs::write(&path, "// customization").unwrap();
     denied
         .artisan(["vendor:publish", "--tag=horizon-config"])
         .await
-        .assertSuccessful();
+        .assert_successful();
     assert_eq!(std::fs::read_to_string(path).unwrap(), "// customization");
 }
 
@@ -274,7 +277,7 @@ async fn native_worker_hooks_count_success_release_failure_and_hide_payloads() {
             .unwrap();
         app.artisan(["queue:work", "redis", "--once", "--force", "--memory=1024"])
             .await
-            .assertSuccessful();
+            .assert_successful();
     }
     let repository = app.app().make::<Repository>().await.unwrap();
     let metrics = repository.metrics("redis", "default").await.unwrap();
@@ -312,7 +315,7 @@ async fn dashboard_mutations_require_authorization_and_a_same_origin_request_hea
             .call(request.body(openrust::http::Body::empty()).unwrap())
             .await
             .unwrap()
-            .assertStatus(http::StatusCode::FORBIDDEN);
+            .assert_status(http::StatusCode::FORBIDDEN);
     }
 }
 
@@ -606,13 +609,15 @@ async fn native_retries_keep_transport_ids_separate_from_the_failed_payload_uuid
         "--memory=1024",
     ])
     .await
-    .assertSuccessful();
+    .assert_successful();
     let repository = app.app().make::<Repository>().await.unwrap();
     let jobs = repository.jobs();
     let original = jobs.findFailed(&id).await.unwrap().unwrap();
     assert_eq!(original.payloadUuid().unwrap(), payload.uuid());
     assert!(jobs.find(payload.uuid()).await.unwrap().is_none());
-    app.artisan(["horizon:retry", &id]).await.assertSuccessful();
+    app.artisan(["horizon:retry", &id])
+        .await
+        .assert_successful();
     let original = jobs.findFailed(&id).await.unwrap().unwrap();
     let retry = original.retried_by[0]["id"].as_str().unwrap().to_owned();
     assert_ne!(retry, id);
@@ -636,7 +641,7 @@ async fn native_retries_keep_transport_ids_separate_from_the_failed_payload_uuid
         "--memory=1024",
     ])
     .await
-    .assertSuccessful();
+    .assert_successful();
     assert_eq!(
         jobs.findFailed(&id).await.unwrap().unwrap().retried_by[0]["status"],
         "failed"
@@ -654,7 +659,7 @@ async fn native_retries_keep_transport_ids_separate_from_the_failed_payload_uuid
     // Removing the historical parent must not erase the retry's native failure.
     app.artisan(["horizon:forget", &id])
         .await
-        .assertSuccessful();
+        .assert_successful();
     let failures = app
         .app()
         .container()
@@ -664,7 +669,7 @@ async fn native_retries_keep_transport_ids_separate_from_the_failed_payload_uuid
     assert!(jobs.findFailed(&retry).await.unwrap().is_some());
     app.artisan(["horizon:forget", &retry])
         .await
-        .assertSuccessful();
+        .assert_successful();
     assert!(failures.find(payload.uuid()).await.unwrap().is_none());
     assert_eq!(jobs.countFailed().await.unwrap(), 0);
     assert!(repository.recent(100).await.unwrap().is_empty());
@@ -712,7 +717,7 @@ async fn redis_jobs_outside_the_deployment_plan_keep_pending_and_lifecycle_metad
         )
         .await
         .unwrap();
-    response.assertOk();
+    response.assert_ok();
     let stats: serde_json::Value = serde_json::from_slice(response.body()).unwrap();
     let queues = stats["queues"].as_array().unwrap();
     assert_eq!(
@@ -739,7 +744,7 @@ async fn redis_jobs_outside_the_deployment_plan_keep_pending_and_lifecycle_metad
         "--memory=1024",
     ])
     .await
-    .assertSuccessful();
+    .assert_successful();
     let completed = repository.jobs().find(&id).await.unwrap().unwrap();
     assert_eq!(completed.record.status, "completed");
     assert_eq!(
@@ -913,16 +918,16 @@ async fn native_failure_replacement_during_lookup_preserves_the_new_delivery() {
                 "forget" => {
                     app.artisan(["horizon:forget", &original_id])
                         .await
-                        .assertSuccessful();
+                        .assert_successful();
                 }
                 "console-retry" => {
                     app.artisan(["horizon:retry", &original_id])
                         .await
-                        .assertExitCode(1);
+                        .assert_exit_code(1);
                 }
                 _ => {
                     let response = app.call(request).await.unwrap();
-                    response.assertOk();
+                    response.assert_ok();
                     assert_eq!(
                         serde_json::from_slice::<serde_json::Value>(response.body()).unwrap(),
                         json!({"retried":0})

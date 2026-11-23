@@ -20,13 +20,13 @@ trait ResourceOutput: Send {
 
 impl<T: JsonResource + Send> ResourceOutput for T {
     async fn respond(self, request: &mut Request) -> ResourceResult<Response> {
-        self.intoResponsable().toResponse(request).await
+        self.into_responsable().to_response(request).await
     }
 }
 
 impl<T: JsonResource + Send> ResourceOutput for ResourceResult<T> {
     async fn respond(self, request: &mut Request) -> ResourceResult<Response> {
-        self?.intoResponsable().toResponse(request).await
+        self?.into_responsable().to_response(request).await
     }
 }
 

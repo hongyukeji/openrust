@@ -144,7 +144,7 @@ impl CacheManager {
         Ok(MemoizedStore::wrap(repository, None))
     }
 
-    pub fn getDefaultDriver(&self) -> CacheResult<String> {
+    pub fn get_default_driver(&self) -> CacheResult<String> {
         match self.inner.config.get("cache.default") {
             None | Some(Value::Null) => Ok("null".into()),
             Some(serde_json::Value::String(name)) if !name.is_empty() => Ok(name),
@@ -212,7 +212,7 @@ impl CacheManager {
     fn store_name(&self, name: Option<&str>) -> CacheResult<String> {
         match name.filter(|name| !name.is_empty()) {
             Some(name) => Ok(name.to_owned()),
-            None => self.getDefaultDriver(),
+            None => self.get_default_driver(),
         }
     }
 

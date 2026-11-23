@@ -240,26 +240,26 @@ impl<const SERVICE: bool, const TEXT: u8> Model for User<SERVICE, TEXT> {
 }
 
 impl<const SERVICE: bool, const TEXT: u8> Authenticatable for User<SERVICE, TEXT> {
-    fn getAuthIdentifierName(&self) -> &str {
+    fn get_auth_identifier_name(&self) -> &str {
         "id"
     }
-    fn getAuthIdentifier(&self) -> AuthIdentifier {
+    fn get_auth_identifier(&self) -> AuthIdentifier {
         self.getKey().unwrap().try_into().unwrap()
     }
-    fn getAuthPasswordName(&self) -> &str {
+    fn get_auth_password_name(&self) -> &str {
         "password"
     }
-    fn getAuthPassword(&self) -> Option<&str> {
+    fn get_auth_password(&self) -> Option<&str> {
         match self.getAttribute("password") {
             Some(openrust::database::Value::Text(password)) => Some(password),
             _ => None,
         }
     }
-    fn getRememberToken(&self) -> Option<&str> {
+    fn get_remember_token(&self) -> Option<&str> {
         None
     }
-    fn setRememberToken(&mut self, _: Option<String>) {}
-    fn getRememberTokenName(&self) -> &str {
+    fn set_remember_token(&mut self, _: Option<String>) {}
+    fn get_remember_token_name(&self) -> &str {
         "remember_token"
     }
 }
@@ -302,7 +302,7 @@ fn web<const KEY: u8>() -> Result<(), RoutingError> {
 
 fn login<const KEY: u8>(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
-        let mut guard = Auth::sessionGuard(request, Some("web"))?;
+        let mut guard = Auth::session_guard(request, Some("web"))?;
         let id = if KEY != 0 {
             AuthIdentifier::from("2")
         } else {
@@ -326,7 +326,7 @@ fn whoami(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
         };
         Response::json(
             StatusCode::OK,
-            json!({"user":user.getAuthIdentifier(),"token":token}),
+            json!({"user":user.get_auth_identifier(),"token":token}),
         )
     })
 }
@@ -335,7 +335,7 @@ async fn transport(
     State(kernel): State<Arc<Kernel>>,
     request: axum::extract::Request,
 ) -> axum::response::Response {
-    kernel.handleTransport(request).await
+    kernel.handle_transport(request).await
 }
 
 async fn start(app: Application) -> (String, tokio::task::JoinHandle<()>) {
@@ -395,7 +395,7 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
             })),
         ].into()))
         .with_middleware(move |middleware| {
-            if stateful { middleware.statefulApi(); }
+            if stateful { middleware.stateful_api(); }
             middleware.alias("custom-csrf", Arc::new(CustomCsrf));
         })
         .with_routing(Routing::default().api(api).web(web::<KEY>))
@@ -407,9 +407,9 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
         .set("database.connections.fixture", database.clone())
         .unwrap();
     let auth = app.container().make::<AuthManager>().unwrap();
-    auth.registerSanctumModel::<User<false, KEY>>("SanctumUser");
-    auth.registerSanctumModel::<User<true>>("ServiceAccount");
-    auth.registerModel::<User<false, 9>>("WithoutTokens");
+    auth.register_sanctum_model::<User<false, KEY>>("SanctumUser");
+    auth.register_sanctum_model::<User<true>>("ServiceAccount");
+    auth.register_model::<User<false, 9>>("WithoutTokens");
     MorphMap::morphMap(
         &app,
         [
@@ -545,7 +545,7 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
     };
     let tokens = sanctum.personalAccessTokens(&database, "").unwrap();
     let read = tokens
-        .createToken("users_alias", owner(1), "read", &["read"], None)
+        .create_token("users_alias", owner(1), "read", &["read"], None)
         .await
         .unwrap();
     assert!(
@@ -577,7 +577,7 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
         assert_eq!(stored_name, "stored:read".into());
         assert!(
             tokens
-                .createToken("users_alias", owner(1), "cancel", &["read"], None)
+                .create_token("users_alias", owner(1), "cancel", &["read"], None)
                 .await
                 .is_err()
         );
@@ -611,11 +611,11 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
         model_events.take();
     }
     let full = tokens
-        .createToken("SanctumUser", owner(1), "full", &["*"], None)
+        .create_token("SanctumUser", owner(1), "full", &["*"], None)
         .await
         .unwrap();
     let expired = tokens
-        .createToken(
+        .create_token(
             "SanctumUser",
             owner(1),
             "expired",
@@ -625,7 +625,7 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
         .await
         .unwrap();
     let aged = tokens
-        .createToken("SanctumUser", owner(1), "aged", &["*"], None)
+        .create_token("SanctumUser", owner(1), "aged", &["*"], None)
         .await
         .unwrap();
     db.statement(
@@ -637,11 +637,11 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
     .await
     .unwrap();
     let wrong_type = tokens
-        .createToken("AnotherUser", owner(1), "wrong", &["*"], None)
+        .create_token("AnotherUser", owner(1), "wrong", &["*"], None)
         .await
         .unwrap();
     let service = tokens
-        .createToken(
+        .create_token(
             "services_alias",
             service_owner.clone(),
             "service",
@@ -652,7 +652,7 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
         .unwrap();
     assert_eq!(service.access_token.tokenable_id, service_owner);
     let missing = tokens
-        .createToken("SanctumUser", owner(3), "missing", &["*"], None)
+        .create_token("SanctumUser", owner(3), "missing", &["*"], None)
         .await
         .unwrap();
 
@@ -668,11 +668,11 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
 
     let relation = fresh_user.tokens(&sanctum, &database).unwrap();
     let issued = fresh_user
-        .createToken(&sanctum, &database, "related", &["read"], None)
+        .create_token(&sanctum, &database, "related", &["read"], None)
         .await
         .unwrap();
-    let payload: Value = serde_json::from_str(&issued.toJson().unwrap()).unwrap();
-    assert_eq!(payload, issued.toArray().unwrap());
+    let payload: Value = serde_json::from_str(&issued.to_json().unwrap()).unwrap();
+    assert_eq!(payload, issued.to_array().unwrap());
     assert_eq!(payload["plainTextToken"], issued.plain_text_token.as_str());
     assert_eq!(
         payload["accessToken"][token_key],
@@ -695,12 +695,12 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
         .unwrap()
         .unwrap();
     assert_eq!(
-        json!(related_owner.getAuthIdentifier()),
-        json!(fresh_user.getAuthIdentifier())
+        json!(related_owner.get_auth_identifier()),
+        json!(fresh_user.get_auth_identifier())
     );
     assert_eq!(relation.get().await.unwrap().len(), 1);
     let case_variant = tokens
-        .createToken("USERS_ALIAS", owner(4), "related", &["read"], None)
+        .create_token("USERS_ALIAS", owner(4), "related", &["read"], None)
         .await
         .unwrap();
     async fn verify_typed<T: PersonalAccessTokenModel, const KEY: u8>(
@@ -721,7 +721,7 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
         assert_eq!(chain.get().await.unwrap().len(), 1);
         let relation = user.tokensRelation::<T>(sanctum).unwrap();
         let mut owners = User::<false, KEY>::queryOn(db).with("tokens", relation);
-        owners.whereKey(SqlValue::from(user.getAuthIdentifier()));
+        owners.whereKey(SqlValue::from(user.get_auth_identifier()));
         let owner = owners.first().await.unwrap().unwrap();
         let tokens = owner
             .getRelation::<openrust::database::eloquent::RelatedCollection<T>>("tokens")
@@ -757,17 +757,17 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
 
     assert_eq!(
         relation
-            .deleteToken(read.access_token.id.clone())
+            .delete_token(read.access_token.id.clone())
             .await
             .unwrap(),
         0
     );
     assert_eq!(
-        relation.deleteToken(issued.access_token.id).await.unwrap(),
+        relation.delete_token(issued.access_token.id).await.unwrap(),
         1
     );
     relation
-        .createToken("related-again", &[], None)
+        .create_token("related-again", &[], None)
         .await
         .unwrap();
     model_events.take();
@@ -783,7 +783,7 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
     );
 
     let unsupported = tokens
-        .createToken("WithoutTokens", owner(1), "unsupported", &["*"], None)
+        .create_token("WithoutTokens", owner(1), "unsupported", &["*"], None)
         .await
         .unwrap();
     let events = app
@@ -1258,7 +1258,7 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
 
     if custom_csrf {
         let hidden = tokens
-            .createToken(
+            .create_token(
                 "SanctumUser",
                 owner(1),
                 "hidden",
@@ -1387,12 +1387,12 @@ async fn sanctum_checks_configured_request_guard_without_a_session() {
         .unwrap();
     app.boot().await.unwrap();
     let auth = app.container().make::<AuthManager>().unwrap();
-    auth.viaRequest("trusted-header", |request| {
+    auth.via_request("trusted-header", |request| {
         let trusted = request
             .headers()
             .get("x-fixture")
             .is_some_and(|header| header == "yes");
-        assert!(!request.hasSession());
+        assert!(!request.has_session());
         Box::pin(async move {
             if !trusted {
                 return Ok(None);
@@ -1479,17 +1479,17 @@ async fn acting_as_isolated_to_test_app_and_selected_guard() {
         user
     };
     let selected = Sanctum::actingAs(&mut app, user(), &["read"], None);
-    assert_eq!(selected.getAuthIdentifier(), AuthIdentifier::from(42_u64));
+    assert_eq!(selected.get_auth_identifier(), AuthIdentifier::from(42_u64));
     for path in ["/api/user", "/api/any", "/api/default"] {
         let response = app.get(path).await.unwrap();
-        response.assertOk();
+        response.assert_ok();
         assert_eq!(
             response.json::<Value>().unwrap(),
             json!({"user":42,"token":"test"})
         );
     }
     let abilities = app.get("/api/token-ability").await.unwrap();
-    abilities.assertOk();
+    abilities.assert_ok();
     assert_eq!(
         abilities.json::<Value>().unwrap(),
         json!({
@@ -1499,8 +1499,8 @@ async fn acting_as_isolated_to_test_app_and_selected_guard() {
     app.get("/api/all")
         .await
         .unwrap()
-        .assertStatus(StatusCode::FORBIDDEN);
-    app.get("/api/scope").await.unwrap().assertOk();
+        .assert_status(StatusCode::FORBIDDEN);
+    app.get("/api/scope").await.unwrap().assert_ok();
     for (path, message) in [
         ("/api/all", "Invalid ability provided."),
         ("/api/scopes", "Invalid scope(s) provided."),
@@ -1514,7 +1514,7 @@ async fn acting_as_isolated_to_test_app_and_selected_guard() {
             )
             .await
             .unwrap();
-        response.assertStatus(StatusCode::FORBIDDEN);
+        response.assert_status(StatusCode::FORBIDDEN);
         assert_eq!(response.json::<Value>().unwrap()["message"], message);
     }
     let missing = openrust::sanctum::MissingAbilityException::new(["read"]);
@@ -1525,21 +1525,21 @@ async fn acting_as_isolated_to_test_app_and_selected_guard() {
         .get("/api/user")
         .await
         .unwrap()
-        .assertStatus(StatusCode::UNAUTHORIZED);
+        .assert_status(StatusCode::UNAUTHORIZED);
     Sanctum::actingAs(&mut app, user(), &[], None);
     app.get("/api/any")
         .await
         .unwrap()
-        .assertStatus(StatusCode::FORBIDDEN);
+        .assert_status(StatusCode::FORBIDDEN);
     Sanctum::actingAs(&mut app, user(), &["*"], None);
-    app.get("/api/all").await.unwrap().assertOk();
+    app.get("/api/all").await.unwrap().assert_ok();
     Sanctum::actingAs(&mut app, user(), &["*"], Some("alternate"));
-    app.get("/api/alternate").await.unwrap().assertOk();
-    app.get("/api/default").await.unwrap().assertOk();
+    app.get("/api/alternate").await.unwrap().assert_ok();
+    app.get("/api/default").await.unwrap().assert_ok();
     app.get("/api/user")
         .await
         .unwrap()
-        .assertStatus(StatusCode::UNAUTHORIZED);
+        .assert_status(StatusCode::UNAUTHORIZED);
 }
 
 #[tokio::test]
@@ -1597,7 +1597,7 @@ async fn publishes_sanctum_resources_by_tag_without_overwriting_customizations()
     let result = app
         .artisan(["vendor:publish", "--tag=sanctum-migrations", "--force"])
         .await;
-    result.assertSuccessful();
+    result.assert_successful();
     assert!(migrations.join(bundled).is_file());
     assert_eq!(std::fs::read_dir(&migrations).unwrap().count(), 1);
 
@@ -1605,7 +1605,7 @@ async fn publishes_sanctum_resources_by_tag_without_overwriting_customizations()
     without_retiming
         .artisan(["vendor:publish", "--tag=sanctum-migrations"])
         .await
-        .assertSuccessful();
+        .assert_successful();
     assert!(
         without_retiming
             .root()

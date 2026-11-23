@@ -78,7 +78,7 @@ async fn respond<T: contracts::PasswordResponse + ?Sized + 'static>(
 ) -> Result<Response, HttpError> {
     Resolver::<T>::get_facade_root()
         .map_err(internal)?
-        .toResponse(request, status)
+        .to_response(request, status)
         .await
 }
 impl PasswordResetLinkController {
@@ -99,7 +99,7 @@ impl PasswordResetLinkController {
             let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;
             canonicalize(request, &fortify).await?;
             let status = Password::broker(broker_name(&fortify).as_deref())?
-                .sendResetLink(&credentials(request, &fortify).await?, None)
+                .send_reset_link(&credentials(request, &fortify).await?, None)
                 .await?;
             if status == PasswordResetStatus::ResetLinkSent {
                 respond::<dyn contracts::SuccessfulPasswordResetLinkRequestResponse>(
@@ -128,10 +128,10 @@ impl NewPasswordController {
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
             let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;
-            Auth::sessionGuard(request, fortify.guard().as_deref())?;
+            Auth::session_guard(request, fortify.guard().as_deref())?;
             canonicalize(request, &fortify).await?;
             Validator::make(
-                Data::fromRequest(request).await?,
+                Data::from_request(request).await?,
                 RuleSet::parse([
                     ("token", "required"),
                     (fortify.email().as_str(), "required|email"),

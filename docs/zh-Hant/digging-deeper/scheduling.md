@@ -11,9 +11,9 @@ pub(crate) fn register() -> Result<(), ConsoleError> {
     Schedule::configure(|schedule| {
         schedule
             .command("inspire", [])
-            .dailyAt("08:30")?
+            .daily_at("08:30")?
             .timezone(openrust::support::Date::timezone("Asia/Shanghai").expect("known IANA time zone"))
-            .withoutOverlapping();
+            .without_overlapping();
 
         Ok(())
     })
@@ -22,29 +22,29 @@ pub(crate) fn register() -> Result<(), ConsoleError> {
 
 用 `call` 登記非同步回呼，用 `command` 呼叫已註冊的 Artisan 命令，用 `exec` 執行外部程式，用 `job` 派送佇列酬載。程式與參數分開傳入。`exec` 從應用程式根目錄啟動。回呼接收應用程式與命令輸出物件。每次排程派送都會產生新的任務 ID。
 
-用 `cron` 設定五欄位運算式，用 `dailyAt` 設定每日的本地時間，用 `everyMinute` 或 `everyTenSeconds` 等子分鐘頻率執行重複任務。排程時區依序取 `app.schedule_timezone`、`app.timezone`、UTC。用 `timezone` 覆寫單個任務的時區。用 `environments`、`when` 和 `skip` 限制執行條件。日光節約時間切換時，同一本地時間可能出現兩次，也可能被跳過。
+用 `cron` 設定五欄位運算式，用 `daily_at` 設定每日的本地時間，用 `every_minute` 或 `every_ten_seconds` 等子分鐘頻率執行重複任務。排程時區依序取 `app.schedule_timezone`、`app.timezone`、UTC。用 `timezone` 覆寫單個任務的時區。用 `environments`、`when` 和 `skip` 限制執行條件。日光節約時間切換時，同一本地時間可能出現兩次，也可能被跳過。
 
 ### 維護模式 {#maintenance-mode}
 
-應用程式進入[維護模式](../getting-started/configuration.md#maintenance-mode)後，預設略過排程工作。需要在維護期間執行的工作，可在 `Schedule::configure` 中呼叫 `evenInMaintenanceMode()`。
+應用程式進入[維護模式](../getting-started/configuration.md#maintenance-mode)後，預設略過排程工作。需要在維護期間執行的工作，可在 `Schedule::configure` 中呼叫 `even_in_maintenance_mode()`。
 
 ```rust
-schedule.command("inspire", []).evenInMaintenanceMode();
+schedule.command("inspire", []).even_in_maintenance_mode();
 ```
 
 子分鐘排程偵測到維護模式後，會在本次執行剩餘的時間繼續略過一般工作。執行 `./artisan up` 後，下一次 `./artisan schedule:run` 可以重新執行一般工作。
 
 ### 暫停排程工作 {#pausing-scheduled-tasks}
 
-執行 `./artisan schedule:pause` 暫停排程器，執行 `./artisan schedule:resume` 或別名 `./artisan schedule:continue` 恢復。暫停狀態儲存在應用程式的預設快取。多個程序需要共用暫停狀態時，請使用相同的預設快取與命名空間。排程互斥鎖可透過 `schedule.useCache(...)` 選擇快取。
+執行 `./artisan schedule:pause` 暫停排程器，執行 `./artisan schedule:resume` 或別名 `./artisan schedule:continue` 恢復。暫停狀態儲存在應用程式的預設快取。多個程序需要共用暫停狀態時，請使用相同的預設快取與命名空間。排程互斥鎖可透過 `schedule.use_cache(...)` 選擇快取。
 
-在 `Schedule::configure` 中呼叫 `evenWhenPaused()`，可讓指定工作在暫停期間仍符合執行條件。
+在 `Schedule::configure` 中呼叫 `even_when_paused()`，可讓指定工作在暫停期間仍符合執行條件。
 
 ```rust
-schedule.command("inspire", []).evenWhenPaused();
+schedule.command("inspire", []).even_when_paused();
 ```
 
-子分鐘排程在同一輪中可感知暫停與恢復，已開始的工作會繼續執行。可在 `Schedule::configure` 中呼叫 `schedule.doNotAllowPausing()` 停用應用程式的暫停功能。可監聽 `openrust::console::events` 中的 `SchedulePaused`、`ScheduleResumed` 與 `ScheduledTaskSkipped`。
+子分鐘排程在同一輪中可感知暫停與恢復，已開始的工作會繼續執行。可在 `Schedule::configure` 中呼叫 `schedule.do_not_allow_pausing()` 停用應用程式的暫停功能。可監聽 `openrust::console::events` 中的 `SchedulePaused`、`ScheduleResumed` 與 `ScheduledTaskSkipped`。
 
 ### 排程群組 {#schedule-groups}
 
@@ -53,7 +53,7 @@ schedule.command("inspire", []).evenWhenPaused();
 ```rust
 schedule
     .timezone(openrust::support::Date::timezone("Asia/Tokyo").expect("known IANA time zone"))
-    .dailyAt("17:00")?
+    .daily_at("17:00")?
     .group(|schedule| {
         schedule.command("inspire", []);
         Ok(())
@@ -64,9 +64,9 @@ schedule
 
 ## 防止重疊與單機執行
 
-`withoutOverlapping()` 在執行期間持有快取鎖，任務完成或發生錯誤後釋放。預設租期為 1,440 分鐘，可用 `withoutOverlappingFor(minutes)` 調整。`onOneServer()` 為每個事件在每分鐘選出一個執行者。回呼或佇列任務啟用互斥前，需要用 `name` 設定穩定且唯一的名稱。
+`without_overlapping()` 在執行期間持有快取鎖，任務完成或發生錯誤後釋放。預設租期為 1,440 分鐘，可用 `without_overlapping_for(minutes)` 調整。`on_one_server()` 為每個事件在每分鐘選出一個執行者。回呼或佇列任務啟用互斥前，需要用 `name` 設定穩定且唯一的名稱。
 
-跨執行個體互斥要求所有執行者使用相同的共用快取儲存及命名空間。可使用應用程式預設的共用儲存，或用 `schedule.useCache("redis")` 指定。
+跨執行個體互斥要求所有執行者使用相同的共用快取儲存及命名空間。可使用應用程式預設的共用儲存，或用 `schedule.use_cache("redis")` 指定。
 
 ## 執行排程器
 
@@ -96,7 +96,7 @@ schedule
 
 ### 測試排程工作 {#testing-scheduled-tasks}
 
-排程器使用 `TestApp` 時鐘判斷工作是否到期，並計算 `schedule:list` 顯示的下次執行時間。明確設定的 `Schedule::useClock` 優先。分鐘內重複工作生效時，`schedule:list` 會顯示下一次秒級觸發時間。分鐘內重複工作仍依實際經過的時間計時。詳見[控制測試時間](../testing/mocking.md#interacting-with-time)。
+排程器使用 `TestApp` 時鐘判斷工作是否到期，並計算 `schedule:list` 顯示的下次執行時間。明確設定的 `Schedule::use_clock` 優先。分鐘內重複工作生效時，`schedule:list` 會顯示下一次秒級觸發時間。分鐘內重複工作仍依實際經過的時間計時。詳見[控制測試時間](../testing/mocking.md#interacting-with-time)。
 
 ```rust
 use openrust::{support::facades::Schedule, testing::TestApp};
@@ -105,30 +105,30 @@ use openrust::{support::facades::Schedule, testing::TestApp};
 async fn runs_a_task_with_a_frozen_clock() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut app = TestApp::create(|builder| {
         builder.with_commands(|_| Schedule::configure(|schedule| {
-            schedule.doNotAllowPausing();
+            schedule.do_not_allow_pausing();
             schedule.call(|_, output| Box::pin(async move {
                 output.stdout.push_str("scheduled task ran\n");
                 Ok(())
-            })).everyMinute();
+            })).every_minute();
             Ok(())
         }))
     })?;
 
-    app.freezeSecond().await?;
+    app.freeze_second().await?;
     app.artisan(["schedule:run"]).await
-        .assertSuccessful()
-        .expectsOutput("scheduled task ran");
+        .assert_successful()
+        .expects_output("scheduled task ran");
     Ok(())
 }
 ```
 
 ## 任務輸出 {#task-output}
 
-用 `sendOutputTo` 覆寫檔案，用 `appendOutputTo` 附加。兩者都擷取排程 Artisan 命令與系統執行檔的標準輸出和標準錯誤，包含非零結束時的輸出。相對路徑以應用程式根目錄為基準。
+用 `send_output_to` 覆寫檔案，用 `append_output_to` 附加。兩者都擷取排程 Artisan 命令與系統執行檔的標準輸出和標準錯誤，包含非零結束時的輸出。相對路徑以應用程式根目錄為基準。
 
 ```rust
-schedule.command("reports:daily", []).sendOutputTo("storage/logs/daily.log");
-schedule.command("reports:audit", []).appendOutputTo("storage/logs/audit.log");
+schedule.command("reports:daily", []).send_output_to("storage/logs/daily.log");
+schedule.command("reports:audit", []).append_output_to("storage/logs/audit.log");
 ```
 
 用 `emailOutputTo(["ops@example.com"])` 在任務執行後寄送非空輸出。用 `emailOutputOnFailure(["ops@example.com"])` 僅在任務失敗時寄送，即使沒有輸出也會寄送。兩者使用應用程式的郵件服務。
@@ -145,17 +145,17 @@ schedule
     .then(hook("task-then"));
 ```
 
-排程器在執行任務前執行 `before`。`after` 與 `then` 等價。`onSuccess` 和 `onFailure` 依任務結果執行。任務結束後的鉤子依註冊順序執行。巢狀群組繼承外層鉤子，並可追加自己的鉤子。鉤子例外交由應用程式例外處理器回報。
+排程器在執行任務前執行 `before`。`after` 與 `then` 等價。`on_success` 和 `on_failure` 依任務結果執行。任務結束後的鉤子依註冊順序執行。巢狀群組繼承外層鉤子，並可追加自己的鉤子。鉤子例外交由應用程式例外處理器回報。
 
-用 `thenWithOutput`、`onSuccessWithOutput` 或 `onFailureWithOutput` 讓鉤子的第三個參數接收輸出位元組。第二個參數傳入 `true` 時略過空輸出。指定輸出檔案時，鉤子讀取完整檔案，附加模式也包含先前執行的內容。
+用 `then_with_output`、`on_success_with_output` 或 `on_failure_with_output` 讓鉤子的第三個參數接收輸出位元組。第二個參數傳入 `true` 時略過空輸出。指定輸出檔案時，鉤子讀取完整檔案，附加模式也包含先前執行的內容。
 
 ### URL 探測 {#pinging-urls}
 
-用 `pingBefore`、`thenPing`、`pingOnSuccess` 和 `pingOnFailure` 在對應鉤子傳送 HTTP GET 請求。`If` 變體依序接收布林值和 URL。請求失敗會回報例外，排程繼續執行。
+用 `ping_before`、`then_ping`、`ping_on_success` 和 `ping_on_failure` 在對應鉤子傳送 HTTP GET 請求。`If` 變體依序接收布林值和 URL。請求失敗會回報例外，排程繼續執行。
 
 ## 背景任務 {#background-tasks}
 
-對排程命令或執行檔呼叫 `runInBackground()`。OpenRust 在同一應用程式執行檔的獨立程序中執行任務及後置鉤子。父程序先執行前置鉤子，可在任務仍執行時結束。與 `withoutOverlapping()` 一起使用時，選擇檔案或 Redis 等共用快取。
+對排程命令或執行檔呼叫 `run_in_background()`。OpenRust 在同一應用程式執行檔的獨立程序中執行任務及後置鉤子。父程序先執行前置鉤子，可在任務仍執行時結束。與 `without_overlapping()` 一起使用時，選擇檔案或 Redis 等共用快取。
 
 子程序完成任務並釋放鎖後派送 `ScheduledBackgroundTaskFinished`。事件攜帶任務和結束碼，也涵蓋任務失敗。應用程式組裝時為 `console.scheduled_background_task_finished` 註冊監聽器。
 
@@ -183,4 +183,4 @@ for name in [
 
 ## 長任務回呼
 
-用 `Schedule::whenTaskRunsLongerThan(Duration, callback)` 監聽執行時間嚴格大於門檻的已完成或失敗任務。相等不觸發，失敗事件沒有 runtime 時也不觸發。回呼接收任務與 Duration；不會增加另一套計時器。背景父程序完成事件與背景子程序後續完成事件依實際事件分別處理。
+用 `Schedule::when_task_runs_longer_than(Duration, callback)` 監聽執行時間嚴格大於門檻的已完成或失敗任務。相等不觸發，失敗事件沒有 runtime 時也不觸發。回呼接收任務與 Duration；不會增加另一套計時器。背景父程序完成事件與背景子程序後續完成事件依實際事件分別處理。

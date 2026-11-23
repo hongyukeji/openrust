@@ -20,18 +20,17 @@ impl Facade for Password {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Password {
     pub fn broker(name: Option<&str>) -> AuthResult<Arc<PasswordBroker>> {
         Self::get_facade_root()?.broker(name)
     }
 
-    pub async fn sendResetLink(
+    pub async fn send_reset_link(
         credentials: &Credentials,
         callback: Option<&ResetLinkCallback<'_>>,
     ) -> AuthResult<PasswordResetStatus> {
         Self::broker(None)?
-            .sendResetLink(credentials, callback)
+            .send_reset_link(credentials, callback)
             .await
     }
 

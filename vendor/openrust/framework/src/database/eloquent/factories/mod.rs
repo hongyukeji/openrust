@@ -521,7 +521,7 @@ impl<M: Model> Factory<M> {
 
     fn resolve_related_connection(&self, inherited: &Connection) -> DatabaseResult<Connection> {
         let name = self.getConnectionName().or(M::metadata().connection);
-        let Some(name) = name.filter(|name| *name != inherited.getName()) else {
+        let Some(name) = name.filter(|name| *name != inherited.get_name()) else {
             return Ok(inherited.clone());
         };
         match Connection::model_container(Some(inherited)) {
@@ -1263,7 +1263,7 @@ impl<M: Model> Factory<M> {
                     }
                     if let Some(name) = name
                         && !keys.is_empty()
-                        && (parent.relationLoaded(name) || relation.touches_related(parent)?)
+                        && (parent.relation_loaded(name) || relation.touches_related(parent)?)
                     {
                         parent.load(name, relation.as_ref()).await?;
                     }

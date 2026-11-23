@@ -21,7 +21,7 @@ fn hash(table: &mut Blueprint, driver: &str) {
     }
 }
 impl Migration for CreatePulseTables {
-    fn shouldRun<'a>(
+    fn should_run<'a>(
         &'a self,
         context: &'a mut MigrationContext,
     ) -> DatabaseFuture<'a, DatabaseResult<bool>> {
@@ -68,7 +68,7 @@ impl Migration for CreatePulseTables {
         context: &'a mut MigrationContext,
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
         Box::pin(async move {
-            if !self.shouldRun(context).await? {
+            if !self.should_run(context).await? {
                 return Ok(());
             }
             let driver = context.getDriverName();

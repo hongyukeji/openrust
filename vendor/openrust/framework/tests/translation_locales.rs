@@ -228,7 +228,7 @@ async fn discovery_uses_selected_language_root_and_provider_registered_sources()
     let app = Application::configure(root.path().to_owned())
         .with_providers(vec![Box::new(ExtraSource(root.path().join("extra")))])
         .with_middleware(|middleware| {
-            middleware.localeUsing(|_| Ok(Some("ja".into())));
+            middleware.locale_using(|_| Ok(Some("ja".into())));
         })
         .with_routing(Routing::default().web(|| Route::get("/", inspect)))
         .create()

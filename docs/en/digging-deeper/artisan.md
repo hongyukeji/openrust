@@ -133,7 +133,7 @@ Pass a separate `OsString` for each positional argument or option. Values that c
 
 ### Queueing Artisan Commands {#queueing-artisan-commands}
 
-Prepare a command with `Artisan::queue`. Call `dispatch().await` to send it to the queue and obtain the dispatch result. Specify a destination with `onConnection` and `onQueue`, or use the default connection and its queue.
+Prepare a command with `Artisan::queue`. Call `dispatch().await` to send it to the queue and obtain the dispatch result. Specify a destination with `on_connection` and `on_queue`, or use the default connection and its queue.
 
 ```rust
 use openrust::{
@@ -143,8 +143,8 @@ use openrust::{
 
 async fn queue_inspire() -> QueueResult<DispatchResult> {
     Artisan::queue("inspire", &[])
-        .onConnection("redis")
-        .onQueue("commands")
+        .on_connection("redis")
+        .on_queue("commands")
         .dispatch()
         .await
 }
@@ -176,7 +176,7 @@ Run `./artisan init` in a source checkout (`artisan.bat init` on Windows). The w
 
 Choose `--extensions=all` (the default and the wizard recommendation), or select `api,broadcasting,reverb,grpc,passport,fortify,passkeys,socialite,precognition,oidc,sso`. `api` installs Sanctum; `passport` also selects `api`, `passkeys` selects Fortify, `sso` selects OIDC and Fortify, and `reverb` selects broadcasting. A later run can add extensions. Include Reverb if it is already configured. The API `/user` route retains `auth:sanctum`; Passport receives an independent `api` guard. An incompatible existing guard is preserved and reported as a conflict.
 
-Fortify installs actions, its application provider, configuration and migrations. Newly generated initialization configuration uses `views=false` and enables email verification. Existing custom configuration is preserved. Configure your frontend password-reset URL with `ResetPassword::createUrlUsing`, or supply the named `password.reset` route; headless initialization does not generate frontend screens. Passkeys is enabled when selected. For a new configuration, set APP_URL to an exact HTTPS origin with a domain and no path; HTTP localhost is allowed for development, for example `APP_URL=http://localhost:8000`. HTTP IP addresses fail preflight before any writes. Socialite and OIDC packages are enabled, but provider credentials, registered callbacks, explicit local account binding and application routes remain application configuration. Selecting SSO does not create an identity provider or configure global logout. Precognition is built in: apply `precognitive` to the routes you choose. Installation status and these external prerequisites are reported separately.
+Fortify installs actions, its application provider, configuration and migrations. Newly generated initialization configuration uses `views=false` and enables email verification. Existing custom configuration is preserved. Configure your frontend password-reset URL with `ResetPassword::create_url_using`, or supply the named `password.reset` route; headless initialization does not generate frontend screens. Passkeys is enabled when selected. For a new configuration, set APP_URL to an exact HTTPS origin with a domain and no path; HTTP localhost is allowed for development, for example `APP_URL=http://localhost:8000`. HTTP IP addresses fail preflight before any writes. Socialite and OIDC packages are enabled, but provider credentials, registered callbacks, explicit local account binding and application routes remain application configuration. Selecting SSO does not create an identity provider or configure global logout. Precognition is built in: apply `precognitive` to the routes you choose. Installation status and these external prerequisites are reported separately.
 
 Missing `.env` is copied from the example; existing keys and credentials are retained. Missing application keys use `key:generate`. Shared package services publish all selected resources under the source mutex. If selected installers are not compiled into the running program, one bootstrap build loads them; one final build compiles all generated modules before a single normal migration pass. No individual installation command is recursively run. Production requires confirmation or `--force`. Successful initialization tells you to run `cargo run`; it does not start a background server. `--without-migration` reports preparation with migrations pending. `--force` overwrites publishable configuration and scaffolding and permits production migration; it preserves APP_KEY, Passport keys, unrelated application modules and every historical migration. `--dry-run` does not connect, write, lock, build or migrate. Required failures return nonzero, stop dependent steps and retain completed changes for retry. Concurrent source installation fails immediately.
 
@@ -186,7 +186,7 @@ Use `--env=acceptance` to initialize `.env.acceptance`; the same environment is 
 
 ## Generating Commands {#generating-commands}
 
-A destructive command can call `openrust::console::confirmToProceed(production, input.matches())?` and proceed only when it returns `true`. Set `production` from the application environment or the command’s confirmation condition. The shared localized prompt defaults to refusal; non-interactive input refuses, and a declared `--force` flag bypasses confirmation.
+A destructive command can call `openrust::console::confirm_to_proceed(production, input.matches())?` and proceed only when it returns `true`. Set `production` from the application environment or the command’s confirmation condition. The shared localized prompt defaults to refusal; non-interactive input refuses, and a declared `--force` flag bypasses confirmation.
 
 Create a command from a source checkout. The generated type implements the Artisan command contract.
 

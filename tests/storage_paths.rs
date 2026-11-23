@@ -181,12 +181,12 @@ async fn provider_fallbacks_use_the_application_paths_and_keep_explicit_log_path
     {
         std::fs::create_dir_all(app.root().join("public")).unwrap();
         std::fs::create_dir_all(storage.join("app/public")).unwrap();
-        app.artisan(["storage:link"]).await.assertSuccessful();
+        app.artisan(["storage:link"]).await.assert_successful();
         assert_eq!(
             std::fs::read_link(app.root().join("public/storage")).unwrap(),
             storage.join("app/public")
         );
-        app.artisan(["storage:unlink"]).await.assertSuccessful();
+        app.artisan(["storage:unlink"]).await.assert_successful();
     }
 }
 

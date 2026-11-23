@@ -194,7 +194,7 @@ impl Migrator {
                 let mut context = MigrationContext::new(connection, false);
                 skipped = !entry
                     .migration
-                    .shouldRun(&mut context)
+                    .should_run(&mut context)
                     .await
                     .map_err(|error| migration_error(&status.name, error))?;
                 has_pending = !skipped;
@@ -304,7 +304,7 @@ impl Migrator {
                 }
                 self.manager
                     .dispatch_migration_event(SchemaLoaded {
-                        connectionName: connection.getName().to_owned(),
+                        connectionName: connection.get_name().to_owned(),
                         connection,
                         path,
                     })
@@ -348,7 +348,7 @@ impl Migrator {
             if !options.pretend
                 && !entry
                     .migration
-                    .shouldRun(&mut context)
+                    .should_run(&mut context)
                     .await
                     .map_err(|error| migration_error(&name, error))?
             {
@@ -489,7 +489,7 @@ impl Migrator {
             None
         };
         schema_state::dump(&connection, &path, ledger).await?;
-        let connectionName = connection.getName().to_owned();
+        let connectionName = connection.get_name().to_owned();
         self.manager
             .dispatch_migration_event(SchemaDumped {
                 connection: connection.clone(),
@@ -800,7 +800,7 @@ impl Migrator {
 }
 
 fn schema_connection_name(connection: &Connection) -> &str {
-    let name = connection.getName();
+    let name = connection.get_name();
     if connection.is_postgres() {
         // The direct transport is an endpoint alias for the same snapshot.
         return name.strip_suffix("::direct").unwrap_or(name);

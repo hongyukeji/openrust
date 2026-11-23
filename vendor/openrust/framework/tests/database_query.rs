@@ -309,7 +309,7 @@ async fn verify_queries(db: Connection) {
     let table = || db.table("query_items");
     let ids = table()
         .r#where("score", ">", 5)
-        .whereNested(|query| query.whereNull("note").orWhere("category", "=", "west"))
+        .whereNested(|query| query.where_null("note").orWhere("category", "=", "west"))
         .orderByDesc("id")
         .pluck("id")
         .await
@@ -332,12 +332,12 @@ async fn verify_queries(db: Connection) {
         2
     );
     assert_eq!(
-        table().whereIn("id", Vec::new()).count("*").await.unwrap(),
+        table().where_in("id", Vec::new()).count("*").await.unwrap(),
         0
     );
     assert_eq!(
         table()
-            .whereNotIn("id", Vec::new())
+            .where_not_in("id", Vec::new())
             .count("*")
             .await
             .unwrap(),
@@ -349,7 +349,7 @@ async fn verify_queries(db: Connection) {
     );
     assert_eq!(
         table()
-            .whereNot(|query| query.whereBetween("score", [5.into(), 20.into()]))
+            .where_not(|query| query.whereBetween("score", [5.into(), 20.into()]))
             .count("*")
             .await
             .unwrap(),
@@ -379,7 +379,7 @@ async fn verify_queries(db: Connection) {
     assert!(table().r#where("id", "=", 1).exists().await.unwrap());
     assert!(
         table()
-            .whereIn("id", vec![50.into()])
+            .where_in("id", vec![50.into()])
             .doesntExist()
             .await
             .unwrap()
@@ -783,12 +783,12 @@ async fn group_limits_rank_each_partition_on_mysql_8_4() {
     let mut union = db
         .table("group_items")
         .select(["id", "category", "score"])
-        .whereIn("id", vec![1.into(), 2.into()])
+        .where_in("id", vec![1.into(), 2.into()])
         .unionAll(
             &mut db
                 .table("group_items")
                 .select(["id", "category", "score"])
-                .whereIn("id", vec![4.into(), 5.into()]),
+                .where_in("id", vec![4.into(), 5.into()]),
         )
         .unwrap();
     assert!(

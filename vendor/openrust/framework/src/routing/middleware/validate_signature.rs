@@ -58,7 +58,7 @@ impl Middleware for ValidateSignature {
         Box::pin(async move {
             let urls = URL::service()?;
             let ignore = |name: &str| self.ignored.iter().any(|ignored| ignored == name);
-            if !urls.hasValidSignature(
+            if !urls.has_valid_signature(
                 request,
                 self.mode,
                 SignatureQueryFilter::Predicate(&ignore),

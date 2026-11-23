@@ -280,12 +280,12 @@ impl Facade for Route {
 impl Route {
     /// 在当前应用的路由器上分发命名路由；请求借用保持显式以保证并发隔离。
     #[allow(non_snake_case, reason = "沿用固定上游 Router 公开方法")]
-    pub async fn respondWithRoute(
+    pub async fn respond_with_route(
         name: &str,
         request: &mut crate::http::Request,
     ) -> Result<crate::http::Response, crate::http::HttpError> {
         Self::get_facade_root()?
-            .respondWithRoute(name, request)
+            .respond_with_route(name, request)
             .await
     }
 
@@ -538,7 +538,7 @@ impl Route {
 
     #[track_caller]
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn permanentRedirect(uri: &str, target: &str) -> Result<(), RoutingError> {
+    pub fn permanent_redirect(uri: &str, target: &str) -> Result<(), RoutingError> {
         Self::redirect(uri, target, crate::http::StatusCode::MOVED_PERMANENTLY)
     }
 
@@ -576,7 +576,7 @@ impl Route {
 
     #[track_caller]
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn apiResource<C: Send + Sync + 'static>(
+    pub fn api_resource<C: Send + Sync + 'static>(
         name: &str,
         controller: crate::routing::ResourceController<C>,
     ) -> Result<(), RoutingError> {
@@ -593,7 +593,7 @@ impl Route {
 
     #[track_caller]
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn apiSingleton<C: Send + Sync + 'static>(
+    pub fn api_singleton<C: Send + Sync + 'static>(
         name: &str,
         controller: crate::routing::ResourceController<C>,
     ) -> Result<(), RoutingError> {

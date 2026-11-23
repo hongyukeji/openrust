@@ -120,7 +120,7 @@ async fn field_references_use_existing_sql_model_and_relationship_paths() {
     assert_eq!(malicious.len(), 1);
     assert_eq!(
         db.table("field_reference_people")
-            .whereNull(Person::PARENT_ID)
+            .where_null(Person::PARENT_ID)
             .get()
             .await
             .unwrap()

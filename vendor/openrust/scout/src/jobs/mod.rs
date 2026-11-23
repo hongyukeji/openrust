@@ -94,9 +94,9 @@ async fn restore<M: Searchable>(
     }
     let mut query = M::queryOn(&connection).withoutGlobalScopes();
     if manager.boolean("soft_delete") {
-        query = query.withTrashed();
+        query = query.with_trashed();
     }
-    query.whereIn(&model.getScoutKeyName(), keys);
+    query.where_in(&model.getScoutKeyName(), keys);
     Ok(query.get().await?.into_iter().collect())
 }
 fn failed(e: Error) -> openrust::queue::QueueError {

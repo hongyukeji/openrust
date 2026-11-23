@@ -20,7 +20,7 @@ try {
                 assert.equal(response.status(), 200);
                 await page.locator("#sms-driver-lifecycle").waitFor();
                 const body = await page.locator("main").innerText();
-                for (const api of ["SmsManager", "forgetDrivers", "getDefaultDriver", "SmsSender", "SmsChannel::using", "to_sms", "api_key"]) {
+                for (const api of ["SmsManager", "forgetDrivers", "get_default_driver", "SmsSender", "SmsChannel::using", "to_sms", "api_key"]) {
                     assert(body.includes(api), `${language}: missing ${api}`);
                 }
                 assert(!body.includes("to_sms_template"));

@@ -212,7 +212,7 @@ Use `fillAndInsert(rows)` on an Eloquent query to apply model defaults, pending 
 
 ## Deleting Models
 
-Enable soft deletes with `softDeletes("deleted_at")`. Model queries exclude soft-deleted rows by default. Use `withTrashed` or `onlyTrashed` to include them, `restore` to clear the deletion timestamp, and `forceDelete` to remove a row permanently.
+Enable soft deletes with `softDeletes("deleted_at")`. Model queries exclude soft-deleted rows by default. Use `with_trashed` or `only_trashed` to include them, `restore` to clear the deletion timestamp, and `forceDelete` to remove a row permanently.
 
 ## Replicating Models {#replicating-models}
 
@@ -244,7 +244,7 @@ Implement `Scope<Model>` to reuse a query constraint. Apply it with `withScope`,
 
 `withGlobalScope(name, scope)` registers or replaces a scope on one query. It accepts a `Scope<M>` implementation or a `Send + Sync + 'static` closure returning `DatabaseResult<()>`. The scope's `extend` hook runs at registration; `apply` runs when scopes are applied. `withoutGlobalScopes()` removes the currently registered scopes; scopes registered afterwards still run. `withoutGlobalScopesExcept(&["tenant"])` retains only those names. `removedScopes()` preserves the order and repeated names of removal calls. Registrations belong to a query and do not change another query or model type.
 
-Soft deletion uses the same registry. To retain its filter when removing other scopes, include `std::any::type_name::<SoftDeletingScope>()` in the retained names after importing `eloquent::SoftDeletingScope`. Conditions explicitly added by `onlyTrashed()` or `withoutTrashed()` remain even if all registered scopes are removed.
+Soft deletion uses the same registry. To retain its filter when removing other scopes, include `std::any::type_name::<SoftDeletingScope>()` in the retained names after importing `eloquent::SoftDeletingScope`. Conditions explicitly added by `only_trashed()` or `without_trashed()` remain even if all registered scopes are removed.
 
 `applyScopes()` consumes the model builder and returns the builder with its scopes applied. Repeating it applies the registered scopes again. `getQuery()` consumes the model builder and returns its current base query without applying pending scopes; call `applyScopes()?.getQuery()` when those constraints are required. `setQuery(query)` replaces the base query and its previous conditions while retaining the model scopes and eager loads. `getEagerLoads()` borrows the typed `EagerLoads<M>` configuration, whose `names()` method lists registered names; `setEagerLoads(loads)` replaces that configuration, including an empty configuration. Override `Model::newEloquentBuilder(query)` and construct with `Builder::fromQuery(query)` to configure the builder used by public model queries. The factory returns the framework's typed builder; additional application methods use Rust traits or wrappers rather than runtime class names.
 

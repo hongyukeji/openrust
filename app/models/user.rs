@@ -62,32 +62,31 @@ impl Model for User {
     }
 }
 
-#[allow(non_snake_case, reason = "认证契约保留公开方法名")]
 impl Authenticatable for User {
-    fn getAuthIdentifierName(&self) -> &str {
+    fn get_auth_identifier_name(&self) -> &str {
         self.getKeyName()
     }
-    fn getAuthIdentifier(&self) -> AuthIdentifier {
+    fn get_auth_identifier(&self) -> AuthIdentifier {
         self.getKey()
             .and_then(|value| value.try_into().ok())
             .unwrap_or_else(|| AuthIdentifier::String(String::new()))
     }
-    fn getAuthPasswordName(&self) -> &str {
+    fn get_auth_password_name(&self) -> &str {
         User::PASSWORD
     }
-    fn getAuthPassword(&self) -> Option<&str> {
+    fn get_auth_password(&self) -> Option<&str> {
         text(self.getAttribute(User::PASSWORD))
     }
-    fn getRememberToken(&self) -> Option<&str> {
+    fn get_remember_token(&self) -> Option<&str> {
         text(self.getAttribute(User::REMEMBER_TOKEN))
     }
-    fn setRememberToken(&mut self, token: Option<String>) {
+    fn set_remember_token(&mut self, token: Option<String>) {
         self.setAttribute(User::REMEMBER_TOKEN, token.map_or(Value::Null, Value::Text));
     }
-    fn getRememberTokenName(&self) -> &str {
+    fn get_remember_token_name(&self) -> &str {
         User::REMEMBER_TOKEN
     }
-    fn getAuthAttribute(&self, name: &str) -> AuthResult<Option<Value>> {
+    fn get_auth_attribute(&self, name: &str) -> AuthResult<Option<Value>> {
         self.getAttributeValue(name).map_err(Into::into)
     }
     fn as_password_reset(&self) -> Option<&dyn CanResetPassword> {
@@ -101,41 +100,39 @@ impl Authenticatable for User {
     }
 }
 
-#[allow(non_snake_case, reason = "密码重置契约保留公开方法名")]
 impl CanResetPassword for User {
-    fn getEmailForPasswordReset(&self) -> &str {
+    fn get_email_for_password_reset(&self) -> &str {
         text(self.getAttribute(Self::EMAIL)).unwrap_or_default()
     }
 
-    fn sendPasswordResetNotification<'a>(
+    fn send_password_reset_notification<'a>(
         &'a self,
         token: &'a str,
     ) -> AuthFuture<'a, AuthResult<()>> {
-        Box::pin(async move { ResetPassword::new(token).sendTo(self).await })
+        Box::pin(async move { ResetPassword::new(token).send_to(self).await })
     }
 }
 
-#[allow(non_snake_case, reason = "邮箱验证契约保留公开方法名")]
 impl MustVerifyEmail for User {
-    fn hasVerifiedEmail(&self) -> bool {
+    fn has_verified_email(&self) -> bool {
         self.getAttribute(Self::EMAIL_VERIFIED_AT)
             .is_some_and(|value| *value != Value::Null)
     }
 
-    fn markEmailAsVerified(&mut self) -> AuthFuture<'_, AuthResult<bool>> {
+    fn mark_email_as_verified(&mut self) -> AuthFuture<'_, AuthResult<bool>> {
         Box::pin(self.set_verification(true))
     }
 
-    fn markEmailAsUnverified(&mut self) -> AuthFuture<'_, AuthResult<bool>> {
+    fn mark_email_as_unverified(&mut self) -> AuthFuture<'_, AuthResult<bool>> {
         Box::pin(self.set_verification(false))
     }
 
-    fn sendEmailVerificationNotification(&self) -> AuthFuture<'_, AuthResult<()>> {
+    fn send_email_verification_notification(&self) -> AuthFuture<'_, AuthResult<()>> {
         Box::pin(VerifyEmail::send(self))
     }
 
-    fn getEmailForVerification(&self) -> &str {
-        self.getEmailForPasswordReset()
+    fn get_email_for_verification(&self) -> &str {
+        self.get_email_for_password_reset()
     }
 }
 
@@ -154,13 +151,13 @@ impl User {
             .r#where(
                 self.getKeyName(),
                 "=",
-                Value::from(self.getAuthIdentifier()),
+                Value::from(self.get_auth_identifier()),
             )
-            .whereExactText(Self::EMAIL, self.getEmailForVerification());
+            .whereExactText(Self::EMAIL, self.get_email_for_verification());
         let query = if verified {
-            query.whereNull(Self::EMAIL_VERIFIED_AT)
+            query.where_null(Self::EMAIL_VERIFIED_AT)
         } else {
-            query.whereNotNull(Self::EMAIL_VERIFIED_AT)
+            query.where_not_null(Self::EMAIL_VERIFIED_AT)
         };
         let changed = query
             .update(

@@ -132,25 +132,20 @@ impl SessionManager {
         })
     }
 
-    #[allow(non_snake_case)]
-    pub fn shouldBlock(&self) -> bool {
+    pub fn should_block(&self) -> bool {
         self.settings.block
     }
-    #[allow(non_snake_case)]
-    pub fn blockDriver(&self) -> Option<&str> {
+    pub fn block_driver(&self) -> Option<&str> {
         self.settings.block_store.as_deref()
     }
-    #[allow(non_snake_case)]
-    pub fn defaultRouteBlockLockSeconds(&self) -> u64 {
+    pub fn default_route_block_lock_seconds(&self) -> u64 {
         self.settings.block_lock_seconds
     }
-    #[allow(non_snake_case)]
-    pub fn defaultRouteBlockWaitSeconds(&self) -> u64 {
+    pub fn default_route_block_wait_seconds(&self) -> u64 {
         self.settings.block_wait_seconds
     }
     /// 返回装配时的配置快照，保留自定义配置字段。
-    #[allow(non_snake_case)]
-    pub fn getSessionConfig(&self) -> &Value {
+    pub fn get_session_config(&self) -> &Value {
         &self.config
     }
 
@@ -222,7 +217,7 @@ impl SessionManager {
         options: Option<super::RouteBlock>,
         id: &str,
     ) -> Result<Option<super::SessionLock>, crate::http::HttpError> {
-        if !self.shouldBlock() && options.is_none_or(|route| route.lock_seconds == 0) {
+        if !self.should_block() && options.is_none_or(|route| route.lock_seconds == 0) {
             return Ok(None);
         }
         if self.settings.driver.as_deref() == Some("cookie") {
@@ -231,11 +226,11 @@ impl SessionManager {
         let lease = options
             .map(|route| route.lock_seconds)
             .filter(|seconds| *seconds != 0)
-            .unwrap_or(self.defaultRouteBlockLockSeconds());
-        let wait = options.map_or(self.defaultRouteBlockWaitSeconds(), |route| {
+            .unwrap_or(self.default_route_block_lock_seconds());
+        let wait = options.map_or(self.default_route_block_wait_seconds(), |route| {
             route.wait_seconds
         });
-        super::SessionLock::acquire(self.blockDriver(), id, lease, wait)
+        super::SessionLock::acquire(self.block_driver(), id, lease, wait)
             .await
             .map(Some)
             .map_err(Into::into)
@@ -271,7 +266,7 @@ impl SessionManager {
                         &self.settings.table,
                         self.settings.lifetime,
                     )?;
-                    handler.setMetadata(DatabaseSessionMetadata {
+                    handler.set_metadata(DatabaseSessionMetadata {
                         user_id: None,
                         ip_address: Some(request.ip().map(|address| address.to_string())),
                         user_agent: Some(
@@ -365,8 +360,8 @@ impl SessionManager {
             i64::try_from(self.settings.lifetime).map_err(|_| SessionError::Configuration)?
         };
         Ok(facades::Cookie::make(
-            store.getName(),
-            store.getId(),
+            store.get_name(),
+            store.get_id(),
             minutes,
             &CookieOptions {
                 http_only: stateful_frontend || self.settings.http_only,

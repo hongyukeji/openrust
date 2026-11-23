@@ -304,7 +304,7 @@ impl DatabaseBatchRepository {
                         let changed = transaction
                             .table(&table)
                             .r#where("id", "=", id.as_str())
-                            .whereNull("cancelled_at")
+                            .where_null("cancelled_at")
                             .update(
                                 [
                                     ("cancelled_at".into(), now.into()),
@@ -343,7 +343,7 @@ impl DatabaseBatchRepository {
 
     pub async fn prune(&self, before: Timestamp) -> QueueResult<u64> {
         self.prune_matching(|query| {
-            query.whereNotNull("finished_at").r#where(
+            query.where_not_null("finished_at").r#where(
                 "finished_at",
                 "<",
                 crate::support::timestamp_seconds(before),
@@ -354,7 +354,7 @@ impl DatabaseBatchRepository {
 
     pub async fn pruneUnfinished(&self, before: Timestamp) -> QueueResult<u64> {
         self.prune_matching(|query| {
-            query.whereNull("finished_at").r#where(
+            query.where_null("finished_at").r#where(
                 "created_at",
                 "<",
                 crate::support::timestamp_seconds(before),
@@ -365,7 +365,7 @@ impl DatabaseBatchRepository {
 
     pub async fn pruneCancelled(&self, before: Timestamp) -> QueueResult<u64> {
         self.prune_matching(|query| {
-            query.whereNotNull("cancelled_at").r#where(
+            query.where_not_null("cancelled_at").r#where(
                 "created_at",
                 "<",
                 crate::support::timestamp_seconds(before),

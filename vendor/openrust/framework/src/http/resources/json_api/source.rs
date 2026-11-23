@@ -13,7 +13,6 @@ use crate::{
 use super::super::json::ResourceResult;
 
 /// The data projected into a JSON:API resource object.
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub trait JsonApiSource: Sized + Send {
     fn identifier(&self) -> Option<String>;
 
@@ -23,11 +22,11 @@ pub trait JsonApiSource: Sized + Send {
         StatusCode::OK
     }
 
-    fn relationLoaded(&self, _name: &str) -> bool {
+    fn relation_loaded(&self, _name: &str) -> bool {
         false
     }
 
-    fn loadMissingPaths<'a>(
+    fn load_missing_paths<'a>(
         _sources: Vec<&'a mut Self>,
         _paths: Vec<&'static str>,
     ) -> impl Future<Output = ResourceResult<()>> + Send + 'a {
@@ -59,11 +58,11 @@ impl<M: Model> JsonApiSource for M {
         }
     }
 
-    fn relationLoaded(&self, name: &str) -> bool {
-        Model::relationLoaded(self, name)
+    fn relation_loaded(&self, name: &str) -> bool {
+        Model::relation_loaded(self, name)
     }
 
-    async fn loadMissingPaths(
+    async fn load_missing_paths(
         sources: Vec<&mut Self>,
         paths: Vec<&'static str>,
     ) -> ResourceResult<()> {
@@ -73,7 +72,7 @@ impl<M: Model> JsonApiSource for M {
                 .map(|model| M::from_state(model.state().clone()))
                 .collect(),
         );
-        models.loadMissingPaths(&paths).await?;
+        models.load_missing_paths(&paths).await?;
         for (source, mut loaded) in sources.into_iter().zip(models) {
             *source.state_mut() = std::mem::take(loaded.state_mut());
         }

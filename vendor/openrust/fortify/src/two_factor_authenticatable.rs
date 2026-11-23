@@ -61,7 +61,7 @@ pub trait TwoFactorAuthenticatable: Authenticatable + Model {
                 .map_err(internal)?;
             emit(
                 RecoveryCodeReplaced {
-                    user: self.getAuthIdentifier(),
+                    user: self.get_auth_identifier(),
                     code: Zeroizing::new(code.into()),
                 },
                 &[self],

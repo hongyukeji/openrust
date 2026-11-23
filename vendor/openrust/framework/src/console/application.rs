@@ -689,7 +689,7 @@ async fn run_command_with_events(
                 command: name,
                 input: input.matches().clone(),
                 definition: command.definition().syntax.clone(),
-                exitCode: status,
+                exit_code: status,
                 duration,
                 output: output.stdout[offset..].to_owned(),
             }),

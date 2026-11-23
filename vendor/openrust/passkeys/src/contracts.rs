@@ -28,13 +28,13 @@ pub trait PasskeyUser: Authenticatable + Model {
                 return scalar(value).ok_or(crate::PasskeyError::Format);
             }
         }
-        Ok(self.getAuthIdentifier().to_string())
+        Ok(self.get_auth_identifier().to_string())
     }
     fn getPasskeyUsername(&self) -> PasskeyResult<String> {
         if let Some(value) = self.getAttribute("email").filter(|v| **v != Value::Null) {
             return scalar(value).ok_or(crate::PasskeyError::Format);
         }
-        Ok(self.getAuthIdentifier().to_string())
+        Ok(self.get_auth_identifier().to_string())
     }
 }
 pub(crate) fn scalar(value: &Value) -> Option<String> {
@@ -48,7 +48,7 @@ pub(crate) fn scalar(value: &Value) -> Option<String> {
 
 #[allow(non_snake_case, reason = "Passkeys response contracts")]
 pub trait Response: Send + Sync {
-    fn toResponse<'a>(
+    fn to_response<'a>(
         &'a self,
         request: &'a mut openrust::http::Request,
         passkey: Option<&'a PasskeyRecord>,

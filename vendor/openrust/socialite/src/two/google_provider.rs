@@ -57,12 +57,12 @@ impl ProviderDefinition for GoogleProvider {
                 return Err(Error::Configuration("client_id"));
             }
             json(
-                http.pendingRequest()
-                    .acceptJson()
-                    .withToken(token)
-                    .redactPayload()
-                    .withoutRedirecting()
-                    .withQueryParameters([("prettyPrint".into(), "false".into())])
+                http.pending_request()
+                    .accept_json()
+                    .with_token(token)
+                    .redact_payload()
+                    .without_redirecting()
+                    .with_query_parameters([("prettyPrint".into(), "false".into())])
                     .get(&self.endpoints.user)
                     .await?,
             )

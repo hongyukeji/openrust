@@ -31,5 +31,5 @@ pub trait Translator: Send + Sync {
     fn get_locale(&self) -> String;
     fn set_locale(&self, locale: &str) -> TranslationResult<()>;
     fn getFallback(&self) -> String;
-    fn setFallback(&self, fallback: &str) -> TranslationResult<()>;
+    fn set_fallback(&self, fallback: &str) -> TranslationResult<()>;
 }

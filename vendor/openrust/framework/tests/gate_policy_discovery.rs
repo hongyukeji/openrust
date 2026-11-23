@@ -106,26 +106,26 @@ async fn fixture() -> (Application, Arc<AtomicUsize>) {
             container.bind::<app::models::policies::nested::EntryPolicy, _>(|_| {
                 Ok(Arc::new(app::models::policies::nested::EntryPolicy))
             })?;
-            Gate::discoverPolicy::<app::models::Article, app::policies::ArticlePolicy>()?;
-            Gate::discoverPolicy::<app::models::Article, app::alternate::ArticlePolicy>()?;
-            Gate::discoverPolicy::<app::models::nested::Entry, app::policies::nested::EntryPolicy>(
+            Gate::discover_policy::<app::models::Article, app::policies::ArticlePolicy>()?;
+            Gate::discover_policy::<app::models::Article, app::alternate::ArticlePolicy>()?;
+            Gate::discover_policy::<app::models::nested::Entry, app::policies::nested::EntryPolicy>(
             )?;
-            Gate::discoverPolicy::<
+            Gate::discover_policy::<
                 app::models::nested::Entry,
                 app::models::policies::nested::EntryPolicy,
             >()?;
             assert!(Gate::policies()?.is_empty());
-            let native = Gate::resolvePolicy::<app::policies::ArticlePolicy>()?;
+            let native = Gate::resolve_policy::<app::policies::ArticlePolicy>()?;
             assert_eq!(*native.dependency, 41);
-            let policy = Gate::getPolicyFor(&app::models::Article)?.unwrap();
+            let policy = Gate::get_policy_for(&app::models::Article)?.unwrap();
             assert!(policy.downcast::<app::policies::ArticlePolicy>().is_some());
-            Gate::guessPolicyNamesUsing(|_| {
+            Gate::guess_policy_names_using(|_| {
                 vec![type_name::<app::policies::ArticlePolicy>().into()]
             })?;
-            assert!(Gate::getPolicyFor(&PolicyTarget::of::<app::models::Article>())?.is_some());
+            assert!(Gate::get_policy_for(&PolicyTarget::of::<app::models::Article>())?.is_some());
             // 替换为空后不继续默认发现。
-            Gate::guessPolicyNamesUsing(|_| Vec::new())?;
-            assert!(Gate::getPolicyFor(&app::models::Article)?.is_none());
+            Gate::guess_policy_names_using(|_| Vec::new())?;
+            assert!(Gate::get_policy_for(&app::models::Article)?.is_none());
             Ok(())
         })
         .create()
@@ -138,18 +138,18 @@ async fn fixture() -> (Application, Arc<AtomicUsize>) {
 async fn policy_resolution_uses_real_container_bindings_and_typed_public_entries() {
     let (app, count) = fixture().await;
     let registry = app.container().make::<GateRegistry>().unwrap();
-    registry.guessPolicyNamesUsing(|_| vec![type_name::<app::policies::ArticlePolicy>().into()]);
-    let scoped = registry.forUser(None);
+    registry.guess_policy_names_using(|_| vec![type_name::<app::policies::ArticlePolicy>().into()]);
+    let scoped = registry.for_user(None);
     let contract: &dyn GateContract = &scoped;
     let handle = contract
-        .getPolicyFor(&app::models::Article)
+        .get_policy_for(&app::models::Article)
         .unwrap()
         .unwrap();
     assert_eq!(handle.name(), type_name::<app::policies::ArticlePolicy>());
     assert!(handle.downcast::<app::alternate::ArticlePolicy>().is_none());
     let one = handle.downcast::<app::policies::ArticlePolicy>().unwrap();
     let two = scoped
-        .resolvePolicy::<app::policies::ArticlePolicy>()
+        .resolve_policy::<app::policies::ArticlePolicy>()
         .unwrap();
     assert!(!Arc::ptr_eq(&one, &two));
     assert_ne!(one.sequence, two.sequence);
@@ -176,13 +176,13 @@ async fn policy_resolution_uses_real_container_bindings_and_typed_public_entries
     assert!(Arc::ptr_eq(
         &shared,
         &registry
-            .resolvePolicy::<app::policies::ArticlePolicy>()
+            .resolve_policy::<app::policies::ArticlePolicy>()
             .unwrap()
     ));
     assert!(Arc::ptr_eq(
         &shared,
         &scoped
-            .getPolicyFor(&app::models::Article)
+            .get_policy_for(&app::models::Article)
             .unwrap()
             .unwrap()
             .downcast()
@@ -223,15 +223,16 @@ async fn policy_discovery_matches_fixed_php_precedence_and_missing_candidates() 
         })
         .unwrap();
     default_registry
-        .discoverPolicy::<app::models::Article, app::policies::ArticlePolicy>()
-        .discoverPolicy::<app::models::nested::Entry, app::policies::nested::EntryPolicy>()
-        .discoverPolicy::<app::models::nested::Entry, app::models::policies::nested::EntryPolicy>();
+        .discover_policy::<app::models::Article, app::policies::ArticlePolicy>()
+        .discover_policy::<app::models::nested::Entry, app::policies::nested::EntryPolicy>()
+        .discover_policy::<app::models::nested::Entry, app::models::policies::nested::EntryPolicy>(
+        );
     let mut observed = serde_json::Map::new();
     observed.insert(
         "default".into(),
         json!(
             default_registry
-                .getPolicyFor(&app::models::Article)
+                .get_policy_for(&app::models::Article)
                 .unwrap()
                 .unwrap()
                 .name()
@@ -242,7 +243,7 @@ async fn policy_discovery_matches_fixed_php_precedence_and_missing_candidates() 
         "nested".into(),
         json!(
             default_registry
-                .getPolicyFor(&app::models::nested::Entry)
+                .get_policy_for(&app::models::nested::Entry)
                 .unwrap()
                 .unwrap()
                 .name()
@@ -253,25 +254,25 @@ async fn policy_discovery_matches_fixed_php_precedence_and_missing_candidates() 
         "unmapped".into(),
         json!(
             default_registry
-                .getPolicyFor(&app::models::Unmapped)
+                .get_policy_for(&app::models::Unmapped)
                 .unwrap()
                 .is_none()
         ),
     );
     observed.insert(
         "nonclass".into(),
-        json!(default_registry.getPolicyFor(&42u32).unwrap().is_none()),
+        json!(default_registry.get_policy_for(&42u32).unwrap().is_none()),
     );
     observed.insert(
         "empty_callback".into(),
         json!(
             registry
-                .getPolicyFor(&app::models::Article)
+                .get_policy_for(&app::models::Article)
                 .unwrap()
                 .is_none()
         ),
     );
-    registry.guessPolicyNamesUsing(|_| {
+    registry.guess_policy_names_using(|_| {
         vec![
             "MissingPolicy".into(),
             type_name::<app::alternate::ArticlePolicy>().into(),
@@ -282,7 +283,7 @@ async fn policy_discovery_matches_fixed_php_precedence_and_missing_candidates() 
         "first_existing".into(),
         json!(
             registry
-                .getPolicyFor(&app::models::Article)
+                .get_policy_for(&app::models::Article)
                 .unwrap()
                 .unwrap()
                 .name()
@@ -293,7 +294,7 @@ async fn policy_discovery_matches_fixed_php_precedence_and_missing_candidates() 
         "callback_decision".into(),
         json!(
             !registry
-                .forUser(None)
+                .for_user(None)
                 .allows("view", &[&app::models::Article])
                 .await
                 .unwrap()
@@ -307,7 +308,7 @@ async fn policy_discovery_matches_fixed_php_precedence_and_missing_candidates() 
         "explicit".into(),
         json!(
             registry
-                .getPolicyFor(&app::models::Article)
+                .get_policy_for(&app::models::Article)
                 .unwrap()
                 .unwrap()
                 .name()
@@ -339,7 +340,7 @@ async fn policy_discovery_matches_fixed_php_precedence_and_missing_candidates() 
 async fn discovery_propagates_factory_errors_and_does_not_resolve_before_interceptors() {
     let (app, _) = fixture().await;
     let registry = app.container().make::<GateRegistry>().unwrap();
-    registry.discoverPolicy::<app::models::Article, BrokenPolicy>();
+    registry.discover_policy::<app::models::Article, BrokenPolicy>();
     let calls = Arc::new(AtomicUsize::new(0));
     let captured = calls.clone();
     app.container()
@@ -348,17 +349,17 @@ async fn discovery_propagates_factory_errors_and_does_not_resolve_before_interce
             Err(openrust::contracts::container::BindingResolutionError::FacadeNotSet)
         })
         .unwrap();
-    registry.guessPolicyNamesUsing(|_| {
+    registry.guess_policy_names_using(|_| {
         vec![
             type_name::<BrokenPolicy>().into(),
             type_name::<app::policies::ArticlePolicy>().into(),
         ]
     });
-    assert!(registry.getPolicyFor(&app::models::Article).is_err());
+    assert!(registry.get_policy_for(&app::models::Article).is_err());
     assert_eq!(calls.load(Ordering::Relaxed), 1);
     assert!(
         registry
-            .forUser(None)
+            .for_user(None)
             .inspect("view", &[&app::models::Article])
             .await
             .is_err()
@@ -367,38 +368,38 @@ async fn discovery_propagates_factory_errors_and_does_not_resolve_before_interce
     registry.before(|_, _, _| Box::pin(async { Ok(Some(Response::allow())) }));
     assert!(
         registry
-            .forUser(None)
+            .for_user(None)
             .allows("view", &[&app::models::Article])
             .await
             .unwrap()
     );
     assert_eq!(calls.load(Ordering::Relaxed), after);
-    registry.guessPolicyNamesUsing(|_| {
+    registry.guess_policy_names_using(|_| {
         vec![type_name::<app::models::policies::nested::EntryPolicy>().into()]
     });
-    assert!(registry.getPolicyFor(&app::models::Article).is_err());
+    assert!(registry.get_policy_for(&app::models::Article).is_err());
     assert!(
         GateRegistry::default()
-            .resolvePolicy::<BrokenPolicy>()
+            .resolve_policy::<BrokenPolicy>()
             .is_err()
     );
     // 回调允许安全重入注册表，克隆forUser继续共享本应用定义。
     let weak = Arc::downgrade(&registry);
-    registry.guessPolicyNamesUsing(move |_| {
+    registry.guess_policy_names_using(move |_| {
         weak.upgrade()
             .unwrap()
-            .defineGuest("from-callback", |_, _| {
+            .define_guest("from-callback", |_, _| {
                 Box::pin(async { Ok(Response::allow()) })
             });
         Vec::new()
     });
     assert!(
         registry
-            .getPolicyFor(&app::models::Article)
+            .get_policy_for(&app::models::Article)
             .unwrap()
             .is_none()
     );
-    assert!(registry.forUser(None).has("from-callback"));
+    assert!(registry.for_user(None).has("from-callback"));
 }
 
 #[tokio::test]
@@ -411,8 +412,8 @@ async fn discovered_policies_authorize_real_http_in_independent_applications() {
     };
     fn authorize(_: &mut Request) -> HttpFuture<'_, Result<HttpResponse, HttpError>> {
         Box::pin(async {
-            assert!(Gate::getPolicyFor(&app::models::Article)?.is_some());
-            Gate::forUser(None)?
+            assert!(Gate::get_policy_for(&app::models::Article)?.is_some());
+            Gate::for_user(None)?
                 .authorize("view", &[&app::models::Article])
                 .await?;
             HttpResponse::json(StatusCode::OK, json!({"allowed":true}))
@@ -436,10 +437,10 @@ async fn discovered_policies_authorize_real_http_in_independent_applications() {
                         .bind::<app::alternate::ArticlePolicy, _>(|_| {
                             Ok(Arc::new(app::alternate::ArticlePolicy))
                         })?;
-                    Gate::discoverPolicy::<app::models::Article, app::policies::ArticlePolicy>()?;
-                    Gate::discoverPolicy::<app::models::Article, app::alternate::ArticlePolicy>()?;
+                    Gate::discover_policy::<app::models::Article, app::policies::ArticlePolicy>()?;
+                    Gate::discover_policy::<app::models::Article, app::alternate::ArticlePolicy>()?;
                     if !allowed {
-                        Gate::guessPolicyNamesUsing(|_| {
+                        Gate::guess_policy_names_using(|_| {
                             vec![type_name::<app::alternate::ArticlePolicy>().into()]
                         })?;
                     }
@@ -456,7 +457,7 @@ async fn discovered_policies_authorize_real_http_in_independent_applications() {
     );
     allowed
         .unwrap()
-        .assertOk()
-        .assertExactJson(&json!({"allowed":true}));
-    denied.unwrap().assertForbidden();
+        .assert_ok()
+        .assert_exact_json(&json!({"allowed":true}));
+    denied.unwrap().assert_forbidden();
 }

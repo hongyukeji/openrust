@@ -131,14 +131,14 @@ impl Wechat {
         let url = self.endpoint.join(path).map_err(|_| Error::Protocol)?;
         let response: Response = self
             .http
-            .pendingRequest()
-            .redactPayload()
-            .withoutRedirecting()
+            .pending_request()
+            .redact_payload()
+            .without_redirecting()
             .timeout(Duration::from_secs(15))
-            .maxResponseBytes(1024 * 1024)
-            .acceptJson()
-            .withHeaders(headers)
-            .withBody(body, HeaderValue::from_static("application/json"))
+            .max_response_bytes(1024 * 1024)
+            .accept_json()
+            .with_headers(headers)
+            .with_body(body, HeaderValue::from_static("application/json"))
             .send(method, url.as_str())
             .await
             .map_err(|_| Error::OutcomeUnknown)?;

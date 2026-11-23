@@ -394,7 +394,7 @@ fn who(r: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         let user = Auth::user(r).await.map_err(internal)?;
         Response::json(
             StatusCode::OK,
-            json!({"user":user.map(|u|u.getAuthIdentifier().to_string()),"csrf":r.session()?.token()}),
+            json!({"user":user.map(|u|u.get_auth_identifier().to_string()),"csrf":r.session()?.token()}),
         )
     })
 }
@@ -493,7 +493,7 @@ async fn rp(op: &Arc<Op>, mysql: &str, name: &str, user_id: i64) -> Rp {
     app.make::<AuthManager>()
         .await
         .unwrap()
-        .registerModel::<user::User>("SsoUser");
+        .register_model::<user::User>("SsoUser");
     let db = app
         .make::<DatabaseManager>()
         .await
@@ -526,7 +526,7 @@ async fn rp(op: &Arc<Op>, mysql: &str, name: &str, user_id: i64) -> Rp {
         State(k): State<Arc<Kernel>>,
         r: axum::extract::Request,
     ) -> axum::response::Response {
-        k.handleTransport(r).await
+        k.handle_transport(r).await
     }
     let task = tokio::spawn(async move {
         axum::serve(

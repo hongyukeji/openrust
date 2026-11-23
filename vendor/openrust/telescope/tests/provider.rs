@@ -51,8 +51,10 @@ fn redis_handler(
 async fn native_redis_commands_preserve_connection_parameters_and_elapsed_time() {
     assert!(std::env::var("TELESCOPE_TEST_REDIS_URL").is_ok());
     let mut app = application();
-    app.artisan(["migrate", "--force"]).await.assertSuccessful();
-    app.get("/api/redis").await.unwrap().assertOk();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+    app.get("/api/redis").await.unwrap().assert_ok();
     let repository = app.app().make::<DatabaseEntriesRepository>().await.unwrap();
     let entries = repository
         .get(Some(EntryType::Redis), EntryQueryOptions::default())
@@ -116,12 +118,14 @@ async fn native_cache_recording_pause_resume_use_the_selected_cache_store() {
             .await
             .unwrap();
     }
-    app.artisan(["migrate", "--force"]).await.assertSuccessful();
-    app.get("/api/probe").await.unwrap().assertOk();
-    app.artisan(["telescope:pause"]).await.assertSuccessful();
-    app.get("/api/probe").await.unwrap().assertOk();
-    app.artisan(["telescope:resume"]).await.assertSuccessful();
-    app.get("/api/probe").await.unwrap().assertOk();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+    app.get("/api/probe").await.unwrap().assert_ok();
+    app.artisan(["telescope:pause"]).await.assert_successful();
+    app.get("/api/probe").await.unwrap().assert_ok();
+    app.artisan(["telescope:resume"]).await.assert_successful();
+    app.get("/api/probe").await.unwrap().assert_ok();
     let repository = app.app().make::<DatabaseEntriesRepository>().await.unwrap();
     let entries = repository
         .get(Some(EntryType::Cache), EntryQueryOptions::default())
@@ -223,8 +227,8 @@ fn application() -> openrust::testing::TestApp {
         ])))
         .with_providers(vec![Box::new(TelescopeServiceProvider)])
         .with_middleware(|middleware| {
-            middleware.skipTrimStringsWhen(|request|request.path().trim_start_matches('/')=="api/unread");
-            middleware.convertEmptyStringsToNull(|request|request.path().trim_start_matches('/')=="api/unread");
+            middleware.skip_trim_strings_when(|request|request.path().trim_start_matches('/')=="api/unread");
+            middleware.convert_empty_strings_to_null(|request|request.path().trim_start_matches('/')=="api/unread");
         })
         .with_routing(openrust::foundation::configuration::Routing::default().api(routes).commands(commands))
     ).unwrap();
@@ -334,7 +338,7 @@ fn native_handler(
             support::facades::{Event, Gate, Notification},
         };
         Event::dispatch(NativeEvent).await.unwrap();
-        Gate::defineGuest("observed", |_, arguments| {
+        Gate::define_guest("observed", |_, arguments| {
             Box::pin(async move {
                 assert_eq!(arguments[0].downcast_ref::<String>().unwrap(), "actual");
                 Ok(openrust::auth::access::Response::allow())
@@ -342,7 +346,7 @@ fn native_handler(
         })
         .unwrap();
         assert!(
-            Gate::forUser(None)
+            Gate::for_user(None)
                 .unwrap()
                 .allows("observed", &[&String::from("actual")])
                 .await
@@ -406,7 +410,9 @@ async fn native_event_gate_notification_model_view_and_dump_sources_are_observed
         "observed view",
     )
     .unwrap();
-    app.artisan(["migrate", "--force"]).await.assertSuccessful();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
     let telescope = app.app().make::<Telescope>().await.unwrap();
     telescope.auth(|_| Box::pin(async { Ok(true) }));
     api_call(
@@ -416,12 +422,12 @@ async fn native_event_gate_notification_model_view_and_dump_sources_are_observed
         json!({}),
     )
     .await
-    .assertOk();
+    .assert_ok();
     app.get("/api/native")
         .await
         .unwrap()
-        .assertOk()
-        .assertContent("observed view");
+        .assert_ok()
+        .assert_content("observed view");
     let repository = app.app().make::<DatabaseEntriesRepository>().await.unwrap();
     let events = repository
         .get(Some(EntryType::Event), EntryQueryOptions::default())
@@ -535,10 +541,12 @@ fn input_handler(
 #[tokio::test]
 async fn request_payload_snapshot_redacts_decoded_input_without_polling_unread_streams() {
     let mut app = application();
-    app.artisan(["migrate", "--force"]).await.assertSuccessful();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
     let telescope = app.app().make::<Telescope>().await.unwrap();
     telescope.hideRequestParameters(&["secret", "nested.password"]);
-    api_call(&mut app,"POST","/api/input?query=value&same=query",json!({"secret":"private","same":"body","nested":{"password":"hidden","public":"visible"},"empty":false})).await.assertOk();
+    api_call(&mut app,"POST","/api/input?query=value&same=query",json!({"secret":"private","same":"body","nested":{"password":"hidden","public":"visible"},"empty":false})).await.assert_ok();
     let repository = app.app().make::<DatabaseEntriesRepository>().await.unwrap();
     let requests = repository
         .get(Some(EntryType::Request), EntryQueryOptions::default())
@@ -565,7 +573,7 @@ async fn request_payload_snapshot_redacts_decoded_input_without_polling_unread_s
     .await
     .unwrap()
     .unwrap();
-    response.assertOk();
+    response.assert_ok();
     let requests = repository
         .get(Some(EntryType::Request), EntryQueryOptions::default())
         .await
@@ -611,8 +619,10 @@ fn mail_handler(
 #[tokio::test]
 async fn native_mail_preserves_queued_identity_and_sandboxes_preview_and_download() {
     let mut app = application();
-    app.artisan(["migrate", "--force"]).await.assertSuccessful();
-    app.get("/api/mail").await.unwrap().assertOk();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+    app.get("/api/mail").await.unwrap().assert_ok();
     let telescope = app.app().make::<Telescope>().await.unwrap();
     telescope.auth(|_| Box::pin(async { Ok(true) }));
     let repository = app.app().make::<DatabaseEntriesRepository>().await.unwrap();
@@ -646,7 +656,7 @@ async fn native_mail_preserves_queued_identity_and_sandboxes_preview_and_downloa
             ))
             .await
             .unwrap();
-        preview.assertOk();
+        preview.assert_ok();
         assert_eq!(
             preview.headers()["content-security-policy"],
             "sandbox allow-popups allow-popups-to-escape-sandbox"
@@ -662,7 +672,7 @@ async fn native_mail_preserves_queued_identity_and_sandboxes_preview_and_downloa
             ))
             .await
             .unwrap();
-        download.assertOk();
+        download.assert_ok();
         assert_eq!(download.headers()["content-type"], "message/rfc822");
         assert!(
             download.headers()["content-disposition"]
@@ -676,13 +686,15 @@ async fn native_mail_preserves_queued_identity_and_sandboxes_preview_and_downloa
         );
     }
     let deep = app.get("/telescope/mail/example").await.unwrap();
-    deep.assertOk();
+    deep.assert_ok();
     assert!(String::from_utf8_lossy(deep.body()).contains("base=\"/telescope\""));
 }
 #[tokio::test]
 async fn provider_boot_is_lazy_and_native_lifecycles_flush_isolated_collectors() {
     let mut app = application();
-    app.artisan(["migrate", "--force"]).await.assertSuccessful();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
     let telescope = app.app().make::<Telescope>().await.unwrap();
     telescope.tag(|_| vec!["shared-configuration".into()]);
     telescope.filter(|entry| entry.content.get("name") != Some(&json!("excluded")));
@@ -698,8 +710,8 @@ async fn provider_boot_is_lazy_and_native_lifecycles_flush_isolated_collectors()
         app.get("/api/probe")
             .await
             .unwrap()
-            .assertOk()
-            .assertContent("ok");
+            .assert_ok()
+            .assert_content("ok");
     }
     let events = repository
         .get(Some(EntryType::Event), EntryQueryOptions::default())
@@ -729,7 +741,7 @@ async fn provider_boot_is_lazy_and_native_lifecycles_flush_isolated_collectors()
         .unwrap();
     assert_eq!(caches.len(), 4);
     assert!(caches.iter().all(|entry| entry.content["key"] == "probe"));
-    app.get("/api/ignore/probe").await.unwrap().assertOk();
+    app.get("/api/ignore/probe").await.unwrap().assert_ok();
     assert_eq!(
         repository
             .get(Some(EntryType::Event), EntryQueryOptions::default())
@@ -743,10 +755,12 @@ async fn provider_boot_is_lazy_and_native_lifecycles_flush_isolated_collectors()
 #[tokio::test]
 async fn management_commands_validate_types_preserve_json_and_pause_across_scopes() {
     let mut app = application();
-    app.artisan(["migrate", "--force"]).await.assertSuccessful();
-    app.get("/api/probe").await.unwrap().assertOk();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+    app.get("/api/probe").await.unwrap().assert_ok();
     let result = app.artisan(["telescope:list", "event", "--json"]).await;
-    result.assertSuccessful();
+    result.assert_successful();
     let entries: serde_json::Value = serde_json::from_str(result.stdout.trim()).unwrap();
     assert_eq!(entries.as_array().unwrap().len(), 1);
     assert_eq!(entries[0]["content"]["name"], "probe");
@@ -754,7 +768,7 @@ async fn management_commands_validate_types_preserve_json_and_pause_across_scope
     let result = app
         .artisan(["telescope:show", id, "--json", "--type=cache,request"])
         .await;
-    result.assertSuccessful();
+    result.assert_successful();
     let shown: serde_json::Value = serde_json::from_str(result.stdout.trim()).unwrap();
     assert_eq!(shown["entry"]["id"], id);
     assert_eq!(shown["batch"].as_array().unwrap().len(), 3);
@@ -767,8 +781,8 @@ async fn management_commands_validate_types_preserve_json_and_pause_across_scope
     ] {
         assert_eq!(app.artisan(args).await.status, 1);
     }
-    app.artisan(["telescope:pause"]).await.assertSuccessful();
-    app.get("/api/probe").await.unwrap().assertOk();
+    app.artisan(["telescope:pause"]).await.assert_successful();
+    app.get("/api/probe").await.unwrap().assert_ok();
     let repository = app.app().make::<DatabaseEntriesRepository>().await.unwrap();
     assert_eq!(
         repository
@@ -778,8 +792,8 @@ async fn management_commands_validate_types_preserve_json_and_pause_across_scope
             .len(),
         1
     );
-    app.artisan(["telescope:resume"]).await.assertSuccessful();
-    app.get("/api/probe").await.unwrap().assertOk();
+    app.artisan(["telescope:resume"]).await.assert_successful();
+    app.get("/api/probe").await.unwrap().assert_ok();
     assert_eq!(
         repository
             .get(Some(EntryType::Event), EntryQueryOptions::default())
@@ -790,8 +804,8 @@ async fn management_commands_validate_types_preserve_json_and_pause_across_scope
     );
     app.artisan(["telescope:prune", "--hours=999999", "--keep-exceptions"])
         .await
-        .assertSuccessful();
-    app.artisan(["telescope:clear"]).await.assertSuccessful();
+        .assert_successful();
+    app.artisan(["telescope:clear"]).await.assert_successful();
     assert!(
         repository
             .get(Some(EntryType::Event), EntryQueryOptions::default())
@@ -799,15 +813,15 @@ async fn management_commands_validate_types_preserve_json_and_pause_across_scope
             .unwrap()
             .is_empty()
     );
-    app.artisan(["telescope:publish"]).await.assertSuccessful();
+    app.artisan(["telescope:publish"]).await.assert_successful();
     let config = app.root().join("config/telescope.rs");
     assert!(config.exists());
     std::fs::write(&config, "// custom").unwrap();
-    app.artisan(["telescope:publish"]).await.assertSuccessful();
+    app.artisan(["telescope:publish"]).await.assert_successful();
     assert_eq!(std::fs::read_to_string(&config).unwrap(), "// custom");
     app.artisan(["telescope:publish", "--force"])
         .await
-        .assertSuccessful();
+        .assert_successful();
     assert!(
         std::fs::read_to_string(&config)
             .unwrap()
@@ -857,8 +871,10 @@ fn retry(
 #[tokio::test]
 async fn registered_pending_update_job_uses_native_queue_and_bounds_missing_entry_retries() {
     let mut app = application();
-    app.artisan(["migrate", "--force"]).await.assertSuccessful();
-    app.get("/api/retry").await.unwrap().assertOk();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+    app.get("/api/retry").await.unwrap().assert_ok();
     let repository = app.app().make::<DatabaseEntriesRepository>().await.unwrap();
     let entries = repository
         .get(Some(EntryType::Event), EntryQueryOptions::default())
@@ -903,8 +919,10 @@ fn log_handler(
 #[tokio::test]
 async fn native_logger_observer_interpolates_once_and_records_real_error_snapshots() {
     let mut app = application();
-    app.artisan(["migrate", "--force"]).await.assertSuccessful();
-    app.get("/api/logs").await.unwrap().assertOk();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+    app.get("/api/logs").await.unwrap().assert_ok();
     let repository = app.app().make::<DatabaseEntriesRepository>().await.unwrap();
     let logs = repository
         .get(Some(EntryType::Log), EntryQueryOptions::default())
@@ -953,7 +971,9 @@ async fn api_call(
 #[tokio::test]
 async fn dashboard_authorization_and_native_web_api_preserve_filters_and_mutations() {
     let mut app = application();
-    app.artisan(["migrate", "--force"]).await.assertSuccessful();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
     let denied = app.get("/telescope").await.unwrap();
     assert_eq!(
         denied.status(),
@@ -967,10 +987,10 @@ async fn dashboard_authorization_and_native_web_api_preserve_filters_and_mutatio
     app.get("/telescope")
         .await
         .unwrap()
-        .assertStatus(openrust::http::StatusCode::FORBIDDEN);
+        .assert_status(openrust::http::StatusCode::FORBIDDEN);
     telescope.auth(|_| Box::pin(async { Ok(true) }));
-    app.get("/telescope").await.unwrap().assertOk();
-    app.get("/api/probe").await.unwrap().assertOk();
+    app.get("/telescope").await.unwrap().assert_ok();
+    app.get("/api/probe").await.unwrap().assert_ok();
     let listed = api_call(
         &mut app,
         "POST",
@@ -978,7 +998,7 @@ async fn dashboard_authorization_and_native_web_api_preserve_filters_and_mutatio
         json!({"take":1}),
     )
     .await;
-    listed.assertOk();
+    listed.assert_ok();
     let listed: serde_json::Value = listed.json().unwrap();
     assert_eq!(listed["status"], "enabled");
     assert_eq!(listed["entries"].as_array().unwrap().len(), 1);
@@ -987,7 +1007,7 @@ async fn dashboard_authorization_and_native_web_api_preserve_filters_and_mutatio
         .get(&format!("/telescope/telescope-api/events/{id}"))
         .await
         .unwrap();
-    shown.assertOk();
+    shown.assert_ok();
     let shown: serde_json::Value = shown.json().unwrap();
     assert_eq!(shown["entry"]["id"], id);
     assert_eq!(shown["batch"].as_array().unwrap().len(), 4);
@@ -998,12 +1018,12 @@ async fn dashboard_authorization_and_native_web_api_preserve_filters_and_mutatio
         json!({"tag":"probe"}),
     )
     .await
-    .assertOk();
+    .assert_ok();
     let tags = app
         .get("/telescope/telescope-api/monitored-tags")
         .await
         .unwrap();
-    tags.assertOk();
+    tags.assert_ok();
     assert_eq!(
         tags.json::<serde_json::Value>().unwrap()["tags"],
         json!(["probe"])
@@ -1015,7 +1035,7 @@ async fn dashboard_authorization_and_native_web_api_preserve_filters_and_mutatio
         json!({"tag":"probe"}),
     )
     .await
-    .assertOk();
+    .assert_ok();
     api_call(
         &mut app,
         "POST",
@@ -1023,7 +1043,7 @@ async fn dashboard_authorization_and_native_web_api_preserve_filters_and_mutatio
         json!({}),
     )
     .await
-    .assertOk();
+    .assert_ok();
     let listed = api_call(
         &mut app,
         "POST",
@@ -1042,7 +1062,7 @@ async fn dashboard_authorization_and_native_web_api_preserve_filters_and_mutatio
         json!({}),
     )
     .await
-    .assertOk();
+    .assert_ok();
     api_call(
         &mut app,
         "DELETE",
@@ -1050,7 +1070,7 @@ async fn dashboard_authorization_and_native_web_api_preserve_filters_and_mutatio
         json!({}),
     )
     .await
-    .assertOk();
+    .assert_ok();
     let repository = app.app().make::<DatabaseEntriesRepository>().await.unwrap();
     assert!(
         repository
@@ -1093,7 +1113,7 @@ fn async_handler(
             Payload::new("telescope.probe", json!({"fail":false})).unwrap(),
         ])
         .name("observed batch")
-        .onConnection("async")
+        .on_connection("async")
         .dispatch()
         .await
         .unwrap();
@@ -1114,7 +1134,9 @@ fn async_handler(
 #[tokio::test]
 async fn native_database_worker_and_batch_bulk_keep_attempts_isolated_from_the_console() {
     let mut app = application();
-    app.artisan(["migrate", "--force"]).await.assertSuccessful();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
     let connection = app
         .app()
         .make::<openrust::database::DatabaseManager>()
@@ -1157,7 +1179,7 @@ async fn native_database_worker_and_batch_bulk_keep_attempts_isolated_from_the_c
         .unwrap()
         .register("telescope.probe", std::sync::Arc::new(QueueProbe))
         .unwrap();
-    app.get("/api/async").await.unwrap().assertOk();
+    app.get("/api/async").await.unwrap().assert_ok();
     let repository = app.app().make::<DatabaseEntriesRepository>().await.unwrap();
     let jobs = repository
         .get(Some(EntryType::Job), EntryQueryOptions::default())
@@ -1178,7 +1200,7 @@ async fn native_database_worker_and_batch_bulk_keep_attempts_isolated_from_the_c
             "--tries=1",
         ])
         .await
-        .assertSuccessful();
+        .assert_successful();
     }
     let jobs = repository
         .get(Some(EntryType::Job), EntryQueryOptions::default())
@@ -1244,14 +1266,16 @@ fn job_handler(
 #[tokio::test]
 async fn native_sync_jobs_record_payload_and_terminal_updates_in_the_original_batch() {
     let mut app = application();
-    app.artisan(["migrate", "--force"]).await.assertSuccessful();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
     app.app()
         .make::<openrust::queue::QueueManager>()
         .await
         .unwrap()
         .register("telescope.probe", std::sync::Arc::new(QueueProbe))
         .unwrap();
-    app.get("/api/jobs").await.unwrap().assertOk();
+    app.get("/api/jobs").await.unwrap().assert_ok();
     let repository = app.app().make::<DatabaseEntriesRepository>().await.unwrap();
     let jobs = repository
         .get(Some(EntryType::Job), EntryQueryOptions::default())
@@ -1278,7 +1302,9 @@ async fn native_sync_jobs_record_payload_and_terminal_updates_in_the_original_ba
 #[tokio::test]
 async fn request_received_loads_monitored_tags_before_application_recording() {
     let mut app = application();
-    app.artisan(["migrate", "--force"]).await.assertSuccessful();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
     let repository = app.app().make::<DatabaseEntriesRepository>().await.unwrap();
     repository.monitor(&["tracked".into()]).await.unwrap();
     let telescope = app.app().make::<Telescope>().await.unwrap();
@@ -1290,7 +1316,7 @@ async fn request_received_loads_monitored_tags_before_application_recording() {
         }
     });
     telescope.filter(|entry| entry.hasMonitoredTag());
-    app.get("/api/probe").await.unwrap().assertOk();
+    app.get("/api/probe").await.unwrap().assert_ok();
     let entries = repository
         .get(None, EntryQueryOptions::default())
         .await
@@ -1302,7 +1328,9 @@ async fn request_received_loads_monitored_tags_before_application_recording() {
 #[tokio::test]
 async fn console_show_full_preserves_unicode_payload_and_list_uses_type_columns() {
     let mut app = application();
-    app.artisan(["migrate", "--force"]).await.assertSuccessful();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
     let repository = app.app().make::<DatabaseEntriesRepository>().await.unwrap();
     let message = format!("{}TAIL", "中文".repeat(400));
     let entry = IncomingEntry::make(
@@ -1317,17 +1345,17 @@ async fn console_show_full_preserves_unicode_payload_and_list_uses_type_columns(
     let id = entry.uuid.to_string();
     repository.store(&[entry]).await.unwrap();
     let listed = app.artisan(["telescope:list", "log"]).await;
-    listed.assertSuccessful();
+    listed.assert_successful();
     assert!(listed.stdout.contains("Level\tMessage"));
     assert!(!listed.stdout.contains("TAIL"));
     let short = app.artisan(["telescope:show", &id]).await;
-    short.assertSuccessful();
+    short.assert_successful();
     assert!(!short.stdout.contains("TAIL"));
     let full = app.artisan(["telescope:show", &id, "--full"]).await;
-    full.assertSuccessful();
+    full.assert_successful();
     assert!(full.stdout.contains(&message));
     let json = app.artisan(["telescope:show", &id, "--json"]).await;
-    json.assertSuccessful();
+    json.assert_successful();
     assert_eq!(
         serde_json::from_str::<serde_json::Value>(json.stdout.trim()).unwrap()["entry"]["content"]
             ["message"],
@@ -1336,24 +1364,24 @@ async fn console_show_full_preserves_unicode_payload_and_list_uses_type_columns(
 }
 
 impl openrust::contracts::auth::Authenticatable for ObservedModel {
-    fn getAuthIdentifierName(&self) -> &str {
+    fn get_auth_identifier_name(&self) -> &str {
         "id"
     }
-    fn getAuthIdentifier(&self) -> openrust::auth::AuthIdentifier {
+    fn get_auth_identifier(&self) -> openrust::auth::AuthIdentifier {
         use openrust::database::eloquent::Model;
         openrust::auth::AuthIdentifier::try_from(self.getKey().unwrap()).unwrap()
     }
-    fn getAuthPasswordName(&self) -> &str {
+    fn get_auth_password_name(&self) -> &str {
         "password"
     }
-    fn getAuthPassword(&self) -> Option<&str> {
+    fn get_auth_password(&self) -> Option<&str> {
         None
     }
-    fn getRememberToken(&self) -> Option<&str> {
+    fn get_remember_token(&self) -> Option<&str> {
         None
     }
-    fn setRememberToken(&mut self, _: Option<String>) {}
-    fn getRememberTokenName(&self) -> &str {
+    fn set_remember_token(&mut self, _: Option<String>) {}
+    fn get_remember_token_name(&self) -> &str {
         "remember_token"
     }
 }
@@ -1388,18 +1416,20 @@ fn identity_handler(
 #[tokio::test]
 async fn authenticated_snapshots_use_resolved_identity_without_lookup_or_cross_request_leakage() {
     let mut app = application();
-    app.artisan(["migrate", "--force"]).await.assertSuccessful();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
     let auth = app
         .app()
         .make::<openrust::auth::AuthManager>()
         .await
         .unwrap();
-    auth.registerModel::<ObservedModel>("observed");
-    auth.viaRequest("cached", |_| {
+    auth.register_model::<ObservedModel>("observed");
+    auth.via_request("cached", |_| {
         panic!("recording must never authenticate or look up a user")
     });
-    app.get("/api/identity").await.unwrap().assertOk();
-    app.get("/api/guest").await.unwrap().assertOk();
+    app.get("/api/identity").await.unwrap().assert_ok();
+    app.get("/api/guest").await.unwrap().assert_ok();
     let repository = app.app().make::<DatabaseEntriesRepository>().await.unwrap();
     let entries = repository
         .get(Some(EntryType::Event), EntryQueryOptions::default())
@@ -1432,9 +1462,9 @@ fn client_handler(
         let data = json!({"same":"body","secret":"private","nested":{"password":"hidden"}});
         assert_eq!(Http::post(url, &data).await.unwrap().status().as_u16(), 200);
         assert_eq!(
-            Http::pendingRequest()
+            Http::pending_request()
                 .unwrap()
-                .asForm()
+                .as_form()
                 .post(url, &json!({"same":"form","secret":"private"}))
                 .await
                 .unwrap()
@@ -1479,7 +1509,9 @@ async fn actual_http_client_preserves_decoded_json_form_query_redaction_and_nati
         }
     });
     let mut app = application();
-    app.artisan(["migrate", "--force"]).await.assertSuccessful();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
     let telescope = app.app().make::<Telescope>().await.unwrap();
     telescope.hideRequestParameters(&["secret", "nested.password"]);
     telescope.hideResponseParameters(&["token"]);
@@ -1499,7 +1531,7 @@ async fn actual_http_client_preserves_decoded_json_form_query_redaction_and_nati
     .await
     .unwrap()
     .unwrap()
-    .assertOk();
+    .assert_ok();
     origin.await.unwrap();
     let repository = app.app().make::<DatabaseEntriesRepository>().await.unwrap();
     let entries = repository

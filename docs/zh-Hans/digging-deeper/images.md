@@ -12,7 +12,7 @@
 
 `flip()` 垂直翻转，`flop()` 水平翻转。`resize(width, height)` 和 `scale(width, height)` 返回 `Result<Image>`，两个尺寸都缺失时立即报错；传入的零尺寸归一为 1。模糊和锐化强度在交给驱动处理器之前限制为最大 100。
 
-成功加载的来源在分支之间共享。修改已渲染的图像时以处理后的字节为起点，不重复此前的变换。`hashName("").await?` 返回该图像稳定的文件名，`store` 复用此名称；`hashName("avatars").await?` 添加路径前缀。`toString().await?` 返回数据 URI。路由处理器可直接返回 `Image` 或 `Result<Image, HttpError>`，响应包含图像字节及对应 MIME 类型。
+成功加载的来源在分支之间共享。修改已渲染的图像时以处理后的字节为起点，不重复此前的变换。`hash_name("").await?` 返回该图像稳定的文件名，`store` 复用此名称；`hash_name("avatars").await?` 添加路径前缀。`toString().await?` 返回数据 URI。路由处理器可直接返回 `Image` 或 `Result<Image, HttpError>`，响应包含图像字节及对应 MIME 类型。
 
 ```rust
 use openrust::image::{ImageManager, Limits};
@@ -42,9 +42,9 @@ AVIF 与 HEIC 序列的变换和相互转换保留每个显示帧各自的 ICC�
 
 ## 存储图像 {#storing-images}
 
-`store` 按编码格式生成文件名。`storeAs` 使用指定文件名，`storePublicly` 和 `storePubliclyAs` 请求公开可见性。磁盘写入成功后返回存储路径。
+`store` 按编码格式生成文件名。`store_as` 使用指定文件名，`store_publicly` 和 `store_publicly_as` 请求公开可见性。磁盘写入成功后返回存储路径。
 
-`storeAs("avatar.png", None, None).await?` 将第一个参数作为完整文件名；同时指定目录和名称时，只去掉合并路径两端的斜杠。
+`store_as("avatar.png", None, None).await?` 将第一个参数作为完整文件名；同时指定目录和名称时，只去掉合并路径两端的斜杠。
 
 ## 检查图像 {#inspecting-images}
 
@@ -62,7 +62,7 @@ AVIF 与 HEIC 序列的变换和相互转换保留每个显示帧各自的 ICC�
 
 ### 自定义转换处理器 {#custom-transformation-handlers}
 
-用 `Image::transformUsing(driver, name, callback)?` 或 `ImageManager` 的同名方法为指定驱动注册处理器。也可先注册处理器，再通过 `extend` 注册应用驱动；管理器的 `extend` 返回 `Result`。驱动契约提供 `transformUsing` 和 `dimensions`；不支持扩展处理器的驱动返回 `UnsupportedTransformationHandler`。`Image::driver(None)?`、`getDefaultDriver()` 和 `getDrivers()` 提供当前配置驱动与已注册实例。
+用 `Image::transformUsing(driver, name, callback)?` 或 `ImageManager` 的同名方法为指定驱动注册处理器。也可先注册处理器，再通过 `extend` 注册应用驱动；管理器的 `extend` 返回 `Result`。驱动契约提供 `transformUsing` 和 `dimensions`；不支持扩展处理器的驱动返回 `UnsupportedTransformationHandler`。`Image::driver(None)?`、`get_default_driver()` 和 `getDrivers()` 提供当前配置驱动与已注册实例。
 
 ```rust
 use std::sync::Arc;

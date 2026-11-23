@@ -22,7 +22,6 @@ impl<T> fmt::Debug for Fluent<T> {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<T> Fluent<T> {
     pub(crate) fn from_attributes(attributes: T) -> Self {
         Self(attributes)
@@ -32,7 +31,7 @@ impl<T> Fluent<T> {
         &self.0
     }
 
-    pub fn toArray(&self) -> T
+    pub fn to_array(&self) -> T
     where
         T: Clone,
     {
@@ -40,7 +39,6 @@ impl<T> Fluent<T> {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Fluent {
     /// Constructs an attribute bag from JSON array or object data.
     pub fn make(attributes: Value) -> Result<Self, FluentError> {
@@ -86,11 +84,11 @@ impl Fluent {
         }
     }
 
-    pub fn toJson(&self) -> serde_json::Result<String> {
+    pub fn to_json(&self) -> serde_json::Result<String> {
         serde_json::to_string(self)
     }
 
-    pub fn isEmpty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         match &self.0 {
             Value::Array(items) => items.is_empty(),
             Value::Object(items) => items.is_empty(),
@@ -98,8 +96,8 @@ impl Fluent {
         }
     }
 
-    pub fn isNotEmpty(&self) -> bool {
-        !self.isEmpty()
+    pub fn is_not_empty(&self) -> bool {
+        !self.is_empty()
     }
 }
 

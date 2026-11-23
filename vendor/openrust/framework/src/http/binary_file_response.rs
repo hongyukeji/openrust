@@ -142,7 +142,7 @@ impl BinaryFile {
             *content_type = header_value(&format!("{value}; charset=utf-8"));
         }
         set_public_cache_control(&mut headers);
-        let mut response = Response::empty(StatusCode::OK).withHeaders(headers);
+        let mut response = Response::empty(StatusCode::OK).with_headers(headers);
         response
             .parts_mut()
             .extensions

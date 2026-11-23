@@ -11,7 +11,7 @@ use serde_json::{Value, json};
 
 fn inspect(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
-        let data = json!({"ajax":request.ajax(),"pjax":request.pjax(),"prefetch":request.prefetch(),"agent":request.userAgent(),"fingerprint":request.fingerprint()?,"json":request.expectsJson()});
+        let data = json!({"ajax":request.ajax(),"pjax":request.pjax(),"prefetch":request.prefetch(),"agent":request.user_agent(),"fingerprint":request.fingerprint()?,"json":request.expects_json()});
         request.session_mut()?.put("cart.total", json!(7))?;
         Response::json(StatusCode::OK, data)?.cookie(
             &Cookie::make("token", "中文 + value", 0, &CookieOptions::default())?,
@@ -42,13 +42,13 @@ async fn request_fingerprint_preserves_registration_order_root_uri_and_automatic
         .await
         .unwrap();
     response
-        .assertOk()
-        .assertJsonPath("ajax", &json!(true))
-        .assertJsonPath("pjax", &json!(true))
-        .assertJsonPath("prefetch", &json!(true))
-        .assertJsonPath("agent", &json!("Alignment/1"))
-        .assertSessionHas("cart.total", Some(&json!(7)))
-        .assertCookie("token", Some("中文 + value"));
+        .assert_ok()
+        .assert_json_path("ajax", &json!(true))
+        .assert_json_path("pjax", &json!(true))
+        .assert_json_path("prefetch", &json!(true))
+        .assert_json_path("agent", &json!("Alignment/1"))
+        .assert_session_has("cart.total", Some(&json!(7)))
+        .assert_cookie("token", Some("中文 + value"));
     let data: Value = response.json().unwrap();
     let expected = aws_lc_rs::digest::digest(
         &aws_lc_rs::digest::SHA1_FOR_LEGACY_USE_ONLY,
@@ -62,9 +62,9 @@ async fn request_fingerprint_preserves_registration_order_root_uri_and_automatic
     assert_eq!(data["fingerprint"], expected);
     let response = app.get("http://example.test/").await.unwrap();
     response
-        .assertJsonPath("ajax", &json!(false))
-        .assertJsonPath("pjax", &json!(false))
-        .assertJsonPath("prefetch", &json!(false));
+        .assert_json_path("ajax", &json!(false))
+        .assert_json_path("pjax", &json!(false))
+        .assert_json_path("prefetch", &json!(false));
     let expected = aws_lc_rs::digest::digest(
         &aws_lc_rs::digest::SHA1_FOR_LEGACY_USE_ONLY,
         b"GET|HEAD||/|",
@@ -74,18 +74,18 @@ async fn request_fingerprint_preserves_registration_order_root_uri_and_automatic
         .iter()
         .map(|byte| format!("{byte:02x}"))
         .collect();
-    response.assertJsonPath("fingerprint", &json!(expected));
+    response.assert_json_path("fingerprint", &json!(expected));
     let request = Request::from_parts(http::Request::new(()).into_parts().0, Body::empty());
     assert!(request.fingerprint().is_err());
     for failure in [
         std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            response.assertCookie("token", Some("wrong"));
+            response.assert_cookie("token", Some("wrong"));
         })),
         std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            response.assertSessionHas("missing", None);
+            response.assert_session_has("missing", None);
         })),
         std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            response.assertJsonStructure(&json!(["missing"]));
+            response.assert_json_structure(&json!(["missing"]));
         })),
     ] {
         assert!(failure.is_err());
@@ -96,11 +96,11 @@ fn seeded(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
     Box::pin(async move {
         request
             .session_mut()?
-            .setPreviousUrl("http://seed.test/old")?;
-        request.session_mut()?.setPreviousRoute(Some("old"))?;
+            .set_previous_url("http://seed.test/old")?;
+        request.session_mut()?.set_previous_route(Some("old"))?;
         Response::json(
             StatusCode::OK,
-            json!({"prefetch":request.prefetch(),"json":request.expectsJson(),"original":request.headers().get("x-original-accept").and_then(|v|v.to_str().ok())}),
+            json!({"prefetch":request.prefetch(),"json":request.expects_json(),"original":request.headers().get("x-original-accept").and_then(|v|v.to_str().ok())}),
         )
     })
 }
@@ -147,9 +147,9 @@ async fn prefetch_filters_previous_url_and_route_using_exact_case_insensitive_he
             .await
             .unwrap();
         response
-            .assertOk()
-            .assertJsonPath("prefetch", &json!(prefetch))
-            .assertSessionHas(
+            .assert_ok()
+            .assert_json_path("prefetch", &json!(prefetch))
+            .assert_session_has(
                 "_previous.url",
                 Some(&json!(if prefetch {
                     "http://seed.test/old"
@@ -157,7 +157,7 @@ async fn prefetch_filters_previous_url_and_route_using_exact_case_insensitive_he
                     "http://example.test/check"
                 })),
             )
-            .assertSessionHas(
+            .assert_session_has(
                 "_previous.route",
                 Some(&json!(if prefetch { "old" } else { "check" })),
             );
@@ -189,23 +189,23 @@ async fn response_assertions_check_real_redirect_download_and_validation_respons
     })
     .unwrap();
     let redirect = app.get("/api/redirect").await.unwrap();
-    redirect.assertRedirect(Some("/destination"));
+    redirect.assert_redirect(Some("/destination"));
     let download = app.get("/api/download").await.unwrap();
-    download.assertDownload(Some("report.txt"));
+    download.assert_download(Some("report.txt"));
     let errors = app.get("/api/errors").await.unwrap();
     errors
-        .assertJsonValidationErrors(&["email"])
-        .assertJsonStructure(&json!({"rows":{"*":["id"]}}))
-        .assertJsonPath("rows.1.id", &json!(2));
+        .assert_json_validation_errors(&["email"])
+        .assert_json_structure(&json!({"rows":{"*":["id"]}}))
+        .assert_json_path("rows.1.id", &json!(2));
     for result in [
         std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            redirect.assertRedirect(Some("/wrong"));
+            redirect.assert_redirect(Some("/wrong"));
         })),
         std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            download.assertDownload(Some("wrong.txt"));
+            download.assert_download(Some("wrong.txt"));
         })),
         std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            errors.assertJsonValidationErrors(&["missing"]);
+            errors.assert_json_validation_errors(&["missing"]);
         })),
     ] {
         assert!(result.is_err());
@@ -248,15 +248,15 @@ async fn broad_accept_prefers_json_and_preserves_explicit_media_types() {
         )
         .await
         .unwrap()
-        .assertOk()
-        .assertJsonPath("json", &json!(expected));
+        .assert_ok()
+        .assert_json_path("json", &json!(expected));
     }
 }
 
 fn excluded_upload(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     use openrust::contracts::validation::Validator as _;
     Box::pin(async move {
-        let data = openrust::validation::Data::fromRequest(request).await?;
+        let data = openrust::validation::Data::from_request(request).await?;
         assert!(data.file("attachment").is_some());
         let rules = openrust::validation::RuleSet::parse([
             ("mode", "required"),
@@ -290,8 +290,8 @@ async fn excluded_multipart_file_is_removed_from_both_validated_data_and_file_pr
     )
     .await
     .unwrap()
-    .assertOk()
-    .assertExactJson(&json!({"mode":"skip"}));
+    .assert_ok()
+    .assert_exact_json(&json!({"mode":"skip"}));
 }
 
 #[tokio::test]
@@ -309,7 +309,7 @@ async fn explicit_exception_policy_overrides_json_preference_after_middleware_re
     })
     .unwrap();
     let response = app.get("http://example.test/api/fail").await.unwrap();
-    response.assertStatus(StatusCode::FORBIDDEN);
+    response.assert_status(StatusCode::FORBIDDEN);
     assert!(response.json::<serde_json::Value>().is_err());
 }
 
@@ -346,11 +346,11 @@ async fn shared_view_data_reaches_blocking_renderer_and_does_not_leak_to_next_re
     app.get("http://example.test/api/one")
         .await
         .unwrap()
-        .assertOk()
-        .assertContent("request");
+        .assert_ok()
+        .assert_content("request");
     app.get("http://example.test/api/default")
         .await
         .unwrap()
-        .assertOk()
-        .assertContent("boot");
+        .assert_ok()
+        .assert_content("boot");
 }

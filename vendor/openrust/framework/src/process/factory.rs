@@ -120,7 +120,7 @@ impl Factory {
             .insert(pattern.into(), Arc::new(move |_| Some(Ok(result.clone()))));
     }
 
-    pub fn fakeSequence(
+    pub fn fake_sequence(
         &self,
         pattern: impl Into<String>,
         results: impl IntoIterator<Item = Result<ProcessResult>>,

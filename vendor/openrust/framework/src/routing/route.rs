@@ -23,10 +23,9 @@ pub struct RouteMetadata {
 }
 
 /// A registered route and its metadata.
-#[allow(non_snake_case, reason = "沿用固定上游 Route 公开属性")]
 pub struct Route {
     /// 普通匹配优先；同组同路径的覆盖仍使用原有注册规则。
-    pub isFallback: bool,
+    pub is_fallback: bool,
     pub(super) methods: Vec<String>,
     pub(super) uri: String,
     pub(super) name: String,
@@ -65,7 +64,7 @@ impl Route {
             .map(|host| RoutePattern::compile_host(host, &constraints))
             .transpose()?;
         Ok(Self {
-            isFallback: false,
+            is_fallback: false,
             methods: Vec::new(),
             uri,
             name: String::new(),
@@ -101,8 +100,7 @@ impl Route {
     }
 
     /// Associates a stable controller action identifier with the registered handler.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn setAction(&mut self, action: &str) -> Result<&mut Self, RoutingError> {
+    pub fn set_action(&mut self, action: &str) -> Result<&mut Self, RoutingError> {
         let action = action.trim_matches('\\');
         if action.is_empty()
             || action
@@ -122,12 +120,11 @@ impl Route {
 
     /// 标记为最后尝试的后备路由。
     pub fn fallback(&mut self) -> &mut Self {
-        self.setFallback(true)
+        self.set_fallback(true)
     }
 
-    #[allow(non_snake_case, reason = "沿用固定上游 Route 公开方法")]
-    pub fn setFallback(&mut self, isFallback: bool) -> &mut Self {
-        self.isFallback = isFallback;
+    pub fn set_fallback(&mut self, is_fallback: bool) -> &mut Self {
+        self.is_fallback = is_fallback;
         self
     }
 
@@ -141,14 +138,12 @@ impl Route {
     }
 
     /// Clears the route-specific session blocking settings.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn withoutBlocking(&mut self) -> &mut Self {
+    pub fn without_blocking(&mut self) -> &mut Self {
         self.session_block = None;
         self
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn getName(&self) -> Option<&str> {
+    pub fn get_name(&self) -> Option<&str> {
         (!self.name.is_empty()).then_some(&self.name)
     }
 
@@ -174,8 +169,7 @@ impl Route {
         self
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn withoutMiddleware(&mut self, name: impl Into<String>) -> &mut Self {
+    pub fn without_middleware(&mut self, name: impl Into<String>) -> &mut Self {
         self.excluded_middleware.push(name.into());
         self.resolved_middleware = None;
         self
@@ -207,18 +201,7 @@ impl Route {
         self
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn scopeBindings(&mut self) -> &mut Self {
-        self.scope_bindings()
-    }
-
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn withoutScopedBindings(&mut self) -> &mut Self {
-        self.without_scoped_bindings()
-    }
-
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn withTrashed(&mut self) -> &mut Self {
+    pub fn with_trashed(&mut self) -> &mut Self {
         self.with_trashed_bindings = true;
         self
     }

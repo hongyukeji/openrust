@@ -49,8 +49,7 @@ impl Runner for HttpRunner {
         runner::HTTP
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn shouldRun(&self) -> crate::http::HttpFuture<'_, RuntimeResult<bool>> {
+    fn should_run(&self) -> crate::http::HttpFuture<'_, RuntimeResult<bool>> {
         Box::pin(
             async move { http_eligible(self.0.application.config()?.as_ref()).map_err(Into::into) },
         )
@@ -110,7 +109,7 @@ async fn handle(
     request
         .extensions_mut()
         .insert(crate::http::RequestSecurity(false));
-    kernel.handleTransport(request).await
+    kernel.handle_transport(request).await
 }
 
 impl Kernel {
@@ -155,7 +154,10 @@ impl Kernel {
         non_snake_case,
         reason = "Matches the framework HTTP entry point naming"
     )]
-    pub async fn handleTransport(self: Arc<Self>, incoming: TransportRequest) -> TransportResponse {
+    pub async fn handle_transport(
+        self: Arc<Self>,
+        incoming: TransportRequest,
+    ) -> TransportResponse {
         let mut request = Request::from(incoming);
         let response = self.handle(&mut request).await;
         if request

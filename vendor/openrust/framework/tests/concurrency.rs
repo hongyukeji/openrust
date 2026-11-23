@@ -319,7 +319,7 @@ async fn defer_runs_after_the_actual_http_response_and_respects_failure() {
         State(kernel): State<Arc<Kernel>>,
         incoming: axum::extract::Request,
     ) -> axum::response::Response {
-        kernel.handleTransport(incoming).await
+        kernel.handle_transport(incoming).await
     }
 
     let root = TestDirectory::new();
@@ -347,7 +347,7 @@ async fn defer_runs_after_the_actual_http_response_and_respects_failure() {
     let client = HttpFactory::new().unwrap();
 
     let response = client
-        .pendingRequest()
+        .pending_request()
         .timeout(Duration::from_secs(2))
         .get(&format!("{url}/ok"))
         .await
@@ -364,7 +364,7 @@ async fn defer_runs_after_the_actual_http_response_and_respects_failure() {
     release.notify_one();
 
     let response = client.get(&format!("{url}/failed")).await.unwrap();
-    assert!(response.badRequest());
+    assert!(response.bad_request());
     assert_eq!(
         tokio::time::timeout(Duration::from_secs(2), observed.recv())
             .await

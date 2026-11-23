@@ -16,7 +16,6 @@ pub struct TestResponse {
     encrypter: Option<std::sync::Arc<dyn crate::contracts::encryption::Encrypter>>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl TestResponse {
     pub(super) fn new(status: StatusCode, headers: HeaderMap, body: Bytes) -> Self {
         Self {
@@ -63,7 +62,7 @@ impl TestResponse {
     }
 
     #[track_caller]
-    pub fn assertJsonPath(&self, path: &str, expected: &serde_json::Value) -> &Self {
+    pub fn assert_json_path(&self, path: &str, expected: &serde_json::Value) -> &Self {
         let actual: serde_json::Value = self.json().expect("响应不是有效 JSON");
         let actual =
             crate::support::data_get(&actual, Some(path)).unwrap_or(serde_json::Value::Null);
@@ -75,7 +74,7 @@ impl TestResponse {
     }
 
     #[track_caller]
-    pub fn assertJsonStructure(&self, structure: &serde_json::Value) -> &Self {
+    pub fn assert_json_structure(&self, structure: &serde_json::Value) -> &Self {
         super::json_assertions::check_structure(
             &self.json::<serde_json::Value>().expect("响应不是有效 JSON"),
             structure,
@@ -84,22 +83,22 @@ impl TestResponse {
         self
     }
     #[track_caller]
-    pub fn assertJsonValidationErrors(&self, keys: &[&str]) -> &Self {
-        self.assertJsonValidationErrorsAt(&serde_json::json!(keys), "errors")
+    pub fn assert_json_validation_errors(&self, keys: &[&str]) -> &Self {
+        self.assert_json_validation_errors_at(&serde_json::json!(keys), "errors")
     }
     #[track_caller]
-    pub fn assertRedirect(&self, target: Option<&str>) -> &Self {
+    pub fn assert_redirect(&self, target: Option<&str>) -> &Self {
         assert!(
             matches!(self.status.as_u16(), 201 | 301 | 302 | 303 | 307 | 308),
             "响应不是重定向"
         );
         if let Some(target) = target {
-            self.assertLocation(target);
+            self.assert_location(target);
         }
         self
     }
     #[track_caller]
-    pub fn assertSessionHas(&self, key: &str, expected: Option<&serde_json::Value>) -> &Self {
+    pub fn assert_session_has(&self, key: &str, expected: Option<&serde_json::Value>) -> &Self {
         let actual =
             crate::support::Arr::get(&self.session, key).unwrap_or(&serde_json::Value::Null);
         if let Some(expected) = expected.filter(|value| !value.is_null()) {
@@ -133,7 +132,7 @@ impl TestResponse {
             .unwrap_or_else(|| panic!("响应缺少 Cookie {name}"))
     }
     #[track_caller]
-    pub fn assertCookie(&self, name: &str, expected: Option<&str>) -> &Self {
+    pub fn assert_cookie(&self, name: &str, expected: Option<&str>) -> &Self {
         let cookie = self.cookie_value(name);
         if let Some(expected) = expected {
             let encrypter = self.encrypter.as_ref().expect("应用没有绑定 Cookie 解密器");
@@ -150,7 +149,7 @@ impl TestResponse {
         self
     }
     #[track_caller]
-    pub fn assertPlainCookie(&self, name: &str, expected: Option<&str>) -> &Self {
+    pub fn assert_plain_cookie(&self, name: &str, expected: Option<&str>) -> &Self {
         let cookie = self.cookie_value(name);
         if let Some(expected) = expected {
             assert_eq!(cookie, expected, "Cookie {name} 不匹配");
@@ -158,7 +157,7 @@ impl TestResponse {
         self
     }
     #[track_caller]
-    pub fn assertDownload(&self, filename: Option<&str>) -> &Self {
+    pub fn assert_download(&self, filename: Option<&str>) -> &Self {
         let disposition = self
             .headers
             .get("content-disposition")
@@ -196,18 +195,18 @@ impl TestResponse {
     }
 
     #[track_caller]
-    pub fn assertStatus(&self, expected: StatusCode) -> &Self {
+    pub fn assert_status(&self, expected: StatusCode) -> &Self {
         assert_eq!(self.status, expected);
         self
     }
 
     #[track_caller]
-    pub fn assertOk(&self) -> &Self {
-        self.assertStatus(StatusCode::OK)
+    pub fn assert_ok(&self) -> &Self {
+        self.assert_status(StatusCode::OK)
     }
 
     #[track_caller]
-    pub fn assertHeader<'a>(
+    pub fn assert_header<'a>(
         &self,
         name: &str,
         expected: impl Into<HeaderExpectation<'a>>,
@@ -228,8 +227,8 @@ impl TestResponse {
     }
 
     #[track_caller]
-    pub fn assertHeaderContains(&self, name: &str, value: &str) -> &Self {
-        self.assertHeader(name, None);
+    pub fn assert_header_contains(&self, name: &str, value: &str) -> &Self {
+        self.assert_header(name, None);
         assert!(
             !value.is_empty()
                 && self
@@ -243,7 +242,7 @@ impl TestResponse {
     }
 
     #[track_caller]
-    pub fn assertHeaderMissing(&self, name: &str) -> &Self {
+    pub fn assert_header_missing(&self, name: &str) -> &Self {
         assert!(
             !self.headers.contains_key(name),
             "响应包含不应出现的头 {name}"
@@ -252,7 +251,7 @@ impl TestResponse {
     }
 
     #[track_caller]
-    pub fn assertSuccessful(&self) -> &Self {
+    pub fn assert_successful(&self) -> &Self {
         assert!(
             self.status.is_success(),
             "响应状态 {} 不在 200..300 范围",
@@ -262,7 +261,7 @@ impl TestResponse {
     }
 
     #[track_caller]
-    pub fn assertClientError(&self) -> &Self {
+    pub fn assert_client_error(&self) -> &Self {
         assert!(
             self.status.is_client_error(),
             "响应状态 {} 不在 400..500 范围",
@@ -272,7 +271,7 @@ impl TestResponse {
     }
 
     #[track_caller]
-    pub fn assertServerError(&self) -> &Self {
+    pub fn assert_server_error(&self) -> &Self {
         assert!(
             self.status.is_server_error(),
             "响应状态 {} 不在 500..600 范围",
@@ -282,8 +281,8 @@ impl TestResponse {
     }
 
     #[track_caller]
-    pub fn assertNoContent(&self, status: Option<StatusCode>) -> &Self {
-        self.assertStatus(status.unwrap_or(StatusCode::NO_CONTENT));
+    pub fn assert_no_content(&self, status: Option<StatusCode>) -> &Self {
+        self.assert_status(status.unwrap_or(StatusCode::NO_CONTENT));
         // PHPUnit 对字符串采用 PHP empty 语义，字符串 0 同样为空。
         assert!(
             self.body.is_empty() || self.body.as_ref() == b"0",
@@ -293,19 +292,19 @@ impl TestResponse {
     }
 
     #[track_caller]
-    pub fn assertSuccessfulPrecognition(&self) -> &Self {
-        self.assertNoContent(None)
-            .assertHeader("precognition-success", "true")
+    pub fn assert_successful_precognition(&self) -> &Self {
+        self.assert_no_content(None)
+            .assert_header("precognition-success", "true")
     }
 
     #[track_caller]
-    pub fn assertContent(&self, expected: impl AsRef<[u8]>) -> &Self {
+    pub fn assert_content(&self, expected: impl AsRef<[u8]>) -> &Self {
         assert_eq!(self.body(), expected.as_ref());
         self
     }
 
     #[track_caller]
-    pub fn assertExactJson(&self, expected: &serde_json::Value) -> &Self {
+    pub fn assert_exact_json(&self, expected: &serde_json::Value) -> &Self {
         let actual: serde_json::Value = self.json().expect("响应不是有效 JSON");
         assert!(
             super::json_assertions::exact_json(&actual, expected),
@@ -328,40 +327,39 @@ impl std::fmt::Debug for TestResponse {
 
 macro_rules! status_assertions {
     ($($method:ident => $status:ident),+ $(,)?) => {
-        #[allow(non_snake_case)]
         impl TestResponse {
             $(#[track_caller]
             pub fn $method(&self) -> &Self {
-                self.assertStatus(StatusCode::$status)
+                self.assert_status(StatusCode::$status)
             })+
         }
     };
 }
 
 status_assertions! {
-    assertCreated => CREATED,
-    assertAccepted => ACCEPTED,
-    assertMovedPermanently => MOVED_PERMANENTLY,
-    assertFound => FOUND,
-    assertNotModified => NOT_MODIFIED,
-    assertTemporaryRedirect => TEMPORARY_REDIRECT,
-    assertPermanentRedirect => PERMANENT_REDIRECT,
-    assertBadRequest => BAD_REQUEST,
-    assertUnauthorized => UNAUTHORIZED,
-    assertPaymentRequired => PAYMENT_REQUIRED,
-    assertForbidden => FORBIDDEN,
-    assertNotFound => NOT_FOUND,
-    assertMethodNotAllowed => METHOD_NOT_ALLOWED,
-    assertNotAcceptable => NOT_ACCEPTABLE,
-    assertRequestTimeout => REQUEST_TIMEOUT,
-    assertConflict => CONFLICT,
-    assertGone => GONE,
-    assertUnsupportedMediaType => UNSUPPORTED_MEDIA_TYPE,
-    assertUnprocessable => UNPROCESSABLE_ENTITY,
-    assertFailedDependency => FAILED_DEPENDENCY,
-    assertTooManyRequests => TOO_MANY_REQUESTS,
-    assertInternalServerError => INTERNAL_SERVER_ERROR,
-    assertServiceUnavailable => SERVICE_UNAVAILABLE,
+    assert_created => CREATED,
+    assert_accepted => ACCEPTED,
+    assert_moved_permanently => MOVED_PERMANENTLY,
+    assert_found => FOUND,
+    assert_not_modified => NOT_MODIFIED,
+    assert_temporary_redirect => TEMPORARY_REDIRECT,
+    assert_permanent_redirect => PERMANENT_REDIRECT,
+    assert_bad_request => BAD_REQUEST,
+    assert_unauthorized => UNAUTHORIZED,
+    assert_payment_required => PAYMENT_REQUIRED,
+    assert_forbidden => FORBIDDEN,
+    assert_not_found => NOT_FOUND,
+    assert_method_not_allowed => METHOD_NOT_ALLOWED,
+    assert_not_acceptable => NOT_ACCEPTABLE,
+    assert_request_timeout => REQUEST_TIMEOUT,
+    assert_conflict => CONFLICT,
+    assert_gone => GONE,
+    assert_unsupported_media_type => UNSUPPORTED_MEDIA_TYPE,
+    assert_unprocessable => UNPROCESSABLE_ENTITY,
+    assert_failed_dependency => FAILED_DEPENDENCY,
+    assert_too_many_requests => TOO_MANY_REQUESTS,
+    assert_internal_server_error => INTERNAL_SERVER_ERROR,
+    assert_service_unavailable => SERVICE_UNAVAILABLE,
 }
 
 /// 单个字符串或字符串列表，用于正文断言的类型化输入。
@@ -429,23 +427,22 @@ fn normalized_text(value: &str) -> String {
         .into_owned()
 }
 
-#[allow(non_snake_case)]
 impl TestResponse {
     #[track_caller]
-    pub fn assertSee(&self, values: impl Into<ContentValues>, escape: bool) -> &Self {
+    pub fn assert_see(&self, values: impl Into<ContentValues>, escape: bool) -> &Self {
         self.check_raw(values.into(), escape, false)
     }
     #[track_caller]
-    pub fn assertDontSee(&self, values: impl Into<ContentValues>, escape: bool) -> &Self {
+    pub fn assert_dont_see(&self, values: impl Into<ContentValues>, escape: bool) -> &Self {
         self.check_raw(values.into(), escape, true)
     }
     #[track_caller]
-    pub fn assertSeeHtml(&self, values: impl Into<ContentValues>) -> &Self {
-        self.assertSee(values, false)
+    pub fn assert_see_html(&self, values: impl Into<ContentValues>) -> &Self {
+        self.assert_see(values, false)
     }
     #[track_caller]
-    pub fn assertDontSeeHtml(&self, values: impl Into<ContentValues>) -> &Self {
-        self.assertDontSee(values, false)
+    pub fn assert_dont_see_html(&self, values: impl Into<ContentValues>) -> &Self {
+        self.assert_dont_see(values, false)
     }
 
     #[track_caller]
@@ -468,7 +465,7 @@ impl TestResponse {
     }
 
     #[track_caller]
-    pub fn assertSeeInOrder(&self, values: &[&str], escape: bool) -> &Self {
+    pub fn assert_see_in_order(&self, values: &[&str], escape: bool) -> &Self {
         let content = std::str::from_utf8(&self.body).expect("顺序断言要求 UTF-8 响应正文");
         let decoded = crate::support::decode_html_entities(content);
         let mut remaining = decoded.as_ref();
@@ -486,20 +483,20 @@ impl TestResponse {
         self
     }
     #[track_caller]
-    pub fn assertSeeHtmlInOrder(&self, values: &[&str]) -> &Self {
-        self.assertSeeInOrder(values, false)
+    pub fn assert_see_html_in_order(&self, values: &[&str]) -> &Self {
+        self.assert_see_in_order(values, false)
     }
 
     #[track_caller]
-    pub fn assertSeeText(&self, values: impl Into<ContentValues>, escape: bool) -> &Self {
+    pub fn assert_see_text(&self, values: impl Into<ContentValues>, escape: bool) -> &Self {
         self.check_text(values.into(), escape, false, false)
     }
     #[track_caller]
-    pub fn assertDontSeeText(&self, values: impl Into<ContentValues>, escape: bool) -> &Self {
+    pub fn assert_dont_see_text(&self, values: impl Into<ContentValues>, escape: bool) -> &Self {
         self.check_text(values.into(), escape, false, true)
     }
     #[track_caller]
-    pub fn assertSeeTextInOrder(&self, values: &[&str], escape: bool) -> &Self {
+    pub fn assert_see_text_in_order(&self, values: &[&str], escape: bool) -> &Self {
         self.check_text(values.into(), escape, true, false)
     }
 

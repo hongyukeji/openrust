@@ -14,7 +14,7 @@ fn keys_follow_php_integer_normalization_append_and_replacement_order() {
         ("-0", "signed zero"),
         ("1", "replacement"),
     ]);
-    assert_eq!(values.keys().toJson().unwrap(), r#"[-5,1,"01","+1","-0"]"#);
+    assert_eq!(values.keys().to_json().unwrap(), r#"[-5,1,"01","+1","-0"]"#);
     assert_eq!(values.get(1), Some(&"replacement"));
     values.put(7, "later").forget(7);
     values.push("appended").unwrap();
@@ -25,7 +25,7 @@ fn keys_follow_php_integer_normalization_append_and_replacement_order() {
 
     let mut negative = Collection::fromEntries([(-5, 1)]);
     negative.push(2).unwrap();
-    assert_eq!(negative.toJson().unwrap(), r#"{"-5":1,"-4":2}"#);
+    assert_eq!(negative.to_json().unwrap(), r#"{"-5":1,"-4":2}"#);
 
     let mut smallest = Collection::fromEntries([(i64::MIN, 1)]);
     assert_eq!(smallest.pop(), Some(1));
@@ -46,21 +46,24 @@ fn mapping_filtering_and_plucking_keep_the_upstream_key_shapes() {
         .clone()
         .map(|value, _| value * 10)
         .filter(|value, _| *value >= 20);
-    assert_eq!(mapped.toJson().unwrap(), r#"{"3":20,"7":30}"#);
-    assert_eq!(mapped.values().toJson().unwrap(), "[20,30]");
-    assert_eq!(source.pluck(|value| value * 2).toJson().unwrap(), "[2,4,6]");
+    assert_eq!(mapped.to_json().unwrap(), r#"{"3":20,"7":30}"#);
+    assert_eq!(mapped.values().to_json().unwrap(), "[20,30]");
+    assert_eq!(
+        source.pluck(|value| value * 2).to_json().unwrap(),
+        "[2,4,6]"
+    );
     let collisions = source
         .clone()
         .mapWithKeys(|value, _| [("same", value * 2), ("x", *value)]);
-    assert_eq!(collisions.toJson().unwrap(), r#"{"same":6,"x":3}"#);
+    assert_eq!(collisions.to_json().unwrap(), r#"{"same":6,"x":3}"#);
     let rekeyed = source.clone().keyBy(|value, _| *value % 2);
-    assert_eq!(rekeyed.toJson().unwrap(), r#"{"1":3,"0":2}"#);
+    assert_eq!(rekeyed.to_json().unwrap(), r#"{"1":3,"0":2}"#);
     assert_eq!(
-        source.clone().only([3, 7]).toJson().unwrap(),
+        source.clone().only([3, 7]).to_json().unwrap(),
         r#"{"3":2,"7":3}"#
     );
     assert_eq!(
-        source.clone().except([3]).toJson().unwrap(),
+        source.clone().except([3]).to_json().unwrap(),
         r#"{"0":1,"7":3}"#
     );
 
@@ -87,19 +90,19 @@ fn grouping_partitioning_and_stable_sorting_preserve_order() {
         *value
     });
     assert_eq!(calls.get(), 3);
-    assert_eq!(sorted.keys().toJson().unwrap(), r#"["two","one","three"]"#);
+    assert_eq!(sorted.keys().to_json().unwrap(), r#"["two","one","three"]"#);
     assert_eq!(
         source
             .clone()
             .sortByDesc(|(value, _), _| *value)
             .keys()
-            .toJson()
+            .to_json()
             .unwrap(),
         r#"["one","three","two"]"#
     );
     let groups = source.clone().groupBy(|(value, _), _| *value, true);
     assert_eq!(
-        groups.toJson().unwrap(),
+        groups.to_json().unwrap(),
         r#"{"2":{"one":[2,"A"],"three":[2,"C"]},"1":{"two":[1,"B"]}}"#
     );
     let many = source
@@ -110,13 +113,13 @@ fn grouping_partitioning_and_stable_sorting_preserve_order() {
         many.get(2)
             .unwrap()
             .pluck(|(_, name)| *name)
-            .toJson()
+            .to_json()
             .unwrap(),
         r#"["A","C"]"#
     );
     let (even, odd) = source.partition(|(value, _), _| value % 2 == 0);
-    assert_eq!(even.keys().toJson().unwrap(), r#"["one","three"]"#);
-    assert_eq!(odd.keys().toJson().unwrap(), r#"["two"]"#);
+    assert_eq!(even.keys().to_json().unwrap(), r#"["one","three"]"#);
+    assert_eq!(odd.keys().to_json().unwrap(), r#"["two"]"#);
 }
 
 #[test]
@@ -132,16 +135,16 @@ fn aggregates_boundaries_and_shared_enumerable_contract() {
         Some(8.0)
     );
     assert_eq!(
-        source.clone().slice(-3, Some(-1)).toJson().unwrap(),
+        source.clone().slice(-3, Some(-1)).to_json().unwrap(),
         r#"{"5":3,"8":1}"#
     );
     assert_eq!(
-        source.clone().take(-2).toJson().unwrap(),
+        source.clone().take(-2).to_json().unwrap(),
         r#"{"8":1,"9":7}"#
     );
-    assert_eq!(source.clone().take(0).toJson().unwrap(), "[]");
+    assert_eq!(source.clone().take(0).to_json().unwrap(), "[]");
     assert_eq!(
-        source.clone().chunk(2).toJson().unwrap(),
+        source.clone().chunk(2).to_json().unwrap(),
         r#"[{"4":9,"5":3},{"8":1,"9":7}]"#
     );
     assert!(matches!(
@@ -168,7 +171,7 @@ fn aggregates_boundaries_and_shared_enumerable_contract() {
             .collect()
             .unwrap()
     }
-    assert_eq!(adapt(source).toJson().unwrap(), "[6]");
+    assert_eq!(adapt(source).to_json().unwrap(), "[6]");
 }
 
 #[test]
@@ -176,22 +179,22 @@ fn merging_and_json_round_trip_keep_php_array_shape() {
     let left = Collection::fromEntries([(ArrayKey::from(7), "old"), ("keep".into(), "left")]);
     let right = Collection::fromEntries([(ArrayKey::from(7), "new"), ("keep".into(), "right")]);
     assert_eq!(
-        left.clone().merge(right.clone()).toJson().unwrap(),
+        left.clone().merge(right.clone()).to_json().unwrap(),
         r#"{"0":"old","keep":"right","1":"new"}"#
     );
     assert_eq!(
-        left.union(right).toJson().unwrap(),
+        left.union(right).to_json().unwrap(),
         r#"{"7":"old","keep":"left"}"#
     );
     let decoded: Collection<String> =
         serde_json::from_str(r#"{"z":"first","2":"number","02":"string","z":"replacement"}"#)
             .unwrap();
     assert_eq!(
-        decoded.toJson().unwrap(),
+        decoded.to_json().unwrap(),
         r#"{"z":"replacement","2":"number","02":"string"}"#
     );
     let sequential: Collection<i32> = serde_json::from_str("[1,2,3]").unwrap();
-    assert_eq!(sequential.toArray().unwrap(), json!([1, 2, 3]));
+    assert_eq!(sequential.to_array().unwrap(), json!([1, 2, 3]));
 }
 
 #[test]
@@ -207,7 +210,7 @@ fn nested_nonfinite_values_fail_serialization_without_repeating_application_seri
     let values = Collection::make([Custom(&calls)]);
     assert_eq!(calls.get(), 0);
     assert!(matches!(
-        values.toJson(),
+        values.to_json(),
         Err(CollectionError::Serialization(_))
     ));
     assert_eq!(calls.get(), 1);

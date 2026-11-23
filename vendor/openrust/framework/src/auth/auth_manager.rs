@@ -52,7 +52,6 @@ pub struct AuthManager {
     extensions: RwLock<Extensions>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl AuthManager {
     pub(crate) fn new(container: Weak<Container>, config: Arc<dyn Repository>) -> Self {
         Self {
@@ -106,7 +105,7 @@ impl AuthManager {
             .insert(driver.into(), Arc::new(factory));
     }
 
-    pub fn registerModel<M: Model + Authenticatable>(&self, name: impl Into<String>) {
+    pub fn register_model<M: Model + Authenticatable>(&self, name: impl Into<String>) {
         let mut extensions = self.extensions.write().expect("auth extensions lock");
         extensions
             .model_serializers
@@ -114,7 +113,7 @@ impl AuthManager {
                 (user as &dyn std::any::Any)
                     .downcast_ref::<M>()
                     .expect("serializer registered for this model")
-                    .toArray()
+                    .to_array()
                     .map_err(AuthError::backend)
             });
         extensions
@@ -151,7 +150,7 @@ impl AuthManager {
     /// Resolves the actual Eloquent discriminator through its registered model.
     ///
     /// Non-model identities return `None`; model morph-map errors are preserved.
-    pub fn userMorphClass(&self, user: &dyn Authenticatable) -> AuthResult<Option<&'static str>> {
+    pub fn user_morph_class(&self, user: &dyn Authenticatable) -> AuthResult<Option<&'static str>> {
         self.load_model_type(user);
         let resolver = self
             .extensions
@@ -164,8 +163,7 @@ impl AuthManager {
     }
 
     /// Returns the registered concrete Eloquent class behind an erased identity.
-    #[allow(non_snake_case, reason = "Matches authentication model accessors")]
-    pub fn userClass(&self, user: &dyn Authenticatable) -> Option<&'static str> {
+    pub fn user_class(&self, user: &dyn Authenticatable) -> Option<&'static str> {
         self.load_model_type(user);
         self.extensions
             .read()
@@ -176,7 +174,7 @@ impl AuthManager {
     }
 
     /// Serializes the authenticated identity through its registered model.
-    pub fn userAttributes(
+    pub fn user_attributes(
         &self,
         user: &dyn Authenticatable,
     ) -> AuthResult<serde_json::Map<String, Value>> {
@@ -191,20 +189,20 @@ impl AuthManager {
         let mut attributes = match serializer {
             Some(serialize) => serialize(user)?,
             None => [(
-                user.getAuthIdentifierName().to_owned(),
-                serde_json::to_value(user.getAuthIdentifier())?,
+                user.get_auth_identifier_name().to_owned(),
+                serde_json::to_value(user.get_auth_identifier())?,
             )]
             .into_iter()
             .collect(),
         };
-        attributes.remove(user.getAuthPasswordName());
-        attributes.remove(user.getRememberTokenName());
+        attributes.remove(user.get_auth_password_name());
+        attributes.remove(user.get_remember_token_name());
         Ok(attributes)
     }
 
     #[cfg(feature = "sanctum")]
-    pub fn registerSanctumModel<M: crate::sanctum::HasApiTokens>(&self, name: impl Into<String>) {
-        self.registerModel::<M>(name);
+    pub fn register_sanctum_model<M: crate::sanctum::HasApiTokens>(&self, name: impl Into<String>) {
+        self.register_model::<M>(name);
         self.extensions
             .write()
             .expect("auth extensions lock")
@@ -266,7 +264,7 @@ impl AuthManager {
             .container
             .upgrade()
             .ok_or(AuthError::Configuration("application scope"))?;
-        factory(&container, &Value::Null)?.retrieveById(id).await
+        factory(&container, &Value::Null)?.retrieve_by_id(id).await
     }
 
     /// Registers a compiled guard resolver with guard name and configuration.
@@ -285,7 +283,7 @@ impl AuthManager {
             .configured_requests
             .insert(driver.into(), Arc::new(resolve));
     }
-    pub fn viaRequest(
+    pub fn via_request(
         &self,
         driver: impl Into<String>,
         resolve: impl for<'a> Fn(
@@ -309,7 +307,7 @@ impl AuthManager {
             );
     }
 
-    pub fn getDefaultDriver(&self) -> String {
+    pub fn get_default_driver(&self) -> String {
         self.config
             .get("auth.defaults.guard")
             .and_then(|value| value.as_str().map(str::to_owned))
@@ -320,11 +318,11 @@ impl AuthManager {
         self.config.as_ref()
     }
 
-    pub fn shouldUse(&self, request: &mut Request, name: &str) -> AuthResult<()> {
-        <Self as Factory>::shouldUse(self, request, name)
+    pub fn should_use(&self, request: &mut Request, name: &str) -> AuthResult<()> {
+        <Self as Factory>::should_use(self, request, name)
     }
 
-    pub fn sessionGuard<'a>(
+    pub fn session_guard<'a>(
         &self,
         request: &'a mut Request,
         name: Option<&str>,
@@ -341,7 +339,7 @@ impl AuthManager {
         &self,
         request: &mut Request,
     ) -> AuthResult<Option<Arc<dyn Authenticatable>>> {
-        self.userForGuard(request, None).await
+        self.user_for_guard(request, None).await
     }
 
     /// Reads an already resolved identity from the current HTTP request scope.
@@ -349,7 +347,7 @@ impl AuthManager {
     /// This never invokes a guard or performs I/O. `None` selects the request's
     /// shouldUse override or the configured default; an explicit name is exact.
     /// Outside this application's request scope, or before resolution, returns None.
-    pub fn resolvedUser(&self, name: Option<&str>) -> Option<Arc<dyn Authenticatable>> {
+    pub fn resolved_user(&self, name: Option<&str>) -> Option<Arc<dyn Authenticatable>> {
         let container = self.container.upgrade()?;
         let context = crate::http::request_context::attribute(
             &container,
@@ -357,10 +355,10 @@ impl AuthManager {
         )?
         .downcast::<AuthContext>()
         .ok()?;
-        context.resolved_user(name, &self.getDefaultDriver())
+        context.resolved_user(name, &self.get_default_driver())
     }
 
-    pub(crate) async fn userForGuard(
+    pub(crate) async fn user_for_guard(
         &self,
         request: &mut Request,
         name: Option<&str>,
@@ -386,7 +384,10 @@ impl AuthManager {
         );
     }
 
-    pub(crate) fn resolved_user(request: &Request, name: &str) -> Option<Arc<dyn Authenticatable>> {
+    pub(crate) fn resolved_user_from_request(
+        request: &Request,
+        name: &str,
+    ) -> Option<Arc<dyn Authenticatable>> {
         AuthContext::state(request, name)?.user.clone()
     }
 
@@ -401,7 +402,7 @@ impl AuthManager {
         if Self::selected_guard(request).is_none()
             && self
                 .config
-                .get(&format!("auth.guards.{}", self.getDefaultDriver()))
+                .get(&format!("auth.guards.{}", self.get_default_driver()))
                 .is_none_or(|config| config.is_null())
         {
             return Ok(None);
@@ -418,7 +419,7 @@ impl AuthManager {
         let name = name
             .map(str::to_owned)
             .or_else(|| AuthContext::get(request).and_then(|context| context.selected.clone()))
-            .unwrap_or_else(|| self.getDefaultDriver());
+            .unwrap_or_else(|| self.get_default_driver());
         if name.is_empty()
             || !name
                 .bytes()
@@ -450,7 +451,7 @@ impl AuthManager {
         name: String,
         config: &Value,
     ) -> AuthResult<SessionGuard<'a>> {
-        let provider = self.createUserProvider(text(config, "provider")?)?;
+        let provider = self.create_user_provider(text(config, "provider")?)?;
         let minutes = config
             .get("remember_duration")
             .and_then(Value::as_i64)
@@ -470,7 +471,7 @@ impl AuthManager {
         ))
     }
 
-    pub fn createUserProvider(&self, name: &str) -> AuthResult<Arc<dyn UserProvider>> {
+    pub fn create_user_provider(&self, name: &str) -> AuthResult<Arc<dyn UserProvider>> {
         let config = self
             .config
             .get(&format!("auth.providers.{name}"))
@@ -558,7 +559,7 @@ impl Factory for AuthManager {
                 Ok(Box::new(RequestGuard::new(name, request, resolve)))
             }
             "token" => {
-                let provider = self.createUserProvider(text(&config, "provider")?)?;
+                let provider = self.create_user_provider(text(&config, "provider")?)?;
                 let column = config
                     .get("storage_key")
                     .and_then(Value::as_str)
@@ -604,7 +605,7 @@ impl Factory for AuthManager {
         }
     }
 
-    fn shouldUse(&self, request: &mut Request, name: &str) -> AuthResult<()> {
+    fn should_use(&self, request: &mut Request, name: &str) -> AuthResult<()> {
         self.guard_config(request, Some(name))?;
         AuthContext::mutable(request).selected = Some(name.to_owned());
         AuthContext::publish(request);

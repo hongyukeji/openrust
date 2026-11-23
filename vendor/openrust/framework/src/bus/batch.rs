@@ -67,7 +67,7 @@ impl Batch {
         self.cancelled()
     }
 
-    pub fn hasFailures(&self) -> bool {
+    pub fn has_failures(&self) -> bool {
         self.failed_jobs != 0
     }
 

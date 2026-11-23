@@ -22,10 +22,10 @@ impl Feature {
     pub fn r#for(scope: impl Into<Scope>) -> Result<PendingScopedFeatureInteraction> {
         Self::manager()?.r#for(scope)
     }
-    pub async fn forRequest(
+    pub async fn for_request(
         request: &mut openrust::http::Request,
     ) -> Result<PendingScopedFeatureInteraction> {
-        Self::manager()?.forRequest(request).await
+        Self::manager()?.for_request(request).await
     }
     pub fn globally() -> Result<PendingScopedFeatureInteraction> {
         Self::manager()?.globally()
@@ -63,8 +63,8 @@ impl Feature {
     pub fn getDriver() -> Result<Arc<dyn crate::Driver>> {
         Ok(Self::store(None)?.getDriver())
     }
-    pub fn getDefaultDriver() -> Result<String> {
-        Self::manager()?.getDefaultDriver()
+    pub fn get_default_driver() -> Result<String> {
+        Self::manager()?.get_default_driver()
     }
     pub fn setDefaultDriver(name: &str) -> Result<()> {
         Self::manager()?.setDefaultDriver(name)

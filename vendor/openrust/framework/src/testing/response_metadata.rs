@@ -8,7 +8,6 @@ use crate::{
 use serde_json::Value;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-#[allow(non_snake_case)]
 impl TestResponse {
     fn assertion_time(&self) -> SystemTime {
         self.clock.now().unwrap_or_else(jiff::Timestamp::now).into()
@@ -19,7 +18,7 @@ impl TestResponse {
     }
 
     #[track_caller]
-    pub fn assertLocation(&self, uri: &str) -> &Self {
+    pub fn assert_location(&self, uri: &str) -> &Self {
         let location = self
             .headers
             .get("location")
@@ -36,59 +35,63 @@ impl TestResponse {
     }
 
     #[track_caller]
-    pub fn assertRedirectContains(&self, uri: &str) -> &Self {
-        self.assertRedirect(None)
-            .assertHeaderContains("location", uri)
+    pub fn assert_redirect_contains(&self, uri: &str) -> &Self {
+        self.assert_redirect(None)
+            .assert_header_contains("location", uri)
     }
 
     #[track_caller]
-    pub fn assertRedirectBack(&self) -> &Self {
+    pub fn assert_redirect_back(&self) -> &Self {
         let previous = self.urls().previous(None).expect("无法生成上一个请求地址");
-        self.assertRedirect(Some(&previous))
+        self.assert_redirect(Some(&previous))
     }
 
     #[track_caller]
-    pub fn assertRedirectBackWithErrors(
+    pub fn assert_redirect_back_with_errors(
         &self,
         keys: &Value,
         format: Option<&str>,
-        errorBag: &str,
+        error_bag: &str,
     ) -> &Self {
-        self.assertRedirectBack()
-            .assertSessionHasErrors(keys, format, errorBag)
+        self.assert_redirect_back()
+            .assert_session_has_errors(keys, format, error_bag)
     }
 
     #[track_caller]
-    pub fn assertRedirectBackWithoutErrors(&self) -> &Self {
-        self.assertRedirectBack().assertSessionHasNoErrors()
+    pub fn assert_redirect_back_without_errors(&self) -> &Self {
+        self.assert_redirect_back().assert_session_has_no_errors()
     }
 
     #[track_caller]
-    pub fn assertRedirectToRoute(&self, name: &str, parameters: &[RouteParameter<'_>]) -> &Self {
+    pub fn assert_redirect_to_route(&self, name: &str, parameters: &[RouteParameter<'_>]) -> &Self {
         let target = self
             .urls()
             .route(name, parameters, true)
             .expect("无法生成预期路由");
-        self.assertRedirect(Some(&target))
+        self.assert_redirect(Some(&target))
     }
 
     #[track_caller]
-    pub fn assertRedirectToAction(&self, action: &str, parameters: &[RouteParameter<'_>]) -> &Self {
+    pub fn assert_redirect_to_action(
+        &self,
+        action: &str,
+        parameters: &[RouteParameter<'_>],
+    ) -> &Self {
         let target = self
             .urls()
             .action(action, parameters, true)
             .expect("无法生成预期动作地址");
-        self.assertRedirect(Some(&target))
+        self.assert_redirect(Some(&target))
     }
 
     #[track_caller]
-    pub fn assertRedirectToSignedRoute(
+    pub fn assert_redirect_to_signed_route(
         &self,
         name: Option<&str>,
         parameters: &[RouteParameter<'_>],
         absolute: bool,
     ) -> &Self {
-        self.assertRedirect(None);
+        self.assert_redirect(None);
         let location = self
             .headers
             .get("location")
@@ -187,7 +190,7 @@ impl TestResponse {
     }
 
     #[track_caller]
-    pub fn assertCookieExpired(&self, name: &str) -> &Self {
+    pub fn assert_cookie_expired(&self, name: &str) -> &Self {
         assert!(
             self.cookie_expiration(name)
                 .is_some_and(|expires| expires < self.assertion_time()),
@@ -197,7 +200,7 @@ impl TestResponse {
     }
 
     #[track_caller]
-    pub fn assertCookieNotExpired(&self, name: &str) -> &Self {
+    pub fn assert_cookie_not_expired(&self, name: &str) -> &Self {
         assert!(
             self.cookie_expiration(name)
                 .is_none_or(|expires| expires > self.assertion_time()),
@@ -207,13 +210,13 @@ impl TestResponse {
     }
 
     #[track_caller]
-    pub fn assertCookieMissing(&self, name: &str) -> &Self {
+    pub fn assert_cookie_missing(&self, name: &str) -> &Self {
         assert!(self.raw_cookie(name).is_none(), "响应包含 Cookie {name}");
         self
     }
 
     #[track_caller]
-    pub fn assertStreamed(&self) -> &Self {
+    pub fn assert_streamed(&self) -> &Self {
         assert!(
             self.response_kind == Some(ResponseKind::Stream),
             "响应不是流响应"
@@ -222,7 +225,7 @@ impl TestResponse {
     }
 
     #[track_caller]
-    pub fn assertNotStreamed(&self) -> &Self {
+    pub fn assert_not_streamed(&self) -> &Self {
         assert!(
             self.response_kind != Some(ResponseKind::Stream),
             "响应不应为流响应"
@@ -231,15 +234,15 @@ impl TestResponse {
     }
 
     #[track_caller]
-    pub fn streamedContent(&self) -> &[u8] {
+    pub fn streamed_content(&self) -> &[u8] {
         assert!(self.response_kind.is_some(), "响应不是流响应或文件响应");
         &self.body
     }
 
     #[track_caller]
-    pub fn assertStreamedContent(&self, expected: impl AsRef<[u8]>) -> &Self {
+    pub fn assert_streamed_content(&self, expected: impl AsRef<[u8]>) -> &Self {
         assert_eq!(
-            self.streamedContent(),
+            self.streamed_content(),
             expected.as_ref(),
             "流响应内容不匹配"
         );
@@ -247,7 +250,7 @@ impl TestResponse {
     }
 
     #[track_caller]
-    pub fn assertStreamedJsonContent(&self, expected: &Value) -> &Self {
+    pub fn assert_streamed_json_content(&self, expected: &Value) -> &Self {
         let encoded = super::json_assertions::encode(expected);
         let encoded: String = encoded
             .chars()
@@ -263,7 +266,7 @@ impl TestResponse {
                 }
             })
             .collect();
-        self.assertStreamedContent(encoded)
+        self.assert_streamed_content(encoded)
     }
 
     fn view(&self) -> &crate::view::RenderedView {
@@ -271,13 +274,13 @@ impl TestResponse {
     }
 
     #[track_caller]
-    pub fn assertViewIs(&self, name: &str) -> &Self {
+    pub fn assert_view_is(&self, name: &str) -> &Self {
         assert_eq!(self.view().name, name, "响应视图名称不匹配");
         self
     }
 
     #[track_caller]
-    pub fn viewData(&self, key: Option<&str>) -> ViewValue {
+    pub fn view_data(&self, key: Option<&str>) -> ViewValue {
         let data = &self.view().data;
         key.map_or_else(
             || ViewValue::Object(data.clone()),
@@ -290,7 +293,7 @@ impl TestResponse {
     }
 
     #[track_caller]
-    pub fn assertViewHas(&self, key: &str, expected: Option<&ViewValue>) -> &Self {
+    pub fn assert_view_has(&self, key: &str, expected: Option<&ViewValue>) -> &Self {
         let actual = view_path(&self.view().data, key);
         if let Some(expected) = expected.filter(|value| !value.is_null()) {
             let actual = actual.unwrap_or(&ViewValue::Null);
@@ -311,16 +314,16 @@ impl TestResponse {
     }
 
     #[track_caller]
-    pub fn assertViewHasAll(&self, bindings: &ViewValue) -> &Self {
+    pub fn assert_view_has_all(&self, bindings: &ViewValue) -> &Self {
         match bindings {
             ViewValue::Array(keys) => {
                 for key in keys {
-                    self.assertViewHas(key.as_str().expect("视图字段名必须为字符串"), None);
+                    self.assert_view_has(key.as_str().expect("视图字段名必须为字符串"), None);
                 }
             }
             ViewValue::Object(fields) => {
                 for (key, value) in fields {
-                    self.assertViewHas(key, Some(value));
+                    self.assert_view_has(key, Some(value));
                 }
             }
             _ => panic!("视图预期必须为字段列表或对象"),
@@ -329,7 +332,7 @@ impl TestResponse {
     }
 
     #[track_caller]
-    pub fn assertViewMissing(&self, key: &str) -> &Self {
+    pub fn assert_view_missing(&self, key: &str) -> &Self {
         assert!(
             view_path(&self.view().data, key).is_none(),
             "视图包含字段 {key}"

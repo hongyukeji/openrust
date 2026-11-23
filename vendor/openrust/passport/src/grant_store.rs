@@ -119,7 +119,7 @@ impl<M: Model> GrantStore for Store<M> {
             let mut query = M::queryOn(&self.connection(parent)?);
             query
                 .r#where("user_code", "=", code)
-                .whereNull("user_id")
+                .where_null("user_id")
                 .r#where("revoked", "=", false)
                 .r#where("expires_at", ">", after);
             Ok(query.first().await?.map(erased))

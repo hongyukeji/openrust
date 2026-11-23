@@ -64,7 +64,7 @@ impl ServiceProvider for Provider {
         Box::pin(async move {
             app.container()
                 .make::<AuthManager>()?
-                .registerModel::<User>("fixture.user");
+                .register_model::<User>("fixture.user");
             Ok(())
         })
     }
@@ -101,13 +101,13 @@ fn configure_auth_mail(customization: MailCustomization) -> ProviderResult {
     match customization {
         MailCustomization::Default => {}
         MailCustomization::Urls => {
-            ResetPassword::createUrlUsing(|user, token| {
-                assert_eq!(user.getEmailForPasswordReset(), "first@example.test");
+            ResetPassword::create_url_using(|user, token| {
+                assert_eq!(user.get_email_for_password_reset(), "first@example.test");
                 URL::route(
                     "password.reset",
                     &[
                         RouteParameter::named("token", token),
-                        RouteParameter::named("email", user.getEmailForPasswordReset()),
+                        RouteParameter::named("email", user.get_email_for_password_reset()),
                         RouteParameter::named("source", "custom"),
                     ],
                     true,
@@ -116,21 +116,21 @@ fn configure_auth_mail(customization: MailCustomization) -> ProviderResult {
             })?;
         }
         MailCustomization::Messages => {
-            ResetPassword::createUrlUsing(|_, _| {
+            ResetPassword::create_url_using(|_, _| {
                 Err(AuthError::Configuration("unexpected reset URL hook"))
             })?;
-            ResetPassword::toMailUsing(|user, token| {
-                assert_eq!(user.getEmailForPasswordReset(), "first@example.test");
-                let url = ResetPassword::new(token).url(user.getEmailForPasswordReset())?;
+            ResetPassword::to_mail_using(|user, token| {
+                assert_eq!(user.get_email_for_password_reset(), "first@example.test");
+                let url = ResetPassword::new(token).url(user.get_email_for_password_reset())?;
                 Ok(MailDelivery::Message(Box::new(
                     MailMessage::new()
                         .subject("Custom reset mail")
                         .action("Go to reset", url),
                 )))
             })?;
-            VerifyEmail::createUrlUsing(|user| {
-                assert_eq!(user.getEmailForVerification(), "first@example.test");
-                URL::temporarySignedRoute(
+            VerifyEmail::create_url_using(|user| {
+                assert_eq!(user.get_email_for_verification(), "first@example.test");
+                URL::temporary_signed_route(
                     "verification.verify",
                     std::time::SystemTime::now() + Duration::from_secs(120),
                     &[
@@ -142,11 +142,11 @@ fn configure_auth_mail(customization: MailCustomization) -> ProviderResult {
                 )
                 .map_err(backend)
             })?;
-            VerifyEmail::toMailUsing(|user, url| {
-                assert_eq!(user.getEmailForVerification(), "first@example.test");
+            VerifyEmail::to_mail_using(|user, url| {
+                assert_eq!(user.get_email_for_verification(), "first@example.test");
                 assert!(url.contains("source=custom"));
                 Ok(MailDelivery::Mailable(Box::new(VerificationMail {
-                    email: user.getEmailForVerification().into(),
+                    email: user.get_email_for_verification().into(),
                     url: url.into(),
                 })))
             })?;
@@ -173,7 +173,7 @@ fn text_query(request: &Request, name: &str) -> Result<String, HttpError> {
 fn send_link(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
         let status =
-            Password::sendResetLink(&credentials(&text_query(request, "email")?), None).await?;
+            Password::send_reset_link(&credentials(&text_query(request, "email")?), None).await?;
         Response::json(StatusCode::OK, status.as_str())
     })
 }
@@ -194,10 +194,10 @@ fn reset(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
                         .await
                         .map_err(backend)?;
                     model.setAttribute("password", hash);
-                    model.setRememberToken(Some("rotated".into()));
+                    model.set_remember_token(Some("rotated".into()));
                     model.save().await.map_err(backend)?;
                     Event::dispatch(PasswordReset {
-                        user: model.getAuthIdentifier(),
+                        user: model.get_auth_identifier(),
                     })
                     .await
                     .map_err(backend)?;
@@ -223,13 +223,13 @@ fn send_verification(request: &mut Request) -> HttpFuture<'_, Result<Response, H
         let capability = user
             .as_email_verification()
             .ok_or(AuthError::InvalidIdentity)?;
-        if !capability.hasVerifiedEmail() {
+        if !capability.has_verified_email() {
             if request.uri().path() == "/register-notification" {
                 Event::dispatch(Registered { user })
                     .await
                     .map_err(backend)?;
             } else {
-                capability.sendEmailVerificationNotification().await?;
+                capability.send_email_verification_notification().await?;
             }
         }
         Ok(Response::empty(StatusCode::NO_CONTENT))
@@ -241,7 +241,7 @@ fn verify(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
         let authenticated = Auth::user(request)
             .await?
             .ok_or(HttpError::Unauthenticated)?;
-        let mut user = User::find(Value::from(authenticated.getAuthIdentifier()))
+        let mut user = User::find(Value::from(authenticated.get_auth_identifier()))
             .await
             .map_err(backend)?
             .ok_or(HttpError::Unauthenticated)?;
@@ -288,7 +288,7 @@ async fn transport(
     State(kernel): State<Arc<Kernel>>,
     request: axum::extract::Request,
 ) -> axum::response::Response {
-    kernel.handleTransport(request).await
+    kernel.handle_transport(request).await
 }
 
 async fn request(
@@ -582,7 +582,7 @@ async fn exercise(mailpit: Option<(u16, u16)>) {
     let expired = application
         .call(
             openrust::container::Callback::new(&[], |_| async move {
-                Ok(URL::temporarySignedRoute(
+                Ok(URL::temporary_signed_route(
                     "verification.verify",
                     std::time::SystemTime::now() - Duration::from_secs(120),
                     &[
@@ -761,7 +761,7 @@ async fn exercise_email_change(database: Json) {
                     )
                     .await
                     .unwrap();
-                assert!(!stale.markEmailAsVerified().await.unwrap());
+                assert!(!stale.mark_email_as_verified().await.unwrap());
                 assert_eq!(
                     table().value("email_verified_at").await.unwrap(),
                     Value::Null

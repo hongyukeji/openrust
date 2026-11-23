@@ -96,9 +96,9 @@ pub async fn login_bound_user(
     let id = AuthIdentifier::try_from(binding.get("user_id").ok_or(HttpError::InvalidRequest)?)
         .map_err(internal)?;
     {
-        let mut guard = Auth::sessionGuard(request, Some("web")).map_err(internal)?;
+        let mut guard = Auth::session_guard(request, Some("web")).map_err(internal)?;
         if guard
-            .loginUsingId(&id, false)
+            .login_using_id(&id, false)
             .await
             .map_err(internal)?
             .is_none()
@@ -106,7 +106,7 @@ pub async fn login_bound_user(
             return Ok(false);
         }
     }
-    request.session_mut()?.regenerateToken()?;
+    request.session_mut()?.regenerate_token()?;
     Ok(true)
 }
 ```
@@ -145,9 +145,9 @@ pub async fn logout(request: &mut Request, federated: bool) -> Result<Response, 
         .map_err(internal)?
         .takeLogoutHint()
         .ok();
-    Auth::sessionGuard(request, Some("web"))
+    Auth::session_guard(request, Some("web"))
         .map_err(internal)?
-        .logoutAndInvalidate()
+        .logout_and_invalidate()
         .await
         .map_err(internal)?;
     if federated
@@ -167,7 +167,7 @@ pub async fn logout(request: &mut Request, federated: bool) -> Result<Response, 
 }
 ```
 
-`takeLogoutHint()` 先消耗提示，原生 `logoutAndInvalidate()` 再清空本地 Session 並更新 CSRF。`logoutUrl(&hint)` 探索並校驗獲准的 `end_session_endpoint`，附加 ID Token 提示、用戶端 ID、固定傳回位址和一次性 state，將狀態儲存到新的匿名 Session。此動作在 OP 不支援、Discovery 無法使用或中繼資料無效時仍完成本地登出。不得從請求參數讀取提示或傳回目標。
+`takeLogoutHint()` 先消耗提示，原生 `logout_and_invalidate()` 再清空本地 Session 並更新 CSRF。`logoutUrl(&hint)` 探索並校驗獲准的 `end_session_endpoint`，附加 ID Token 提示、用戶端 ID、固定傳回位址和一次性 state，將狀態儲存到新的匿名 Session。此動作在 OP 不支援、Discovery 無法使用或中繼資料無效時仍完成本地登出。不得從請求參數讀取提示或傳回目標。
 
 固定傳回處理器呼叫 `Oidc::provider("work", request)?.completeLogout().await?`，再傳回本地已登出頁面。完成時校驗 Session 綁定、設定、目標、期限與共用原子重放宣告；失敗同樣消耗本次嘗試，且不會登入任何使用者。此結果確認傳回狀態，不證明全部遠端憑證均已撤銷。
 

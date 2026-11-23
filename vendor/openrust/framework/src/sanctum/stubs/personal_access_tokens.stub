@@ -53,7 +53,7 @@ impl Migration for Definition {
                         .comment(__("schema.columns.updated_at", &Default::default())?);
 
                     for column in table.getColumnsMut() {
-                        match column.getName() {
+                        match column.get_name() {
                             "tokenable_type" => {
                                 column.comment(__(
                                     "schema.columns.tokenable_type",

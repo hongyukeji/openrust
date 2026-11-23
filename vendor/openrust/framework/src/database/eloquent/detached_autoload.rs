@@ -150,14 +150,14 @@ pub(super) async fn load_on_model_access<M: Model, R: Relation<Parent = M>>(
     relation: &R,
 ) -> DatabaseResult<()> {
     let Some(link) = model.state().detached_autoload.as_ref() else {
-        return if model.relationLoaded(name) {
+        return if model.relation_loaded(name) {
             Ok(())
         } else {
             load_on_access(model, name, relation).await
         };
     };
     let Some(batch) = link.batch.downcast_ref::<Batch<M>>() else {
-        return if model.relationLoaded(name) {
+        return if model.relation_loaded(name) {
             Ok(())
         } else {
             load_on_access(model, name, relation).await

@@ -84,7 +84,7 @@ impl Type {
             .insert("enum".into(), values.into_iter().collect());
         self
     }
-    pub fn toArray(&self) -> Result<Value, SchemaError> {
+    pub fn to_array(&self) -> Result<Value, SchemaError> {
         let mut attributes = self.attributes.clone();
         for (key, number) in &self.numeric {
             attributes.insert(key.clone(), number.value()?);
@@ -93,7 +93,7 @@ impl Type {
             Kind::AnyOf(schemas) => {
                 let mut schemas = schemas
                     .iter()
-                    .map(Self::toArray)
+                    .map(Self::to_array)
                     .collect::<Result<Vec<_>, _>>()?;
                 if self.nullable {
                     schemas.push(serde_json::json!({"type":"null"}));
@@ -113,13 +113,13 @@ impl Type {
                     }
                     let properties = properties
                         .iter()
-                        .map(|(key, property)| Ok((key.clone(), property.toArray()?)))
+                        .map(|(key, property)| Ok((key.clone(), property.to_array()?)))
                         .collect::<Result<Map<_, _>, SchemaError>>()?;
                     attributes.insert("properties".into(), properties.into());
                 }
             }
             Kind::Array(Some(items)) => {
-                attributes.insert("items".into(), items.toArray()?);
+                attributes.insert("items".into(), items.to_array()?);
             }
             _ => {}
         }
@@ -145,7 +145,7 @@ impl Type {
         Ok(attributes.into())
     }
     pub fn toString(&self) -> Result<String, SchemaError> {
-        serde_json::to_string_pretty(&self.toArray()?)
+        serde_json::to_string_pretty(&self.to_array()?)
             .map_err(|error| SchemaError::new(error.to_string()))
     }
 }
@@ -156,7 +156,7 @@ impl AsRef<Type> for Type {
 }
 impl serde::Serialize for Type {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        self.toArray()
+        self.to_array()
             .map_err(serde::ser::Error::custom)?
             .serialize(serializer)
     }
@@ -198,8 +198,8 @@ macro_rules! schema_type {
                 self.0 = self.0.r#enum(values);
                 self
             }
-            pub fn toArray(&self) -> Result<Value, SchemaError> {
-                self.0.toArray()
+            pub fn to_array(&self) -> Result<Value, SchemaError> {
+                self.0.to_array()
             }
             pub fn toString(&self) -> Result<String, SchemaError> {
                 self.0.toString()

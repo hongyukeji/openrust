@@ -10,16 +10,16 @@ use crate::support::{data_get, data_has, escape_html};
 
 #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'source, T: Serialize + 'source> LazyCollection<'source, T> {
-    pub fn toArray(&self) -> CollectionResult<Value> {
-        Self::collect(self)?.toArray()
+    pub fn to_array(&self) -> CollectionResult<Value> {
+        Self::collect(self)?.to_array()
     }
 
     pub fn jsonSerialize(&self) -> CollectionResult<Value> {
-        self.toArray()
+        self.to_array()
     }
 
-    pub fn toJson(&self) -> CollectionResult<String> {
-        Self::collect(self)?.toJson()
+    pub fn to_json(&self) -> CollectionResult<String> {
+        Self::collect(self)?.to_json()
     }
 
     /// Selects HTML escaping for the collection's explicit string conversion.
@@ -30,7 +30,7 @@ impl<'source, T: Serialize + 'source> LazyCollection<'source, T> {
 
     /// Converts the collection to JSON text, optionally escaped for HTML.
     pub fn toString(&self) -> CollectionResult<String> {
-        let json = self.toJson()?;
+        let json = self.to_json()?;
         if !self.escape_when_casting_to_string {
             return Ok(json);
         }
@@ -39,8 +39,8 @@ impl<'source, T: Serialize + 'source> LazyCollection<'source, T> {
         Ok(output)
     }
 
-    pub fn toPrettyJson(&self) -> CollectionResult<String> {
-        Self::collect(self)?.toPrettyJson()
+    pub fn to_pretty_json(&self) -> CollectionResult<String> {
+        Self::collect(self)?.to_pretty_json()
     }
 }
 

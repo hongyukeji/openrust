@@ -66,7 +66,7 @@ impl Listener for PauseEvents {
     ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
         Box::pin(async move {
             if let Some(skipped) = event.downcast_ref::<ScheduledTaskSkipped>() {
-                println!("skipped {}", skipped.task.getSummaryForDisplay());
+                println!("skipped {}", skipped.task.get_summary_for_display());
             } else {
                 assert!(
                     event.downcast_ref::<SchedulePaused>().is_some()
@@ -93,14 +93,14 @@ impl Listener for ScheduleEvents {
         Box::pin(async move {
             if let Some(starting) = event.downcast_ref::<ScheduledTaskStarting>() {
                 *self.task.lock().unwrap() = Some(starting.task.clone());
-                println!("starting {}", starting.task.getSummaryForDisplay());
+                println!("starting {}", starting.task.get_summary_for_display());
             } else if let Some(finished) = event.downcast_ref::<ScheduledTaskFinished>() {
                 assert!(Arc::ptr_eq(
                     self.task.lock().unwrap().as_ref().unwrap(),
                     &finished.task
                 ));
                 assert!(finished.runtime < Duration::from_secs(10));
-                let task = finished.task.getSummaryForDisplay();
+                let task = finished.task.get_summary_for_display();
                 println!("finished {task}");
                 if task == "listener-error" {
                     return Err(EventError::Listener {
@@ -117,7 +117,7 @@ impl Listener for ScheduleEvents {
                         .runtime
                         .is_some_and(|runtime| runtime < Duration::from_secs(10))
                 );
-                if failed.task.getSummaryForDisplay() == "listener-error" {
+                if failed.task.get_summary_for_display() == "listener-error" {
                     assert_eq!(
                         failed.exception.source().unwrap().to_string(),
                         "finished listener error"
@@ -125,11 +125,11 @@ impl Listener for ScheduleEvents {
                 }
                 println!(
                     "failed {}: {}",
-                    failed.task.getSummaryForDisplay(),
+                    failed.task.get_summary_for_display(),
                     failed.exception
                 );
             } else if let Some(skipped) = event.downcast_ref::<ScheduledTaskSkipped>() {
-                println!("skipped {}", skipped.task.getSummaryForDisplay());
+                println!("skipped {}", skipped.task.get_summary_for_display());
             }
             Ok(None)
         })
@@ -169,7 +169,7 @@ fn routes() -> Result<(), ConsoleError> {
         let at = std::env::var("SCHEDULING_TIME").unwrap().parse().unwrap();
         let start = std::time::Instant::now();
         let advances = profile == "work";
-        schedule.useClock(move || {
+        schedule.use_clock(move || {
             let fixed = UNIX_EPOCH + Duration::from_secs(at);
             if advances {
                 fixed + start.elapsed()
@@ -181,27 +181,27 @@ fn routes() -> Result<(), ConsoleError> {
             schedule
                 .command("fixture:hello", [])
                 .name("Scheduled success")
-                .emailOutputTo(["success@example.test"]);
+                .email_output_to(["success@example.test"]);
             schedule
                 .command("fixture:missing", [])
                 .name("Scheduled failure")
-                .emailOutputOnFailure(["failure@example.test"]);
+                .email_output_on_failure(["failure@example.test"]);
             schedule
                 .command("fixture:hello", [])
-                .emailOutputOnFailure(["unexpected@example.test"]);
+                .email_output_on_failure(["unexpected@example.test"]);
             return Ok(());
         }
         if profile == "output" {
             schedule
                 .command("fixture:hello", [])
-                .sendOutputTo("overwrite.log");
+                .send_output_to("overwrite.log");
             schedule
                 .command("fixture:hello", [])
-                .appendOutputTo("append.log");
+                .append_output_to("append.log");
             schedule
                 .command("fixture:missing", [])
-                .sendOutputTo("failure.log")
-                .onFailureWithOutput(
+                .send_output_to("failure.log")
+                .on_failure_with_output(
                     |app, _, bytes| {
                         Box::pin(async move {
                             std::fs::write(app.base_path().join("failure-hook.log"), bytes)
@@ -216,21 +216,21 @@ fn routes() -> Result<(), ConsoleError> {
             schedule
                 .command("listed:general", ["--force".into()])
                 .name("General maintenance")
-                .dailyAt("18:00")?;
+                .daily_at("18:00")?;
             schedule
                 .command("listed:staging", [])
-                .dailyAt("17:30")?
+                .daily_at("17:30")?
                 .environments(&["staging"]);
             schedule
                 .command("listed:production", [])
-                .dailyAt("08:30")?
+                .daily_at("08:30")?
                 .timezone(jiff::tz::TimeZone::UTC)
                 .environments(&["production"]);
             return Ok(());
         }
 
         if profile == "basic" {
-            schedule.command("fixture:hello", []).dailyAt("17:00")?;
+            schedule.command("fixture:hello", []).daily_at("17:00")?;
             schedule
                 .call(|_, output| {
                     Box::pin(async move {
@@ -247,7 +247,7 @@ fn routes() -> Result<(), ConsoleError> {
                         Ok(())
                     })
                 })
-                .dailyAt("08:00")?;
+                .daily_at("08:00")?;
             schedule
                 .call(|_, output| {
                     Box::pin(async move {
@@ -290,8 +290,8 @@ fn routes() -> Result<(), ConsoleError> {
             schedule
                 .before(hook("group-before"))
                 .after(hook("group-after"))
-                .onSuccess(hook("group-success"))
-                .onFailure(hook("group-failure"))
+                .on_success(hook("group-success"))
+                .on_failure(hook("group-failure"))
                 .group(|schedule| {
                     schedule.before(hook("nested-before")).group(|schedule| {
                         schedule
@@ -340,33 +340,33 @@ fn routes() -> Result<(), ConsoleError> {
             assert!(schedule.cron("bad").is_err());
             schedule
                 .timezone(openrust::support::Date::timezone("Asia/Tokyo").unwrap())
-                .dailyAt("17:00")?
+                .daily_at("17:00")?
                 .group(|schedule| {
                     schedule.command("inspire", []);
                     Ok(())
                 })?;
 
             schedule
-                .dailyAt("17:00")?
+                .daily_at("17:00")?
                 .timezone(openrust::support::Date::timezone("Asia/Tokyo").unwrap())
                 .environments(&["testing"])
-                .evenInMaintenanceMode()
-                .evenWhenPaused()
-                .withAttributes([("team".into(), json!("outer"))])
+                .even_in_maintenance_mode()
+                .even_when_paused()
+                .with_attributes([("team".into(), json!("outer"))])
                 .group(|schedule| {
                     group_task(schedule, "inherited");
                     schedule
                         .timezone(jiff::tz::TimeZone::UTC)
-                        .withAttributes([("team".into(), json!("inner"))])
+                        .with_attributes([("team".into(), json!("inner"))])
                         .group(|schedule| {
                             group_task(schedule, "nested-not-due");
-                            let event = group_task(schedule, "nested-due").dailyAt("08:00")?;
+                            let event = group_task(schedule, "nested-due").daily_at("08:00")?;
                             assert_eq!(event.attributes()["team"], json!(["outer", "inner"]));
                             Ok(())
                         })?;
                     schedule.skip(|_| true);
                     group_task(schedule, "filtered");
-                    schedule.dailyAt("18:00")?;
+                    schedule.daily_at("18:00")?;
                     group_task(schedule, "one-shot");
                     let sibling = group_task(schedule, "sibling");
                     assert_eq!(sibling.attributes()["team"], "outer");
@@ -384,9 +384,9 @@ fn routes() -> Result<(), ConsoleError> {
         }
 
         if profile == "groups-repeat" {
-            schedule.everySecond().group(|schedule| {
+            schedule.every_second().group(|schedule| {
                 group_task(schedule, "repeated");
-                group_task(schedule, "once").everyMinute();
+                group_task(schedule, "once").every_minute();
                 Ok(())
             })?;
             return Ok(());
@@ -395,16 +395,16 @@ fn routes() -> Result<(), ConsoleError> {
         let pause = profile.starts_with("pause");
         if pause || matches!(profile.as_str(), "maintenance" | "maintenance-repeat") {
             if pause {
-                schedule.useCache("array");
+                schedule.use_cache("array");
                 if profile == "pause-disabled" {
-                    schedule.doNotAllowPausing();
+                    schedule.do_not_allow_pausing();
                 }
                 if profile != "pause-repeat" {
-                    schedule.command("inspire", []).evenWhenPaused();
+                    schedule.command("inspire", []).even_when_paused();
                 }
             }
             if profile == "maintenance" {
-                schedule.command("inspire", []).evenInMaintenanceMode();
+                schedule.command("inspire", []).even_in_maintenance_mode();
             }
             for (name, exempt) in [("ordinary", false), ("exempt", true)] {
                 let waits = profile == "pause-repeat" && !exempt;
@@ -434,13 +434,13 @@ fn routes() -> Result<(), ConsoleError> {
                 event.name(name);
                 if exempt {
                     if pause {
-                        event.evenWhenPaused();
+                        event.even_when_paused();
                     } else {
-                        event.evenInMaintenanceMode();
+                        event.even_in_maintenance_mode();
                     }
                 }
                 if profile.ends_with("-repeat") {
-                    event.everySecond();
+                    event.every_second();
                 }
             }
             return Ok(());
@@ -481,13 +481,13 @@ fn routes() -> Result<(), ConsoleError> {
             .when(|_| true);
         match std::env::var("SCHEDULING_PROFILE").unwrap().as_str() {
             "overlap" => {
-                event.withoutOverlapping();
+                event.without_overlapping();
             }
             "work" | "election" => {
-                event.onOneServer();
+                event.on_one_server();
             }
             "repeat" => {
-                event.everySecond().onOneServer();
+                event.every_second().on_one_server();
             }
             _ => unreachable!(),
         }

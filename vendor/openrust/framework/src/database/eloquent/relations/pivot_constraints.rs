@@ -81,17 +81,17 @@ macro_rules! pivot_predicates {
         pivot_predicates!(@methods $apply;
             wherePivot => r#where(operator: &str, value: impl Into<Value>),
             orWherePivot => orWhere(operator: &str, value: impl Into<Value>),
-            wherePivotIn => whereIn(values: Vec<Value>),
+            wherePivotIn => where_in(values: Vec<Value>),
             orWherePivotIn => orWhereIn(values: Vec<Value>),
-            wherePivotNotIn => whereNotIn(values: Vec<Value>),
+            wherePivotNotIn => where_not_in(values: Vec<Value>),
             orWherePivotNotIn => orWhereNotIn(values: Vec<Value>),
             wherePivotBetween => whereBetween(bounds: [Value; 2]),
             orWherePivotBetween => orWhereBetween(bounds: [Value; 2]),
             wherePivotNotBetween => whereNotBetween(bounds: [Value; 2]),
             orWherePivotNotBetween => orWhereNotBetween(bounds: [Value; 2]),
-            wherePivotNull => whereNull(),
+            wherePivotNull => where_null(),
             orWherePivotNull => orWhereNull(),
-            wherePivotNotNull => whereNotNull(),
+            wherePivotNotNull => where_not_null(),
             orWherePivotNotNull => orWhereNotNull()
         );
     };

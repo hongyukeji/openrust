@@ -60,16 +60,16 @@ async fn records_reports() -> Result<(), Box<dyn std::error::Error + Send + Sync
     let spy = app.spy::<Reports, _>(|calls| Arc::new(RecordingReporter(calls))).await?;
 
     app.app().make::<dyn Reporter>().await?.send("daily");
-    spy.shouldHaveReceived("send").with("daily".to_owned()).once();
+    spy.should_have_received("send").with("daily".to_owned()).once();
     Ok(())
 }
 ```
 
-`received` returns arguments in call order. Chain `with` or `withArgs` to filter by value or predicate, and use `once` or `times` to check counts. `shouldNotHaveReceived` checks that no call was recorded. A replacement may forward calls to a previously resolved service when the test needs its behavior.
+`received` returns arguments in call order. Chain `with` or `with_args` to filter by value or predicate, and use `once` or `times` to check counts. `should_not_have_received` checks that no call was recorded. A replacement may forward calls to a previously resolved service when the test needs its behavior.
 
 ## Interacting with time {#interacting-with-time}
 
-`TestApp::travelTo` freezes the application clock at a `Date`. `freezeTime` uses the current instant, and `freezeSecond` drops its fractional second. Use `travel(5).minutes().await?` to move forward or pass a negative number to move backward. Days, weeks, months and years follow the fixture's application timezone. `travelBack().await?` restores the system clock.
+`TestApp::travel_to` freezes the application clock at a `Date`. `freeze_time` uses the current instant, and `freeze_second` drops its fractional second. Use `travel(5).minutes().await?` to move forward or pass a negative number to move backward. Days, weeks, months and years follow the fixture's application timezone. `travel_back().await?` restores the system clock.
 
 ```rust
 use openrust::{support::Date, testing::TestApp};
@@ -77,7 +77,7 @@ use openrust::{support::Date, testing::TestApp};
 #[tokio::test]
 async fn travels_five_minutes() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut app = TestApp::create(|builder| builder)?;
-    app.freezeSecondFor(async |app, start| {
+    app.freeze_second_for(async |app, start| {
         let later = app.travel(5).minutes().await?;
         assert_eq!(later.asDateTime().timestamp().as_second(), start.asDateTime().timestamp().as_second() + 300);
         assert_eq!(Date::now(None)?, later);
@@ -87,4 +87,4 @@ async fn travels_five_minutes() -> Result<(), Box<dyn std::error::Error + Send +
 }
 ```
 
-`travelToFor`, `freezeTimeFor` and `freezeSecondFor` restore the previous clock when the future ends, including on error or cancellation. HTTP and Artisan invoked by the fixture use the same clock for `Date::now`, `Date::today` and Eloquent model timestamps. Other fixtures, independent processes, elapsed-time timers and external databases and services continue to use their own clocks.
+`travel_to_for`, `freeze_time_for` and `freeze_second_for` restore the previous clock when the future ends, including on error or cancellation. HTTP and Artisan invoked by the fixture use the same clock for `Date::now`, `Date::today` and Eloquent model timestamps. Other fixtures, independent processes, elapsed-time timers and external databases and services continue to use their own clocks.

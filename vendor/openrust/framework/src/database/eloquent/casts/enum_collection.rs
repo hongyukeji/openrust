@@ -47,7 +47,7 @@ impl EnumCollectionCast {
             let case = self.cases.normalize(&backing(value)?)?;
             storage(case)
         })?;
-        canonical.toArray().map(Value::Json).map_err(|_| invalid())
+        canonical.to_array().map(Value::Json).map_err(|_| invalid())
     }
 
     pub(super) fn read_typed<E: CastableEnum>(
@@ -95,7 +95,7 @@ impl EnumCollectionCast {
             values
         };
         codec
-            .encode(&values.toArray().map_err(|_| invalid())?)
+            .encode(&values.to_array().map_err(|_| invalid())?)
             .map(Value::Text)
     }
 }

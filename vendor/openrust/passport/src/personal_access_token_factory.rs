@@ -77,10 +77,10 @@ impl PersonalAccessTokenResult {
         instances.insert(TypeId::of::<T>(), model.clone());
         Ok(Some(model))
     }
-    pub fn toArray(&self) -> serde_json::Value {
+    pub fn to_array(&self) -> serde_json::Value {
         serde_json::json!({"accessTokenId":self.accessTokenId,"accessToken":self.accessToken,"tokenType":self.tokenType,"expiresIn":self.expiresIn})
     }
-    pub fn toJson(&self) -> Result<String, serde_json::Error> {
+    pub fn to_json(&self) -> Result<String, serde_json::Error> {
         serde_json::to_string(self)
     }
 }
@@ -88,14 +88,14 @@ impl PersonalAccessTokenResult {
 #[allow(non_snake_case)]
 pub trait HasApiTokens: Authenticatable {
     fn getProviderName(&self) -> &str;
-    fn createToken(
+    fn create_token(
         &self,
         name: &str,
         scopes: &[String],
     ) -> impl Future<Output = Result<PersonalAccessTokenResult, OAuthError>> + Send {
         async move {
             PersonalAccessTokenFactory::make(
-                self.getAuthIdentifier(),
+                self.get_auth_identifier(),
                 name,
                 scopes,
                 self.getProviderName(),

@@ -11,12 +11,12 @@ use openrust::testing::TestApp;
 async fn reports_command_success_and_failure() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut test = TestApp::create(|builder| builder)?;
     let help = test.artisan(["help", "env"]).await;
-    help.assertSuccessful();
+    help.assert_successful();
     assert!(help.stdout.contains("env"));
     assert!(help.stderr.is_empty());
 
     let missing = test.artisan(["example:missing"]).await;
-    missing.assertExitCode(1);
+    missing.assert_exit_code(1);
     assert!(missing.stdout.is_empty());
     assert!(missing.stderr.contains("example:missing"));
     Ok(())
@@ -25,4 +25,4 @@ async fn reports_command_success_and_failure() -> Result<(), Box<dyn std::error:
 
 ## Inspecting command output
 
-Use `assertSuccessful` for exit code zero, `assertExitCode` for a specific code, and `expectsOutput` for an exact stdout line. Use a subprocess to inspect output written directly to the process streams by a command.
+Use `assert_successful` for exit code zero, `assert_exit_code` for a specific code, and `expects_output` for an exact stdout line. Use a subprocess to inspect output written directly to the process streams by a command.

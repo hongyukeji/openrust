@@ -14,13 +14,12 @@ pub struct BatchProgress {
     pub failed_requests: usize,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl BatchProgress {
-    pub fn processedRequests(self) -> usize {
+    pub fn processed_requests(self) -> usize {
         self.total_requests - self.pending_requests
     }
 
-    pub fn hasFailures(self) -> bool {
+    pub fn has_failures(self) -> bool {
         self.failed_requests != 0
     }
 }
@@ -41,7 +40,6 @@ pub struct Batch<'a> {
     finally: Option<Finished<'a>>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'a> Batch<'a> {
     pub(super) fn new(factory: Factory) -> Self {
         Self {
@@ -67,11 +65,11 @@ impl<'a> Batch<'a> {
         self
     }
 
-    pub fn newRequest<F>(&mut self, build: impl FnOnce(PendingRequest) -> F) -> &mut Self
+    pub fn new_request<F>(&mut self, build: impl FnOnce(PendingRequest) -> F) -> &mut Self
     where
         F: Future<Output = Result<Response>> + Send + 'a,
     {
-        self.pool.newRequest(build);
+        self.pool.new_request(build);
         self
     }
 
@@ -154,7 +152,7 @@ impl<'a> Batch<'a> {
                 }
             })
             .await;
-        if !counts.hasFailures()
+        if !counts.has_failures()
             && let Some(then) = then
         {
             then(counts, &results);

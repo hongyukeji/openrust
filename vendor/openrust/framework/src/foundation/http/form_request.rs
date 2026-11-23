@@ -16,55 +16,54 @@ pub enum FormRequestError {
 }
 
 /// Defines the authorization and validation of a handler's input.
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub trait FormRequest: Send + Sync {
-    fn validateResolved<'a>(
+    fn validate_resolved<'a>(
         &'a mut self,
         request: &'a mut Request,
     ) -> HttpFuture<'a, Result<ValidatedInput, HttpError>> {
         Box::pin(async move {
-            let mut data = Data::fromRequest(request).await?;
-            self.prepareForValidation(&mut data)?;
+            let mut data = Data::from_request(request).await?;
+            self.prepare_for_validation(&mut data)?;
             self.authorize(request, &data)
                 .await
                 .map_err(HttpError::from)?;
-            let rules = self.validationRules(request)?;
-            let rules = if request.isPrecognitive() {
-                request.filterPrecognitiveRules(rules)?
+            let rules = self.validation_rules(request)?;
+            let rules = if request.is_precognitive() {
+                request.filter_precognitive_rules(rules)?
             } else {
                 rules
             };
             let mut validator = crate::support::facades::Validator::make(data, rules)?;
-            validator.stopOnFirstFailure(self.stopOnFirstFailure());
-            self.withValidator(&mut validator)?;
+            validator.stop_on_first_failure(self.stop_on_first_failure());
+            self.with_validator(&mut validator)?;
             for callback in self.after() {
                 validator.after(callback);
             }
             let validated = validator
-                .validateRequest(request)
+                .validate_request(request)
                 .await
                 .map_err(|mut error| {
                     if let ValidationError::Invalid(exception) = &mut error {
-                        exception.errorBag(self.errorBag());
-                        if let Some(path) = self.redirectTo() {
-                            exception.redirectTo(path);
+                        exception.error_bag(self.error_bag());
+                        if let Some(path) = self.redirect_to() {
+                            exception.redirect_to(path);
                         }
                     }
                     error
                 })?;
-            if request.isPrecognitive() {
+            if request.is_precognitive() {
                 (crate::foundation::Precognition::afterValidationHook(request))(&validator)?;
             }
-            self.passedValidation(request, &validated)?;
+            self.passed_validation(request, &validated)?;
             Ok(validated)
         })
     }
 
-    fn stopOnFirstFailure(&self) -> bool {
+    fn stop_on_first_failure(&self) -> bool {
         false
     }
 
-    fn withValidator(
+    fn with_validator(
         &mut self,
         _validator: &mut crate::validation::Validator,
     ) -> ValidationResult<()> {
@@ -75,7 +74,7 @@ pub trait FormRequest: Send + Sync {
         Vec::new()
     }
 
-    fn prepareForValidation(&mut self, _input: &mut Data) -> ValidationResult<()> {
+    fn prepare_for_validation(&mut self, _input: &mut Data) -> ValidationResult<()> {
         Ok(())
     }
 
@@ -87,21 +86,21 @@ pub trait FormRequest: Send + Sync {
         Box::pin(async { Ok(()) })
     }
 
-    fn errorBag(&self) -> &str {
+    fn error_bag(&self) -> &str {
         "default"
     }
 
-    fn redirectTo(&self) -> Option<&str> {
+    fn redirect_to(&self) -> Option<&str> {
         None
     }
 
     fn rules(&self) -> ValidationResult<RuleSet>;
 
-    fn validationRules(&self, _request: &Request) -> ValidationResult<RuleSet> {
+    fn validation_rules(&self, _request: &Request) -> ValidationResult<RuleSet> {
         self.rules()
     }
 
-    fn passedValidation(
+    fn passed_validation(
         &mut self,
         _request: &mut Request,
         _input: &ValidatedInput,
@@ -133,7 +132,7 @@ impl<F> ValidatedFormRequest<F> {
 impl<F: FormRequest + Default + 'static> ValidatedFormRequest<F> {
     pub(crate) async fn resolve(request: &mut Request) -> Result<Self, HttpError> {
         let mut form = if let Some(container) = current_container().filter(|app| app.bound::<F>()) {
-            let form = request.withContainer(container.make_async::<F>()).await?;
+            let form = request.with_container(container.make_async::<F>()).await?;
             std::sync::Arc::into_inner(form).ok_or_else(|| HttpError::Internal {
                 source: std::io::Error::other(
                     "A form request binding must return an owned instance for each resolution.",
@@ -143,7 +142,7 @@ impl<F: FormRequest + Default + 'static> ValidatedFormRequest<F> {
         } else {
             F::default()
         };
-        let input = form.validateResolved(request).await?;
+        let input = form.validate_resolved(request).await?;
         Ok(Self { form, input })
     }
 }

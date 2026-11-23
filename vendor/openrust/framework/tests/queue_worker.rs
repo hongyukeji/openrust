@@ -172,7 +172,7 @@ impl JobHandler for RestoreModels {
                 2
             );
             let omitted = job.omitted.restore().await.map_err(execution)?;
-            assert!(!omitted.relationLoaded("children"));
+            assert!(!omitted.relation_loaded("children"));
             assert!(matches!(
                 job.missing.restore().await,
                 Err(DatabaseError::ModelNotFound("queued_models"))
@@ -190,7 +190,7 @@ impl JobHandler for RestoreModels {
             assert!(
                 collection
                     .iter()
-                    .all(|model| model.relationLoaded("children"))
+                    .all(|model| model.relation_loaded("children"))
             );
             let connection = DB::connection(None).map_err(execution)?;
             connection
@@ -1236,9 +1236,9 @@ fn dispatch(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
                 Payload::new("restore-required", id)?.deleteWhenMissingModels(),
                 Payload::new("restore-required", "chain successor must not run")?,
             ];
-            let chain = Bus::chain(jobs).onQueue("missing-chain");
+            let chain = Bus::chain(jobs).on_queue("missing-chain");
             if kind == "missing-sync" {
-                chain.onConnection("sync").dispatch().await?;
+                chain.on_connection("sync").dispatch().await?;
             } else {
                 chain.dispatch().await?;
             }
@@ -1514,7 +1514,7 @@ async fn transport(
     State(kernel): State<Arc<Kernel>>,
     request: axum::extract::Request,
 ) -> axum::response::Response {
-    kernel.handleTransport(request).await
+    kernel.handle_transport(request).await
 }
 
 async fn request(address: SocketAddr, kind: &str) {

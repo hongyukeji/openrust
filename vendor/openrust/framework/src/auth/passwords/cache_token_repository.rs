@@ -109,13 +109,13 @@ impl TokenRepository for CacheTokenRepository {
         user: &'a dyn CanResetPassword,
     ) -> AuthFuture<'a, AuthResult<Option<String>>> {
         Box::pin(async move {
-            if self.recentlyCreatedToken(user).await? {
+            if self.recently_created_token(user).await? {
                 return Ok(None);
             }
             let (token, hash) = self.policy.generate().await?;
             let key = cache_key(user);
             self.locked(&key, async {
-                if self.recentlyCreatedToken(user).await? {
+                if self.recently_created_token(user).await? {
                     return Ok(None);
                 }
                 self.put(
@@ -220,7 +220,7 @@ impl TokenRepository for CacheTokenRepository {
         })
     }
 
-    fn recentlyCreatedToken<'a>(
+    fn recently_created_token<'a>(
         &'a self,
         user: &'a dyn CanResetPassword,
     ) -> AuthFuture<'a, AuthResult<bool>> {
@@ -246,13 +246,13 @@ impl TokenRepository for CacheTokenRepository {
         })
     }
 
-    fn deleteExpired(&self) -> AuthFuture<'_, AuthResult<()>> {
+    fn delete_expired(&self) -> AuthFuture<'_, AuthResult<()>> {
         Box::pin(async { Ok(()) })
     }
 }
 
 fn cache_key(user: &dyn CanResetPassword) -> String {
-    cache_key_for(user.getEmailForPasswordReset())
+    cache_key_for(user.get_email_for_password_reset())
 }
 
 fn cache_key_for(email: &str) -> String {

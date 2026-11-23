@@ -20,9 +20,9 @@ async fn challenged(
     request: &mut Request,
     fortify: &Fortify,
 ) -> Result<Option<Box<dyn Account>>, HttpError> {
-    let provider = Auth::sessionGuard(request, fortify.guard().as_deref())?.getProvider();
+    let provider = Auth::session_guard(request, fortify.guard().as_deref())?.get_provider();
     let id = provider
-        .getModel()
+        .get_model()
         .ok_or_else(|| internal(FortifyError::UnregisteredTwoFactorModel))?;
     let key = request
         .session()
@@ -133,7 +133,7 @@ impl TwoFactorAuthenticatedSessionController {
                     serde_json::Value::Array(v) => !v.is_empty(),
                     serde_json::Value::Object(v) => !v.is_empty(),
                 });
-            Auth::sessionGuard(request, fortify.guard().as_deref())?
+            Auth::session_guard(request, fortify.guard().as_deref())?
                 .login(user.into_user(), remember)
                 .await?;
             request

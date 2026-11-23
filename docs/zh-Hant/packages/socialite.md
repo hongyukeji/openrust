@@ -29,7 +29,7 @@ cargo run --features socialite -- artisan serve
 
 `x` 使用 `X_CLIENT_ID`、`X_CLIENT_SECRET`、`X_REDIRECT_URI`。`twitter` 使用對應的 `TWITTER_` 變數，並設定 `TWITTER_OAUTH=2` 選擇 OAuth2；預設值 1 選擇 Twitter OAuth1；只有整數 2 選擇 OAuth2，字串 `"2"` 仍選擇 OAuth1。明確的 `twitter-oauth-2` 驅動先讀取 `services.twitter`，僅在物件缺失或為 null 時回退 `services.twitter-oauth-2`。`x` 同樣從 `services.x` 回退 `services.x-oauth-2`；已存在但不完整的設定會失敗，不靜默改用另一組憑證。
 
-`google` 讀取 `GOOGLE_CLIENT_ID`、`GOOGLE_CLIENT_SECRET`、`GOOGLE_REDIRECT_URI`，預設 scope 為 `openid profile email`。一般 access token 以 Bearer 呼叫 Google UserInfo，傳送 `prettyPrint=false`。更新回應僅在缺少 refresh token 欄位時保留傳入值；明確的 null 或輪換值按回應保留。
+`google` 讀取 `GOOGLE_CLIENT_ID`、`GOOGLE_CLIENT_SECRET`、`GOOGLE_REDIRECT_URI`，預設 scope 為 `openid profile email`。一般 access token 以 Bearer 呼叫 Google UserInfo，傳送 `pretty_print=false`。更新回應僅在缺少 refresh token 欄位時保留傳入值；明確的 null 或輪換值按回應保留。
 
 `facebook` 使用 `FACEBOOK_CLIENT_ID`、`FACEBOOK_CLIENT_SECRET`、`FACEBOOK_REDIRECT_URI`，預設 scope 為 `email`，固定 Graph 版本為 `v23.0`。`provider.usingGraphVersion("v99.0")` 修改目前請求的授權／token／profile 路徑。`fields(vec!["id".into(), "name".into()])` 替換 Graph 欄位；`asPopup()`、`reRequest()` 覆寫相應可選授權參數。Graph 請求傳送 `access_token`、fields，並在 client secret 非空且不等於 `"0"` 時傳送 HMAC-SHA256 `appsecret_proof`。授權碼交換不指定 Accept，回傳保留 `expires`，僅在 `expires_in` 缺失或為 null 時補入，不覆蓋已有值。
 
@@ -103,7 +103,7 @@ pub fn callback(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
             .map_err(|_| HttpError::InvalidRequest)?
             .user().await.map_err(|_| HttpError::InvalidRequest)?;
         Response::json(StatusCode::OK, serde_json::json!({
-            "id": user.getId(), "name": user.getName(), "email": user.getEmail(),
+            "id": user.get_id(), "name": user.get_name(), "email": user.getEmail(),
         }))
     })
 }
@@ -135,7 +135,7 @@ X／Twitter OAuth2 在重新導向和回呼預設啟用 PKCE，因此即使 `sta
 
 ## 讀取使用者詳情 {#retrieving-user-details}
 
-使用者提供 `getId`、`getNickname`、`getName`、`getEmail`、`getAvatar`、`getRaw` 和 GitHub `nodeId` 等映射 `attributes`；ID 保留 JSON 數字／字串型別。`userFromToken(token)` 使用既有 token 讀取身分，`refreshToken(token)` 交換更新權杖。憑據顯式放在 `user.credentials` 的 `token`、`refreshToken`、`expiresIn`、`approvedScopes`；字串使用 `Zeroizing<String>`，不會自動序列化或由 Debug 輸出。遠端 access token 不是 Passport／Sanctum 憑據。
+使用者提供 `get_id`、`getNickname`、`get_name`、`getEmail`、`getAvatar`、`getRaw` 和 GitHub `nodeId` 等映射 `attributes`；ID 保留 JSON 數字／字串型別。`userFromToken(token)` 使用既有 token 讀取身分，`refreshToken(token)` 交換更新權杖。憑據顯式放在 `user.credentials` 的 `token`、`refreshToken`、`expiresIn`、`approvedScopes`；字串使用 `Zeroizing<String>`，不會自動序列化或由 Debug 輸出。遠端 access token 不是 Passport／Sanctum 憑據。
 
 舊式 LinkedIn 增加 `first_name`、`last_name`、`avatar_original`，按偏好 locale 和上游嚴格的 100／800 像素選擇圖片。LinkedIn OpenID 增加 given／family name、`email_verified` 和原始圖片；Slack 兩種驅動暴露 `organization_id`。`linkedin-openid`、`slack-openid` 按固定套件使用 access token 存取固定 UserInfo 介面，不驗證 ID Token、不執行 Discovery，也不是完整 OIDC RP；這些能力使用 [OIDC 套件](oidc.md)。
 
@@ -182,7 +182,7 @@ pub async fn login_bound_user(
     namespace: &str,
     remote: &User,
 ) -> Result<bool, HttpError> {
-    let subject = match remote.getId() {
+    let subject = match remote.get_id() {
         serde_json::Value::String(id) if !id.is_empty() => id.clone(),
         serde_json::Value::Number(id) if id.is_i64() || id.is_u64() => id.to_string(),
         _ => return Ok(false),
@@ -203,9 +203,9 @@ pub async fn login_bound_user(
     let id = AuthIdentifier::try_from(binding.get("user_id").ok_or(HttpError::InvalidRequest)?)
         .map_err(internal)?;
     {
-        let mut guard = Auth::sessionGuard(request, Some("web")).map_err(internal)?;
+        let mut guard = Auth::session_guard(request, Some("web")).map_err(internal)?;
         if guard
-            .loginUsingId(&id, false)
+            .login_using_id(&id, false)
             .await
             .map_err(internal)?
             .is_none()
@@ -213,19 +213,19 @@ pub async fn login_bound_user(
             return Ok(false);
         }
     }
-    request.session_mut()?.regenerateToken()?;
+    request.session_mut()?.regenerate_token()?;
     Ok(true)
 }
 ```
 
-接入多個供應商時，在跳轉時儲存所選 namespace，回呼前消費並核對；為各供應商註冊固定路由，讓應用程式控制回呼 namespace。保留正常 state 校驗，不接受回呼傳入本機使用者 ID。本機登出使用受 CSRF 保護的 POST 路由，執行 `Auth::sessionGuard(request, Some("web"))?.logoutAndInvalidate().await?`，結束目前應用 Session；供應商 token 撤銷與聯邦登出遵循各自協定。
+接入多個供應商時，在跳轉時儲存所選 namespace，回呼前消費並核對；為各供應商註冊固定路由，讓應用程式控制回呼 namespace。保留正常 state 校驗，不接受回呼傳入本機使用者 ID。本機登出使用受 CSRF 保護的 POST 路由，執行 `Auth::session_guard(request, Some("web"))?.logout_and_invalidate().await?`，結束目前應用 Session；供應商 token 撤銷與聯邦登出遵循各自協定。
 
 
 ## 測試 {#testing}
 
 透過 `GithubProvider::withEndpoints` 配合應用內 `manager.extend("github", Arc::new(provider))` 指向受控 HTTP 供應商，替換授權／token／profile／email URL 並保留驅動行為。`ProviderDefinition` 支援編譯型協定客製，`facades::Socialite::driver` / `contracts::Factory`、`Provider`、`User` 暴露公開契約。
 
-Socialite 使用共用客戶端顯式 `redactPayload()`：觀察者與錄製保留狀態及路徑，省略 query、authorization、請求內容、回應內容和回應標頭；實際網路與傳回回應完整。供應商狀態／無效回應錯誤不列印回應憑據。
+Socialite 使用共用客戶端顯式 `redact_payload()`：觀察者與錄製保留狀態及路徑，省略 query、authorization、請求內容、回應內容和回應標頭；實際網路與傳回回應完整。供應商狀態／無效回應錯誤不列印回應憑據。
 
 `ProviderEndpoints::new(authorize, token, user).email(email)` 可傳給新增驅動的 `withEndpoints` 建構器，顯式替換端點。
 

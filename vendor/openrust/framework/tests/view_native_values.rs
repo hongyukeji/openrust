@@ -292,7 +292,7 @@ async fn actual_http_preserves_native_numbers_json_errors_recovery_and_applicati
         let address = listener.local_addr().unwrap();
         let kernel = std::sync::Arc::new(kernel);
         let router = axum::Router::new().fallback(move |request: axum::extract::Request| {
-            kernel.clone().handleTransport(request)
+            kernel.clone().handle_transport(request)
         });
         servers.push(tokio::spawn(async move {
             axum::serve(listener, router).await.unwrap();

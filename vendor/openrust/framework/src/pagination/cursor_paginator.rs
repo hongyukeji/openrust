@@ -130,12 +130,12 @@ impl<T> CursorPaginator<T> {
         self.items.len()
     }
 
-    pub fn isEmpty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         self.items.is_empty()
     }
 
-    pub fn isNotEmpty(&self) -> bool {
-        !self.isEmpty()
+    pub fn is_not_empty(&self) -> bool {
+        !self.is_empty()
     }
 
     pub fn onFirstPage(&self) -> bool {

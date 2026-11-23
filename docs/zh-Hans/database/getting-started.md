@@ -221,7 +221,7 @@ fn connected<'a>(
     Box::pin(async move {
         let event = payload.downcast_ref::<ConnectionEstablished>()
             .ok_or(EventError::InvalidPayload)?;
-        println!("Established {}", event.connection.getName());
+        println!("Established {}", event.connection.get_name());
         Ok(None)
     })
 }
@@ -257,7 +257,7 @@ fn report_query<'a>(
     Box::pin(async move {
         let query = payload.downcast_ref::<QueryExecuted>()
             .ok_or(EventError::InvalidPayload)?;
-        println!("Query on {} took {:?}", query.connection.getName(), query.time);
+        println!("Query on {} took {:?}", query.connection.get_name(), query.time);
         Ok(None)
     })
 }
@@ -364,7 +364,7 @@ impl Listener for ReportCommit {
             let event = payload.downcast_ref::<TransactionCommitted>()
                 .ok_or(EventError::InvalidPayload)?;
             if event.level == 0 {
-                println!("Committed on {}", event.connection.getName());
+                println!("Committed on {}", event.connection.get_name());
             }
             Ok(None)
         })

@@ -42,10 +42,10 @@ impl RegisteredUserController {
                 user.cloneUser().into();
             crate::actions::emit(Registered { user: snapshot }, &[]).await?;
             let remember = request.boolean("remember", false, false).await?;
-            Auth::sessionGuard(request, fortify.guard().as_deref())?
+            Auth::session_guard(request, fortify.guard().as_deref())?
                 .login(user, remember)
                 .await?;
-            if request.hasSession() {
+            if request.has_session() {
                 request
                     .session_mut()
                     .map_err(internal)?

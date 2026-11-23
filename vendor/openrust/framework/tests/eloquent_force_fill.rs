@@ -160,7 +160,7 @@ async fn force_fill_hashes_secrets_and_keeps_other_tasks_and_error_paths_guarded
             .await
             .unwrap()
     );
-    assert!(!model.toArray().unwrap().contains_key("secret"));
+    assert!(!model.to_array().unwrap().contains_key("secret"));
     let hash = hash.clone();
     model.forceFill(attrs("secret", hash.clone())).unwrap();
     assert_eq!(model.getAttribute("secret"), Some(&Value::Text(hash)));
@@ -238,7 +238,7 @@ fn http_create(
             .map_err(http_error)?;
         openrust::http::Response::json(
             openrust::http::StatusCode::OK,
-            model.toArray().map_err(http_error)?,
+            model.to_array().map_err(http_error)?,
         )
     })
 }
@@ -290,7 +290,7 @@ async fn mysql_http_force_fill_persists_hashes_renders_errors_and_recovers() {
             http_routes,
         ))
         .with_exceptions(|exceptions| {
-            exceptions.shouldRenderJsonWhen(|request, _| request.expectsJson());
+            exceptions.shouldRenderJsonWhen(|request, _| request.expects_json());
         })
         .create()
         .unwrap();
@@ -311,7 +311,7 @@ async fn mysql_http_force_fill_persists_hashes_renders_errors_and_recovers() {
     let address = listener.local_addr().unwrap();
     let kernel = std::sync::Arc::new(kernel);
     let router = axum::Router::new()
-        .fallback(move |request: axum::extract::Request| kernel.clone().handleTransport(request));
+        .fallback(move |request: axum::extract::Request| kernel.clone().handle_transport(request));
     let server = tokio::spawn(async move {
         axum::serve(listener, router).await.unwrap();
     });

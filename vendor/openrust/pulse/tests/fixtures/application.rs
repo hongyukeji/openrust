@@ -9,23 +9,23 @@ use openrust::{
 use serde_json::json;
 struct Operator;
 impl openrust::contracts::auth::Authenticatable for Operator {
-    fn getAuthIdentifierName(&self) -> &str {
+    fn get_auth_identifier_name(&self) -> &str {
         "id"
     }
-    fn getAuthIdentifier(&self) -> openrust::auth::AuthIdentifier {
+    fn get_auth_identifier(&self) -> openrust::auth::AuthIdentifier {
         42_u64.into()
     }
-    fn getAuthPasswordName(&self) -> &str {
+    fn get_auth_password_name(&self) -> &str {
         "password"
     }
-    fn getAuthPassword(&self) -> Option<&str> {
+    fn get_auth_password(&self) -> Option<&str> {
         None
     }
-    fn getRememberToken(&self) -> Option<&str> {
+    fn get_remember_token(&self) -> Option<&str> {
         None
     }
-    fn setRememberToken(&mut self, _: Option<String>) {}
-    fn getRememberTokenName(&self) -> &str {
+    fn set_remember_token(&mut self, _: Option<String>) {}
+    fn get_remember_token_name(&self) -> &str {
         "remember_token"
     }
 }
@@ -35,7 +35,7 @@ impl ServiceProvider for Access {
         Box::pin(async move {
             app.make::<openrust::auth::AuthManager>()
                 .await?
-                .viaRequest("pulse-test", |request| {
+                .via_request("pulse-test", |request| {
                     let user = request
                         .headers()
                         .get("x-test-operator")
@@ -47,7 +47,7 @@ impl ServiceProvider for Access {
                     Box::pin(async move { Ok(user) })
                 });
             let gate = app.make::<openrust::auth::access::GateRegistry>().await?;
-            gate.defineGuest("viewPulse", |user, _| {
+            gate.define_guest("viewPulse", |user, _| {
                 Box::pin(async move {
                     Ok(if user.is_some() {
                         openrust::auth::access::Response::allow()

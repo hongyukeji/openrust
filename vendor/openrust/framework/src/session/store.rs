@@ -48,7 +48,7 @@ impl Store {
             cache: Arc::default(),
             started: false,
         };
-        store.setName(&name.into())?;
+        store.set_name(&name.into())?;
         Ok(store)
     }
 
@@ -74,14 +74,12 @@ impl Store {
     }
 
     /// Flashes input so it is available on the following request.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn flashInput(&mut self, input: Value) -> SessionResult<()> {
+    pub fn flash_input(&mut self, input: Value) -> SessionResult<()> {
         self.flash("_old_input", input)
     }
 
     /// Retrieves all old input or one nested field.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn getOldInput(&self, key: Option<&str>) -> Option<&Value> {
+    pub fn get_old_input(&self, key: Option<&str>) -> Option<&Value> {
         let input = self.get("_old_input")?;
         match key {
             Some(key) => crate::support::Arr::get(input, key),
@@ -90,13 +88,12 @@ impl Store {
     }
 
     /// Checks for non-null old input at a key, or any entries in the old input bag.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn hasOldInput(&self, key: Option<&str>) -> bool {
+    pub fn has_old_input(&self, key: Option<&str>) -> bool {
         match key {
             Some(key) => self
-                .getOldInput(Some(key))
+                .get_old_input(Some(key))
                 .is_some_and(|value| !value.is_null()),
-            None => match self.getOldInput(None) {
+            None => match self.get_old_input(None) {
                 Some(Value::Array(items)) => !items.is_empty(),
                 Some(Value::Object(items)) => !items.is_empty(),
                 _ => false,
@@ -105,8 +102,7 @@ impl Store {
     }
 
     /// Flashes one error bag while preserving other bags from this request.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn flashErrors(
+    pub fn flash_errors(
         &mut self,
         bag: &str,
         messages: &crate::support::MessageBag,
@@ -120,34 +116,28 @@ impl Store {
         self.flash("errors", serde_json::json!(errors))
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn previousUrl(&self) -> Option<&str> {
+    pub fn previous_url(&self) -> Option<&str> {
         self.get("_previous.url").and_then(Value::as_str)
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn setPreviousUrl(&mut self, url: &str) -> SessionResult<()> {
+    pub fn set_previous_url(&mut self, url: &str) -> SessionResult<()> {
         self.put("_previous.url", url.into())
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn previousUri(&self) -> Result<Option<crate::support::Uri>, crate::support::InvalidUri> {
-        self.previousUrl().map(crate::support::Uri::of).transpose()
+    pub fn previous_uri(&self) -> Result<Option<crate::support::Uri>, crate::support::InvalidUri> {
+        self.previous_url().map(crate::support::Uri::of).transpose()
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn previousRoute(&self) -> Option<&str> {
+    pub fn previous_route(&self) -> Option<&str> {
         self.get("_previous.route").and_then(Value::as_str)
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn setPreviousRoute(&mut self, name: Option<&str>) -> SessionResult<()> {
+    pub fn set_previous_route(&mut self, name: Option<&str>) -> SessionResult<()> {
         self.put("_previous.route", name.into())
     }
 
     /// Records that the password for this session was confirmed.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn passwordConfirmed(&mut self) -> SessionResult<()> {
+    pub fn password_confirmed(&mut self) -> SessionResult<()> {
         self.put(PASSWORD_CONFIRMED_AT, unix_seconds().into())
     }
 
@@ -165,20 +155,20 @@ impl Store {
 }
 
 impl Session for Store {
-    fn getName(&self) -> &str {
+    fn get_name(&self) -> &str {
         &self.name
     }
 
-    fn setName(&mut self, name: &str) -> SessionResult<()> {
+    fn set_name(&mut self, name: &str) -> SessionResult<()> {
         self.name = name.to_owned();
         Ok(())
     }
 
-    fn getId(&self) -> &str {
+    fn get_id(&self) -> &str {
         &self.id
     }
 
-    fn setId(&mut self, id: Option<&str>) -> SessionResult<()> {
+    fn set_id(&mut self, id: Option<&str>) -> SessionResult<()> {
         self.id = match id.filter(|id| valid_id(id)) {
             Some(id) => id.to_owned(),
             None => random_id()?,
@@ -186,7 +176,7 @@ impl Session for Store {
         Ok(())
     }
 
-    fn isStarted(&self) -> bool {
+    fn is_started(&self) -> bool {
         self.started
     }
 
@@ -210,7 +200,7 @@ impl Session for Store {
                 }
             }
             if self.token().is_none() {
-                self.regenerateToken()?;
+                self.regenerate_token()?;
             }
             self.started = true;
             Ok(())
@@ -311,7 +301,7 @@ impl Session for Store {
         self.get("_token").and_then(Value::as_str)
     }
 
-    fn regenerateToken(&mut self) -> SessionResult<()> {
+    fn regenerate_token(&mut self) -> SessionResult<()> {
         self.put("_token", random_id()?.into())
     }
 

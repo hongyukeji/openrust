@@ -103,8 +103,8 @@ async fn test_app_replaces_a_service_and_fakes_events_in_one_application() -> Te
     first
         .get("/greeting")
         .await?
-        .assertOk()
-        .assertContent(r#""original""#);
+        .assert_ok()
+        .assert_content(r#""original""#);
     first
         .instance::<dyn Greeting>(Arc::new(Message("fake")))
         .await?;
@@ -119,12 +119,12 @@ async fn test_app_replaces_a_service_and_fakes_events_in_one_application() -> Te
         dispatcher.listen("greeting.*", Arc::new(Count(count.clone())), Delivery::Sync)?;
     }
 
-    let fake = first.fakeEvents(&["greeting.sent"]).await?;
+    let fake = first.fake_events(&["greeting.sent"]).await?;
     fake.assertNothingDispatched();
     let (first_response, second_response) =
         tokio::join!(first.get("/greeting"), second.get("/greeting"));
-    first_response?.assertOk().assertContent(r#""fake""#);
-    second_response?.assertOk().assertContent(r#""original""#);
+    first_response?.assert_ok().assert_content(r#""fake""#);
+    second_response?.assert_ok().assert_content(r#""original""#);
 
     assert_eq!(
         first.app().container().make::<dyn Greeting>()?.message(),
@@ -146,9 +146,9 @@ async fn test_app_replaces_a_service_and_fakes_events_in_one_application() -> Te
         Some(&42)
     );
 
-    let all = first.fakeEvents(&[]).await?;
+    let all = first.fake_events(&[]).await?;
     all.except(&["greeting.sent"]);
-    first.get("/greeting").await?.assertOk();
+    first.get("/greeting").await?.assert_ok();
     all.assertDispatchedTimes("greeting.done", 1)
         .assertNotDispatched("greeting.sent");
     fake.assertDispatchedTimes("greeting.sent", 1);
@@ -156,7 +156,7 @@ async fn test_app_replaces_a_service_and_fakes_events_in_one_application() -> Te
     first
         .get("/fake")
         .await?
-        .assertStatus(StatusCode::NO_CONTENT);
+        .assert_status(StatusCode::NO_CONTENT);
     assert_eq!(first_count.load(Ordering::Relaxed), 2);
     Ok(())
 }
@@ -238,7 +238,7 @@ async fn scoped_event_fakes_restore_after_errors_and_cancellation() -> TestResul
     }
     app.get("/scoped")
         .await?
-        .assertStatus(StatusCode::NO_CONTENT);
+        .assert_status(StatusCode::NO_CONTENT);
     assert_eq!(selected.load(Ordering::Relaxed), 3);
     assert_eq!(base.load(Ordering::Relaxed), 1);
     assert_eq!(replaced.load(Ordering::Relaxed), 1);
@@ -343,7 +343,7 @@ async fn predicates_select_payloads_without_hiding_other_events() -> TestResult 
     )?;
     app.get("/filter")
         .await?
-        .assertStatus(StatusCode::NO_CONTENT);
+        .assert_status(StatusCode::NO_CONTENT);
     assert_eq!(observed.load(Ordering::Relaxed), 5);
     Ok(())
 }
@@ -399,7 +399,7 @@ async fn verify_commit(mut app: TestApp) -> TestResult {
         Arc::new(Count(count.clone())),
         Delivery::Sync,
     )?;
-    let fake = app.fakeEvents(&[]).await?;
+    let fake = app.fake_events(&[]).await?;
 
     let mut tx = connection.beginTransaction().await?;
     let result = dispatcher
@@ -409,7 +409,7 @@ async fn verify_commit(mut app: TestApp) -> TestResult {
     fake.assertDispatchedTimes(TransactionBeginning::NAME, 1)
         .assertNotDispatched("greeting.saved");
 
-    let replacement = app.fakeEvents(&[]).await?;
+    let replacement = app.fake_events(&[]).await?;
     tx.commit().await?;
     fake.assertDispatchedTimes("greeting.saved", 1);
     replacement

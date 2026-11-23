@@ -153,7 +153,7 @@ impl Root {
                     middleware.set_locale(&candidates).unwrap();
                 }
                 if let Some(locale) = callback {
-                    middleware.localeUsing(move |_| Ok(Some(locale.into())));
+                    middleware.locale_using(move |_| Ok(Some(locale.into())));
                 }
                 if !browser {
                     middleware.set_locale(&[]).unwrap();

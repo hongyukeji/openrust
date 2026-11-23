@@ -153,7 +153,7 @@ impl ColumnDefinition {
     }
 
     /// Returns the column name in the blueprint, before any pending rename.
-    pub fn getName(&self) -> &str {
+    pub fn get_name(&self) -> &str {
         &self.name
     }
 

@@ -74,7 +74,6 @@ pub struct Event {
     pub(super) background: bool,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Event {
     pub(super) fn new(action: Action) -> Self {
         Self {
@@ -139,7 +138,7 @@ impl Event {
         self.after(hook)
     }
 
-    pub fn onSuccess(
+    pub fn on_success(
         &mut self,
         hook: impl for<'a> Fn(
             &'a Application,
@@ -153,7 +152,7 @@ impl Event {
         self
     }
 
-    pub fn onFailure(
+    pub fn on_failure(
         &mut self,
         hook: impl for<'a> Fn(
             &'a Application,
@@ -213,7 +212,10 @@ impl Event {
                         only_if_output,
                     } if !only_if_output || !captured.is_empty() => {
                         let subject = self.description.clone().unwrap_or_else(|| {
-                            format!("Scheduled Job Output For [{}]", self.getSummaryForDisplay())
+                            format!(
+                                "Scheduled Job Output For [{}]",
+                                self.get_summary_for_display()
+                            )
                         });
                         super::task_output::email(recipients, subject, captured).await?;
                     }
@@ -238,7 +240,7 @@ impl Event {
                 .destination
                 .as_ref()
                 .map(|destination| app.base_path().join(&destination.path)),
-            shouldAppendOutput: self
+            should_append_output: self
                 .destination
                 .as_ref()
                 .is_some_and(|destination| destination.append),
@@ -248,7 +250,7 @@ impl Event {
         Ok(())
     }
 
-    pub fn sendOutputTo(&mut self, path: impl Into<PathBuf>) -> &mut Self {
+    pub fn send_output_to(&mut self, path: impl Into<PathBuf>) -> &mut Self {
         self.destination = Some(super::task_output::Destination {
             path: path.into(),
             append: false,
@@ -256,8 +258,8 @@ impl Event {
         self
     }
 
-    pub fn appendOutputTo(&mut self, path: impl Into<PathBuf>) -> &mut Self {
-        self.sendOutputTo(path);
+    pub fn append_output_to(&mut self, path: impl Into<PathBuf>) -> &mut Self {
+        self.send_output_to(path);
         self.destination
             .as_mut()
             .expect("destination just set")
@@ -265,7 +267,7 @@ impl Event {
         self
     }
 
-    pub fn runInBackground(&mut self) -> &mut Self {
+    pub fn run_in_background(&mut self) -> &mut Self {
         self.background = true;
         self
     }
@@ -299,7 +301,7 @@ impl Event {
         self
     }
 
-    pub fn thenWithOutput(
+    pub fn then_with_output(
         &mut self,
         callback: impl for<'a> Fn(
             &'a Application,
@@ -314,7 +316,7 @@ impl Event {
         self.output_hook(HookKind::After, only_if_output, callback)
     }
 
-    pub fn onSuccessWithOutput(
+    pub fn on_success_with_output(
         &mut self,
         callback: impl for<'a> Fn(
             &'a Application,
@@ -329,7 +331,7 @@ impl Event {
         self.output_hook(HookKind::Success, only_if_output, callback)
     }
 
-    pub fn onFailureWithOutput(
+    pub fn on_failure_with_output(
         &mut self,
         callback: impl for<'a> Fn(
             &'a Application,
@@ -344,21 +346,21 @@ impl Event {
         self.output_hook(HookKind::Failure, only_if_output, callback)
     }
 
-    pub fn emailOutputTo(
+    pub fn email_output_to(
         &mut self,
         recipients: impl IntoIterator<Item = impl Into<crate::mail::mailables::Address>>,
     ) -> &mut Self {
         self.email_output(HookKind::After, recipients, true)
     }
 
-    pub fn emailWrittenOutputTo(
+    pub fn email_written_output_to(
         &mut self,
         recipients: impl IntoIterator<Item = impl Into<crate::mail::mailables::Address>>,
     ) -> &mut Self {
-        self.emailOutputTo(recipients)
+        self.email_output_to(recipients)
     }
 
-    pub fn emailOutputOnFailure(
+    pub fn email_output_on_failure(
         &mut self,
         recipients: impl IntoIterator<Item = impl Into<crate::mail::mailables::Address>>,
     ) -> &mut Self {
@@ -382,44 +384,44 @@ impl Event {
         self
     }
 
-    pub fn pingBefore(&mut self, url: impl Into<String>) -> &mut Self {
-        self.pingBeforeIf(true, url)
+    pub fn ping_before(&mut self, url: impl Into<String>) -> &mut Self {
+        self.ping_before_if(true, url)
     }
 
-    pub fn pingBeforeIf(&mut self, enabled: bool, url: impl Into<String>) -> &mut Self {
+    pub fn ping_before_if(&mut self, enabled: bool, url: impl Into<String>) -> &mut Self {
         if enabled {
             self.add_ping(HookKind::Before, url.into());
         }
         self
     }
 
-    pub fn thenPing(&mut self, url: impl Into<String>) -> &mut Self {
-        self.thenPingIf(true, url)
+    pub fn then_ping(&mut self, url: impl Into<String>) -> &mut Self {
+        self.then_ping_if(true, url)
     }
 
-    pub fn thenPingIf(&mut self, enabled: bool, url: impl Into<String>) -> &mut Self {
+    pub fn then_ping_if(&mut self, enabled: bool, url: impl Into<String>) -> &mut Self {
         if enabled {
             self.add_ping(HookKind::After, url.into());
         }
         self
     }
 
-    pub fn pingOnSuccess(&mut self, url: impl Into<String>) -> &mut Self {
-        self.pingOnSuccessIf(true, url)
+    pub fn ping_on_success(&mut self, url: impl Into<String>) -> &mut Self {
+        self.ping_on_success_if(true, url)
     }
 
-    pub fn pingOnSuccessIf(&mut self, enabled: bool, url: impl Into<String>) -> &mut Self {
+    pub fn ping_on_success_if(&mut self, enabled: bool, url: impl Into<String>) -> &mut Self {
         if enabled {
             self.add_ping(HookKind::Success, url.into());
         }
         self
     }
 
-    pub fn pingOnFailure(&mut self, url: impl Into<String>) -> &mut Self {
-        self.pingOnFailureIf(true, url)
+    pub fn ping_on_failure(&mut self, url: impl Into<String>) -> &mut Self {
+        self.ping_on_failure_if(true, url)
     }
 
-    pub fn pingOnFailureIf(&mut self, enabled: bool, url: impl Into<String>) -> &mut Self {
+    pub fn ping_on_failure_if(&mut self, enabled: bool, url: impl Into<String>) -> &mut Self {
         if enabled {
             self.add_ping(HookKind::Failure, url.into());
         }
@@ -434,7 +436,7 @@ impl Event {
                 let url = url.clone();
                 Box::pin(async move {
                     let result = async {
-                        crate::support::facades::Http::pendingRequest()?
+                        crate::support::facades::Http::pending_request()?
                             .timeout(Duration::from_secs(10))
                             .get(&url)
                             .await?
@@ -456,7 +458,7 @@ impl Event {
         Ok(self)
     }
 
-    pub fn everyMinute(&mut self) -> &mut Self {
+    pub fn every_minute(&mut self) -> &mut Self {
         self.cron("* * * * *").expect("valid minute frequency")
     }
 
@@ -464,18 +466,18 @@ impl Event {
         self.cron("0 0 * * *").expect("valid daily frequency")
     }
 
-    pub fn twiceDaily(&mut self) -> &mut Self {
+    pub fn twice_daily(&mut self) -> &mut Self {
         self.cron("0 1,13 * * *")
             .expect("valid twice-daily frequency")
     }
 
-    pub fn dailyAt(&mut self, time: &str) -> Result<&mut Self, ConsoleError> {
+    pub fn daily_at(&mut self, time: &str) -> Result<&mut Self, ConsoleError> {
         self.cron(&daily_expression(time)?)
     }
 
-    pub fn everySeconds(&mut self, seconds: u32) -> Result<&mut Self, ConsoleError> {
+    pub fn every_seconds(&mut self, seconds: u32) -> Result<&mut Self, ConsoleError> {
         let interval = repeat_interval(seconds)?;
-        self.everyMinute();
+        self.every_minute();
         self.interval = Some(interval);
         Ok(self)
     }
@@ -486,30 +488,30 @@ impl Event {
         self.interval = interval;
     }
 
-    pub fn everySecond(&mut self) -> &mut Self {
+    pub fn every_second(&mut self) -> &mut Self {
         self.repeat(1)
     }
-    pub fn everyTwoSeconds(&mut self) -> &mut Self {
+    pub fn every_two_seconds(&mut self) -> &mut Self {
         self.repeat(2)
     }
-    pub fn everyFiveSeconds(&mut self) -> &mut Self {
+    pub fn every_five_seconds(&mut self) -> &mut Self {
         self.repeat(5)
     }
-    pub fn everyTenSeconds(&mut self) -> &mut Self {
+    pub fn every_ten_seconds(&mut self) -> &mut Self {
         self.repeat(10)
     }
-    pub fn everyFifteenSeconds(&mut self) -> &mut Self {
+    pub fn every_fifteen_seconds(&mut self) -> &mut Self {
         self.repeat(15)
     }
-    pub fn everyTwentySeconds(&mut self) -> &mut Self {
+    pub fn every_twenty_seconds(&mut self) -> &mut Self {
         self.repeat(20)
     }
-    pub fn everyThirtySeconds(&mut self) -> &mut Self {
+    pub fn every_thirty_seconds(&mut self) -> &mut Self {
         self.repeat(30)
     }
 
     fn repeat(&mut self, seconds: u32) -> &mut Self {
-        self.everySeconds(seconds).expect("valid repeat frequency")
+        self.every_seconds(seconds).expect("valid repeat frequency")
     }
 
     pub fn timezone(&mut self, zone: TimeZone) -> &mut Self {
@@ -523,22 +525,22 @@ impl Event {
     }
 
     /// Allows this event to run while the application is in maintenance mode.
-    pub fn evenInMaintenanceMode(&mut self) -> &mut Self {
+    pub fn even_in_maintenance_mode(&mut self) -> &mut Self {
         self.even_in_maintenance_mode = true;
         self
     }
 
-    pub fn runsInMaintenanceMode(&self) -> bool {
+    pub fn runs_in_maintenance_mode(&self) -> bool {
         self.even_in_maintenance_mode
     }
 
     /// Allows this event to run while the scheduler is paused.
-    pub fn evenWhenPaused(&mut self) -> &mut Self {
+    pub fn even_when_paused(&mut self) -> &mut Self {
         self.even_when_paused = true;
         self
     }
 
-    pub fn runsWhenPaused(&self) -> bool {
+    pub fn runs_when_paused(&self) -> bool {
         self.even_when_paused
     }
 
@@ -557,7 +559,7 @@ impl Event {
         self.when(move |app| !condition(app))
     }
 
-    pub fn withAttributes(
+    pub fn with_attributes(
         &mut self,
         attributes: impl IntoIterator<Item = (String, Value)>,
     ) -> &mut Self {
@@ -574,12 +576,12 @@ impl Event {
         self
     }
 
-    pub fn withoutOverlapping(&mut self) -> &mut Self {
+    pub fn without_overlapping(&mut self) -> &mut Self {
         self.overlap = Some(Duration::from_secs(1440 * 60));
         self
     }
 
-    pub fn withoutOverlappingFor(&mut self, minutes: u32) -> Result<&mut Self, ConsoleError> {
+    pub fn without_overlapping_for(&mut self, minutes: u32) -> Result<&mut Self, ConsoleError> {
         if minutes == 0 {
             return Err(ConsoleError::new(
                 "An overlap lock requires a positive expiry in minutes.",
@@ -589,7 +591,7 @@ impl Event {
         Ok(self)
     }
 
-    pub fn onOneServer(&mut self) -> &mut Self {
+    pub fn on_one_server(&mut self) -> &mut Self {
         self.one_server = true;
         self
     }
@@ -621,11 +623,11 @@ impl Event {
                 .map(|arg| arg.to_string_lossy())
                 .collect::<Vec<_>>()
                 .join(" "),
-            _ => self.getSummaryForDisplay(),
+            _ => self.get_summary_for_display(),
         }
     }
 
-    pub fn getSummaryForDisplay(&self) -> String {
+    pub fn get_summary_for_display(&self) -> String {
         self.description
             .clone()
             .unwrap_or_else(|| match &self.action {

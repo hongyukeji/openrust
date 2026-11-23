@@ -72,7 +72,7 @@ let page = Article::searchOn(&db, "openrust")
     .await?;
 ```
 
-在應用程式內用 `Article::search(term)?` 取得模型連線。用 `withTrashed` 或 `onlyTrashed` 調整軟刪除篩選。空搜尋詞保留模型的一般篩選。資料庫在寫入交易中維護索引。
+在應用程式內用 `Article::search(term)?` 取得模型連線。用 `with_trashed` 或 `only_trashed` 調整軟刪除篩選。空搜尋詞保留模型的一般篩選。資料庫在寫入交易中維護索引。
 
 PostgreSQL 模型有全文欄位且未明確指定排序時，先依 `ts_rank` 排序，分數相同時依主鍵遞減。排序在分頁前生效。可用模型的 `fullTextOptions()` 調整預設全文設定。
 

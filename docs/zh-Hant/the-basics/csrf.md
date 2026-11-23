@@ -8,12 +8,12 @@
 
 ## 排除 URI
 
-在 `with_middleware` 中用 `preventRequestForgery` 排除第三方 webhook 等路徑。第二個參數啟用僅來源模式，來源不相符時回傳 HTTP 403，並停止寫入 XSRF Cookie。第三個參數允許同站來源。
+在 `with_middleware` 中用 `prevent_request_forgery` 排除第三方 webhook 等路徑。第二個參數啟用僅來源模式，來源不相符時回傳 HTTP 403，並停止寫入 XSRF Cookie。第三個參數允許同站來源。
 
 ```rust
 use openrust::foundation::configuration::Middleware;
 
 fn configure(middleware: &mut Middleware) {
-    middleware.preventRequestForgery(["hooks/*"], false, false);
+    middleware.prevent_request_forgery(["hooks/*"], false, false);
 }
 ```

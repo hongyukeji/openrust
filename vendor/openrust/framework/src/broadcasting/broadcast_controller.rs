@@ -50,7 +50,7 @@ impl BroadcastController {
                     "/broadcasting/auth",
                     Arc::new(Self { channels, factory }),
                 )?
-                .withoutMiddleware("framework.prevent_request_forgery");
+                .without_middleware("framework.prevent_request_forgery");
             Ok(())
         })
     }

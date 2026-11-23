@@ -297,7 +297,7 @@ impl Driver for DatabaseDriver {
                 }
                 Some(features) => {
                     query
-                        .whereIn("name", features.iter().cloned().map(Sql::Text).collect())
+                        .where_in("name", features.iter().cloned().map(Sql::Text).collect())
                         .delete()
                         .await?;
                 }

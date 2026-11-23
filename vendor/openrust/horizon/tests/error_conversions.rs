@@ -40,7 +40,7 @@ async fn public_consumer_reports_domain_and_returns_redacted_server_error() {
     .unwrap();
     let response = app.get("/failure").await.unwrap();
     response
-        .assertStatus(openrust::http::StatusCode::INTERNAL_SERVER_ERROR)
-        .assertDontSee("unavailable", false);
+        .assert_status(openrust::http::StatusCode::INTERNAL_SERVER_ERROR)
+        .assert_dont_see("unavailable", false);
     assert!(reported.load(std::sync::atomic::Ordering::SeqCst));
 }

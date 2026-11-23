@@ -123,7 +123,7 @@ fn provider<'a>(request: &'a mut Request, base: &str, secret: &str) -> AbstractP
     AbstractProvider::new(request,ProviderConfig::from_config(&json!({"client_id":"client","client_secret":secret,"redirect":"https://rp.test/callback"})).unwrap(),Arc::new(Factory::new().unwrap()),Arc::new(definition(base)))
 }
 fn mapped(user: &openrust_socialite::two::User) -> Value {
-    json!({"id":user.getId(),"nickname":user.getNickname(),"name":user.getName(),"email":user.getEmail(),"avatar":user.getAvatar(),"raw":user.getRaw(),"attributes":user.attributes})
+    json!({"id":user.get_id(),"nickname":user.getNickname(),"name":user.get_name(),"email":user.getEmail(),"avatar":user.getAvatar(),"raw":user.getRaw(),"attributes":user.attributes})
 }
 #[tokio::test]
 async fn facebook_graph_fields_version_popup_proof_mapping_and_expiry_match_fixed_php() {
@@ -201,7 +201,7 @@ async fn facebook_limited_login_jwt_matrix_matches_real_php_with_no_graph_fallba
         );
         if let Ok(user) = result {
             assert_eq!(user.getRaw(), &case["raw"], "{name}");
-            assert_eq!(user.getId(), &json!("user-42"));
+            assert_eq!(user.get_id(), &json!("user-42"));
         } else {
             assert_eq!(
                 result.err().unwrap().to_string(),
@@ -260,7 +260,7 @@ async fn facebook_code_exchange_limited_login_and_jwks_rotation_enforce_nonce_an
     let mut p = provider(&mut request, &base, "secret");
     p.stateless().withNonce("fixed-nonce");
     let user = p.user().await.unwrap();
-    assert_eq!(user.getId(), &json!("user-42"));
+    assert_eq!(user.get_id(), &json!("user-42"));
     assert_eq!(user.credentials.unwrap().expiresIn, Some(3600));
     *r.keys.lock().unwrap() = fixture()["jwt"]["rotation"]["keys"].clone();
     let rotated = fixture()["jwt"]["rotation"]["token"]

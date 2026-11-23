@@ -279,7 +279,7 @@ Pail 透過共用路徑服務解析 `Application::storage_path("pail")`。在首
 
 底部顯示 HTTP 方法／路徑和驗證資訊，或佇列／工作／命令，以及公開 Context。數字鍵與 null、PHP 風格值匯出、HTML 文字和多行訊息依固定 Pail 規則處理。邊框寬度上限為 150 個終端欄；原始訊息和長底部資訊可能像上游一樣溢出。Rust 的 `::` 類型命名空間及 Windows 本機路徑分隔符適配到縮略和相對來源顯示。
 
-Rust JSON 無符號整數保留原始精度；超過 PHP 有號整數範圍的值，其顯示可能與 PHP 的浮點近似不同。Rust 直接產生終端訊息框，透過 `Output::writeRaw` 寫入已轉譯文字。真實 Artisan 輸出立即寫出，擷取輸出保留在緩衝區。`--ansi`、`--no-ansi`、`--quiet` 和 `--silent` 生效，寫入錯誤沿呼叫鏈傳遞；格式錯誤在寫入該訊息框前傳回。輸出詳細程度隨呼叫作用域儲存和還原。`PAIL_TESTS` 用於擷取測試，顯示的日期、檔案和堆疊保留實際紀錄值，不採用 PHP 測試夾具中的替換值。
+Rust JSON 無符號整數保留原始精度；超過 PHP 有號整數範圍的值，其顯示可能與 PHP 的浮點近似不同。Rust 直接產生終端訊息框，透過 `Output::write_raw` 寫入已轉譯文字。真實 Artisan 輸出立即寫出，擷取輸出保留在緩衝區。`--ansi`、`--no-ansi`、`--quiet` 和 `--silent` 生效，寫入錯誤沿呼叫鏈傳遞；格式錯誤在寫入該訊息框前傳回。輸出詳細程度隨呼叫作用域儲存和還原。`PAIL_TESTS` 用於擷取測試，顯示的日期、檔案和堆疊保留實際紀錄值，不採用 PHP 測試夾具中的替換值。
 
 [即時 Pail 命令](#tailing-log-messages-using-pail)使用此列印器，載入 Provider 後也會向 [Artisan dev](../digging-deeper/artisan.md#the-dev-command)加入預設 `logs` 程序。
 

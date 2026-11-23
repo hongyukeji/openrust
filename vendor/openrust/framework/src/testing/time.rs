@@ -8,29 +8,28 @@ use super::TestApp;
 
 type TimeResult<T> = Result<T, Box<dyn Error + Send + Sync>>;
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl TestApp {
     /// Freezes the fixture's clock at the given instant.
-    pub fn travelTo(&self, time: Date) {
+    pub fn travel_to(&self, time: Date) {
         self.clock.set(Some(time.asDateTime().timestamp()));
     }
 
     /// Freezes the fixture's clock at its current time and returns that time.
-    pub async fn freezeTime(&mut self) -> TimeResult<Date> {
+    pub async fn freeze_time(&mut self) -> TimeResult<Date> {
         let time = self.current_time().await?;
-        self.travelTo(time.clone());
+        self.travel_to(time.clone());
         Ok(time)
     }
 
     /// Freezes the fixture's clock at the beginning of its current second.
-    pub async fn freezeSecond(&mut self) -> TimeResult<Date> {
+    pub async fn freeze_second(&mut self) -> TimeResult<Date> {
         let time = self.current_second().await?;
-        self.travelTo(time.clone());
+        self.travel_to(time.clone());
         Ok(time)
     }
 
     /// Restores the system clock and returns the fixture's current time.
-    pub async fn travelBack(&mut self) -> TimeResult<Date> {
+    pub async fn travel_back(&mut self) -> TimeResult<Date> {
         self.clock.set(None);
         self.current_time().await
     }
@@ -41,7 +40,7 @@ impl TestApp {
     }
 
     /// Runs an async callback at the given time in this application's scope.
-    pub async fn travelToFor<T>(
+    pub async fn travel_to_for<T>(
         &mut self,
         time: Date,
         callback: impl AsyncFnOnce(&mut TestApp, Date) -> TimeResult<T>,
@@ -57,21 +56,21 @@ impl TestApp {
     }
 
     /// Runs an async callback with the current time frozen for its duration.
-    pub async fn freezeTimeFor<T>(
+    pub async fn freeze_time_for<T>(
         &mut self,
         callback: impl AsyncFnOnce(&mut TestApp, Date) -> TimeResult<T>,
     ) -> TimeResult<T> {
         let now = self.current_time().await?;
-        self.travelToFor(now, callback).await
+        self.travel_to_for(now, callback).await
     }
 
     /// Runs an async callback with the beginning of the current second frozen.
-    pub async fn freezeSecondFor<T>(
+    pub async fn freeze_second_for<T>(
         &mut self,
         callback: impl AsyncFnOnce(&mut TestApp, Date) -> TimeResult<T>,
     ) -> TimeResult<T> {
         let time = self.current_second().await?;
-        self.travelToFor(time, callback).await
+        self.travel_to_for(time, callback).await
     }
 
     async fn current_time(&mut self) -> TimeResult<Date> {
@@ -132,7 +131,7 @@ impl Wormhole<'_> {
             .current_time()
             .await?
             .plus(interval, MonthOverflow::Carry)?;
-        self.app.travelTo(time.clone());
+        self.app.travel_to(time.clone());
         Ok(time)
     }
 }

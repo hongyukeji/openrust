@@ -211,10 +211,10 @@ fn lookup(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
                 "named_accessor": URL::route("post-accessor", std::slice::from_ref(&named), false)?,
                 "position_accessor": URL::route("post-accessor", std::slice::from_ref(&positional), false)?,
                 "by_cast": URL::route("post-cast", std::slice::from_ref(&named), false)?,
-                "signed_accessor": URL::signedRoute(
+                "signed_accessor": URL::signed_route(
                     "post-accessor-signed", std::slice::from_ref(&named), None, SignatureMode::Relative
                 )?,
-                "signed": URL::signedRoute("post-signed", &[named], None, SignatureMode::Relative)?,
+                "signed": URL::signed_route("post-signed", &[named], None, SignatureMode::Relative)?,
                 "by_slug": URL::route("post-slug", std::slice::from_ref(&positional), false)?,
                 "action": URL::action("PostController@byId", &[positional], false)?,
             }),
@@ -250,21 +250,21 @@ fn api() -> Result<(), RoutingError> {
         route
             .model::<Account>("account")?
             .model::<Post>("post")?
-            .withoutScopedBindings();
+            .without_scoped_bindings();
         Ok(())
     })?;
     Route::getWith("/scoped/{account}/{post}", lookup, |route| {
         route
             .model::<Account>("account")?
             .model::<Post>("post")?
-            .scopeBindings();
+            .scope_bindings();
         Ok(())
     })?;
     Route::getWith("/id/{post:id}", lookup, |route| {
         route
             .model::<Post>("post")?
             .name("post-id")
-            .setAction("PostController@byId")?;
+            .set_action("PostController@byId")?;
         Ok(())
     })?;
     Route::getWith("/signed/{post:id}", lookup, |route| {
@@ -295,7 +295,7 @@ fn api() -> Result<(), RoutingError> {
         Ok(())
     })?;
     Route::getWith("/trashed/{post}", lookup, |route| {
-        route.model::<Post>("post")?.withTrashed();
+        route.model::<Post>("post")?.with_trashed();
         Ok(())
     })?;
     Route::getWith("/missing/{post}", lookup, |route| {
@@ -330,7 +330,7 @@ async fn transport(
     State(kernel): State<Arc<Kernel>>,
     request: axum::extract::Request,
 ) -> axum::response::Response {
-    kernel.handleTransport(request).await
+    kernel.handle_transport(request).await
 }
 
 async fn request(address: SocketAddr, path: &str, status: u16) -> String {

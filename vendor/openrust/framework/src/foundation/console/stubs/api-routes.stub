@@ -24,7 +24,7 @@ fn user(
             .user(request)
             .await?
             .ok_or(HttpError::Unauthenticated)?;
-        let attributes = auth.userAttributes(user.as_ref())?;
+        let attributes = auth.user_attributes(user.as_ref())?;
         Response::json(StatusCode::OK, attributes)
     })
 }

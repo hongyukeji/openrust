@@ -326,10 +326,13 @@ async fn transforms_a_real_http_upload_and_reads_it_from_storage_and_url() {
                 .image("avatar")
                 .await?
                 .ok_or(HttpError::InvalidRequest)?;
-            assert_eq!(image.file().unwrap().getClientOriginalName(), "sample.txt");
+            assert_eq!(
+                image.file().unwrap().get_client_original_name(),
+                "sample.txt"
+            );
             let image = image.cover(5, 5).toWebp();
             let path = image
-                .storePublicly("avatars", Some("public"))
+                .store_publicly("avatars", Some("public"))
                 .await
                 .map_err(|_| HttpError::InvalidRequest)?
                 .unwrap();
@@ -339,7 +342,7 @@ async fn transforms_a_real_http_upload_and_reads_it_from_storage_and_url() {
             let selected = image.clone().using("image");
             for branch in [&image, &transformed, &encoded, &selected] {
                 assert_eq!(
-                    branch.file().map(|file| file.getClientOriginalName()),
+                    branch.file().map(|file| file.get_client_original_name()),
                     reference["upload_original_name"].as_str(),
                 );
                 assert_eq!(
@@ -367,7 +370,7 @@ async fn transforms_a_real_http_upload_and_reads_it_from_storage_and_url() {
         State(kernel): State<Arc<Kernel>>,
         incoming: axum::extract::Request,
     ) -> axum::response::Response {
-        kernel.handleTransport(incoming).await
+        kernel.handle_transport(incoming).await
     }
 
     let directory = Directory::new();
@@ -397,7 +400,7 @@ async fn transforms_a_real_http_upload_and_reads_it_from_storage_and_url() {
     let client = Factory::new().unwrap();
     let endpoint = format!("{url}/upload");
     let response = client
-        .pendingRequest()
+        .pending_request()
         .attach(
             "avatar",
             Part::bytes(sample())
@@ -423,7 +426,7 @@ async fn transforms_a_real_http_upload_and_reads_it_from_storage_and_url() {
     let restored = manager.fromPath(directory.0.join("public").join(path));
     assert_eq!(restored.dimensions().await.unwrap(), (5, 5));
     let response = client
-        .pendingRequest()
+        .pending_request()
         .attach(
             "avatar",
             Part::bytes(b"broken".to_vec()).file_name("sample.txt"),
@@ -431,7 +434,7 @@ async fn transforms_a_real_http_upload_and_reads_it_from_storage_and_url() {
         .send(Method::POST, &endpoint)
         .await
         .unwrap();
-    assert!(response.badRequest());
+    assert!(response.bad_request());
     server.abort();
 }
 
@@ -1263,18 +1266,18 @@ async fn lazy_source_is_shared_and_processed_branches_do_not_repeat_prior_transf
         calls.load(Ordering::SeqCst) as u64,
         image_reference()["custom_calls"].as_u64().unwrap()
     );
-    let base_name = processed.hashName("").await.unwrap();
+    let base_name = processed.hash_name("").await.unwrap();
     assert_eq!(
         base_name.len() as u64,
         image_reference()["hash_length"].as_u64().unwrap()
     );
     assert_eq!(
-        processed.hashName("avatars").await.unwrap(),
+        processed.hash_name("avatars").await.unwrap(),
         format!("avatars/{base_name}")
     );
-    assert_eq!(processed.hashName("0").await.unwrap(), base_name);
+    assert_eq!(processed.hash_name("0").await.unwrap(), base_name);
     assert_eq!(
-        processed.clone().toPng().hashName("").await.unwrap(),
+        processed.clone().toPng().hash_name("").await.unwrap(),
         base_name
     );
     assert_eq!(
@@ -1313,7 +1316,7 @@ async fn manager_retains_handlers_before_custom_driver_registration() {
         }
     }
     let manager = ImageManager::new(Limits::default());
-    assert_eq!(manager.getDefaultDriver(), "image");
+    assert_eq!(manager.get_default_driver(), "image");
     manager
         .transformUsing(
             "custom",
@@ -1375,11 +1378,11 @@ fn image_response(
     _: &mut openrust::http::Request,
 ) -> openrust::http::HttpFuture<'_, Result<openrust::image::Image, openrust::http::HttpError>> {
     Box::pin(async {
-        let facade = &openrust::support::facades::Image::getDefaultDriver().unwrap();
+        let facade = &openrust::support::facades::Image::get_default_driver().unwrap();
         assert_eq!(facade, "image");
         openrust::support::facades::Config::set("images.default", "missing".into()).unwrap();
         assert_eq!(
-            openrust::support::facades::Image::getDefaultDriver().unwrap(),
+            openrust::support::facades::Image::get_default_driver().unwrap(),
             "missing"
         );
         assert!(
@@ -1442,14 +1445,14 @@ fn image_response(
             .cover(3, 3);
         let first = image.store("avatars", None).await.unwrap();
         assert_eq!(image.store("avatars", None).await.unwrap(), first);
-        assert_eq!(first, Some(image.hashName("avatars").await.unwrap()));
+        assert_eq!(first, Some(image.hash_name("avatars").await.unwrap()));
         assert_eq!(
-            image.storeAs("/single.png/", None, None).await.unwrap(),
+            image.store_as("/single.png/", None, None).await.unwrap(),
             image_reference()["store_null"].as_str().map(str::to_owned)
         );
         assert_eq!(
             image
-                .storeAs("/avatars/", "/named.png/", None)
+                .store_as("/avatars/", "/named.png/", None)
                 .await
                 .unwrap(),
             image_reference()["store_slashes"]
@@ -1458,7 +1461,7 @@ fn image_response(
         );
         assert_eq!(
             image
-                .storePubliclyAs("/public.png/", None, None)
+                .store_publicly_as("/public.png/", None, None)
                 .await
                 .unwrap(),
             image_reference()["store_public_null"]
@@ -1480,8 +1483,8 @@ async fn image_facade_and_responsable_return_real_image_response() {
     .unwrap();
     let response = app.get("/image").await.unwrap();
     response
-        .assertOk()
-        .assertHeader("content-type", "image/png");
+        .assert_ok()
+        .assert_header("content-type", "image/png");
     let pixels = ::image::load_from_memory(response.body()).unwrap();
     assert_eq!((pixels.width(), pixels.height()), (3, 3));
 }
@@ -1730,11 +1733,11 @@ async fn image_manager_rebinding_resolves_storage_and_http_when_sources_are_load
             )
             .unwrap();
         let http = Arc::new(Factory::new().unwrap());
-        http.stubUrl(
+        http.stub_url(
             "example.test/*",
             Response::new(StatusCode::OK, HeaderMap::new(), bytes.to_vec()),
         );
-        http.preventStrayRequests(true);
+        http.prevent_stray_requests(true);
         container.instance(http).unwrap();
         container
     }
@@ -1849,8 +1852,8 @@ async fn image_driver_registration_in_provider_boot_uses_default_config_and_appl
         let (left, right) = tokio::join!(left.get("/thumbnail"), right.get("/thumbnail"));
         for (response, width) in [(left.unwrap(), 3), (right.unwrap(), 4)] {
             response
-                .assertOk()
-                .assertHeader("content-type", "image/png");
+                .assert_ok()
+                .assert_header("content-type", "image/png");
             let pixels = ::image::load_from_memory(response.body()).unwrap();
             assert_eq!((pixels.width(), pixels.height()), (width, width));
         }

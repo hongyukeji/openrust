@@ -161,7 +161,7 @@ impl ProcessDriver {
                 if result.failed() {
                     return Err(Error::ChildFailed {
                         task: name,
-                        exit_code: result.exitCode(),
+                        exit_code: result.exit_code(),
                     });
                 }
                 match protocol::decode(result.output(), &keys[&name])? {

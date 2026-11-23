@@ -31,13 +31,13 @@ fn fortify_acceptance_state(request: &mut openrust::http::Request) -> openrust::
     Box::pin(async move {
         use openrust::contracts::session::Session as _;
         let user = openrust::auth::Auth::user(request).await?;
-        let email = user.as_ref().map(|u|u.getAuthAttribute("email")).transpose()?.flatten();
+        let email = user.as_ref().map(|u|u.get_auth_attribute("email")).transpose()?.flatten();
         let email = match email { Some(openrust::database::Value::Text(email)) => Some(email), _ => None };
-        let verified = user.as_ref().and_then(|u|u.as_email_verification()).is_some_and(|u|u.hasVerifiedEmail());
+        let verified = user.as_ref().and_then(|u|u.as_email_verification()).is_some_and(|u|u.has_verified_email());
         let session = request.session()?;
         openrust::http::Response::json(openrust::http::StatusCode::OK, serde_json::json!({
-            "user":user.map(|u|u.getAuthIdentifier()),"email":email,"verified":verified,
-            "csrf":session.token(),"session":session.getId(),"confirmed":session.get("auth.password_confirmed_at")
+            "user":user.map(|u|u.get_auth_identifier()),"email":email,"verified":verified,
+            "csrf":session.token(),"session":session.get_id(),"confirmed":session.get("auth.password_confirmed_at")
         }))
     })
 }
@@ -398,7 +398,7 @@ fn passkeys_acceptance_list(request: &mut openrust::http::Request) -> openrust::
         assert_eq!(user.hasPasskeysEnabled().await.map_err(|e|openrust::http::HttpError::Internal{source:Box::new(e)})?,!records.is_empty());
         let mut values=Vec::new();
         for record in records {
-            let mut value=record.toArray().await.map_err(|e|openrust::http::HttpError::Internal{source:Box::new(e)})?;
+            let mut value=record.to_array().await.map_err(|e|openrust::http::HttpError::Internal{source:Box::new(e)})?;
             value.insert("id".into(),match record.getKey().await.unwrap() { openrust::database::Value::Integer(value)=>serde_json::json!(value), openrust::database::Value::Unsigned(value)=>serde_json::json!(value), openrust::database::Value::Text(value)=>serde_json::json!(value), _=>panic!("unexpected primary key") });
             values.push(value);
         }
@@ -410,7 +410,7 @@ fn passkeys_acceptance_cascade(request: &mut openrust::http::Request) -> openrus
     Box::pin(async move {
         use openrust::database::eloquent::Model;
         let user=openrust::auth::Auth::user(request).await?.ok_or(openrust::http::HttpError::Unauthenticated)?;
-        let key=openrust::database::Value::from(user.getAuthIdentifier());
+        let key=openrust::database::Value::from(user.get_auth_identifier());
         let mut user=crate::app::models::User::find(key.clone()).await.map_err(|e|openrust::http::HttpError::Internal{source:Box::new(e)})?.unwrap();
         user.delete().await.map_err(|e|openrust::http::HttpError::Internal{source:Box::new(e)})?;
         use openrust_fortify::passkeys::PasskeyAuthenticatable as _;

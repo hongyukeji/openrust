@@ -131,7 +131,7 @@ impl MessageBag {
     }
 
     pub fn has(&self, keys: impl Into<MessageKeys>) -> bool {
-        if self.isEmpty() {
+        if self.is_empty() {
             return false;
         }
         match keys.into() {
@@ -142,8 +142,8 @@ impl MessageBag {
         }
     }
 
-    pub fn hasAny(&self, keys: impl Into<MessageKeys>) -> bool {
-        if self.isEmpty() {
+    pub fn has_any(&self, keys: impl Into<MessageKeys>) -> bool {
+        if self.is_empty() {
             return false;
         }
         match keys.into() {
@@ -153,7 +153,7 @@ impl MessageBag {
     }
 
     pub fn missing(&self, keys: impl Into<MessageKeys>) -> bool {
-        !self.hasAny(keys)
+        !self.has_any(keys)
     }
 
     pub fn first(&self, key: Option<&str>, format: Option<&str>) -> String {
@@ -223,10 +223,10 @@ impl MessageBag {
         self.format = format.into();
         self
     }
-    pub fn isEmpty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         !self.any()
     }
-    pub fn isNotEmpty(&self) -> bool {
+    pub fn is_not_empty(&self) -> bool {
         self.any()
     }
     pub fn any(&self) -> bool {
@@ -238,19 +238,17 @@ impl MessageBag {
     pub fn len(&self) -> usize {
         self.count()
     }
-    pub fn is_empty(&self) -> bool {
-        self.isEmpty()
-    }
-    pub fn toArray(&self) -> &IndexMap<String, Vec<String>> {
+
+    pub fn to_array(&self) -> &IndexMap<String, Vec<String>> {
         self.messages()
     }
     pub fn jsonSerialize(&self) -> &IndexMap<String, Vec<String>> {
         self.messages()
     }
-    pub fn toJson(&self) -> Result<String, serde_json::Error> {
+    pub fn to_json(&self) -> Result<String, serde_json::Error> {
         serde_json::to_string(self)
     }
-    pub fn toPrettyJson(&self) -> Result<String, serde_json::Error> {
+    pub fn to_pretty_json(&self) -> Result<String, serde_json::Error> {
         serde_json::to_string_pretty(self)
     }
 
@@ -280,6 +278,6 @@ impl<'de> Deserialize<'de> for MessageBag {
 }
 impl fmt::Display for MessageBag {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.toJson().map_err(|_| fmt::Error)?)
+        f.write_str(&self.to_json().map_err(|_| fmt::Error)?)
     }
 }

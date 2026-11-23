@@ -378,7 +378,7 @@ impl Application {
             (Some(router), Some(middleware)) => router
                 .resolved_route_info(&middleware.registry)
                 .map_err(|source| BootstrapError::RoutingFailed { source }),
-            (Some(router), None) => Ok(router.getRoutes()),
+            (Some(router), None) => Ok(router.get_routes()),
             (None, _) => Ok(Vec::new()),
         }
     }

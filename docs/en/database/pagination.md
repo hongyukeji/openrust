@@ -268,7 +268,7 @@ fn numbered_links<T>(page: &LengthAwarePaginator<T>) -> UrlWindowLinks {
 }
 ```
 
-`toArray()` returns the JSON object. `toJson()` and `toPrettyJson()` encode the same metadata and records. Manual `LengthAwarePaginator::new` accepts a page size of zero and uses one as the divisor for `lastPage()`. Query pagination still requires a positive page size.
+`to_array()` returns the JSON object. `to_json()` and `to_pretty_json()` encode the same metadata and records. Manual `LengthAwarePaginator::new` accepts a page size of zero and uses one as the divisor for `lastPage()`. Query pagination still requires a positive page size.
 
 ## JSON and Links
 

@@ -6,11 +6,11 @@
 
 ## 遷移與填充
 
-在 Builder 回呼中依應用程式的組裝方式註冊遷移和 Seeder，再執行 `test.artisan(["migrate", "--seed"]).await.assertSuccessful()`。在同一夾具內重新建表和填充時使用 `migrate:fresh --seed`。新夾具從空資料庫檔案開始，透過各自的資料庫檔案實現隔離。
+在 Builder 回呼中依應用程式的組裝方式註冊遷移和 Seeder，再執行 `test.artisan(["migrate", "--seed"]).await.assert_successful()`。在同一夾具內重新建表和填充時使用 `migrate:fresh --seed`。新夾具從空資料庫檔案開始，透過各自的資料庫檔案實現隔離。
 
 ### 執行 Seeder {#running-seeders}
 
-呼叫 `test.seed().await?` 執行已註冊的 `DatabaseSeeder`。用 `seedWith` 傳入一個或多個 Seeder 名稱，依清單順序執行。空清單會直接成功。用 `seedOn("reports", None)` 在具名連線上執行預設 Seeder，或傳入 `Some(&[...])` 選擇指定的 Seeder。
+呼叫 `test.seed().await?` 執行已註冊的 `DatabaseSeeder`。用 `seed_with` 傳入一個或多個 Seeder 名稱，依清單順序執行。空清單會直接成功。用 `seed_on("reports", None)` 在具名連線上執行預設 Seeder，或傳入 `Some(&[...])` 選擇指定的 Seeder。
 
 每個 Seeder 都透過停用互動的 Artisan `db:seed` 執行。指令失敗時會立即回傳錯誤並停止清單。位於測試交易時，選定連線的寫入會隨該交易復原。其他連線依各自的交易邊界提交。
 
@@ -22,7 +22,7 @@ async fn populate(
     seeders: &[&str],
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     test.seed().await?;
-    test.seedWith(seeders).await
+    test.seed_with(seeders).await
 }
 ```
 
@@ -37,7 +37,7 @@ async fn run_migrations(
     admin_url: &str,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut test = TestApp::mysql(admin_url, |builder| builder).await?;
-    test.artisan(["migrate"]).await.assertSuccessful();
+    test.artisan(["migrate"]).await.assert_successful();
     test.close().await
 }
 ```
@@ -46,7 +46,7 @@ async fn run_migrations(
 
 ### 復原遺留的 MySQL 測試資料庫 {#recovering-mysql-test-schemas}
 
-若要在測試程序遭終止後復原，請使用 `TestApp::mysqlWithRecovery` 或 `TestApp::mysqlConnectionsWithRecovery`。傳入夾具暫存根目錄之外、已存在的本機私有目錄。Unix 上使用權限 `0700`。每個資料庫在建立前會寫入一份 `openrust_test_<id>.json` 歸屬紀錄。紀錄包含伺服器識別碼和歸屬權杖，須妥善保管。連線 URL 和憑證另行保存。
+若要在測試程序遭終止後復原，請使用 `TestApp::mysql_with_recovery` 或 `TestApp::mysql_connections_with_recovery`。傳入夾具暫存根目錄之外、已存在的本機私有目錄。Unix 上使用權限 `0700`。每個資料庫在建立前會寫入一份 `openrust_test_<id>.json` 歸屬紀錄。紀錄包含伺服器識別碼和歸屬權杖，須妥善保管。連線 URL 和憑證另行保存。
 
 在新程序中傳入歸屬紀錄路徑和原專用測試伺服器的管理連線 URL。刪除資料庫之前，復原流程會驗證伺服器 UUID、取得資料庫租約，再檢查歸屬預存程序與連線活動。租約仍被持有、資料庫仍在使用或無法驗證歸屬時，復原會回傳錯誤並保留紀錄。清理成功後會刪除紀錄，重複復原會直接成功。
 
@@ -55,21 +55,21 @@ use std::path::Path;
 use openrust::testing::TestApp;
 
 async fn recover_test_schema(admin_url: &str, receipt: &Path) -> std::io::Result<()> {
-    TestApp::recoverMysql(admin_url, receipt).await
+    TestApp::recover_mysql(admin_url, receipt).await
 }
 ```
 
 ## 更新資料庫 {#refreshing-the-database}
 
-在受管 MySQL 夾具上呼叫 `refreshDatabase`。它在首次回呼前執行 `migrate:fresh`，後續回呼使用同一組選項時沿用遷移後的基線。每次回呼都有獨立的復原交易。具名 Seeder 優先於 `seed`。
+在受管 MySQL 夾具上呼叫 `refresh_database`。它在首次回呼前執行 `migrate:fresh`，後續回呼使用同一組選項時沿用遷移後的基線。每次回呼都有獨立的復原交易。具名 Seeder 優先於 `seed`。
 
 ```rust
 use openrust::testing::{RefreshDatabaseOptions, TestApp};
 
 async fn check_baseline(test: &mut TestApp) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let options = RefreshDatabaseOptions { seed: true, ..Default::default() };
-    test.refreshDatabase(options, |test| Box::pin(async move {
-        test.assertDatabaseCount("items", 1).await
+    test.refresh_database(options, |test| Box::pin(async move {
+        test.assert_database_count("items", 1).await
     })).await
 }
 ```
@@ -80,7 +80,7 @@ async fn check_baseline(test: &mut TestApp) -> Result<(), Box<dyn std::error::Er
 
 ## 重建與復原遷移 {#database-migrations}
 
-需要在測試中自行提交交易時，使用 `runDatabaseMigrations`。它會在夾具的受管預設 MySQL 連線先執行 `migrate:fresh`，回呼結束後再執行 `migrate:rollback`。回呼回傳錯誤或 panic 時也會復原同一個測試資料庫。
+需要在測試中自行提交交易時，使用 `run_database_migrations`。它會在夾具的受管預設 MySQL 連線先執行 `migrate:fresh`，回呼結束後再執行 `migrate:rollback`。回呼回傳錯誤或 panic 時也會復原同一個測試資料庫。
 
 設定 `drop_views` 可在重建時一併刪除檢視表。設定 `seed` 可執行預設 Seeder，也可透過 `seeder` 指定名稱。取消該 Future 後，呼叫 `close().await` 或啟動下一次資料庫重設，完成待處理的復原。
 
@@ -88,15 +88,15 @@ async fn check_baseline(test: &mut TestApp) -> Result<(), Box<dyn std::error::Er
 use openrust::testing::{DatabaseMigrationsOptions, TestApp};
 
 async fn check_empty_items(test: &mut TestApp) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    test.runDatabaseMigrations(DatabaseMigrationsOptions::default(), |test| {
-        Box::pin(async { test.assertDatabaseEmpty("items").await })
+    test.run_database_migrations(DatabaseMigrationsOptions::default(), |test| {
+        Box::pin(async { test.assert_database_empty("items").await })
     }).await
 }
 ```
 
 ## 測試之間清空資料表 {#database-truncation}
 
-每次測試前，在受管夾具上呼叫 `truncateDatabaseTables`。首次呼叫會在預設連線執行 `migrate:fresh`。後續呼叫會清空所選連線中有資料的資料表，並依選項重新填充預設連線。用 `drop_views` 控制首次重建是否刪除檢視表，用 `seed` 或 `seeder` 選擇填充方式。
+每次測試前，在受管夾具上呼叫 `truncate_database_tables`。首次呼叫會在預設連線執行 `migrate:fresh`。後續呼叫會清空所選連線中有資料的資料表，並依選項重新填充預設連線。用 `drop_views` 控制首次重建是否刪除檢視表，用 `seed` 或 `seeder` 選擇填充方式。
 
 `connections_to_truncate` 為空時使用預設連線。`tables` 提供共用篩選規則，`tables_by_connection` 為具名連線指定規則。篩選項使用目錄中的實際資料表名稱，可加上資料庫名稱。`only` 非空時只清空列出的資料表，否則保留 `except` 中的資料表及遷移紀錄表。
 
@@ -106,25 +106,25 @@ async fn check_empty_items(test: &mut TestApp) -> Result<(), Box<dyn std::error:
 use openrust::testing::{DatabaseTruncationOptions, TestApp};
 
 async fn reset_items(test: &mut TestApp) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    test.truncateDatabaseTables(DatabaseTruncationOptions {
+    test.truncate_database_tables(DatabaseTruncationOptions {
         seed: true,
         ..Default::default()
     }).await?;
-    test.assertDatabaseCount("items", 1).await
+    test.assert_database_count("items", 1).await
 }
 ```
 
 ## MySQL 交易隔離 {#mysql-transaction-isolation}
 
-為測試應用程式設定專用的 MySQL 測試庫。先執行遷移和基礎填充，再呼叫 `test.databaseTransaction`。回呼中，使用預設連線的 HTTP 請求、程序內 Artisan 命令和資料庫斷言共用一個工作階段。成功和失敗都會回復，應用程式交易使用儲存點。
+為測試應用程式設定專用的 MySQL 測試庫。先執行遷移和基礎填充，再呼叫 `test.database_transaction`。回呼中，使用預設連線的 HTTP 請求、程序內 Artisan 命令和資料庫斷言共用一個工作階段。成功和失敗都會回復，應用程式交易使用儲存點。
 
 ```rust
 use openrust::testing::TestApp;
 
 async fn check_seeded_items(test: &mut TestApp) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    test.databaseTransaction(|test| Box::pin(async move {
-        test.artisan(["db:seed"]).await.assertSuccessful();
-        test.assertDatabaseHas("items", &[("name", "seeded".into())]).await
+    test.database_transaction(|test| Box::pin(async move {
+        test.artisan(["db:seed"]).await.assert_successful();
+        test.assert_database_has("items", &[("name", "seeded".into())]).await
     })).await
 }
 ```
@@ -133,7 +133,7 @@ async fn check_seeded_items(test: &mut TestApp) -> Result<(), Box<dyn std::error
 
 ## 多個測試連線 {#multiple-test-connections}
 
-呼叫 `TestApp::mysqlConnections`，為每個具名伺服器 URL 建立獨立的受管資料庫。第一個名稱成為預設連線。`refreshDatabase` 透過 `migrate:fresh` 準備預設連線。在回呼前用 `migrate --database=<名稱>` 準備次要資料庫。
+呼叫 `TestApp::mysql_connections`，為每個具名伺服器 URL 建立獨立的受管資料庫。第一個名稱成為預設連線。`refresh_database` 透過 `migrate:fresh` 準備預設連線。在回呼前用 `migrate --database=<名稱>` 準備次要資料庫。
 
 ```rust
 use openrust::testing::{RefreshDatabaseOptions, TestApp};
@@ -141,20 +141,20 @@ use openrust::testing::{RefreshDatabaseOptions, TestApp};
 async fn run_test(
     url: &str,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let mut test = TestApp::mysqlConnections(&[("mysql", url), ("reports", url)], |builder| {
+    let mut test = TestApp::mysql_connections(&[("mysql", url), ("reports", url)], |builder| {
         builder
     }).await?;
-    test.artisan(["migrate", "--database=reports"]).await.assertSuccessful();
+    test.artisan(["migrate", "--database=reports"]).await.assert_successful();
     let options = RefreshDatabaseOptions {
         connections_to_transact: vec!["mysql".into(), "reports".into()],
         ..Default::default()
     };
-    test.refreshDatabase(options, |_| Box::pin(async { Ok(()) })).await?;
+    test.refresh_database(options, |_| Box::pin(async { Ok(()) })).await?;
     test.close().await
 }
 ```
 
-用 `connections_to_transact` 選擇每次回呼結束後復原的連線，空清單選用預設連線。夾具已準備好時，`databaseTransactionOn` 可直接執行相同的復原流程。
+用 `connections_to_transact` 選擇每次回呼結束後復原的連線，空清單選用預設連線。夾具已準備好時，`database_transaction_on` 可直接執行相同的復原流程。
 
 ## 模型工廠 {#model-factories}
 
@@ -162,7 +162,7 @@ async fn run_test(
 
 ## 資料庫斷言
 
-用 `assertDatabaseHas` 和 `assertDatabaseMissing` 檢查資料列的值，支援空值。用 `assertDatabaseCount` 核對資料列數，用 `assertDatabaseEmpty` 檢查空資料表。對應的 `On` 方法接受選填的連線名稱。
+用 `assert_database_has` 和 `assert_database_missing` 檢查資料列的值，支援空值。用 `assert_database_count` 核對資料列數，用 `assert_database_empty` 檢查空資料表。對應的 `On` 方法接受選填的連線名稱。
 
 ```rust
 use openrust::{database::query::Record, testing::TestApp};
@@ -180,17 +180,17 @@ async fn keeps_records_in_the_test_database() -> Result<(), Box<dyn std::error::
     db.table("items")
         .insert(&[Record::from([("name".into(), "fixture".into())])])
         .await?;
-    test.assertDatabaseHas("items", &[("name", "fixture".into())]).await?;
-    test.assertDatabaseCount("items", 1).await?;
+    test.assert_database_has("items", &[("name", "fixture".into())]).await?;
+    test.assert_database_count("items", 1).await?;
     Ok(())
 }
 ```
 
 ### 軟刪除與模型斷言 {#soft-deletion-and-model-assertions}
 
-`assertSoftDeleted` 要求符合條件的資料列在 `deleted_at` 有值。`assertNotSoftDeleted` 要求存在符合條件的資料列，且其 `deleted_at` 為空。需要指定欄位名稱或連線時，使用 `assertSoftDeletedOn` 或 `assertNotSoftDeletedOn`。
+`assert_soft_deleted` 要求符合條件的資料列在 `deleted_at` 有值。`assert_not_soft_deleted` 要求存在符合條件的資料列，且其 `deleted_at` 為空。需要指定欄位名稱或連線時，使用 `assert_soft_deleted_on` 或 `assert_not_soft_deleted_on`。
 
-將 Eloquent 模型傳給 `assertModelExists` 或 `assertModelMissing`，依模型連線和主鍵查詢。已軟刪除的資料列仍視為存在。`assertSoftDeletedModel` 和 `assertNotSoftDeletedModel` 也會使用模型設定的軟刪除欄位。
+將 Eloquent 模型傳給 `assert_model_exists` 或 `assert_model_missing`，依模型連線和主鍵查詢。已軟刪除的資料列仍視為存在。`assert_soft_deleted_model` 和 `assert_not_soft_deleted_model` 也會使用模型設定的軟刪除欄位。
 
 ```rust
 use openrust::{database::eloquent::Model, testing::TestApp};
@@ -199,14 +199,14 @@ async fn assert_archived(
     test: &mut TestApp,
     model: &impl Model,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    test.assertModelExists(model).await?;
-    test.assertSoftDeletedModel(model).await
+    test.assert_model_exists(model).await?;
+    test.assert_soft_deleted_model(model).await
 }
 ```
 
 ### 資料庫查詢次數 {#expects-database-query-count}
 
-在要統計的程式碼前呼叫 `expectsDatabaseQueryCount(expected, None)`。它統計目前測試應用程式所有連線產生的查詢。傳入 `Some("reports")` 可限定為具名連線。`pretend` 模式產生的查詢也會計入。執行失敗的 SQL 和夾具準備期間停用資料庫事件時的查詢不計入。
+在要統計的程式碼前呼叫 `expects_database_query_count(expected, None)`。它統計目前測試應用程式所有連線產生的查詢。傳入 `Some("reports")` 可限定為具名連線。`pretend` 模式產生的查詢也會計入。執行失敗的 SQL 和夾具準備期間停用資料庫事件時的查詢不計入。
 
 呼叫 `close().await` 核對次數並等待測試資料庫清理。次數不符會回傳錯誤，夾具仍會清理測試資料庫。夾具正常離開作用域時，次數不符會使測試失敗。
 
@@ -216,7 +216,7 @@ use openrust::testing::TestApp;
 async fn count_queries(
     mut test: TestApp,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    test.expectsDatabaseQueryCount(1, None).await?;
+    test.expects_database_query_count(1, None).await?;
     test.database().await?.select("SELECT 1", &[]).await?;
     test.close().await
 }

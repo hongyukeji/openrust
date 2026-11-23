@@ -20,8 +20,7 @@ impl CacheBasedSessionHandler {
     }
 
     /// Returns the cache repository used for session payloads.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn getCache(&self) -> Arc<dyn Repository> {
+    pub fn get_cache(&self) -> Arc<dyn Repository> {
         self.cache.clone()
     }
 }

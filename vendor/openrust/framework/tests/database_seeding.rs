@@ -27,7 +27,7 @@ async fn scoped_defaults_are_concurrent_and_restored_after_cancellation() {
                 .usingConnection(name, async {
                     barrier.wait().await;
                     let connection = manager.connection(None).unwrap();
-                    assert_eq!(connection.getName(), name);
+                    assert_eq!(connection.get_name(), name);
                     connection
                         .statement("create table marker (value integer)", &[])
                         .await

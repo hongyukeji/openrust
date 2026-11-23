@@ -342,7 +342,7 @@ impl ScheduleRunCommand {
                         None,
                     )
                 }
-                _ => (event.getSummaryForDisplay(), None),
+                _ => (event.get_summary_for_display(), None),
             };
             listed.push(ListedEvent {
                 event,
@@ -513,7 +513,7 @@ impl ScheduleRunCommand {
         };
         let mut due = Vec::new();
         for (index, event) in self.schedule.event_handles().enumerate() {
-            if !event.runsInMaintenanceMode()
+            if !event.runs_in_maintenance_mode()
                 && app.is_down_for_maintenance().await.map_err(error)?
             {
                 continue;
@@ -550,7 +550,7 @@ impl ScheduleRunCommand {
             if shutdown.is_cancelled() {
                 break;
             }
-            if paused && !entry.event.runsWhenPaused() {
+            if paused && !entry.event.runs_when_paused() {
                 dispatch_skipped(entry.event).await?;
                 continue;
             }
@@ -574,7 +574,7 @@ impl ScheduleRunCommand {
                     .filter(|entry| {
                         entry.event.interval.is_some()
                             && entry.election != Some(false)
-                            && (!paused || entry.event.runsWhenPaused())
+                            && (!paused || entry.event.runs_when_paused())
                     })
                     .map(|entry| entry.next_run)
                     .min()
@@ -601,11 +601,11 @@ impl ScheduleRunCommand {
                     {
                         has_entered_maintenance = has_entered_maintenance
                             || app.is_down_for_maintenance().await.map_err(error)?;
-                        if has_entered_maintenance && !entry.event.runsInMaintenanceMode() {
+                        if has_entered_maintenance && !entry.event.runs_in_maintenance_mode() {
                             entry.next_run = Instant::now() + interval;
                             continue;
                         }
-                        if paused && !entry.event.runsWhenPaused() {
+                        if paused && !entry.event.runs_when_paused() {
                             dispatch_skipped(entry.event).await?;
                             continue;
                         }
@@ -708,7 +708,7 @@ impl ScheduleRunCommand {
             writeln!(
                 output.stderr,
                 "Scheduled task '{}' failed: {error}",
-                event.getSummaryForDisplay()
+                event.get_summary_for_display()
             )
             .expect("writing to a String");
             let _ = app.report(error.as_ref()).await;

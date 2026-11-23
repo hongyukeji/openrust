@@ -130,23 +130,23 @@ impl Broadcaster for Recorder {
 
 struct Identity;
 impl Authenticatable for Identity {
-    fn getAuthIdentifierName(&self) -> &str {
+    fn get_auth_identifier_name(&self) -> &str {
         "id"
     }
-    fn getAuthIdentifier(&self) -> AuthIdentifier {
+    fn get_auth_identifier(&self) -> AuthIdentifier {
         AuthIdentifier::String("42".into())
     }
-    fn getAuthPasswordName(&self) -> &str {
+    fn get_auth_password_name(&self) -> &str {
         "password"
     }
-    fn getAuthPassword(&self) -> Option<&str> {
+    fn get_auth_password(&self) -> Option<&str> {
         None
     }
-    fn getRememberToken(&self) -> Option<&str> {
+    fn get_remember_token(&self) -> Option<&str> {
         None
     }
-    fn setRememberToken(&mut self, _: Option<String>) {}
-    fn getRememberTokenName(&self) -> &str {
+    fn set_remember_token(&mut self, _: Option<String>) {}
+    fn get_remember_token_name(&self) -> &str {
         "remember_token"
     }
 }
@@ -160,7 +160,7 @@ impl ServiceProvider for Register {
                 .await?
                 .extend("record", move |_| Ok(recorder.clone()))?;
             let auth = app.make::<AuthManager>().await?;
-            auth.viaRequest("header", |request| {
+            auth.via_request("header", |request| {
                 Box::pin(async move {
                     Ok(request
                         .headers()
@@ -169,7 +169,7 @@ impl ServiceProvider for Register {
                         .then(|| Box::new(Identity) as Box<dyn Authenticatable>))
                 })
             });
-            auth.viaRequest("empty", |_| Box::pin(async { Ok(None) }));
+            auth.via_request("empty", |_| Box::pin(async { Ok(None) }));
             let dispatcher = app.make::<Dispatcher>().await?;
             dispatcher.registerBroadcastNow::<Notice<1>>();
             dispatcher.markAfterCommit::<Notice<1>>();
@@ -304,7 +304,7 @@ impl ChannelHandler for RoomChannel {
             let owner = room.getAttributeValue("owner").unwrap();
             let allowed = match owner {
                 Some(DbValue::Text(owner)) => {
-                    user.getAuthIdentifier() == AuthIdentifier::String(owner)
+                    user.get_auth_identifier() == AuthIdentifier::String(owner)
                 }
                 _ => false,
             };
@@ -403,7 +403,7 @@ fn channels() -> BroadcastResult<()> {
         "orders.{id}",
         |user: &dyn Authenticatable, parameters: &ChannelParameters| {
             Ok(
-                if user.getAuthIdentifier() == AuthIdentifier::String(parameters["id"].clone()) {
+                if user.get_auth_identifier() == AuthIdentifier::String(parameters["id"].clone()) {
                     ChannelAuthorization::Allowed
                 } else {
                     ChannelAuthorization::Denied
@@ -485,7 +485,7 @@ async fn transport(
     State(kernel): State<Arc<Kernel>>,
     request: axum::extract::Request,
 ) -> axum::response::Response {
-    kernel.handleTransport(request).await
+    kernel.handle_transport(request).await
 }
 
 #[tokio::test]

@@ -15,22 +15,21 @@ pub struct JsonOptions {
     escape_unicode: bool,
 }
 
-#[allow(non_snake_case, reason = "Matches the resource JSON API")]
 impl JsonOptions {
     #[must_use]
-    pub const fn prettyPrint(mut self) -> Self {
+    pub const fn pretty_print(mut self) -> Self {
         self.pretty = true;
         self
     }
 
     #[must_use]
-    pub const fn escapeSlashes(mut self) -> Self {
+    pub const fn escape_slashes(mut self) -> Self {
         self.escape_slashes = true;
         self
     }
 
     #[must_use]
-    pub const fn escapeUnicode(mut self) -> Self {
+    pub const fn escape_unicode(mut self) -> Self {
         self.escape_unicode = true;
         self
     }

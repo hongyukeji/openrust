@@ -18,7 +18,7 @@ pub(crate) async fn respond<T: contracts::Response + ?Sized + 'static>(
 ) -> Result<Response, HttpError> {
     Resolver::<T>::get_facade_root()
         .map_err(internal)?
-        .toResponse(request)
+        .to_response(request)
         .await
 }
 mod two_factor_authenticated_session_controller;

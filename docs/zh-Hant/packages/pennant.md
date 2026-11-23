@@ -41,9 +41,9 @@ let both = user.allAreActive(&["new-api", "theme"]).await?;
 
 ## 作用域 {#scopes}
 
-使用 `for` 明確選擇作用域，`Scope::fromModel` 轉換 Eloquent 模型，`globally` 選擇單一全域作用域。全域與匿名作用域彼此獨立。模型預設以具體 Rust 類別和主鍵識別；`useMorphMap(true)` 將類別部分切換為設定的 morph 別名。`FeatureScopeSerializeable` 配合 `Scope::fromSerializable` 自訂序列化；`FeatureScopeable` 配合 `forScopeable` 按所選 store 轉換識別。
+使用 `for` 明確選擇作用域，`Scope::from_model` 轉換 Eloquent 模型，`globally` 選擇單一全域作用域。全域與匿名作用域彼此獨立。模型預設以具體 Rust 類別和主鍵識別；`useMorphMap(true)` 將類別部分切換為設定的 morph 別名。`FeatureScopeSerializeable` 配合 `Scope::fromSerializable` 自訂序列化；`FeatureScopeable` 配合 `forScopeable` 按所選 store 轉換識別。
 
-預設作用域讀取原生認證已解析的身分。使用延遲載入 guard 時，先呼叫 `Feature::forRequest(request).await?` 再判斷，或先執行認證中介軟體。`EnsureFeaturesAreActive` 會主動解析預設 guard。非 HTTP 場景請明確指定作用域，或設定 `FeatureManager::resolveScopeUsing`。
+預設作用域讀取原生認證已解析的身分。使用延遲載入 guard 時，先呼叫 `Feature::for_request(request).await?` 再判斷，或先執行認證中介軟體。`EnsureFeaturesAreActive` 會主動解析預設 guard。非 HTTP 場景請明確指定作用域，或設定 `FeatureManager::resolveScopeUsing`。
 
 ## 類別式特性 {#feature-classes}
 

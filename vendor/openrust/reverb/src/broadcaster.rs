@@ -366,6 +366,6 @@ fn install_configuration<'a>(
         installation
             .publish("reverb-config", options.force, output)
             .await?;
-        installation.registerConfiguration("reverb")
+        installation.register_configuration("reverb")
     })
 }

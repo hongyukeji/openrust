@@ -2,7 +2,6 @@ use super::TestResponse;
 use crate::support::{Arr, ViewErrorBag};
 use serde_json::Value;
 
-#[allow(non_snake_case)]
 impl TestResponse {
     fn error_bags(&self) -> ViewErrorBag {
         let value = Arr::get(&self.session, "errors")
@@ -16,7 +15,7 @@ impl TestResponse {
     }
 
     #[track_caller]
-    pub fn assertSessionHasAll(&self, bindings: &Value) -> &Self {
+    pub fn assert_session_has_all(&self, bindings: &Value) -> &Self {
         for (key, value) in selection(bindings) {
             if let Some(key) = key {
                 let actual = Arr::get(&self.session, &key).unwrap_or(&Value::Null);
@@ -25,14 +24,14 @@ impl TestResponse {
                     "Session 字段 {key} 不匹配，实际 {actual}，预期 {value}"
                 );
             } else {
-                self.assertSessionHas(value.as_str().expect("Session 字段名必须为字符串"), None);
+                self.assert_session_has(value.as_str().expect("Session 字段名必须为字符串"), None);
             }
         }
         self
     }
 
     #[track_caller]
-    pub fn assertSessionMissing(&self, key: &str, unexpected: Option<&Value>) -> &Self {
+    pub fn assert_session_missing(&self, key: &str, unexpected: Option<&Value>) -> &Self {
         let actual = Arr::get(&self.session, key).unwrap_or(&Value::Null);
         if let Some(unexpected) = unexpected.filter(|value| !value.is_null()) {
             assert!(
@@ -46,7 +45,7 @@ impl TestResponse {
     }
 
     #[track_caller]
-    pub fn assertSessionHasInput(&self, key: &str, expected: Option<&Value>) -> &Self {
+    pub fn assert_session_has_input(&self, key: &str, expected: Option<&Value>) -> &Self {
         let input = Arr::get(&self.session, "_old_input").unwrap_or(&Value::Null);
         let actual = Arr::get(input, key).unwrap_or(&Value::Null);
         if let Some(expected) = expected.filter(|value| !value.is_null()) {
@@ -61,7 +60,7 @@ impl TestResponse {
     }
 
     #[track_caller]
-    pub fn assertSessionMissingInput(&self, key: &str) -> &Self {
+    pub fn assert_session_missing_input(&self, key: &str) -> &Self {
         let input = Arr::get(&self.session, "_old_input").unwrap_or(&Value::Null);
         assert!(
             Arr::get(input, key).is_none_or(Value::is_null),
@@ -71,15 +70,15 @@ impl TestResponse {
     }
 
     #[track_caller]
-    pub fn assertSessionHasErrors(
+    pub fn assert_session_has_errors(
         &self,
         keys: &Value,
         format: Option<&str>,
-        errorBag: &str,
+        error_bag: &str,
     ) -> &Self {
-        self.assertSessionHas("errors", None);
+        self.assert_session_has("errors", None);
         let bags = self.error_bags();
-        let bag = bags.getBag(errorBag);
+        let bag = bags.getBag(error_bag);
         for (key, value) in selection(keys) {
             if let Some(key) = key {
                 let expected = crate::support::input_scalars::string(value);
@@ -96,27 +95,27 @@ impl TestResponse {
     }
 
     #[track_caller]
-    pub fn assertSessionHasErrorsIn(
+    pub fn assert_session_has_errors_in(
         &self,
-        errorBag: &str,
+        error_bag: &str,
         keys: &Value,
         format: Option<&str>,
     ) -> &Self {
-        self.assertSessionHasErrors(keys, format, errorBag)
+        self.assert_session_has_errors(keys, format, error_bag)
     }
 
     #[track_caller]
-    pub fn assertSessionDoesntHaveErrors(
+    pub fn assert_session_doesnt_have_errors(
         &self,
         keys: &Value,
         format: Option<&str>,
-        errorBag: &str,
+        error_bag: &str,
     ) -> &Self {
         if selection(keys).is_empty() {
-            return self.assertSessionHasNoErrors();
+            return self.assert_session_has_no_errors();
         }
         let bags = self.error_bags();
-        let bag = bags.getBag(errorBag);
+        let bag = bags.getBag(error_bag);
         for (key, value) in selection(keys) {
             if let Some(key) = key {
                 assert!(
@@ -135,20 +134,22 @@ impl TestResponse {
     }
 
     #[track_caller]
-    pub fn assertSessionHasNoErrors(&self) -> &Self {
-        self.assertSessionMissing("errors", None)
+    pub fn assert_session_has_no_errors(&self) -> &Self {
+        self.assert_session_missing("errors", None)
     }
 
-    fn json_errors(&self, responseKey: &str) -> Value {
+    fn json_errors(&self, response_key: &str) -> Value {
         let json: Value = self.json().expect("响应不是有效 JSON");
-        Arr::get(&json, responseKey).cloned().unwrap_or(Value::Null)
+        Arr::get(&json, response_key)
+            .cloned()
+            .unwrap_or(Value::Null)
     }
 
     #[track_caller]
-    pub fn assertJsonValidationErrorsAt(&self, errors: &Value, responseKey: &str) -> &Self {
+    pub fn assert_json_validation_errors_at(&self, errors: &Value, response_key: &str) -> &Self {
         let selected = selection(errors);
         assert!(!selected.is_empty(), "必须提供预期验证错误");
-        let actual = self.json_errors(responseKey);
+        let actual = self.json_errors(response_key);
         for (key, value) in selected {
             let field = key
                 .as_deref()
@@ -176,8 +177,8 @@ impl TestResponse {
     }
 
     #[track_caller]
-    pub fn assertJsonValidationErrorFor(&self, key: &str, responseKey: &str) -> &Self {
-        let errors = self.json_errors(responseKey);
+    pub fn assert_json_validation_error_for(&self, key: &str, response_key: &str) -> &Self {
+        let errors = self.json_errors(response_key);
         assert!(
             errors.get(key).is_some_and(|value| !value.is_null()),
             "JSON 缺少验证错误 {key}"
@@ -186,12 +187,12 @@ impl TestResponse {
     }
 
     #[track_caller]
-    pub fn assertJsonMissingValidationErrors(
+    pub fn assert_json_missing_validation_errors(
         &self,
         keys: Option<&[&str]>,
-        responseKey: &str,
+        response_key: &str,
     ) -> &Self {
-        let errors = self.json_errors(responseKey);
+        let errors = self.json_errors(response_key);
         if let Some(keys) = keys {
             for key in keys {
                 assert!(
@@ -206,23 +207,28 @@ impl TestResponse {
     }
 
     #[track_caller]
-    pub fn assertOnlyJsonValidationErrors(&self, errors: &Value, responseKey: &str) -> &Self {
-        self.assertJsonValidationErrorsAt(errors, responseKey);
-        assert_only(&self.json_errors(responseKey), errors);
+    pub fn assert_only_json_validation_errors(&self, errors: &Value, response_key: &str) -> &Self {
+        self.assert_json_validation_errors_at(errors, response_key);
+        assert_only(&self.json_errors(response_key), errors);
         self
     }
 
     #[track_caller]
-    pub fn assertValid(&self, keys: Option<&[&str]>, errorBag: &str, responseKey: &str) -> &Self {
+    pub fn assert_valid(
+        &self,
+        keys: Option<&[&str]>,
+        error_bag: &str,
+        response_key: &str,
+    ) -> &Self {
         if self
             .headers()
             .get("content-type")
             .is_some_and(|value| value == "application/json")
         {
-            return self.assertJsonMissingValidationErrors(keys, responseKey);
+            return self.assert_json_missing_validation_errors(keys, response_key);
         }
         let bags = self.error_bags();
-        let messages = bags.getBag(errorBag).getMessages();
+        let messages = bags.getBag(error_bag).getMessages();
         if let Some(keys) = keys {
             for key in keys {
                 assert!(
@@ -237,22 +243,23 @@ impl TestResponse {
     }
 
     #[track_caller]
-    pub fn assertInvalid(
+    pub fn assert_invalid(
         &self,
         errors: Option<&Value>,
-        errorBag: &str,
-        responseKey: &str,
+        error_bag: &str,
+        response_key: &str,
     ) -> &Self {
         if self
             .headers()
             .get("content-type")
             .is_some_and(|value| value == "application/json")
         {
-            return self.assertJsonValidationErrorsAt(errors.unwrap_or(&Value::Null), responseKey);
+            return self
+                .assert_json_validation_errors_at(errors.unwrap_or(&Value::Null), response_key);
         }
-        self.assertSessionHas("errors", None);
+        self.assert_session_has("errors", None);
         let bags = self.error_bags();
-        let messages = bags.getBag(errorBag).getMessages();
+        let messages = bags.getBag(error_bag).getMessages();
         for (key, value) in selection(errors.unwrap_or(&Value::Null)) {
             let field = key
                 .as_deref()
@@ -275,11 +282,11 @@ impl TestResponse {
     }
 
     #[track_caller]
-    pub fn assertOnlyInvalid(
+    pub fn assert_only_invalid(
         &self,
         errors: Option<&Value>,
-        errorBag: &str,
-        responseKey: &str,
+        error_bag: &str,
+        response_key: &str,
     ) -> &Self {
         if self
             .headers()
@@ -287,12 +294,12 @@ impl TestResponse {
             .is_some_and(|value| value == "application/json")
         {
             return self
-                .assertOnlyJsonValidationErrors(errors.unwrap_or(&Value::Null), responseKey);
+                .assert_only_json_validation_errors(errors.unwrap_or(&Value::Null), response_key);
         }
-        self.assertSessionHas("errors", None);
+        self.assert_session_has("errors", None);
         let bags = self.error_bags();
         let messages =
-            serde_json::to_value(bags.getBag(errorBag).getMessages()).expect("错误消息可序列化");
+            serde_json::to_value(bags.getBag(error_bag).getMessages()).expect("错误消息可序列化");
         assert_only(&messages, errors.unwrap_or(&Value::Null));
         self
     }

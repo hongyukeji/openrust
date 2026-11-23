@@ -33,7 +33,7 @@ pub async fn verify(
 
 ### 自定义验证邮件 {#custom-verification-email}
 
-在服务提供器的启动方法中，用 `VerifyEmail::toMailUsing` 替换邮件内容。回调接收用户和已生成的链接。可通过 `VerifyEmail::createUrlUsing` 在渲染邮件前提供其他链接。目标路由使用签名中间件时，应生成相应的签名 URL。
+在服务提供器的启动方法中，用 `VerifyEmail::to_mail_using` 替换邮件内容。回调接收用户和已生成的链接。可通过 `VerifyEmail::create_url_using` 在渲染邮件前提供其他链接。目标路由使用签名中间件时，应生成相应的签名 URL。
 
 ```rust
 use openrust::{
@@ -42,7 +42,7 @@ use openrust::{
 };
 
 fn customize_verification_mail() -> AuthResult<()> {
-    VerifyEmail::toMailUsing(|_, url| {
+    VerifyEmail::to_mail_using(|_, url| {
         Ok(MailDelivery::Message(Box::new(
             MailMessage::new()
                 .subject("Confirm your email")
@@ -54,6 +54,6 @@ fn customize_verification_mail() -> AuthResult<()> {
 
 ## 重发和保护路由
 
-将重发入口命名为 `verification.send`，使用 `auth` 和 `throttle:6,1`，对尚未验证的用户调用 `sendEmailVerificationNotification`。
+将重发入口命名为 `verification.send`，使用 `auth` 和 `throttle:6,1`，对尚未验证的用户调用 `send_email_verification_notification`。
 
 使用 `verified` 保护路由。未验证用户请求 HTML 时重定向到 `verification.notice`，请求 JSON 时返回 403。可用 `verified:your.route` 指定提示页。

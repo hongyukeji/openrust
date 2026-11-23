@@ -72,10 +72,10 @@ impl ProviderDefinition for SlackProvider {
     ) -> ProviderFuture<'a, Value> {
         Box::pin(async move {
             json(
-                http.pendingRequest()
-                    .withToken(token)
-                    .redactPayload()
-                    .withoutRedirecting()
+                http.pending_request()
+                    .with_token(token)
+                    .redact_payload()
+                    .without_redirecting()
                     .get(&self.endpoints.user)
                     .await?,
             )

@@ -19,7 +19,7 @@ fn keyed_selection_and_transforms_match_array_order() {
     );
     assert_eq!(Arr::take(&items, -2), json!([items[1], items[2]]));
     assert_eq!(
-        Arr::whereNotNull(&json!([null, 1, null, 2])),
+        Arr::where_not_null(&json!([null, 1, null, 2])),
         json!({"1":1,"3":2})
     );
     assert_eq!(

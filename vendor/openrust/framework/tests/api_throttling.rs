@@ -27,23 +27,23 @@ use serde_json::json;
 struct Identity;
 
 impl Authenticatable for Identity {
-    fn getAuthIdentifierName(&self) -> &str {
+    fn get_auth_identifier_name(&self) -> &str {
         "id"
     }
-    fn getAuthIdentifier(&self) -> AuthIdentifier {
+    fn get_auth_identifier(&self) -> AuthIdentifier {
         AuthIdentifier::from(7_u64)
     }
-    fn getAuthPasswordName(&self) -> &str {
+    fn get_auth_password_name(&self) -> &str {
         "password"
     }
-    fn getAuthPassword(&self) -> Option<&str> {
+    fn get_auth_password(&self) -> Option<&str> {
         None
     }
-    fn getRememberToken(&self) -> Option<&str> {
+    fn get_remember_token(&self) -> Option<&str> {
         None
     }
-    fn setRememberToken(&mut self, _: Option<String>) {}
-    fn getRememberTokenName(&self) -> &str {
+    fn set_remember_token(&mut self, _: Option<String>) {}
+    fn get_remember_token_name(&self) -> &str {
         "remember_token"
     }
 }
@@ -55,7 +55,7 @@ impl ServiceProvider for Limits {
         Box::pin(async move {
             app.container()
                 .make::<AuthManager>()?
-                .viaRequest("header", |request| {
+                .via_request("header", |request| {
                     Box::pin(async move {
                         Ok(request
                             .headers()
@@ -68,7 +68,7 @@ impl ServiceProvider for Limits {
                     let user = Auth::user(request)
                         .await?
                         .expect("限流前应完成路由指定的认证");
-                    assert_eq!(user.getAuthIdentifier(), AuthIdentifier::from(7_u64));
+                    assert_eq!(user.get_auth_identifier(), AuthIdentifier::from(7_u64));
                     Ok(Limit::perMinute(1).into())
                 })
             })?;
@@ -79,7 +79,7 @@ impl ServiceProvider for Limits {
             }
             RateLimiter::r#for("session", |request| {
                 assert!(
-                    request.hasSession(),
+                    request.has_session(),
                     "限流策略应在有状态 API 的会话中间件之后执行"
                 );
                 Limit::perMinute(1)
@@ -102,7 +102,7 @@ fn api() -> Result<(), RoutingError> {
     })?;
     Route::get("/missing/{missing}", empty)?;
     Route::getWith("/excluded", empty, |route| {
-        route.withoutMiddleware("throttle:api");
+        route.without_middleware("throttle:api");
         Ok(())
     })
 }
@@ -115,7 +115,7 @@ async fn transport(
     State(kernel): State<Arc<Kernel>>,
     request: axum::extract::Request,
 ) -> axum::response::Response {
-    kernel.handleTransport(request).await
+    kernel.handle_transport(request).await
 }
 
 struct Server {
@@ -200,7 +200,7 @@ async fn api_group_is_unthrottled_until_explicitly_enabled() {
 #[tokio::test]
 async fn api_throttle_applies_before_bindings_and_supports_exclusions() {
     let server = start(|middleware| {
-        middleware.throttleApi(Some("api"), false);
+        middleware.throttle_api(Some("api"), false);
     })
     .await;
     let response = server.get("/api/budget/shared").await;
@@ -236,8 +236,8 @@ async fn api_throttle_applies_before_bindings_and_supports_exclusions() {
 async fn last_api_limiter_wins_and_false_values_disable_it() {
     let server = start(|middleware| {
         middleware
-            .throttleApi(Some("api"), false)
-            .throttleApi(Some("custom"), false);
+            .throttle_api(Some("api"), false)
+            .throttle_api(Some("custom"), false);
     })
     .await;
     for _ in 0..2 {
@@ -252,8 +252,8 @@ async fn last_api_limiter_wins_and_false_values_disable_it() {
     for limiter in [None, Some(""), Some("0")] {
         let server = start(move |middleware| {
             middleware
-                .throttleApi(Some("api"), false)
-                .throttleApi(limiter, false);
+                .throttle_api(Some("api"), false)
+                .throttle_api(limiter, false);
         })
         .await;
         for _ in 0..3 {
@@ -271,7 +271,7 @@ async fn custom_api_group_overrides_default_throttling_in_either_call_order() {
             if group_first {
                 middleware.group("api", []);
             }
-            middleware.throttleApi(Some("api"), false);
+            middleware.throttle_api(Some("api"), false);
             if !group_first {
                 middleware
                     .group("api", [MiddlewareEntry::named("custom-group")])
@@ -295,7 +295,7 @@ async fn custom_api_group_overrides_default_throttling_in_either_call_order() {
 #[tokio::test]
 async fn api_throttle_does_not_implicitly_register_a_named_policy() {
     let server = start(|middleware| {
-        middleware.throttleApi(Some("undefined-policy"), false);
+        middleware.throttle_api(Some("undefined-policy"), false);
     })
     .await;
     assert_eq!(
@@ -315,8 +315,8 @@ async fn api_throttle_redis_option_shares_quota_between_applications() {
     }
     let configure = |middleware: &mut Middleware| {
         middleware
-            .throttleApi(Some("api"), true)
-            .throttleApi(Some("api"), false);
+            .throttle_api(Some("api"), true)
+            .throttle_api(Some("api"), false);
     };
     let first = start(configure).await;
     let second = start(configure).await;
@@ -336,11 +336,11 @@ async fn stateful_api_runs_before_throttling_in_either_call_order() {
     for stateful_first in [false, true] {
         let server = start(move |middleware| {
             if stateful_first {
-                middleware.statefulApi();
+                middleware.stateful_api();
             }
-            middleware.throttleApi(Some("session"), false);
+            middleware.throttle_api(Some("session"), false);
             if !stateful_first {
-                middleware.statefulApi();
+                middleware.stateful_api();
             }
         })
         .await;
@@ -358,7 +358,7 @@ async fn stateful_api_runs_before_throttling_in_either_call_order() {
 #[tokio::test]
 async fn authentication_runs_before_api_throttling() {
     let server = start(|middleware| {
-        middleware.throttleApi(Some("identity"), false);
+        middleware.throttle_api(Some("identity"), false);
     })
     .await;
     assert_eq!(

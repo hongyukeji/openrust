@@ -21,13 +21,13 @@ pub struct User {
     pub credentials: Option<Token>,
 }
 impl User {
-    pub fn getId(&self) -> &Value {
+    pub fn get_id(&self) -> &Value {
         &self.id
     }
     pub fn getNickname(&self) -> Option<&str> {
         self.nickname.as_deref()
     }
-    pub fn getName(&self) -> Option<&str> {
+    pub fn get_name(&self) -> Option<&str> {
         self.name.as_deref()
     }
     pub fn getEmail(&self) -> Option<&str> {

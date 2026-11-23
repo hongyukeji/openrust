@@ -9,15 +9,15 @@ use super::{ArrayKey, Collection, CollectionResult, finite::Finite};
 
 #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<T: Serialize> Collection<T> {
-    pub fn toArray(&self) -> CollectionResult<Value> {
+    pub fn to_array(&self) -> CollectionResult<Value> {
         serde_json::to_value(self).map_err(Into::into)
     }
 
-    pub fn toPrettyJson(&self) -> CollectionResult<String> {
+    pub fn to_pretty_json(&self) -> CollectionResult<String> {
         serde_json::to_string_pretty(self).map_err(Into::into)
     }
 
-    pub fn toJson(&self) -> CollectionResult<String> {
+    pub fn to_json(&self) -> CollectionResult<String> {
         serde_json::to_string(self).map_err(Into::into)
     }
 }

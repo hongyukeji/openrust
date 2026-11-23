@@ -2,7 +2,7 @@
 
 ## Gate
 
-透過應用程式的 `GateRegistry` 註冊權限。`define` 要求使用者已驗證。訪客也可以參與判斷時，使用 `defineGuest`。
+透過應用程式的 `GateRegistry` 註冊權限。`define` 要求使用者已驗證。訪客也可以參與判斷時，使用 `define_guest`。
 
 ```rust
 use openrust::auth::{AuthIdentifier, access::{GateRegistry, Response}};
@@ -11,7 +11,7 @@ fn register_settings_gate(gate: &GateRegistry) {
     gate.define("edit-settings", |user, _| {
         Box::pin(async move {
             Ok(Response::from(
-                user.getAuthIdentifier() == AuthIdentifier::String("owner".into()),
+                user.get_auth_identifier() == AuthIdentifier::String("owner".into()),
             ))
         })
     });
@@ -24,9 +24,9 @@ fn register_settings_gate(gate: &GateRegistry) {
 
 ## 策略發現與查詢
 
-`getPolicyFor` 接收模型實例或 `PolicyTarget::of::<User>()`，傳回 `Result<Option<PolicyHandle>>`。控制代碼保留真實策略實例，可用 `downcast::<AccountPolicy>()` 取得 `Arc<AccountPolicy>`；`name()` 傳回完整 Rust 型別名稱。顯式 `policy` 對應優先，`policies()` 傳回這些對應的獨立快照，鍵為模型 `TypeId`，值為策略型別名稱。
+`get_policy_for` 接收模型實例或 `PolicyTarget::of::<User>()`，傳回 `Result<Option<PolicyHandle>>`。控制代碼保留真實策略實例，可用 `downcast::<AccountPolicy>()` 取得 `Arc<AccountPolicy>`；`name()` 傳回完整 Rust 型別名稱。顯式 `policy` 對應優先，`policies()` 傳回這些對應的獨立快照，鍵為模型 `TypeId`，值為策略型別名稱。
 
-需要發現策略時，先向應用容器登記建構工廠，再呼叫 `discoverPolicy::<User, AccountPolicy>()` 登記已編譯型別。它不會提前建構策略或新增顯式對應。預設名稱按模型模組逐級尋找 `policies::<模型名>Policy`；巢狀 `models` 模組會優先尋找對應的 `models::policies` 和 `policies` 路徑。策略位於單獨的檔案模組或採用其他配置時，使用 `guessPolicyNamesUsing` 傳回實際完整型別名稱；按順序選取第一個已登記候選，空清單停用預設發現。
+需要發現策略時，先向應用容器登記建構工廠，再呼叫 `discover_policy::<User, AccountPolicy>()` 登記已編譯型別。它不會提前建構策略或新增顯式對應。預設名稱按模型模組逐級尋找 `policies::<模型名>Policy`；巢狀 `models` 模組會優先尋找對應的 `models::policies` 和 `policies` 路徑。策略位於單獨的檔案模組或採用其他配置時，使用 `guess_policy_names_using` 傳回實際完整型別名稱；按順序選取第一個已登記候選，空清單停用預設發現。
 
 ```rust
 use std::{any::type_name, sync::Arc};
@@ -37,22 +37,22 @@ use openrust::{
 };
 
 container.bind::<AccountPolicy, _>(|_| Ok(Arc::new(AccountPolicy)))?;
-Gate::discoverPolicy::<User, AccountPolicy>()?;
-Gate::guessPolicyNamesUsing(|model| {
+Gate::discover_policy::<User, AccountPolicy>()?;
+Gate::guess_policy_names_using(|model| {
     if model == type_name::<User>() {
         vec![type_name::<AccountPolicy>().into()]
     } else {
         Vec::new()
     }
 })?;
-let selected = Gate::getPolicyFor(&PolicyTarget::of::<User>())?;
+let selected = Gate::get_policy_for(&PolicyTarget::of::<User>())?;
 let concrete = selected.and_then(|policy| policy.downcast::<AccountPolicy>());
-let resolved = Gate::resolvePolicy::<AccountPolicy>()?;
+let resolved = Gate::resolve_policy::<AccountPolicy>()?;
 ```
 
-在 Provider 或其他應用 Facade 作用域內使用上述入口；`container` 是該應用的容器，`User` 和 `AccountPolicy` 是應用自身型別。需要建構相依項目時，在容器工廠中解析。`resolvePolicy::<AccountPolicy>()` 直接使用既有容器綁定，發現路徑也遵循其瞬態、共享及錯誤語義；建構失敗傳回錯誤，不繼續嘗試後面的候選。策略發現不會在 `before` 已給出結果時建構策略。
+在 Provider 或其他應用 Facade 作用域內使用上述入口；`container` 是該應用的容器，`User` 和 `AccountPolicy` 是應用自身型別。需要建構相依項目時，在容器工廠中解析。`resolve_policy::<AccountPolicy>()` 直接使用既有容器綁定，發現路徑也遵循其瞬態、共享及錯誤語義；建構失敗傳回錯誤，不繼續嘗試後面的候選。策略發現不會在 `before` 已給出結果時建構策略。
 
-`GateRegistry` 提供同名入口，`forUser` 傳回的 Gate 提供策略查詢、解析、對應及候選回呼入口；Gate 契約提供 `getPolicyFor`。顯式 `policy` 仍使用傳入的共享實例。Rust 發現只處理已登記型別，不執行 PHP 類別自動載入、屬性反射或父類別查詢；查詢結果使用擁有型控制代碼和 `Result`，對應快照不保證迭代順序。
+`GateRegistry` 提供同名入口，`for_user` 傳回的 Gate 提供策略查詢、解析、對應及候選回呼入口；Gate 契約提供 `get_policy_for`。顯式 `policy` 仍使用傳入的共享實例。Rust 發現只處理已登記型別，不執行 PHP 類別自動載入、屬性反射或父類別查詢；查詢結果使用擁有型控制代碼和 `Result`，對應快照不保證迭代順序。
 
 ## 請求授權
 
@@ -62,11 +62,11 @@ let resolved = Gate::resolvePolicy::<AccountPolicy>()?;
 
 ## 授權結果與回呼
 
-`inspect` 傳回授權結果。拒絕預設回傳 HTTP 403，可使用 `Response::denyWithStatus` 或 `Response::denyAsNotFound` 更改狀態碼。`before` 可以提前給出結果。權限檢查與 `before` 都沒有給出結果時，`after` 可以補充。
+`inspect` 傳回授權結果。拒絕預設回傳 HTTP 403，可使用 `Response::deny_with_status` 或 `Response::deny_as_not_found` 更改狀態碼。`before` 可以提前給出結果。權限檢查與 `before` 都沒有給出結果時，`after` 可以補充。
 
 ## Gate 判定事件 {#gate-evaluated}
 
-應用程式事件派發器會在 Gate 的 `after` 回呼結束後、套用預設拒絕前派發 `GateEvaluated`。事件包含可為空的使用者、權限名稱和原始 `Option<Response>`，包括明確拒絕的 HTTP 狀態。權限尚未判定時，事件結果為 `None`，即使 `inspect` 傳回已設定的預設拒絕。每項實際評估的權限各派發一次事件。`allowIf` 和 `denyIf` 的內嵌檢查會略過此事件。
+應用程式事件派發器會在 Gate 的 `after` 回呼結束後、套用預設拒絕前派發 `GateEvaluated`。事件包含可為空的使用者、權限名稱和原始 `Option<Response>`，包括明確拒絕的 HTTP 狀態。權限尚未判定時，事件結果為 `None`，即使 `inspect` 傳回已設定的預設拒絕。每項實際評估的權限各派發一次事件。`allow_if` 和 `deny_if` 的內嵌檢查會略過此事件。
 
 註冊同步監聽器後，可以透過 `event.arguments(context)` 按原順序讀取參數。原始參數僅在呼叫期間借用，延後派發和保留的事件可透過 `argument_types` 讀取型別。
 
@@ -105,4 +105,4 @@ fn register_gate_listener(events: &Dispatcher) -> EventResult<()> {
 
 ## 回應狀態
 
-透過 `Response::deny("原因").withStatus(StatusCode::CONFLICT)` 設定拒絕狀態，或用 `asNotFound()` 選擇 404。`withStatus(None)` 清除先前設定的狀態。這些 Builder 消費並傳回回應，保留授權結論及原因；給允許的回應設定狀態不會將其改為拒絕。
+透過 `Response::deny("原因").with_status(StatusCode::CONFLICT)` 設定拒絕狀態，或用 `as_not_found()` 選擇 404。`with_status(None)` 清除先前設定的狀態。這些 Builder 消費並傳回回應，保留授權結論及原因；給允許的回應設定狀態不會將其改為拒絕。

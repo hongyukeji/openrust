@@ -87,9 +87,8 @@ impl Validator {
     }
 }
 
-#[allow(non_snake_case)]
 impl Validator {
-    pub fn addExtension(
+    pub fn add_extension(
         &mut self,
         rule: &str,
         extension: impl Fn(&str, Option<&Value>, &[String], &Validator) -> ValidationResult<bool>
@@ -104,7 +103,7 @@ impl Validator {
         self.invalidate();
         self
     }
-    pub fn addExtensions(
+    pub fn add_extensions(
         &mut self,
         extensions: impl IntoIterator<Item = (String, ValidationExtension)>,
     ) -> &mut Self {
@@ -115,7 +114,7 @@ impl Validator {
         self.invalidate();
         self
     }
-    pub fn addImplicitExtension(
+    pub fn add_implicit_extension(
         &mut self,
         rule: &str,
         extension: impl Fn(&str, Option<&Value>, &[String], &Validator) -> ValidationResult<bool>
@@ -131,7 +130,7 @@ impl Validator {
         self.invalidate();
         self
     }
-    pub fn addImplicitExtensions(
+    pub fn add_implicit_extensions(
         &mut self,
         extensions: impl IntoIterator<Item = (String, ValidationExtension)>,
     ) -> &mut Self {
@@ -143,7 +142,7 @@ impl Validator {
         self.invalidate();
         self
     }
-    pub fn addDependentExtension(
+    pub fn add_dependent_extension(
         &mut self,
         rule: &str,
         extension: impl Fn(&str, Option<&Value>, &[String], &Validator) -> ValidationResult<bool>
@@ -159,7 +158,7 @@ impl Validator {
         self.invalidate();
         self
     }
-    pub fn addDependentExtensions(
+    pub fn add_dependent_extensions(
         &mut self,
         extensions: impl IntoIterator<Item = (String, ValidationExtension)>,
     ) -> &mut Self {
@@ -171,7 +170,7 @@ impl Validator {
         self.invalidate();
         self
     }
-    pub fn addReplacer(
+    pub fn add_replacer(
         &mut self,
         rule: &str,
         replacer: impl Fn(&str, &str, &str, &[String], &Validator) -> String + Send + Sync + 'static,
@@ -182,7 +181,7 @@ impl Validator {
         self.invalidate();
         self
     }
-    pub fn addReplacers(
+    pub fn add_replacers(
         &mut self,
         replacers: impl IntoIterator<Item = (String, ValidationReplacer)>,
     ) -> &mut Self {

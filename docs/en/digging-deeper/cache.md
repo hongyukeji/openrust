@@ -192,7 +192,7 @@ pub async fn report() -> CacheResult<Value> {
 
 ## Repository settings {#cache-repository-settings}
 
-`getName`, `getStore`, and `getEventDispatcher` expose the configured store name, backend, and dispatcher. A named repository keeps its name when cache events are disabled. A tagged repository inherits the name, dispatcher, and default lifetime of its parent at creation.
+`get_name`, `getStore`, and `getEventDispatcher` expose the configured store name, backend, and dispatcher. A named repository keeps its name when cache events are disabled. A tagged repository inherits the name, dispatcher, and default lifetime of its parent at creation.
 
 `putWithDefault` uses `getDefaultCacheTime`, which starts at 3600 seconds. An explicit `put(key, value, None)` stores the value indefinitely. Use `setDefaultCacheTime` on an owned repository to change the default. `setStore` and `setEventDispatcher` also configure an owned repository. Cloning shares the backend while allowing each copy to replace its own settings.
 
@@ -299,7 +299,7 @@ Tokio schedules cleanup if the future is cancelled or the callback panics. A fin
 
 ### Concurrency limiting {#concurrency-limiting}
 
-`Cache::withoutOverlapping(key, callback).await?` runs one callback at a time for that key and waits up to 10 seconds. `withoutOverlappingWith(key, callback, lock_for, wait_for, owner)` takes the lease and wait in seconds and an optional owner token. A zero lease uses the store's default. An unavailable lock returns `CacheError::LockTimeout`.
+`Cache::without_overlapping(key, callback).await?` runs one callback at a time for that key and waits up to 10 seconds. `withoutOverlappingWith(key, callback, lock_for, wait_for, owner)` takes the lease and wait in seconds and an optional owner token. A zero lease uses the store's default. An unavailable lock returns `CacheError::LockTimeout`.
 
 Use `Cache::funnel` to allow several concurrent callbacks. All application instances must use the same shared lock store, cache prefix, limiter name, and limit. Set the lease long enough for a callback to finish. Once it expires, another caller can take the slot. A `null` store allows every caller through.
 
@@ -389,7 +389,7 @@ To assert a cache hit in a test, seed `reports/latest` and call the repository f
 ```rust
 use openrust::{cache::events::CacheHit, contracts::cache::Repository as _};
 
-let events = app.fakeEvents(&[CacheHit::NAME]).await?;
+let events = app.fake_events(&[CacheHit::NAME]).await?;
 let _ = cache.get("reports/latest").await?;
 events.assertDispatched(CacheHit::NAME);
 ```

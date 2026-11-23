@@ -55,28 +55,28 @@ impl Model for User {
 }
 
 impl Authenticatable for User {
-    fn getAuthIdentifierName(&self) -> &str {
+    fn get_auth_identifier_name(&self) -> &str {
         "identity"
     }
-    fn getAuthIdentifier(&self) -> AuthIdentifier {
+    fn get_auth_identifier(&self) -> AuthIdentifier {
         self.getKey().unwrap().try_into().unwrap()
     }
-    fn getAuthPasswordName(&self) -> &str {
+    fn get_auth_password_name(&self) -> &str {
         "password"
     }
-    fn getAuthPassword(&self) -> Option<&str> {
+    fn get_auth_password(&self) -> Option<&str> {
         field(self, "password")
     }
-    fn getRememberToken(&self) -> Option<&str> {
+    fn get_remember_token(&self) -> Option<&str> {
         field(self, "remember_token")
     }
-    fn setRememberToken(&mut self, token: Option<String>) {
+    fn set_remember_token(&mut self, token: Option<String>) {
         self.setAttribute("remember_token", token.map_or(Value::Null, Value::Text));
     }
-    fn getRememberTokenName(&self) -> &str {
+    fn get_remember_token_name(&self) -> &str {
         "remember_token"
     }
-    fn getAuthAttribute(&self, name: &str) -> AuthResult<Option<Value>> {
+    fn get_auth_attribute(&self, name: &str) -> AuthResult<Option<Value>> {
         self.getAttributeValue(name)
             .map_err(|source| AuthError::Backend(Box::new(source)))
     }
@@ -139,14 +139,14 @@ fn custom_request(request: &mut Request) -> HttpFuture<'_, Result<Response, Http
 
 fn session(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
-        let mut guard = Auth::sessionGuard(request, None)?;
+        let mut guard = Auth::session_guard(request, None)?;
         let id = guard.id().await?;
-        let remember = guard.viaRemember();
+        let remember = guard.via_remember();
         let session = request.session()?;
         Response::json(
             StatusCode::OK,
             json!({
-                "user":id, "remember":remember, "id":session.getId(), "csrf":session.token()
+                "user":id, "remember":remember, "id":session.get_id(), "csrf":session.token()
             }),
         )
     })
@@ -154,13 +154,13 @@ fn session(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
 
 fn quiet_session(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(
-        async move { Response::json(StatusCode::OK, json!({"id": request.session()?.getId()})) },
+        async move { Response::json(StatusCode::OK, json!({"id": request.session()?.get_id()})) },
     )
 }
 
 fn selected_session(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
-        Auth::shouldUse(request, "custom")?;
+        Auth::should_use(request, "custom")?;
         quiet_session(request).await
     })
 }
@@ -184,8 +184,8 @@ fn login(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
             .unwrap_or(false);
         let key = email.to_ascii_lowercase();
         let credentials = Credentials::new([("email", Value::from(email))], password);
-        let authenticated = Auth::sessionGuard(request, None)?
-            .attemptThrottled(&credentials, remember, &key, 2, 60)
+        let authenticated = Auth::session_guard(request, None)?
+            .attempt_throttled(&credentials, remember, &key, 2, 60)
             .await?;
         if !authenticated {
             return Err(HttpError::Unauthenticated);
@@ -196,8 +196,8 @@ fn login(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 
 fn logout(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
-        Auth::sessionGuard(request, None)?
-            .logoutAndInvalidate()
+        Auth::session_guard(request, None)?
+            .logout_and_invalidate()
             .await?;
         session(request).await
     })
@@ -205,8 +205,8 @@ fn logout(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
 
 fn logout_current(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
-        Auth::sessionGuard(request, None)?
-            .logoutCurrentDevice()
+        Auth::session_guard(request, None)?
+            .logout_current_device()
             .await?;
         quiet_session(request).await
     })
@@ -216,7 +216,7 @@ async fn transport(
     State(kernel): State<Arc<Kernel>>,
     request: axum::extract::Request,
 ) -> axum::response::Response {
-    kernel.handleTransport(request).await
+    kernel.handle_transport(request).await
 }
 
 struct Wire {
@@ -327,9 +327,9 @@ async fn verify(database: Json, database_sessions: bool) {
         .unwrap();
     let hasher = app.container().make::<dyn Hasher>().unwrap();
     let manager = app.container().make::<AuthManager>().unwrap();
-    manager.registerModel::<User>("TestUser");
-    let provider = manager.createUserProvider("database").unwrap();
-    manager.viaRequest("custom-request", move |request| {
+    manager.register_model::<User>("TestUser");
+    let provider = manager.create_user_provider("database").unwrap();
+    manager.via_request("custom-request", move |request| {
         let provider = provider.clone();
         Box::pin(async move {
             if request
@@ -338,7 +338,7 @@ async fn verify(database: Json, database_sessions: bool) {
                 .is_some_and(|value| value == "001")
             {
                 return provider
-                    .retrieveById(&AuthIdentifier::String("001".into()))
+                    .retrieve_by_id(&AuthIdentifier::String("001".into()))
                     .await;
             }
             Ok(None)

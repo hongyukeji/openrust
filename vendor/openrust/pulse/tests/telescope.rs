@@ -75,7 +75,9 @@ async fn long_running_check_stores_telescope_each_iteration_and_exits_on_shared_
         ])
     })
     .unwrap();
-    app.artisan(["migrate", "--force"]).await.assertSuccessful();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
     let db = app
         .app()
         .make::<openrust::database::DatabaseManager>()
@@ -91,7 +93,7 @@ async fn long_running_check_stores_telescope_each_iteration_and_exits_on_shared_
         .store(None)
         .unwrap();
     let task = tokio::spawn(async move {
-        app.artisan(["pulse:check"]).await.assertSuccessful();
+        app.artisan(["pulse:check"]).await.assert_successful();
         app
     });
     tokio::time::timeout(Duration::from_secs(5), async {

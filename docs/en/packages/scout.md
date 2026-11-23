@@ -22,7 +22,7 @@ The collection engine maintains no separate index: update, delete, flush and ind
 
 ## Searchable Models {#searchable-models}
 
-Implement `openrust_scout::Searchable` on an existing `Model + Clone`. Its default `toSearchableArray` uses `toArray`; override it to choose fields. `shouldBeSearchable` controls eligibility; `searchIndexShouldBeUpdated` controls automatic updates.
+Implement `openrust_scout::Searchable` on an existing `Model + Clone`. Its default `toSearchableArray` uses `to_array`; override it to choose fields. `shouldBeSearchable` controls eligibility; `searchIndexShouldBeUpdated` controls automatic updates.
 
 ```rust
 use openrust_scout::{EngineManager, Searchable};
@@ -44,12 +44,12 @@ Call the model API inside a bootstrapped HTTP, Artisan or Worker lifecycle.
 
 ```rust
 let page = Article::search("rust")?
-    .whereIn("category", vec![1_i64.into(), 2_i64.into()])
+    .where_in("category", vec![1_i64.into(), 2_i64.into()])
     .orderBy("id", "asc")
     .paginate(15, 1).await?;
 ```
 
-Use `where(field, operator, value)`, `whereIn`, `whereNotIn`, `orderBy`, `orderByDesc`, `latest`, `oldest` and `take`. Rust's explicit operator argument replaces PHP's overloaded two-argument `where`. Without explicit ordering, collection results use descending Scout key order. `withTrashed` and `onlyTrashed` control soft-deleted results. Pagination requires positive page sizes and uses native paginator types; collection pagination counts all matching models even when `take` is present.
+Use `where(field, operator, value)`, `where_in`, `where_not_in`, `orderBy`, `orderByDesc`, `latest`, `oldest` and `take`. Rust's explicit operator argument replaces PHP's overloaded two-argument `where`. Without explicit ordering, collection results use descending Scout key order. `with_trashed` and `only_trashed` control soft-deleted results. Pagination requires positive page sizes and uses native paginator types; collection pagination counts all matching models even when `take` is present.
 
 `raw` returns ordered IDs, total and provider-specific JSON. `keys`, `first`, `get`, `paginate` and `simplePaginate` return IDs, models or pages. `cursor` is a stream: collection matching first determines IDs, then native SQL streams the mapped models in result order. `query(callback)` modifies the model-loading query; `callback` replaces collection's initial database constraints; `withRawResults` modifies results before model mapping. Callbacks return `Result` and preserve errors. `within` and `options` are available to custom engines; collection does not maintain named indexes.
 

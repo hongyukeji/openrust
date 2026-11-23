@@ -43,15 +43,15 @@ fn wildcard_get_retains_keys_and_literal_wildcard_takes_precedence() {
 #[test]
 fn predicates_empty_fields_and_format_follow_message_content() {
     let mut messages = MessageBag::new([("empty", Vec::<&str>::new())]);
-    assert!(messages.isEmpty());
+    assert!(messages.is_empty());
     assert!(!messages.has(["empty"]));
     messages.add("blank", "").add("name", "invalid");
     assert!(messages.any());
     assert!(!messages.has("blank"));
     assert!(messages.has(None));
     assert!(messages.has([]));
-    assert!(!messages.hasAny([]));
-    assert!(messages.hasAny(["absent", "name"]));
+    assert!(!messages.has_any([]));
+    assert!(messages.has_any(["absent", "name"]));
     assert!(messages.missing(["empty", "absent"]));
     messages.setFormat("<:key>:message</:key>");
     assert!(messages.has("blank"));
@@ -73,15 +73,15 @@ fn raw_json_preserves_message_order_and_merged_duplicates() {
     messages.merge(&MessageBag::new([("z", ["one"])]));
     messages.setFormat("<li>:message</li>");
     assert_eq!(
-        messages.toJson().unwrap(),
+        messages.to_json().unwrap(),
         r#"{"z":["one","one"],"a":["two"]}"#
     );
-    let restored: MessageBag = serde_json::from_str(&messages.toJson().unwrap()).unwrap();
+    let restored: MessageBag = serde_json::from_str(&messages.to_json().unwrap()).unwrap();
     assert_eq!(restored.all(None), ["one", "one", "two"]);
     assert_eq!(restored.getFormat(), ":message");
-    assert_eq!(messages.toArray(), messages.jsonSerialize());
+    assert_eq!(messages.to_array(), messages.jsonSerialize());
     assert_eq!(messages.getMessages(), messages.getMessageBag().messages());
-    assert!(messages.toPrettyJson().unwrap().contains('\n'));
+    assert!(messages.to_pretty_json().unwrap().contains('\n'));
     assert!(serde_json::from_value::<MessageBag>(json!({"name":42})).is_err());
 }
 
@@ -89,7 +89,7 @@ fn raw_json_preserves_message_order_and_merged_duplicates() {
 fn named_bags_count_and_forward_only_the_default_bag() {
     let mut errors = ViewErrorBag::new();
     assert!(!errors.hasBag("default"));
-    assert!(errors.getBag("missing").isEmpty());
+    assert!(errors.getBag("missing").is_empty());
     assert!(errors.getBags().is_empty());
     errors.put("profile", MessageBag::new([("email", ["invalid"])]));
     assert_eq!(errors.count(), 0);

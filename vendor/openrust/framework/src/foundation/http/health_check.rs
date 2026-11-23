@@ -63,7 +63,7 @@ impl Handler for HealthCheck {
             } else {
                 StatusCode::INTERNAL_SERVER_ERROR
             };
-            let response = if request.expectsJson() {
+            let response = if request.expects_json() {
                 Response::json(
                     status,
                     serde_json::json!({

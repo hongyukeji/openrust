@@ -295,7 +295,7 @@ impl Image {
             .cloned()
     }
 
-    pub async fn hashName(&self, path: &str) -> Result<String> {
+    pub async fn hash_name(&self, path: &str) -> Result<String> {
         let hash = self
             .hash_name
             .get_or_init(|| crate::support::Str::random(40));
@@ -311,11 +311,11 @@ impl Image {
         self.toDataUri().await
     }
 
-    pub async fn toResponse(&self, _: &mut crate::http::Request) -> Result<crate::http::Response> {
+    pub async fn to_response(&self, _: &mut crate::http::Request) -> Result<crate::http::Response> {
         let rendered = self.render().await?;
         let mut response =
             crate::http::Response::new(crate::http::StatusCode::OK, crate::http::Body::empty());
-        response.setContent(rendered.bytes.clone());
+        response.set_content(rendered.bytes.clone());
         Ok(response.header(
             ::http::header::CONTENT_TYPE,
             ::http::HeaderValue::from_static(rendered.format.mime_type()),
@@ -336,7 +336,7 @@ impl Image {
         self.store_inner(directory, None, disk, None).await
     }
 
-    pub async fn storeAs<'a>(
+    pub async fn store_as<'a>(
         &self,
         directory: &str,
         name: impl Into<Option<&'a str>>,
@@ -349,7 +349,7 @@ impl Image {
         self.store_inner(directory, Some(name), disk, None).await
     }
 
-    pub async fn storePublicly(
+    pub async fn store_publicly(
         &self,
         directory: &str,
         disk: Option<&str>,
@@ -358,7 +358,7 @@ impl Image {
             .await
     }
 
-    pub async fn storePubliclyAs<'a>(
+    pub async fn store_publicly_as<'a>(
         &self,
         directory: &str,
         name: impl Into<Option<&'a str>>,
@@ -385,7 +385,7 @@ impl Image {
         let name = if let Some(name) = name {
             name
         } else {
-            generated = self.hashName("").await?;
+            generated = self.hash_name("").await?;
             &generated
         };
         let path = format!("{directory}/{name}").trim_matches('/').to_owned();
@@ -466,8 +466,8 @@ impl Image {
                 let response = self
                     .manager
                     .http()?
-                    .pendingRequest()
-                    .maxResponseBytes(limits.max_input_bytes)
+                    .pending_request()
+                    .max_response_bytes(limits.max_input_bytes)
                     .get(url)
                     .await
                     .map_err(Error::Http)?
@@ -498,10 +498,10 @@ pub(super) async fn read_bounded(reader: impl AsyncRead, limits: Limits) -> Resu
 
 #[allow(non_snake_case)]
 impl crate::contracts::support::Responsable for Image {
-    async fn toResponse(
+    async fn to_response(
         self,
         request: &mut crate::http::Request,
     ) -> std::result::Result<crate::http::Response, crate::http::HttpError> {
-        Image::toResponse(&self, request).await.map_err(Into::into)
+        Image::to_response(&self, request).await.map_err(Into::into)
     }
 }

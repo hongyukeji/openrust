@@ -40,7 +40,7 @@ impl EngineManager {
             .and_then(|v| v.as_bool())
             .unwrap_or(false)
     }
-    pub fn getDefaultDriver(&self) -> String {
+    pub fn get_default_driver(&self) -> String {
         self.config
             .get("scout.driver")
             .and_then(|v| v.as_str().map(str::to_owned))
@@ -49,7 +49,7 @@ impl EngineManager {
     pub fn engine<M: Searchable>(&self, name: Option<&str>) -> Result<Arc<dyn Engine<M>>> {
         let name = name
             .map(str::to_owned)
-            .unwrap_or_else(|| self.getDefaultDriver());
+            .unwrap_or_else(|| self.get_default_driver());
         if let Some(engine) = self
             .engines
             .read()

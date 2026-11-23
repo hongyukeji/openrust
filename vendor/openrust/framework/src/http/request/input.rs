@@ -74,7 +74,7 @@ impl Payload {
 impl Request {
     /// Returns already-decoded input for diagnostics without polling the request body.
     #[allow(non_snake_case, reason = "Matches the request input naming")]
-    pub fn inputSnapshot(&self) -> Option<Value> {
+    pub fn input_snapshot(&self) -> Option<Value> {
         let query = self.query(None).ok().flatten().unwrap_or_else(empty);
         let fields = match self.input_source().ok()? {
             InputSource::Query => return Some(query),
@@ -190,7 +190,7 @@ impl Request {
 
     /// Uses default attributes for an absent or null input value.
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn fluentOr(&mut self, key: &str, default: Value) -> Result<Fluent, HttpError> {
+    pub async fn fluent_or(&mut self, key: &str, default: Value) -> Result<Fluent, HttpError> {
         self.fluent_value(Some(key), Some(default)).await
     }
 
@@ -437,14 +437,14 @@ impl Request {
 
     /// Returns all uploads with their original field keys and groups.
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn allFiles(&mut self) -> Result<UploadedFileValue, HttpError> {
+    pub async fn all_files(&mut self) -> Result<UploadedFileValue, HttpError> {
         let payload = self.payload().await?;
         Ok(payload.upload_value(&payload.file_indices))
     }
 
     /// Resolves a file or group by dotted path, including wildcard selections.
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn fileValue(&mut self, key: &str) -> Result<Option<UploadedFileValue>, HttpError> {
+    pub async fn file_value(&mut self, key: &str) -> Result<Option<UploadedFileValue>, HttpError> {
         let payload = self.payload().await?;
         Ok(data_get(&payload.file_indices, Some(key)).map(|value| payload.upload_value(&value)))
     }
@@ -458,7 +458,7 @@ impl Request {
     }
 
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn hasFile(&mut self, key: &str) -> Result<bool, HttpError> {
+    pub async fn has_file(&mut self, key: &str) -> Result<bool, HttpError> {
         let payload = self.payload().await?;
         let Some(value) = data_get(&payload.file_indices, Some(key)) else {
             return Ok(false);
@@ -524,7 +524,7 @@ impl Request {
         let media = self.media_type()?;
         Ok(if is_json_media(&media) {
             InputSource::Json
-        } else if matches!(*self.getRealMethod(), Method::GET | Method::HEAD) {
+        } else if matches!(*self.get_real_method(), Method::GET | Method::HEAD) {
             InputSource::Query
         } else {
             InputSource::Form
@@ -580,7 +580,7 @@ impl Request {
             self.json_values().await?;
             return Ok(Payload::fields(empty()));
         }
-        if matches!(*self.getRealMethod(), Method::GET | Method::HEAD) {
+        if matches!(*self.get_real_method(), Method::GET | Method::HEAD) {
             return Ok(Payload::fields(empty()));
         }
         match media.as_str() {

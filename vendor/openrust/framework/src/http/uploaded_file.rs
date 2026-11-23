@@ -42,7 +42,6 @@ impl fmt::Debug for UploadedFile {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl UploadedFile {
     pub(super) fn new(path: String, media_type: Option<String>, content: Bytes) -> Self {
         Self {
@@ -54,21 +53,21 @@ impl UploadedFile {
     }
 
     /// The filename supplied by the client. Treat it as display data.
-    pub fn getClientOriginalName(&self) -> &str {
+    pub fn get_client_original_name(&self) -> &str {
         self.path.rsplit(['/', '\\']).next().unwrap_or_default()
     }
 
     /// The original client path, which may include directories.
-    pub fn getClientOriginalPath(&self) -> &str {
+    pub fn get_client_original_path(&self) -> &str {
         &self.path
     }
 
     /// The media type supplied by the client.
-    pub fn getClientMimeType(&self) -> Option<&str> {
+    pub fn get_client_mime_type(&self) -> Option<&str> {
         self.media_type.as_deref()
     }
 
-    pub fn getSize(&self) -> usize {
+    pub fn get_size(&self) -> usize {
         self.content.len()
     }
 
@@ -91,7 +90,7 @@ impl UploadedFile {
     }
 
     /// Returns the same server-generated basename for this upload and its clones.
-    pub fn hashName(&self) -> FilesystemResult<&str> {
+    pub fn hash_name(&self) -> FilesystemResult<&str> {
         if let Some(name) = self.metadata.hash_name.get() {
             return Ok(name);
         }
@@ -108,10 +107,10 @@ impl UploadedFile {
         directory: &str,
         disk: Option<&str>,
     ) -> FilesystemResult<Option<String>> {
-        self.storeAs(directory, self.hashName()?, disk).await
+        self.store_as(directory, self.hash_name()?, disk).await
     }
 
-    pub async fn storeAs(
+    pub async fn store_as(
         &self,
         directory: &str,
         name: &str,
@@ -122,16 +121,16 @@ impl UploadedFile {
             .await
     }
 
-    pub async fn storePublicly(
+    pub async fn store_publicly(
         &self,
         directory: &str,
         disk: Option<&str>,
     ) -> FilesystemResult<Option<String>> {
-        self.storePubliclyAs(directory, self.hashName()?, disk)
+        self.store_publicly_as(directory, self.hash_name()?, disk)
             .await
     }
 
-    pub async fn storePubliclyAs(
+    pub async fn store_publicly_as(
         &self,
         directory: &str,
         name: &str,

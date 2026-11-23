@@ -119,7 +119,7 @@ async fn named_account_configuration_is_lazy_snapshotted_and_explicitly_reloaded
         json!({"default":"main","drivers":{"main":profile(Provider::Stripe,&server.url)}}),
     )])));
     let manager = CashierManager::new(config.clone(), Arc::new(Factory::new().unwrap()));
-    assert_eq!(manager.getDefaultDriver().unwrap(), "main");
+    assert_eq!(manager.get_default_driver().unwrap(), "main");
     let old = manager.driver("main").unwrap();
     config
         .set("cashier.drivers.main.secret", json!("rotated_api_key"))

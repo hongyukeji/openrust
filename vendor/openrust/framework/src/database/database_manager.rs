@@ -195,7 +195,7 @@ impl DatabaseManager {
     pub(super) fn migration_connection(&self, name: Option<&str>) -> DatabaseResult<Connection> {
         let connection = self.connection(name)?;
         if connection.query_role.is_none() && connection.hasDirectConnection() {
-            self.connection_named(&format!("{}::direct", connection.getName()))
+            self.connection_named(&format!("{}::direct", connection.get_name()))
         } else {
             Ok(connection)
         }

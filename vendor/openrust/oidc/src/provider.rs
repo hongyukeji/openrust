@@ -76,13 +76,13 @@ impl<'a> Provider<'a> {
     }
     fn pending(&self) -> PendingRequest {
         self.http
-            .pendingRequest()
-            .acceptJson()
-            .redactPayload()
-            .withoutRedirecting()
+            .pending_request()
+            .accept_json()
+            .redact_payload()
+            .without_redirecting()
             .timeout(self.config.timeout)
-            .connectTimeout(self.config.timeout)
-            .maxResponseBytes(1024 * 1024)
+            .connect_timeout(self.config.timeout)
+            .max_response_bytes(1024 * 1024)
     }
     async fn metadata(&mut self) -> Result<Metadata> {
         let url = format!(
@@ -283,10 +283,10 @@ impl<'a> Provider<'a> {
         );
         let metadata = self.metadata().await?;
         let mut fields = json!({"grant_type":"authorization_code","code":code.as_str(),"redirect_uri":self.config.redirect,"code_verifier":verifier.as_str()});
-        let mut pending = self.pending().asForm();
+        let mut pending = self.pending().as_form();
         match self.config.client_auth {
             ClientAuth::Basic => {
-                pending = pending.withBasicAuth(
+                pending = pending.with_basic_auth(
                     &form_encode(&self.config.client_id),
                     &form_encode(
                         self.config
@@ -364,7 +364,7 @@ impl<'a> Provider<'a> {
         {
             let info: Value = json_response(
                 self.pending()
-                    .withToken(&tokens.access_token)
+                    .with_token(&tokens.access_token)
                     .get(&endpoint)
                     .await?,
             )?;

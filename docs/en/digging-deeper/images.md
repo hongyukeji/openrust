@@ -12,7 +12,7 @@ Transformations run in the order they are added. `resize` takes optional width a
 
 `flip()` flips vertically; `flop()` flips horizontally. `resize(width, height)` and `scale(width, height)` return `Result<Image>` and reject two missing dimensions immediately. Supplied zero dimensions become 1. Blur and sharpen amounts are capped at 100 before reaching a driver handler.
 
-A successfully loaded source is shared across branches. Modifying a rendered image starts from its processed bytes, so earlier transformations are not repeated. `hashName("").await?` returns a stable filename for that image, and `store` reuses it. `hashName("avatars").await?` adds the path prefix. `toString().await?` returns the data URI. A route handler may return `Image` or `Result<Image, HttpError>` directly; its response contains the image bytes and MIME type.
+A successfully loaded source is shared across branches. Modifying a rendered image starts from its processed bytes, so earlier transformations are not repeated. `hash_name("").await?` returns a stable filename for that image, and `store` reuses it. `hash_name("avatars").await?` adds the path prefix. `toString().await?` returns the data URI. A route handler may return `Image` or `Result<Image, HttpError>` directly; its response contains the image bytes and MIME type.
 
 ```rust
 use openrust::image::{ImageManager, Limits};
@@ -42,9 +42,9 @@ Transforms and conversions between AVIF and HEIC sequences keep each displayed f
 
 ## Storing images {#storing-images}
 
-`store` generates a filename using the encoded extension. Use `storeAs` to supply the filename, or `storePublicly` and `storePubliclyAs` to request public visibility. These methods return the stored path when the disk reports success.
+`store` generates a filename using the encoded extension. Use `store_as` to supply the filename, or `store_publicly` and `store_publicly_as` to request public visibility. These methods return the stored path when the disk reports success.
 
-`storeAs("avatar.png", None, None).await?` treats the first argument as the complete filename. Names with a supplied directory and name are trimmed only at the outside of the combined path.
+`store_as("avatar.png", None, None).await?` treats the first argument as the complete filename. Names with a supplied directory and name are trimmed only at the outside of the combined path.
 
 ## Inspecting images {#inspecting-images}
 
@@ -62,7 +62,7 @@ Implement `ensureRequirementsAreMet` in the `Driver` trait when a backend needs 
 
 ### Custom transformation handlers {#custom-transformation-handlers}
 
-Use `Image::transformUsing(driver, name, callback)?` or the same method on `ImageManager` to register a handler for one driver. Registration also works before an application registers that driver with `extend`; manager `extend` returns a `Result`. The driver contract exposes `transformUsing` and `dimensions`. Drivers without handler support return `UnsupportedTransformationHandler`. `Image::driver(None)?`, `getDefaultDriver()` and `getDrivers()` expose the configured driver and registered instances.
+Use `Image::transformUsing(driver, name, callback)?` or the same method on `ImageManager` to register a handler for one driver. Registration also works before an application registers that driver with `extend`; manager `extend` returns a `Result`. The driver contract exposes `transformUsing` and `dimensions`. Drivers without handler support return `UnsupportedTransformationHandler`. `Image::driver(None)?`, `get_default_driver()` and `getDrivers()` expose the configured driver and registered instances.
 
 ```rust
 use std::sync::Arc;

@@ -43,7 +43,7 @@ impl Relation for SelfReference {
             .get()
             .and_then(Weak::upgrade)
             .ok_or(DatabaseError::InvalidQuery("uninitialized self relation"))?;
-        model.toArray().map(Json::Object).map(Some)
+        model.to_array().map(Json::Object).map(Some)
     }
 }
 
@@ -53,13 +53,13 @@ async fn model_json_stops_at_repeated_models_and_retries_projection_errors() {
     let relation = SelfReference(reference.clone());
     let mut model = Article::new_instance(attrs([("title", "Post".into())])).unwrap();
     model.load("selfReference", &relation).await.unwrap();
-    assert!(model.toJson().is_err());
+    assert!(model.to_json().is_err());
     let model = Arc::new(model);
     assert!(reference.set(Arc::downgrade(&model)).is_ok());
     let expected = json!({"title": "Post", "self_reference": {"title": "Post"}});
     for _ in 0..2 {
         assert_eq!(
-            serde_json::from_str::<Json>(&model.toJson().unwrap()).unwrap(),
+            serde_json::from_str::<Json>(&model.to_json().unwrap()).unwrap(),
             expected
         );
     }
@@ -148,7 +148,11 @@ impl CastableObject for Codes {
         }
     }
 
-    fn toAttributes(value: Option<&Self>, name: &str, _: &Attributes) -> DatabaseResult<CastWrite> {
+    fn to_attributes(
+        value: Option<&Self>,
+        name: &str,
+        _: &Attributes,
+    ) -> DatabaseResult<CastWrite> {
         let (left, right) = match value {
             Some(value) if !value.left.is_empty() => {
                 (value.left.clone().into(), value.right.clone().into())
@@ -177,12 +181,12 @@ impl CastableObject for FreshCodes {
         Codes::fromAttributes(name, raw).map(|value| value.map(Self))
     }
 
-    fn toAttributes(
+    fn to_attributes(
         value: Option<&Self>,
         name: &str,
         raw: &Attributes,
     ) -> DatabaseResult<CastWrite> {
-        Codes::toAttributes(value.map(|value| &value.0), name, raw)
+        Codes::to_attributes(value.map(|value| &value.0), name, raw)
     }
 
     fn serialize(&self) -> DatabaseResult<Value> {
@@ -705,7 +709,7 @@ async fn verify_collection_projection(db: &Connection, key: &Value) {
         .unwrap();
     let query = || {
         let mut query = CastRecord::queryOn(db);
-        query.whereIn("id", vec![key.clone(), second.getKey().unwrap().clone()]);
+        query.where_in("id", vec![key.clone(), second.getKey().unwrap().clone()]);
         query.orderBy("id", "asc")
     };
     let mut records = query().get().await.unwrap();
@@ -720,7 +724,7 @@ async fn verify_collection_projection(db: &Connection, key: &Value) {
         assert_eq!(record.getHidden(), ["label", "invalid_blob", "number"]);
         assert_eq!(record.getVisible(), ["id", "label", "summary", "number"]);
     }
-    let original = serde_json::from_str::<Json>(&records.toJson().unwrap()).unwrap();
+    let original = serde_json::from_str::<Json>(&records.to_json().unwrap()).unwrap();
     for record in original.as_array().unwrap() {
         assert!(record.get("summary").is_some());
         assert!(record.get("label").is_none());
@@ -735,7 +739,7 @@ async fn verify_collection_projection(db: &Connection, key: &Value) {
     );
     assert!(
         records
-            .toArray()
+            .to_array()
             .unwrap()
             .iter()
             .all(|row| !row.contains_key("summary"))
@@ -744,14 +748,14 @@ async fn verify_collection_projection(db: &Connection, key: &Value) {
     assert!(records.iter().all(|record| record.getAppends().is_empty()));
     assert!(
         records
-            .toArray()
+            .to_array()
             .unwrap()
             .iter()
             .all(|row| !row.contains_key("summary"))
     );
     assert!(
         untouched
-            .toArray()
+            .to_array()
             .unwrap()
             .iter()
             .all(|row| row.contains_key("summary"))
@@ -833,7 +837,7 @@ async fn verify_binary_and_vector_casts(db: &Connection) {
         loaded.getRawOriginal("embedding"),
         Some(&"[0.5,-1.25,3.75]".into())
     );
-    let output = loaded.toArray().unwrap();
+    let output = loaded.to_array().unwrap();
     assert_eq!(output["embedding"], json!([0.5, -1.25, 3.75]));
     assert_eq!(output["embedding_blob"], json!([1.0000108480453491]));
     assert_eq!(output["binary_uuid"], json!(UUID));
@@ -870,7 +874,7 @@ async fn verify_binary_and_vector_casts(db: &Connection) {
     let loaded = query().findOrFail(key.clone()).await.unwrap();
     assert_eq!(loaded.getRawOriginal("binary_uuid"), Some(&Value::Null));
     assert_eq!(
-        loaded.toArray().unwrap()["embedding"],
+        loaded.to_array().unwrap()["embedding"],
         json!([1.0, 2.25, 0.0])
     );
     db.statement(
@@ -940,7 +944,7 @@ async fn verify_json_collection_casts(db: &Connection) {
             .collect::<Vec<_>>(),
         vec![ArrayKey::from("second"), ArrayKey::from("first")]
     );
-    let projected = loaded.toArray().unwrap();
+    let projected = loaded.to_array().unwrap();
     assert_eq!(projected["json_mapped"], json!([{"name":"first"}]));
     assert_eq!(projected["json_callback"], json!({"label":"VALUE"}));
     assert_eq!(
@@ -995,7 +999,7 @@ async fn verify_json_collection_casts(db: &Connection) {
         .unwrap();
     invalid.save().await.unwrap();
     assert_eq!(
-        query().findOrFail(key).await.unwrap().toArray().unwrap()["json_mapped"],
+        query().findOrFail(key).await.unwrap().to_array().unwrap()["json_mapped"],
         json!([{"name":"repaired"}])
     );
 }
@@ -1026,7 +1030,7 @@ async fn verify_factory_casts(db: &Connection) {
         Some(36.into())
     );
     assert_eq!(
-        plain.toArray().unwrap()["factory_value"],
+        plain.to_array().unwrap()["factory_value"],
         json!({"decoded":9})
     );
     assert_eq!(
@@ -1081,7 +1085,7 @@ async fn verify_factory_casts(db: &Connection) {
         .makeVisible(&["factory_inbound"])
         .makeHidden(&["factory_value"]);
     assert_eq!(
-        collection.toArray().unwrap(),
+        collection.to_array().unwrap(),
         vec![
             json!({"factory_inbound":36}).as_object().unwrap().clone(),
             json!({"factory_inbound":36}).as_object().unwrap().clone(),
@@ -1142,7 +1146,7 @@ async fn verify_enum_collections_and_objects(db: &Connection) {
         Some(&r#"{"second":"Published","first":"Draft"}"#.into())
     );
     assert_eq!(model.getRawOriginal("enum_array"), Some(&"[2,1]".into()));
-    let output = model.toArray().unwrap();
+    let output = model.to_array().unwrap();
     assert_eq!(output["enum_array"], json!([2, 1]));
     assert_eq!(
         output["enum_list"],
@@ -1248,14 +1252,14 @@ async fn verify_enum_collections_and_objects(db: &Connection) {
         .unwrap();
     invalid.save().await.unwrap();
     let repaired = query().findOrFail(key).await.unwrap();
-    assert_eq!(repaired.toArray().unwrap()["enum_list"], json!(["Draft"]));
+    assert_eq!(repaired.to_array().unwrap()["enum_list"], json!(["Draft"]));
 }
 
 fn verify_model_projection(mut model: CastRecord) {
     assert_eq!(model.getHidden(), vec!["label", "invalid_blob"]);
     assert!(model.hasAppended("summary"));
     model.makeVisibleIf(false, &["label"]);
-    assert!(!model.toArray().unwrap().contains_key("label"));
+    assert!(!model.to_array().unwrap().contains_key("label"));
     let mut evaluations = 0;
     model.makeVisibleIf(
         |record: &CastRecord| {
@@ -1266,7 +1270,7 @@ fn verify_model_projection(mut model: CastRecord) {
     );
     assert_eq!(evaluations, 1);
     model.makeHiddenIf(false, &["label"]);
-    assert_eq!(model.toArray().unwrap()["label"], json!("WORLD"));
+    assert_eq!(model.to_array().unwrap()["label"], json!("WORLD"));
     model.makeHiddenIf(|_: &CastRecord| true, &["label"]);
     model.setAttribute("invalid_blob", Value::Bytes(vec![0xff]));
     let array = model.attributesToArray().unwrap();
@@ -1289,7 +1293,7 @@ fn verify_model_projection(mut model: CastRecord) {
         ("day", AttributeCast::DateWithFormat("%Y/%m/%d %H:%M %:z")),
         ("missing", AttributeCast::DateWithFormat("%Y/%m/%d")),
     ]);
-    let formatted = model.toArray().unwrap();
+    let formatted = model.to_array().unwrap();
     assert_eq!(formatted["occurred_at"], json!("08:30:00.123456 -04:00"));
     assert_eq!(formatted["day"], json!("2025/06/01 00:00 -04:00"));
     assert!(formatted["missing"].is_null());
@@ -1302,13 +1306,13 @@ fn verify_model_projection(mut model: CastRecord) {
         Some("2025-06-01T12:30:00.123456Z".into())
     );
     model.makeVisible(&["invalid_blob"]);
-    assert!(model.toJson().is_err());
+    assert!(model.to_json().is_err());
     model.makeHidden(&["invalid_blob"]);
-    assert!(model.toJson().is_ok());
+    assert!(model.to_json().is_ok());
     model.mergeCasts([("label", AttributeCast::Custom(&CanonicalCode))]);
     model.setVisible(&["summary"]).makeVisible(&["label"]);
     assert_eq!(
-        serde_json::from_str::<Json>(&model.toJson().unwrap()).unwrap(),
+        serde_json::from_str::<Json>(&model.to_json().unwrap()).unwrap(),
         json!({
             "label": "WORLD",
             "summary": "world"
@@ -1316,14 +1320,14 @@ fn verify_model_projection(mut model: CastRecord) {
     );
     model.withoutAppends();
     assert_eq!(
-        model.toArray().unwrap(),
+        model.to_array().unwrap(),
         json!({"label":"WORLD"}).as_object().unwrap().clone()
     );
     model
         .append(&["summary", "summary"])
         .makeHidden(&["summary"]);
     assert_eq!(model.getAppends(), vec!["summary"]);
-    assert!(!model.toArray().unwrap().contains_key("summary"));
+    assert!(!model.to_array().unwrap().contains_key("summary"));
 }
 
 async fn verify_enum_and_class_casts(db: &Connection) {
@@ -1359,7 +1363,7 @@ async fn verify_enum_and_class_casts(db: &Connection) {
     assert_eq!(loaded.getRawOriginal("left_code"), Some(&"alpha".into()));
     assert_eq!(loaded.getRawOriginal("right_code"), Some(&"beta".into()));
     assert_eq!(loaded.getRawOriginal("code"), Some(&"hello".into()));
-    let json = loaded.toArray().unwrap();
+    let json = loaded.to_array().unwrap();
     assert_eq!(json["code"], json!({"code": "HELLO"}));
     assert_eq!(json["priority"], json!(2));
     assert_eq!(json["status"], json!("Draft"));
@@ -1692,7 +1696,7 @@ async fn verify(db: Connection, mysql: bool) {
     assert!(draft.delete().await.unwrap());
     assert!(draft.state().exists() && draft.trashed());
     assert!(query().find(draft_key.clone()).await.unwrap().is_none());
-    assert_eq!(query().onlyTrashed().get().await.unwrap().len(), 1);
+    assert_eq!(query().only_trashed().get().await.unwrap().len(), 1);
     assert!(draft.restore().await.unwrap());
     assert!(!draft.trashed());
     assert!(query().find(draft_key.clone()).await.unwrap().is_some());
@@ -1700,7 +1704,7 @@ async fn verify(db: Connection, mysql: bool) {
     let mut bulk = query();
     bulk.whereKey(draft_key.clone());
     assert_eq!(bulk.delete().await.unwrap(), 1);
-    let mut bulk = query().onlyTrashed();
+    let mut bulk = query().only_trashed();
     bulk.whereKey(draft_key.clone());
     assert_eq!(bulk.restore().await.unwrap(), 1);
     let mut bulk = query();
@@ -1726,7 +1730,7 @@ async fn verify(db: Connection, mysql: bool) {
     assert!(!draft.state().exists());
     assert!(
         query()
-            .withTrashed()
+            .with_trashed()
             .find(draft_key)
             .await
             .unwrap()

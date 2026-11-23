@@ -10,7 +10,7 @@ use crate::{
 /// Application-facing URL generation and signature validation.
 pub trait UrlGenerator: Send + Sync {
     fn full(&self) -> UrlResult<String>;
-    fn previousPath(&self, fallback: Option<&str>) -> UrlResult<String>;
+    fn previous_path(&self, fallback: Option<&str>) -> UrlResult<String>;
     fn current(&self) -> UrlResult<String>;
     fn previous(&self, fallback: Option<&str>) -> UrlResult<String>;
     fn to(
@@ -35,24 +35,24 @@ pub trait UrlGenerator: Send + Sync {
         secure: Option<bool>,
     ) -> UrlResult<String>;
     fn asset(&self, path: &str, secure: Option<bool>) -> UrlResult<String>;
-    fn signedRoute(
+    fn signed_route(
         &self,
         name: &str,
         parameters: &[RouteParameter],
         expiration: Option<SystemTime>,
         mode: SignatureMode,
     ) -> UrlResult<String>;
-    fn temporarySignedRoute(
+    fn temporary_signed_route(
         &self,
         name: &str,
         expiration: SystemTime,
         parameters: &[RouteParameter],
         mode: SignatureMode,
     ) -> UrlResult<String>;
-    fn hasValidSignature(
+    fn has_valid_signature(
         &self,
         request: &Request,
         mode: SignatureMode,
-        ignoreQuery: SignatureQueryFilter<'_>,
+        ignore_query: SignatureQueryFilter<'_>,
     ) -> UrlResult<bool>;
 }

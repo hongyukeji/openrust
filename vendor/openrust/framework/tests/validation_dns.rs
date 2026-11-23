@@ -32,7 +32,7 @@ fn validator(url: &str, resolver: TokioResolver) -> Validator {
             Default::default(),
         )
         .unwrap();
-    validator.setDnsResolver(resolver);
+    validator.set_dns_resolver(resolver);
     validator
 }
 
@@ -128,7 +128,7 @@ async fn active_url_queries_real_a_aaaa_and_handles_dns_failures_and_instance_is
             .is_ok()
     );
     let mut fake = validator("https://missing.test", resolver.clone());
-    fake.fakeDnsLookups(true);
+    fake.fake_dns_lookups(true);
     assert!(fake.validate().await.is_ok());
     assert!(
         validator("https://missing.test", resolver.clone())
@@ -136,7 +136,7 @@ async fn active_url_queries_real_a_aaaa_and_handles_dns_failures_and_instance_is
             .await
             .is_err()
     );
-    fake.fakeDnsLookups(false);
+    fake.fake_dns_lookups(false);
     assert!(fake.validate().await.is_err());
     let mut cancelled = validator("https://timeout.test", resolver.clone());
     assert!(

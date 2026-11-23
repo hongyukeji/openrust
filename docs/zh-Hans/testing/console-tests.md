@@ -11,12 +11,12 @@ use openrust::testing::TestApp;
 async fn reports_command_success_and_failure() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut test = TestApp::create(|builder| builder)?;
     let help = test.artisan(["help", "env"]).await;
-    help.assertSuccessful();
+    help.assert_successful();
     assert!(help.stdout.contains("env"));
     assert!(help.stderr.is_empty());
 
     let missing = test.artisan(["example:missing"]).await;
-    missing.assertExitCode(1);
+    missing.assert_exit_code(1);
     assert!(missing.stdout.is_empty());
     assert!(missing.stderr.contains("example:missing"));
     Ok(())
@@ -25,4 +25,4 @@ async fn reports_command_success_and_failure() -> Result<(), Box<dyn std::error:
 
 ## 检查命令输出
 
-使用 `assertSuccessful` 验证退出码 0，使用 `assertExitCode` 验证指定退出码，使用 `expectsOutput` 检查标准输出中的完整一行。需要检查命令直接写入进程的输出时，通过子进程运行。
+使用 `assert_successful` 验证退出码 0，使用 `assert_exit_code` 验证指定退出码，使用 `expects_output` 检查标准输出中的完整一行。需要检查命令直接写入进程的输出时，通过子进程运行。

@@ -155,7 +155,7 @@ async fn persistence_atomicity_identity_concurrency_pagination_and_retention() {
             .inLog("accounts")
             .forEvent("updated")
             .causedBy(&Subject::new("user", "42").unwrap())
-            .forRequest("request-123")
+            .for_request("request-123")
             .get()
             .await
             .unwrap()

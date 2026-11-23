@@ -28,7 +28,7 @@ impl CastableObject for Uri {
         }
     }
 
-    fn toAttributes(value: Option<&Self>, _: &str, _: &Attributes) -> DatabaseResult<CastWrite> {
+    fn to_attributes(value: Option<&Self>, _: &str, _: &Attributes) -> DatabaseResult<CastWrite> {
         Ok(CastWrite::Value(value.map_or(Value::Null, |text| {
             Value::Text(text.value().to_owned())
         })))

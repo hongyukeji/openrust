@@ -192,7 +192,7 @@ async fn transport_waits_for_stream_body_drop_and_flushes_on_disconnect() {
     let (kernel, events) = kernel().await;
     let kernel = Arc::new(kernel);
     let response = kernel
-        .handleTransport(
+        .handle_transport(
             http::Request::builder()
                 .uri("/stream")
                 .body(axum::body::Body::empty())

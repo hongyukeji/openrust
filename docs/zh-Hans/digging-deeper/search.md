@@ -72,7 +72,7 @@ let page = Article::searchOn(&db, "openrust")
     .await?;
 ```
 
-在应用内用 `Article::search(term)?` 解析模型连接。用 `withTrashed` 或 `onlyTrashed` 调整软删除过滤。空搜索词保留模型的常规过滤。数据库在写事务中维护索引。
+在应用内用 `Article::search(term)?` 解析模型连接。用 `with_trashed` 或 `only_trashed` 调整软删除过滤。空搜索词保留模型的常规过滤。数据库在写事务中维护索引。
 
 PostgreSQL 模型有全文列且未明确指定排序时，先按 `ts_rank` 排序，分数相同时按主键降序。排序在分页前生效。可用模型的 `fullTextOptions()` 调整默认全文设置。
 

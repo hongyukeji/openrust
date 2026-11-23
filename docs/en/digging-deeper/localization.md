@@ -140,8 +140,8 @@ let redirect = match request.post(Some("redirect")).await? {
     Some(serde_json::Value::String(path)) => path,
     _ => return Err(HttpError::InvalidRequest),
 };
-let target = SetLocale::urlWithoutLocale(request, &redirect)?;
-SetLocale::storePreferenceFromRequest(request, "locale").await?;
+let target = SetLocale::url_without_locale(request, &redirect)?;
+SetLocale::store_preference_from_request(request, "locale").await?;
 Ok(Redirect::to(&target, RedirectOptions {
     status: StatusCode::SEE_OTHER,
     ..Default::default()
@@ -150,14 +150,14 @@ Ok(Redirect::to(&target, RedirectOptions {
 
 The welcome form submits the current page path in the body field `redirect`. Another page can send `/account?tab=profile` to return there after saving. Missing, null or empty `redirect` falls back to `/`; other types and non-local targets return 400 before a preference is written. Query parameters do not supply this field. This is an application form convention, not a new middleware configuration.
 
-A missing preference field, or a number, boolean, array or object as its value, returns HTTP 400. JSON `null` or an empty string clears the preference; a nonempty string uses the existing BCP 47 and candidate validation. Query parameters never supply the body field. It reads values after the existing input middleware; default trimming and empty-string conversion can turn whitespace into a clear operation. The method neither changes the current request language nor bypasses method, Cookie-pipeline or CSRF checks. The lower-level `storePreference(request, Some("zh-Hans"))` and `storePreference(request, None)` remain available for already validated values.
+A missing preference field, or a number, boolean, array or object as its value, returns HTTP 400. JSON `null` or an empty string clears the preference; a nonempty string uses the existing BCP 47 and candidate validation. Query parameters never supply the body field. It reads values after the existing input middleware; default trimming and empty-string conversion can turn whitespace into a clear operation. The method neither changes the current request language nor bypasses method, Cookie-pipeline or CSRF checks. The lower-level `store_preference(request, Some("zh-Hans"))` and `store_preference(request, None)` remain available for already validated values.
 
-`urlWithoutLocale(request, "/")` generates the application-specified return target, not the save endpoint. It removes the active language query key from the target and request, preserves other values and encoding, and uses the existing URL generator for trusted proxy subpaths. Request values override other target query values. Only local paths beginning with a single `/` are accepted; external or protocol-relative URLs and backslashes are rejected. It only returns a URL and does not store a preference or create a response. Import `SetLocale`, `Redirect`, `RedirectOptions` and `StatusCode` for the page example.
+`url_without_locale(request, "/")` generates the application-specified return target, not the save endpoint. It removes the active language query key from the target and request, preserves other values and encoding, and uses the existing URL generator for trusted proxy subpaths. Request values override other target query values. Only local paths beginning with a single `/` are accepted; external or protocol-relative URLs and backslashes are rejected. It only returns a URL and does not store a preference or create a response. Import `SetLocale`, `Redirect`, `RedirectOptions` and `StatusCode` for the page example.
 
 A controller using the same protected Cookie pipeline can instead accept a field named `language` and return 204 (or its own JSON response):
 
 ```rust
-SetLocale::storePreferenceFromRequest(request, "language").await?;
+SetLocale::store_preference_from_request(request, "language").await?;
 Ok(Response::empty(StatusCode::NO_CONTENT))
 ```
 
@@ -175,7 +175,7 @@ Independent frontends and mobile clients store their own fixed selection. In aut
 
 A same-origin stateful browser API can use the same preference only when its route pipeline includes Cookie decryption and queuing before SetLocale. The built-in stateful API wrapper provides this for trusted frontend origins; ordinary API calls remain stateless. The same callback → URL → Cookie → header priority then applies. Keep CSRF protection on write endpoints. Returning JSON alone does not enable browser preferences.
 
-For cross-device preferences, store a locale in your application's account settings and return that trusted, validated candidate from an instance `localeUsing` callback placed after authentication. Return `None` when the account has no setting, allowing Cookie and browser fallback. No framework user-model field or account table is required or created. See [Custom locale selection](#custom-locale-selection) for disabling the default instance and placing the same middleware after its dependencies.
+For cross-device preferences, store a locale in your application's account settings and return that trusted, validated candidate from an instance `locale_using` callback placed after authentication. Return `None` when the account has no setting, allowing Cookie and browser fallback. No framework user-model field or account table is required or created. See [Custom locale selection](#custom-locale-selection) for disabling the default instance and placing the same middleware after its dependencies.
 
 ### Language Preference Header {#locale-header}
 
@@ -187,9 +187,9 @@ Accept-Language: zh-Hans
 
 In `config/app.rs`, `"locale_header": get(env, "APP_LOCALE_HEADER", "Accept-Language")?` selects the application negotiation header. Set `APP_LOCALE_HEADER=X-Language` to read only that header, with case-insensitive HTTP header names; when absent, it does not retry `Accept-Language`. Values keep the same BCP 47 validation, weights, repeated-header merging and candidate matching. Missing configuration uses `Accept-Language`; JSON `null` disables only header negotiation. Environment values are strings: `APP_LOCALE_HEADER=null` names the header `null`, rather than disabling negotiation. To disable it, set JSON `null` in application configuration. Empty or invalid names and non-string values are configuration errors (HTTP 500), even when a callback or URL selects the language. An empty candidate list still disables the entire middleware.
 
-Selection order is `localeUsing` returning `Some` → configured URL parameter → protected preference Cookie → configured header → application default and candidate fallback. `None` continues to the next source. Configuration uses the existing repository and configuration cache; changing the source or environment does not override an already loaded cache. Rebuild the configuration cache after changing `APP_LOCALE_HEADER`. Both header negotiation and URL language selection are configurable.
+Selection order is `locale_using` returning `Some` → configured URL parameter → protected preference Cookie → configured header → application default and candidate fallback. `None` continues to the next source. Configuration uses the existing repository and configuration cache; changing the source or environment does not override an already loaded cache. Rebuild the configuration cache after changing `APP_LOCALE_HEADER`. Both header negotiation and URL language selection are configurable.
 
-`Request::getLanguages` and `getPreferredLanguage` always describe `Accept-Language`, regardless of this application setting. Only text using translation resources changes with the locale. Enabled header negotiation adds the configured header name to `Vary`, preserving existing values and `*`; `null` adds no language-header entry and keeps URL switching, callbacks and `Content-Language`. Cookie or user-based callbacks still need an appropriate private-cache policy and any additional `Vary` fields.
+`Request::get_languages` and `get_preferred_language` always describe `Accept-Language`, regardless of this application setting. Only text using translation resources changes with the locale. Enabled header negotiation adds the configured header name to `Vary`, preserving existing values and `*`; `null` adds no language-header entry and keeps URL switching, callbacks and `Content-Language`. Cookie or user-based callbacks still need an appropriate private-cache policy and any additional `Vary` fields.
 
 Use `App::current_locale()?` in business code, controllers and pages to read the actual application locale; request preferences can differ after URL, stored-preference callbacks or downstream `App::set_locale` selection. For example, with `APP_LOCALE_HEADER=X-Language`, `Accept-Language: en` and `X-Language: zh-Hant`, Request reports English preferences while App and translated content use Traditional Chinese. With SetLocale disabled, this configuration alone performs no negotiation.
 
@@ -197,11 +197,11 @@ Use `App::current_locale()?` in business code, controllers and pages to read the
 
 For a custom negotiation header, use the existing `APP_LOCALE_HEADER=X-Locale`; leave it unset to negotiate `Accept-Language`. The header is checked after URL and protected Cookie preferences. A configured custom header missing from a request falls back to the application default or first candidate, without retrying `Accept-Language`. This differs from a first-priority callback. Configure ordinary candidate lists above; reserve callbacks for business rules such as user or tenant preferences.
 
-Use `localeUsing` to configure a synchronous callback on the current application's middleware instance. For example, prefer an explicit request header and continue with URL selection, the protected preference Cookie and header negotiation when it is absent:
+Use `locale_using` to configure a synchronous callback on the current application's middleware instance. For example, prefer an explicit request header and continue with URL selection, the protected preference Cookie and header negotiation when it is absent:
 
 ```rust
 .with_middleware(|middleware| {
-    middleware.localeUsing(|request| {
+    middleware.locale_using(|request| {
         Ok(request.header("X-Locale")?.map(str::to_owned))
     });
 })
@@ -213,7 +213,7 @@ The callback returns `Result<Option<String>, HttpError>`:
 - `Ok(None)` tries the configured URL parameter first, then the protected preference Cookie and existing browser negotiation and supported application default or first candidate.
 - `Err(error)` passes the original error to the existing exception handler and stops downstream execution. Invalid or unsupported selections are internal errors; validate untrusted user input in the callback and return an appropriate HTTP error if needed. Selection failures do not switch locale or emit `LocaleUpdated`.
 
-Without a callback, behavior stays unchanged. Candidate and callback configuration are independent and can be called in either order. Invalid candidate updates preserve both previous settings; the last callback replaces the previous callback. Empty candidates disable the entire instance, including callback execution, events and header handling. The callback remains stored for re-enabling candidates. Route instances expose the same `set_locale` and `localeUsing` methods; callbacks and candidate changes belong to that instance, never a process-wide registry. The callback itself must also avoid shared mutable user state.
+Without a callback, behavior stays unchanged. Candidate and callback configuration are independent and can be called in either order. Invalid candidate updates preserve both previous settings; the last callback replaces the previous callback. Empty candidates disable the entire instance, including callback execution, events and header handling. The callback remains stored for re-enabling candidates. Route instances expose the same `set_locale` and `locale_using` methods; callbacks and candidate changes belong to that instance, never a process-wide registry. The callback itself must also avoid shared mutable user state.
 
 The default instance runs in the resolved route pipeline, after direct Cookie decryption/queue middleware and before ordinary Web Session and authentication. With the stateful API wrapper it runs inside that wrapper, after its Cookie/Session protection. Routes without these dependencies remain stateless. Unmatched error pages and public static responses still use header/URL selection without Web storage. A callback can read headers and information already prepared at that point; it cannot access dependencies provided later. For Session rules, first call `middleware.set_locale(&[]).expect("语言标签有效")` in `with_middleware`. Then register the same middleware in `routes/web.rs`, after the default `web` group has loaded Session:
 
@@ -229,7 +229,7 @@ use openrust::{
 pub fn register() -> Result<(), RoutingError> {
     let mut locale = SetLocale::new(&["en", "zh-Hans", "zh-Hant"])
         .expect("语言标签有效");
-    locale.localeUsing(|request| {
+    locale.locale_using(|request| {
         Ok(request.session()?.get("locale")
             .and_then(|value| value.as_str().map(str::to_owned)))
     });
@@ -493,7 +493,7 @@ Production confirmations and cancellation messages use the same translation grou
 
 ## Locale contract methods
 
-The Translator contract, concrete translator, and Lang facade expose `get_locale`, `set_locale`, `getFallback`, and `setFallback`. Boot-time changes configure application defaults; request/queue changes stay in the current scope. Nested `withLocale` restores its caller’s locale; fallback is set separately. Migrate old snake_case contract calls to these names.
+The Translator contract, concrete translator, and Lang facade expose `get_locale`, `set_locale`, `getFallback`, and `set_fallback`. Boot-time changes configure application defaults; request/queue changes stay in the current scope. Nested `withLocale` restores its caller’s locale; fallback is set separately. Migrate old snake_case contract calls to these names.
 
 ## Locale Ownership
 

@@ -211,7 +211,7 @@ pub async fn count_visit_quietly<M: Model>(model: &mut M) -> DatabaseResult<u64>
 
 ## 删除模型
 
-使用 `softDeletes("deleted_at")` 启用软删除。模型查询默认排除软删除记录，可用 `withTrashed` 或 `onlyTrashed` 查询它们，用 `restore` 清除删除时间，用 `forceDelete` 永久删除。
+使用 `softDeletes("deleted_at")` 启用软删除。模型查询默认排除软删除记录，可用 `with_trashed` 或 `only_trashed` 查询它们，用 `restore` 清除删除时间，用 `forceDelete` 永久删除。
 
 ## 复制模型 {#replicating-models}
 
@@ -243,7 +243,7 @@ async fn copy_without_secret<M: Model>(source: &M) -> DatabaseResult<M> {
 
 `withGlobalScope(name, scope)` 为当前查询注册或替换作用域，接收 `Scope<M>` 实现或返回 `DatabaseResult<()>` 的 `Send + Sync + 'static` 闭包。作用域的 `extend` 钩子在注册时执行，`apply` 在应用作用域时执行。`withoutGlobalScopes()` 移除当前已注册的作用域，之后重新注册的仍会生效；`withoutGlobalScopesExcept(&["tenant"])` 仅保留指定名称。`removedScopes()` 保留移除调用的顺序和重复名称。注册表属于当前查询，不会改变其他查询或模型类型。
 
-软删除使用同一注册表。移除其他作用域时需要保留软删除过滤，可导入 `eloquent::SoftDeletingScope` 并将 `std::any::type_name::<SoftDeletingScope>()` 加入保留名单。`onlyTrashed()` 或 `withoutTrashed()` 显式添加的条件不会因移除全部已注册作用域而消失。
+软删除使用同一注册表。移除其他作用域时需要保留软删除过滤，可导入 `eloquent::SoftDeletingScope` 并将 `std::any::type_name::<SoftDeletingScope>()` 加入保留名单。`only_trashed()` 或 `without_trashed()` 显式添加的条件不会因移除全部已注册作用域而消失。
 
 `applyScopes()` 消费模型查询构造器并返回已应用作用域的构造器，重复调用会再次应用当前注册项。`getQuery()` 消费模型查询构造器并返回当前底层查询，不自动应用尚未执行的作用域；需要这些约束时调用 `applyScopes()?.getQuery()`。`setQuery(query)` 替换底层查询及其旧条件，保留模型作用域与预加载配置。`getEagerLoads()` 借用类型化的 `EagerLoads<M>`，可用 `names()` 读取关系名称；`setEagerLoads(loads)` 替换配置，也可设置为空。覆盖 `Model::newEloquentBuilder(query)` 并用 `Builder::fromQuery(query)` 构造，可定制公开模型查询使用的构造器。工厂返回框架的类型化 Builder，额外业务方法使用 Rust trait 或包装类型扩展，不使用运行期类名。
 

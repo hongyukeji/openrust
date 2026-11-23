@@ -43,14 +43,14 @@ impl<T: Model + MustVerifyEmail> Account for TypedAccount<T> {
         }
     }
     fn email(&self) -> &str {
-        self.0.getEmailForVerification()
+        self.0.get_email_for_verification()
     }
     fn verify(&mut self) -> HttpFuture<'_, Result<(), HttpError>> {
         Box::pin(async move {
-            if !self.0.hasVerifiedEmail() && self.0.markEmailAsVerified().await? {
+            if !self.0.has_verified_email() && self.0.mark_email_as_verified().await? {
                 crate::actions::emit(
                     openrust::auth::events::Verified {
-                        user: self.0.getAuthIdentifier(),
+                        user: self.0.get_auth_identifier(),
                     },
                     &[],
                 )

@@ -44,7 +44,7 @@ fn fixed_php_scope_json_matches_options_unicode_slashes_and_numeric_strings() {
             "{case}"
         );
         if case["options"] == 0 {
-            assert_eq!(scope.toJson().unwrap(), case["expected"]);
+            assert_eq!(scope.to_json().unwrap(), case["expected"]);
         }
     }
 }
@@ -180,7 +180,7 @@ async fn fixed_php_secret_coercion_failure_order_and_hash_input_run_over_http() 
     let address = listener.local_addr().unwrap();
     let kernel = Arc::new(kernel);
     let router = axum::Router::new()
-        .fallback(move |request: axum::extract::Request| kernel.clone().handleTransport(request));
+        .fallback(move |request: axum::extract::Request| kernel.clone().handle_transport(request));
     let server = tokio::spawn(async move {
         axum::serve(listener, router).await.unwrap();
     });

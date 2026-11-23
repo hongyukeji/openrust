@@ -29,7 +29,7 @@ The same client ID, client secret and redirect settings apply to these additiona
 
 `x` uses `X_CLIENT_ID`, `X_CLIENT_SECRET` and `X_REDIRECT_URI`. `twitter` uses the equivalent `TWITTER_` variables; set `TWITTER_OAUTH=2` to select OAuth2. The default value 1 selects Twitter OAuth1. Only the integer 2 selects OAuth2; string `"2"` retains the OAuth1 selection. The explicit `twitter-oauth-2` driver reads `services.twitter`, falling back to `services.twitter-oauth-2` only when the first object is null/missing. `x` similarly falls back from `services.x` to `services.x-oauth-2`; a present incomplete object fails instead of silently using fallback credentials.
 
-`google` reads `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and `GOOGLE_REDIRECT_URI`, with default scopes `openid profile email`. Ordinary access tokens call Google UserInfo with `prettyPrint=false` and Bearer authentication. Refresh keeps the supplied refresh token only when the response omits that field; an explicit null or rotated value is retained.
+`google` reads `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and `GOOGLE_REDIRECT_URI`, with default scopes `openid profile email`. Ordinary access tokens call Google UserInfo with `pretty_print=false` and Bearer authentication. Refresh keeps the supplied refresh token only when the response omits that field; an explicit null or rotated value is retained.
 
 `facebook` uses `FACEBOOK_CLIENT_ID`, `FACEBOOK_CLIENT_SECRET` and `FACEBOOK_REDIRECT_URI`, with the default `email` scope and pinned Graph version `v23.0`. `provider.usingGraphVersion("v99.0")` changes this request’s authorization/token/profile paths. `fields(vec!["id".into(), "name".into()])` replaces the Graph fields; `asPopup()` and `reRequest()` override the corresponding optional authorization parameters. Graph requests send `access_token`, fields and an HMAC-SHA256 `appsecret_proof` when the client secret is nonempty and not `"0"`. Code exchange leaves Accept unspecified, and preserves `expires` while filling a missing/null `expires_in` without overwriting an existing value.
 
@@ -103,7 +103,7 @@ pub fn callback(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
             .map_err(|_| HttpError::InvalidRequest)?
             .user().await.map_err(|_| HttpError::InvalidRequest)?;
         Response::json(StatusCode::OK, serde_json::json!({
-            "id": user.getId(), "name": user.getName(), "email": user.getEmail(),
+            "id": user.get_id(), "name": user.get_name(), "email": user.getEmail(),
         }))
     })
 }
@@ -135,7 +135,7 @@ X/Twitter OAuth2 enables PKCE by default on both redirect and callback, so it ne
 
 ## Retrieving User Details {#retrieving-user-details}
 
-The user exposes `getId`, `getNickname`, `getName`, `getEmail`, `getAvatar`, `getRaw` and mapped `attributes` such as GitHub `nodeId`. The provider ID retains its JSON number/string type. `userFromToken(token)` retrieves a profile using an existing token. `refreshToken(token)` exchanges a refresh token. Credentials are explicit in `user.credentials`: `token`, `refreshToken`, `expiresIn` and `approvedScopes`; token strings use `Zeroizing<String>` and are not automatically serialized or printed by Debug. A remote access token is not a Passport or Sanctum credential.
+The user exposes `get_id`, `getNickname`, `get_name`, `getEmail`, `getAvatar`, `getRaw` and mapped `attributes` such as GitHub `nodeId`. The provider ID retains its JSON number/string type. `userFromToken(token)` retrieves a profile using an existing token. `refreshToken(token)` exchanges a refresh token. Credentials are explicit in `user.credentials`: `token`, `refreshToken`, `expiresIn` and `approvedScopes`; token strings use `Zeroizing<String>` and are not automatically serialized or printed by Debug. A remote access token is not a Passport or Sanctum credential.
 
 Legacy LinkedIn adds `first_name`, `last_name` and `avatar_original`, using the preferred locale and exact 100/800-pixel image selection from upstream. LinkedIn OpenID adds given/family names, `email_verified` and the original picture. Slack variants expose `organization_id`. The `linkedin-openid` and `slack-openid` drivers use the access token at fixed UserInfo endpoints, as in the pinned package; they do not validate ID Tokens, perform Discovery or implement a full OIDC RP. Use the [OIDC package](oidc.md) for those features.
 
@@ -182,7 +182,7 @@ pub async fn login_bound_user(
     namespace: &str,
     remote: &User,
 ) -> Result<bool, HttpError> {
-    let subject = match remote.getId() {
+    let subject = match remote.get_id() {
         serde_json::Value::String(id) if !id.is_empty() => id.clone(),
         serde_json::Value::Number(id) if id.is_i64() || id.is_u64() => id.to_string(),
         _ => return Ok(false),
@@ -203,9 +203,9 @@ pub async fn login_bound_user(
     let id = AuthIdentifier::try_from(binding.get("user_id").ok_or(HttpError::InvalidRequest)?)
         .map_err(internal)?;
     {
-        let mut guard = Auth::sessionGuard(request, Some("web")).map_err(internal)?;
+        let mut guard = Auth::session_guard(request, Some("web")).map_err(internal)?;
         if guard
-            .loginUsingId(&id, false)
+            .login_using_id(&id, false)
             .await
             .map_err(internal)?
             .is_none()
@@ -213,19 +213,19 @@ pub async fn login_bound_user(
             return Ok(false);
         }
     }
-    request.session_mut()?.regenerateToken()?;
+    request.session_mut()?.regenerate_token()?;
     Ok(true)
 }
 ```
 
-For multiple providers, store the selected namespace at redirect and consume/check it before calling the callback provider. Register fixed routes for each provider and keep the callback namespace under application control. Preserve the normal state check; never accept a callback-supplied local user ID. Handle local logout through a CSRF-protected POST route using `Auth::sessionGuard(request, Some("web"))?.logoutAndInvalidate().await?`. Local logout ends this application's Session; provider token revocation and federated logout have separate provider contracts.
+For multiple providers, store the selected namespace at redirect and consume/check it before calling the callback provider. Register fixed routes for each provider and keep the callback namespace under application control. Preserve the normal state check; never accept a callback-supplied local user ID. Handle local logout through a CSRF-protected POST route using `Auth::session_guard(request, Some("web"))?.logout_and_invalidate().await?`. Local logout ends this application's Session; provider token revocation and federated logout have separate provider contracts.
 
 
 ## Testing {#testing}
 
 Use a controlled HTTP provider with `GithubProvider::withEndpoints` and application-local `manager.extend("github", Arc::new(provider))`. It customizes authorization/token/profile/email URLs while retaining the driver behavior. `ProviderDefinition` supports compiled protocol customization. `facades::Socialite::driver` / `contracts::Factory`, `Provider` and `User` expose the public contracts.
 
-Socialite requests use the shared client’s explicit `redactPayload()` mode: observers and recordings retain status and route but omit query, authorization, request body, response body and response headers. The actual network request and returned response remain complete. Provider status and malformed-response errors do not print response credentials.
+Socialite requests use the shared client’s explicit `redact_payload()` mode: observers and recordings retain status and route but omit query, authorization, request body, response body and response headers. The actual network request and returned response remain complete. Provider status and malformed-response errors do not print response credentials.
 
 `ProviderEndpoints::new(authorize, token, user).email(email)` supplies explicit endpoint overrides to the new drivers’ `withEndpoints` constructors.
 

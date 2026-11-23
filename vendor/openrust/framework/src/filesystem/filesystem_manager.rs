@@ -48,7 +48,7 @@ impl FilesystemManager {
         let name = match name.filter(|name| !name.is_empty()) {
             Some(name) => name,
             None => {
-                default = self.getDefaultDriver()?;
+                default = self.get_default_driver()?;
                 &default
             }
         };
@@ -102,7 +102,7 @@ impl FilesystemManager {
         Ok(disk)
     }
 
-    pub fn getDefaultDriver(&self) -> FilesystemResult<String> {
+    pub fn get_default_driver(&self) -> FilesystemResult<String> {
         match self.config.get("filesystems.default") {
             Some(serde_json::Value::String(name)) if !name.is_empty() => Ok(name),
             _ => Err(FilesystemError::InvalidConfiguration),

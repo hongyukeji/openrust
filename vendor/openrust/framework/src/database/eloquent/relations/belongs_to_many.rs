@@ -709,7 +709,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
                 .unconstrained_relation_query(),
         );
         let query = if lookup.include_trashed {
-            query.withTrashed()
+            query.with_trashed()
         } else {
             query
         };
@@ -1367,7 +1367,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
                                 let mut query = constraints
                                     .apply(pivot.for_owner(transaction.table(pivot.table), &owner));
                                 if let Some(keys) = keys {
-                                    query = query.whereIn(pivot.related, keys);
+                                    query = query.where_in(pivot.related, keys);
                                 }
                                 let removed = if let Some(custom) = custom {
                                     let rows = query.lockForUpdate().get().await?;
@@ -1409,7 +1409,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
                 .apply(self.pivot.for_owner(query, owner));
             if let Some(keys) = keys {
                 let keys = key_map(keys.iter().cloned())?;
-                query = query.whereIn(self.pivot.related, keys.into_values().collect());
+                query = query.where_in(self.pivot.related, keys.into_values().collect());
             }
             query.delete().await
         })
@@ -1636,7 +1636,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
             .is_some_and(|source| !connection.same_query_source(source))
             || P::metadata()
                 .connection
-                .is_some_and(|name| name != connection.getName())
+                .is_some_and(|name| name != connection.get_name())
         {
             return Err(DatabaseError::InvalidQuery(
                 "pivot parent touch requires one connection",
@@ -2119,7 +2119,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
                 if let Some(lookup) = lookup {
                     query = lookup.selection.apply(query);
                     if lookup.include_trashed {
-                        query = query.withTrashed();
+                        query = query.with_trashed();
                     }
                     if lookup.use_writer {
                         query = query.useWritePdo();
@@ -2534,7 +2534,7 @@ async fn sync_custom_pivot(
     } = sync;
     let query = constraints.apply(pivot.for_owner(transaction.table(pivot.table), &owner));
     let rows = if matches!(operation, PivotOperation::Toggle) {
-        query.whereIn(
+        query.where_in(
             pivot.related,
             desired.values().map(|(key, _)| key.clone()).collect(),
         )
@@ -2597,7 +2597,7 @@ async fn sync_pivot(
         &owner,
     ));
     let query = if matches!(operation, PivotOperation::Toggle) {
-        query.whereIn(
+        query.where_in(
             pivot.related,
             desired.values().map(|(key, _)| key.clone()).collect(),
         )
@@ -2619,7 +2619,7 @@ async fn sync_pivot(
         let query = transaction.table(pivot.table);
         constraints
             .apply(pivot.for_owner(query, &owner))
-            .whereIn(pivot.related, keys.to_vec())
+            .where_in(pivot.related, keys.to_vec())
             .delete()
             .await?;
     }
@@ -2652,7 +2652,7 @@ async fn sync_pivot(
             let affected = constraints
                 .apply(pivot.for_owner(query, &owner))
                 .r#where(pivot.related, "=", key.clone())
-                .whereNot(|conditions| {
+                .where_not(|conditions| {
                     attributes
                         .iter()
                         .fold(conditions, |conditions, (column, value)| {
@@ -2707,7 +2707,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
             .pivot_constraints
             .apply(self.pivot.restrict_type(query, true));
         Ok(match target_keys {
-            Some(keys) => query.whereIn(&target_key, keys),
+            Some(keys) => query.where_in(&target_key, keys),
             None => query,
         })
     }

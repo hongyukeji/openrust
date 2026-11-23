@@ -211,7 +211,7 @@ impl Client {
         url.set_query(Some(&query));
         response(
             request()?
-                .withHeaders(signed_headers(&headers, &authorization)?)
+                .with_headers(signed_headers(&headers, &authorization)?)
                 .send(http::Method::POST, url.as_str())
                 .await,
         )

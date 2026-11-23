@@ -31,20 +31,20 @@ impl<M: Model + Authenticatable> EloquentUserProvider<M> {
         Self {
             connection,
             hasher,
-            identifier: prototype.getAuthIdentifierName().into(),
-            password: prototype.getAuthPasswordName().into(),
-            remember: prototype.getRememberTokenName().into(),
+            identifier: prototype.get_auth_identifier_name().into(),
+            password: prototype.get_auth_password_name().into(),
+            remember: prototype.get_remember_token_name().into(),
             model: PhantomData,
         }
     }
 }
 
 impl<M: Model + Authenticatable> UserProvider for EloquentUserProvider<M> {
-    fn getModel(&self) -> Option<std::any::TypeId> {
+    fn get_model(&self) -> Option<std::any::TypeId> {
         Some(std::any::TypeId::of::<M>())
     }
 
-    fn retrieveById<'a>(
+    fn retrieve_by_id<'a>(
         &'a self,
         id: &'a AuthIdentifier,
     ) -> AuthFuture<'a, AuthResult<Option<Box<dyn Authenticatable>>>> {
@@ -53,19 +53,19 @@ impl<M: Model + Authenticatable> UserProvider for EloquentUserProvider<M> {
             query.r#where(&self.identifier, "=", Value::from(id.clone()));
             let user = query.first().await?;
             Ok(user
-                .filter(|user| providers::same_identity(id, &user.getAuthIdentifier()))
+                .filter(|user| providers::same_identity(id, &user.get_auth_identifier()))
                 .map(erase))
         })
     }
 
-    fn retrieveByToken<'a>(
+    fn retrieve_by_token<'a>(
         &'a self,
         id: &'a AuthIdentifier,
         token: &'a str,
     ) -> AuthFuture<'a, AuthResult<Option<Box<dyn Authenticatable>>>> {
         Box::pin(async move {
             Ok(self
-                .retrieveById(id)
+                .retrieve_by_id(id)
                 .await?
                 .filter(|user| providers::matches_token(user.as_ref(), token)))
         })
@@ -87,7 +87,7 @@ impl<M: Model + Authenticatable> UserProvider for EloquentUserProvider<M> {
         })
     }
 
-    fn updateRememberToken<'a>(
+    fn update_remember_token<'a>(
         &'a self,
         user: &'a mut dyn Authenticatable,
         token: &'a str,
@@ -98,7 +98,7 @@ impl<M: Model + Authenticatable> UserProvider for EloquentUserProvider<M> {
         })
     }
 
-    fn retrieveByCredentials<'a>(
+    fn retrieve_by_credentials<'a>(
         &'a self,
         credentials: &'a Credentials,
     ) -> AuthFuture<'a, AuthResult<Option<Box<dyn Authenticatable>>>> {
@@ -118,7 +118,7 @@ impl<M: Model + Authenticatable> UserProvider for EloquentUserProvider<M> {
         })
     }
 
-    fn validateCredentials<'a>(
+    fn validate_credentials<'a>(
         &'a self,
         user: &'a dyn Authenticatable,
         credentials: &'a Credentials,
@@ -126,7 +126,7 @@ impl<M: Model + Authenticatable> UserProvider for EloquentUserProvider<M> {
         Box::pin(providers::validate(self.hasher.as_ref(), user, credentials))
     }
 
-    fn rehashPasswordIfRequired<'a>(
+    fn rehash_password_if_required<'a>(
         &'a self,
         user: &'a mut dyn Authenticatable,
         credentials: &'a Credentials,

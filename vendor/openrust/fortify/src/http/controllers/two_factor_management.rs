@@ -37,7 +37,7 @@ async fn mutate(request: &mut Request, mutation: Mutation<'_>) -> Result<(), Htt
             .map_err(internal)?
             .forget(&["two_factor_confirming_at"]);
     }
-    Auth::sessionGuard(request, fortify.guard().as_deref())?.set_user(user.into_user());
+    Auth::session_guard(request, fortify.guard().as_deref())?.set_user(user.into_user());
     Ok(())
 }
 pub struct TwoFactorAuthenticationController;

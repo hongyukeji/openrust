@@ -136,7 +136,7 @@ let message = MailMessage::new()
 
 ### 预览通知邮件 {#previewing-mail-notifications}
 
-用 `render().await` 获取正文，或在路由里返回 `toResponse().await`。响应会按所选视图返回 HTML 或纯文本。预览只渲染模板，不发送邮件、读取普通附件或执行消息定制回调。
+用 `render().await` 获取正文，或在路由里返回 `to_response().await`。响应会按所选视图返回 HTML 或纯文本。预览只渲染模板，不发送邮件、读取普通附件或执行消息定制回调。
 
 ```rust
 use openrust::{mail::Mailable, notifications::messages::MailMessage};
@@ -146,7 +146,7 @@ let mail = MailMessage::new()
     .theme("billing")
     .priority(2);
 
-let response = mail.toResponse().await?;
+let response = mail.to_response().await?;
 ```
 
 ### 邮件优先级 {#mail-priority}
@@ -247,7 +247,7 @@ fn review_message() -> NotificationResult<SlackMessage> {
 }
 ```
 
-重复的静态选项键会覆盖已有选项，位置保持原样。`initialOption` 按原始键查找，遇到未知键会返回错误。发送给 Slack 的选项值会转为规范小写形式。`focus(false)` 会发送明确的 false 值。投递前可用 `toArray` 检查类型化消息。
+重复的静态选项键会覆盖已有选项，位置保持原样。`initialOption` 按原始键查找，遇到未知键会返回错误。发送给 Slack 的选项值会转为规范小写形式。`focus(false)` 会发送明确的 false 值。投递前可用 `to_array` 检查类型化消息。
 
 ### 标题、分隔线与图片 {#slack-block-kit-visual-blocks}
 

@@ -20,9 +20,9 @@ async fn application_action_input_retains_nested_uploads_and_scalar_validation()
         .unwrap();
     let (parts, body) = raw.into_parts();
     let mut request = Request::from_parts(parts, body);
-    let native = Data::fromRequest(&mut request).await.unwrap();
+    let native = Data::from_request(&mut request).await.unwrap();
     let values = request.all().await.unwrap();
-    let actions = Data::fromRequestValue(&values).unwrap();
+    let actions = Data::from_request_value(&values).unwrap();
     assert_eq!(actions.as_value(), native.as_value());
     assert!(actions.file("files.2").is_some());
     for data in [native, actions] {
@@ -64,7 +64,7 @@ async fn size_comparisons_use_uploaded_file_kilobytes_and_reject_scalar_peers() 
         .unwrap();
     let (parts, body) = raw.into_parts();
     let mut request = Request::from_parts(parts, body);
-    let data = Data::fromRequest(&mut request).await.unwrap();
+    let data = Data::from_request(&mut request).await.unwrap();
     for (field, rule, passes) in [
         ("large", "gt:small", true),
         ("large", "gte:large", true),
@@ -108,7 +108,7 @@ async fn setting_a_scalar_over_an_upload_removes_the_old_file_from_validated_inp
         .unwrap();
     let (parts, body) = raw.into_parts();
     let mut request = Request::from_parts(parts, body);
-    let data = Data::fromRequest(&mut request).await.unwrap();
+    let data = Data::from_request(&mut request).await.unwrap();
     let mut validator = Factory::default()
         .make(
             data,
@@ -118,10 +118,10 @@ async fn setting_a_scalar_over_an_upload_removes_the_old_file_from_validated_inp
         )
         .unwrap();
     assert!(validator.validate().await.unwrap().file("file").is_some());
-    validator.setValue("file", json!("new")).unwrap();
+    validator.set_value("file", json!("new")).unwrap();
     assert!(validator.safe().is_err());
-    assert!(validator.getData().file("file").is_none());
-    validator.setRules(RuleSet::parse([("file", "required|string")]).unwrap());
+    assert!(validator.get_data().file("file").is_none());
+    validator.set_rules(RuleSet::parse([("file", "required|string")]).unwrap());
     let result = validator.validate().await.unwrap();
     assert_eq!(result.get("file"), Some(&json!("new")));
     assert!(result.file("file").is_none());

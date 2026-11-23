@@ -125,7 +125,7 @@ impl SmsManager {
 
     /// Returns the current configured default without creating a driver.
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn getDefaultDriver(&self) -> NotificationResult<String> {
+    pub fn get_default_driver(&self) -> NotificationResult<String> {
         self.profile_name(None)
     }
 
@@ -141,6 +141,6 @@ impl SmsManager {
     }
 
     pub fn default_driver(&self) -> NotificationResult<SmsSender> {
-        self.driver(&self.getDefaultDriver()?)
+        self.driver(&self.get_default_driver()?)
     }
 }

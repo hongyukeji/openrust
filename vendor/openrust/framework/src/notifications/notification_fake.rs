@@ -142,7 +142,7 @@ impl NotificationFake {
         self
     }
 
-    pub fn assertNothingSent(&self) -> &Self {
+    pub fn assert_nothing_sent(&self) -> &Self {
         self.assertCount(0)
     }
 

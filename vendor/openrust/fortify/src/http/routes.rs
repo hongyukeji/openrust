@@ -65,7 +65,7 @@ pub(crate) fn register() -> Result<(), RoutingError> {
         }
         let route = router.post(
             &path("login", "/login"),
-            ControllerDispatcher::withFormRequest::<LoginRequest>(
+            ControllerDispatcher::with_form_request::<LoginRequest>(
                 AuthenticatedSessionController::store,
             ),
         )?;
@@ -130,7 +130,7 @@ pub(crate) fn register() -> Result<(), RoutingError> {
             router
                 .post(
                     &path("password.email", "/forgot-password"),
-                    ControllerDispatcher::withFormRequest::<SendPasswordResetLinkRequest>(
+                    ControllerDispatcher::with_form_request::<SendPasswordResetLinkRequest>(
                         PasswordResetLinkController::store,
                     ),
                 )?
@@ -161,7 +161,7 @@ pub(crate) fn register() -> Result<(), RoutingError> {
             router
                 .get(
                     &path("verification.verify", "/email/verify/{id}/{hash}"),
-                    ControllerDispatcher::withFormRequest::<
+                    ControllerDispatcher::with_form_request::<
                         crate::http::requests::VerifyEmailRequest,
                     >(VerifyEmailController::verify),
                 )?
@@ -339,7 +339,7 @@ pub(crate) fn register() -> Result<(), RoutingError> {
             }
             let route = router.post(
                 &path("two-factor.login", "/two-factor-challenge"),
-                ControllerDispatcher::withFormRequest::<TwoFactorLoginRequest>(
+                ControllerDispatcher::with_form_request::<TwoFactorLoginRequest>(
                     TwoFactorAuthenticatedSessionController::store,
                 ),
             )?;

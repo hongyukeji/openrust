@@ -82,7 +82,7 @@ impl SlackMessage {
         self.field("unfurl_media", enable)
     }
 
-    pub fn toArray(&self) -> Map<String, Value> {
+    pub fn to_array(&self) -> Map<String, Value> {
         let mut payload = self.fields.clone();
         payload.retain(|_, value| filled(value));
         payload.insert("text".into(), self.content.as_deref().into());

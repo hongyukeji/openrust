@@ -17,7 +17,7 @@ pub trait CastableObject: Clone + Send + Sync + 'static {
     const USES_JSON_CODEC: bool = false;
 
     fn fromAttributes(name: &str, raw: &Attributes) -> DatabaseResult<Option<Self>>;
-    fn toAttributes(
+    fn to_attributes(
         value: Option<&Self>,
         name: &str,
         raw: &Attributes,
@@ -38,7 +38,7 @@ pub trait CastableObject: Clone + Send + Sync + 'static {
         raw: &Attributes,
         _codec: &Json,
     ) -> DatabaseResult<CastWrite> {
-        Self::toAttributes(value, name, raw)
+        Self::to_attributes(value, name, raw)
     }
 }
 
@@ -127,7 +127,7 @@ pub(in crate::database::eloquent) fn write_object<T: CastableObject>(
     if T::USES_JSON_CODEC {
         T::toAttributesWithJson(value, name, raw, &Json::for_model(connection)?)
     } else {
-        T::toAttributes(value, name, raw)
+        T::to_attributes(value, name, raw)
     }
 }
 

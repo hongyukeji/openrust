@@ -30,11 +30,11 @@ impl<T: Model + CanResetPassword> RegisteredModel for ModelAdapter<T> {
             let user = (user as &mut dyn Any)
                 .downcast_mut::<T>()
                 .ok_or_else(|| internal(std::io::Error::other("Password reset model mismatch")))?;
-            user.setRememberToken(Some(Str::random(60)));
+            user.set_remember_token(Some(Str::random(60)));
             user.save().await.map_err(internal)?;
             crate::actions::emit(
                 openrust::auth::events::PasswordReset {
-                    user: user.getAuthIdentifier(),
+                    user: user.get_auth_identifier(),
                 },
                 &[],
             )

@@ -149,7 +149,7 @@ pub async fn latest_posts(connection: &Connection) -> DatabaseResult<Vec<Row>> {
 
 ## 基本 WHERE 子句
 
-Rust 中 `where` 是關鍵字，使用 `r#where(column, operator, value)` 對應 `where`。`orWhere` 用 OR 連接條件，用 `whereNested` 加上括號分組，用 `whereNot` 否定分組。可用 `whereNull`、`whereNotNull`、`whereIn`、`whereNotIn`、`whereBetween` 或 `whereColumn` 表達對應比較。空 IN 不符合任何資料列，空 NOT IN 符合所有資料列。
+Rust 中 `where` 是關鍵字，使用 `r#where(column, operator, value)` 對應 `where`。`orWhere` 用 OR 連接條件，用 `whereNested` 加上括號分組，用 `where_not` 否定分組。可用 `where_null`、`where_not_null`、`where_in`、`where_not_in`、`whereBetween` 或 `whereColumn` 表達對應比較。空 IN 不符合任何資料列，空 NOT IN 符合所有資料列。
 
 `whereLike` 接受區分大小寫參數。`whereDate` 和 `whereTime` 分別接受 `jiff::civil::Date` 和 `jiff::civil::Time`。可用 `toSql()` 和 `get_bindings()` 檢視 SQL 及依執行順序排列的參數。
 
@@ -163,7 +163,7 @@ pub async fn active_users(connection: &Connection) -> DatabaseResult<Vec<Row>> {
         .r#where("active", "=", true)
         .whereNested(|query| {
             query
-                .whereNull("archived_at")
+                .where_null("archived_at")
                 .orWhere("name", "=", "Admin")
         })
         .orderBy("id", "asc")

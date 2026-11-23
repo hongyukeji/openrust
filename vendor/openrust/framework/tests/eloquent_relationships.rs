@@ -474,7 +474,7 @@ async fn verify_through_and_morph(
     );
     let before_projection = if mysql { select_count(db).await } else { 0 };
     {
-        let json: Json = serde_json::from_str(&authors.toJson().unwrap()).unwrap();
+        let json: Json = serde_json::from_str(&authors.to_json().unwrap()).unwrap();
         assert_eq!(json[0]["recent_comments"][0]["body"], "visible");
         assert_eq!(json[1]["recent_comments"], json!([]));
         assert!(
@@ -485,7 +485,7 @@ async fn verify_through_and_morph(
         );
         let mut first = authors.into_iter().next().unwrap();
         first.makeHidden(&["recentComments"]);
-        assert!(!first.toArray().unwrap().contains_key("recent_comments"));
+        assert!(!first.to_array().unwrap().contains_key("recent_comments"));
     }
     if mysql {
         assert_eq!(select_count(db).await, before_projection);
@@ -533,13 +533,13 @@ async fn verify_through_and_morph(
         .as_ref()
         .unwrap();
     assert_eq!(target.alias(), "post");
-    assert!(first.toArray().unwrap()["subject"].is_object());
+    assert!(first.to_array().unwrap()["subject"].is_object());
     assert_eq!(
         target.downcast_ref::<Post>().unwrap().getKey(),
         post.getKey()
     );
     let second = comments.next().unwrap();
-    assert_eq!(second.toArray().unwrap()["subject"], Json::Null);
+    assert_eq!(second.to_array().unwrap()["subject"], Json::Null);
     assert!(
         second
             .getRelation::<Option<MorphTarget>>("subject")
@@ -632,8 +632,8 @@ async fn verify_through_and_morph(
         .downcast_ref::<Post>()
         .unwrap();
     assert_eq!(counted_post.getAttribute("comments_count"), Some(&1.into()));
-    assert!(counted_post.relationLoaded("author"));
-    assert!(counted_post.relationLoaded("comments"));
+    assert!(counted_post.relation_loaded("author"));
+    assert!(counted_post.relation_loaded("comments"));
     assert!(matches!(
         MorphTo::<Comment>::new("subject_type", "subject_id")
             .target::<Post>("post", "id")
@@ -766,7 +766,7 @@ async fn verify_through_and_morph(
     );
     let post_tags = post_tags
         .wherePivotWith(|conditions| conditions.r#where("label", "=", "post link"))
-        .orWherePivotWith(|conditions| conditions.whereNull("label"));
+        .orWherePivotWith(|conditions| conditions.where_null("label"));
     assert_eq!(post_tags.sync(post, &[]).await.unwrap().detached, vec![key]);
     assert!(tagged_posts.getResults(author).await.unwrap().is_empty());
     assert_eq!(author_tags.getResults(author).await.unwrap().len(), 1);
@@ -943,8 +943,8 @@ async fn verify_belongs_to_cache(
     assert_eq!(model.getAttribute("author_id"), first.getKey());
     relation.associate(&mut model, &edited).unwrap();
     assert_eq!(model.getAttribute("author_id"), second.getKey());
-    assert!(model.relationLoaded("comments"));
-    assert_eq!(model.toArray().unwrap()["author"]["name"], "Local owner");
+    assert!(model.relation_loaded("comments"));
+    assert_eq!(model.to_array().unwrap()["author"]["name"], "Local owner");
     assert!(
         model
             .getRelationOrLoad("author", &relation)
@@ -957,8 +957,8 @@ async fn verify_belongs_to_cache(
     }
 
     relation.associateKey(&mut model, first.getKey().unwrap().clone());
-    assert!(!model.relationLoaded("author"));
-    assert!(model.relationLoaded("comments"));
+    assert!(!model.relation_loaded("author"));
+    assert!(model.relation_loaded("comments"));
     assert_eq!(
         model
             .getRelationOrLoad("author", &relation)
@@ -975,7 +975,7 @@ async fn verify_belongs_to_cache(
 
     relation.disassociate(&mut model);
     assert_eq!(model.getAttribute("author_id"), Some(&Value::Null));
-    assert!(model.relationLoaded("author") && model.relationLoaded("comments"));
+    assert!(model.relation_loaded("author") && model.relation_loaded("comments"));
     assert!(
         model
             .getRelationOrLoad("author", &relation)
@@ -983,7 +983,7 @@ async fn verify_belongs_to_cache(
             .unwrap()
             .is_none()
     );
-    assert!(model.toArray().unwrap()["author"].is_null());
+    assert!(model.to_array().unwrap()["author"].is_null());
     assert_eq!(
         Post::queryOn(db)
             .findOrFail(post.getKey().unwrap().clone())
@@ -1200,7 +1200,7 @@ async fn verify_belongs_to_owner_keys(
     assert!(read.getAttribute("mentor_id").is_none());
     assert!(projected.matchResults(&[&stored]).await.unwrap()[0].is_none());
 
-    let before = stored.toArray().unwrap();
+    let before = stored.to_array().unwrap();
     assert!(matches!(
         subjects.associate(&mut stored, "0", read),
         Err(DatabaseError::InvalidQuery("relationship owner key"))
@@ -1218,7 +1218,7 @@ async fn verify_belongs_to_owner_keys(
         untyped.associate(&mut stored, "", &selected),
         Err(DatabaseError::InvalidQuery("empty morph type"))
     ));
-    assert_eq!(stored.toArray().unwrap(), before);
+    assert_eq!(stored.to_array().unwrap(), before);
     record.forceDelete().await.unwrap();
 
     for author in [first, second] {
@@ -1272,7 +1272,7 @@ async fn verify_morph_association(
         ))
     ));
     subject.associate(profile, "post", &snapshot).unwrap();
-    assert!(profile.relationLoaded("post"));
+    assert!(profile.relation_loaded("post"));
     let target = profile
         .getRelationOrLoad("subject", &subject)
         .await
@@ -1288,7 +1288,7 @@ async fn verify_morph_association(
         assert_eq!(select_count(db).await - baseline, 0);
     }
     assert_eq!(
-        profile.toArray().unwrap()["subject"]["title"],
+        profile.to_array().unwrap()["subject"]["title"],
         "Unpersisted subject title"
     );
     let key = profile.getKey().unwrap().clone();
@@ -1298,8 +1298,8 @@ async fn verify_morph_association(
     profile.save().await.unwrap();
     assert_eq!(POST_COMMENTS.getResults(post).await.unwrap().len(), 2);
     subject.dissociate(profile);
-    assert!(profile.relationLoaded("post"));
-    assert!(profile.relationLoaded("subject"));
+    assert!(profile.relation_loaded("post"));
+    assert!(profile.relation_loaded("subject"));
     assert!(
         profile
             .getRelationOrLoad("subject", &subject)
@@ -1307,7 +1307,7 @@ async fn verify_morph_association(
             .unwrap()
             .is_none()
     );
-    assert!(profile.toArray().unwrap()["subject"].is_null());
+    assert!(profile.to_array().unwrap()["subject"].is_null());
     profile.save().await.unwrap();
     let stored = Comment::queryOn(db).findOrFail(key).await.unwrap();
     assert_eq!(stored.getAttribute("subject_type"), Some(&Value::Null));
@@ -1330,7 +1330,7 @@ async fn verify_morph_defaults(db: &Connection, visible: &Comment, hidden: &Comm
     };
 
     let mut query = Comment::queryOn(db).with("subject", defaults());
-    query.whereIn(
+    query.where_in(
         "id",
         vec![
             visible.getKey().unwrap().clone(),
@@ -1350,7 +1350,7 @@ async fn verify_morph_defaults(db: &Connection, visible: &Comment, hidden: &Comm
         if !exists {
             assert!(post.getKey().is_none());
             assert_eq!(post.getConnectionName(), parent.getConnectionName());
-            assert_eq!(row.toArray().unwrap()["subject"]["title"], "hidden parent");
+            assert_eq!(row.to_array().unwrap()["subject"]["title"], "hidden parent");
         }
     }
     let mut missing = Comment::from_state(hidden.state().clone());
@@ -1393,27 +1393,30 @@ async fn verify_morph_soft_deletes(
             .target::<Author>("author", "id")
     };
     for (relation, expected) in [
-        (morph().withTrashed(), [true, true, true]),
-        (morph().withoutTrashed(), [true, false, true]),
-        (morph().onlyTrashed(), [false, true, true]),
-        (morph().onlyTrashed().withTrashed(), [false, true, true]),
-        (morph().withoutTrashed().onlyTrashed(), [false, false, true]),
+        (morph().with_trashed(), [true, true, true]),
+        (morph().without_trashed(), [true, false, true]),
+        (morph().only_trashed(), [false, true, true]),
+        (morph().only_trashed().with_trashed(), [false, true, true]),
+        (
+            morph().without_trashed().only_trashed(),
+            [false, false, true],
+        ),
         (
             morph()
-                .withTrashed()
-                .constrain::<Post>("post", "id", Builder::withoutTrashed),
+                .with_trashed()
+                .constrain::<Post>("post", "id", Builder::without_trashed),
             [true, false, true],
         ),
         (
             morph()
-                .onlyTrashed()
-                .constrain::<Post>("post", "id", Builder::withTrashed),
+                .only_trashed()
+                .constrain::<Post>("post", "id", Builder::with_trashed),
             [false, true, true],
         ),
     ] {
         let mut query = Comment::queryOn(db).with("subject", relation);
         let parents = [visible, hidden, profile];
-        query.whereIn(
+        query.where_in(
             "id",
             parents
                 .iter()
@@ -1429,7 +1432,7 @@ async fn verify_morph_soft_deletes(
     }
 
     let target = morph()
-        .withTrashed()
+        .with_trashed()
         .getResults(hidden)
         .await
         .unwrap()
@@ -1437,7 +1440,7 @@ async fn verify_morph_soft_deletes(
     assert!(target.downcast_ref::<Post>().unwrap().trashed());
     assert!(
         morph()
-            .withoutTrashed()
+            .without_trashed()
             .getResults(hidden)
             .await
             .unwrap()
@@ -1497,7 +1500,7 @@ async fn verify_morph_relation_writeback(
             .unwrap()
             .is_empty()
     );
-    assert!(comments[index].toArray().unwrap()["subject"]["comments"].is_array());
+    assert!(comments[index].to_array().unwrap()["subject"]["comments"].is_array());
     let author = comments
         .iter()
         .find_map(|comment| subject(comment).filter(|target| target.alias() == "author"))
@@ -1506,7 +1509,7 @@ async fn verify_morph_relation_writeback(
         !author
             .downcast_ref::<Author>()
             .unwrap()
-            .relationLoaded("comments")
+            .relation_loaded("comments")
     );
 
     let empty = POST_COMMENTS.constrain(|mut query| {
@@ -1522,7 +1525,7 @@ async fn verify_morph_relation_writeback(
         assert_eq!(select_count(db).await - baseline, 1);
     }
     assert_eq!(
-        comments[index].toArray().unwrap()["subject"]["comments"],
+        comments[index].to_array().unwrap()["subject"]["comments"],
         json!([])
     );
     assert!(
@@ -1545,7 +1548,7 @@ async fn verify_morph_relation_writeback(
             .is_err()
     );
     assert_eq!(
-        comments[index].toArray().unwrap()["subject"]["comments"],
+        comments[index].to_array().unwrap()["subject"]["comments"],
         json!([])
     );
 
@@ -1563,9 +1566,9 @@ async fn verify_morph_relation_writeback(
     assert!(
         children
             .iter()
-            .all(|comment| comment.relationLoaded("post"))
+            .all(|comment| comment.relation_loaded("post"))
     );
-    let projected = comments[index].toArray().unwrap();
+    let projected = comments[index].to_array().unwrap();
     assert!(projected["subject"]["comments"].is_array());
 
     let mut single = Comment::from_state(comments[index].state().clone());
@@ -1573,8 +1576,8 @@ async fn verify_morph_relation_writeback(
         .loadMorph("subject", subjects, "post", "comments", &empty)
         .await
         .unwrap();
-    assert_eq!(single.toArray().unwrap()["subject"]["comments"], json!([]));
-    assert_eq!(comments[index].toArray().unwrap(), projected);
+    assert_eq!(single.to_array().unwrap()["subject"]["comments"], json!([]));
+    assert_eq!(comments[index].to_array().unwrap(), projected);
 }
 
 async fn verify_morph_aggregates(
@@ -1644,9 +1647,9 @@ async fn verify_morph_aggregates(
         )
         .await
         .unwrap();
-    assert!(model.toArray().unwrap()["subject"]["feedback_count"].is_u64());
+    assert!(model.to_array().unwrap()["subject"]["feedback_count"].is_u64());
     assert!(
-        row.toArray().unwrap()["subject"]
+        row.to_array().unwrap()["subject"]
             .get("feedback_count")
             .is_none()
     );
@@ -1797,13 +1800,13 @@ fn verify_morph_batches(
                     target
                         .downcast_ref::<Post>()
                         .unwrap()
-                        .relationLoaded("comments")
+                        .relation_loaded("comments")
                 ),
                 "author" => assert!(
                     !target
                         .downcast_ref::<Author>()
                         .unwrap()
-                        .relationLoaded("comments")
+                        .relation_loaded("comments")
                 ),
                 _ => unreachable!(),
             }
@@ -1836,7 +1839,7 @@ fn verify_morph_batches(
             assert_eq!(select_count(db).await - baseline, 2);
         }
         for index in post_indexes {
-            let subject = &roots.toArray().unwrap()[index]["subject"];
+            let subject = &roots.to_array().unwrap()[index]["subject"];
             assert!(subject["author"]["posts"].is_array());
         }
 
@@ -1987,7 +1990,7 @@ async fn verify_model_reload_relations(db: &Connection, model: &Author) {
         .await
         .unwrap()
         .unwrap();
-    assert!(fresh.relationLoaded("posts"));
+    assert!(fresh.relation_loaded("posts"));
     assert_eq!(fresh.getKey(), model.getKey());
     let mut author = Author::queryOn(db)
         .withPaths(&["posts"])
@@ -2094,11 +2097,11 @@ async fn verify_eager_columns(db: &Connection, mysql: bool) {
 
     let mut author = Author::queryOn(db).findOrFail(1).await.unwrap();
     author
-        .loadMissingPaths(&["posts:id,author_id"])
+        .load_missing_paths(&["posts:id,author_id"])
         .await
         .unwrap();
     author
-        .loadMissingPaths(&["posts:id,author_id,title"])
+        .load_missing_paths(&["posts:id,author_id,title"])
         .await
         .unwrap();
     let posts = author
@@ -2118,9 +2121,9 @@ async fn verify_eager_columns(db: &Connection, mysql: bool) {
         query.whereKey(1);
         let mut authors = query.get().await.unwrap();
         let baseline = if mysql { select_count(db).await } else { 0 };
-        authors.loadMissingPaths(&paths).await.unwrap();
+        authors.load_missing_paths(&paths).await.unwrap();
         authors
-            .loadMissingPaths(&["posts.comments:id,subject_id"])
+            .load_missing_paths(&["posts.comments:id,subject_id"])
             .await
             .unwrap();
         if mysql {
@@ -2148,7 +2151,7 @@ async fn verify_eager_columns(db: &Connection, mysql: bool) {
     let mut authors = query.get().await.unwrap();
     let baseline = if mysql { select_count(db).await } else { 0 };
     authors
-        .loadMissingPaths(&[
+        .load_missing_paths(&[
             "posts.comments:id,subject_id",
             "posts.comments:id,subject_id,body",
         ])
@@ -2334,7 +2337,7 @@ async fn verify_named_paths(db: &Connection, mysql: bool) {
             .getRelation::<RelatedCollection<Post>>("posts")
             .unwrap()
         {
-            assert!(post.relationLoaded("author"));
+            assert!(post.relation_loaded("author"));
             found_comments |= !post
                 .getRelation::<RelatedCollection<Comment>>("comments")
                 .unwrap()
@@ -2344,11 +2347,11 @@ async fn verify_named_paths(db: &Connection, mysql: bool) {
     assert!(found_comments);
     let baseline = if mysql { select_count(db).await } else { 0 };
     authors
-        .loadMissingPaths(&["posts.comments.post", "posts.author"])
+        .load_missing_paths(&["posts.comments.post", "posts.author"])
         .await
         .unwrap();
     authors
-        .loadMissingPaths(&["posts.comments.post"])
+        .load_missing_paths(&["posts.comments.post"])
         .await
         .unwrap();
     if mysql {
@@ -2364,7 +2367,7 @@ async fn verify_named_paths(db: &Connection, mysql: bool) {
                 .getRelation::<RelatedCollection<Comment>>("comments")
                 .unwrap()
             {
-                assert!(comment.relationLoaded("post"));
+                assert!(comment.relation_loaded("post"));
                 found = true;
             }
         }
@@ -2514,7 +2517,7 @@ async fn verify_named_paths(db: &Connection, mysql: bool) {
         })
         .await
         .unwrap();
-    assert!(model.relationLoaded("posts"));
+    assert!(model.relation_loaded("posts"));
     let mut loaded = Author::queryOn(db)
         .whereHasPath("posts")
         .unwrap()
@@ -2650,11 +2653,11 @@ async fn verify_morph_paths(db: &Connection, mysql: bool) {
         .unwrap();
     let baseline = if mysql { select_count(db).await } else { 0 };
     deferred
-        .loadMissingPaths(&["subject.details"])
+        .load_missing_paths(&["subject.details"])
         .await
         .unwrap();
     deferred
-        .loadMissingPaths(&["subject.details"])
+        .load_missing_paths(&["subject.details"])
         .await
         .unwrap();
     if mysql {
@@ -2674,13 +2677,13 @@ async fn verify_morph_paths(db: &Connection, mysql: bool) {
         .await
         .unwrap();
     filtered
-        .loadMissingPaths(&["subject.details"])
+        .load_missing_paths(&["subject.details"])
         .await
         .unwrap();
     if mysql {
         assert_eq!(select_count(db).await - baseline, 2);
     }
-    let filtered = filtered.toArray().unwrap();
+    let filtered = filtered.to_array().unwrap();
     assert!(filtered.iter().any(|comment| comment["subject"].is_null()));
     assert!(
         filtered
@@ -2703,7 +2706,7 @@ async fn verify_morph_paths(db: &Connection, mysql: bool) {
     if mysql {
         assert_eq!(select_count(db).await - baseline, 4);
     }
-    let combined = combined.toArray().unwrap();
+    let combined = combined.to_array().unwrap();
     let with_subjects = combined
         .iter()
         .filter(|comment| !comment["subject"].is_null())
@@ -2733,7 +2736,7 @@ async fn verify_morph_paths(db: &Connection, mysql: bool) {
             .is_none()
     }));
 
-    let projected = deferred.toArray().unwrap();
+    let projected = deferred.to_array().unwrap();
     assert!(
         projected
             .iter()
@@ -2823,7 +2826,7 @@ async fn verify_morph_paths(db: &Connection, mysql: bool) {
         Err(DatabaseError::InvalidQuery("unknown morph type"))
     ));
     table()
-        .whereIn("id", vec![unknown, profile.clone()])
+        .where_in("id", vec![unknown, profile.clone()])
         .delete()
         .await
         .unwrap();
@@ -2838,7 +2841,7 @@ async fn verify_morph_paths(db: &Connection, mysql: bool) {
     Box::pin(verify_discovered_path_filter(db, &additional, &no_target)).await;
     assert!(absent.modelKeys().contains(&no_target));
     db.table("relation_comments")
-        .whereIn("id", vec![no_target, additional])
+        .where_in("id", vec![no_target, additional])
         .delete()
         .await
         .unwrap();
@@ -2853,7 +2856,7 @@ async fn verify_discovered_path_targets(db: &Connection, expected: &[Value]) {
     let mixed = Box::pin(query.get()).await.unwrap();
     assert_eq!(mixed.modelKeys(), expected);
     let mut aliases = std::collections::HashSet::new();
-    for row in mixed.toArray().unwrap() {
+    for row in mixed.to_array().unwrap() {
         assert!(!row["subject"]["details"].as_array().unwrap().is_empty());
         aliases.insert(row["subject_type"].as_str().unwrap().to_owned());
     }
@@ -2891,7 +2894,7 @@ async fn verify_discovered_path_filter(db: &Connection, additional: &Value, no_t
         .orderBy("id", "asc");
     let loaded = Box::pin(query.get()).await.unwrap();
     assert_eq!(loaded.modelKeys(), filtered.modelKeys());
-    for row in loaded.toArray().unwrap() {
+    for row in loaded.to_array().unwrap() {
         let comments = row["subject"]["comments"].as_array().unwrap();
         assert_eq!(comments.len(), 1);
         assert_eq!(comments[0]["body"], body);
@@ -2939,7 +2942,7 @@ fn verify_relation_chain(
         let post = BelongsTo::<Comment, Post>::new("post_id", "id");
         let linked = comments.relatedModels("post", &post).await.unwrap();
         assert!(linked.all().len() >= 2);
-        assert!(authors.iter().all(|author| author.relationLoaded("posts")));
+        assert!(authors.iter().all(|author| author.relation_loaded("posts")));
 
         let mut posts = Post::queryOn(db)
             .with("author", AUTHOR)
@@ -2975,8 +2978,8 @@ fn verify_lazy_loading_policy(
             group.getRelationOrLoad(0, "posts", &posts).await,
             Err(DatabaseError::LazyLoadingViolation { .. })
         ));
-        assert!(!strict.relationLoaded("posts"));
-        assert!(!group[0].relationLoaded("posts"));
+        assert!(!strict.relation_loaded("posts"));
+        assert!(!group[0].relation_loaded("posts"));
         if mysql {
             assert_eq!(select_count(db).await - baseline, 0);
         }
@@ -2998,7 +3001,7 @@ fn verify_lazy_loading_policy(
                 .unwrap()
                 .is_empty()
         );
-        assert!(group.iter().all(|model| model.relationLoaded("posts")));
+        assert!(group.iter().all(|model| model.relation_loaded("posts")));
         if mysql {
             assert_eq!(select_count(db).await - baseline, 1);
         }
@@ -3049,8 +3052,8 @@ fn verify_relation_autoload(
         let ordered = || Author::queryOn(db).orderBy("id", "asc");
         let mut plain = ordered().get().await.unwrap();
         plain.getRelationOrLoad(0, "posts", &POSTS).await.unwrap();
-        assert!(plain[0].relationLoaded("posts"));
-        assert!(!plain[1].relationLoaded("posts"));
+        assert!(plain[0].relation_loaded("posts"));
+        assert!(!plain[1].relation_loaded("posts"));
         let mut group = plain.withRelationshipAutoloading().except(&[]).unwrap();
         let broken = POSTS.constrain(|mut query| {
             query.r#where("relation_posts.unknown_relation_column", "=", "error");
@@ -3065,9 +3068,9 @@ fn verify_relation_autoload(
                 .await
                 .is_err()
         );
-        assert!(group[0].relationLoaded("posts"));
-        assert!(!group[1].relationLoaded("posts"));
-        assert!(!group[2].relationLoaded("posts"));
+        assert!(group[0].relation_loaded("posts"));
+        assert!(!group[1].relation_loaded("posts"));
+        assert!(!group[2].relation_loaded("posts"));
 
         let baseline = if mysql { select_count(db).await } else { 0 };
         {
@@ -3082,7 +3085,7 @@ fn verify_relation_autoload(
                 .unwrap()
                 .is_empty()
         );
-        assert!(group.iter().all(|author| author.relationLoaded("posts")));
+        assert!(group.iter().all(|author| author.relation_loaded("posts")));
         assert!(group.getRelationOrLoad(20, "posts", &POSTS).await.is_err());
         let wrong_output = HasOne::<Author, Post>::new("id", "author_id");
         assert!(
@@ -3106,19 +3109,19 @@ fn verify_relation_autoload(
         let mut empty = detached.next().unwrap();
         drop(detached);
         assert!(first.getRelationOrLoad("posts", &broken).await.is_err());
-        assert!(!first.relationLoaded("posts"));
+        assert!(!first.relation_loaded("posts"));
         let baseline = if mysql { select_count(db).await } else { 0 };
         let posts = POSTS;
         let first_posts = first.getRelationOrLoad("posts", &posts).await.unwrap();
         let mut first_post = Post::from_state(first_posts[0].state().clone());
-        assert!(second.relationLoaded("posts"));
+        assert!(second.relation_loaded("posts"));
         assert!(second.getQueueableRelations().contains(&"posts".into()));
-        assert!(second.toArray().unwrap()["posts"].is_array());
+        assert!(second.to_array().unwrap()["posts"].is_array());
         let second_posts = second
             .getRelation::<RelatedCollection<Post>>("posts")
             .unwrap();
         let mut second_post = Post::from_state(second_posts[0].state().clone());
-        assert!(empty.relationLoaded("posts"));
+        assert!(empty.relation_loaded("posts"));
         assert!(
             empty
                 .getRelationOrLoad("posts", &posts)
@@ -3139,7 +3142,7 @@ fn verify_relation_autoload(
                 .await
                 .is_err()
         );
-        assert!(!second_post.relationLoaded("comments"));
+        assert!(!second_post.relation_loaded("comments"));
         let baseline = if mysql { select_count(db).await } else { 0 };
         let comments = POST_COMMENTS;
         let (left, right) = tokio::join!(
@@ -3148,14 +3151,14 @@ fn verify_relation_autoload(
         );
         left.unwrap();
         right.unwrap();
-        assert!(second.toArray().unwrap()["posts"][0]["comments"].is_array());
+        assert!(second.to_array().unwrap()["posts"][0]["comments"].is_array());
         if mysql {
             assert_eq!(select_count(db).await - baseline, 1);
         }
         first.unsetRelation("posts");
-        assert!(!first.relationLoaded("posts"));
-        assert!(!first.toArray().unwrap().contains_key("posts"));
-        assert!(second.relationLoaded("posts"));
+        assert!(!first.relation_loaded("posts"));
+        assert!(!first.to_array().unwrap().contains_key("posts"));
+        assert!(second.relation_loaded("posts"));
         assert!(second.getQueueableRelations().contains(&"posts".into()));
         assert!(first.getRelationOrLoad("posts", &broken).await.is_err());
         second.unsetRelation("posts");
@@ -3169,7 +3172,7 @@ fn verify_relation_autoload(
         );
 
         let mut other = ordered().get().await.unwrap();
-        assert!(other.iter().all(|author| !author.relationLoaded("posts")));
+        assert!(other.iter().all(|author| !author.relation_loaded("posts")));
         let posts = POSTS;
         let mut descendant = ordered().get().await.unwrap();
         descendant
@@ -3193,7 +3196,7 @@ fn verify_relation_autoload(
                     .await
                     .is_err()
             );
-            assert!(!post.relationLoaded("comments"));
+            assert!(!post.relation_loaded("comments"));
         }
         let baseline = if mysql { select_count(db).await } else { 0 };
         for index in [0, 1] {
@@ -3210,7 +3213,7 @@ fn verify_relation_autoload(
         if mysql {
             assert_eq!(select_count(db).await - baseline, 1);
         }
-        let json = descendant.toArray().unwrap();
+        let json = descendant.to_array().unwrap();
         assert!(json[0]["posts"][0].get("comments").is_some());
         assert!(json[1]["posts"][0].get("comments").is_some());
         assert!(
@@ -3233,9 +3236,9 @@ fn verify_relation_autoload(
                 .await
                 .unwrap();
         }
-        assert!(!other[1].relationLoaded("posts"));
+        assert!(!other[1].relation_loaded("posts"));
         assert!(
-            other.toArray().unwrap()[0]["posts"][0]
+            other.to_array().unwrap()[0]["posts"][0]
                 .get("comments")
                 .is_some()
         );
@@ -3245,7 +3248,7 @@ fn verify_relation_autoload(
             .getRelationOrLoad("posts", &POSTS)
             .await
             .unwrap();
-        assert!(!other[1].relationLoaded("posts"));
+        assert!(!other[1].relation_loaded("posts"));
         let mut single = ordered().findOrFail(3).await.unwrap();
         assert!(
             single
@@ -3269,12 +3272,16 @@ fn verify_relation_autoload(
             .await
             .unwrap();
         let posts = HasMany::<AuthorWithDefaults, Post>::new("id", "author_id");
-        assert!(!opted_in[0].relationLoaded("posts"));
+        assert!(!opted_in[0].relation_loaded("posts"));
         opted_in
             .getRelationOrLoad(0, "posts", &posts)
             .await
             .unwrap();
-        assert!(opted_in.iter().all(|author| author.relationLoaded("posts")));
+        assert!(
+            opted_in
+                .iter()
+                .all(|author| author.relation_loaded("posts"))
+        );
     })
 }
 
@@ -3324,7 +3331,7 @@ fn verify_default_models(
             newest(2).getAttribute("title"),
             Some(&"No posts yet".into())
         );
-        assert_eq!(newest(2).getConnectionName(), Some(db.getName()));
+        assert_eq!(newest(2).getConnectionName(), Some(db.get_name()));
         assert!(!newest(2).state().exists());
 
         let through = FIRST_COMMENT_THROUGH.with_default(|_, _| {});
@@ -3355,7 +3362,7 @@ fn verify_default_models(
             model.setAttribute("name", "Missing owner");
         });
         let missing = filtered.getResults(&no_owner).await.unwrap().unwrap();
-        assert_eq!(missing.getConnectionName(), Some(db.getName()));
+        assert_eq!(missing.getConnectionName(), Some(db.get_name()));
         assert_eq!(missing.getAttribute("name"), Some(&"Missing owner".into()));
         assert!(missing.getKey().is_none());
     })
@@ -3376,7 +3383,7 @@ fn verify_default_eager_loads(
         assert!(
             models
                 .iter()
-                .all(|model| model.relationLoaded("posts") && model.relationLoaded("mentees"))
+                .all(|model| model.relation_loaded("posts") && model.relation_loaded("mentees"))
         );
         assert!(
             !models[0]
@@ -3396,17 +3403,17 @@ fn verify_default_eager_loads(
         if mysql {
             assert_eq!(select_count(db).await - baseline, 2);
         }
-        assert!(!without_posts.relationLoaded("posts"));
-        assert!(without_posts.relationLoaded("mentees"));
+        assert!(!without_posts.relation_loaded("posts"));
+        assert!(without_posts.relation_loaded("mentees"));
         assert!(without_posts.getAttribute("posts_count").is_some());
         let only = ordered()
             .withOnly(|relations| relations.with("other_posts", posts()))
             .findOrFail(1)
             .await
             .unwrap();
-        assert!(only.relationLoaded("other_posts"));
-        assert!(!only.relationLoaded("posts"));
-        assert!(!only.relationLoaded("mentees"));
+        assert!(only.relation_loaded("other_posts"));
+        assert!(!only.relation_loaded("posts"));
+        assert!(!only.relation_loaded("mentees"));
         assert!(only.getAttribute("posts_count").is_some());
         let projected = ordered()
             .withOnly(|loads| loads)
@@ -3433,7 +3440,7 @@ fn verify_default_eager_loads(
                 .unwrap()
                 .is_empty()
         );
-        assert!(explicit.relationLoaded("mentees"));
+        assert!(explicit.relation_loaded("mentees"));
         let source = Collection::new(vec![
             ordered()
                 .withOnly(|loads| loads)
@@ -3458,7 +3465,7 @@ fn verify_default_eager_loads(
                 .all(|model| model.getAttribute("posts_count").is_some())
         );
         assert!(fresh.iter().all(|model| {
-            model.relationLoaded("mentees")
+            model.relation_loaded("mentees")
                 && model
                     .getRelation::<RelatedCollection<Post>>("posts")
                     .unwrap()
@@ -3475,7 +3482,7 @@ fn verify_default_eager_loads(
             assert_eq!(select_count(db).await - baseline, 5);
         }
         for model in named.iter() {
-            assert!(model.relationLoaded("mentees"));
+            assert!(model.relation_loaded("mentees"));
             let posts = model
                 .getRelation::<RelatedCollection<Post>>("posts")
                 .unwrap();
@@ -3483,10 +3490,10 @@ fn verify_default_eager_loads(
             assert!(
                 posts
                     .iter()
-                    .all(|post| post.relationLoaded("comments") && post.relationLoaded("author"))
+                    .all(|post| post.relation_loaded("comments") && post.relation_loaded("author"))
             );
         }
-        assert!(source.iter().all(|model| !model.relationLoaded("posts")));
+        assert!(source.iter().all(|model| !model.relation_loaded("posts")));
         assert!(matches!(
             Box::pin(source.freshWithPaths(&["posts.invalid"])).await,
             Err(DatabaseError::InvalidQuery("unknown relationship path"))
@@ -3505,7 +3512,7 @@ fn verify_default_eager_loads(
         if mysql {
             assert_eq!(select_count(db).await - baseline, 2);
         }
-        assert!(!keyed[0].relationLoaded("posts"));
+        assert!(!keyed[0].relation_loaded("posts"));
         assert!(keyed[0].getAttribute("posts_count").is_some());
 
         let via_posts = HasManyThrough::<Author, Post, AuthorWithDefaults>::new(
@@ -3947,7 +3954,7 @@ fn verify_one_through<'a>(
         let deleted = COMMENTS_THROUGH
             .one()
             .latestOfMany(None)
-            .constrain(|query| query.withTrashed())
+            .constrain(|query| query.with_trashed())
             .whereCandidates(|query| query.r#where("body", "=", "deleted"))
             .unwrap();
         assert_eq!(
@@ -3996,7 +4003,7 @@ async fn verify_collection_collapse(db: &Connection, mysql: bool) {
     let baseline = if mysql { select_count(db).await } else { 0 };
     let mut first = authors.modelAt(0).unwrap();
     first.getRelationOrLoad("posts", &POSTS).await.unwrap();
-    assert!(authors.iter().all(|author| author.relationLoaded("posts")));
+    assert!(authors.iter().all(|author| author.relation_loaded("posts")));
     let groups = authors.map(|author, _| {
         author
             .getRelation::<RelatedCollection<Post>>("posts")
@@ -4006,7 +4013,7 @@ async fn verify_collection_collapse(db: &Connection, mysql: bool) {
     let expected = groups.iter().flat_map(|(_, group)| group.iter());
     let flattened = groups.clone().collapse();
     assert_eq!(flattened.count(), expected.clone().count());
-    assert!(!flattened.isEmpty());
+    assert!(!flattened.is_empty());
     for ((_, snapshot), loaded) in flattened.iter().zip(expected) {
         assert!(Arc::ptr_eq(snapshot, loaded));
     }
@@ -4017,7 +4024,7 @@ async fn verify_collection_collapse(db: &Connection, mysql: bool) {
         independent.getAttribute("title"),
         shared.getAttribute("title")
     );
-    assert!(authors[0].toArray().unwrap()["posts"].is_array());
+    assert!(authors[0].to_array().unwrap()["posts"].is_array());
     if mysql {
         assert_eq!(select_count(db).await - baseline, 1);
     }
@@ -4044,7 +4051,7 @@ fn verify_collection_keys<'a>(
         assert_eq!(retained.modelKeys(), authors.modelKeys());
         assert_eq!(retained.toBase().get(1).unwrap().getKey(), Some(&2.into()));
         let empty = Collection::<Author>::new(vec![]);
-        assert!(empty.map::<i32>(|_, _| unreachable!()).isEmpty());
+        assert!(empty.map::<i32>(|_, _| unreachable!()).is_empty());
         assert_eq!(authors.keys().get(2), Some(&2.into()));
         let keyed = ordered()
             .get()
@@ -4062,7 +4069,7 @@ fn verify_collection_keys<'a>(
             Some(&Some(3.into()))
         );
         assert_eq!(
-            serde_json::from_str::<Json>(&keyed.toJson().unwrap()).unwrap()["7"]["id"],
+            serde_json::from_str::<Json>(&keyed.to_json().unwrap()).unwrap()["7"]["id"],
             json!(2)
         );
         let fresh = keyed.fresh().await.unwrap();
@@ -4386,7 +4393,7 @@ fn verify_collection_reload(
             refreshed[2].getAttribute("name"),
             refreshed[3].getAttribute("name")
         );
-        assert!(refreshed.iter().all(|model| model.relationLoaded("posts")));
+        assert!(refreshed.iter().all(|model| model.relation_loaded("posts")));
 
         let baseline = if mysql { select_count(db).await } else { 0 };
         refreshed.loadCount("posts", &POSTS).await.unwrap();
@@ -4539,7 +4546,7 @@ fn verify_collection_reload(
                 .is_empty()
         );
 
-        let mut trashed = Post::queryOn(db).onlyTrashed().get().await.unwrap();
+        let mut trashed = Post::queryOn(db).only_trashed().get().await.unwrap();
         assert!(!trashed.is_empty());
         assert_eq!(
             trashed.fresh().await.unwrap().modelKeys(),
@@ -5590,14 +5597,14 @@ async fn verify_first_and_update_or_create(db: &Connection) {
     let score = |value: i64| Attributes::from([("score".into(), value.into())]);
     let label = |name: &str| Attributes::from([("label".into(), name.into())]);
 
-    let scoped = FEATURED_POSTS.constrain(move |query| query.withAttributes(score(83), true));
+    let scoped = FEATURED_POSTS.constrain(move |query| query.with_attributes(score(83), true));
     let scoped_post = scoped
         .create(&parent, title("scoped-pivot"), label("scoped"))
         .await
         .unwrap();
     assert_eq!(scoped_post.getAttribute("score"), Some(&83.into()));
     let scoped_force = FEATURED_POSTS
-        .constrain(move |query| query.withAttributes(score(84), false))
+        .constrain(move |query| query.with_attributes(score(84), false))
         .forceCreate(&parent, title("scoped-pivot-force"), label("scoped"))
         .await
         .unwrap();
@@ -5692,7 +5699,7 @@ async fn verify_restore_and_deferred_values(db: &Connection) {
 
     db.statement("INSERT INTO relation_posts (title, score, deleted_at) VALUES ('trash-attached', 200, '2025-01-01 00:00:00'), ('trash-unlinked', 201, '2025-01-01 00:00:00')", &[])
         .await.unwrap();
-    let mut deleted = Post::queryOn(db).onlyTrashed();
+    let mut deleted = Post::queryOn(db).only_trashed();
     deleted.r#where("title", "=", "trash-attached");
     let key = deleted
         .firstOrFail()
@@ -6144,7 +6151,7 @@ async fn verify_scoped_attributes(db: &Connection, author: &Author, post: &Post)
     let name = |name: &str| Attributes::from([("name".into(), name.into())]);
     let defaults = |count: i64| Attributes::from([("count".into(), count.into())]);
     let direct = HasMany::<Post, RelationCounter>::new("id", "post_id")
-        .constrain(move |query| query.withAttributes(defaults(77), true));
+        .constrain(move |query| query.with_attributes(defaults(77), true));
     let created = direct.create(post, name("scoped-create")).await.unwrap();
     assert_eq!(created.getAttribute("count"), Some(&77.into()));
     let mut attributes = name("scoped-override");
@@ -6175,7 +6182,7 @@ async fn verify_scoped_attributes(db: &Connection, author: &Author, post: &Post)
 
     let morph = MorphMany::<Post, RelationCounter>::new("id", "post_id", "owner_type", "scoped")
         .constrain(move |query| {
-            query.withAttributes(
+            query.with_attributes(
                 Attributes::from([
                     ("count".into(), 79.into()),
                     ("owner_type".into(), "ignored".into()),
@@ -6191,7 +6198,7 @@ async fn verify_scoped_attributes(db: &Connection, author: &Author, post: &Post)
 
     let through =
         HasManyThrough::<Author, Post, RelationCounter>::new("author_id", "post_id", "id", "id")
-            .constrain(move |query| query.withAttributes(defaults(81), false));
+            .constrain(move |query| query.with_attributes(defaults(81), false));
     let mut input = name("scoped-through");
     input.insert("post_id".into(), post.getKey().unwrap().clone());
     let related = through
@@ -6200,7 +6207,7 @@ async fn verify_scoped_attributes(db: &Connection, author: &Author, post: &Post)
         .unwrap();
     assert_eq!(related.getAttribute("count"), Some(&81.into()));
 
-    let query = RelationCounter::queryOn(db).withAttributes(defaults(82), false);
+    let query = RelationCounter::queryOn(db).with_attributes(defaults(82), false);
     let instance = query.make(name("scoped-builder")).unwrap();
     assert_eq!(instance.getAttribute("count"), Some(&82.into()));
     assert!(query.get().await.unwrap().len() > scoped.len());
@@ -7059,7 +7066,7 @@ async fn verify_counter_events(
     );
     assert_eq!(
         TouchPost::queryOn(db)
-            .withTrashed()
+            .with_trashed()
             .findOrFail(3)
             .await
             .unwrap()
@@ -7233,7 +7240,7 @@ async fn verify_default_pivot_events(
     assert_eq!(pivot.getRawOriginal("note"), Some(&"model fallback".into()));
     assert!(!pivot.state().isDirty());
     assert_eq!(
-        projected[0].toArray().unwrap()["pivot"]["note"],
+        projected[0].to_array().unwrap()["pivot"]["note"],
         "model fallback"
     );
     let selected = relation().getResults(owner).await.unwrap();
@@ -7244,9 +7251,9 @@ async fn verify_default_pivot_events(
     assert_eq!(pivot.getRawOriginal("note"), Some(&Value::Null));
     assert_eq!(pivot.getRawOriginal("author_id"), owner.getKey());
     assert!(!pivot.state().isDirty());
-    assert_eq!(selected[0].toArray().unwrap()["pivot"]["label"], 8);
+    assert_eq!(selected[0].to_array().unwrap()["pivot"]["label"], 8);
     assert_eq!(
-        selected[0].toArray().unwrap()["pivot"].get("note"),
+        selected[0].to_array().unwrap()["pivot"].get("note"),
         Some(&Json::Null)
     );
     assert!(drain().is_empty());
@@ -7414,11 +7421,11 @@ async fn verify_custom_pivot(config: Json) {
                 post.getKey()
             );
             assert_eq!(
-                post.toArray().unwrap()["membership"]["post"]["id"],
-                post.toArray().unwrap()["id"]
+                post.to_array().unwrap()["membership"]["post"]["id"],
+                post.to_array().unwrap()["id"]
             );
             assert!(
-                post.toArray().unwrap()["membership"]["post"]
+                post.to_array().unwrap()["membership"]["post"]
                     .get("membership")
                     .is_none()
             );
@@ -7434,8 +7441,8 @@ async fn verify_custom_pivot(config: Json) {
     let baseline = if mysql { select_count(&db).await } else { 0 };
     let posts = lazy.getResults(&owner).await.unwrap();
     let pivot = posts[0].getRelation::<Membership>("pivot").unwrap();
-    assert!(pivot.relationLoaded("owner") && pivot.relationLoaded("item"));
-    assert!(!pivot.relationLoaded("author"));
+    assert!(pivot.relation_loaded("owner") && pivot.relation_loaded("item"));
+    assert!(!pivot.relation_loaded("author"));
     if mysql {
         assert_eq!(select_count(&db).await - baseline, 1);
     }
@@ -7444,7 +7451,7 @@ async fn verify_custom_pivot(config: Json) {
         !posts[0]
             .getRelation::<Membership>("pivot")
             .unwrap()
-            .relationLoaded("owner")
+            .relation_loaded("owner")
     );
     assert!(
         FEATURED_POSTS.chaperone().getResults(&owner).await.unwrap()[0]
@@ -7468,7 +7475,7 @@ async fn verify_custom_pivot(config: Json) {
             .iter()
             .find(|post| post.getKey() == Some(&1.into()))
             .unwrap()
-            .toArray()
+            .to_array()
             .unwrap()["membership"]["label"],
         12
     );
@@ -7543,7 +7550,7 @@ async fn verify_custom_pivot(config: Json) {
     assert_eq!(changes.attached, vec![2.into()]);
     let posts = morph.getResults(&owner).await.unwrap();
     let pivot = posts[0].getRelation::<Membership>("pivot").unwrap();
-    assert!(pivot.relationLoaded("author") && pivot.relationLoaded("post"));
+    assert!(pivot.relation_loaded("author") && pivot.relation_loaded("post"));
     assert_eq!(pivot.getAttribute("subject_type"), Some(&"featured".into()));
     assert_eq!(pivot.getAttributeValue("label").unwrap(), Some(15.into()));
     assert_eq!(
@@ -7658,7 +7665,7 @@ async fn verify_collection_factory(db: &Connection, author: &Author, mysql: bool
         HasMany::<Author, KeyedPost>::new("id", "author_id")
             .chaperone("author")
             .constrain(|query| {
-                query.withAttributes(Attributes::from([("score".into(), 7.into())]), false)
+                query.with_attributes(Attributes::from([("score".into(), 7.into())]), false)
             })
     };
     let relation = keyed_posts();
@@ -7687,9 +7694,9 @@ async fn verify_collection_factory(db: &Connection, author: &Author, mysql: bool
         cached.getByKey("post-0").unwrap().getKey(),
         cached[0].getKey()
     );
-    assert!(cached[0].relationLoaded("author"));
+    assert!(cached[0].relation_loaded("author"));
     assert!(
-        eager.toArray().unwrap()["keyed_eager"]
+        eager.to_array().unwrap()["keyed_eager"]
             .get("post-0")
             .is_some()
     );
@@ -7712,7 +7719,7 @@ async fn verify_collection_factory(db: &Connection, author: &Author, mysql: bool
         assert_eq!(model.getAttribute("score"), Some(&7.into()));
         assert_eq!(model.getAttribute("author_id"), author.getKey());
         assert!(!model.state().exists());
-        assert!(model.relationLoaded("author"));
+        assert!(model.relation_loaded("author"));
     }
     let morph = MorphOne::<Author, Comment>::new("id", "subject_id", "subject_type", "author");
     let child = morph
@@ -7741,7 +7748,7 @@ async fn verify_collection_factory(db: &Connection, author: &Author, mysql: bool
             model.getAttribute("title"),
             models[index % 2].getAttribute("title")
         );
-        assert!(model.relationLoaded("author"));
+        assert!(model.relation_loaded("author"));
     }
     repeated[0].setAttribute("title", "changed");
     assert_eq!(
@@ -7759,14 +7766,14 @@ async fn verify_collection_factory(db: &Connection, author: &Author, mysql: bool
         assert_eq!(select_count(db).await - baseline, 0);
     }
     let mut query = KeyedPost::queryOn(db);
-    query.whereIn("title", vec!["first draft".into(), "second draft".into()]);
+    query.where_in("title", vec!["first draft".into(), "second draft".into()]);
     assert!(query.get().await.unwrap().is_empty());
 }
 
 async fn verify_chaperone(db: &Connection, mysql: bool, parent: &Author, post: &Post) {
     let baseline = if mysql { select_count(db).await } else { 0 };
     let mut query = Author::queryOn(db).with("posts", POSTS.chaperone("author"));
-    query.whereIn("id", vec![1.into(), 2.into()]);
+    query.where_in("id", vec![1.into(), 2.into()]);
     let authors = query.get().await.unwrap();
     let author_relation = AUTHOR;
     let mut count = 0;
@@ -7782,7 +7789,7 @@ async fn verify_chaperone(db: &Connection, mysql: bool, parent: &Author, post: &
                 .unwrap();
             let inverse = inverse.as_ref().unwrap();
             assert_eq!(inverse.getKey(), author.getKey());
-            assert!(!inverse.relationLoaded("posts"));
+            assert!(!inverse.relation_loaded("posts"));
             count += 1;
         }
     }
@@ -7797,7 +7804,7 @@ async fn verify_chaperone(db: &Connection, mysql: bool, parent: &Author, post: &
         .getResults(parent)
         .await
         .unwrap();
-    assert!(!plain[0].relationLoaded("author"));
+    assert!(!plain[0].relation_loaded("author"));
     let saved = POSTS
         .chaperone("author")
         .create(
@@ -7964,7 +7971,7 @@ async fn verify_eager_limits(db: &Connection, mysql: bool, parents: [&Author; 2]
                 }),
             )
             .orderBy("id", "asc");
-        query.whereIn("id", parent_keys.to_vec());
+        query.where_in("id", parent_keys.to_vec());
         let baseline = if mysql { select_count(db).await } else { 0 };
         let loaded = query.get().await.unwrap();
         if mysql {
@@ -8329,7 +8336,7 @@ async fn verify(db: Connection, other: Connection, mysql: bool) {
             POSTS
                 .one()
                 .latestOfMany(Some("score"))
-                .constrain(|query| query.withTrashed()),
+                .constrain(|query| query.with_trashed()),
             hidden.getKey(),
         ),
     ] {
@@ -8454,7 +8461,7 @@ async fn verify(db: Connection, other: Connection, mysql: bool) {
     let related = p1.getRelation::<Option<Arc<Author>>>("author").unwrap();
     assert_eq!(related.as_ref().unwrap().getKey(), first.getKey());
     AUTHOR.associate(&mut p1, &second).unwrap();
-    assert!(!p1.relationLoaded("author"));
+    assert!(!p1.relation_loaded("author"));
     assert!(p1.save().await.unwrap());
     let found = Post::queryOn(&db)
         .with("author", AUTHOR)
@@ -8505,7 +8512,7 @@ async fn verify(db: Connection, other: Connection, mysql: bool) {
         assert_eq!(select_count(&db).await - baseline, 2);
     }
     {
-        let array = featured.toArray().unwrap();
+        let array = featured.to_array().unwrap();
         assert_eq!(array[0]["featured"][0]["pivot"]["label"], "featured");
         assert_eq!(array[2]["featured"], json!([]));
     }
@@ -8575,7 +8582,7 @@ async fn verify(db: Connection, other: Connection, mysql: bool) {
         .getRelation::<RelatedCollection<Post>>("featured")
         .unwrap();
     assert_eq!(posts.len(), 1);
-    assert!(posts[0].relationLoaded("author"));
+    assert!(posts[0].relation_loaded("author"));
 
     let changes = FEATURED_POSTS
         .syncWithoutDetaching(&first, std::slice::from_ref(&second_key))
@@ -8867,7 +8874,7 @@ async fn verify_dynamic_relations(config: Json) {
             .await,
         Err(DatabaseError::InvalidQuery("unknown dynamic relationship"))
     ));
-    assert!(!other_author.relationLoaded("selectedPosts"));
+    assert!(!other_author.relation_loaded("selectedPosts"));
     assert!(matches!(
         Author::queryOn(&other).whereHas(&named),
         Err(DatabaseError::InvalidQuery("unknown dynamic relationship"))
@@ -8889,7 +8896,7 @@ async fn verify_dynamic_relations(config: Json) {
             .getKey(),
         Some(&1.into())
     );
-    assert!(author.toArray().unwrap().contains_key("selected_posts"));
+    assert!(author.to_array().unwrap().contains_key("selected_posts"));
     assert!(matches!(
         author.relationResolver::<BelongsTo<Author, Post>>("selectedPosts"),
         Err(DatabaseError::InvalidQuery(

@@ -104,7 +104,7 @@ impl SignedFile {
         if self.public {
             return Ok(true);
         }
-        match URL::service()?.hasValidSignature(
+        match URL::service()?.has_valid_signature(
             request,
             SignatureMode::Relative,
             SignatureQueryFilter::Keys(&[]),

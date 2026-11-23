@@ -57,9 +57,9 @@ fn presence(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
         Response::json(
             StatusCode::OK,
             json!({
-                "empty": request.hasCookie("plain")?,
-                "missing": request.hasCookie("missing")?,
-                "invalid": request.hasCookie("queued")?,
+                "empty": request.has_cookie("plain")?,
+                "missing": request.has_cookie("missing")?,
+                "invalid": request.has_cookie("queued")?,
                 "invalid_uses_default": request.cookie(Some("queued"))?.unwrap_or(json!("fallback")),
                 "bag": request.cookie(None)?,
             }),
@@ -104,13 +104,13 @@ fn redirect_cookies(request: &mut Request) -> HttpFuture<'_, Result<RedirectResp
             },
         )?
         .cookie(&older, request)?
-        .withCookies([&theme, &scoped, &contrast], request)?;
+        .with_cookies([&theme, &scoped, &contrast], request)?;
         if request.route("operation") == Some("expire") {
             return redirect
-                .withoutCookie("theme", Some("/private"), Some("sub.example.test"), request)?
-                .withoutCookies(["contrast", "legacy"], None, None, request);
+                .without_cookie("theme", Some("/private"), Some("sub.example.test"), request)?
+                .without_cookies(["contrast", "legacy"], None, None, request);
         }
-        Ok(redirect.withFragment("details")?)
+        Ok(redirect.with_fragment("details")?)
     })
 }
 
@@ -126,7 +126,7 @@ async fn transport(
     State(kernel): State<Arc<Kernel>>,
     request: axum::extract::Request,
 ) -> axum::response::Response {
-    kernel.handleTransport(request).await
+    kernel.handle_transport(request).await
 }
 
 async fn start(key: u8, previous: Option<u8>) -> (SocketAddr, tokio::task::JoinHandle<()>) {

@@ -40,7 +40,7 @@ use openrust::{bus::Batch, queue::QueueResult, support::facades::Bus};
 async fn dispatch_batch() -> QueueResult<Batch> {
     Bus::batch([BatchReport.payload()?, BatchReport.payload()?])
         .name("monthly reports")
-        .onQueue("reports")
+        .on_queue("reports")
         .dispatch()
         .await
 }
@@ -551,23 +551,23 @@ use openrust::{
 };
 
 fn report_chain(prepare: Payload, generate: Payload, publish: Payload) -> PendingChain {
-    Bus::chain([prepare, generate, publish]).onQueue("reports")
+    Bus::chain([prepare, generate, publish]).on_queue("reports")
 }
 ```
 
-Use `onConnection` and `onQueue` to select the destination for the chain. `delay` applies to the first job. Use `prepend` and `append` on the builder to change the sequence before dispatch.
+Use `on_connection` and `on_queue` to select the destination for the chain. `delay` applies to the first job. Use `prepend` and `append` on the builder to change the sequence before dispatch.
 
 Register a failure callback by name in your provider’s `boot` method with `Bus::registerChainCallback`. Attach it with `catch("reports.failed")`. The worker resolves the callback in its application and passes the failed payload and queue error. Make job side effects idempotent because the worker can execute a job again after losing its reservation. Chain callbacks have no separate retry record.
 
 ### Chain connection and queue {#chain-connection-queue}
 
-Set chain defaults with `PendingChain::onConnection` and `onQueue`. Use the corresponding methods on a job payload to override its own destination. The next job still uses the chain defaults unless it has an override. A payload delay starts when its predecessor succeeds. On the first job, its own delay takes precedence over the chain builder’s delay.
+Set chain defaults with `PendingChain::on_connection` and `on_queue`. Use the corresponding methods on a job payload to override its own destination. The next job still uses the chain defaults unless it has an override. A payload delay starts when its predecessor succeeds. On the first job, its own delay takes precedence over the chain builder’s delay.
 
 ```rust
 use openrust::queue::{Delay, Payload};
 
 fn route_job(job: Payload, connection: &str, queue: &str, delay: Delay) -> Payload {
-    job.onConnection(connection).onQueue(queue).delay(delay)
+    job.on_connection(connection).on_queue(queue).delay(delay)
 }
 ```
 
@@ -629,7 +629,7 @@ async fn dispatch_reports() -> QueueResult<Batch> {
         Payload::new("reports.generate", "detail")?,
     ])
     .name("monthly reports")
-    .onQueue("batch")
+    .on_queue("batch")
     .dispatch()
     .await
 }
@@ -637,7 +637,7 @@ async fn dispatch_reports() -> QueueResult<Batch> {
 
 Run `./artisan queue:work database --queue=batch --stop-when-empty` to process the batch. Read its current state with `Bus::findBatch(&id)` and cancel it explicitly with `Bus::cancelBatch(&id)`. By default, a terminal job failure cancels the batch. Add `allowFailures()` to let the batch continue without cancellation, and attach `SkipIfBatchCancelled` to skip a job after cancellation. A failed job stays pending until it succeeds on retry.
 
-A database queue and its batch repository must use the same SQL connection. Their batch and queue writes commit together. To publish a batch to Redis, select `onConnection("redis")` before `dispatch()`.
+A database queue and its batch repository must use the same SQL connection. Their batch and queue writes commit together. To publish a batch to Redis, select `on_connection("redis")` before `dispatch()`.
 
 ### Chains within batches {#chains-and-batches}
 
@@ -696,15 +696,15 @@ Additions use the same dispatch path as the initial jobs. A dispatch error rolls
 
 ### Publishing batches to Redis {#redis-batches}
 
-Use `.onConnection("redis")` for Redis batches. Batch state and callback options remain in `job_batches`; jobs are pushed directly to Redis. A dispatch error is returned to the caller and rolls back the SQL batch transaction. Redis writes and SQL commits are independent. A worker can receive a job before SQL commits, and a partial publication or later commit failure may leave jobs without a batch record. Design handlers for these boundaries.
+Use `.on_connection("redis")` for Redis batches. Batch state and callback options remain in `job_batches`; jobs are pushed directly to Redis. A dispatch error is returned to the caller and rolls back the SQL batch transaction. Redis writes and SQL commits are independent. A worker can receive a job before SQL commits, and a partial publication or later commit failure may leave jobs without a batch record. Design handlers for these boundaries.
 
 ### Publishing batches to a separate database {#cross-database-batches}
 
-Set `queue.batching.database` to the batch state connection and choose a database queue through `onConnection`. The destination needs the `jobs` table; workers use the shared `job_batches` repository. If these use the same SQL connection, batch changes and queued jobs share a transaction. Separate connections commit independently and can publish partially. Consume the destination with `queue:work <connection>`.
+Set `queue.batching.database` to the batch state connection and choose a database queue through `on_connection`. The destination needs the `jobs` table; workers use the shared `job_batches` repository. If these use the same SQL connection, batch changes and queued jobs share a transaction. Separate connections commit independently and can publish partially. Consume the destination with `queue:work <connection>`.
 
 ### Publishing batches to Beanstalkd or SQS {#external-batches}
 
-Select the broker with `Bus::batch(jobs).onConnection("beanstalkd")` or `.onConnection("sqs")`. Configure the same SQL batch repository in publishers and workers. Jobs are sent while the batch transaction is open. SQS uses `SendMessageBatch`, with up to 10 messages and 1 MiB of message bodies per request.
+Select the broker with `Bus::batch(jobs).on_connection("beanstalkd")` or `.on_connection("sqs")`. Configure the same SQL batch repository in publishers and workers. Jobs are sent while the batch transaction is open. SQS uses `SendMessageBatch`, with up to 10 messages and 1 MiB of message bodies per request.
 
 An SQS partial failure stops further chunks and returns an error. Beanstalkd returns a send error directly. The SQL transaction rolls back, while jobs already accepted by the broker remain there. There is no publication outbox or recovery command.
 
@@ -739,14 +739,14 @@ fn register_batch_callbacks() -> QueueResult<()> {
 async fn dispatch_with_callbacks() -> QueueResult<Batch> {
     Bus::batch([Payload::new("reports.generate", "documentation")?])
         .name("report export")
-        .onQueue("reports")
+        .on_queue("reports")
         .then("reports.completed")
         .dispatch()
         .await
 }
 ```
 
-Use `before` for the initial snapshot before enqueueing, `progress` for terminal progress, `then` when the pending count reaches zero, `catch` for the first terminal failure, and `finally` after all jobs reach a terminal outcome. `onFailure` allows failures and registers a callback for each terminal failure. A callback error is logged and the worker continues. Worker callbacks run after their SQL transition commits. A process crash between commit and invocation can lose that invocation.
+Use `before` for the initial snapshot before enqueueing, `progress` for terminal progress, `then` when the pending count reaches zero, `catch` for the first terminal failure, and `finally` after all jobs reach a terminal outcome. `on_failure` allows failures and registers a callback for each terminal failure. A callback error is logged and the worker continues. Worker callbacks run after their SQL transition commits. A process crash between commit and invocation can lose that invocation.
 
 ### Batch events {#batch-events}
 

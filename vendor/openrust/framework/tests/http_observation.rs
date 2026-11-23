@@ -99,8 +99,8 @@ async fn handled_observes_rendered_errors_context_and_headers_without_consuming_
     let captured = fake.dispatched(HANDLED);
     assert_eq!(captured.len(), 1);
     let event = captured[0].downcast_ref::<RequestHandled>().unwrap();
-    assert_eq!(event.routeName.as_deref(), Some("observed"));
-    assert_eq!(event.responseContent.as_deref(), Some(b"hello".as_slice()));
+    assert_eq!(event.route_name.as_deref(), Some("observed"));
+    assert_eq!(event.response_content.as_deref(), Some(b"hello".as_slice()));
     let metadata = event
         .request
         .extensions
@@ -120,8 +120,8 @@ async fn handled_observes_rendered_errors_context_and_headers_without_consuming_
     let handler_started = *event.attributes["handler_started"]
         .downcast::<i64>()
         .unwrap();
-    assert!(before <= event.requestStartedAt);
-    assert!(event.requestStartedAt <= handler_started);
+    assert!(before <= event.request_started_at);
+    assert!(event.request_started_at <= handler_started);
     assert!(handler_started < jiff::Timestamp::now().as_millisecond());
     incoming.attributes().remove("trace");
     assert!(event.attributes.contains_key("trace"));
@@ -146,12 +146,12 @@ async fn handled_observes_rendered_errors_context_and_headers_without_consuming_
             .unwrap()
             .downcast_ref::<RequestHandled>()
             .unwrap();
-        assert!(before <= event.requestStartedAt);
-        assert!(event.requestStartedAt <= jiff::Timestamp::now().as_millisecond());
+        assert!(before <= event.request_started_at);
+        assert!(event.request_started_at <= jiff::Timestamp::now().as_millisecond());
         assert_eq!(event.response.status.as_u16(), status);
         assert_eq!(event.request.method.as_str(), method);
         if path == "/stream" {
-            assert!(event.responseContent.is_none());
+            assert!(event.response_content.is_none());
         }
         assert_eq!(
             event
@@ -162,7 +162,7 @@ async fn handled_observes_rendered_errors_context_and_headers_without_consuming_
             status != 404 && status != 400
         );
         if path != "/ok" {
-            assert!(event.routeName.is_none());
+            assert!(event.route_name.is_none());
         }
         if method == "HEAD" {
             assert_eq!(event.response.headers["content-length"], "5");
@@ -194,11 +194,11 @@ impl Listener for Observe {
         Box::pin(async move {
             let handled = event.downcast_ref::<RequestHandled>().unwrap();
             // Dispatch is inside this application's facade lifecycle.
-            openrust::http::client::Http::globalMiddleware(|request, next| {
+            openrust::http::client::Http::global_middleware(|request, next| {
                 Box::pin(async move { next.run(request).await })
             })
             .unwrap();
-            openrust::http::client::Http::preventStrayRequests(true).unwrap();
+            openrust::http::client::Http::prevent_stray_requests(true).unwrap();
             self.0
                 .lock()
                 .unwrap()
@@ -228,7 +228,7 @@ async fn handled_listeners_run_in_the_owning_application_and_remain_isolated() {
             .container()
             .make::<openrust::http::client::Factory>()
             .unwrap()
-            .preventingStrayRequests()
+            .preventing_stray_requests()
     );
     assert!(
         !second
@@ -236,7 +236,7 @@ async fn handled_listeners_run_in_the_owning_application_and_remain_isolated() {
             .container()
             .make::<openrust::http::client::Factory>()
             .unwrap()
-            .preventingStrayRequests()
+            .preventing_stray_requests()
     );
 }
 
@@ -270,7 +270,7 @@ async fn handled_is_emitted_for_real_http_success_and_rendered_failure() {
         State(kernel): State<Arc<Kernel>>,
         request: axum::extract::Request,
     ) -> axum::response::Response {
-        kernel.handleTransport(request).await
+        kernel.handle_transport(request).await
     }
     let (kernel, dispatcher) = kernel().await;
     let fake = dispatcher.fake(&[HANDLED]);

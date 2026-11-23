@@ -19,7 +19,7 @@ try {
                     assert.equal(response.status(), 200);
                     await page.locator("#callbacks").waitFor();
                     const body = await page.locator("main").innerText();
-                    for (const text of ["PayServiceProvider", "PAY_WECHAT_PUBLIC_KEY_ID", "PAY_ALIPAY_SELLER_ID", "Amount::fromFen", "DatabaseNotifications", "NotificationConflict", "OutcomeUnknown", "forgetDrivers", "getDefaultDriver", "Scene::Scan", "Stripe", "Paddle"]) {
+                    for (const text of ["PayServiceProvider", "PAY_WECHAT_PUBLIC_KEY_ID", "PAY_ALIPAY_SELLER_ID", "Amount::fromFen", "DatabaseNotifications", "NotificationConflict", "OutcomeUnknown", "forgetDrivers", "get_default_driver", "Scene::Scan", "Stripe", "Paddle"]) {
                         assert(body.includes(text), `${language}: missing ${text}`);
                     }
                     for (const anchor of ["configuration", "create-payment", "query-and-refund", "callbacks", "gateway-lifecycle"]) {

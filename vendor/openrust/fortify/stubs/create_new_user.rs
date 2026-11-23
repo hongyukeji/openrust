@@ -25,7 +25,7 @@ impl CreatesNewUsers for CreateNewUser {
                         Rule::string(),
                         Rule::email(),
                         Rule::max(255),
-                        Unique::fromModel(&model, None).into(),
+                        Unique::from_model(&model, None).into(),
                     ],
                 )?
                 .field(

@@ -73,13 +73,13 @@ impl Alipay {
         let params = self.parameters(method, biz, order)?;
         let response = self
             .http
-            .pendingRequest()
-            .redactPayload()
-            .asForm()
-            .acceptJson()
-            .withoutRedirecting()
+            .pending_request()
+            .redact_payload()
+            .as_form()
+            .accept_json()
+            .without_redirecting()
             .timeout(Duration::from_secs(15))
-            .maxResponseBytes(1024 * 1024)
+            .max_response_bytes(1024 * 1024)
             .post(self.endpoint.as_str(), &params)
             .await
             .map_err(|_| Error::OutcomeUnknown)?;

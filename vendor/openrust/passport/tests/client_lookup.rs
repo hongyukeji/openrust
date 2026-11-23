@@ -399,7 +399,7 @@ fn lookup(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
             .unwrap();
         Response::json(
             StatusCode::OK,
-            json!({"client":a.toArray().await.map_err(|e|internal(Box::new(e)))?,"same":a.sameInstance(&b),"scope_allowed":a.hasScope("orders:read").await.map_err(|e|internal(Box::new(e)))?}),
+            json!({"client":a.to_array().await.map_err(|e|internal(Box::new(e)))?,"same":a.sameInstance(&b),"scope_allowed":a.hasScope("orders:read").await.map_err(|e|internal(Box::new(e)))?}),
         )
     })
 }
@@ -409,7 +409,7 @@ async fn serve(app: Application) -> (std::net::SocketAddr, tokio::task::JoinHand
     let address = listener.local_addr().unwrap();
     let kernel = Arc::new(kernel);
     let router = axum::Router::new()
-        .fallback(move |request: axum::extract::Request| kernel.clone().handleTransport(request));
+        .fallback(move |request: axum::extract::Request| kernel.clone().handle_transport(request));
     (
         address,
         tokio::spawn(async move {
@@ -501,23 +501,23 @@ impl Model for OwnerUser {
     }
 }
 impl openrust::contracts::auth::Authenticatable for OwnerUser {
-    fn getAuthIdentifierName(&self) -> &str {
+    fn get_auth_identifier_name(&self) -> &str {
         "id"
     }
-    fn getAuthIdentifier(&self) -> openrust::auth::AuthIdentifier {
+    fn get_auth_identifier(&self) -> openrust::auth::AuthIdentifier {
         openrust::auth::AuthIdentifier::Integer(991)
     }
-    fn getAuthPasswordName(&self) -> &str {
+    fn get_auth_password_name(&self) -> &str {
         "password"
     }
-    fn getAuthPassword(&self) -> Option<&str> {
+    fn get_auth_password(&self) -> Option<&str> {
         None
     }
-    fn getRememberToken(&self) -> Option<&str> {
+    fn get_remember_token(&self) -> Option<&str> {
         None
     }
-    fn setRememberToken(&mut self, _: Option<String>) {}
-    fn getRememberTokenName(&self) -> &str {
+    fn set_remember_token(&mut self, _: Option<String>) {}
+    fn get_remember_token_name(&self) -> &str {
         "remember_token"
     }
 }
@@ -575,7 +575,7 @@ async fn mysql_creation_update_and_secret_rotation_keep_actual_eloquent_models()
     .unwrap();
     let user =
         OwnerUser::newInstanceOn(&db, Attributes::from([("id".into(), 7_i64.into())])).unwrap();
-    let owner = openrust_passport::ClientOwner::forUser(&user).unwrap();
+    let owner = openrust_passport::ClientOwner::for_user(&user).unwrap();
     app.container()
         .scope(async {
             let repo = app.make::<ClientRepository>().await.unwrap();
@@ -606,7 +606,7 @@ async fn mysql_creation_update_and_secret_rotation_keep_actual_eloquent_models()
             );
             let id = created.getKey().await.unwrap();
             assert!(matches!(&id,Value::Text(id) if Client::isValidUniqueId(id)));
-            let json = created.toArray().await.unwrap();
+            let json = created.to_array().await.unwrap();
             assert_eq!(json["owner_id"], 7);
             assert_eq!(json["owner_type"], user.getMorphClass().unwrap());
             assert!(json.get("secret").is_none());
@@ -734,14 +734,14 @@ async fn mysql_creation_update_and_secret_rotation_keep_actual_eloquent_models()
             let other_user =
                 OwnerUser::newInstanceOn(&db, Attributes::from([("id".into(), 8_i64.into())]))
                     .unwrap();
-            let other_owner = openrust_passport::ClientOwner::forUser(&other_user).unwrap();
+            let other_owner = openrust_passport::ClientOwner::for_user(&other_user).unwrap();
             assert!(
                 repo.findForUser(own_id.clone(), &other_owner)
                     .await
                     .unwrap()
                     .is_none()
             );
-            let owned = repo.forUser(&owner).await.unwrap();
+            let owned = repo.for_user(&owner).await.unwrap();
             assert_eq!(owned.count(), 1);
             assert_eq!(owned.first().unwrap().getKey().await, Some(own_id.clone()));
             db.table("oauth_clients")
@@ -749,7 +749,7 @@ async fn mysql_creation_update_and_secret_rotation_keep_actual_eloquent_models()
                 .update(Attributes::from([("revoked".into(), true.into())]))
                 .await
                 .unwrap();
-            assert!(repo.forUser(&owner).await.unwrap().isEmpty());
+            assert!(repo.for_user(&owner).await.unwrap().is_empty());
             app.config()
                 .unwrap()
                 .set("auth.guards.api.provider", json!("users"))
@@ -959,7 +959,7 @@ async fn mysql_legacy_client_columns_keep_owners_redirects_and_secret_mutators()
         .unwrap();
     let user =
         OwnerUser::newInstanceOn(&db, Attributes::from([("id".into(), 7_i64.into())])).unwrap();
-    let owner = openrust_passport::ClientOwner::forUser(&user).unwrap();
+    let owner = openrust_passport::ClientOwner::for_user(&user).unwrap();
     app.container()
         .scope(async {
             let repo = app.make::<ClientRepository>().await.unwrap();
@@ -1006,7 +1006,7 @@ async fn mysql_legacy_client_columns_keep_owners_redirects_and_secret_mutators()
                     .plainSecret
                     .is_none()
             );
-            assert_eq!(repo.forUser(&owner).await.unwrap().count(), 1);
+            assert_eq!(repo.for_user(&owner).await.unwrap().count(), 1);
             let personal = repo
                 .createPersonalAccessGrantClient("legacy personal", None)
                 .await
@@ -1038,11 +1038,11 @@ fn model_connections(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpErr
 async fn verify_model_connections() -> DatabaseResult<Json> {
     use openrust::support::facades::Config;
     let configured = Client::default().getConnection()?;
-    assert_eq!(configured.getName(), "oauth");
+    assert_eq!(configured.get_name(), "oauth");
     assert_eq!(
         CustomClient::from_state(Default::default())
             .getConnection()?
-            .getName(),
+            .get_name(),
         "main"
     );
     let mut client = Client::default();
@@ -1092,8 +1092,8 @@ async fn verify_model_connections() -> DatabaseResult<Json> {
     Config::set("passport.connection", json!("main")).unwrap();
     loaded.setAttributeValue("name", "retained original connection")?;
     assert!(loaded.save().await?);
-    assert_eq!(loaded.getConnection()?.getName(), "oauth");
-    assert_eq!(Client::default().getConnection()?.getName(), "main");
+    assert_eq!(loaded.getConnection()?.get_name(), "oauth");
+    assert_eq!(Client::default().getConnection()?.get_name(), "main");
     assert_eq!(
         Client::queryOn(&configured)
             .find(key.clone())
@@ -1103,7 +1103,7 @@ async fn verify_model_connections() -> DatabaseResult<Json> {
         Some("retained original connection".into())
     );
     Config::set("passport.connection", Json::Null).unwrap();
-    assert_eq!(Client::default().getConnection()?.getName(), "main");
+    assert_eq!(Client::default().getConnection()?.get_name(), "main");
     Config::set("passport.connection", json!(["invalid"])).unwrap();
     assert!(matches!(
         Client::default().getConnection(),
@@ -1112,7 +1112,7 @@ async fn verify_model_connections() -> DatabaseResult<Json> {
         ))
     ));
     assert!(Client::query().is_err());
-    assert_eq!(loaded.getConnection()?.getName(), "oauth");
+    assert_eq!(loaded.getConnection()?.get_name(), "oauth");
     Config::set("passport.connection", json!("oauth")).unwrap();
     assert!(loaded.delete().await?);
     assert!(Client::find(key).await?.is_none());

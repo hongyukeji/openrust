@@ -15,7 +15,7 @@ impl Precognition {
         let validate_only = request.headers().contains_key("precognition-validate-only");
         move |validator| {
             if validate_only && validator.errors().is_empty() {
-                return Err(Self::success().throwResponse());
+                return Err(Self::success().throw_response());
             }
             Ok(())
         }
@@ -29,8 +29,8 @@ impl Precognition {
     }
 
     pub(crate) fn abort(request: &Request) -> Result<(), HttpError> {
-        if request.isPrecognitive() {
-            return Err(Self::success().throwResponse());
+        if request.is_precognitive() {
+            return Err(Self::success().throw_response());
         }
         Ok(())
     }

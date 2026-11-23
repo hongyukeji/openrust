@@ -109,7 +109,6 @@ pub struct GateRegistry {
     owner: Weak<Container>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl GateRegistry {
     pub(crate) fn for_application(owner: Weak<Container>) -> Self {
         Self {
@@ -143,7 +142,7 @@ impl GateRegistry {
         );
     }
 
-    pub fn defineGuest(
+    pub fn define_guest(
         &self,
         ability: impl Into<String>,
         callback: impl for<'a> Fn(
@@ -223,12 +222,12 @@ impl GateRegistry {
             .push(Arc::new(callback));
     }
 
-    pub fn defaultDenialResponse(&self, response: Response) {
+    pub fn default_denial_response(&self, response: Response) {
         let mut definitions = self.definitions.write().expect("gate registry lock");
         definitions.default_denial = response.denied().then_some(response);
     }
 
-    pub fn forUser(self: &Arc<Self>, user: Option<Arc<dyn Authenticatable>>) -> Gate {
+    pub fn for_user(self: &Arc<Self>, user: Option<Arc<dyn Authenticatable>>) -> Gate {
         Gate {
             registry: self.clone(),
             user,
@@ -242,7 +241,6 @@ pub struct Gate {
     user: Option<Arc<dyn Authenticatable>>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Gate {
     pub fn has(&self, ability: &str) -> bool {
         self.registry
@@ -257,20 +255,20 @@ impl Gate {
         self.registry.policies()
     }
 
-    pub fn resolvePolicy<P: Send + Sync + 'static>(&self) -> AuthResult<Arc<P>> {
-        self.registry.resolvePolicy::<P>()
+    pub fn resolve_policy<P: Send + Sync + 'static>(&self) -> AuthResult<Arc<P>> {
+        self.registry.resolve_policy::<P>()
     }
 
-    pub fn guessPolicyNamesUsing(
+    pub fn guess_policy_names_using(
         &self,
         callback: impl Fn(&str) -> Vec<String> + Send + Sync + 'static,
     ) -> &Self {
-        self.registry.guessPolicyNamesUsing(callback);
+        self.registry.guess_policy_names_using(callback);
         self
     }
 
-    pub fn getPolicyFor(&self, target: &Argument) -> AuthResult<Option<PolicyHandle>> {
-        self.registry.getPolicyFor(target)
+    pub fn get_policy_for(&self, target: &Argument) -> AuthResult<Option<PolicyHandle>> {
+        self.registry.get_policy_for(target)
     }
 
     pub async fn inspect(&self, ability: &str, args: &[&Argument]) -> AuthResult<Response> {
@@ -298,7 +296,7 @@ impl Gate {
         if result.is_none() {
             let policy = args
                 .first()
-                .map(|value| self.getPolicyFor(*value))
+                .map(|value| self.get_policy_for(*value))
                 .transpose()?
                 .flatten();
             if let Some(policy) = policy.filter(|policy| policy.0.has_ability(ability)) {
@@ -392,18 +390,18 @@ impl Gate {
         )
     }
 
-    pub fn allowIf(
+    pub fn allow_if(
         &self,
         condition: impl FnOnce(&dyn Authenticatable) -> bool,
     ) -> Result<Response, AuthorizationError> {
         decision(self.user.as_deref().is_some_and(condition).into())
     }
 
-    pub fn denyIf(
+    pub fn deny_if(
         &self,
         condition: impl FnOnce(&dyn Authenticatable) -> bool,
     ) -> Result<Response, AuthorizationError> {
-        self.allowIf(|user| !condition(user))
+        self.allow_if(|user| !condition(user))
     }
 }
 
@@ -416,8 +414,8 @@ fn decision(response: Response) -> Result<Response, AuthorizationError> {
 }
 
 impl GateContract for Gate {
-    fn getPolicyFor(&self, target: &Argument) -> AuthResult<Option<PolicyHandle>> {
-        Gate::getPolicyFor(self, target)
+    fn get_policy_for(&self, target: &Argument) -> AuthResult<Option<PolicyHandle>> {
+        Gate::get_policy_for(self, target)
     }
     fn has(&self, ability: &str) -> bool {
         Gate::has(self, ability)

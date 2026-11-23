@@ -8,20 +8,18 @@ use crate::{
 use super::{JsonOptions, JsonResource, ResourceCollection, ResourceItems, ResourceResult};
 
 /// Declares the default resource associated with an Eloquent model.
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub trait UseResource: Model {
     type Resource: JsonResource + From<Self> + Send;
 
     /// Builds the default collection response from its original source.
-    fn resourceCollection(source: ResourceItems<Self>) -> impl JsonResource + Send {
+    fn resource_collection(source: ResourceItems<Self>) -> impl JsonResource + Send {
         Self::Resource::collection(source)
     }
 }
 
 /// Transforms model collections and paginator results into JSON resources.
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub trait TransformsToResourceCollection<M: Model>: Sized + Into<ResourceItems<M>> {
-    fn toResourceCollection(self) -> impl JsonResource + Send
+    fn to_resource_collection(self) -> impl JsonResource + Send
     where
         M: UseResource,
     {
@@ -29,15 +27,15 @@ pub trait TransformsToResourceCollection<M: Model>: Sized + Into<ResourceItems<M
         if source.items().is_empty() {
             ResolvedCollection::Empty(Box::new(M::Resource::collection(source)))
         } else {
-            ResolvedCollection::Declared(M::resourceCollection(source))
+            ResolvedCollection::Declared(M::resource_collection(source))
         }
     }
 
-    fn toResourceCollectionWith<R: JsonResource + From<M>>(self) -> ResourceCollection<R> {
+    fn to_resource_collection_with<R: JsonResource + From<M>>(self) -> ResourceCollection<R> {
         R::collection(self)
     }
 
-    fn toResourceCollectionUsing<R: JsonResource>(
+    fn to_resource_collection_using<R: JsonResource>(
         self,
         factory: impl FnOnce(ResourceItems<M>) -> R,
     ) -> R {
@@ -53,41 +51,44 @@ enum ResolvedCollection<C, R> {
 }
 
 impl<C: JsonResource, R: JsonResource> JsonResource for ResolvedCollection<C, R> {
-    fn prepareResponse(&mut self, request: &Request) -> Option<HttpFuture<'_, ResourceResult<()>>> {
+    fn prepare_response(
+        &mut self,
+        request: &Request,
+    ) -> Option<HttpFuture<'_, ResourceResult<()>>> {
         match self {
-            Self::Declared(resource) => resource.prepareResponse(request),
-            Self::Empty(resource) => resource.prepareResponse(request),
+            Self::Declared(resource) => resource.prepare_response(request),
+            Self::Empty(resource) => resource.prepare_response(request),
         }
     }
 
-    fn resolveResponseData(
+    fn resolve_response_data(
         &self,
         request: &Request,
     ) -> ResourceResult<(Value, Map<String, Value>)> {
         match self {
-            Self::Declared(resource) => resource.resolveResponseData(request),
-            Self::Empty(resource) => resource.resolveResponseData(request),
+            Self::Declared(resource) => resource.resolve_response_data(request),
+            Self::Empty(resource) => resource.resolve_response_data(request),
         }
     }
 
-    fn isJsonApi(&self) -> bool {
+    fn is_json_api(&self) -> bool {
         match self {
-            Self::Declared(resource) => resource.isJsonApi(),
-            Self::Empty(resource) => resource.isJsonApi(),
+            Self::Declared(resource) => resource.is_json_api(),
+            Self::Empty(resource) => resource.is_json_api(),
         }
     }
 
-    fn jsonOptions(&self) -> JsonOptions {
+    fn json_options(&self) -> JsonOptions {
         match self {
-            Self::Declared(resource) => resource.jsonOptions(),
-            Self::Empty(resource) => resource.jsonOptions(),
+            Self::Declared(resource) => resource.json_options(),
+            Self::Empty(resource) => resource.json_options(),
         }
     }
 
-    fn toArray(&self, request: &Request) -> ResourceResult<Value> {
+    fn to_array(&self, request: &Request) -> ResourceResult<Value> {
         match self {
-            Self::Declared(resource) => resource.toArray(request),
-            Self::Empty(resource) => resource.toArray(request),
+            Self::Declared(resource) => resource.to_array(request),
+            Self::Empty(resource) => resource.to_array(request),
         }
     }
 
@@ -98,10 +99,10 @@ impl<C: JsonResource, R: JsonResource> JsonResource for ResolvedCollection<C, R>
         }
     }
 
-    fn forceWrapping(&self) -> bool {
+    fn force_wrapping(&self) -> bool {
         match self {
-            Self::Declared(resource) => resource.forceWrapping(),
-            Self::Empty(resource) => resource.forceWrapping(),
+            Self::Declared(resource) => resource.force_wrapping(),
+            Self::Empty(resource) => resource.force_wrapping(),
         }
     }
 
@@ -119,17 +120,17 @@ impl<C: JsonResource, R: JsonResource> JsonResource for ResolvedCollection<C, R>
         }
     }
 
-    fn withResponse(&self, request: &Request, response: &mut Response) -> ResourceResult<()> {
+    fn with_response(&self, request: &Request, response: &mut Response) -> ResourceResult<()> {
         match self {
-            Self::Declared(resource) => resource.withResponse(request, response),
-            Self::Empty(resource) => resource.withResponse(request, response),
+            Self::Declared(resource) => resource.with_response(request, response),
+            Self::Empty(resource) => resource.with_response(request, response),
         }
     }
 
-    fn toResponse(&self, request: &Request) -> ResourceResult<Response> {
+    fn to_response(&self, request: &Request) -> ResourceResult<Response> {
         match self {
-            Self::Declared(resource) => resource.toResponse(request),
-            Self::Empty(resource) => resource.toResponse(request),
+            Self::Declared(resource) => resource.to_response(request),
+            Self::Empty(resource) => resource.to_response(request),
         }
     }
 }

@@ -58,9 +58,9 @@ fn prepare(
     };
     if let Some(url) = route.webhook {
         let payload = if let Some(message) = notification.to_legacy_slack(recipient)? {
-            message.toArray()
+            message.to_array()
         } else if let Some(message) = notification.to_slack(recipient)? {
-            message.toArray()?
+            message.to_array()?
         } else {
             return Ok(None);
         };
@@ -73,7 +73,7 @@ fn prepare(
     let Some(message) = notification.to_slack(recipient)? else {
         return Ok(None);
     };
-    let mut payload = message.toArray()?;
+    let mut payload = message.to_array()?;
     let mut channel = route.channel.or_else(|| {
         payload
             .remove("channel")
@@ -108,12 +108,12 @@ async fn send_webhook(
     url: &str,
 ) -> NotificationResult<Option<ChannelResponse>> {
     validate_webhook(url)?;
-    let response = Http::pendingRequest()
+    let response = Http::pending_request()
         .map_err(|_| delivery("The Slack webhook HTTP client is unavailable."))?
-        .asJson()
-        .withoutRedirecting()
+        .as_json()
+        .without_redirecting()
         .timeout(Duration::from_secs(10))
-        .maxResponseBytes(1024 * 1024)
+        .max_response_bytes(1024 * 1024)
         .post(url, &payload)
         .await
         .map_err(|_| {
@@ -160,13 +160,13 @@ async fn send_message(
             "The Slack Bot API endpoint must use HTTPS or loopback HTTP.",
         ));
     }
-    let response = Http::withToken(token)
+    let response = Http::with_token(token)
         .map_err(|_| delivery("The Slack Bot API HTTP client is unavailable."))?
-        .asJson()
-        .acceptJson()
-        .withoutRedirecting()
+        .as_json()
+        .accept_json()
+        .without_redirecting()
         .timeout(Duration::from_secs(10))
-        .maxResponseBytes(1024 * 1024)
+        .max_response_bytes(1024 * 1024)
         .post(endpoint, &payload)
         .await
         .map_err(|_| {

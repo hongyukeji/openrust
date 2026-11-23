@@ -72,8 +72,9 @@ impl Attachment {
         let mime = file
             .detected_type()
             .map(|(_, mime)| mime)
-            .or_else(|| file.getClientMimeType());
-        Self::fromData(file.get().to_vec(), file.getClientOriginalName()).with_metadata(None, mime)
+            .or_else(|| file.get_client_mime_type());
+        Self::fromData(file.get().to_vec(), file.get_client_original_name())
+            .with_metadata(None, mime)
     }
 }
 

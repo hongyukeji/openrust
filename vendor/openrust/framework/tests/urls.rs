@@ -33,9 +33,9 @@ fn links(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         let parameters = [RouteParameter::named("article", "42")];
         let mode = SignatureMode::Absolute;
         let expires = SystemTime::now() + Duration::from_secs(60);
-        let absolute = URL::temporarySignedRoute("article", expires, &parameters, mode)?;
-        let relative = URL::signedRoute("relative", &parameters, None, SignatureMode::Relative)?;
-        let expired = URL::temporarySignedRoute(
+        let absolute = URL::temporary_signed_route("article", expires, &parameters, mode)?;
+        let relative = URL::signed_route("relative", &parameters, None, SignatureMode::Relative)?;
+        let expired = URL::temporary_signed_route(
             "article",
             SystemTime::now() - Duration::from_secs(5),
             &parameters,
@@ -110,14 +110,14 @@ fn request_links(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpE
             json!({
                 "full": URL::full()?,
                 "current": URL::current()?,
-                "previous_path": URL::previousPath(request, Some("/fallback/?x=1"))?,
+                "previous_path": URL::previous_path(request, Some("/fallback/?x=1"))?,
                 "default": URL::route("ordinary", &[], false)?,
                 "positional_override": URL::route("localized", &[RouteParameter::positional("en"), params[0].clone()], false)?,
                 "named_required": URL::route("localized", &[RouteParameter::named("article", "post"), RouteParameter::positional("en")], false)?,
 
                 "action": URL::action("LocalizedController@show", &params, false).ok(),
                 "explicit": URL::route("localized", &[RouteParameter::named("locale", "en"), params[0].clone()], false)?,
-                "signed": URL::signedRoute("localized", &params, None, mode).ok(),
+                "signed": URL::signed_route("localized", &params, None, mode).ok(),
             }),
         )
     })
@@ -137,33 +137,33 @@ fn redirect_variant(request: &mut Request) -> HttpFuture<'_, Result<Response, Ht
             "secure" => Redirect::secure("/article/42", options)?,
             "away" => Redirect::away("https://example.test/next?x=one&y=two", options)?,
             "relative" => Redirect::away("relative?x=one", options)?,
-            "fragment-add" => Redirect::away("relative?x=%23", options)?.withFragment("new")?,
+            "fragment-add" => Redirect::away("relative?x=%23", options)?.with_fragment("new")?,
             "fragment-replace" => {
                 Redirect::away("https://example.test/next?x=one&y=%23#old", options)?
-                    .withFragment("ignored#new&more#inner")?
+                    .with_fragment("ignored#new&more#inner")?
             }
-            "fragment-remove" => Redirect::away("/next?x=%23#old", options)?.withoutFragment()?,
-            "fragment-empty" => Redirect::away("/next#old", options)?.withFragment("")?,
-            "fragment-unchanged" => Redirect::away("/next?x=%23", options)?.withoutFragment()?,
-            "fragment-unicode" => Redirect::away("/next", options)?.withFragment("#章节")?,
+            "fragment-remove" => Redirect::away("/next?x=%23#old", options)?.without_fragment()?,
+            "fragment-empty" => Redirect::away("/next#old", options)?.with_fragment("")?,
+            "fragment-unchanged" => Redirect::away("/next?x=%23", options)?.without_fragment()?,
+            "fragment-unicode" => Redirect::away("/next", options)?.with_fragment("#章节")?,
             "fragment-invalid" => {
                 assert!(matches!(
-                    Redirect::away("/next", options)?.withFragment("bad\r\nX: value"),
+                    Redirect::away("/next", options)?.with_fragment("bad\r\nX: value"),
                     Err(UrlError::InvalidRedirect)
                 ));
                 assert!(matches!(
-                    Redirect::away("#old", RedirectOptions::default())?.withoutFragment(),
+                    Redirect::away("#old", RedirectOptions::default())?.without_fragment(),
                     Err(UrlError::InvalidRedirect)
                 ));
-                return Ok(Response::noContent());
+                return Ok(Response::no_content());
             }
-            "temporary" => Redirect::temporarySignedRoute(
+            "temporary" => Redirect::temporary_signed_route(
                 "article",
                 SystemTime::now() + Duration::from_secs(60),
                 &[RouteParameter::named("article", "42")],
                 options,
             )?,
-            "signed" => Redirect::signedRoute(
+            "signed" => Redirect::signed_route(
                 "article",
                 &[RouteParameter::named("article", "42")],
                 None,
@@ -213,7 +213,7 @@ fn redirect_same_origin(
         } else {
             "/fallback?from=origin&retry=1"
         };
-        Redirect::away(target.as_str().unwrap(), options)?.enforceSameOrigin(
+        Redirect::away(target.as_str().unwrap(), options)?.enforce_same_origin(
             request,
             fallback,
             mode != "skip-scheme",
@@ -229,7 +229,7 @@ async fn redirect_origin_uses_the_effective_trusted_proxy_origin() {
     let app = Application::configure(std::env::temp_dir())
         .with_middleware(|middleware| {
             middleware
-                .trustProxies(&["127.0.0.1"], TrustedProxyHeaders::DEFAULT)
+                .trust_proxies(&["127.0.0.1"], TrustedProxyHeaders::DEFAULT)
                 .unwrap();
         })
         .with_routing(
@@ -283,22 +283,22 @@ fn routes(router: &mut Router) -> Result<(), RoutingError> {
         .defaults("slug", "default");
     router
         .get("/action-articles/{article}", article)?
-        .setAction("OldController@show")?;
+        .set_action("OldController@show")?;
     router
         .get("/action-articles/{article}", article)?
-        .setAction(SHOW_ARTICLE)?;
+        .set_action(SHOW_ARTICLE)?;
     router
         .get("/action-alias/{article}", article)?
-        .setAction(SHOW_ARTICLE)?;
+        .set_action(SHOW_ARTICLE)?;
     router
         .get("/account", article)?
-        .setAction("AccountController@show")?;
+        .set_action("AccountController@show")?;
     router.group(
         RouteGroup::new().domain("{tenant}.example.test"),
         |router| {
             router
                 .get("/account", article)?
-                .setAction("AccountController@show")?;
+                .set_action("AccountController@show")?;
             Ok(())
         },
     )?;
@@ -309,7 +309,7 @@ fn routes(router: &mut Router) -> Result<(), RoutingError> {
     router
         .get("/localized/{locale}/{article}", article)?
         .name("localized")
-        .setAction("LocalizedController@show")?
+        .set_action("LocalizedController@show")?
         .middleware_name("signed");
     router.get("/bound/{article:slug}", article)?.name("bound");
     router.get("/request-links/{locale?}", request_links)?;
@@ -326,7 +326,7 @@ fn routes(router: &mut Router) -> Result<(), RoutingError> {
             .redirect("/reserved/{destination}", "/next", StatusCode::FOUND)
             .is_err()
     );
-    router.permanentRedirect("/old/{id}", "/new/{id}")?;
+    router.permanent_redirect("/old/{id}", "/new/{id}")?;
     Ok(())
 }
 
@@ -352,7 +352,7 @@ async fn transport(
     State(kernel): State<Arc<Kernel>>,
     request: axum::extract::Request,
 ) -> axum::response::Response {
-    kernel.handleTransport(request).await
+    kernel.handle_transport(request).await
 }
 
 async fn exchange(address: SocketAddr, path: &str, host: &str, status: u16) -> String {
@@ -415,7 +415,7 @@ async fn named_routes_match_php_fixture_and_keep_ordered_parameters() {
     ];
     // Exported by the pinned PHP fixture in the v0.x URL acceptance suite.
     assert_eq!(
-        urls.signedRoute("article", &parameters, None, SignatureMode::Absolute)
+        urls.signed_route("article", &parameters, None, SignatureMode::Absolute)
             .unwrap(),
         "https://example.test/article/42?a=first&z=last&signature=3a50fabb90297c1b500f0effa8923b783232d03c06487bafb9e6c5fe59c1f497"
     );
@@ -456,7 +456,7 @@ async fn named_routes_match_php_fixture_and_keep_ordered_parameters() {
         Err(UrlError::MissingParameter)
     ));
     assert!(matches!(
-        urls.signedRoute(
+        urls.signed_route(
             "article",
             &[RouteParameter::named("signature", "x")],
             None,
@@ -471,7 +471,7 @@ async fn named_routes_match_php_fixture_and_keep_ordered_parameters() {
     let with_defaults = urls
         .as_ref()
         .clone()
-        .withDefaults(&[("article:slug", "default-slug")]);
+        .with_defaults(&[("article:slug", "default-slug")]);
     assert_eq!(
         with_defaults.route("bound", &[], false).unwrap(),
         "/bound/default-slug"
@@ -483,7 +483,7 @@ async fn named_routes_match_php_fixture_and_keep_ordered_parameters() {
         "https://example.test:8443/base/bound/override"
     );
     assert_eq!(
-        urls.previousPath(Some("/fallback/?q=1#anchor")).unwrap(),
+        urls.previous_path(Some("/fallback/?q=1#anchor")).unwrap(),
         "/fallback"
     );
     assert_eq!(
@@ -497,7 +497,7 @@ async fn named_routes_match_php_fixture_and_keep_ordered_parameters() {
     );
     app.config().unwrap().set("app.key", json!("")).unwrap();
     assert!(matches!(
-        urls.signedRoute("article", &parameters, None, SignatureMode::Absolute),
+        urls.signed_route("article", &parameters, None, SignatureMode::Absolute),
         Err(UrlError::MissingSigningKey)
     ));
 }
@@ -887,8 +887,8 @@ fn guest(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
         let response = Redirect::guest(request, "/login", RedirectOptions::default())?;
         if request.uri().query() == Some("replace=1") {
-            assert!(Redirect::getIntendedUrl(request)?.is_some());
-            Redirect::setIntendedUrl(request, "/manually-set")?;
+            assert!(Redirect::get_intended_url(request)?.is_some());
+            Redirect::set_intended_url(request, "/manually-set")?;
         }
         Ok(response.into())
     })
@@ -910,12 +910,12 @@ fn back(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 fn previous_session(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
         let session = request.session()?;
-        let uri = session.previousUri().unwrap();
+        let uri = session.previous_uri().unwrap();
         Response::json(
             StatusCode::OK,
             json!({
                 "url": uri.as_ref().map(|uri| uri.value()),
-                "route": session.previousRoute(),
+                "route": session.previous_route(),
             }),
         )
     })
@@ -927,21 +927,21 @@ fn flash_redirect(request: &mut Request) -> HttpFuture<'_, Result<RedirectRespon
         errors.add("name", "Name is required.");
         let redirect = Redirect::to("/flash", RedirectOptions::default())?
             .with(request, "status", json!("saved"))?
-            .withErrors(request, &errors, "profile")?
-            .withErrors(request, &errors, "default")?;
+            .with_errors(request, &errors, "profile")?
+            .with_errors(request, &errors, "default")?;
         let redirect = match request.route("mode") {
             Some("only") => {
                 redirect
-                    .onlyInput(request, &["profile.name", "query"])
+                    .only_input(request, &["profile.name", "query"])
                     .await?
             }
-            Some("except") => redirect.exceptInput(request, &["profile.secret"]).await?,
+            Some("except") => redirect.except_input(request, &["profile.secret"]).await?,
             Some("supplied") => {
                 redirect
-                    .withInput(request, Some(json!({"manual": true})))
+                    .with_input(request, Some(json!({"manual": true})))
                     .await?
             }
-            _ => redirect.withInput(request, None).await?,
+            _ => redirect.with_input(request, None).await?,
         };
         Ok(redirect)
     })
@@ -1178,62 +1178,62 @@ async fn asset_origins_secure_assets_and_defaults_are_instance_scoped() {
         .set("app.asset_url", json!("https://configured-cdn.test/static"))
         .unwrap();
     let service = app.container().make::<UrlGenerator>().unwrap();
-    let mut urls = service.as_ref().clone().withDefaults(&[("locale", "en")]);
+    let mut urls = service.as_ref().clone().with_defaults(&[("locale", "en")]);
     assert_eq!(
-        urls.getDefaultParameters()
+        urls.get_default_parameters()
             .get("locale")
             .map(String::as_str),
         Some("en")
     );
-    assert!(service.getDefaultParameters().is_empty());
+    assert!(service.get_default_parameters().is_empty());
     assert_eq!(
-        urls.secureAsset("/logo.svg").unwrap(),
+        urls.secure_asset("/logo.svg").unwrap(),
         "https://configured-cdn.test/static/logo.svg"
     );
-    urls.useAssetOrigin(Some("http://cdn.test/assets/"));
+    urls.use_asset_origin(Some("http://cdn.test/assets/"));
     assert_eq!(
         urls.asset("/logo.svg/", Some(true)).unwrap(),
         "http://cdn.test/assets/logo.svg"
     );
-    urls.useAssetOrigin(None);
+    urls.use_asset_origin(None);
     assert_eq!(
-        urls.secureAsset("logo.svg").unwrap(),
+        urls.secure_asset("logo.svg").unwrap(),
         "https://origin.test/base/logo.svg"
     );
-    urls.useOrigin(Some("http://override.test/sub/"));
+    urls.use_origin(Some("http://override.test/sub/"));
     assert_eq!(
         urls.asset("logo.svg", None).unwrap(),
         "http://override.test/sub/logo.svg"
     );
     assert_eq!(
-        urls.assetFrom("https://custom.test/sub/index.php/", "/logo.svg/", None)
+        urls.asset_from("https://custom.test/sub/index.php/", "/logo.svg/", None)
             .unwrap(),
         "http://custom.test/sub/logo.svg"
     );
     assert_eq!(
-        urls.assetFrom("http://custom.test/", "logo.svg", Some(true))
+        urls.asset_from("http://custom.test/", "logo.svg", Some(true))
             .unwrap(),
         "https://custom.test/logo.svg"
     );
-    urls.forceScheme(Some("https"));
+    urls.force_scheme(Some("https"));
     assert_eq!(
-        urls.assetFrom("http://custom.test/", "logo.svg", None)
+        urls.asset_from("http://custom.test/", "logo.svg", None)
             .unwrap(),
         "https://custom.test/logo.svg"
     );
     assert_eq!(
-        urls.secureAsset("https://external.test/logo.svg").unwrap(),
+        urls.secure_asset("https://external.test/logo.svg").unwrap(),
         "https://external.test/logo.svg"
     );
     assert!(
-        urls.assetFrom("javascript:alert(1)", "logo.svg", None)
+        urls.asset_from("javascript:alert(1)", "logo.svg", None)
             .is_err()
     );
     assert!(
-        urls.assetFrom("https://custom.test/", "a\nb", None)
+        urls.asset_from("https://custom.test/", "a\nb", None)
             .is_err()
     );
-    urls.useOrigin(None);
+    urls.use_origin(None);
     assert_eq!(
         urls.asset("logo.svg", None).unwrap(),
         "https://origin.test/base/logo.svg"

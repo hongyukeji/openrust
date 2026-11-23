@@ -63,9 +63,11 @@ fn application() -> TestApp {
 #[tokio::test]
 async fn independent_watchers_use_own_options_and_framework_event_switch_is_application_local() {
     let mut app = application();
-    app.artisan(["migrate", "--force"]).await.assertSuccessful();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
     let repository = app.app().make::<DatabaseEntriesRepository>().await.unwrap();
-    app.get("/api/watchers").await.unwrap().assertOk();
+    app.get("/api/watchers").await.unwrap().assert_ok();
     assert!(
         repository
             .get(Some(EntryType::Query), EntryQueryOptions::default())
@@ -95,7 +97,7 @@ async fn independent_watchers_use_own_options_and_framework_event_switch_is_appl
     .unwrap();
     let disabled = QueryWatcher::new(json!({"enabled":false}).as_object().unwrap().clone());
     disabled.register(app.app()).await.unwrap();
-    app.get("/api/watchers").await.unwrap().assertOk();
+    app.get("/api/watchers").await.unwrap().assert_ok();
     let entries = repository
         .get(Some(EntryType::Event), EntryQueryOptions::default())
         .await
@@ -106,7 +108,7 @@ async fn independent_watchers_use_own_options_and_framework_event_switch_is_appl
     telescope
         .ignoreFrameworkEvents
         .store(false, std::sync::atomic::Ordering::Release);
-    app.get("/api/watchers").await.unwrap().assertOk();
+    app.get("/api/watchers").await.unwrap().assert_ok();
     let entries = repository
         .get(Some(EntryType::Event), EntryQueryOptions::default())
         .await
@@ -174,14 +176,16 @@ fn response_handler(request: &mut Request) -> HttpFuture<'_, Result<Response, Ht
 #[tokio::test]
 async fn request_observes_buffered_content_redaction_character_limits_and_route_metadata() {
     let mut app = application();
-    app.artisan(["migrate", "--force"]).await.assertSuccessful();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
     app.app()
         .make::<Telescope>()
         .await
         .unwrap()
         .hideResponseParameters(&["secret", "nested.password"]);
     for path in ["/json", "/plain", "/boundary", "/large", "/opaque"] {
-        app.get(&format!("/api{path}")).await.unwrap().assertOk();
+        app.get(&format!("/api{path}")).await.unwrap().assert_ok();
     }
     let entries = app
         .app()
@@ -278,7 +282,9 @@ async fn client_watcher_handles_closed_streams_and_uses_character_kilobytes() {
     })
     .unwrap();
     std::fs::write(app.root().join("watchers.sqlite"), []).unwrap();
-    app.artisan(["migrate", "--force"]).await.assertSuccessful();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
     let telescope = app.app().make::<Telescope>().await.unwrap();
     telescope.hideResponseParameters(&["secret"]);
     let client = app.app().make::<Factory>().await.unwrap();
@@ -311,7 +317,7 @@ async fn client_watcher_handles_closed_streams_and_uses_character_kilobytes() {
             ),
         }))
     });
-    client.globalResponseMiddleware(|response| {
+    client.global_response_middleware(|response| {
         if response.header("x-close").is_some() {
             response.close()?;
         }
@@ -321,7 +327,7 @@ async fn client_watcher_handles_closed_streams_and_uses_character_kilobytes() {
         app.get(&format!("/api/client/{mode}"))
             .await
             .unwrap()
-            .assertOk();
+            .assert_ok();
     }
     let entries = app
         .app()
@@ -388,9 +394,11 @@ fn client_error_handler(_: &mut Request) -> HttpFuture<'_, Result<Response, Http
 #[tokio::test]
 async fn client_watcher_propagates_unreadable_seekable_file_errors() {
     let mut app = application();
-    app.artisan(["migrate", "--force"]).await.assertSuccessful();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
     app.get("/api/client-error")
         .await
         .unwrap()
-        .assertSee("read error propagated", true);
+        .assert_see("read error propagated", true);
 }

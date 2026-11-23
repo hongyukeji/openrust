@@ -24,7 +24,7 @@ async fn presence_relation_and_exclusion_follow_complete_fixed_upstream_validato
                 openrust::support::DateTimezone::UTC,
             );
             fixture
-                .travelToFor(at, async |_, _| {
+                .travel_to_for(at, async |_, _| {
                     openrust::support::facades::Config::set(
                         "app.timezone",
                         serde_json::json!(timezone),
@@ -60,7 +60,7 @@ async fn assert_case(index: usize, case: &Value) {
         )
         .unwrap();
     if case["dns_fake"].as_bool() == Some(true) {
-        validator.fakeDnsLookups(true);
+        validator.fake_dns_lookups(true);
     }
     let result = validator.validate().await;
     assert_eq!(

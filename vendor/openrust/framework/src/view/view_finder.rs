@@ -11,6 +11,6 @@ pub trait ViewFinder: Send + Sync {
     fn addNamespace(&mut self, namespace: &str, hints: &[&Path]) -> ViewResult<()>;
     fn prependNamespace(&mut self, namespace: &str, hints: &[&Path]) -> ViewResult<()>;
     fn replaceNamespace(&mut self, namespace: &str, hints: &[&Path]) -> ViewResult<()>;
-    fn addExtension(&mut self, extension: &str) -> ViewResult<()>;
+    fn add_extension(&mut self, extension: &str) -> ViewResult<()>;
     fn flush(&self);
 }

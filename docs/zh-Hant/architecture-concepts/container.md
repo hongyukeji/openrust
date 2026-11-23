@@ -1073,7 +1073,7 @@ pub fn current_user_parameter() -> ConstructorParam {
 }
 ```
 
-建構控制器時可以直接使用這些屬性。在閉包路由呼叫非同步容器時，使用 `request.withContainer(container.make_async::<T>()).await` 將同一個請求提供給解析器。透過 `guard.bind(request)?` 使用注入的 Guard，沿用目前的工作階段與快取的身分。Guard 控制代碼在其來源的 HTTP 派送期間有效。
+建構控制器時可以直接使用這些屬性。在閉包路由呼叫非同步容器時，使用 `request.with_container(container.make_async::<T>()).await` 將同一個請求提供給解析器。透過 `guard.bind(request)?` 使用注入的 Guard，沿用目前的工作階段與快取的身分。Guard 控制代碼在其來源的 HTTP 派送期間有效。
 
 ### 請求屬性與路由參數
 

@@ -14,7 +14,7 @@ pub(super) async fn install(app: &Application, output: &mut Output) -> Result<i3
         output.comment(&format!("Publishing Telescope {label}..."));
         installation.publish(tag, false, output).await?;
     }
-    installation.registerConfiguration("telescope")?;
+    installation.register_configuration("telescope")?;
     let path = installation.root().join("app/providers/mod.rs");
     let previous = source_edit::read(&path)?;
     if !previous.lines().any(|line| {
@@ -36,7 +36,7 @@ pub(super) async fn install(app: &Application, output: &mut Output) -> Result<i3
         };
         source_edit::replace(&path, &previous, &updated)?;
     }
-    installation.registerProvider(
+    installation.register_provider(
         "crate::app::providers::telescope_service_provider::TelescopeServiceProvider",
     )?;
     output.info("Telescope scaffolding installed successfully.");

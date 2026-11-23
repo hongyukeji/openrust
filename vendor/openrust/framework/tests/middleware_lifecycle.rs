@@ -37,7 +37,7 @@ async fn transport(
     State(kernel): State<Arc<Kernel>>,
     incoming: axum::extract::Request,
 ) -> axum::response::Response {
-    kernel.handleTransport(incoming).await
+    kernel.handle_transport(incoming).await
 }
 
 async fn listen(kernel: Arc<Kernel>) -> (SocketAddr, tokio::task::JoinHandle<()>) {
@@ -97,7 +97,7 @@ async fn cors_uses_host_paths_and_wraps_real_http_errors() {
             middleware.set_locale(&["en"]).unwrap();
         })
         .with_exceptions(|exceptions| {
-            exceptions.shouldRenderJsonWhen(|request, _| request.expectsJson());
+            exceptions.shouldRenderJsonWhen(|request, _| request.expects_json());
         })
         .with_routing(Routing::default().api(routes))
         .create()
@@ -149,7 +149,7 @@ async fn cors_uses_host_paths_and_wraps_real_http_errors() {
     let calls = callbacks.clone();
     let disabled = Application::configure(std::env::temp_dir())
         .with_middleware(move |middleware| {
-            middleware.skipCorsWhen(move |_| {
+            middleware.skip_cors_when(move |_| {
                 calls.fetch_add(1, Ordering::Relaxed);
                 false
             });
@@ -188,8 +188,8 @@ async fn cors_skip_callbacks_apply_only_to_the_configured_application() {
         application()
             .with_middleware(|middleware| {
                 middleware
-                    .skipCorsWhen(|request| request.is("api/internal/*"))
-                    .skipCorsWhen(|request| request.headers().contains_key("x-skip-cors"));
+                    .skip_cors_when(|request| request.is("api/internal/*"))
+                    .skip_cors_when(|request| request.headers().contains_key("x-skip-cors"));
             })
             .create()
             .unwrap(),
@@ -313,7 +313,7 @@ fn lifecycle_routes() -> Result<(), RoutingError> {
         Ok(())
     })?;
     Route::getWith("/excluded", data, |route| {
-        route.middleware_name("ordered").withoutMiddleware("later");
+        route.middleware_name("ordered").without_middleware("later");
         Ok(())
     })
 }
@@ -340,8 +340,8 @@ async fn termination_waits_for_the_stream_and_follows_resolved_route_order() {
     let app = Application::configure(std::env::temp_dir())
         .with_middleware(move |middleware| {
             middleware
-                .appendTerminable(global)
-                .aliasTerminable("later", later.clone())
+                .append_terminable(global)
+                .alias_terminable("later", later.clone())
                 .group(
                     "ordered",
                     [

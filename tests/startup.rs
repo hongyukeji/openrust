@@ -299,7 +299,7 @@ async fn api_routing_and_json_follow_the_prefix_while_cors_uses_configured_paths
             })
             .api(|| Route::get("/probe", probe));
         let routing = match explicit {
-            Some(prefix) => routing.apiPrefix(prefix),
+            Some(prefix) => routing.api_prefix(prefix),
             None => routing,
         };
         let app = Application::configure(root.0.clone())
@@ -314,7 +314,7 @@ async fn api_routing_and_json_follow_the_prefix_while_cors_uses_configured_paths
             .with_routing(routing)
             .with_exceptions(|exceptions| {
                 exceptions.shouldRenderJsonWhen(|request, _| {
-                    request.isApiPath() || request.expectsJson()
+                    request.is_api_path() || request.expects_json()
                 });
             })
             .create()
@@ -923,7 +923,7 @@ async fn artisan_publishes_templates_modified_by_application_listeners() {
 
     let mut app =
         TestApp::create(|builder| builder.with_events(DiscoverEvents::new(&[register]))).unwrap();
-    app.artisan(["stub:publish"]).await.assertSuccessful();
+    app.artisan(["stub:publish"]).await.assert_successful();
     assert!(!app.root().join("stubs/model.rs.stub").exists());
     assert!(!app.root().join("escape.stub").exists());
     assert_eq!(
@@ -2376,7 +2376,7 @@ async fn request_urls_use_the_explicit_url_then_request_origin_then_localhost() 
         request: &mut Request,
     ) -> openrust::http::HttpFuture<'_, Result<Response, openrust::http::HttpError>> {
         Box::pin(async move {
-            let url = URL::forRequest(request)
+            let url = URL::for_request(request)
                 .unwrap()
                 .to("/landing", &[], None)
                 .unwrap();
@@ -2417,7 +2417,7 @@ async fn request_urls_use_the_explicit_url_then_request_origin_then_localhost() 
         let kernel = Arc::new(kernel);
         let listener_task = tokio::spawn(async move {
             let routes = axum::Router::new().fallback(move |request: axum::extract::Request| {
-                kernel.clone().handleTransport(request)
+                kernel.clone().handle_transport(request)
             });
             axum::serve(listener, routes).await.unwrap();
         });

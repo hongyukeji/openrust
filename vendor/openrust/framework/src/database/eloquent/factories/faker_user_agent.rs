@@ -52,9 +52,8 @@ formatters! {
     internetExplorer -> String = internet_explorer;
 }
 
-#[allow(non_snake_case, reason = "Matches Faker formatter names")]
 impl Faker {
-    pub fn userAgent(&self) -> DatabaseResult<String> {
+    pub fn user_agent(&self) -> DatabaseResult<String> {
         Ok(match self.random.u16(0..6) {
             0 => self.firefox()?,
             1 => self.chrome(),
@@ -87,10 +86,9 @@ impl Faker {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Faker formatter names")]
 impl UniqueFaker<'_> {
-    pub fn userAgent(&self) -> DatabaseResult<String> {
-        self.try_generate("userAgent", || self.0.userAgent())
+    pub fn user_agent(&self) -> DatabaseResult<String> {
+        self.try_generate("userAgent", || self.0.user_agent())
     }
 
     pub fn firefox(&self) -> DatabaseResult<String> {

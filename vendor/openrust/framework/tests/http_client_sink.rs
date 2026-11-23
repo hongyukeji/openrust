@@ -193,7 +193,7 @@ async fn response_limit_retains_prior_chunks_and_missing_parent_prevents_dispatc
         Factory::new()
             .unwrap()
             .sink(output)
-            .maxResponseBytes(4)
+            .max_response_bytes(4)
             .get(&url)
             .await
     });
@@ -355,7 +355,7 @@ async fn large_response_streams_without_materializing_body() {
         }
     });
     let factory = Factory::new().unwrap();
-    let mut request = factory.pendingRequest().maxResponseBytes(SIZE);
+    let mut request = factory.pending_request().max_response_bytes(SIZE);
     let buffered = std::env::var_os("OPENRUST_ACCEPTANCE_BUFFERED").is_some();
     if !buffered {
         request = request.sink(&path);

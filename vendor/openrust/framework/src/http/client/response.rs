@@ -9,14 +9,13 @@ pub struct TransferStats {
     pub(super) duration: std::time::Duration,
     pub(super) network: bool,
 }
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl TransferStats {
-    pub fn getTransferTime(&self) -> f64 {
+    pub fn get_transfer_time(&self) -> f64 {
         self.duration.as_secs_f64()
     }
-    pub fn getHandlerStats(&self) -> std::collections::HashMap<&'static str, f64> {
+    pub fn get_handler_stats(&self) -> std::collections::HashMap<&'static str, f64> {
         if self.network {
-            [("total_time", self.getTransferTime())].into()
+            [("total_time", self.get_transfer_time())].into()
         } else {
             Default::default()
         }
@@ -25,9 +24,8 @@ impl TransferStats {
 
 /// A response whose body is available for repeated inspection.
 #[derive(Clone)]
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub struct Response {
-    pub transferStats: Option<TransferStats>,
+    pub transfer_stats: Option<TransferStats>,
     status: StatusCode,
     headers: HeaderMap,
     body: super::body::Body,
@@ -42,11 +40,10 @@ impl std::fmt::Debug for Response {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Response {
     pub fn new(status: StatusCode, headers: HeaderMap, body: impl Into<Vec<u8>>) -> Self {
         Self {
-            transferStats: None,
+            transfer_stats: None,
             status,
             headers,
             body: super::body::Body::new(axum::body::Bytes::from(body.into())),
@@ -54,10 +51,10 @@ impl Response {
     }
 
     /// Returns measured transport statistics; durations are seconds, never fabricated phase timings.
-    pub fn handlerStats(&self) -> std::collections::HashMap<&'static str, f64> {
-        self.transferStats
+    pub fn handler_stats(&self) -> std::collections::HashMap<&'static str, f64> {
+        self.transfer_stats
             .as_ref()
-            .map(TransferStats::getHandlerStats)
+            .map(TransferStats::get_handler_stats)
             .unwrap_or_default()
     }
 
@@ -103,16 +100,16 @@ impl Response {
         self.status.is_redirection()
     }
 
-    pub fn clientError(&self) -> bool {
+    pub fn client_error(&self) -> bool {
         self.status.is_client_error()
     }
 
-    pub fn serverError(&self) -> bool {
+    pub fn server_error(&self) -> bool {
         self.status.is_server_error()
     }
 
     pub fn failed(&self) -> bool {
-        self.clientError() || self.serverError()
+        self.client_error() || self.server_error()
     }
 
     pub fn ok(&self) -> bool {
@@ -127,11 +124,11 @@ impl Response {
         self.status == StatusCode::ACCEPTED
     }
 
-    pub fn noContent(&self) -> bool {
+    pub fn no_content(&self) -> bool {
         self.status == StatusCode::NO_CONTENT
     }
 
-    pub fn movedPermanently(&self) -> bool {
+    pub fn moved_permanently(&self) -> bool {
         self.status == StatusCode::MOVED_PERMANENTLY
     }
 
@@ -139,7 +136,7 @@ impl Response {
         self.status == StatusCode::FOUND
     }
 
-    pub fn badRequest(&self) -> bool {
+    pub fn bad_request(&self) -> bool {
         self.status == StatusCode::BAD_REQUEST
     }
 
@@ -147,7 +144,7 @@ impl Response {
         self.status == StatusCode::UNAUTHORIZED
     }
 
-    pub fn paymentRequired(&self) -> bool {
+    pub fn payment_required(&self) -> bool {
         self.status == StatusCode::PAYMENT_REQUIRED
     }
 
@@ -155,11 +152,11 @@ impl Response {
         self.status == StatusCode::FORBIDDEN
     }
 
-    pub fn notFound(&self) -> bool {
+    pub fn not_found(&self) -> bool {
         self.status == StatusCode::NOT_FOUND
     }
 
-    pub fn requestTimeout(&self) -> bool {
+    pub fn request_timeout(&self) -> bool {
         self.status == StatusCode::REQUEST_TIMEOUT
     }
 
@@ -167,11 +164,11 @@ impl Response {
         self.status == StatusCode::CONFLICT
     }
 
-    pub fn unprocessableEntity(&self) -> bool {
+    pub fn unprocessable_entity(&self) -> bool {
         self.status == StatusCode::UNPROCESSABLE_ENTITY
     }
 
-    pub fn tooManyRequests(&self) -> bool {
+    pub fn too_many_requests(&self) -> bool {
         self.status == StatusCode::TOO_MANY_REQUESTS
     }
 
@@ -210,7 +207,7 @@ impl Response {
         let headers = std::mem::take(response.headers_mut());
         if let Some(sink) = sink {
             Ok(Self {
-                transferStats: None,
+                transfer_stats: None,
                 status: response.status(),
                 headers,
                 body: super::body::Body::file(sink.finish().await?),

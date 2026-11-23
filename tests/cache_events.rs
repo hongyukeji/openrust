@@ -152,7 +152,7 @@ async fn cache_events_follow_operations_and_artisan_clear_order() {
 #[tokio::test]
 async fn cache_event_payloads_follow_tags_opt_out_memo_and_failover() {
     let mut app = TestApp::create(configure).unwrap();
-    let events = app.fakeEvents(&[]).await.unwrap();
+    let events = app.fake_events(&[]).await.unwrap();
     let manager = app.app().container().make::<CacheManager>().unwrap();
     let cache = manager.store(None).unwrap();
     let quiet = manager.store(Some("quiet")).unwrap();
@@ -206,7 +206,7 @@ async fn cache_event_payloads_follow_tags_opt_out_memo_and_failover() {
     );
 
     let mut other = TestApp::create(configure).unwrap();
-    let other_events = other.fakeEvents(&[CacheMissed::NAME]).await.unwrap();
+    let other_events = other.fake_events(&[CacheMissed::NAME]).await.unwrap();
     assert_eq!(cache.get("private").await.unwrap(), None);
     other_events.assertNothingDispatched();
 }
@@ -255,7 +255,7 @@ async fn cache_listener_errors_preserve_mutation_order() {
             .await
             .unwrap()
     );
-    let events = app.fakeEvents(&[CacheHit::NAME]).await.unwrap();
+    let events = app.fake_events(&[CacheHit::NAME]).await.unwrap();
     let _ = cache.get("reports/latest").await.unwrap();
     events.assertDispatched(CacheHit::NAME);
 }
@@ -269,7 +269,7 @@ async fn repository_settings_survive_tagging_and_only_modify_owned_repositories(
     use std::time::Duration;
 
     let mut app = TestApp::create(configure).unwrap();
-    let app_events = app.fakeEvents(&[]).await.unwrap();
+    let app_events = app.fake_events(&[]).await.unwrap();
     let manager = app.app().container().make::<CacheManager>().unwrap();
     let default = manager.store(None).unwrap();
     let dispatcher: Arc<dyn EventDispatcher> = app.app().container().make::<Dispatcher>().unwrap();
@@ -277,17 +277,17 @@ async fn repository_settings_survive_tagging_and_only_modify_owned_repositories(
         &dispatcher,
         &default.getEventDispatcher().unwrap()
     ));
-    assert_eq!(default.getName(), Some("array"));
+    assert_eq!(default.get_name(), Some("array"));
     assert_eq!(default.getDefaultCacheTime(), Some(3600));
     let named = manager
         .build(serde_json::json!({"name":"isolated","driver":"array","events":false}))
         .unwrap();
-    assert_eq!(named.getName(), Some("isolated"));
+    assert_eq!(named.get_name(), Some("isolated"));
     assert!(named.getEventDispatcher().is_none());
 
     let quiet = manager.store(Some("quiet")).unwrap();
     let mut copy = quiet.as_ref().clone();
-    assert_eq!(quiet.getName(), Some("quiet"));
+    assert_eq!(quiet.get_name(), Some("quiet"));
     assert!(quiet.getEventDispatcher().is_none());
     assert!(Arc::ptr_eq(&quiet.getStore(), &copy.getStore()));
     let replacement: Arc<dyn Store> = Arc::new(ArrayStore::new());
@@ -302,7 +302,7 @@ async fn repository_settings_survive_tagging_and_only_modify_owned_repositories(
     assert!(quiet.getEventDispatcher().is_none());
 
     let tagged = copy.tags(&["reports", "daily"]).unwrap();
-    assert_eq!(tagged.getName(), Some("quiet"));
+    assert_eq!(tagged.get_name(), Some("quiet"));
     assert!(Arc::ptr_eq(
         &tagged.getEventDispatcher().unwrap(),
         &explicit

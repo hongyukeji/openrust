@@ -40,11 +40,11 @@ fn malformed_and_oversized_query_input_returns_typed_http_errors() {
 fn full_url_normalizes_query_keys_before_decoding_their_text() {
     let incoming = request("https://example.test/?z=ok&a%00%FF=c");
     assert_eq!(
-        incoming.fullUrl().unwrap(),
+        incoming.full_url().unwrap(),
         "https://example.test/?a=c&z=ok"
     );
     assert!(matches!(
-        request("https://example.test/?a=%FF").fullUrl(),
+        request("https://example.test/?a=%FF").full_url(),
         Err(HttpError::InvalidRequest)
     ));
 }

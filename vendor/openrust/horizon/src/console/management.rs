@@ -255,7 +255,7 @@ impl Command for Management {
                 "horizon:clear" => {
                     let args = input.matches();
                     let config = app.config().map_err(error)?;
-                    if !openrust::console::confirmToProceed(
+                    if !openrust::console::confirm_to_proceed(
                         config.get("app.env").as_ref().and_then(|v| v.as_str())
                             == Some("production"),
                         args,

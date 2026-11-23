@@ -72,7 +72,7 @@ impl<'a> SourceInstallation<'a> {
         non_snake_case,
         reason = "Matches the compiled configuration registration API"
     )]
-    pub fn registerConfiguration(&self, name: &str) -> Result<(), ConsoleError> {
+    pub fn register_configuration(&self, name: &str) -> Result<(), ConsoleError> {
         if name.is_empty()
             || !name.bytes().enumerate().all(|(index, byte)| {
                 byte == b'_' || byte.is_ascii_alphabetic() || (index > 0 && byte.is_ascii_digit())
@@ -122,8 +122,7 @@ impl<'a> SourceInstallation<'a> {
     }
 
     /// Register an explicitly installed application provider, preserving existing entries.
-    #[allow(non_snake_case, reason = "Matches the package installation API")]
-    pub fn registerProvider(&self, qualified: &str) -> Result<(), ConsoleError> {
+    pub fn register_provider(&self, qualified: &str) -> Result<(), ConsoleError> {
         if qualified.split("::").any(|part| {
             part.is_empty()
                 || !part.bytes().enumerate().all(|(index, byte)| {

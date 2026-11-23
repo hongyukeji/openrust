@@ -153,8 +153,8 @@ impl Lang {
     pub fn getFallback() -> TranslationResult<String> {
         Ok(Self::get_facade_root()?.getFallback())
     }
-    pub fn setFallback(fallback: &str) -> TranslationResult<()> {
-        Self::get_facade_root()?.setFallback(fallback)
+    pub fn set_fallback(fallback: &str) -> TranslationResult<()> {
+        Self::get_facade_root()?.set_fallback(fallback)
     }
 
     pub async fn withLocale<T>(

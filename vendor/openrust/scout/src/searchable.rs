@@ -39,7 +39,7 @@ pub trait Searchable: Model + Clone {
         "embedding"
     }
     fn toSearchableArray(&self) -> Result<serde_json::Map<String, serde_json::Value>> {
-        Ok(self.toArray()?)
+        Ok(self.to_array()?)
     }
     fn getScoutKey(&self) -> Option<Value> {
         self.getKey().cloned()
@@ -140,13 +140,13 @@ pub trait Searchable: Model + Clone {
     ) -> Result<EloquentBuilder<'static, Self>> {
         let mut query = Self::queryOn(&self.getConnection()?);
         if self.getDeletedAtColumn().is_some() {
-            query = query.withTrashed();
+            query = query.with_trashed();
         }
         if let Some(callback) = &builder.queryCallback {
             query = callback(query)?;
         }
         let ids = normalizedKeys(self, ids);
-        query.whereIn(&self.getScoutKeyName(), ids);
+        query.where_in(&self.getScoutKeyName(), ids);
         Ok(query)
     }
     fn getScoutModelsByIds<'a>(
@@ -193,7 +193,7 @@ pub(crate) async fn import<M: Searchable>(
     let model = M::from_state(Default::default());
     let mut query = M::makeAllSearchableUsing(M::query()?)?;
     if manager.boolean("soft_delete") {
-        query = query.withTrashed();
+        query = query.with_trashed();
     }
     let count = Arc::new(std::sync::atomic::AtomicU64::new(0));
     let observed = count.clone();

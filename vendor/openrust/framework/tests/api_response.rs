@@ -107,7 +107,7 @@ fn model_config(_: &Path, _: &Environment) -> Result<BTreeMap<String, Value>, Co
 
 fn model_from_request(request: &mut Request) -> HttpFuture<'_, DatabaseResult<RouteRecord>> {
     Box::pin(async move {
-        let id = if request.decodedPath() == "borrowed" {
+        let id = if request.decoded_path() == "borrowed" {
             1
         } else {
             999
@@ -121,7 +121,7 @@ async fn routes_return_models_and_collections_as_json_over_http() {
     let mut app = Application::configure(std::env::temp_dir())
         .with_config(model_config)
         .with_exceptions(|exceptions| {
-            exceptions.shouldRenderJsonWhen(|request, _| request.expectsJson());
+            exceptions.shouldRenderJsonWhen(|request, _| request.expects_json());
         })
         .with_routing(Routing::default().web(|| {
             Route::get("/model", || RouteRecord::findOrFail(1))?;
@@ -188,7 +188,7 @@ async fn routes_return_models_and_collections_as_json_over_http() {
 async fn opt_in_json_responses_use_semantic_status_and_default_exception_handling() {
     let application = Application::configure(std::env::temp_dir())
         .with_exceptions(|exceptions| {
-            exceptions.shouldRenderJsonWhen(|request, _| request.expectsJson());
+            exceptions.shouldRenderJsonWhen(|request, _| request.expects_json());
         })
         .with_routing(Routing::default().health("/up").web(|| {
             Route::get("/created", || {

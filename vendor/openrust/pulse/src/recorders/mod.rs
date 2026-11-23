@@ -179,7 +179,7 @@ impl Recorders {
                         "slow_request",
                         json!([e.request.method.as_str(), path, route.action]).to_string(),
                         Some(duration),
-                        Some(e.requestStartedAt / 1000),
+                        Some(e.request_started_at / 1000),
                     )
                     .await
                     .max()
@@ -190,7 +190,7 @@ impl Recorders {
                             "slow_user_request",
                             user,
                             None,
-                            Some(e.requestStartedAt / 1000),
+                            Some(e.request_started_at / 1000),
                         )
                         .await
                         .count();
@@ -200,7 +200,12 @@ impl Recorders {
                 && self.accepts("UserRequests", &path, None, None)?
             {
                 pulse
-                    .record("user_request", user, None, Some(e.requestStartedAt / 1000))
+                    .record(
+                        "user_request",
+                        user,
+                        None,
+                        Some(e.request_started_at / 1000),
+                    )
                     .await
                     .count();
             }
@@ -594,7 +599,7 @@ pub(crate) fn register(
             registerRecorder(dispatcher, recorder, options.clone())?;
         }
     }
-    client.globalMiddleware(move |request, next| {
+    client.global_middleware(move |request, next| {
         let recorders = recorders.clone();
         let options = options.clone();
         Box::pin(async move {

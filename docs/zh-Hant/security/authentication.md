@@ -6,7 +6,7 @@
 
 ## 手動驗證使用者
 
-用應用程式選定的查詢欄位與密碼建立 `Credentials`。`attempt` 驗證憑證，依設定升級密碼雜湊，成功後輪換 Session ID 和 CSRF 權杖。登入處理器可使用 `attemptThrottled`，限流鍵由正規化帳號與可信用戶端位址產生。限流器原子記帳，達到上限回傳帶有 `Retry-After` 的 429，驗證通過後清除計數。
+用應用程式選定的查詢欄位與密碼建立 `Credentials`。`attempt` 驗證憑證，依設定升級密碼雜湊，成功後輪換 Session ID 和 CSRF 權杖。登入處理器可使用 `attempt_throttled`，限流鍵由正規化帳號與可信用戶端位址產生。限流器原子記帳，達到上限回傳帶有 `Retry-After` 的 429，驗證通過後清除計數。
 
 ```rust
 use openrust::{
@@ -21,15 +21,15 @@ async fn sign_in(
     throttle_key: &str,
     remember: bool,
 ) -> AuthResult<bool> {
-    Auth::sessionGuard(request, None)?
-        .attemptThrottled(credentials, remember, throttle_key, 5, 60)
+    Auth::session_guard(request, None)?
+        .attempt_throttled(credentials, remember, throttle_key, 5, 60)
         .await
 }
 ```
 
 ## 記住使用者與登出
 
-將 remember 參數設為 `true` 會簽發加密、HTTP-only 的 Cookie。Guard 使用持久化 remember 權杖和目前密碼雜湊的指紋恢復工作階段。`logout` 清除目前 Guard 並輪換權杖。若應用程式還需捨棄整個工作階段並輪換 CSRF 權杖，使用 `logoutAndInvalidate`。
+將 remember 參數設為 `true` 會簽發加密、HTTP-only 的 Cookie。Guard 使用持久化 remember 權杖和目前密碼雜湊的指紋恢復工作階段。`logout` 清除目前 Guard 並輪換權杖。若應用程式還需捨棄整個工作階段並輪換 CSRF 權杖，使用 `logout_and_invalidate`。
 
 ## HTTP Basic 驗證 {#http-basic-authentication}
 
@@ -50,7 +50,7 @@ fn register_basic_routes() -> Result<(), RoutingError> {
 }
 ```
 
-在 API 處理常式中呼叫 `Auth::onceBasic(request, "email", &[]).await?` 可以只驗證目前請求。請透過 HTTPS 傳送 Basic 憑證。
+在 API 處理常式中呼叫 `Auth::once_basic(request, "email", &[]).await?` 可以只驗證目前請求。請透過 HTTPS 傳送 Basic 憑證。
 
 ## 驗證事件 {#authentication-events}
 
@@ -91,7 +91,7 @@ fn register_auth_events(dispatcher: &Dispatcher) -> EventResult<()> {
 
 ## 使其他裝置的工作階段失效 {#invalidating-sessions-on-other-devices}
 
-在需要執行工作階段失效的路由中，將 `auth.session` 放在 `auth` 之後。在已驗證的 Web 處理常式中驗證請求，再呼叫 `Auth::logoutOtherDevices(request, password).await?`。Guard 檢查目前密碼、更新已儲存的雜湊，視需要更新目前裝置的 remember Cookie，並派發 `OtherDeviceLogout`。仍帶有舊指紋的工作階段下次造訪受保護的路由時會被拒絕。
+在需要執行工作階段失效的路由中，將 `auth.session` 放在 `auth` 之後。在已驗證的 Web 處理常式中驗證請求，再呼叫 `Auth::logout_other_devices(request, password).await?`。Guard 檢查目前密碼、更新已儲存的雜湊，視需要更新目前裝置的 remember Cookie，並派發 `OtherDeviceLogout`。仍帶有舊指紋的工作階段下次造訪受保護的路由時會被拒絕。
 
 ```rust
 use openrust::{routing::RoutingError, support::facades::Route, view::view};
@@ -108,7 +108,7 @@ fn register_account_routes() -> Result<(), RoutingError> {
 
 在敏感的 Web 路由上，將 `password.confirm` 放在 `auth` 之後。中介軟體使用 `auth.password_timeout`，單位為秒，預設 10,800。可用 `password.confirm:password.confirm,300` 覆寫確認路由與期限。需要確認時，瀏覽器會重新導向命名路由，並將原始目的地儲存在工作階段。JSON 請求會收到 HTTP 423。
 
-密碼確認表單透過受 CSRF 保護的 POST 送出。`Auth::confirmPassword` 透過使用者提供者驗證目前帳號密碼，並記錄成功確認。自行驗證密碼後，也可呼叫 `request.session_mut()?.passwordConfirmed()?` 記錄確認。
+密碼確認表單透過受 CSRF 保護的 POST 送出。`Auth::confirm_password` 透過使用者提供者驗證目前帳號密碼，並記錄成功確認。自行驗證密碼後，也可呼叫 `request.session_mut()?.password_confirmed()?` 記錄確認。
 
 ```rust
 use openrust::{
@@ -124,7 +124,7 @@ fn confirm(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
         let password = request.input(Some("password")).await?;
         let password = password.as_ref().and_then(serde_json::Value::as_str)
             .ok_or(HttpError::InvalidRequest)?;
-        if !Auth::confirmPassword(request, password).await? {
+        if !Auth::confirm_password(request, password).await? {
             return Err(abort(StatusCode::UNPROCESSABLE_ENTITY, "Invalid password.", Default::default()));
         }
         Ok(Redirect::intended(request, "/settings", Default::default())?.into())
@@ -164,8 +164,8 @@ let providers = serde_json::json!({
 });
 ```
 
-使用前在應用程式的模型模組中宣告 `Admin`。新增模型類別參照後須重新建置；`AUTH_MODEL` 可選擇已參照且編譯的模型，未知類別名稱在解析 Eloquent 提供器時失敗。即使設定快取略過載入函式，連結器仍保留型別工廠。框架按需解析工廠，不查詢使用者資料表，可變驗證狀態按應用程式隔離。可用第二個參數指定穩定別名，例如 `model!(Admin, "app::models::Admin")`。`AuthManager::registerModel` 保留為明確的執行階段擴充入口。也可為 `database` 提供器設定資料表與欄位；用 `provider` 註冊提供器，用 `viaRequest` 註冊無狀態請求解析器。內建 `token` Guard 讀取 Bearer 標頭，支援將權杖雜湊後再查詢資料庫。
+使用前在應用程式的模型模組中宣告 `Admin`。新增模型類別參照後須重新建置；`AUTH_MODEL` 可選擇已參照且編譯的模型，未知類別名稱在解析 Eloquent 提供器時失敗。即使設定快取略過載入函式，連結器仍保留型別工廠。框架按需解析工廠，不查詢使用者資料表，可變驗證狀態按應用程式隔離。可用第二個參數指定穩定別名，例如 `model!(Admin, "app::models::Admin")`。`AuthManager::register_model` 保留為明確的執行階段擴充入口。也可為 `database` 提供器設定資料表與欄位；用 `provider` 註冊提供器，用 `via_request` 註冊無狀態請求解析器。內建 `token` Guard 讀取 Bearer 標頭，支援將權杖雜湊後再查詢資料庫。
 
-對於透過 `AuthManager::registerModel` 註冊的身分，`manager.userMorphClass(user)?` 回傳真實 Eloquent 多型識別，遵循模型連線及自訂 `getMorphClass`。此 Rust 適配入口保留多型對應錯誤，未註冊身分回傳 `None`；非模型操作者應明確設定，不猜測資料表或型別名稱。
+對於透過 `AuthManager::register_model` 註冊的身分，`manager.user_morph_class(user)?` 回傳真實 Eloquent 多型識別，遵循模型連線及自訂 `getMorphClass`。此 Rust 適配入口保留多型對應錯誤，未註冊身分回傳 `None`；非模型操作者應明確設定，不猜測資料表或型別名稱。
 
-同步回呼可用 `manager.resolvedUser(None)` 或 `Auth::resolvedUser(None)?` 讀取目前 HTTP 請求中已解析的身分，無需啟用日誌監聽。`None` 遵循 `shouldUse` 和預設 Guard，`Some("web")` 明確選擇指定 Guard。這些 Rust 適配入口不會觸發非同步驗證或查詢使用者提供器；尚未解析、訪客或處於所屬請求作用域之外時回傳 `None`。需要惰性驗證的回呼應先在非同步中介軟體中解析 Guard。
+同步回呼可用 `manager.resolved_user(None)` 或 `Auth::resolved_user(None)?` 讀取目前 HTTP 請求中已解析的身分，無需啟用日誌監聽。`None` 遵循 `should_use` 和預設 Guard，`Some("web")` 明確選擇指定 Guard。這些 Rust 適配入口不會觸發非同步驗證或查詢使用者提供器；尚未解析、訪客或處於所屬請求作用域之外時回傳 `None`。需要惰性驗證的回呼應先在非同步中介軟體中解析 Guard。

@@ -137,8 +137,7 @@ impl Rule {
     pub fn email() -> Self {
         Self::new(Kind::Email)
     }
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn currentPassword(guard: Option<&str>) -> Self {
+    pub fn current_password(guard: Option<&str>) -> Self {
         Self::new(Kind::CurrentPassword(guard.map(str::to_owned)))
     }
     pub fn confirmed() -> Self {
@@ -328,7 +327,7 @@ impl Rule {
             "base64" => Self::base64(),
             "email" | "email:rfc" => Self::email(),
             "confirmed" => Self::confirmed(),
-            "current_password" => Self::currentPassword(None),
+            "current_password" => Self::current_password(None),
             "array" => Self::array(),
             "file" => File::default().into(),
             "image" => File::image(false).into(),
@@ -385,7 +384,7 @@ impl Rule {
                     super::standard_rules::regex(pattern)?,
                 ))),
                 Some(("current_password", arguments)) => {
-                    Self::currentPassword(Some(super::rule_parameters::csv(arguments)[0].as_ref()))
+                    Self::current_password(Some(super::rule_parameters::csv(arguments)[0].as_ref()))
                 }
                 Some(("confirmed", arguments)) => Self::new(Kind::Confirmed(Some(
                     super::rule_parameters::csv(arguments)[0].to_string(),

@@ -18,19 +18,18 @@ pub struct PreventRequestForgery {
     allow_same_site: bool,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl PreventRequestForgery {
     pub fn except(&mut self, paths: impl IntoIterator<Item = impl Into<String>>) -> &mut Self {
         self.except.extend(paths.into_iter().map(Into::into));
         self
     }
 
-    pub fn allowSameSite(&mut self, allow: bool) -> &mut Self {
+    pub fn allow_same_site(&mut self, allow: bool) -> &mut Self {
         self.allow_same_site = allow;
         self
     }
 
-    pub fn useOriginOnly(&mut self, enabled: bool) -> &mut Self {
+    pub fn use_origin_only(&mut self, enabled: bool) -> &mut Self {
         self.origin_only = enabled;
         self
     }
@@ -38,7 +37,7 @@ impl PreventRequestForgery {
     fn allowed_without_token(&self, request: &Request) -> Result<bool, HttpError> {
         let reading =
             |method: &Method| matches!(*method, Method::GET | Method::HEAD | Method::OPTIONS);
-        if (reading(request.method()) && reading(request.getRealMethod()))
+        if (reading(request.method()) && reading(request.get_real_method()))
             || self
                 .except
                 .iter()
@@ -107,7 +106,7 @@ impl Middleware for PreventRequestForgery {
                 #[cfg(not(feature = "sanctum"))]
                 let stateful_frontend = false;
                 let cookie = manager.xsrf_cookie(token, stateful_frontend)?;
-                response.setCookie(&cookie, request.is_secure())?;
+                response.set_cookie(&cookie, request.is_secure())?;
             }
             Ok(response)
         })

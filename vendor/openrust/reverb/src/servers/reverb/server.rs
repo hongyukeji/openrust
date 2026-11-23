@@ -129,8 +129,7 @@ impl Runner for ReverbRunner {
         "reverb"
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn shouldRun(&self) -> HttpFuture<'_, RuntimeResult<bool>> {
+    fn should_run(&self) -> HttpFuture<'_, RuntimeResult<bool>> {
         Box::pin(async move {
             if self
                 .0

@@ -22,14 +22,14 @@ pub fn posts<P: Model, R: Model>() -> HasMany<P, R> {
 
 ### 帶作用域的關聯 {#scoped-relationships}
 
-在關聯的 `constrain` 閉包中呼叫 `withAttributes`，為建立的模型提供預設屬性。傳入 `true` 同時加入等值查詢條件，傳入 `false` 僅提供預設屬性。模型明確設定的屬性優先。直接和多型關聯仍會設定各自的父鍵和類型。
+在關聯的 `constrain` 閉包中呼叫 `with_attributes`，為建立的模型提供預設屬性。傳入 `true` 同時加入等值查詢條件，傳入 `false` 僅提供預設屬性。模型明確設定的屬性優先。直接和多型關聯仍會設定各自的父鍵和類型。
 
 ```rust
 use openrust::database::eloquent::{Attributes, Model, relations::HasMany};
 
 pub fn featured_posts<P: Model, R: Model>() -> HasMany<P, R> {
     HasMany::new("id", "author_id").constrain(|query| {
-        query.withAttributes(
+        query.with_attributes(
             Attributes::from([("featured".into(), true.into())]),
             true,
         )
@@ -457,7 +457,7 @@ pub fn configure_subjects<M: Model, P: Model, C: Model>() -> DatabaseResult<Morp
 
 ### 軟刪除的多型目標 {#soft-deleted-morph-targets}
 
-在 `MorphTo` 上使用 `withTrashed()`、`withoutTrashed()` 或 `onlyTrashed()`。這些選項作用於宣告軟刪除欄位的載入目標。混合目標中未宣告軟刪除欄位的模型照常載入。框架先套用這些選項，再套用各目標約束。鏈式呼叫會疊加明確的未刪除或已刪除條件。後續呼叫 `withTrashed()` 會移除預設作用域並保留這些明確條件。
+在 `MorphTo` 上使用 `with_trashed()`、`without_trashed()` 或 `only_trashed()`。這些選項作用於宣告軟刪除欄位的載入目標。混合目標中未宣告軟刪除欄位的模型照常載入。框架先套用這些選項，再套用各目標約束。鏈式呼叫會疊加明確的未刪除或已刪除條件。後續呼叫 `with_trashed()` 會移除預設作用域並保留這些明確條件。
 
 ```rust
 use openrust::database::eloquent::{Model, relations::MorphTo};
@@ -466,7 +466,7 @@ pub fn subject_including_deleted<M: Model, P: Model, A: Model>() -> MorphTo<M> {
     MorphTo::new("subject_type", "subject_id")
         .target::<P>("post", "id")
         .target::<A>("author", "id")
-        .withTrashed()
+        .with_trashed()
 }
 ```
 
@@ -540,7 +540,7 @@ pub async fn authors_with_posts(connection: &Connection) -> DatabaseResult<Colle
 
 使用 `getRelation::<RelatedCollection<Post>>("posts")` 讀取已載入文章。多值關聯對每個父模型呼叫關聯模型的 `newCollection`，用 `keys` 和 `getByKey` 存取集合鍵。非清單鍵在 JSON 中保留為物件鍵。集合持有 `Arc<T>` 快照，呼叫端可保留已載入的模型。單筆關聯使用 `Option<Arc<T>>`。關聯名稱不存在表示尚未載入。查詢後用 `load` 載入，用 `loadMissing` 保留已載入的結果。
 
-透過 `into_iter` 或 `toBase` 消費已啟用自動預載入的集合後，移出的模型共享同批模型快照。首次存取缺少的關聯時批次查詢。查詢完成後，其他模型可透過 `relationLoaded`、`getRelation` 和 JSON 序列化直接看到各自的結果，無需另行載入。明確取消關聯載入，或修改模型屬性、連線後，下次存取會直接查詢該模型。
+透過 `into_iter` 或 `toBase` 消費已啟用自動預載入的集合後，移出的模型共享同批模型快照。首次存取缺少的關聯時批次查詢。查詢完成後，其他模型可透過 `relation_loaded`、`getRelation` 和 JSON 序列化直接看到各自的結果，無需另行載入。明確取消關聯載入，或修改模型屬性、連線後，下次存取會直接查詢該模型。
 
 ```rust
 use openrust::database::{
@@ -564,7 +564,7 @@ pub async fn moved_author_post_counts<Author: Model, Post: Model>(
 
 在每一級模型的 `namedRelations()` 中登錄對應關聯，再將 `posts.comments` 這類路徑傳給 `withPaths`。同一次呼叫中，共用前綴的路徑重用父級查詢。既有模型或集合可用 `loadPaths`。未知或格式錯誤的路徑會回傳錯誤。
 
-在模型或集合上呼叫 `loadMissingPaths(&["posts.comments"])`，可沿已登錄路徑補齊缺少的關聯。已載入結果會保留，包括空結果。缺少的後代會批次載入，多型目標依型別分組，根模型序列化時可讀到新增結果。需要補齊共用關聯模型的後代時，OpenRust 會在關聯快取中安裝新快照，先前持有的 `Arc` 仍指向舊快照。
+在模型或集合上呼叫 `load_missing_paths(&["posts.comments"])`，可沿已登錄路徑補齊缺少的關聯。已載入結果會保留，包括空結果。缺少的後代會批次載入，多型目標依型別分組，根模型序列化時可讀到新增結果。需要補齊共用關聯模型的後代時，OpenRust 會在關聯快取中安裝新快照，先前持有的 `Arc` 仍指向舊快照。
 
 末級缺少的關聯需要篩選時，請使用 `loadMissingPathWith`。閉包接收分組查詢條件和末級關聯的資料表限定名稱，可搭配該路徑的欄位選擇。已載入的結果會保留，包括空結果。多型路徑的閉包須使用每個可達目標皆具備的欄位。
 
@@ -628,9 +628,9 @@ async fn authors_with_comments(connection: &Connection) -> DatabaseResult<Collec
 
 ### 預先載入指定欄位 {#eager-loading-specific-columns}
 
-在每條路徑的末級關聯名稱後加冒號，再列出逗號分隔的欄位。若需選擇中間關聯的欄位，將中間關聯另外列出。保留模型比對與下一層載入所需的主鍵和外鍵。多型關聯的各目標均須具有所選欄位。`loadMissingPaths` 保留已載入的關聯值。
+在每條路徑的末級關聯名稱後加冒號，再列出逗號分隔的欄位。若需選擇中間關聯的欄位，將中間關聯另外列出。保留模型比對與下一層載入所需的主鍵和外鍵。多型關聯的各目標均須具有所選欄位。`load_missing_paths` 保留已載入的關聯值。
 
-同一次呼叫中，中間關聯的顯式欄位設定放在巢狀路徑前後皆有效。如果同一路徑重複指定欄位，採用首次顯式設定。`loadMissingPaths` 會保留既有關聯載入時使用的欄位。
+同一次呼叫中，中間關聯的顯式欄位設定放在巢狀路徑前後皆有效。如果同一路徑重複指定欄位，採用首次顯式設定。`load_missing_paths` 會保留既有關聯載入時使用的欄位。
 
 ```rust
 use openrust::database::{Connection, DatabaseResult, eloquent::{Collection, Model}};
@@ -648,7 +648,7 @@ pub async fn fill_missing_comments<A: Model>(
     authors: &mut Collection<A>,
 ) -> DatabaseResult<()> {
     authors
-        .loadMissingPaths(&["posts:id,author_id", "posts.comments:id,subject_id,body"])
+        .load_missing_paths(&["posts:id,author_id", "posts.comments:id,subject_id,body"])
         .await
 }
 ```

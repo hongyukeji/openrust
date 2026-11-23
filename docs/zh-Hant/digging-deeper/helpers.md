@@ -19,15 +19,15 @@ assert_eq!(Arr::get(&users, "1.active"), Some(&json!(true)));
 
 ## 鏈式 URI {#fluent-uris}
 
-使用 `Uri::of` 解析絕對或相對參照。元件設定方法傳回新的已驗證 URI。`query()` 讀取解碼後的參數並保留字面的加號和帶點鍵。用 `withQuery`、`withQueryIfMissing`、`replaceQuery`、`pushOntoQuery` 和 `withoutQuery` 修改查詢字串。用 JSON 映射傳遞具名參數。應用程式可用 `Uri::to`、`route`、`action`、`signedRoute` 或 `temporarySignedRoute` 產生位址，再用 `redirect` 建立經過驗證的重新導向回應。
+使用 `Uri::of` 解析絕對或相對參照。元件設定方法傳回新的已驗證 URI。`query()` 讀取解碼後的參數並保留字面的加號和帶點鍵。用 `with_query`、`withQueryIfMissing`、`replaceQuery`、`pushOntoQuery` 和 `withoutQuery` 修改查詢字串。用 JSON 映射傳遞具名參數。應用程式可用 `Uri::to`、`route`、`action`、`signed_route` 或 `temporary_signed_route` 產生位址，再用 `redirect` 建立經過驗證的重新導向回應。
 
 ```rust
 use openrust::support::Uri;
 use serde_json::json;
 
 let uri = Uri::of("/items?label=a+b")?
-    .withQuery(&json!({"page": 2}))?
-    .withFragment("summary")?;
+    .with_query(&json!({"page": 2}))?
+    .with_fragment("summary")?;
 assert_eq!(uri.value(), "/items?label=a%2Bb&page=2#summary");
 ```
 
@@ -208,9 +208,9 @@ let schema = factory.object([
     ("name", factory.string().min(1).required(true).into()),
     ("active", factory.boolean().default(true).into()),
 ]).withoutAdditionalProperties();
-let encoded = schema.toArray()?;
+let encoded = schema.to_array()?;
 let restored = JsonSchema::fromArray(encoded.clone())?;
-assert_eq!(restored.toArray()?, encoded);
+assert_eq!(restored.to_array()?, encoded);
 assert!(JsonSchema::fromArray(json!({"type": "unknown"})).is_err());
 ```
 

@@ -4,9 +4,9 @@
 
 运行 `./artisan install:api`，创建并注册 `routes/api.rs`，同时把 Sanctum 加入应用的 Cargo 默认功能。交互终端会询问是否执行待运行的迁移，确认后会先重新构建再迁移。CI 可使用 `--without-migration-prompt`，再单独运行 `./artisan migrate`。使用 `--force` 覆盖已有 API 路由。 安装器无法修改自定义启动文件时，会保留生成的路由并提示手动接线。生成的路由返回已注册认证模型的可见属性。可选迁移失败时，安装器显示错误并保留脚手架。自动化需要迁移退出码时，单独运行 `./artisan migrate`。
 
-默认应用骨架不预置 Sanctum 专属配置或用户模型注册。启用 Cargo 功能后，由包提供默认配置。新应用执行 `install:api` 会发布令牌表迁移，并接入发布的配置和默认用户模型。自定义用户模型须实现 `HasApiTokens`，并在 `config/auth.rs` 中用 `openrust::auth::model!(YourUser, sanctum)` 引用；显式运行时扩展也可用 `AuthManager::registerSanctumModel`。安装器更新模型能力和配置中的类引用，保留 `AppServiceProvider` 原样。手动启用功能时，可用 `vendor:publish --tag=sanctum-migrations` 发布迁移，用 `vendor:publish --tag=sanctum-config` 发布可编辑配置。手动发布后，在 `config/mod.rs` 声明模块并将载入结果注册到 `sanctum` 配置组。
+默认应用骨架不预置 Sanctum 专属配置或用户模型注册。启用 Cargo 功能后，由包提供默认配置。新应用执行 `install:api` 会发布令牌表迁移，并接入发布的配置和默认用户模型。自定义用户模型须实现 `HasApiTokens`，并在 `config/auth.rs` 中用 `openrust::auth::model!(YourUser, sanctum)` 引用；显式运行时扩展也可用 `AuthManager::register_sanctum_model`。安装器更新模型能力和配置中的类引用，保留 `AppServiceProvider` 原样。手动启用功能时，可用 `vendor:publish --tag=sanctum-migrations` 发布迁移，用 `vendor:publish --tag=sanctum-config` 发布可编辑配置。手动发布后，在 `config/mod.rs` 声明模块并将载入结果注册到 `sanctum` 配置组。
 
-在终端运行 `vendor:publish` 可交互选择服务提供者或标签。第三方包在服务提供者的 `boot` 中调用 `publishes` 或 `publishes_migrations` 注册编译进程序的资源。启用 `database.migrations.update_date_on_publish` 时，新迁移会使用新的时间戳。关闭配置，或在服务提供者中调用 `VendorPublishCommand::dontUpdateMigrationDates`，可保留源文件日期。重复发布沿用已有文件名，保持迁移账本稳定。迁移发布到 `database/migrations/` 后，重新构建即可将其纳入编译清单。
+在终端运行 `vendor:publish` 可交互选择服务提供者或标签。第三方包在服务提供者的 `boot` 中调用 `publishes` 或 `publishes_migrations` 注册编译进程序的资源。启用 `database.migrations.update_date_on_publish` 时，新迁移会使用新的时间戳。关闭配置，或在服务提供者中调用 `VendorPublishCommand::dont_update_migration_dates`，可保留源文件日期。重复发布沿用已有文件名，保持迁移账本稳定。迁移发布到 `database/migrations/` 后，重新构建即可将其纳入编译清单。
 
 ## 令牌表迁移 {#token-table-migration}
 
@@ -31,7 +31,7 @@ use openrust::{auth::AuthResult, database::DatabaseManager, sanctum::{NewAccessT
 
 async fn issue(sanctum: &Sanctum, database: &DatabaseManager, user_id: u64) -> AuthResult<NewAccessToken> {
     sanctum.personalAccessTokens(database, "")?
-        .createToken("app::models::User", user_id, "browser", &["reports:read"], None)
+        .create_token("app::models::User", user_id, "browser", &["reports:read"], None)
         .await
 }
 ```
@@ -48,7 +48,7 @@ async fn issue(sanctum: &Sanctum, database: &DatabaseManager, user_id: u64) -> A
 
 ## 模型令牌关系 {#model-token-relationship}
 
-在 Eloquent 归属模型上实现 `HasApiTokens`。用 `user.tokens(&sanctum, &database)?` 查询或撤销该模型的令牌，用 `user.createToken(&sanctum, &database, name, abilities, expires_at)` 签发。关系使用已配置的令牌模型以及归属模型的多态别名和主键。`deleteToken` 和 `delete` 按关系范围批量删除。令牌可以通过 `tokenable` 解析归属模型。归属模型可通过 `currentAccessToken`、`tokenCan` 和 `tokenCant` 检查当前请求的令牌及能力。
+在 Eloquent 归属模型上实现 `HasApiTokens`。用 `user.tokens(&sanctum, &database)?` 查询或撤销该模型的令牌，用 `user.create_token(&sanctum, &database, name, abilities, expires_at)` 签发。关系使用已配置的令牌模型以及归属模型的多态别名和主键。`delete_token` 和 `delete` 按关系范围批量删除。令牌可以通过 `tokenable` 解析归属模型。归属模型可通过 `currentAccessToken`、`tokenCan` 和 `tokenCant` 检查当前请求的令牌及能力。
 
 用 `user.tokensQuery::<DefaultPersonalAccessToken>(&sanctum, &database)?` 链式查询。用 `user.tokensRelation::<DefaultPersonalAccessToken>(&sanctum)?` 取得关系，再用 Eloquent 的 `with("tokens", relation)` 预加载。使用自定义模型时，替换为已注册的模型类型。签发响应的嵌套令牌采用模型的属性转换、访问器、附加字段和可见性，并始终排除摘要。直接序列化自定义模型时，应在模型中隐藏 `token` 字段。
 
@@ -71,11 +71,11 @@ fn register() -> Result<(), RoutingError> {
 
 用 `getAccessTokenFromRequestUsing` 替换 Bearer 提取逻辑。用 `authenticateAccessTokensUsing` 决定已查到的令牌是否有效，回调接收令牌及内置过期和 Provider 检查结果。令牌归属仍须成功解析。
 
-在认证管理器中用 `AuthManager::registerSanctumModel` 注册支持令牌的模型。签发时可显式调用 `NewAccessToken::toJson()` 或 `toArray()` 返回明文凭据。嵌套令牌不包含数据库摘要，认证事件载荷可从 `TokenAuthenticated::token` 读取。
+在认证管理器中用 `AuthManager::register_sanctum_model` 注册支持令牌的模型。签发时可显式调用 `NewAccessToken::to_json()` 或 `to_array()` 返回明文凭据。嵌套令牌不包含数据库摘要，认证事件载荷可从 `TokenAuthenticated::token` 读取。
 
 ## SPA 认证 {#spa-authentication}
 
-在 `bootstrap/app.rs` 现有的 `with_middleware` 闭包内调用 `middleware.statefulApi();`。用 `SANCTUM_STATEFUL_DOMAINS` 配置以逗号分隔的第一方前端主机，非默认端口须一并写入。使用默认路由配置时，先请求 `GET /sanctum/csrf-cookie`，再通过应用的 Web 会话登录入口登录。后续 API 请求携带 Cookie。需要 CSRF 校验时，把 URL 解码后的 `XSRF-TOKEN` Cookie 值放入 `X-XSRF-TOKEN` 请求头。
+在 `bootstrap/app.rs` 现有的 `with_middleware` 闭包内调用 `middleware.stateful_api();`。用 `SANCTUM_STATEFUL_DOMAINS` 配置以逗号分隔的第一方前端主机，非默认端口须一并写入。使用默认路由配置时，先请求 `GET /sanctum/csrf-cookie`，再通过应用的 Web 会话登录入口登录。后续 API 请求携带 Cookie。需要 CSRF 校验时，把 URL 解码后的 `XSRF-TOKEN` Cookie 值放入 `X-XSRF-TOKEN` 请求头。
 
 跨源第一方前端需要为具体来源开启带凭据的 CORS。匹配的 Referer 或 Origin 会启用 Session、Cookie 和 CSRF 中间件。Sanctum 优先检查已认证的会话，再检查 Bearer 令牌。第一方会话会通过令牌能力检查，用户操作权限由应用授权策略决定。
 

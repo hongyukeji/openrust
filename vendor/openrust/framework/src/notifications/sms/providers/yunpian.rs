@@ -69,7 +69,7 @@ impl SmsDriver for Yunpian {
                 fields.push(("text", message.content()));
                 url.set_path("/v2/sms/single_send.json");
             }
-            let payload = response(request()?.asForm().post(url.as_str(), &fields).await)?;
+            let payload = response(request()?.as_form().post(url.as_str(), &fields).await)?;
             match payload["code"].as_i64() {
                 Some(0) if payload["sid"].as_u64().is_some_and(|id| id > 0) => Ok(payload),
                 Some(code) if code != 0 => Err(rejected(

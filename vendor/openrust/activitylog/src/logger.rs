@@ -98,7 +98,7 @@ impl ActivityLogger {
         let subject = crate::models::identity(model)?;
         self.causedBy(subject.clone())?;
         if self.activity.causer.as_ref() == Some(&subject) {
-            self.activity.causerAttributes = model.toArray()?.into();
+            self.activity.causerAttributes = model.to_array()?.into();
         }
         Ok(self)
     }
@@ -107,7 +107,7 @@ impl ActivityLogger {
         model: &M,
     ) -> Result<&mut Self> {
         self.performedOn(crate::models::identity(model)?);
-        self.activity.subjectAttributes = model.toArray()?.into();
+        self.activity.subjectAttributes = model.to_array()?.into();
         Ok(self)
     }
     pub async fn byId(

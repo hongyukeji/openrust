@@ -124,7 +124,7 @@ async fn model_search_respects_scopes_soft_deletes_and_search_strategies() {
     assert_eq!(numeric.len(), 1);
     assert_eq!(numeric.first().unwrap().getKey(), Some(&12.into()));
     let archived = Note::searchOn(&db, "rust")
-        .onlyTrashed()
+        .only_trashed()
         .get()
         .await
         .unwrap();
@@ -388,7 +388,7 @@ async fn model_search_paginates_through_the_http_entry_point() {
         State(kernel): State<Arc<Kernel>>,
         request: axum::extract::Request,
     ) -> axum::response::Response {
-        kernel.handleTransport(request).await
+        kernel.handle_transport(request).await
     }
 
     let app = Application::configure(std::env::temp_dir())

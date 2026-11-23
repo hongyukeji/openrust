@@ -87,7 +87,7 @@ impl EnableTwoFactorAuthentication {
         .map_err(internal)?;
         super::emit(
             TwoFactorAuthenticationEnabled {
-                user: user.getAuthIdentifier(),
+                user: user.get_auth_identifier(),
             },
             &[user],
         )
@@ -129,7 +129,7 @@ impl ConfirmTwoFactorAuthentication {
             )
             .map_err(internal)?;
             let mut error = super::invalid("code", message);
-            error.errorBag("confirmTwoFactorAuthentication");
+            error.error_bag("confirmTwoFactorAuthentication");
             return Err(HttpError::Validation(Box::new(error)));
         }
         let date = now(None)
@@ -144,7 +144,7 @@ impl ConfirmTwoFactorAuthentication {
             .map_err(internal)?;
         super::emit(
             TwoFactorAuthenticationConfirmed {
-                user: user.getAuthIdentifier(),
+                user: user.get_auth_identifier(),
             },
             &[user],
         )
@@ -189,7 +189,7 @@ impl DisableTwoFactorAuthentication {
             .map_err(internal)?;
         super::emit(
             TwoFactorAuthenticationDisabled {
-                user: user.getAuthIdentifier(),
+                user: user.get_auth_identifier(),
             },
             &[user],
         )
@@ -219,7 +219,7 @@ impl GenerateNewRecoveryCodes {
         .map_err(internal)?;
         super::emit(
             RecoveryCodesGenerated {
-                user: user.getAuthIdentifier(),
+                user: user.get_auth_identifier(),
             },
             &[user],
         )

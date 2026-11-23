@@ -69,8 +69,8 @@ impl Cache {
         Self::store(None)?.tags(names)
     }
 
-    pub fn getName() -> CacheResult<Option<String>> {
-        Ok(Self::store(None)?.getName().map(str::to_owned))
+    pub fn get_name() -> CacheResult<Option<String>> {
+        Ok(Self::store(None)?.get_name().map(str::to_owned))
     }
 
     pub fn getStore() -> CacheResult<Arc<dyn Store>> {
@@ -252,11 +252,14 @@ impl Cache {
     }
 
     /// Runs a single callback under an exclusive lock, waiting up to ten seconds.
-    pub async fn withoutOverlapping<T, F>(key: &str, callback: impl FnOnce() -> F) -> CacheResult<T>
+    pub async fn without_overlapping<T, F>(
+        key: &str,
+        callback: impl FnOnce() -> F,
+    ) -> CacheResult<T>
     where
         F: Future<Output = CacheResult<T>>,
     {
-        Self::store(None)?.withoutOverlapping(key, callback).await
+        Self::store(None)?.without_overlapping(key, callback).await
     }
 
     /// Uses explicit lease and wait durations in seconds, with an optional owner token.

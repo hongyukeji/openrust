@@ -474,7 +474,7 @@ impl<P: Model, R: Model> HasMany<P, R> {
         let connection = self.0.connection(parent)?;
         let query = self.0.configure(R::queryOn(&connection))?;
         let query = if include_trashed {
-            query.withTrashed()
+            query.with_trashed()
         } else {
             query
         };

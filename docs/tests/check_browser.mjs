@@ -93,7 +93,7 @@ try {
                         assert.equal((await page.goto(section)).status(), 200);
                         await page.locator("#maintenance-mode").waitFor();
                         await page.locator("#pausing-scheduled-tasks").waitFor();
-                        assert.match(await page.locator("main").innerText(), /evenWhenPaused/);
+                        assert.match(await page.locator("main").innerText(), /even_when_paused/);
                         await page.locator("#schedule-groups").waitFor();
                         await page.locator("#task-hooks").waitFor();
                         assert.match(await page.locator("main").innerText(), /task-before/);
@@ -102,7 +102,7 @@ try {
                         assert.match(await page.locator("main").innerText(), /\.group\(/);
 
 
-                        assert.match(await page.locator("main").innerText(), /evenInMaintenanceMode/);
+                        assert.match(await page.locator("main").innerText(), /even_in_maintenance_mode/);
                         const maintenance = page.locator('main a[href$="configuration.html#maintenance-mode"]');
                         await Promise.all([
                             page.waitForURL(base + language + "/getting-started/configuration.html#maintenance-mode"),

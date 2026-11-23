@@ -417,7 +417,7 @@ async fn fixed_php_password_reset_responses_and_completion_match_mysql_http() {
 struct CustomResetResponse;
 impl contracts::PasswordResetResponse for CustomResetResponse {}
 impl contracts::PasswordResponse for CustomResetResponse {
-    fn toResponse<'a>(
+    fn to_response<'a>(
         &'a self,
         request: &'a mut Request,
         status: openrust::auth::passwords::PasswordResetStatus,

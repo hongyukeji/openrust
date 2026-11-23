@@ -745,16 +745,16 @@ mod acceptance {
             };
             let head = Payload::new("hard-timeout-probe", "external-chain-head")?;
             let tail = Payload::new("hard-timeout-probe", "external-chain-tail")?
-                .onConnection(if driver == "sqs-recovery" {
+                .on_connection(if driver == "sqs-recovery" {
                     "sqs"
                 } else {
                     driver
                 })
-                .onQueue(queue)
+                .on_queue(queue)
                 .delay(Delay::For(Duration::from_secs(4)));
             Bus::chain([head, tail])
-                .onConnection("database")
-                .onQueue("external-chain")
+                .on_connection("database")
+                .on_queue("external-chain")
                 .dispatch()
                 .await?;
             Ok(Response::empty(axum::http::StatusCode::NO_CONTENT))
@@ -816,8 +816,8 @@ mod acceptance {
         }
         if std::env::var_os("RUNNER_TEST_SCHEDULE").is_some() {
             Schedule::configure(|schedule| {
-                schedule.useClock(|| SystemTime::UNIX_EPOCH + Duration::from_millis(59_950));
-                schedule.useCache("file");
+                schedule.use_clock(|| SystemTime::UNIX_EPOCH + Duration::from_millis(59_950));
+                schedule.use_cache("file");
                 let task = schedule.call(|app, _| {
                     Box::pin(async move {
                         let root = app.base_path();
@@ -833,7 +833,7 @@ mod acceptance {
                     })
                 });
                 task.name("runtime-schedule");
-                task.withoutOverlapping();
+                task.without_overlapping();
                 Ok(())
             })?;
         }
@@ -1293,7 +1293,7 @@ mod acceptance {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
         let service = axum::Router::new().fallback(move |request: axum::extract::Request| {
-            kernel.clone().handleTransport(request)
+            kernel.clone().handle_transport(request)
         });
         let server = tokio::spawn(async move { axum::serve(listener, service).await.unwrap() });
         let send = |path: &'static str, status: &'static str| async move {
@@ -1478,7 +1478,7 @@ mod acceptance {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
         let service = axum::Router::new().fallback(move |request: axum::extract::Request| {
-            kernel.clone().handleTransport(request)
+            kernel.clone().handle_transport(request)
         });
         let server = tokio::spawn(async move { axum::serve(listener, service).await.unwrap() });
         let mut stream = tokio::net::TcpStream::connect(address).await.unwrap();
@@ -1594,7 +1594,7 @@ mod acceptance {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
         let service = axum::Router::new().fallback(move |request: axum::extract::Request| {
-            kernel.clone().handleTransport(request)
+            kernel.clone().handle_transport(request)
         });
         let server = tokio::spawn(async move { axum::serve(listener, service).await.unwrap() });
         let named = Some("callback-probe");

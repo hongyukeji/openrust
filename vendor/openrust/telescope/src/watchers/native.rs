@@ -69,7 +69,7 @@ impl NativeWatcher {
                 let output = event
                     .output
                     .as_ref()
-                    .filter(|_| !event.shouldAppendOutput)
+                    .filter(|_| !event.should_append_output)
                     .and_then(|path| std::fs::read_to_string(path).ok())
                     .unwrap_or_default();
                 telescope.recordScheduledCommand(IncomingEntry::make(json!({"command":event.command,"description":event.description,"expression":event.expression,"timezone":event.timezone,"user":null,"output":output.trim()}).as_object().unwrap().clone())?);

@@ -17,25 +17,25 @@ struct Account {
 }
 
 impl Authenticatable for Account {
-    fn getAuthIdentifierName(&self) -> &str {
+    fn get_auth_identifier_name(&self) -> &str {
         "id"
     }
-    fn getAuthIdentifier(&self) -> AuthIdentifier {
+    fn get_auth_identifier(&self) -> AuthIdentifier {
         "001".into()
     }
-    fn getAuthPasswordName(&self) -> &str {
+    fn get_auth_password_name(&self) -> &str {
         "password"
     }
-    fn getAuthPassword(&self) -> Option<&str> {
+    fn get_auth_password(&self) -> Option<&str> {
         Some(&self.hash)
     }
-    fn getRememberToken(&self) -> Option<&str> {
+    fn get_remember_token(&self) -> Option<&str> {
         self.token.as_deref()
     }
-    fn setRememberToken(&mut self, token: Option<String>) {
+    fn set_remember_token(&mut self, token: Option<String>) {
         self.token = token;
     }
-    fn getRememberTokenName(&self) -> &str {
+    fn get_remember_token_name(&self) -> &str {
         "remember_token"
     }
 }
@@ -52,39 +52,39 @@ impl Accounts {
 }
 
 impl UserProvider for Accounts {
-    fn retrieveById<'a>(
+    fn retrieve_by_id<'a>(
         &'a self,
         id: &'a AuthIdentifier,
     ) -> AuthFuture<'a, AuthResult<Option<Box<dyn Authenticatable>>>> {
         Box::pin(async { Ok((*id == AuthIdentifier::from("001")).then(|| self.snapshot())) })
     }
 
-    fn retrieveByToken<'a>(
+    fn retrieve_by_token<'a>(
         &'a self,
         id: &'a AuthIdentifier,
         token: &'a str,
     ) -> AuthFuture<'a, AuthResult<Option<Box<dyn Authenticatable>>>> {
         Box::pin(async {
             Ok(self
-                .retrieveById(id)
+                .retrieve_by_id(id)
                 .await?
-                .filter(|user| user.getRememberToken() == Some(token)))
+                .filter(|user| user.get_remember_token() == Some(token)))
         })
     }
 
-    fn updateRememberToken<'a>(
+    fn update_remember_token<'a>(
         &'a self,
         user: &'a mut dyn Authenticatable,
         token: &'a str,
     ) -> AuthFuture<'a, AuthResult<()>> {
         Box::pin(async {
             self.user.lock().unwrap().token = Some(token.to_owned());
-            user.setRememberToken(Some(token.to_owned()));
+            user.set_remember_token(Some(token.to_owned()));
             Ok(())
         })
     }
 
-    fn retrieveByCredentials<'a>(
+    fn retrieve_by_credentials<'a>(
         &'a self,
         credentials: &'a Credentials,
     ) -> AuthFuture<'a, AuthResult<Option<Box<dyn Authenticatable>>>> {
@@ -102,7 +102,7 @@ impl UserProvider for Accounts {
         })
     }
 
-    fn validateCredentials<'a>(
+    fn validate_credentials<'a>(
         &'a self,
         user: &'a dyn Authenticatable,
         credentials: &'a Credentials,
@@ -111,7 +111,7 @@ impl UserProvider for Accounts {
             self.hasher
                 .check(
                     credentials.password().as_bytes(),
-                    user.getAuthPassword().unwrap(),
+                    user.get_auth_password().unwrap(),
                     &HashOptions::new(),
                 )
                 .await
@@ -119,7 +119,7 @@ impl UserProvider for Accounts {
         })
     }
 
-    fn rehashPasswordIfRequired<'a>(
+    fn rehash_password_if_required<'a>(
         &'a self,
         _: &'a mut dyn Authenticatable,
         credentials: &'a Credentials,
@@ -216,14 +216,14 @@ fn current(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
         let user = Auth::user(request).await?;
         Response::json(
             StatusCode::OK,
-            json!({"user":user.map(|user|user.getAuthIdentifier())}),
+            json!({"user":user.map(|user|user.get_auth_identifier())}),
         )
     })
 }
 
 fn stateless(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
-        Auth::onceBasic(request, "email", &[]).await?;
+        Auth::once_basic(request, "email", &[]).await?;
         current(request).await
     })
 }
@@ -352,16 +352,25 @@ async fn session_guard_emits_authentication_lifecycle_events() {
                 }
                 if let Some(event) = event.downcast_ref::<Validated>() {
                     assert_eq!(
-                        event.user::<Account>(context).unwrap().getAuthIdentifier(),
+                        event
+                            .user::<Account>(context)
+                            .unwrap()
+                            .get_auth_identifier(),
                         event.user
                     );
                 }
                 if let Some(event) = event.downcast_ref::<Login>() {
-                    assert_eq!(event.user.getAuthIdentifier(), AuthIdentifier::from("001"));
+                    assert_eq!(
+                        event.user.get_auth_identifier(),
+                        AuthIdentifier::from("001")
+                    );
                     extra = event.remember;
                 }
                 if let Some(event) = event.downcast_ref::<Authenticated>() {
-                    assert_eq!(event.user.getAuthIdentifier(), AuthIdentifier::from("001"));
+                    assert_eq!(
+                        event.user.get_auth_identifier(),
+                        AuthIdentifier::from("001")
+                    );
                 }
                 if let Some(event) = event.downcast_ref::<Logout>() {
                     extra = event.user.is_some();
@@ -379,7 +388,7 @@ async fn session_guard_emits_authentication_lifecycle_events() {
         Box::pin(async move {
             let credentials = Credentials::new([("email", "a@example.test".into())], "good:secret");
             assert!(
-                Auth::sessionGuard(req, None)?
+                Auth::session_guard(req, None)?
                     .attempt(&credentials, true)
                     .await?
             );
@@ -389,7 +398,9 @@ async fn session_guard_emits_authentication_lifecycle_events() {
 
     fn end_device(req: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         Box::pin(async move {
-            Auth::sessionGuard(req, None)?.logoutCurrentDevice().await?;
+            Auth::session_guard(req, None)?
+                .logout_current_device()
+                .await?;
             current(req).await
         })
     }
@@ -546,7 +557,7 @@ async fn other_device_logout_keeps_current_session_and_rejects_old_sessions_and_
         Box::pin(async move {
             let credentials = Credentials::new([("email", "a@example.test".into())], "good:secret");
             assert!(
-                Auth::sessionGuard(req, None)?
+                Auth::session_guard(req, None)?
                     .attempt(&credentials, true)
                     .await?
             );
@@ -557,7 +568,7 @@ async fn other_device_logout_keeps_current_session_and_rejects_old_sessions_and_
     fn revoke(req: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         Box::pin(async move {
             let password = req.input(Some("password")).await?.unwrap();
-            match Auth::logoutOtherDevices(req, password.as_str().unwrap()).await {
+            match Auth::logout_other_devices(req, password.as_str().unwrap()).await {
                 Err(AuthError::InvalidPassword) => Err(openrust::http::abort(
                     StatusCode::UNPROCESSABLE_ENTITY,
                     "Invalid password.",
@@ -582,7 +593,10 @@ async fn other_device_logout_keeps_current_session_and_rejects_old_sessions_and_
             Box::pin(async move {
                 let event = event.downcast_ref::<OtherDeviceLogout>().unwrap();
                 assert_eq!(event.guard, "web");
-                self.0.lock().unwrap().push(event.user.getAuthIdentifier());
+                self.0
+                    .lock()
+                    .unwrap()
+                    .push(event.user.get_auth_identifier());
                 Ok(None)
             })
         }
@@ -701,8 +715,8 @@ async fn throttled_login_reports_lockout_with_request_metadata() {
     fn attempt(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         Box::pin(async move {
             let credentials = Credentials::new([("email", "a@example.test".into())], "wrong");
-            let authenticated = Auth::sessionGuard(request, None)?
-                .attemptThrottled(&credentials, false, "fixture", 1, 60)
+            let authenticated = Auth::session_guard(request, None)?
+                .attempt_throttled(&credentials, false, "fixture", 1, 60)
                 .await?;
             assert!(!authenticated);
             Err(HttpError::Unauthenticated)

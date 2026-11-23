@@ -305,7 +305,7 @@ where
     let (indexes, parents): (Vec<_>, Vec<_>) = models
         .iter()
         .enumerate()
-        .filter(|(_, model)| !only_missing || !model.relationLoaded(name))
+        .filter(|(_, model)| !only_missing || !model.relation_loaded(name))
         .unzip();
     if parents.is_empty() {
         return Ok(());

@@ -13,7 +13,7 @@ fn uri_components_form_validated_immutable_references() {
         .unwrap()
         .withPath("//users/你好")
         .unwrap()
-        .withFragment("mark 1")
+        .with_fragment("mark 1")
         .unwrap();
     assert_eq!(
         uri.value(),

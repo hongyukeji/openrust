@@ -279,7 +279,7 @@ impl Repository {
         self.with_fields(|fields| *fields = Fields::default());
     }
 
-    pub fn isEmpty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         self.with_fields(|fields| fields.public.is_empty() && fields.hidden.is_empty())
     }
 

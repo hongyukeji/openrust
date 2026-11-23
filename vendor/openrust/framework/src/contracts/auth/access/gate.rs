@@ -5,8 +5,7 @@ use crate::auth::{
 
 /// Evaluates registered abilities for a scoped user.
 pub trait Gate: Send + Sync {
-    #[allow(non_snake_case, reason = "保留授权策略查询原名")]
-    fn getPolicyFor(&self, target: &Argument) -> AuthResult<Option<PolicyHandle>>;
+    fn get_policy_for(&self, target: &Argument) -> AuthResult<Option<PolicyHandle>>;
 
     fn has(&self, ability: &str) -> bool;
 

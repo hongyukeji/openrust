@@ -121,7 +121,6 @@ impl Middleware {
     }
 
     /// 覆盖启动时自动发现的语言候选；空列表关闭识别，非法标签保留原设置。
-    #[allow(non_snake_case, reason = "沿用中间件配置方法的命名风格")]
     pub fn set_locale(
         &mut self,
         locales: &[&str],
@@ -131,21 +130,19 @@ impl Middleware {
     }
 
     /// 配置当前应用的语言选择回调；候选与回调分别保存。
-    #[allow(non_snake_case, reason = "沿用项目回调配置方法的命名风格")]
-    pub fn localeUsing(
+    pub fn locale_using(
         &mut self,
         callback: impl Fn(&Request) -> Result<Option<String>, crate::http::HttpError>
         + Send
         + Sync
         + 'static,
     ) -> &mut Self {
-        self.set_locale.localeUsing(callback);
+        self.set_locale.locale_using(callback);
         self
     }
 
     /// Skips CORS for requests matching this callback in the current application.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn skipCorsWhen(
+    pub fn skip_cors_when(
         &mut self,
         callback: impl Fn(&Request) -> bool + Send + Sync + 'static,
     ) -> &mut Self {
@@ -154,8 +151,7 @@ impl Middleware {
     }
 
     /// Adds field patterns excluded from the default trimming middleware.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn trimStrings(
+    pub fn trim_strings(
         &mut self,
         except: impl IntoIterator<Item = impl Into<String>>,
     ) -> &mut Self {
@@ -164,39 +160,34 @@ impl Middleware {
     }
 
     /// Skips trimming for requests which match this callback.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn skipTrimStringsWhen(
+    pub fn skip_trim_strings_when(
         &mut self,
         callback: impl Fn(&Request) -> bool + Send + Sync + 'static,
     ) -> &mut Self {
-        self.trim_strings.skipWhen(callback);
+        self.trim_strings.skip_when(callback);
         self
     }
 
     /// Skips empty-string conversion for requests which match this callback.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn convertEmptyStringsToNull(
+    pub fn convert_empty_strings_to_null(
         &mut self,
         except: impl Fn(&Request) -> bool + Send + Sync + 'static,
     ) -> &mut Self {
-        self.empty_strings_to_null.skipWhen(except);
+        self.empty_strings_to_null.skip_when(except);
         self
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn trustProxies(&mut self, at: &[&str], headers: u8) -> Result<&mut Self, ConfigError> {
+    pub fn trust_proxies(&mut self, at: &[&str], headers: u8) -> Result<&mut Self, ConfigError> {
         self.trusted_proxies = Some(crate::http::ProxyPolicy::new(at, headers)?);
         Ok(self)
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn trustHosts(&mut self, at: &[&str], subdomains: bool) -> Result<&mut Self, ConfigError> {
+    pub fn trust_hosts(&mut self, at: &[&str], subdomains: bool) -> Result<&mut Self, ConfigError> {
         self.trusted_hosts = Some(crate::http::TrustedHosts::new(at, subdomains)?);
         Ok(self)
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn trustHostsWith<Fut>(
+    pub fn trust_hosts_with<Fut>(
         &mut self,
         at: impl Fn() -> Fut + Send + Sync + 'static,
         subdomains: bool,
@@ -223,7 +214,7 @@ impl Middleware {
         non_snake_case,
         reason = "Matches the application middleware configuration API"
     )]
-    pub fn appendTerminable<M: crate::contracts::http::TerminableMiddleware>(
+    pub fn append_terminable<M: crate::contracts::http::TerminableMiddleware>(
         &mut self,
         middleware: Arc<M>,
     ) -> &mut Self {
@@ -234,7 +225,7 @@ impl Middleware {
         non_snake_case,
         reason = "Matches the application middleware configuration API"
     )]
-    pub fn prependTerminable<M: crate::contracts::http::TerminableMiddleware>(
+    pub fn prepend_terminable<M: crate::contracts::http::TerminableMiddleware>(
         &mut self,
         middleware: Arc<M>,
     ) -> &mut Self {
@@ -245,7 +236,7 @@ impl Middleware {
         non_snake_case,
         reason = "Matches the application middleware configuration API"
     )]
-    pub fn aliasTerminable<M: crate::contracts::http::TerminableMiddleware>(
+    pub fn alias_terminable<M: crate::contracts::http::TerminableMiddleware>(
         &mut self,
         name: impl Into<String>,
         middleware: Arc<M>,
@@ -254,8 +245,7 @@ impl Middleware {
     }
 
     /// Excludes the named cookies from encryption in the default web group.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn encryptCookies(
+    pub fn encrypt_cookies(
         &mut self,
         except: impl IntoIterator<Item = impl Into<String>>,
     ) -> &mut Self {
@@ -264,8 +254,7 @@ impl Middleware {
     }
 
     /// Allows the given paths to remain accessible during maintenance mode.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn preventRequestsDuringMaintenance(
+    pub fn prevent_requests_during_maintenance(
         &mut self,
         except: impl IntoIterator<Item = impl Into<String>>,
     ) -> &mut Self {
@@ -275,8 +264,7 @@ impl Middleware {
     }
 
     /// Configures request forgery protection in the default web group.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn preventRequestForgery(
+    pub fn prevent_request_forgery(
         &mut self,
         except: impl IntoIterator<Item = impl Into<String>>,
         origin_only: bool,
@@ -284,8 +272,8 @@ impl Middleware {
     ) -> &mut Self {
         self.csrf
             .except(except)
-            .useOriginOnly(origin_only)
-            .allowSameSite(allow_same_site);
+            .use_origin_only(origin_only)
+            .allow_same_site(allow_same_site);
         self
     }
 
@@ -340,8 +328,7 @@ impl Middleware {
 
     /// Enables first-party session authentication on the API middleware group.
     #[cfg(feature = "sanctum")]
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn statefulApi(&mut self) -> &mut Self {
+    pub fn stateful_api(&mut self) -> &mut Self {
         self.stateful_api = true;
         self
     }
@@ -434,18 +421,16 @@ impl Middleware {
     /// 为默认 API 组指定限流策略；传入 `None` 可关闭组内限流。
     ///
     /// 使用 `Some("api")` 和 `false` 对应默认策略及缓存后端。
-    #[allow(non_snake_case, reason = "沿用中间件配置接口名称")]
-    pub fn throttleApi(&mut self, limiter: Option<&str>, redis: bool) -> &mut Self {
+    pub fn throttle_api(&mut self, limiter: Option<&str>, redis: bool) -> &mut Self {
         self.api_limiter = limiter.map(str::to_owned);
         if redis {
-            self.throttleWithRedis();
+            self.throttle_with_redis();
         }
         self
     }
 
     /// Resolves the throttle alias through the Redis duration limiter.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn throttleWithRedis(&mut self) -> &mut Self {
+    pub fn throttle_with_redis(&mut self) -> &mut Self {
         self.registry.throttle_with_redis = true;
         self
     }

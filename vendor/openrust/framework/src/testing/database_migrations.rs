@@ -34,14 +34,13 @@ pub(super) struct MigrationRun {
     rollback: Option<MigrationTask>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl TestApp {
     /// Rebuilds the managed default MySQL schema, runs one test, and rolls back
     /// the migration batch. The callback can commit its own transactions.
     ///
     /// If the future is cancelled, close the fixture or run another database
     /// reset before reusing the schema.
-    pub async fn runDatabaseMigrations<T>(
+    pub async fn run_database_migrations<T>(
         &mut self,
         options: DatabaseMigrationsOptions,
         test: impl for<'a> FnOnce(&'a mut TestApp) -> DatabaseFuture<'a, TestResult<T>>,
@@ -49,7 +48,7 @@ impl TestApp {
         let connection = self.database().await?;
         if !self.owns_mysql_schema(&connection)? || test_transaction::active(&connection) {
             return Err(io::Error::other(
-                "runDatabaseMigrations requires the owned default connection outside a test transaction",
+                "run_database_migrations requires the owned default connection outside a test transaction",
             )
             .into());
         }
@@ -149,7 +148,7 @@ pub(super) fn fresh_migration_arguments(
 pub(super) fn migration_arguments(command: &str, connection: &Connection) -> Vec<OsString> {
     vec![
         command.into(),
-        format!("--database={}", connection.getName()).into(),
+        format!("--database={}", connection.get_name()).into(),
         "--no-interaction".into(),
     ]
 }

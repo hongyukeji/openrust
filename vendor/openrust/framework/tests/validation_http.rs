@@ -40,7 +40,7 @@ use tokio::{
 struct Submit;
 
 impl FormRequest for Submit {
-    fn prepareForValidation(&mut self, data: &mut Data) -> ValidationResult<()> {
+    fn prepare_for_validation(&mut self, data: &mut Data) -> ValidationResult<()> {
         let mut input = data.as_value().clone();
         if let Some(name) = input.get("name").and_then(Value::as_str) {
             input["name"] = name.trim().into();
@@ -73,7 +73,7 @@ impl FormRequest for Submit {
         ])
     }
 
-    fn passedValidation(
+    fn passed_validation(
         &mut self,
         request: &mut Request,
         _: &ValidatedInput,
@@ -84,7 +84,7 @@ impl FormRequest for Submit {
 }
 
 async fn submit(request: &mut Request) -> Result<Response, HttpError> {
-    let input = Submit.validateResolved(request).await?;
+    let input = Submit.validate_resolved(request).await?;
     Response::json(
         StatusCode::OK,
         json!({
@@ -118,8 +118,8 @@ fn presence(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
                 .field(
                     "ids",
                     [Rule::exists("directory.accounts", Some("account_id"))
-                        .whereIn("tenant", vec![7.into(), 8.into()])
-                        .withoutTrashed(None)
+                        .where_in("tenant", vec![7.into(), 8.into()])
+                        .without_trashed(None)
                         .using(|query| query.r#where("account_id", ">", 0))
                         .into()],
                 )?
@@ -128,7 +128,7 @@ fn presence(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
                     [Rule::unique("directory.accounts", Some("email"))
                         .ignore(1, Some("account_id"))
                         .r#where("tenant", 7)
-                        .withoutTrashed(None)
+                        .without_trashed(None)
                         .into()],
                 )?,
             "tenants" => RuleSet::parse([("tenant", "exists:directory.accounts")])?,
@@ -189,7 +189,7 @@ fn presence(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
 struct Upload(String);
 
 impl FormRequest for Upload {
-    fn prepareForValidation(&mut self, data: &mut Data) -> ValidationResult<()> {
+    fn prepare_for_validation(&mut self, data: &mut Data) -> ValidationResult<()> {
         let mut value = data.as_value().clone();
         value["title"] = json!("prepared");
         data.replace(value)
@@ -228,9 +228,9 @@ impl FormRequest for Upload {
                             Rule::dimensions()
                                 .width(100)
                                 .height(100)
-                                .minHeight(100)
-                                .maxWidth(100)
-                                .ratioBetween("99/100", 1.01),
+                                .min_height(100)
+                                .max_width(100)
+                                .ratio_between("99/100", 1.01),
                         )
                         .into(),
                 ],
@@ -448,14 +448,14 @@ fn upload(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
     Box::pin(async move {
         let mode = request.route("mode").unwrap().to_owned();
         let input = if mode == "manual" {
-            let data = Data::fromRequest(request).await?;
+            let data = Data::from_request(request).await?;
             let rules = RuleSet::parse([("attachments.0.title", "required|string")])?.field(
                 "attachments.0.image",
                 [Rule::required(), File::image(false).max("2mb").into()],
             )?;
             Validator::make(data, rules)?.validate().await?
         } else {
-            Upload(mode.clone()).validateResolved(request).await?
+            Upload(mode.clone()).validate_resolved(request).await?
         };
         let path = if mode == "manual" {
             "attachments.0.image"
@@ -467,8 +467,8 @@ fn upload(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
             StatusCode::OK,
             json!({
                 "input": input.all(),
-                "filename": file.map(|file| file.getClientOriginalName()),
-                "size": file.map(|file| file.getSize()),
+                "filename": file.map(|file| file.get_client_original_name()),
+                "size": file.map(|file| file.get_size()),
                 "unvalidated": input.file("unvalidated").is_some(),
             }),
         )
@@ -482,7 +482,7 @@ struct Injected {
 }
 
 impl FormRequest for Injected {
-    fn prepareForValidation(&mut self, data: &mut Data) -> ValidationResult<()> {
+    fn prepare_for_validation(&mut self, data: &mut Data) -> ValidationResult<()> {
         assert_eq!(self.stage, 0);
         self.stage = 1;
         let mut input = data.as_value().clone();
@@ -513,7 +513,7 @@ impl FormRequest for Injected {
         RuleSet::parse([("name", "required|string|min:2")])
     }
 
-    fn passedValidation(
+    fn passed_validation(
         &mut self,
         request: &mut Request,
         _: &ValidatedInput,
@@ -527,9 +527,8 @@ impl FormRequest for Injected {
 
 struct InjectedResponse(Value);
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl openrust::contracts::support::Responsable for InjectedResponse {
-    async fn toResponse(self, _: &mut Request) -> Result<Response, HttpError> {
+    async fn to_response(self, _: &mut Request) -> Result<Response, HttpError> {
         Response::json(StatusCode::OK, self.0)
     }
 }
@@ -600,13 +599,13 @@ fn inject_routes() -> Result<(), RoutingError> {
     Route::post("/injected", injected)?;
     Route::post(
         "/injected/{workspace}",
-        ControllerDispatcher::withFormRequest(InjectionController::store),
+        ControllerDispatcher::with_form_request(InjectionController::store),
     )?;
-    Route::apiResource(
+    Route::api_resource(
         "injected-posts",
         ResourceController::new()
             .only(&[ResourceAction::Store])
-            .actionWithFormRequest(ResourceAction::Store, InjectionController::store),
+            .action_with_form_request(ResourceAction::Store, InjectionController::store),
     )
 }
 
@@ -617,11 +616,11 @@ impl FormRequest for CustomRejection {
         RuleSet::parse([("name", "required")])
     }
 
-    fn withValidator(
+    fn with_validator(
         &mut self,
         validator: &mut openrust::validation::Validator,
     ) -> ValidationResult<()> {
-        validator.setException(|errors, _| {
+        validator.set_exception(|errors, _| {
             let mut error = openrust::validation::ValidationException::new(errors);
             error.status(StatusCode::BAD_REQUEST);
             error
@@ -632,7 +631,7 @@ impl FormRequest for CustomRejection {
 
 fn custom_rejection(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
-        let input = CustomRejection.validateResolved(request).await?;
+        let input = CustomRejection.validate_resolved(request).await?;
         Response::json(StatusCode::OK, input.into_value())
     })
 }
@@ -650,7 +649,7 @@ async fn transport(
     State(kernel): State<Arc<Kernel>>,
     incoming: axum::extract::Request,
 ) -> axum::response::Response {
-    kernel.handleTransport(incoming).await
+    kernel.handle_transport(incoming).await
 }
 
 async fn start(root: PathBuf) -> (SocketAddr, tokio::task::JoinHandle<()>) {
@@ -2387,7 +2386,7 @@ impl ServiceProvider for ExtensionProvider {
                 .container()
                 .get::<openrust::validation::Factory>("validator")?;
             let allowed = self.0;
-            factory.extendImplicit(
+            factory.extend_implicit(
                 "ProjectCode",
                 move |_, value, _, _| Ok(value.and_then(Value::as_str) == Some(allowed)),
                 Some("Invalid :attribute."),
@@ -2402,7 +2401,7 @@ impl ServiceProvider for ExtensionProvider {
 
 fn registered_extension(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
-        let data = Data::fromRequest(request).await?;
+        let data = Data::from_request(request).await?;
         let mut validator = Validator::make(data, RuleSet::parse([("code", "project_code")])?)?;
         let value = validator.validate().await?;
         Response::json(StatusCode::OK, value.into_value())

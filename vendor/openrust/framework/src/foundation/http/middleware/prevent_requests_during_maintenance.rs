@@ -75,7 +75,7 @@ impl Middleware for PreventRequestsDuringMaintenance {
 
             let status = maintenance_status(&data);
             let headers = maintenance_headers(&data)?;
-            if !request.expectsJson() {
+            if !request.expects_json() {
                 if let Some(target) = data.get("redirect").and_then(Value::as_str) {
                     let target_path = target.trim_matches('/');
                     let target_path = if target_path.is_empty() {
@@ -95,7 +95,7 @@ impl Middleware for PreventRequestsDuringMaintenance {
                             CONTENT_TYPE,
                             HeaderValue::from_static("text/html; charset=UTF-8"),
                         )
-                        .withHeaders(headers));
+                        .with_headers(headers));
                 }
             }
 
@@ -118,7 +118,7 @@ pub(in crate::foundation::http) fn prerender(
     except: &[String],
 ) -> Option<Response> {
     let template = data.get("template")?.as_str()?;
-    if request.expectsJson()
+    if request.expects_json()
         || except
             .iter()
             .map(String::as_str)
@@ -167,7 +167,7 @@ pub(in crate::foundation::http) fn prerender(
             CONTENT_TYPE,
             HeaderValue::from_static("text/html; charset=UTF-8"),
         )
-        .withHeaders(maintenance_headers(data).ok()?);
+        .with_headers(maintenance_headers(data).ok()?);
     if head {
         response = response.header(CONTENT_LENGTH, HeaderValue::from(template.len()));
     }

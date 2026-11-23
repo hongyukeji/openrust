@@ -103,7 +103,6 @@ struct Sequence {
     fallback: Option<Response>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl ResponseSequence {
     pub fn push(&self, response: Result<Response>) -> &Self {
         self.0
@@ -114,7 +113,7 @@ impl ResponseSequence {
         self
     }
 
-    pub fn whenEmpty(&self, response: Response) -> &Self {
+    pub fn when_empty(&self, response: Response) -> &Self {
         self.0
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
@@ -122,7 +121,7 @@ impl ResponseSequence {
         self
     }
 
-    pub fn isEmpty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         self.0
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
@@ -169,7 +168,6 @@ pub(super) fn build_client(connect_timeout: Duration, verify_tls: bool) -> Resul
         .map_err(|_| Error::Configuration)
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Factory {
     pub fn new() -> Result<Self> {
         Ok(Self {
@@ -180,7 +178,7 @@ impl Factory {
         })
     }
 
-    pub fn withDispatcher(mut self, dispatcher: Arc<Dispatcher>) -> Self {
+    pub fn with_dispatcher(mut self, dispatcher: Arc<Dispatcher>) -> Self {
         self.events = Some(dispatcher);
         self
     }
@@ -204,7 +202,7 @@ impl Factory {
     }
 
     /// Registers a wrapper for subsequently created pending requests in this factory.
-    pub fn globalMiddleware(
+    pub fn global_middleware(
         &self,
         middleware: impl for<'a> Fn(
             reqwest::Request,
@@ -221,29 +219,29 @@ impl Factory {
         self
     }
 
-    pub fn globalRequestMiddleware(
+    pub fn global_request_middleware(
         &self,
         middleware: impl Fn(&mut reqwest::Request) -> Result<()> + Send + Sync + 'static,
     ) -> &Self {
-        self.globalMiddleware(move |mut request, next| match middleware(&mut request) {
+        self.global_middleware(move |mut request, next| match middleware(&mut request) {
             Ok(()) => next.run(request),
             Err(error) => Box::pin(async move { Err(error) }),
         })
     }
 
-    pub fn globalResponseMiddleware(
+    pub fn global_response_middleware(
         &self,
         middleware: impl Fn(Response) -> Result<Response> + Send + Sync + 'static,
     ) -> &Self {
         let middleware = Arc::new(middleware);
-        self.globalMiddleware(move |request, next| {
+        self.global_middleware(move |request, next| {
             let middleware = middleware.clone();
             Box::pin(async move {
                 let response = next.run(request).await?;
-                let stats = response.transferStats.clone();
+                let stats = response.transfer_stats.clone();
                 let mut response = middleware(response)?;
-                if response.transferStats.is_none() {
-                    response.transferStats = stats;
+                if response.transfer_stats.is_none() {
+                    response.transfer_stats = stats;
                 }
                 Ok(response)
             })
@@ -257,19 +255,19 @@ impl Factory {
             .clone()
     }
 
-    pub fn withUserAgent(&self, user_agent: &str) -> PendingRequest {
-        self.pendingRequest().withUserAgent(user_agent)
+    pub fn with_user_agent(&self, user_agent: &str) -> PendingRequest {
+        self.pending_request().with_user_agent(user_agent)
     }
 
-    pub fn withoutVerifying(&self) -> PendingRequest {
-        self.pendingRequest().withoutVerifying()
+    pub fn without_verifying(&self) -> PendingRequest {
+        self.pending_request().without_verifying()
     }
 
     pub fn sink(&self, sink: impl Into<super::Sink>) -> PendingRequest {
-        self.pendingRequest().sink(sink)
+        self.pending_request().sink(sink)
     }
 
-    pub fn pendingRequest(&self) -> PendingRequest {
+    pub fn pending_request(&self) -> PendingRequest {
         PendingRequest::new(self.clone())
     }
 
@@ -280,7 +278,7 @@ impl Factory {
     }
 
     pub async fn get(&self, url: &str) -> Result<Response> {
-        self.pendingRequest().get(url).await
+        self.pending_request().get(url).await
     }
 
     pub async fn pool<'a>(
@@ -294,7 +292,7 @@ impl Factory {
     }
 
     /// Starts all requests and returns their results in registration order.
-    pub async fn poolOrdered<'a>(
+    pub async fn pool_ordered<'a>(
         &self,
         build: impl FnOnce(&mut Pool<'a>),
     ) -> indexmap::IndexMap<String, Result<Response>> {
@@ -313,14 +311,14 @@ impl Factory {
         testing.stubs.push(Arc::new(callback));
     }
 
-    pub fn stubUrl(&self, pattern: impl Into<String>, response: Response) {
+    pub fn stub_url(&self, pattern: impl Into<String>, response: Response) {
         let pattern = Str::start(&pattern.into(), "*");
         self.fake(move |request| {
             Str::is(&[&pattern], request.url().as_str(), false).then(|| Ok(response.clone()))
         });
     }
 
-    pub fn fakeSequence(&self, pattern: impl Into<String>) -> ResponseSequence {
+    pub fn fake_sequence(&self, pattern: impl Into<String>) -> ResponseSequence {
         let sequence = ResponseSequence::default();
         let pending = sequence.clone();
         let pattern = Str::start(&pattern.into(), "*");
@@ -330,21 +328,21 @@ impl Factory {
         sequence
     }
 
-    pub fn preventStrayRequests(&self, prevent: bool) {
+    pub fn prevent_stray_requests(&self, prevent: bool) {
         self.testing().prevent_stray = prevent;
     }
 
     /// Replaces the URL patterns exempt from stray-request prevention.
-    pub fn allowStrayRequests(&self, patterns: impl IntoIterator<Item = impl Into<String>>) {
+    pub fn allow_stray_requests(&self, patterns: impl IntoIterator<Item = impl Into<String>>) {
         let patterns = patterns.into_iter().map(Into::into).collect();
         self.testing().allowed_stray_urls = patterns;
     }
 
-    pub fn preventingStrayRequests(&self) -> bool {
+    pub fn preventing_stray_requests(&self) -> bool {
         self.testing().prevent_stray
     }
 
-    pub fn isAllowedRequestUrl(&self, url: &str) -> bool {
+    pub fn is_allowed_request_url(&self, url: &str) -> bool {
         let patterns = {
             let testing = self.testing();
             if !testing.prevent_stray {
@@ -357,11 +355,11 @@ impl Factory {
             .any(|pattern| Str::is(&[pattern], url, false))
     }
 
-    pub fn withUrlParameters(
+    pub fn with_url_parameters(
         &self,
         parameters: serde_json::Map<String, serde_json::Value>,
     ) -> PendingRequest {
-        self.pendingRequest().withUrlParameters(parameters)
+        self.pending_request().with_url_parameters(parameters)
     }
 
     pub fn recorded(&self) -> Vec<(RecordedRequest, Option<Response>)> {
@@ -369,7 +367,7 @@ impl Factory {
     }
 
     #[track_caller]
-    pub fn assertSent(&self, predicate: impl Fn(&RecordedRequest, Option<&Response>) -> bool) {
+    pub fn assert_sent(&self, predicate: impl Fn(&RecordedRequest, Option<&Response>) -> bool) {
         assert!(
             self.recorded()
                 .iter()
@@ -379,7 +377,7 @@ impl Factory {
     }
 
     #[track_caller]
-    pub fn assertNotSent(&self, predicate: impl Fn(&RecordedRequest, Option<&Response>) -> bool) {
+    pub fn assert_not_sent(&self, predicate: impl Fn(&RecordedRequest, Option<&Response>) -> bool) {
         assert!(
             !self
                 .recorded()
@@ -390,7 +388,7 @@ impl Factory {
     }
 
     #[track_caller]
-    pub fn assertSentCount(&self, expected: usize) {
+    pub fn assert_sent_count(&self, expected: usize) {
         assert_eq!(
             self.testing().recorded.len(),
             expected,
@@ -399,8 +397,8 @@ impl Factory {
     }
 
     #[track_caller]
-    pub fn assertNothingSent(&self) {
-        self.assertSentCount(0);
+    pub fn assert_nothing_sent(&self) {
+        self.assert_sent_count(0);
     }
 
     fn testing(&self) -> MutexGuard<'_, Testing> {
@@ -417,7 +415,9 @@ impl Factory {
         let stubs = self.testing().stubs.clone();
         match stubs.iter().find_map(|callback| callback(&request)) {
             Some(result) => result.map(Incoming::Fake),
-            None if !self.isAllowedRequestUrl(request.url().as_str()) => Err(Error::StrayRequest),
+            None if !self.is_allowed_request_url(request.url().as_str()) => {
+                Err(Error::StrayRequest)
+            }
             None => client
                 .execute(request)
                 .await

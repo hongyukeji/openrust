@@ -11,7 +11,6 @@ use super::super::json::{JsonResource, ResourceResult};
 use super::{JsonApi, JsonApiAttributes, JsonApiRelationships, JsonApiSource, add_included};
 
 /// Projects a data source into a JSON:API resource object.
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub trait JsonApiResource: Sized + Send {
     /// Eloquent models and JSON object maps are supported data sources.
     type Model: JsonApiSource;
@@ -19,55 +18,55 @@ pub trait JsonApiResource: Sized + Send {
     fn model(&self) -> &Self::Model;
 
     /// Provides mutable access for automatic loading of registered include paths.
-    fn modelMut(&mut self) -> Option<&mut Self::Model> {
+    fn model_mut(&mut self) -> Option<&mut Self::Model> {
         None
     }
 
     /// Maps an allowed request path to a registered Eloquent relationship path.
-    fn includePath(_path: &str) -> Option<&'static str> {
+    fn include_path(_path: &str) -> Option<&'static str> {
         None
     }
 
     /// Accepts sparse fieldsets and include paths from the query string.
-    fn respectFieldsAndIncludesInQueryString(&self) -> bool {
+    fn respect_fields_and_includes_in_query_string(&self) -> bool {
         true
     }
 
     /// Selects declared, already loaded relationships in place of query includes.
-    fn includePreviouslyLoadedRelationships(&self) -> bool {
+    fn include_previously_loaded_relationships(&self) -> bool {
         false
     }
 
-    fn toId(&self, _request: &Request) -> Option<String> {
+    fn to_id(&self, _request: &Request) -> Option<String> {
         None
     }
 
-    fn toType(&self, _request: &Request) -> Option<String> {
+    fn to_type(&self, _request: &Request) -> Option<String> {
         None
     }
 
-    fn toAttributes(&self, _request: &Request) -> ResourceResult<Map<String, Value>> {
+    fn to_attributes(&self, _request: &Request) -> ResourceResult<Map<String, Value>> {
         self.model().attributes()
     }
 
-    fn toLinks(&self, _request: &Request) -> ResourceResult<Map<String, Value>> {
+    fn to_links(&self, _request: &Request) -> ResourceResult<Map<String, Value>> {
         Ok(Map::new())
     }
 
-    fn lazyAttributes<'a>(&'a self, _request: &'a Request) -> JsonApiAttributes<'a> {
+    fn lazy_attributes<'a>(&'a self, _request: &'a Request) -> JsonApiAttributes<'a> {
         JsonApiAttributes::default()
     }
 
-    fn toRelationships<'a>(&'a self, _request: &'a Request) -> JsonApiRelationships<'a> {
+    fn to_relationships<'a>(&'a self, _request: &'a Request) -> JsonApiRelationships<'a> {
         JsonApiRelationships::default()
     }
 
-    fn toMeta(&self, _request: &Request) -> ResourceResult<Map<String, Value>> {
+    fn to_meta(&self, _request: &Request) -> ResourceResult<Map<String, Value>> {
         Ok(Map::new())
     }
 
-    fn resolveResourceIdentifier(&self, request: &Request) -> ResourceResult<String> {
-        self.toId(request)
+    fn resolve_resource_identifier(&self, request: &Request) -> ResourceResult<String> {
+        self.to_id(request)
             .or_else(|| self.model().identifier())
             .filter(|id| !id.is_empty())
             .ok_or_else(|| HttpError::Internal {
@@ -76,8 +75,8 @@ pub trait JsonApiResource: Sized + Send {
             })
     }
 
-    fn resolveResourceType(&self, request: &Request) -> ResourceResult<String> {
-        let resource_type = self.toType(request).unwrap_or_else(|| {
+    fn resolve_resource_type(&self, request: &Request) -> ResourceResult<String> {
+        let resource_type = self.to_type(request).unwrap_or_else(|| {
             let name = type_name::<Self>();
             let name = name.split('<').next().unwrap_or(name);
             let name = name.rsplit("::").next().unwrap_or(name);
@@ -96,11 +95,14 @@ pub trait JsonApiResource: Sized + Send {
 impl<R: JsonApiResource> JsonResource for R {
     const JSON_API: bool = true;
 
-    fn prepareResponse(&mut self, request: &Request) -> Option<HttpFuture<'_, ResourceResult<()>>> {
-        Self::prepareCollection(std::slice::from_mut(self), request)
+    fn prepare_response(
+        &mut self,
+        request: &Request,
+    ) -> Option<HttpFuture<'_, ResourceResult<()>>> {
+        Self::prepare_collection(std::slice::from_mut(self), request)
     }
 
-    fn prepareCollection<'a>(
+    fn prepare_collection<'a>(
         resources: &'a mut [Self],
         request: &Request,
     ) -> Option<HttpFuture<'a, ResourceResult<()>>> {
@@ -113,7 +115,7 @@ impl<R: JsonApiResource> JsonResource for R {
         };
         let paths: Vec<_> = paths
             .iter()
-            .filter_map(|path| R::includePath(path))
+            .filter_map(|path| R::include_path(path))
             .collect();
         if paths.is_empty() {
             return None;
@@ -123,21 +125,23 @@ impl<R: JsonApiResource> JsonResource for R {
                 .iter_mut()
                 .filter(|resource| queries_includes(&**resource))
                 .map(|resource| {
-                    resource.modelMut().ok_or_else(|| HttpError::Internal {
-                        source: std::io::Error::other("JSON:API include loading requires modelMut")
-                            .into(),
+                    resource.model_mut().ok_or_else(|| HttpError::Internal {
+                        source: std::io::Error::other(
+                            "JSON:API include loading requires model_mut",
+                        )
+                        .into(),
                     })
                 })
                 .collect::<ResourceResult<Vec<_>>>()?;
-            R::Model::loadMissingPaths(originals, paths).await
+            R::Model::load_missing_paths(originals, paths).await
         }))
     }
 
-    fn toArray(&self, request: &Request) -> ResourceResult<Value> {
+    fn to_array(&self, request: &Request) -> ResourceResult<Value> {
         project_root(self, request).map(|(object, _)| object)
     }
 
-    fn resolveResponseData(
+    fn resolve_response_data(
         &self,
         request: &Request,
     ) -> ResourceResult<(Value, Map<String, Value>)> {
@@ -153,8 +157,8 @@ impl<R: JsonApiResource> JsonResource for R {
 }
 
 fn queries_includes(resource: &impl JsonApiResource) -> bool {
-    resource.respectFieldsAndIncludesInQueryString()
-        && !resource.includePreviouslyLoadedRelationships()
+    resource.respect_fields_and_includes_in_query_string()
+        && !resource.include_previously_loaded_relationships()
 }
 
 fn project_root(
@@ -171,7 +175,7 @@ fn project_root(
         resource,
         request,
         &paths,
-        resource.includePreviouslyLoadedRelationships(),
+        resource.include_previously_loaded_relationships(),
     )
 }
 
@@ -181,13 +185,13 @@ pub(super) fn project<R: JsonApiResource>(
     paths: &[&str],
     include_loaded: bool,
 ) -> ResourceResult<(Value, Vec<Value>)> {
-    let resource_type = resource.resolveResourceType(request)?;
-    let id = resource.resolveResourceIdentifier(request)?;
-    let mut attributes = resource.toAttributes(request)?;
+    let resource_type = resource.resolve_resource_type(request)?;
+    let id = resource.resolve_resource_identifier(request)?;
+    let mut attributes = resource.to_attributes(request)?;
     for reserved in ["id", "type"] {
         attributes.shift_remove(reserved);
     }
-    let respects_query = resource.respectFieldsAndIncludesInQueryString();
+    let respects_query = resource.respect_fields_and_includes_in_query_string();
     let paths = if respects_query { paths } else { &[] };
     let fields = if respects_query {
         request.query(Some("fields"))?
@@ -201,7 +205,7 @@ pub(super) fn project<R: JsonApiResource>(
     let selected =
         |name: &str| selected.is_none_or(|fields| fields.split(',').any(|field| field == name));
     attributes.retain(|name, _| selected(name));
-    for (name, resolve) in resource.lazyAttributes(request).0 {
+    for (name, resolve) in resource.lazy_attributes(request).0 {
         if !matches!(name, "id" | "type") && selected(name) {
             attributes.insert(name.into(), resolve()?);
         }
@@ -210,7 +214,7 @@ pub(super) fn project<R: JsonApiResource>(
     let mut relationships = Map::new();
     let mut included = Vec::new();
     if include_loaded || !paths.is_empty() {
-        for (name, resolve) in resource.toRelationships(request).0 {
+        for (name, resolve) in resource.to_relationships(request).0 {
             if matches!(name, "id" | "type") {
                 continue;
             }
@@ -221,7 +225,7 @@ pub(super) fn project<R: JsonApiResource>(
             let already_loaded = include_loaded
                 && resource
                     .model()
-                    .relationLoaded(R::includePath(name).unwrap_or(name));
+                    .relation_loaded(R::include_path(name).unwrap_or(name));
             if !already_loaded && nested.is_empty() && !paths.contains(&name) {
                 continue;
             }
@@ -242,8 +246,8 @@ pub(super) fn project<R: JsonApiResource>(
     for (name, fields) in [
         ("attributes", attributes),
         ("relationships", relationships),
-        ("links", resource.toLinks(request)?),
-        ("meta", resource.toMeta(request)?),
+        ("links", resource.to_links(request)?),
+        ("meta", resource.to_meta(request)?),
     ] {
         if !fields.is_empty() {
             object.insert(name.into(), Value::Object(fields));

@@ -218,21 +218,21 @@ impl SmsDriver for Provider {
     fn send(&self, message: SmsMessage) -> NotificationFuture<'_, NotificationResult<Value>> {
         Box::pin(async move {
             let request =
-                Http::acceptJson().map_err(|_| delivery_error("SMS HTTP client unavailable."))?;
+                Http::accept_json().map_err(|_| delivery_error("SMS HTTP client unavailable."))?;
             let (request, body) = match self.protocol {
                 Protocol::Alpha => (
-                    request.withToken(&self.token),
+                    request.with_token(&self.token),
                     json!({"to": message.to(), "text": message.content()}),
                 ),
                 Protocol::Beta => (
-                    request.withBasicAuth("demo", &self.token),
+                    request.with_basic_auth("demo", &self.token),
                     json!({"recipient": message.to(), "message": message.content()}),
                 ),
             };
             let response = request
-                .withoutRedirecting()
+                .without_redirecting()
                 .timeout(std::time::Duration::from_secs(5))
-                .maxResponseBytes(16 * 1024)
+                .max_response_bytes(16 * 1024)
                 .post(&self.endpoint, &body)
                 .await
                 .map_err(|_| delivery_error("The demo SMS request failed."))?;

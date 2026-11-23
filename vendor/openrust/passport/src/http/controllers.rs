@@ -40,9 +40,9 @@ impl AuthorizationController {
                 && prompt.split(' ').any(|p| p == "login")
                 && request.session()?.get("promptedForLogin") != Some(&json!(true))
             {
-                Auth::sessionGuard(request, None)?.logout().await?;
+                Auth::session_guard(request, None)?.logout().await?;
                 request.session_mut()?.invalidate().await?;
-                request.session_mut()?.regenerateToken()?;
+                request.session_mut()?.regenerate_token()?;
                 user = None;
             }
             let Some(user) = user else {
@@ -78,12 +78,12 @@ impl AuthorizationController {
                     .await
                     .map_err(internal)?
                     || server
-                        .hasGrantedScopes(&validated, &user.getAuthIdentifier())
+                        .hasGrantedScopes(&validated, &user.get_auth_identifier())
                         .await
                         .map_err(internal)?)
             {
                 return match server
-                    .completeAuthorizationRequest(validated, user.getAuthIdentifier(), true)
+                    .completeAuthorizationRequest(validated, user.get_auth_identifier(), true)
                     .await
                 {
                     Ok(value) => Ok(value.into_response().into()),
@@ -100,7 +100,7 @@ impl AuthorizationController {
             let auth_token = nonce()?;
             let pending = serde_json::to_value(PendingAuthorization {
                 request: validated.clone(),
-                user: user.getAuthIdentifier(),
+                user: user.get_auth_identifier(),
             })
             .map_err(internal)?;
             request.session_mut()?.put("authToken", json!(auth_token))?;
@@ -155,7 +155,7 @@ fn complete(request: &mut Request, approved: bool) -> HttpFuture<'_, Result<Resp
         let pending: PendingAuthorization =
             serde_json::from_value(pending.ok_or(HttpError::InvalidRequest)?)
                 .map_err(|_| HttpError::InvalidRequest)?;
-        if pending.user != user.getAuthIdentifier() {
+        if pending.user != user.get_auth_identifier() {
             return Err(HttpError::Unauthenticated);
         }
         let server = AuthorizationServer::get_facade_root()?;
@@ -205,7 +205,7 @@ impl AccessTokenController {
 }
 pub(super) fn select_guard(request: &mut Request) -> Result<(), HttpError> {
     if let Some(Value::String(guard)) = Config::get("passport.guard")? {
-        Auth::shouldUse(request, &guard)?;
+        Auth::should_use(request, &guard)?;
     }
     Ok(())
 }

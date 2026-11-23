@@ -6,7 +6,7 @@ use crate::support::{Arr, data, data_get, data_has};
 #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Collection<Value> {
     pub fn select(self, keys: &[&str]) -> CollectionResult<Self> {
-        Ok(Self::fromValue(Arr::select(&self.toArray()?, keys)))
+        Ok(Self::fromValue(Arr::select(&self.to_array()?, keys)))
     }
 
     pub fn value(&self, path: &str) -> Option<Value> {
@@ -16,11 +16,11 @@ impl Collection<Value> {
             .and_then(|item| data_get(item, Some(path)))
     }
 
-    pub fn whereNull(self) -> Self {
+    pub fn where_null(self) -> Self {
         self.filter(|value, _| value.is_null())
     }
 
-    pub fn whereNotNull(self) -> Self {
+    pub fn where_not_null(self) -> Self {
         self.reject(|value, _| value.is_null())
     }
 
@@ -38,7 +38,7 @@ impl Collection<Value> {
 
     pub fn dotWithDepth(self, depth: Option<usize>) -> CollectionResult<Self> {
         Ok(Self::fromEntries(Arr::dotWithDepth(
-            &self.toArray()?,
+            &self.to_array()?,
             "",
             depth,
         )?))
@@ -53,14 +53,14 @@ impl Collection<Value> {
     }
 
     pub fn flatten(self, depth: Option<usize>) -> CollectionResult<Self> {
-        Ok(Self::make(Arr::flatten(&self.toArray()?, depth).map_err(
+        Ok(Self::make(Arr::flatten(&self.to_array()?, depth).map_err(
             |error| CollectionError::Source(Box::new(error)),
         )?))
     }
 
     pub fn mergeRecursive(self, right: Self) -> CollectionResult<Self> {
-        let left = self.toArray()?;
-        let right = right.toArray()?;
+        let left = self.to_array()?;
+        let right = right.to_array()?;
         validate(&left)?;
         validate(&right)?;
         let result = merge(left, right, false);
@@ -69,8 +69,8 @@ impl Collection<Value> {
     }
 
     pub fn replaceRecursive(self, right: Self) -> CollectionResult<Self> {
-        let left = self.toArray()?;
-        let right = right.toArray()?;
+        let left = self.to_array()?;
+        let right = right.to_array()?;
         validate(&left)?;
         validate(&right)?;
         Ok(Self::fromValue(merge(left, right, true)))

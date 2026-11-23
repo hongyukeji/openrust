@@ -20,8 +20,8 @@ HTTP 核心執行[中介軟體](../the-basics/middleware.md)，並透過框架[�
 
 ## 請求完成事件 {#request-handled}
 
-中介軟體執行結束或例外渲染為回應後，HTTP Kernel 在目前應用程式作用域派發 `openrust::foundation::http::events::RequestHandled`。使用既有 `Event::listen` 或 `Event::listenClass` 監聽 `OpenRust\Foundation\Http\Events\RequestHandled`。事件提供 `request`、`response` 中繼資料快照（`RequestParts` / `ResponseParts`）、獨立的 `attributes` 屬性映射、`routeName` 及單調時鐘計量的 `duration: Duration`。建立事件不讀取或緩衝本文，串流回應保持串流；事件表示回應產生完成，不表示下載傳送完成。請求在產生回應前被取消時不派發。
+中介軟體執行結束或例外渲染為回應後，HTTP Kernel 在目前應用程式作用域派發 `openrust::foundation::http::events::RequestHandled`。使用既有 `Event::listen` 或 `Event::listenClass` 監聽 `OpenRust\Foundation\Http\Events\RequestHandled`。事件提供 `request`、`response` 中繼資料快照（`RequestParts` / `ResponseParts`）、獨立的 `attributes` 屬性映射、`route_name` 及單調時鐘計量的 `duration: Duration`。建立事件不讀取或緩衝本文，串流回應保持串流；事件表示回應產生完成，不表示下載傳送完成。請求在產生回應前被取消時不派發。
 
-`RequestHandled.requestStartedAt` 為請求開始時的 Unix 毫秒時間（`i64`），在中介層與錯誤渲染前擷取。`duration` 繼續以單調時鐘計算；統計視窗應直接使用開始時間判斷。
+`RequestHandled.request_started_at` 為請求開始時的 Unix 毫秒時間（`i64`），在中介層與錯誤渲染前擷取。`duration` 繼續以單調時鐘計算；統計視窗應直接使用開始時間判斷。
 
-`RequestHandled.responseContent` 僅共用 JSON／文字建構或 `Response::setContent` 已緩衝的位元組，`Response::getContent` 可讀取這些已知內容。不透明本文與串流回傳 `None`；觀察事件不會讀取或緩衝串流。
+`RequestHandled.response_content` 僅共用 JSON／文字建構或 `Response::set_content` 已緩衝的位元組，`Response::get_content` 可讀取這些已知內容。不透明本文與串流回傳 `None`；觀察事件不會讀取或緩衝串流。

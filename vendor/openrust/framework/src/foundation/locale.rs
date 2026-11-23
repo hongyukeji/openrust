@@ -66,7 +66,7 @@ impl Application {
             .map_err(source)?;
         self.container()
             .get::<Translator>("translator")?
-            .setFallback(&locale)
+            .set_fallback(&locale)
     }
 
     fn locale_config(&self, key: &str) -> TranslationResult<String> {

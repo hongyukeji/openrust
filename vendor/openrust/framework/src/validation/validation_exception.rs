@@ -52,19 +52,17 @@ impl ValidationException {
         }
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn errorBag(&mut self, name: impl Into<String>) -> &mut Self {
+    pub fn error_bag(&mut self, name: impl Into<String>) -> &mut Self {
         self.error_bag = Some(name.into());
         self
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn redirectTo(&mut self, path: impl Into<String>) -> &mut Self {
+    pub fn redirect_to(&mut self, path: impl Into<String>) -> &mut Self {
         self.redirect_target = Some(path.into());
         self
     }
 
-    pub(crate) fn error_bag(&self) -> &str {
+    pub(crate) fn selected_error_bag(&self) -> &str {
         self.error_bag.as_deref().unwrap_or("default")
     }
 
@@ -78,8 +76,7 @@ impl ValidationException {
         self
     }
 
-    #[allow(non_snake_case, reason = "Matches the validation response API")]
-    pub fn statusCode(&self) -> crate::http::StatusCode {
+    pub fn status_code(&self) -> crate::http::StatusCode {
         self.status
     }
 

@@ -60,8 +60,7 @@ pub struct VendorPublishCommand(CommandDefinition);
 
 impl VendorPublishCommand {
     /// Preserve package migration timestamps for this application.
-    #[allow(non_snake_case, reason = "Matches the Artisan publishing API")]
-    pub fn dontUpdateMigrationDates(app: &Application) {
+    pub fn dont_update_migration_dates(app: &Application) {
         app.shared
             .keep_published_migration_dates
             .store(true, Ordering::Relaxed);

@@ -83,7 +83,7 @@ let page = repository.query().inLog("settings")
 // Pass the final record's id to .before(id) for the next page.
 ```
 
-支援 `inLog`、`inLogs`、`forEvent`、`forSubject`、`causedBy`、`forRequest`，身分以精確文字比對。每頁1–1000筆，預設50筆；不自動提供後台或 HTTP 介面。
+支援 `inLog`、`inLogs`、`forEvent`、`forSubject`、`causedBy`、`for_request`，身分以精確文字比對。每頁1–1000筆，預設50筆；不自動提供後台或 HTTP 介面。
 
 `./artisan activitylog:clean accounts --days=365` 清理指定日誌群組的過期記錄；省略 `accounts` 清理所有群組。省略天數使用 `clean_after_days`，天數須為正整數。正式環境需互動確認或使用 `--force`。`cleanBefore(utc_milliseconds, limit)` 拒絕未來截止時間；不提供防竄改儲存。
 

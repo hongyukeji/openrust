@@ -193,7 +193,7 @@ async fn handle(
         .and_then(|state| state.as_ref().ok())
         .cloned();
     if let Some(kernel) = kernel {
-        return kernel.handleTransport(incoming).await;
+        return kernel.handle_transport(incoming).await;
     }
     let request = Request::from(incoming);
     if let Ok(Some(data)) = maintenance::read_file(&state.marker).await
@@ -209,7 +209,7 @@ async fn handle(
         .and_then(|state| state.as_ref().ok())
         .cloned();
     if let Some(kernel) = kernel {
-        return kernel.handleTransport(request.into()).await;
+        return kernel.handle_transport(request.into()).await;
     }
     TransportResponse::builder()
         .status(StatusCode::INTERNAL_SERVER_ERROR)

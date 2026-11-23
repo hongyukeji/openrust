@@ -70,7 +70,7 @@ async fn verify(config: Json, id: &str) {
     assert_eq!(uri.port(), None);
     assert_eq!(uri.queryString(), Some(""));
     assert_eq!(
-        record.toArray().unwrap()["link"],
+        record.to_array().unwrap()["link"],
         json!("https://example.com/orders?")
     );
 
@@ -79,7 +79,7 @@ async fn verify(config: Json, id: &str) {
         .unwrap();
     assert!(record.save().await.unwrap());
     record = query().findOrFail(key.clone()).await.unwrap();
-    assert_eq!(record.toArray().unwrap()["link"], json!("../new?#"));
+    assert_eq!(record.to_array().unwrap()["link"], json!("../new?#"));
     assert_eq!(
         record
             .getValueObject::<Uri>("link")
@@ -92,7 +92,7 @@ async fn verify(config: Json, id: &str) {
     record.setAttributeValue("link", "http://").unwrap();
     assert_eq!(record.getAttribute("link"), Some(&"http://".into()));
     assert!(record.getValueObject::<Uri>("link").is_err());
-    assert!(record.toArray().is_err());
+    assert!(record.to_array().is_err());
     assert!(
         record
             .setAttributeValue("link", Value::Json(json!([])))
@@ -104,7 +104,7 @@ async fn verify(config: Json, id: &str) {
     assert!(record.save().await.unwrap());
     record = query().findOrFail(key).await.unwrap();
     assert!(record.getValueObject::<Uri>("link").unwrap().is_none());
-    assert_eq!(record.toArray().unwrap()["link"], Json::Null);
+    assert_eq!(record.to_array().unwrap()["link"], Json::Null);
     db.statement("DROP TABLE uri_records", &[]).await.unwrap();
 }
 

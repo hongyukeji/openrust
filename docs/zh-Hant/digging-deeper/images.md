@@ -12,7 +12,7 @@
 
 `flip()` 垂直翻轉，`flop()` 水平翻轉。`resize(width, height)` 和 `scale(width, height)` 回傳 `Result<Image>`，兩個尺寸都缺失時立即報錯；傳入的零尺寸歸一為 1。模糊和銳化強度在交給驅動處理器之前限制為最大 100。
 
-成功載入的來源在分支之間共用。修改已渲染的圖像時以處理後的位元組為起點，不重複此前的變換。`hashName("").await?` 回傳該圖像穩定的檔案名稱，`store` 重用此名稱；`hashName("avatars").await?` 加入路徑前綴。`toString().await?` 回傳資料 URI。路由處理器可直接回傳 `Image` 或 `Result<Image, HttpError>`，回應包含圖像位元組及對應 MIME 類型。
+成功載入的來源在分支之間共用。修改已渲染的圖像時以處理後的位元組為起點，不重複此前的變換。`hash_name("").await?` 回傳該圖像穩定的檔案名稱，`store` 重用此名稱；`hash_name("avatars").await?` 加入路徑前綴。`toString().await?` 回傳資料 URI。路由處理器可直接回傳 `Image` 或 `Result<Image, HttpError>`，回應包含圖像位元組及對應 MIME 類型。
 
 ```rust
 use openrust::image::{ImageManager, Limits};
@@ -42,9 +42,9 @@ AVIF 與 HEIC 序列的變換和相互轉換保留每個顯示畫格各自的 IC
 
 ## 儲存影像 {#storing-images}
 
-`store` 依編碼格式產生檔名。`storeAs` 使用指定檔名，`storePublicly` 和 `storePubliclyAs` 要求公開可見性。磁碟寫入成功後回傳儲存路徑。
+`store` 依編碼格式產生檔名。`store_as` 使用指定檔名，`store_publicly` 和 `store_publicly_as` 要求公開可見性。磁碟寫入成功後回傳儲存路徑。
 
-`storeAs("avatar.png", None, None).await?` 將第一個參數作為完整檔案名稱；同時指定目錄和名稱時，只去掉合併路徑兩端的斜線。
+`store_as("avatar.png", None, None).await?` 將第一個參數作為完整檔案名稱；同時指定目錄和名稱時，只去掉合併路徑兩端的斜線。
 
 ## 檢查影像 {#inspecting-images}
 
@@ -62,7 +62,7 @@ AVIF 與 HEIC 序列的變換和相互轉換保留每個顯示畫格各自的 IC
 
 ### 自訂轉換處理器 {#custom-transformation-handlers}
 
-用 `Image::transformUsing(driver, name, callback)?` 或 `ImageManager` 的同名方法為指定驅動註冊處理器。也可先註冊處理器，再透過 `extend` 註冊應用驅動；管理器的 `extend` 回傳 `Result`。驅動契約提供 `transformUsing` 和 `dimensions`；不支援擴充處理器的驅動回傳 `UnsupportedTransformationHandler`。`Image::driver(None)?`、`getDefaultDriver()` 和 `getDrivers()` 提供目前設定驅動與已註冊實例。
+用 `Image::transformUsing(driver, name, callback)?` 或 `ImageManager` 的同名方法為指定驅動註冊處理器。也可先註冊處理器，再透過 `extend` 註冊應用驅動；管理器的 `extend` 回傳 `Result`。驅動契約提供 `transformUsing` 和 `dimensions`；不支援擴充處理器的驅動回傳 `UnsupportedTransformationHandler`。`Image::driver(None)?`、`get_default_driver()` 和 `getDrivers()` 提供目前設定驅動與已註冊實例。
 
 ```rust
 use std::sync::Arc;

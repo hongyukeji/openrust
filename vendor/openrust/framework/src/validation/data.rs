@@ -14,7 +14,6 @@ pub struct Data {
     upload_shape: Value,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Data {
     /// Builds validation input from a JSON object or array.
     pub fn new(input: Value) -> ValidationResult<Self> {
@@ -27,7 +26,7 @@ impl Data {
     }
 
     /// Combines request input and the typed uploads from the multipart parser.
-    pub async fn fromRequest(request: &mut Request) -> Result<Self, HttpError> {
+    pub async fn from_request(request: &mut Request) -> Result<Self, HttpError> {
         let mut data = Self::new(
             request
                 .input(None)
@@ -44,8 +43,7 @@ impl Data {
     }
 
     /// Converts application action input while retaining uploaded files and array keys.
-    #[allow(non_snake_case, reason = "Typed adapter for request values")]
-    pub fn fromRequestValue(input: &crate::http::RequestValue) -> ValidationResult<Self> {
+    pub fn from_request_value(input: &crate::http::RequestValue) -> ValidationResult<Self> {
         let mut uploads = BTreeMap::new();
         let (input, upload_shape) = request_values(input, "", 0, &mut uploads)?;
         check(&input)?;

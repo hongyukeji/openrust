@@ -280,7 +280,7 @@ CommonMark 和表格始终可用。在 `config/mail.rs` 的 `mail.markdown.exten
 
 ### 在浏览器预览邮件 {#previewing-mailables-in-the-browser}
 
-在应用路由中调用 `toResponse()`，即可用对应的媒体类型显示 HTML 或纯文本正文。
+在应用路由中调用 `to_response()`，即可用对应的媒体类型显示 HTML 或纯文本正文。
 
 ```rust
 use openrust::{
@@ -290,7 +290,7 @@ use openrust::{
 };
 
 fn preview_order(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
-    Box::pin(async { OrderShipped.toResponse().await })
+    Box::pin(async { OrderShipped.to_response().await })
 }
 
 Route::get("/mail-preview/order", preview_order)?;

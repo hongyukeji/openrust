@@ -18,7 +18,7 @@ let result = processes.command(["/bin/sh", "-c", r#"printf '%s' "$MODE""#])
 assert_eq!(result.output(), b"test");
 ```
 
-Set the working directory with `path`, add or remove environment variables with `env` and `removeEnv`, and send bytes with `input`. The default timeout is 60 seconds. `idleTimeout` limits the time without output and `forever` removes the total deadline. Nonzero exit status is available through `exitCode`. Call `throw` to turn it into an error.
+Set the working directory with `path`, add or remove environment variables with `env` and `removeEnv`, and send bytes with `input`. The default timeout is 60 seconds. `idleTimeout` limits the time without output and `forever` removes the total deadline. Nonzero exit status is available through `exit_code`. Call `throw` to turn it into an error.
 
 ## Running asynchronously {#running-asynchronously}
 
@@ -82,7 +82,7 @@ let mut process = Process::command(
 assert!(process.waitUntil(|_, bytes| bytes == b"ready").await?);
 process.signal(Signal::Raw(number)).await?;
 let result = process.wait().await?;
-assert_eq!(result.exitCode(), 6);
+assert_eq!(result.exit_code(), 6);
 assert_eq!(result.output(), b"readycaught");
 ```
 
@@ -114,7 +114,7 @@ processes.fakeCommand("worker", Factory::describe()
     .runsFor(2)
     .errorOutput("ready")
     .output("finished")
-    .exitCode(0)
+    .exit_code(0)
     .result());
 processes.preventStrayProcesses(true);
 

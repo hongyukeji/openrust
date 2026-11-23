@@ -13,11 +13,11 @@ use openrust::{
 
 pub async fn request_reset(email: &str) -> AuthResult<PasswordResetStatus> {
     let credentials = Credentials::new([("email", Value::from(email))], "");
-    Password::sendResetLink(&credentials, None).await
+    Password::send_reset_link(&credentials, None).await
 }
 ```
 
-The default user sends the link through `ResetPassword`. Pass a callback as the second argument of `sendResetLink` to customize delivery. Convert the returned status with `as_str()` to translate it. The broker uses the configured response time floor for link requests and unsuccessful resets.
+The default user sends the link through `ResetPassword`. Pass a callback as the second argument of `send_reset_link` to customize delivery. Convert the returned status with `as_str()` to translate it. The broker uses the configured response time floor for link requests and unsuccessful resets.
 
 <span id="default-password-reset-email"></span>
 
@@ -25,7 +25,7 @@ The default reset email includes a localized action button, a plain-text link, a
 
 ### Custom reset emails {#custom-reset-email}
 
-In your service provider’s boot method, register `ResetPassword::createUrlUsing` to customize the link or `ResetPassword::toMailUsing` to replace the email. Both receive the user and reset token. A custom email callback builds its own link. The default user sends through `sendTo`, which supplies the user to the callbacks.
+In your service provider’s boot method, register `ResetPassword::create_url_using` to customize the link or `ResetPassword::to_mail_using` to replace the email. Both receive the user and reset token. A custom email callback builds its own link. The default user sends through `send_to`, which supplies the user to the callbacks.
 
 ```rust
 use openrust::{
@@ -34,8 +34,8 @@ use openrust::{
 };
 
 fn customize_reset_mail() -> AuthResult<()> {
-    ResetPassword::toMailUsing(|user, token| {
-        let url = ResetPassword::new(token).url(user.getEmailForPasswordReset())?;
+    ResetPassword::to_mail_using(|user, token| {
+        let url = ResetPassword::new(token).url(user.get_email_for_password_reset())?;
         Ok(MailDelivery::Message(Box::new(
             MailMessage::new()
                 .subject("Reset your account password")

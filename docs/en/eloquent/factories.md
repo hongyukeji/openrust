@@ -339,7 +339,7 @@ fn sample_named_arguments() -> DatabaseResult<(Value, Value)> {
 
 ### Formatter Extensions {#formatter-extensions}
 
-Register extension methods with `addExtension` and resolve them with `ext(id)` or `format("Vendor\Package->method", args)`. Extension identifiers are case-sensitive. Method lookup ignores ASCII case. Qualified lookup goes directly to the extension. An unknown extension returns `UnknownFakerExtension`. A missing method on a registered extension returns `UnknownFakerFormatter`.
+Register extension methods with `add_extension` and resolve them with `ext(id)` or `format("Vendor\Package->method", args)`. Extension identifiers are case-sensitive. Method lookup ignores ASCII case. Qualified lookup goes directly to the extension. An unknown extension returns `UnknownFakerExtension`. A missing method on a registered extension returns `UnknownFakerFormatter`.
 
 Built-in identifiers under `Faker\Extension\` cover `BarcodeExtension`, `BloodExtension`, `ColorExtension`, `FileExtension` (`mimeType`, `extension`, and `filePath`), `NumberExtension`, and `UuidExtension` (`uuid3`). Replacing an identifier replaces its method set. The named generator methods for numbers, barcodes, blood groups, and files use the registered extension. Typed Rust methods continue to use their built-in implementations. A handle or formatter obtained before replacement retains its resolved callbacks.
 
@@ -353,7 +353,7 @@ use openrust::database::{
 
 fn sample_extension() -> DatabaseResult<(Value, String)> {
     let faker = Faker::new("en-US")?;
-    faker.addExtension(
+    faker.add_extension(
         r"App\Faker\Code",
         FakerProvider::new().formatter("value", |_, _| Ok("demo".into())),
     );
@@ -898,7 +898,7 @@ fn corpus_sample() -> DatabaseResult<String> {
 
 ### Sample HTML {#html-samples}
 
-Use `randomHtml(maxDepth, maxWidth)?` to generate an HTML document with a title, a sample login form and a random body subtree. Pass `None` for either limit to use four. A depth of one or less produces only the title and form. Width bounds each random sibling draw. The generated form and links use reserved example domains. Numeric IDs are unique within each document, and `unique` tracks entire documents separately.
+Use `randomHtml(maxDepth, max_width)?` to generate an HTML document with a title, a sample login form and a random body subtree. Pass `None` for either limit to use four. A depth of one or less produces only the title and form. Width bounds each random sibling draw. The generated form and links use reserved example domains. Numeric IDs are unique within each document, and `unique` tracks entire documents separately.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -954,14 +954,14 @@ fn named_color_samples() -> DatabaseResult<[Value; 3]> {
 
 ### Browser User Agents {#browser-user-agent-samples}
 
-Use `userAgent()?` for a random browser sample. Select a specific format with `firefox()?`, `chrome()`, `internetExplorer()`, `opera()`, `safari()` or `msedge()`. The samples use the fixed upstream Faker browser versions and platform tokens. Firefox samples a Gecko date in the application time zone. Use `macProcessor()`, `linuxProcessor()`, `windowsPlatformToken()`, `macPlatformToken()`, `linuxPlatformToken()` and `iosMobileToken()` for individual tokens. All formatters support `unique`.
+Use `user_agent()?` for a random browser sample. Select a specific format with `firefox()?`, `chrome()`, `internetExplorer()`, `opera()`, `safari()` or `msedge()`. The samples use the fixed upstream Faker browser versions and platform tokens. Firefox samples a Gecko date in the application time zone. Use `macProcessor()`, `linuxProcessor()`, `windowsPlatformToken()`, `macPlatformToken()`, `linuxPlatformToken()` and `iosMobileToken()` for individual tokens. All formatters support `unique`.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn browser_samples() -> DatabaseResult<(String, String)> {
     let faker = fake(None)?;
-    Ok((faker.userAgent()?, faker.unique(false).msedge()?))
+    Ok((faker.user_agent()?, faker.unique(false).msedge()?))
 }
 ```
 

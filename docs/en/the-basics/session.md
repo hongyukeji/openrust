@@ -34,11 +34,11 @@ fn remember(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
 }
 ```
 
-`only` selects top-level keys. `except` removes keys or dotted paths from a copy. `exists` and `missing` distinguish an explicitly null value from an absent key, while `has` and `hasAny` require a non-null value. Use `remember` with a fallible closure to compute and store a value only when the key is absent or null.
+`only` selects top-level keys. `except` removes keys or dotted paths from a copy. `exists` and `missing` distinguish an explicitly null value from an absent key, while `has` and `has_any` require a non-null value. Use `remember` with a fallible closure to compute and store a value only when the key is absent or null.
 
 Use `push` to append to an array or associative array. `increment` and `decrement` take an explicit integer amount and return the new JSON value. An invalid input returns an error and preserves the original entry.
 
-Use `putMany` to set multiple keys, including dotted paths. `replace` updates the supplied keys and keeps the other attributes. Use `hasOldInput(Some(key))` to check for a non-null flashed field, or `hasOldInput(None)` to check whether the old input bag has any entries.
+Use `putMany` to set multiple keys, including dotted paths. `replace` updates the supplied keys and keeps the other attributes. Use `has_old_input(Some(key))` to check for a non-null flashed field, or `has_old_input(None)` to check whether the old input bag has any entries.
 
 ## Flash Data
 
@@ -85,7 +85,7 @@ Route::getWith("/profile", remember, |route| {
 
 The first argument is the lock lifetime and the second is the maximum time to wait for a held lock. The middleware acquires the lock before reading the session and releases it after saving it. A lock timeout goes through the exception handler and returns HTTP 500 by default.
 
-Set `SESSION_BLOCK=true` to apply blocking to every route that starts a session. Configure the defaults with `SESSION_BLOCK_LOCK_SECONDS` and `SESSION_BLOCK_WAIT_SECONDS` (both 10 seconds). A route's explicit settings override the defaults. `withoutBlocking()` clears the route-specific settings. When global blocking is enabled, the route still uses the global settings.
+Set `SESSION_BLOCK=true` to apply blocking to every route that starts a session. Configure the defaults with `SESSION_BLOCK_LOCK_SECONDS` and `SESSION_BLOCK_WAIT_SECONDS` (both 10 seconds). A route's explicit settings override the defaults. `without_blocking()` clears the route-specific settings. When global blocking is enabled, the route still uses the global settings.
 
 Set `SESSION_BLOCK_STORE` to a cache store that supports atomic locks, such as `redis`. The default cache store is used when this option is unset. Use a shared store across application processes. The `array` cache only coordinates requests within one process.
 
@@ -124,4 +124,4 @@ The default is `Str::slug(APP_NAME) + "-session"`: `My App` becomes `my-app-sess
 
 ## Inspecting session configuration
 
-`SessionManager::shouldBlock()` reads `session.block`; `blockDriver()` reads `session.block_store`. `defaultRouteBlockLockSeconds()` and `defaultRouteBlockWaitSeconds()` return the configured lock and wait durations, each defaulting to 10 seconds. `getSessionConfig()` returns the configuration snapshot used when assembling this manager, including custom keys. Changes to the configuration repository after assembly do not update this snapshot.
+`SessionManager::should_block()` reads `session.block`; `block_driver()` reads `session.block_store`. `default_route_block_lock_seconds()` and `default_route_block_wait_seconds()` return the configured lock and wait durations, each defaulting to 10 seconds. `get_session_config()` returns the configuration snapshot used when assembling this manager, including custom keys. Changes to the configuration repository after assembly do not update this snapshot.

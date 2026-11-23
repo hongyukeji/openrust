@@ -274,7 +274,7 @@ pub trait Mailable: Send + Sync {
 
     /// Renders an HTTP response for a preview route.
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn toResponse(
+    fn to_response(
         &self,
     ) -> crate::http::HttpFuture<'_, Result<crate::http::Response, crate::http::HttpError>>
     where

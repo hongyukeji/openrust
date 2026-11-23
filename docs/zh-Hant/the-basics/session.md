@@ -34,11 +34,11 @@ fn remember(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
 }
 ```
 
-`only` 篩選頂層鍵，`except` 從副本移除指定鍵或點號路徑。`exists` 和 `missing` 區分明確空值與缺少的鍵，`has` 和 `hasAny` 檢查非空值。`remember` 接收傳回 `Result` 的閉包，只在鍵缺少或值為空時運算並儲存。
+`only` 篩選頂層鍵，`except` 從副本移除指定鍵或點號路徑。`exists` 和 `missing` 區分明確空值與缺少的鍵，`has` 和 `has_any` 檢查非空值。`remember` 接收傳回 `Result` 的閉包，只在鍵缺少或值為空時運算並儲存。
 
 用 `push` 向陣列或關聯陣列追加值。`increment` 和 `decrement` 接收明確的整數步長，傳回更新後的 JSON 值。輸入無效時傳回錯誤並保留原值。
 
-用 `putMany` 同時寫入多個鍵，支援點號路徑。`replace` 更新指定鍵並保留其他屬性。`hasOldInput(Some(key))` 檢查指定快閃欄位是否非空，`hasOldInput(None)` 檢查舊輸入是否包含任何項目。
+用 `putMany` 同時寫入多個鍵，支援點號路徑。`replace` 更新指定鍵並保留其他屬性。`has_old_input(Some(key))` 檢查指定快閃欄位是否非空，`has_old_input(None)` 檢查舊輸入是否包含任何項目。
 
 ## 快閃資料
 
@@ -85,7 +85,7 @@ Route::getWith("/profile", remember, |route| {
 
 第一個參數是鎖定的有效期，第二個參數是等待已被占用的鎖定的最長時間。中介軟體在讀取工作階段前取得鎖定，儲存後釋放。等待逾時交由例外處理器處理，預設回傳 HTTP 500。
 
-用 `SESSION_BLOCK=true` 為所有啟動工作階段的路由啟用阻塞。用 `SESSION_BLOCK_LOCK_SECONDS` 和 `SESSION_BLOCK_WAIT_SECONDS` 設定預設值，兩者均預設為 10 秒。路由上的明確設定覆蓋預設值。`withoutBlocking()` 清除路由層級設定。啟用全域阻塞後，這條路由仍使用全域設定。
+用 `SESSION_BLOCK=true` 為所有啟動工作階段的路由啟用阻塞。用 `SESSION_BLOCK_LOCK_SECONDS` 和 `SESSION_BLOCK_WAIT_SECONDS` 設定預設值，兩者均預設為 10 秒。路由上的明確設定覆蓋預設值。`without_blocking()` 清除路由層級設定。啟用全域阻塞後，這條路由仍使用全域設定。
 
 用 `SESSION_BLOCK_STORE` 選擇支援不可分割鎖定的快取儲存體，例如 `redis`。省略此設定時使用預設快取儲存體。多個應用程式程序需要使用共用儲存體，`array` 快取只協調同一個程序中的請求。
 
@@ -124,4 +124,4 @@ impl ServiceProvider for AppSessionProvider {
 
 ## 讀取工作階段設定
 
-`SessionManager::shouldBlock()` 讀取 `session.block`，`blockDriver()` 讀取 `session.block_store`。`defaultRouteBlockLockSeconds()` 和 `defaultRouteBlockWaitSeconds()` 傳回鎖持有與等待時長，均預設 10 秒。`getSessionConfig()` 傳回建立管理器時使用的設定快照，保留自訂鍵；建立後修改設定儲存庫不會更新該快照。
+`SessionManager::should_block()` 讀取 `session.block`，`block_driver()` 讀取 `session.block_store`。`default_route_block_lock_seconds()` 和 `default_route_block_wait_seconds()` 傳回鎖持有與等待時長，均預設 10 秒。`get_session_config()` 傳回建立管理器時使用的設定快照，保留自訂鍵；建立後修改設定儲存庫不會更新該快照。

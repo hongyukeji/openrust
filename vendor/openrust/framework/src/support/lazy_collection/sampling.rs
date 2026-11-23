@@ -12,7 +12,7 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
 
     pub fn randItem(&self) -> CollectionResult<T> {
         let items = Self::collect(self)?;
-        if items.isEmpty() {
+        if items.is_empty() {
             return Err(CollectionError::ItemNotFound);
         }
         let index = random_index(items.count())?;

@@ -125,16 +125,16 @@ async fn github_real_http_maps_verified_email_exchanges_refreshes_and_caches_onl
     assert_eq!(params["redirect_uri"], "https://rp.test/base/callback");
     assert!(!params.contains_key("state"));
     let user = provider.user().await.unwrap();
-    assert_eq!(user.getId(), &json!(42));
+    assert_eq!(user.get_id(), &json!(42));
     assert_eq!(user.getNickname(), Some("alice"));
     assert_eq!(user.getEmail(), Some("alice@test"));
     assert_eq!(user.attributes["nodeId"], "node-42");
     assert_eq!(user.getRaw()["email"], "alice@test");
     assert_eq!(
-        json!({"id":user.getId(),"nickname":user.getNickname(),"name":user.getName(),"email":user.getEmail(),"avatar":user.getAvatar(),"raw":user.getRaw(),"attributes":user.attributes}),
+        json!({"id":user.get_id(),"nickname":user.getNickname(),"name":user.get_name(),"email":user.getEmail(),"avatar":user.getAvatar(),"raw":user.getRaw(),"attributes":user.attributes}),
         oracle()["user"]
     );
-    assert_eq!(provider.user().await.unwrap().getId(), &json!(42));
+    assert_eq!(provider.user().await.unwrap().get_id(), &json!(42));
     assert_eq!(remote.requests.lock().unwrap().len(), 2);
     let tokens = user.credentials.unwrap();
     assert_eq!(tokens.token.as_str(), "secret-access");
@@ -243,7 +243,7 @@ fn callback(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
         match provider.user().await {
             Ok(user) => Response::json(
                 StatusCode::OK,
-                json!({"id":user.getId(),"email":user.getEmail()}),
+                json!({"id":user.get_id(),"email":user.getEmail()}),
             ),
             Err(Error::InvalidState) => {
                 Response::json(StatusCode::BAD_REQUEST, json!({"error":"state"}))
@@ -272,7 +272,7 @@ async fn rp(base: &str) -> (String, tokio::task::JoinHandle<()>) {
         State(kernel): State<Arc<Kernel>>,
         request: axum::extract::Request,
     ) -> axum::response::Response {
-        kernel.handleTransport(request).await
+        kernel.handle_transport(request).await
     }
     use axum::handler::Handler as _;
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -314,8 +314,8 @@ async fn github_browser_session_state_is_consumed_replay_and_cross_application_f
     let (two, second) = rp(&base).await;
     let client = Factory::new().unwrap();
     let response = client
-        .pendingRequest()
-        .withoutRedirecting()
+        .pending_request()
+        .without_redirecting()
         .get(&format!("{one}/login"))
         .await
         .unwrap();
@@ -355,9 +355,9 @@ async fn github_browser_session_state_is_consumed_replay_and_cross_application_f
             http::HeaderValue::from_str(session).unwrap(),
         )]);
         client
-            .pendingRequest()
-            .withHeaders(headers)
-            .withoutRedirecting()
+            .pending_request()
+            .with_headers(headers)
+            .without_redirecting()
             .get(&format!("{base}/callback?code=valid&state={state}"))
             .await
             .unwrap()
@@ -527,8 +527,8 @@ async fn github_fixed_php_state_matrix_and_replays_match_over_browser_session() 
             incoming.map(|v| format!("&{v}")).unwrap_or_default()
         );
         let response = client
-            .pendingRequest()
-            .withHeaders(headers)
+            .pending_request()
+            .with_headers(headers)
             .get(&url)
             .await
             .unwrap();
@@ -543,8 +543,8 @@ async fn github_fixed_php_state_matrix_and_replays_match_over_browser_session() 
             http::HeaderValue::from_str(&updated).unwrap(),
         )]);
         let replay = client
-            .pendingRequest()
-            .withHeaders(headers)
+            .pending_request()
+            .with_headers(headers)
             .get(&url)
             .await
             .unwrap();

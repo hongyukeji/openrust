@@ -65,7 +65,7 @@ async fn graceful_shutdown_waits_for_termination_after_closing_the_listener() {
             )
             .with_routing(Routing::default().api(routes))
             .with_middleware(move |middleware| {
-                middleware.appendTerminable(Arc::new(WaitForRelease(root)));
+                middleware.append_terminable(Arc::new(WaitForRelease(root)));
             })
             .create()
             .unwrap()

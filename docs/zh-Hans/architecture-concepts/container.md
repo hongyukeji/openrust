@@ -1073,7 +1073,7 @@ pub fn current_user_parameter() -> ConstructorParam {
 }
 ```
 
-构造控制器时可直接使用这些属性。在闭包路由调用异步容器时，用 `request.withContainer(container.make_async::<T>()).await` 将同一个请求提供给解析器。通过 `guard.bind(request)?` 使用注入的 Guard，继续沿用当前会话与缓存的身份。Guard 句柄在其来源的 HTTP 调度期间有效。
+构造控制器时可直接使用这些属性。在闭包路由调用异步容器时，用 `request.with_container(container.make_async::<T>()).await` 将同一个请求提供给解析器。通过 `guard.bind(request)?` 使用注入的 Guard，继续沿用当前会话与缓存的身份。Guard 句柄在其来源的 HTTP 调度期间有效。
 
 ### 请求属性与路由参数
 

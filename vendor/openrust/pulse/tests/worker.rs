@@ -83,7 +83,9 @@ async fn native_worker_records_job_attempts_failures_and_flushes_each_scoped_buf
         })
         .await
         .unwrap();
-    app.artisan(["migrate", "--force"]).await.assertSuccessful();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
     let queue = app.app().make::<QueueManager>().await.unwrap();
     for fail in [false, true, false, false] {
         queue
@@ -103,7 +105,7 @@ async fn native_worker_records_job_attempts_failures_and_flushes_each_scoped_buf
         "--memory=0",
     ])
     .await
-    .assertSuccessful();
+    .assert_successful();
     assert_eq!(
         *values.lock().unwrap(),
         vec![json!(false), json!(true), json!(false), json!(false)]

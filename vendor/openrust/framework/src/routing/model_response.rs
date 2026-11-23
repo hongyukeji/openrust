@@ -25,13 +25,13 @@ impl<M: Model> ModelOutput for M {
         } else {
             StatusCode::OK
         };
-        Response::json(status, self.toArray()?)
+        Response::json(status, self.to_array()?)
     }
 }
 
 impl<M: Model> ModelOutput for Collection<M> {
     fn into_response(self) -> Result<Response, HttpError> {
-        Response::json(StatusCode::OK, self.toArray()?)
+        Response::json(StatusCode::OK, self.to_array()?)
     }
 }
 

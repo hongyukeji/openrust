@@ -20,8 +20,8 @@ impl TransientTokenController {
                 .token()
                 .ok_or(HttpError::InvalidRequest)?;
             let cookie =
-                ApiTokenCookieFactory::make(user.getAuthIdentifier(), csrf).map_err(internal)?;
-            Response::new(StatusCode::OK, Body::from("Refreshed.")).withCookie(&cookie, request)
+                ApiTokenCookieFactory::make(user.get_auth_identifier(), csrf).map_err(internal)?;
+            Response::new(StatusCode::OK, Body::from("Refreshed.")).with_cookie(&cookie, request)
         })
     }
 }

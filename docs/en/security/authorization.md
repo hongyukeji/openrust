@@ -2,7 +2,7 @@
 
 ## Gates
 
-Register abilities with the application’s `GateRegistry`. `define` requires an authenticated user. Use `defineGuest` when the ability should also evaluate guests.
+Register abilities with the application’s `GateRegistry`. `define` requires an authenticated user. Use `define_guest` when the ability should also evaluate guests.
 
 ```rust
 use openrust::auth::{AuthIdentifier, access::{GateRegistry, Response}};
@@ -11,7 +11,7 @@ fn register_settings_gate(gate: &GateRegistry) {
     gate.define("edit-settings", |user, _| {
         Box::pin(async move {
             Ok(Response::from(
-                user.getAuthIdentifier() == AuthIdentifier::String("owner".into()),
+                user.get_auth_identifier() == AuthIdentifier::String("owner".into()),
             ))
         })
     });
@@ -24,9 +24,9 @@ Generate a policy with `./artisan make:policy AccountPolicy --model=User`. Add t
 
 ## Policy discovery and lookup
 
-`getPolicyFor` accepts a model instance or `PolicyTarget::of::<User>()` and returns `Result<Option<PolicyHandle>>`. The handle retains the actual policy instance: `downcast::<AccountPolicy>()` retrieves its `Arc<AccountPolicy>`, and `name()` returns its full Rust type name. Explicit `policy` mappings take precedence. `policies()` returns an independent snapshot keyed by model `TypeId`, with policy type names as values.
+`get_policy_for` accepts a model instance or `PolicyTarget::of::<User>()` and returns `Result<Option<PolicyHandle>>`. The handle retains the actual policy instance: `downcast::<AccountPolicy>()` retrieves its `Arc<AccountPolicy>`, and `name()` returns its full Rust type name. Explicit `policy` mappings take precedence. `policies()` returns an independent snapshot keyed by model `TypeId`, with policy type names as values.
 
-To discover policies, register their construction factories with the application container, then register compiled types with `discoverPolicy::<User, AccountPolicy>()`. This does not construct policies or add explicit mappings. Default lookup searches progressively enclosing model modules for `policies::<ModelName>Policy`; nested `models` modules prefer the corresponding `models::policies` and `policies` paths. For separate file modules or another layout, return actual full type names from `guessPolicyNamesUsing`. The first registered candidate wins; an empty list disables default discovery.
+To discover policies, register their construction factories with the application container, then register compiled types with `discover_policy::<User, AccountPolicy>()`. This does not construct policies or add explicit mappings. Default lookup searches progressively enclosing model modules for `policies::<ModelName>Policy`; nested `models` modules prefer the corresponding `models::policies` and `policies` paths. For separate file modules or another layout, return actual full type names from `guess_policy_names_using`. The first registered candidate wins; an empty list disables default discovery.
 
 ```rust
 use std::{any::type_name, sync::Arc};
@@ -37,22 +37,22 @@ use openrust::{
 };
 
 container.bind::<AccountPolicy, _>(|_| Ok(Arc::new(AccountPolicy)))?;
-Gate::discoverPolicy::<User, AccountPolicy>()?;
-Gate::guessPolicyNamesUsing(|model| {
+Gate::discover_policy::<User, AccountPolicy>()?;
+Gate::guess_policy_names_using(|model| {
     if model == type_name::<User>() {
         vec![type_name::<AccountPolicy>().into()]
     } else {
         Vec::new()
     }
 })?;
-let selected = Gate::getPolicyFor(&PolicyTarget::of::<User>())?;
+let selected = Gate::get_policy_for(&PolicyTarget::of::<User>())?;
 let concrete = selected.and_then(|policy| policy.downcast::<AccountPolicy>());
-let resolved = Gate::resolvePolicy::<AccountPolicy>()?;
+let resolved = Gate::resolve_policy::<AccountPolicy>()?;
 ```
 
-Use these calls inside a provider or another application Facade scope. `container` is that application's container, and `User` and `AccountPolicy` are application types. Resolve constructor dependencies inside the container factory. `resolvePolicy::<AccountPolicy>()` uses existing container bindings directly; discovery respects the same transient, shared and failure behavior. Construction failures propagate without trying later candidates. A decision from `before` skips policy construction.
+Use these calls inside a provider or another application Facade scope. `container` is that application's container, and `User` and `AccountPolicy` are application types. Resolve constructor dependencies inside the container factory. `resolve_policy::<AccountPolicy>()` uses existing container bindings directly; discovery respects the same transient, shared and failure behavior. Construction failures propagate without trying later candidates. A decision from `before` skips policy construction.
 
-`GateRegistry` provides the same methods. The Gate returned by `forUser` exposes policy lookup, resolution, mappings and the guessing callback; the Gate contract exposes `getPolicyFor`. Explicit `policy` registration continues to share the supplied instance. Discovery only handles registered compiled types: PHP class autoloading, attribute reflection and parent-class lookup are unavailable. Results use owned handles and `Result`; mapping snapshots do not guarantee iteration order.
+`GateRegistry` provides the same methods. The Gate returned by `for_user` exposes policy lookup, resolution, mappings and the guessing callback; the Gate contract exposes `get_policy_for`. Explicit `policy` registration continues to share the supplied instance. Discovery only handles registered compiled types: PHP class autoloading, attribute reflection and parent-class lookup are unavailable. Results use owned handles and `Result`; mapping snapshots do not guarantee iteration order.
 
 ## Authorizing requests
 
@@ -62,11 +62,11 @@ Use the same Gate abilities to conditionally render controls in [Blade authoriza
 
 ## Decisions and hooks
 
-`inspect` returns the authorization decision. A refusal returns HTTP 403 by default. Use `Response::denyWithStatus` or `Response::denyAsNotFound` to change the status. `before` may decide early. `after` may supply a decision when the ability and `before` left it unresolved.
+`inspect` returns the authorization decision. A refusal returns HTTP 403 by default. Use `Response::deny_with_status` or `Response::deny_as_not_found` to change the status. `before` may decide early. `after` may supply a decision when the ability and `before` left it unresolved.
 
 ## Gate evaluation event {#gate-evaluated}
 
-The application dispatcher emits `GateEvaluated` after the Gate’s `after` callbacks and before it applies a default denial. The event contains the optional user, the ability, and the raw `Option<Response>` result, including any explicit denial status. An unresolved ability has a `None` result even if `inspect` returns a configured denial. Each ability that actually runs emits its own event. Inline checks with `allowIf` and `denyIf` skip this event.
+The application dispatcher emits `GateEvaluated` after the Gate’s `after` callbacks and before it applies a default denial. The event contains the optional user, the ability, and the raw `Option<Response>` result, including any explicit denial status. An unresolved ability has a `None` result even if `inspect` returns a configured denial. Each ability that actually runs emits its own event. Inline checks with `allow_if` and `deny_if` skip this event.
 
 Register a synchronous listener to read the original arguments in order through `event.arguments(context)`. Deferred delivery and retained events expose `argument_types`, since the original arguments are borrowed for the duration of the call.
 
@@ -105,4 +105,4 @@ fn register_gate_listener(events: &Dispatcher) -> EventResult<()> {
 
 ## Response status
 
-Use `Response::deny("reason").withStatus(StatusCode::CONFLICT)` to set a denial status, or `asNotFound()` to select 404. `withStatus(None)` clears a previously selected status. These consuming builders retain the authorization decision and message; setting a status on an allowed response does not deny it.
+Use `Response::deny("reason").with_status(StatusCode::CONFLICT)` to set a denial status, or `as_not_found()` to select 404. `with_status(None)` clears a previously selected status. These consuming builders retain the authorization decision and message; setting a status on an allowed response does not deny it.

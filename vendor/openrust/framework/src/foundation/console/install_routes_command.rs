@@ -635,7 +635,7 @@ fn source_hook(
 
 fn manual_token_model() -> ConsoleError {
     ConsoleError::new(
-        "For a custom user model, implement openrust::sanctum::HasApiTokens and reference it with openrust::auth::model!(YourUser, sanctum) in config/auth.rs, or register it manually with AuthManager::registerSanctumModel.",
+        "For a custom user model, implement openrust::sanctum::HasApiTokens and reference it with openrust::auth::model!(YourUser, sanctum) in config/auth.rs, or register it manually with AuthManager::register_sanctum_model.",
     )
 }
 
@@ -744,18 +744,17 @@ fn install_passport_after_rebuild(
 
 /// Source and rebuild operations shared with the optional Passport package.
 pub struct ApiInstallCommand;
-#[allow(non_snake_case)]
 impl ApiInstallCommand {
-    pub fn configurePassport(root: &Path) -> Result<(), ConsoleError> {
+    pub fn configure_passport(root: &Path) -> Result<(), ConsoleError> {
         let _lock = lock_manifest(root)?;
         configure_passport_unlocked(root)
     }
-    pub fn configurePassportResources(
+    pub fn configure_passport_resources(
         installation: &super::installation::SourceInstallation<'_>,
     ) -> Result<(), ConsoleError> {
         configure_passport_unlocked(installation.root())
     }
-    pub fn configurePassportInstallation(
+    pub fn configure_passport_installation(
         installation: &super::installation::SourceInstallation<'_>,
     ) -> Result<(), ConsoleError> {
         let root = installation.root();
@@ -772,7 +771,7 @@ impl ApiInstallCommand {
         }
         configure_passport_unlocked(root)
     }
-    pub fn runPendingMigrations(
+    pub fn run_pending_migrations(
         root: &Path,
         environment: Option<&str>,
         noninteractive: bool,

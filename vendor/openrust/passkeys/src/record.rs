@@ -30,7 +30,7 @@ impl PasskeyRecord {
     pub async fn getAttributeValue(&self, key: &str) -> DatabaseResult<Option<Value>> {
         self.0.attribute(key).await
     }
-    pub async fn toArray(&self) -> DatabaseResult<serde_json::Map<String, serde_json::Value>> {
+    pub async fn to_array(&self) -> DatabaseResult<serde_json::Map<String, serde_json::Value>> {
         self.0.to_array().await
     }
     pub async fn credential(&self) -> crate::PasskeyResult<StoredCredential> {
@@ -92,7 +92,7 @@ impl<M: PasskeyModel> LoadedPasskey for Loaded<M> {
     fn to_array(
         &self,
     ) -> DatabaseFuture<'_, DatabaseResult<serde_json::Map<String, serde_json::Value>>> {
-        Box::pin(async move { self.0.lock().await.toArray() })
+        Box::pin(async move { self.0.lock().await.to_array() })
     }
     fn credential(&self) -> DatabaseFuture<'_, crate::PasskeyResult<StoredCredential>> {
         Box::pin(async move { self.0.lock().await.credential() })

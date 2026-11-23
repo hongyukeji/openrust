@@ -74,7 +74,7 @@ impl Drop for Root {
 }
 
 fn translate(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
-    let locale = request.decodedPath().into_owned();
+    let locale = request.decoded_path().into_owned();
     Box::pin(async move {
         let outer = Lang::get_locale()?;
         let body = Lang::withLocale(&locale, async {

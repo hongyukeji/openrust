@@ -271,7 +271,7 @@ impl<P: Model, R: Model> RelationKeys<P, R> {
                 .map(|name| name.into_owned());
             if let Some(name) = name {
                 if let Some(connection) = parent.state().connection.as_ref() {
-                    if connection.getName() == name {
+                    if connection.get_name() == name {
                         return Ok(connection.clone());
                     }
                     if let Some(container) = Connection::model_container(Some(connection)) {
@@ -426,7 +426,7 @@ impl<P: Model, R: Model> RelationKeys<P, R> {
     ) -> DatabaseResult<Builder<'static, R>> {
         if R::metadata()
             .connection
-            .is_some_and(|name| name != connection.getName())
+            .is_some_and(|name| name != connection.get_name())
         {
             return Err(DatabaseError::InvalidQuery(
                 "relationship existence requires one connection",

@@ -22,7 +22,7 @@ pub struct ClientOwner {
 }
 #[allow(non_snake_case)]
 impl ClientOwner {
-    pub fn forUser<U: Model + openrust::contracts::auth::Authenticatable>(
+    pub fn for_user<U: Model + openrust::contracts::auth::Authenticatable>(
         user: &U,
     ) -> DatabaseResult<Self> {
         Ok(Self {
@@ -233,7 +233,7 @@ impl ClientRepository {
             .into_iter()
             .next())
     }
-    pub async fn forUser(
+    pub async fn for_user(
         &self,
         user: &ClientOwner,
     ) -> DatabaseResult<openrust::support::Collection<ClientRecord>> {
@@ -337,7 +337,7 @@ impl<M: ClientModel> ClientStore for EloquentClientStore<M> {
             query
                 .r#where("revoked", "=", false)
                 .r#where(owner_key, "=", user.id)
-                .whereNested(|conditions| conditions.whereNotNull(owner_key));
+                .whereNested(|conditions| conditions.where_not_null(owner_key));
             if !legacy {
                 query.r#where("owner_type", "=", user.morph_class);
             }

@@ -12,7 +12,6 @@ use super::ResourceResult;
 /// Selects values lazily and keeps omitted fields distinct from explicit JSON nulls.
 pub struct Conditional;
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Conditional {
     pub fn when<T>(condition: bool, value: impl FnOnce() -> T) -> Option<T> {
         condition.then(value)
@@ -22,7 +21,7 @@ impl Conditional {
         (!condition).then(value)
     }
 
-    pub fn mergeWhen(
+    pub fn merge_when(
         fields: &mut Map<String, Value>,
         condition: bool,
         attributes: impl FnOnce() -> Map<String, Value>,
@@ -35,12 +34,12 @@ impl Conditional {
     }
 
     pub fn merge(fields: &mut Map<String, Value>, attributes: impl FnOnce() -> Map<String, Value>) {
-        Self::mergeWhen(fields, true, attributes);
+        Self::merge_when(fields, true, attributes);
     }
 
     /// Selects keys from the model's serialized attributes and relations.
     pub fn attributes(model: &impl Model, names: &[&str]) -> ResourceResult<Map<String, Value>> {
-        let mut fields = model.toArray()?;
+        let mut fields = model.to_array()?;
         fields.retain(|name, _| names.contains(&name.as_str()));
         Ok(fields)
     }
@@ -59,27 +58,31 @@ impl Conditional {
         Self::unless(blank, || project(value))
     }
 
-    pub fn mergeUnless(
+    pub fn merge_unless(
         fields: &mut Map<String, Value>,
         condition: bool,
         attributes: impl FnOnce() -> Map<String, Value>,
     ) {
-        Self::mergeWhen(fields, !condition, attributes);
+        Self::merge_when(fields, !condition, attributes);
     }
 
-    pub fn whenHas<T>(model: &impl Model, attribute: &str, value: impl FnOnce() -> T) -> Option<T> {
+    pub fn when_has<T>(
+        model: &impl Model,
+        attribute: &str,
+        value: impl FnOnce() -> T,
+    ) -> Option<T> {
         Self::when(model.state().getAttributes().contains_key(attribute), value)
     }
 
-    pub fn whenNotNull<T>(value: &Value, present: impl FnOnce() -> T) -> Option<T> {
+    pub fn when_not_null<T>(value: &Value, present: impl FnOnce() -> T) -> Option<T> {
         Self::unless(value.is_null(), present)
     }
 
-    pub fn whenNull<T>(value: &Value, present: impl FnOnce() -> T) -> Option<T> {
+    pub fn when_null<T>(value: &Value, present: impl FnOnce() -> T) -> Option<T> {
         Self::when(value.is_null(), present)
     }
 
-    pub fn whenAppended<T>(
+    pub fn when_appended<T>(
         model: &impl Model,
         attribute: &str,
         value: impl FnOnce() -> T,
@@ -87,7 +90,7 @@ impl Conditional {
         Self::when(model.hasAppended(attribute), value)
     }
 
-    pub fn whenLoaded<'a, T: Send + Sync + 'static>(
+    pub fn when_loaded<'a, T: Send + Sync + 'static>(
         model: &'a impl Model,
         name: &str,
     ) -> Option<&'a T> {
@@ -96,20 +99,20 @@ impl Conditional {
 
     /// The outer option indicates whether the relationship was loaded.
     /// The inner option is absent when the loaded relationship has no model.
-    pub fn whenLoadedOne<M: Model, T>(
+    pub fn when_loaded_one<M: Model, T>(
         model: &impl Model,
         name: &str,
         project: impl FnOnce(&M) -> T,
     ) -> Option<Option<T>> {
-        Self::whenLoaded::<Option<Arc<M>>>(model, name)
+        Self::when_loaded::<Option<Arc<M>>>(model, name)
             .map(|related| related.as_deref().map(project))
     }
 
-    pub fn whenCounted<'a>(model: &'a impl Model, relation: &str) -> Option<&'a AttributeValue> {
-        Self::whenAggregated(model, relation, RelationAggregate::Count)
+    pub fn when_counted<'a>(model: &'a impl Model, relation: &str) -> Option<&'a AttributeValue> {
+        Self::when_aggregated(model, relation, RelationAggregate::Count)
     }
 
-    pub fn whenAggregated<'a>(
+    pub fn when_aggregated<'a>(
         model: &'a impl Model,
         relation: &str,
         aggregate: RelationAggregate<'_>,
@@ -117,40 +120,40 @@ impl Conditional {
         model.getAttribute(&aggregate.alias(relation).ok()?)
     }
 
-    pub fn whenExistsLoaded<'a>(
+    pub fn when_exists_loaded<'a>(
         model: &'a impl Model,
         relation: &str,
     ) -> Option<&'a AttributeValue> {
-        Self::whenAggregated(model, relation, RelationAggregate::Exists)
+        Self::when_aggregated(model, relation, RelationAggregate::Exists)
     }
 
-    pub fn hasPivotLoaded(model: &impl Model, table: &str) -> bool {
-        Self::hasPivotLoadedAs(model, "pivot", table)
+    pub fn has_pivot_loaded(model: &impl Model, table: &str) -> bool {
+        Self::has_pivot_loaded_as(model, "pivot", table)
     }
 
-    pub fn hasPivotLoadedAs(model: &impl Model, accessor: &str, table: &str) -> bool {
+    pub fn has_pivot_loaded_as(model: &impl Model, accessor: &str, table: &str) -> bool {
         model.state().loaded_pivot_table(accessor) == Some(table)
     }
 
-    pub fn whenPivotLoaded<T>(
+    pub fn when_pivot_loaded<T>(
         model: &impl Model,
         table: &str,
         value: impl FnOnce() -> T,
     ) -> Option<T> {
-        Self::whenPivotLoadedAs(model, "pivot", table, value)
+        Self::when_pivot_loaded_as(model, "pivot", table, value)
     }
 
-    pub fn whenPivotLoadedAs<T>(
+    pub fn when_pivot_loaded_as<T>(
         model: &impl Model,
         accessor: &str,
         table: &str,
         value: impl FnOnce() -> T,
     ) -> Option<T> {
-        Self::when(Self::hasPivotLoadedAs(model, accessor, table), value)
+        Self::when(Self::has_pivot_loaded_as(model, accessor, table), value)
     }
 
     /// Matches a custom intermediate model by its Rust type.
-    pub fn whenPivotLoadedAsType<P: Model, T>(
+    pub fn when_pivot_loaded_as_type<P: Model, T>(
         model: &impl Model,
         accessor: &str,
         project: impl FnOnce(&P) -> T,

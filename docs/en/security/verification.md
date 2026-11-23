@@ -33,7 +33,7 @@ The default verification email uses a localized action button and includes the t
 
 ### Custom verification emails {#custom-verification-email}
 
-In your service provider’s boot method, register `VerifyEmail::toMailUsing` to replace the email. The callback receives the user and the generated link. Use `VerifyEmail::createUrlUsing` to supply a different link before rendering the email. If the destination route uses signed middleware, generate an appropriately signed URL.
+In your service provider’s boot method, register `VerifyEmail::to_mail_using` to replace the email. The callback receives the user and the generated link. Use `VerifyEmail::create_url_using` to supply a different link before rendering the email. If the destination route uses signed middleware, generate an appropriately signed URL.
 
 ```rust
 use openrust::{
@@ -42,7 +42,7 @@ use openrust::{
 };
 
 fn customize_verification_mail() -> AuthResult<()> {
-    VerifyEmail::toMailUsing(|_, url| {
+    VerifyEmail::to_mail_using(|_, url| {
         Ok(MailDelivery::Message(Box::new(
             MailMessage::new()
                 .subject("Confirm your email")
@@ -54,6 +54,6 @@ fn customize_verification_mail() -> AuthResult<()> {
 
 ## Resending and protecting routes
 
-Register `verification.send` for the resend endpoint. Apply `auth` and `throttle:6,1`, then call `sendEmailVerificationNotification` for an unverified user.
+Register `verification.send` for the resend endpoint. Apply `auth` and `throttle:6,1`, then call `send_email_verification_notification` for an unverified user.
 
 Apply `verified` to require verification. An unverified user receives a redirect to `verification.notice` for HTML requests and a 403 for JSON requests. To use another prompt route, pass `verified:your.route`.

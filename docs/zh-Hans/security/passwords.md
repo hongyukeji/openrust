@@ -13,11 +13,11 @@ use openrust::{
 
 pub async fn request_reset(email: &str) -> AuthResult<PasswordResetStatus> {
     let credentials = Credentials::new([("email", Value::from(email))], "");
-    Password::sendResetLink(&credentials, None).await
+    Password::send_reset_link(&credentials, None).await
 }
 ```
 
-默认用户通过 `ResetPassword` 发送链接。可在 `sendResetLink` 的第二个参数传入自定义发送回调。用返回状态的 `as_str()` 获取翻译键。代理对发链请求和未成功的重置应用配置的最短响应时间。
+默认用户通过 `ResetPassword` 发送链接。可在 `send_reset_link` 的第二个参数传入自定义发送回调。用返回状态的 `as_str()` 获取翻译键。代理对发链请求和未成功的重置应用配置的最短响应时间。
 
 <span id="default-password-reset-email"></span>
 
@@ -25,7 +25,7 @@ pub async fn request_reset(email: &str) -> AuthResult<PasswordResetStatus> {
 
 ### 自定义重置邮件 {#custom-reset-email}
 
-在服务提供器的启动方法中，通过 `ResetPassword::createUrlUsing` 自定义链接，或通过 `ResetPassword::toMailUsing` 替换邮件内容。两个回调均接收用户和重置令牌。自定义邮件回调负责构建链接。默认用户通过 `sendTo` 发送，将用户传给回调。
+在服务提供器的启动方法中，通过 `ResetPassword::create_url_using` 自定义链接，或通过 `ResetPassword::to_mail_using` 替换邮件内容。两个回调均接收用户和重置令牌。自定义邮件回调负责构建链接。默认用户通过 `send_to` 发送，将用户传给回调。
 
 ```rust
 use openrust::{
@@ -34,8 +34,8 @@ use openrust::{
 };
 
 fn customize_reset_mail() -> AuthResult<()> {
-    ResetPassword::toMailUsing(|user, token| {
-        let url = ResetPassword::new(token).url(user.getEmailForPasswordReset())?;
+    ResetPassword::to_mail_using(|user, token| {
+        let url = ResetPassword::new(token).url(user.get_email_for_password_reset())?;
         Ok(MailDelivery::Message(Box::new(
             MailMessage::new()
                 .subject("Reset your account password")

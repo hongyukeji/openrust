@@ -313,7 +313,7 @@ async fn application_scope_and_public_mount_work_over_http() {
                 ["notes/example.txt"]
             );
             assert_eq!(
-                Storage::allFiles(None).await.unwrap(),
+                Storage::all_files(None).await.unwrap(),
                 ["notes/example.txt"]
             );
             assert_eq!(
@@ -366,15 +366,15 @@ async fn application_scope_and_public_mount_work_over_http() {
                 .file("attachment")
                 .await?
                 .ok_or(HttpError::InvalidRequest)?;
-            let name = file.hashName()?;
-            assert_eq!(file.clone().hashName()?, name);
+            let name = file.hash_name()?;
+            assert_eq!(file.clone().hash_name()?, name);
             assert_eq!(file.extension(), Some("png"));
             let path = file
-                .storePublicly("incoming", Some("public"))
+                .store_publicly("incoming", Some("public"))
                 .await?
                 .unwrap();
             assert_eq!(path, format!("incoming/{name}"));
-            file.storeAs("incoming", "private.png", None)
+            file.store_as("incoming", "private.png", None)
                 .await?
                 .unwrap();
             let disk = Storage::disk(Some("public"))?;
@@ -570,7 +570,7 @@ async fn local_directories_list_paths_create_parents_and_delete_recursively() {
         ["records/z.txt"]
     );
     assert_eq!(
-        disk.allFiles(Some("records")).await.unwrap(),
+        disk.all_files(Some("records")).await.unwrap(),
         ["records/january/a.txt", "records/z.txt"]
     );
     assert_eq!(
@@ -591,7 +591,7 @@ async fn local_directories_list_paths_create_parents_and_delete_recursively() {
         Err(FilesystemError::InvalidPath)
     ));
     assert!(matches!(
-        quiet.allFiles(Some("../")).await,
+        quiet.all_files(Some("../")).await,
         Err(FilesystemError::InvalidPath)
     ));
     assert!(disk.deleteDirectory("records").await.unwrap());
@@ -640,7 +640,7 @@ async fn local_directory_operations_preserve_visibility_and_link_boundaries() {
         b"stage",
     )
     .unwrap();
-    assert!(public.allFiles(Some("folder")).await.unwrap().is_empty());
+    assert!(public.all_files(Some("folder")).await.unwrap().is_empty());
     assert_eq!(
         public.allDirectories(Some("folder")).await.unwrap(),
         ["folder/nested"]

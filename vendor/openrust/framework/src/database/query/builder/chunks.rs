@@ -183,7 +183,7 @@ impl<'connection> Builder<'connection> {
                 Conditions::default().whereNested(|_| predicates)
             };
             let mut remaining = self.limit.unwrap_or(u64::MAX);
-            self.predicates = base.clone().whereNotNull(&key.column);
+            self.predicates = base.clone().where_not_null(&key.column);
             while remaining != 0 {
                 let size = count.min(remaining);
                 self.limit = Some(size);

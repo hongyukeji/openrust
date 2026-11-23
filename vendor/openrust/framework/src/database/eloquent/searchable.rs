@@ -123,13 +123,13 @@ impl<M: Searchable> SearchBuilder<M> {
         self
     }
 
-    pub fn withTrashed(mut self) -> Self {
-        self.query = self.query.withTrashed();
+    pub fn with_trashed(mut self) -> Self {
+        self.query = self.query.with_trashed();
         self
     }
 
-    pub fn onlyTrashed(mut self) -> Self {
-        self.query = self.query.onlyTrashed();
+    pub fn only_trashed(mut self) -> Self {
+        self.query = self.query.only_trashed();
         self
     }
 

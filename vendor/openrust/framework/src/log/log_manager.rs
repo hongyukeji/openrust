@@ -249,7 +249,7 @@ impl LogManager {
         })
     }
 
-    pub fn getDefaultDriver(&self) -> Option<String> {
+    pub fn get_default_driver(&self) -> Option<String> {
         match self.config.get("logging.default") {
             Some(Value::String(name)) => Some(name),
             None if !self.config.has("logging") => Some("stack".to_owned()),
@@ -290,7 +290,7 @@ impl LogManager {
 
     fn channel_name(&self, name: Option<&str>) -> Option<String> {
         name.map(str::to_owned)
-            .or_else(|| self.getDefaultDriver())
+            .or_else(|| self.get_default_driver())
             .or_else(|| {
                 (self.config.get("app.env").as_ref().and_then(Value::as_str) == Some("testing"))
                     .then(|| "null".to_owned())

@@ -12,7 +12,7 @@ pub trait TwoFactorAuthenticationProvider: Send + Sync {
 /// Object-safe response contract for application container replacements.
 #[allow(non_snake_case, reason = "Matches Fortify's Responsable contract")]
 pub trait Response: Send + Sync {
-    fn toResponse<'a>(
+    fn to_response<'a>(
         &'a self,
         request: &'a mut openrust::http::Request,
     ) -> HttpFuture<'a, Result<openrust::http::Response, openrust::http::HttpError>>;
@@ -114,7 +114,7 @@ pub trait ResetsUserPasswords: Send + Sync {
 /// Rust passes the broker outcome explicitly instead of container constructor parameters.
 #[allow(non_snake_case, reason = "Matches Fortify response naming")]
 pub trait PasswordResponse: Send + Sync {
-    fn toResponse<'a>(
+    fn to_response<'a>(
         &'a self,
         request: &'a mut openrust::http::Request,
         status: openrust::auth::passwords::PasswordResetStatus,

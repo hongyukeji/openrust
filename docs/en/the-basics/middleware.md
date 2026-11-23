@@ -14,11 +14,11 @@ In `with_middleware`, register named groups with `group` and individual instance
 
 Use `priority` with an ordered list of concrete `TypeId` values such as `TypeId::of::<Authenticate>()`. The framework expands groups first and moves an earlier-ranked middleware ahead of the preceding later-ranked middleware when their order conflicts. Unranked entries keep their relative order. The same instance reached through multiple references runs once. Priority applies to the route stack. Global middleware keeps its configured order and wraps the route stack.
 
-Use `withoutMiddleware("name")` on a route or group to exclude a named alias or group. Exclusions also apply to instances reached through nested groups. Global middleware still runs.
+Use `without_middleware("name")` on a route or group to exclude a named alias or group. Exclusions also apply to instances reached through nested groups. Global middleware still runs.
 
 ## Terminable Middleware
 
-Implement `TerminableMiddleware` to receive request and response metadata after the HTTP transport releases the response body. In `with_middleware`, use `appendTerminable`, `prependTerminable` or `aliasTerminable`. For a concrete entry in a group, use `MiddlewareEntry::terminable`.
+Implement `TerminableMiddleware` to receive request and response metadata after the HTTP transport releases the response body. In `with_middleware`, use `append_terminable`, `prepend_terminable` or `alias_terminable`. For a concrete entry in a group, use `MiddlewareEntry::terminable`.
 
 The kernel calls the selected route hooks in resolved order, then the global hooks. The same registered instance handles both phases. A stream may keep the hook pending while the transport consumes it. Hooks also run when a client disconnects and the transport drops the body.
 
@@ -36,12 +36,12 @@ The default `api` group does not enable rate limiting. Register a named limiter 
 
 ```rust
 .with_middleware(|middleware| {
-    middleware.throttleApi(Some("api"), false);
+    middleware.throttle_api(Some("api"), false);
 })
 ```
 
 Arguments are explicit: `Some("api")` selects the `api` policy and `false` keeps the current backend. Pass another policy name to select it, or `None` to disable throttling in the default API group. The last policy selection takes effect; the policy must be registered separately.
 
-Passing `true` as the second argument calls `throttleWithRedis()`, switching the `throttle` alias to Redis for API and other routes. A subsequent call with `false` does not undo that switch.
+Passing `true` as the second argument calls `throttle_with_redis()`, switching the `throttle` alias to Redis for API and other routes. A subsequent call with `false` does not undo that switch.
 
-In the default API group, stateful session middleware enabled by `statefulApi()` runs first, followed by throttling and `SubstituteBindings`. Explicitly replacing the group with `group("api", ...)` takes precedence over `throttleApi`, regardless of call order.
+In the default API group, stateful session middleware enabled by `stateful_api()` runs first, followed by throttling and `SubstituteBindings`. Explicitly replacing the group with `group("api", ...)` takes precedence over `throttle_api`, regardless of call order.

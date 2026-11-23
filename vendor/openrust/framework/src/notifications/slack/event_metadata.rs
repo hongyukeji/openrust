@@ -7,7 +7,6 @@ pub struct EventMetadata {
     payload: Map<String, Value>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl EventMetadata {
     pub fn make(event_type: impl Into<String>, payload: Map<String, Value>) -> Self {
         Self {
@@ -16,7 +15,7 @@ impl EventMetadata {
         }
     }
 
-    pub fn toArray(&self) -> Map<String, Value> {
+    pub fn to_array(&self) -> Map<String, Value> {
         self.clone().into_array()
     }
 

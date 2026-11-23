@@ -108,7 +108,7 @@ async fn native_worker_isolates_feature_values_across_success_and_failed_jobs() 
         "--memory=0",
     ])
     .await
-    .assertSuccessful();
+    .assert_successful();
     assert_eq!(
         *values.lock().unwrap(),
         vec![json!(0), json!(1), json!(2), json!(3)]

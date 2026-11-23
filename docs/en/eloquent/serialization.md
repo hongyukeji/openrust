@@ -2,7 +2,7 @@
 
 ## Serializing Models and Collections
 
-Use `toArray()` for a JSON-compatible map and `toJson()` for a JSON string. Both include loaded relationships. Relationship names use snake case in the result. Unloaded relationships stay out of the result. Use `attributesToArray()` to include only attributes. A collection produces an array of its serialized models.
+Use `to_array()` for a JSON-compatible map and `to_json()` for a JSON string. Both include loaded relationships. Relationship names use snake case in the result. Unloaded relationships stay out of the result. Use `attributesToArray()` to include only attributes. A collection produces an array of its serialized models.
 
 ## Hiding Attributes From JSON
 
@@ -17,7 +17,7 @@ use openrust::database::{DatabaseResult, eloquent::Model};
 
 pub fn public_json(record: &mut impl Model) -> DatabaseResult<String> {
     record.makeHidden(&["label"]).append(&["summary"]);
-    record.toJson()
+    record.to_json()
 }
 ```
 
@@ -50,7 +50,7 @@ use openrust::database::{DatabaseResult, eloquent::Model};
 pub fn conditional_json(record: &mut impl Model, may_read: bool) -> DatabaseResult<String> {
     record.makeVisibleIf(may_read, &["label"]);
     record.makeHiddenIf(!may_read, &["label"]);
-    record.toJson()
+    record.to_json()
 }
 ```
 
@@ -65,6 +65,6 @@ use openrust::database::{
 };
 
 pub fn public_json<M: Model>(records: &mut Collection<M>) -> DatabaseResult<String> {
-    records.mergeHidden(&["internal_note"]).withoutAppends().toJson()
+    records.mergeHidden(&["internal_note"]).withoutAppends().to_json()
 }
 ```

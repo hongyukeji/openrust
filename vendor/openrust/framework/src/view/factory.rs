@@ -110,7 +110,7 @@ impl Factory {
 
     pub fn new(mut finder: FileViewFinder, compiled: PathBuf) -> Self {
         finder
-            .addExtension("blade.html")
+            .add_extension("blade.html")
             .expect("valid Blade extension");
         Self {
             finder: Arc::new(finder),
@@ -730,7 +730,7 @@ impl ContractView for View {
         self
     }
 
-    fn getData(&self) -> &ViewData {
+    fn get_data(&self) -> &ViewData {
         self.data()
     }
 

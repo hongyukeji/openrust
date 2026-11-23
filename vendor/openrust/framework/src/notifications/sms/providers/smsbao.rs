@@ -41,7 +41,7 @@ impl SmsDriver for SmsBao {
             let mobile = self.market.provider_number(message.to())?;
             let response = checked_response(
                 request()?
-                    .withQueryParameters([
+                    .with_query_parameters([
                         ("u".into(), self.username.clone()),
                         ("p".into(), self.api_key.clone()),
                         ("m".into(), mobile),

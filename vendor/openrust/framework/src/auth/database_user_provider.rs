@@ -76,7 +76,7 @@ impl DatabaseUserProvider {
 }
 
 impl UserProvider for DatabaseUserProvider {
-    fn retrieveById<'a>(
+    fn retrieve_by_id<'a>(
         &'a self,
         id: &'a AuthIdentifier,
     ) -> AuthFuture<'a, AuthResult<Option<Box<dyn Authenticatable>>>> {
@@ -84,18 +84,18 @@ impl UserProvider for DatabaseUserProvider {
             let user = self
                 .retrieve_by_field(&self.identifier, id.clone().into())
                 .await?;
-            Ok(user.filter(|user| providers::same_identity(id, &user.getAuthIdentifier())))
+            Ok(user.filter(|user| providers::same_identity(id, &user.get_auth_identifier())))
         })
     }
 
-    fn retrieveByToken<'a>(
+    fn retrieve_by_token<'a>(
         &'a self,
         id: &'a AuthIdentifier,
         token: &'a str,
     ) -> AuthFuture<'a, AuthResult<Option<Box<dyn Authenticatable>>>> {
         Box::pin(async move {
             Ok(self
-                .retrieveById(id)
+                .retrieve_by_id(id)
                 .await?
                 .filter(|user| providers::matches_token(user.as_ref(), token)))
         })
@@ -119,7 +119,7 @@ impl UserProvider for DatabaseUserProvider {
         })
     }
 
-    fn updateRememberToken<'a>(
+    fn update_remember_token<'a>(
         &'a self,
         user: &'a mut dyn Authenticatable,
         token: &'a str,
@@ -132,7 +132,7 @@ impl UserProvider for DatabaseUserProvider {
         ))
     }
 
-    fn retrieveByCredentials<'a>(
+    fn retrieve_by_credentials<'a>(
         &'a self,
         credentials: &'a Credentials,
     ) -> AuthFuture<'a, AuthResult<Option<Box<dyn Authenticatable>>>> {
@@ -152,7 +152,7 @@ impl UserProvider for DatabaseUserProvider {
         })
     }
 
-    fn validateCredentials<'a>(
+    fn validate_credentials<'a>(
         &'a self,
         user: &'a dyn Authenticatable,
         credentials: &'a Credentials,
@@ -160,7 +160,7 @@ impl UserProvider for DatabaseUserProvider {
         Box::pin(providers::validate(self.hasher.as_ref(), user, credentials))
     }
 
-    fn rehashPasswordIfRequired<'a>(
+    fn rehash_password_if_required<'a>(
         &'a self,
         user: &'a mut dyn Authenticatable,
         credentials: &'a Credentials,
@@ -201,30 +201,30 @@ fn text(value: Option<&Value>) -> Option<&str> {
 }
 
 impl Authenticatable for DatabaseUser {
-    fn getAuthIdentifierName(&self) -> &str {
+    fn get_auth_identifier_name(&self) -> &str {
         &self.identifier
     }
-    fn getAuthIdentifier(&self) -> AuthIdentifier {
+    fn get_auth_identifier(&self) -> AuthIdentifier {
         self.id.clone()
     }
-    fn getAuthPasswordName(&self) -> &str {
+    fn get_auth_password_name(&self) -> &str {
         &self.password
     }
-    fn getAuthPassword(&self) -> Option<&str> {
+    fn get_auth_password(&self) -> Option<&str> {
         text(self.get(&self.password))
     }
-    fn getRememberToken(&self) -> Option<&str> {
+    fn get_remember_token(&self) -> Option<&str> {
         self.updated_token
             .as_ref()
             .map_or_else(|| text(self.get(&self.remember)), Option::as_deref)
     }
-    fn setRememberToken(&mut self, token: Option<String>) {
+    fn set_remember_token(&mut self, token: Option<String>) {
         self.updated_token = Some(token);
     }
-    fn getRememberTokenName(&self) -> &str {
+    fn get_remember_token_name(&self) -> &str {
         &self.remember
     }
-    fn getAuthAttribute(&self, name: &str) -> AuthResult<Option<Value>> {
+    fn get_auth_attribute(&self, name: &str) -> AuthResult<Option<Value>> {
         Ok(self.get(name).cloned())
     }
 }

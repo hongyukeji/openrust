@@ -317,7 +317,7 @@ impl Exceptions {
                 };
                 policy(request, &fallback)
             }
-            (None, _) => request.expectsJson(),
+            (None, _) => request.expects_json(),
         }
     }
 

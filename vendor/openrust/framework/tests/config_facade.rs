@@ -97,8 +97,8 @@ async fn config_is_available_in_http_route_handlers() {
     app.get("/config")
         .await
         .unwrap()
-        .assertOk()
-        .assertContent(r#""HTTP application""#);
+        .assert_ok()
+        .assert_content(r#""HTTP application""#);
 }
 
 #[tokio::test]

@@ -358,7 +358,7 @@ async fn server(root: &Root) -> (std::net::SocketAddr, tokio::task::JoinHandle<(
     let address = listener.local_addr().unwrap();
     let kernel = Arc::new(kernel);
     let service = axum::Router::new()
-        .fallback(move |request: axum::extract::Request| kernel.clone().handleTransport(request));
+        .fallback(move |request: axum::extract::Request| kernel.clone().handle_transport(request));
     (
         address,
         tokio::spawn(async move { axum::serve(listener, service).await.unwrap() }),

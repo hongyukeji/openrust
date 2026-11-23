@@ -49,7 +49,7 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
         self.whenElse(!condition, callback, otherwise)
     }
 
-    pub fn whenEmpty(self, callback: impl FnOnce(Self) -> Self) -> CollectionResult<Self> {
+    pub fn when_empty(self, callback: impl FnOnce(Self) -> Self) -> CollectionResult<Self> {
         self.whenEmptyElse(callback, std::convert::identity)
     }
 
@@ -58,7 +58,7 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
         callback: impl FnOnce(Self) -> Self,
         otherwise: impl FnOnce(Self) -> Self,
     ) -> CollectionResult<Self> {
-        let empty = self.isEmpty()?;
+        let empty = self.is_empty()?;
         Ok(self.whenElse(empty, callback, otherwise))
     }
 
@@ -79,7 +79,7 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
     }
 
     pub fn unlessNotEmpty(self, callback: impl FnOnce(Self) -> Self) -> CollectionResult<Self> {
-        self.whenEmpty(callback)
+        self.when_empty(callback)
     }
 
     pub fn ensure(self, predicate: impl FnMut(&T, &ArrayKey) -> bool) -> CollectionResult<Self> {

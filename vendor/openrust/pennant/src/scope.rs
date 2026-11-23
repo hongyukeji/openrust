@@ -47,7 +47,7 @@ impl Scope {
         Self::Custom(scope.featureScopeSerialize())
     }
 
-    pub fn fromModel<M: openrust::database::eloquent::Model>(model: &M) -> Result<Self> {
+    pub fn from_model<M: openrust::database::eloquent::Model>(model: &M) -> Result<Self> {
         let key = model.getKey().ok_or(Error::InvalidScope)?;
         Ok(Self::Model {
             class: std::any::type_name::<M>().into(),

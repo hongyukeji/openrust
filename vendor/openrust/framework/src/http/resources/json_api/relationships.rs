@@ -16,10 +16,9 @@ type Resolver<'a> =
 #[derive(Default)]
 pub struct JsonApiRelationships<'a>(pub(super) IndexMap<&'a str, Resolver<'a>>);
 
-#[allow(non_snake_case, reason = "Matches JSON:API relationship terminology")]
 impl<'a> JsonApiRelationships<'a> {
     #[must_use]
-    pub fn toOne<R: JsonApiResource>(
+    pub fn to_one<R: JsonApiResource>(
         mut self,
         name: &'a str,
         resolve: impl FnOnce() -> ResourceResult<Option<R>> + 'a,
@@ -36,7 +35,7 @@ impl<'a> JsonApiRelationships<'a> {
     }
 
     #[must_use]
-    pub fn toMany<R: JsonApiResource>(
+    pub fn to_many<R: JsonApiResource>(
         mut self,
         name: &'a str,
         resolve: impl FnOnce() -> ResourceResult<Vec<R>> + 'a,
@@ -52,7 +51,7 @@ impl<'a> JsonApiRelationships<'a> {
 
     /// Emits linkage for the items selected by a resource collection.
     #[must_use]
-    pub fn toCollection<R: JsonApiResource>(
+    pub fn to_collection<R: JsonApiResource>(
         mut self,
         name: &'a str,
         resolve: impl FnOnce() -> ResourceResult<ResourceCollection<R>> + 'a,

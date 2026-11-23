@@ -19,8 +19,7 @@ impl Authenticate {
         }
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn redirectTo(mut self, path: &str) -> AuthResult<Self> {
+    pub fn redirect_to(mut self, path: &str) -> AuthResult<Self> {
         self.login = Some(redirect_target(path)?);
         Ok(self)
     }
@@ -36,7 +35,7 @@ impl Middleware for Authenticate {
             if authenticate(request, &self.guards).await? {
                 return Ok(next.run(request).await);
             }
-            if !request.expectsJson()
+            if !request.expects_json()
                 && let Some(path) = &self.login
             {
                 return Ok(redirect(path.clone()));
@@ -52,7 +51,7 @@ pub(super) async fn authenticate(request: &mut Request, names: &[String]) -> Aut
     }
     for name in names {
         if Auth::guard(request, Some(name))?.check().await? {
-            Auth::shouldUse(request, name)?;
+            Auth::should_use(request, name)?;
             return Ok(true);
         }
     }

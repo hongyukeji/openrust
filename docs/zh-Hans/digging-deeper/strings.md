@@ -147,7 +147,7 @@ use serde_json::json;
 
 let fields = Str::of("42 甲").scan("%2$d %1$s%n");
 assert!(fields.is_err()); // Positional and sequential output cannot be mixed.
-let fields = Str::of("42 甲").scan("%2$d %1$s")?.toArray()?;
+let fields = Str::of("42 甲").scan("%2$d %1$s")?.to_array()?;
 assert_eq!(fields, json!(["甲", 42]));
-assert_eq!(Str::of("17").scan("%d %s")?.toArray()?, json!([17, null]));
+assert_eq!(Str::of("17").scan("%d %s")?.to_array()?, json!([17, null]));
 ```

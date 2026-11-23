@@ -213,7 +213,7 @@ pub(super) fn write_enum_collection<M: Model, E: CastableEnum>(
         .is_some()
     {
         let values = values
-            .toArray()
+            .to_array()
             .map_err(|_| DatabaseError::InvalidQuery("enum collection attribute"))?;
         model.setAttributeValue(name, Value::Json(values))?;
     } else {
@@ -258,7 +258,7 @@ pub(super) fn write_json_collection<M: Model, T: serde::Serialize>(
     values: Collection<T>,
 ) -> DatabaseResult<()> {
     json_collection_for::<M>(name, &model.state().casts)?;
-    let value = values.toArray().map_err(|_| collection_cast::invalid())?;
+    let value = values.to_array().map_err(|_| collection_cast::invalid())?;
     model.setAttributeValue(name, Value::Json(value))?;
     Ok(())
 }

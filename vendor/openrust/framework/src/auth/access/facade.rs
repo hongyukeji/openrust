@@ -23,7 +23,6 @@ impl Facade for Gate {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Gate {
     pub fn registry() -> AuthResult<Arc<GateRegistry>> {
         Self::get_facade_root().map_err(AuthError::backend)
@@ -43,7 +42,7 @@ impl Gate {
         Ok(())
     }
 
-    pub fn defineGuest(
+    pub fn define_guest(
         ability: impl Into<String>,
         callback: impl for<'a> Fn(
             Option<&'a dyn Authenticatable>,
@@ -53,7 +52,7 @@ impl Gate {
         + Sync
         + 'static,
     ) -> AuthResult<()> {
-        Self::registry()?.defineGuest(ability, callback);
+        Self::registry()?.define_guest(ability, callback);
         Ok(())
     }
 
@@ -63,27 +62,27 @@ impl Gate {
     }
 
     /// 登记可按约定名称发现的已编译策略，构造仍由应用容器负责。
-    pub fn discoverPolicy<T, P>() -> AuthResult<()>
+    pub fn discover_policy<T, P>() -> AuthResult<()>
     where
         T: Send + Sync + 'static,
         P: Policy<T> + 'static,
     {
-        Self::registry()?.discoverPolicy::<T, P>();
+        Self::registry()?.discover_policy::<T, P>();
         Ok(())
     }
 
-    pub fn getPolicyFor(target: &Argument) -> AuthResult<Option<PolicyHandle>> {
-        Self::registry()?.getPolicyFor(target)
+    pub fn get_policy_for(target: &Argument) -> AuthResult<Option<PolicyHandle>> {
+        Self::registry()?.get_policy_for(target)
     }
 
-    pub fn resolvePolicy<P: Send + Sync + 'static>() -> AuthResult<Arc<P>> {
-        Self::registry()?.resolvePolicy::<P>()
+    pub fn resolve_policy<P: Send + Sync + 'static>() -> AuthResult<Arc<P>> {
+        Self::registry()?.resolve_policy::<P>()
     }
 
-    pub fn guessPolicyNamesUsing(
+    pub fn guess_policy_names_using(
         callback: impl Fn(&str) -> Vec<String> + Send + Sync + 'static,
     ) -> AuthResult<()> {
-        Self::registry()?.guessPolicyNamesUsing(callback);
+        Self::registry()?.guess_policy_names_using(callback);
         Ok(())
     }
 
@@ -91,12 +90,12 @@ impl Gate {
         Ok(Self::registry()?.policies())
     }
 
-    pub fn forUser(user: Option<Arc<dyn Authenticatable>>) -> AuthResult<ScopedGate> {
-        Ok(Self::registry()?.forUser(user))
+    pub fn for_user(user: Option<Arc<dyn Authenticatable>>) -> AuthResult<ScopedGate> {
+        Ok(Self::registry()?.for_user(user))
     }
 
-    pub async fn forRequest(request: &mut Request) -> AuthResult<ScopedGate> {
-        Self::forUser(Auth::user(request).await?)
+    pub async fn for_request(request: &mut Request) -> AuthResult<ScopedGate> {
+        Self::for_user(Auth::user(request).await?)
     }
 
     pub async fn inspect(
@@ -104,7 +103,7 @@ impl Gate {
         ability: &str,
         arguments: &[&Argument],
     ) -> AuthResult<Response> {
-        Self::forRequest(request)
+        Self::for_request(request)
             .await?
             .inspect(ability, arguments)
             .await
@@ -115,7 +114,7 @@ impl Gate {
         ability: &str,
         arguments: &[&Argument],
     ) -> AuthResult<bool> {
-        Self::forRequest(request)
+        Self::for_request(request)
             .await?
             .allows(ability, arguments)
             .await
@@ -126,7 +125,7 @@ impl Gate {
         ability: &str,
         arguments: &[&Argument],
     ) -> AuthResult<bool> {
-        Self::forRequest(request)
+        Self::for_request(request)
             .await?
             .denies(ability, arguments)
             .await
@@ -137,7 +136,7 @@ impl Gate {
         ability: &str,
         arguments: &[&Argument],
     ) -> Result<Response, AuthorizationError> {
-        Self::forRequest(request)
+        Self::for_request(request)
             .await
             .map_err(AuthorizationError::Evaluation)?
             .authorize(ability, arguments)

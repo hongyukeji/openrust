@@ -21,7 +21,7 @@ pub type ResetCallback<'scope> = dyn for<'a> Fn(&'a mut dyn CanResetPassword, &'
 
 /// Application-facing password reset operations.
 pub trait PasswordBroker: Send + Sync {
-    fn sendResetLink<'a>(
+    fn send_reset_link<'a>(
         &'a self,
         credentials: &'a Credentials,
         callback: Option<&'a ResetLinkCallback<'a>>,

@@ -302,7 +302,7 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
         let intermediate = I::metadata();
         if intermediate
             .connection
-            .is_some_and(|name| name != connection.getName())
+            .is_some_and(|name| name != connection.get_name())
         {
             return Err(DatabaseError::InvalidQuery(
                 "through models require one joined connection",
@@ -648,7 +648,7 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
                     )?
                     .apply_default_counts()?;
                 let query = if lookup.as_ref().is_some_and(|lookup| lookup.include_trashed) {
-                    query.withTrashed()
+                    query.with_trashed()
                 } else {
                     query
                 };
@@ -725,7 +725,7 @@ impl ThroughJoin {
             query = query.r#where(column, "=", *value);
         }
         match &self.deleted_at {
-            Some(column) => query.whereNull(column),
+            Some(column) => query.where_null(column),
             None => query,
         }
     }

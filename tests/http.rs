@@ -76,7 +76,7 @@ async fn exceptions_negotiate_json_without_changing_status_or_allow() {
         }))
         .with_exceptions(|exceptions| {
             exceptions
-                .shouldRenderJsonWhen(|request, _| request.is("api/*") || request.expectsJson());
+                .shouldRenderJsonWhen(|request, _| request.is("api/*") || request.expects_json());
         })
         .create()
         .unwrap();
@@ -179,7 +179,7 @@ async fn exception_callbacks_match_sources_and_finalize_custom_and_default_respo
                         .insert("x-exception", "finalized".parse().unwrap());
                     response
                 })
-                .shouldRenderJsonWhen(|request, _| request.is("api/*") || request.expectsJson());
+                .shouldRenderJsonWhen(|request, _| request.is("api/*") || request.expects_json());
         })
         .create()
         .unwrap();
@@ -277,7 +277,7 @@ async fn api_prefix_can_be_overridden_without_changing_the_middleware_group() {
             .with_routing(
                 Routing::default()
                     .api(|| openrust::support::facades::Route::get("/page", explicit))
-                    .apiPrefix(prefix),
+                    .api_prefix(prefix),
             )
             .create()
             .unwrap();
@@ -652,12 +652,12 @@ fn network_application(builder: ApplicationBuilder) -> ApplicationBuilder {
                             show_bound_post,
                         )?
                         .middleware(Arc::new(SubstituteBindings))
-                        .setAction("PostController@byId")?
+                        .set_action("PostController@byId")?
                         .name("posts.by_id");
                     router
                         .get("/bound/{post:slug}/{tab:code?}", show_bound_post)?
                         .middleware(Arc::new(SubstituteBindings))
-                        .setAction("PostController@bySlug")?
+                        .set_action("PostController@bySlug")?
                         .name("posts.by_slug");
                     Ok(())
                 },
@@ -744,7 +744,7 @@ fn network_application(builder: ApplicationBuilder) -> ApplicationBuilder {
                 .get("/diagnostics", show_route)?
                 .middleware_name("signed:relative")
                 .middleware_name("stop")
-                .withoutMiddleware("stop");
+                .without_middleware("stop");
             router.get("/{id?}", show_route)?.where_number("id")?;
             router.pattern("path", r"\k<id>")?;
             router.get("/global-pair/{id}/{path}", show_route)?;
@@ -795,19 +795,19 @@ async fn route_list_describes_the_effective_middleware_order() {
 
     let mut app = TestApp::create(network_application).unwrap();
     let regular = app.artisan(["route:list", "--path=profiles/{id?}"]).await;
-    regular.assertSuccessful();
+    regular.assert_successful();
     assert!(!regular.stdout.contains("outer"));
     let declared = app
         .artisan(["route:list", "--path=profiles/{id?}", "-v"])
         .await;
-    declared.assertSuccessful();
+    declared.assert_successful();
     assert!(declared.stdout.contains("outer"));
     assert!(declared.stdout.contains("late"));
 
     let expanded = app
         .artisan(["route:list", "--path=profiles/{id?}", "--json", "-vv"])
         .await;
-    expanded.assertSuccessful();
+    expanded.assert_successful();
     let routes: Vec<Value> = serde_json::from_str(&expanded.stdout).unwrap();
     assert_eq!(routes.len(), 1);
     assert_eq!(
@@ -829,7 +829,7 @@ async fn route_list_describes_the_effective_middleware_order() {
             "-vv",
         ])
         .await;
-    diagnostics.assertSuccessful();
+    diagnostics.assert_successful();
     let routes: Vec<Value> = serde_json::from_str(&diagnostics.stdout).unwrap();
     assert_eq!(routes.len(), 1);
     assert_eq!(
@@ -840,7 +840,7 @@ async fn route_list_describes_the_effective_middleware_order() {
     let original = app
         .artisan(["route:list", "--path=profiles/{id?}", "--json"])
         .await;
-    original.assertSuccessful();
+    original.assert_successful();
     let routes: Vec<Value> = serde_json::from_str(&original.stdout).unwrap();
     assert_eq!(routes[0]["middleware"], json!(["outer", "late", "Closure"]));
 }
@@ -859,7 +859,7 @@ async fn route_list_keeps_binding_fields_domains_and_live_controller_actions() {
             "--json",
         ])
         .await;
-    routes.assertSuccessful();
+    routes.assert_successful();
     let routes: Vec<Value> = serde_json::from_str(&routes.stdout).unwrap();
     assert_eq!(routes.len(), 2);
     assert_eq!(routes[0]["domain"], "{tenant}.example.test");
@@ -877,7 +877,7 @@ async fn route_list_keeps_binding_fields_domains_and_live_controller_actions() {
             "--action=PostController@bySlug",
         ])
         .await;
-    text.assertSuccessful();
+    text.assert_successful();
     assert!(
         text.stdout
             .contains("{tenant}.example.test/bound/{post:slug}/{tab:code?}")

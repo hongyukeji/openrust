@@ -47,6 +47,6 @@ impl OpenedFile {
             StatusCode::OK,
             Body::from_stream(ReaderStream::new(self.reader)),
         )
-        .withHeaders(headers))
+        .with_headers(headers))
     }
 }

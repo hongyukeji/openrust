@@ -27,7 +27,7 @@ Pulse 收集應用程式效能指標，提供慢請求、慢 SQL、慢工作、�
 
 ```rust
 let gate = app.make::<openrust::auth::access::GateRegistry>().await?;
-gate.defineGuest("viewPulse", |user, _| Box::pin(async move {
+gate.define_guest("viewPulse", |user, _| Box::pin(async move {
     Ok(if user.is_some() {
         openrust::auth::access::Response::allow()
     } else {

@@ -23,7 +23,6 @@ impl Default for JsonApi {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl JsonApi {
     pub fn configure(
         version: Option<String>,
@@ -54,7 +53,7 @@ impl JsonApi {
     }
 
     #[must_use]
-    pub const fn maxRelationshipDepth(mut self, depth: usize) -> Self {
+    pub const fn max_relationship_depth(mut self, depth: usize) -> Self {
         self.depth = depth;
         self
     }

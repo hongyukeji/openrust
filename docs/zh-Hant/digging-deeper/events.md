@@ -110,7 +110,7 @@ fn discover_events() -> DiscoverEvents {
 
 ## 測試 {#testing}
 
-`TestApp::fakeEvents` 在目前的測試應用程式記錄選定的事件派發。處於應用程式作用域時也可呼叫 `Event::fake`。傳入空切片以選取所有事件，傳入完整事件名稱限定範圍，或呼叫 `except` 讓指定事件繼續交給監聽器。
+`TestApp::fake_events` 在目前的測試應用程式記錄選定的事件派發。處於應用程式作用域時也可呼叫 `Event::fake`。傳入空切片以選取所有事件，傳入完整事件名稱限定範圍，或呼叫 `except` 讓指定事件繼續交給監聽器。
 
 ```rust
 use openrust::{
@@ -123,7 +123,7 @@ use std::sync::Arc;
 #[tokio::test]
 async fn records_order_events() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut app = TestApp::create(|builder| builder)?;
-    let fake = app.fakeEvents(&["orders.created"]).await?;
+    let fake = app.fake_events(&["orders.created"]).await?;
     let dispatcher = app.app().make::<Dispatcher>().await?;
     dispatcher.dispatch(
         Arc::new(NamedEvent::new("orders.created", 42_u64)),

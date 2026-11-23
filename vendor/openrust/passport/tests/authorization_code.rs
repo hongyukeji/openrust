@@ -76,26 +76,26 @@ impl Model for User {
     }
 }
 impl Authenticatable for User {
-    fn getAuthIdentifierName(&self) -> &str {
+    fn get_auth_identifier_name(&self) -> &str {
         "subject"
     }
-    fn getAuthIdentifier(&self) -> AuthIdentifier {
+    fn get_auth_identifier(&self) -> AuthIdentifier {
         self.getAttribute("subject").unwrap().try_into().unwrap()
     }
-    fn getAuthPasswordName(&self) -> &str {
+    fn get_auth_password_name(&self) -> &str {
         "password"
     }
-    fn getAuthPassword(&self) -> Option<&str> {
+    fn get_auth_password(&self) -> Option<&str> {
         match self.getAttribute("password") {
             Some(Value::Text(v)) => Some(v),
             _ => None,
         }
     }
-    fn getRememberToken(&self) -> Option<&str> {
+    fn get_remember_token(&self) -> Option<&str> {
         None
     }
-    fn setRememberToken(&mut self, _: Option<String>) {}
-    fn getRememberTokenName(&self) -> &str {
+    fn set_remember_token(&mut self, _: Option<String>) {}
+    fn get_remember_token_name(&self) -> &str {
         "remember_token"
     }
 }
@@ -143,7 +143,7 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
                 "/custom-token",
                 openrust_passport::http::controllers::AccessTokenController::issueToken,
             )?
-            .withoutMiddleware("web")
+            .without_middleware("web")
             .middleware_name("throttle");
         Ok(())
     })?;
@@ -179,7 +179,7 @@ fn login(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
             [("email", Value::from(input["email"].as_str().unwrap()))],
             input["password"].as_str().unwrap(),
         );
-        if !Auth::sessionGuard(request, None)?
+        if !Auth::session_guard(request, None)?
             .attempt(&credentials, false)
             .await?
         {
@@ -195,7 +195,7 @@ fn view(
     Box::pin(async move {
         Response::json(
             StatusCode::OK,
-            json!({"auth_token":params.auth_token,"csrf":request.session()?.token(),"client":params.client.toArray().await.unwrap(),"user":params.user.getAuthIdentifier(),"scopes":params.scopes}),
+            json!({"auth_token":params.auth_token,"csrf":request.session()?.token(),"client":params.client.to_array().await.unwrap(),"user":params.user.get_auth_identifier(),"scopes":params.scopes}),
         )
     })
 }
@@ -203,7 +203,7 @@ async fn transport(
     State(kernel): State<Arc<Kernel>>,
     request: axum::extract::Request,
 ) -> axum::response::Response {
-    kernel.handleTransport(request).await
+    kernel.handle_transport(request).await
 }
 struct Fixture {
     root: PathBuf,
@@ -294,7 +294,7 @@ impl Fixture {
         app.make::<AuthManager>()
             .await
             .unwrap()
-            .registerModel::<User>("OAuthUser");
+            .register_model::<User>("OAuthUser");
         let encryption = app.make::<openrust::encryption::Encrypter>().await.unwrap();
         let db = app
             .make::<DatabaseManager>()
@@ -1182,7 +1182,7 @@ fn resource_for<'a>(
         let token = openrust_passport::guards::TokenGuard::token(request, guard).unwrap();
         Response::json(
             StatusCode::OK,
-            json!({"user":user.getAuthIdentifier(),"token":token.oauth_access_token_id,"scopes":token.oauth_scopes,"read":token.can("read").unwrap(),"write":token.can("write").unwrap(),"transient":token.transient()}),
+            json!({"user":user.get_auth_identifier(),"token":token.oauth_access_token_id,"scopes":token.oauth_scopes,"read":token.can("read").unwrap(),"write":token.can("write").unwrap(),"transient":token.transient()}),
         )
     })
 }
