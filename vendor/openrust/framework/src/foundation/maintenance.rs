@@ -13,8 +13,7 @@ use std::{
 use serde_json::{Map, Value};
 
 use crate::{
-    cache::{CacheError, CacheManager, Repository, Value as CacheValue},
-    container::Container,
+    cache::{CacheError, CacheManager, Value as CacheValue},
     contracts::{
         cache::Repository as _,
         config::Repository as Config,
@@ -26,6 +25,9 @@ use crate::{
     support::{ProviderResult, ServiceProvider},
 };
 
+mod manager;
+pub use manager::MaintenanceModeManager;
+
 const CACHE_KEY: &str = "illuminate:foundation:down";
 
 pub type MaintenancePayload = Map<String, Value>;
@@ -35,6 +37,7 @@ pub type MaintenanceFuture<'a, T> =
 #[derive(Debug)]
 pub enum MaintenanceError {
     InvalidDriver,
+    DriverResolutionCycle,
     InvalidPayload,
     Io(io::Error),
     Json(serde_json::Error),
@@ -46,7 +49,8 @@ pub enum MaintenanceError {
 impl fmt::Display for MaintenanceError {
     fn fmt(&self, output: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::InvalidDriver => output.write_str("invalid application maintenance driver"),
+            Self::InvalidDriver => output.write_str("维护模式驱动配置无效"),
+            Self::DriverResolutionCycle => output.write_str("维护驱动解析存在循环依赖"),
             Self::InvalidPayload => output.write_str("maintenance state must be a JSON object"),
             Self::Io(error) => write!(output, "maintenance state I/O failed: {error}"),
             Self::Json(error) => write!(output, "invalid maintenance state: {error}"),
@@ -71,7 +75,7 @@ impl Error for MaintenanceError {
 
 enum Backend {
     File(Arc<super::Paths>),
-    Cache(Arc<Repository>),
+    Cache(Arc<CacheManager>, String),
     Array(RwLock<Option<MaintenancePayload>>),
 }
 
@@ -96,9 +100,13 @@ impl MaintenanceMode for Backend {
                     .map_err(|error| MaintenanceError::Io(io::Error::other(error)))?
                     .map_err(MaintenanceError::Io)
                 }
-                Self::Cache(cache) => {
+                Self::Cache(manager, name) => {
+                    let cache = manager.store(Some(name)).map_err(MaintenanceError::Cache)?;
                     if cache
-                        .forever(CACHE_KEY, &CacheValue::Json(Value::Object(payload.clone())))
+                        .put_with_default(
+                            CACHE_KEY,
+                            &CacheValue::Json(Value::Object(payload.clone())),
+                        )
                         .await
                         .map_err(MaintenanceError::Cache)?
                     {
@@ -126,7 +134,9 @@ impl MaintenanceMode for Backend {
                         result => result.map_err(MaintenanceError::Io),
                     }
                 }
-                Self::Cache(cache) => cache
+                Self::Cache(manager, name) => manager
+                    .store(Some(name))
+                    .map_err(MaintenanceError::Cache)?
                     .forget(CACHE_KEY)
                     .await
                     .map(|_| ())
@@ -147,7 +157,12 @@ impl MaintenanceMode for Backend {
                 Self::File(path) => tokio::fs::try_exists(path.storage_path("framework/down"))
                     .await
                     .map_err(MaintenanceError::Io),
-                Self::Cache(cache) => cache.has(CACHE_KEY).await.map_err(MaintenanceError::Cache),
+                Self::Cache(manager, name) => manager
+                    .store(Some(name))
+                    .map_err(MaintenanceError::Cache)?
+                    .has(CACHE_KEY)
+                    .await
+                    .map_err(MaintenanceError::Cache),
                 Self::Array(state) => Ok(state
                     .read()
                     .unwrap_or_else(std::sync::PoisonError::into_inner)
@@ -160,7 +175,9 @@ impl MaintenanceMode for Backend {
         Box::pin(async move {
             match self {
                 Self::File(path) => read_file(&path.storage_path("framework/down")).await,
-                Self::Cache(cache) => match cache
+                Self::Cache(manager, name) => match manager
+                    .store(Some(name))
+                    .map_err(MaintenanceError::Cache)?
                     .get(CACHE_KEY)
                     .await
                     .map_err(MaintenanceError::Cache)?
@@ -188,45 +205,28 @@ pub(super) async fn read_file(path: &Path) -> Result<Option<MaintenancePayload>,
     }
 }
 
-fn configured_driver(
-    container: &Container,
-    paths: Arc<super::Paths>,
-) -> Result<Backend, MaintenanceError> {
-    let config = container.get::<dyn Config>("config")?;
-    match config.get("app.maintenance.driver").as_ref() {
-        None | Some(Value::Null) => Ok(Backend::File(paths)),
-        Some(Value::String(driver)) if driver == "file" => Ok(Backend::File(paths)),
-        Some(Value::String(driver)) if driver == "array" => Ok(Backend::Array(RwLock::default())),
-        Some(Value::String(driver)) if driver == "cache" => {
-            let store = config.get("app.maintenance.store");
-            let cache = container.make::<CacheManager>()?;
-            let name = store
-                .as_ref()
-                .and_then(Value::as_str)
-                .filter(|name| !name.is_empty());
-            Ok(Backend::Cache(
-                cache.store(name).map_err(MaintenanceError::Cache)?,
-            ))
-        }
-        _ => Err(MaintenanceError::InvalidDriver),
-    }
-}
-
 pub(crate) struct MaintenanceServiceProvider;
 
 impl ServiceProvider for MaintenanceServiceProvider {
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
+            let owner = Arc::downgrade(&app.container_handle());
             app.container()
-                .singleton::<dyn MaintenanceMode, _>(move |container| {
-                    let paths = container.make::<super::Paths>()?;
-                    let driver = configured_driver(container, paths).map_err(|source| {
-                        BindingResolutionError::FactoryFailed {
+                .singleton::<MaintenanceModeManager, _>(move |container| {
+                    Ok(Arc::new(MaintenanceModeManager::for_container(
+                        owner.clone(),
+                        container.get::<dyn Config>("config")?,
+                    )))
+                })?;
+            app.container()
+                .bind::<dyn MaintenanceMode, _>(|container| {
+                    container
+                        .make::<MaintenanceModeManager>()?
+                        .driver(None)
+                        .map_err(|source| BindingResolutionError::FactoryFailed {
                             service: "maintenance",
                             source: Box::new(source),
-                        }
-                    })?;
-                    Ok(Arc::new(driver))
+                        })
                 })?;
             Ok(())
         })

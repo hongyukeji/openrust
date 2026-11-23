@@ -4,6 +4,8 @@ mod app;
 mod app_container;
 pub use app::App;
 mod config;
+mod maintenance_mode;
+pub use maintenance_mode::MaintenanceMode;
 mod event;
 mod facade;
 pub use event::Event;

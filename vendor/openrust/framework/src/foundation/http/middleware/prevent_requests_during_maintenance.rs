@@ -1,5 +1,5 @@
 use std::{
-    sync::Arc,
+    sync::{Arc, Weak},
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -14,7 +14,11 @@ use serde_json::Value;
 use subtle::ConstantTimeEq as _;
 
 use crate::{
-    contracts::{foundation::MaintenanceMode, http::Middleware},
+    contracts::{
+        container::{BindingResolutionError, Container as _},
+        foundation::MaintenanceMode,
+        http::Middleware,
+    },
     cookie::CookieOptions,
     foundation::maintenance::MaintenancePayload,
     http::{Body, HttpError, HttpFuture, Method, Next, Request, Response, StatusCode, abort},
@@ -26,13 +30,41 @@ const BYPASS_MINUTES: i64 = 12 * 60;
 
 /// Enforces application maintenance state before route middleware runs.
 pub struct PreventRequestsDuringMaintenance {
-    mode: Arc<dyn MaintenanceMode>,
+    mode: ModeResolver,
     except: Vec<String>,
 }
 
 impl PreventRequestsDuringMaintenance {
     pub fn new(mode: Arc<dyn MaintenanceMode>, except: Vec<String>) -> Self {
-        Self { mode, except }
+        Self {
+            mode: ModeResolver::Fixed(mode),
+            except,
+        }
+    }
+    pub(crate) fn for_application(
+        container: Weak<crate::container::Container>,
+        except: Vec<String>,
+    ) -> Self {
+        Self {
+            mode: ModeResolver::Application(container),
+            except,
+        }
+    }
+}
+
+enum ModeResolver {
+    Fixed(Arc<dyn MaintenanceMode>),
+    Application(Weak<crate::container::Container>),
+}
+impl ModeResolver {
+    fn resolve(&self) -> Result<Arc<dyn MaintenanceMode>, BindingResolutionError> {
+        match self {
+            Self::Fixed(mode) => Ok(mode.clone()),
+            Self::Application(container) => container
+                .upgrade()
+                .ok_or(BindingResolutionError::FacadeNotSet)?
+                .make(),
+        }
     }
 }
 
@@ -50,11 +82,14 @@ impl Middleware for PreventRequestsDuringMaintenance {
             {
                 return Ok(next.run(request).await);
             }
-            let data = match self.mode.data().await {
+            let mode = self.mode.resolve().map_err(|source| HttpError::Internal {
+                source: Box::new(source),
+            })?;
+            let data = match mode.data().await {
                 Ok(Some(data)) => data,
                 Ok(None) => return Ok(next.run(request).await),
                 Err(error) => {
-                    if matches!(self.mode.active().await, Ok(false)) {
+                    if matches!(mode.active().await, Ok(false)) {
                         return Ok(next.run(request).await);
                     }
                     return Err(HttpError::Internal {

@@ -40,7 +40,7 @@
 | Lang | `support::facades::Lang` | 核对 Translator/Loader、路径覆盖、namespace、消息选取、语言/回退与缺失回调 |
 | Log | `support::facades::Log` | 核对渠道/堆栈、共享/请求上下文、级别、事件及 PSR 对应接口 |
 | Mail | `support::facades::Mail` | 核对 Manager/Mailer/PendingMail 的入口、队列、附件、失败与测试替身 |
-| MaintenanceMode | 只有底层契约和驱动 | 缺正式门面及 Manager 公开契约；必须复用 HTTP/调度器/命令现有实际维护状态 |
+| MaintenanceMode | 已补 `support::facades::MaintenanceMode` 与 `foundation::MaintenanceModeManager` | 管理器七入口与四个驱动委托已实测；HTTP 改为逐请求解析实际 Contract。公共 Facade 基类继承测试接口仍待全局核对，不先宣布全门面闭合 |
 | Notification | `support::facades::Notification` | 核对 Manager、路由通知、立即/队列派发、fake 和断言 |
 | ParallelTesting | 未开放对应门面 | 缺测试运行器绑定、选项/token、进程/测试/数据库回调；不能只增加未被执行的回调注册表 |
 | Password | `support::facades::Password` | 核对 Broker、Provider、令牌仓储及所有委托/默认值 |
@@ -129,3 +129,28 @@ python3 -B tests/build_guard.py --workflow facade-alignment --target-dir target/
 - 保留 `initial-tests.log`（事件名错误）、`sqlite.log`（夹具漏建 SQLite 文件）、`redis.log`（镜像无声明卷而夹具限制过严）、`redis-fixed.log`（旧 memo 标签名称断言）和 `clippy.log`，后续成功不覆盖失败记录。memo 名称断言修改依据是 CacheManager.memo 创建无 store 配置的外层 Repository，Repository.tags 再把外层配置传给标签视图。
 
 **未闭合**：本批仅关闭已列路径的缺口。专用 Cache spy 与 memo 测试交互、`handleUnserializableClassUsing` 对 PHP 类反序列化的精确 Rust 裁决，以及其余委托的完整参数／默认／错误与真实消费者证据仍需完成。JSON/Bytes 不包含 PHP 类加载，但不能用无操作兼容方法宣称对齐；通用 Facade 替换也不代替专用 spy。完整门面保持 partial，不更新核心完成率；外部 Memcached/DynamoDB/S3 与发布矩阵未在本批重验。
+
+
+### MaintenanceMode：管理器与实际运行状态（2026-11-24，已验收批次）
+
+固定源码追踪 Facade -> MaintenanceModeManager -> Manager（含 RebindsCallbacksToSelf）及四个 Contract 方法；trait 仅有 protected 回调绑定，不另遗漏公开入口。FoundationServiceProvider 原行为为 manager singleton、MaintenanceMode Contract 动态绑定。本项目原先把具体驱动直接 singleton，并让 HTTP 中间件永久持有它，新增管理器后实测暴露 `forget_drivers` 后 Artisan 与 HTTP 看到不同 array 状态，现已修正。旧版 `openrust-v0.x` framework/src 内未找到对应维护管理器可复用；复用本仓已有三种后端、HTTP/命令/调度/Worker 消费者，缓存解析注册表提取现有成熟实现供两种 Manager 共用，没有另造平行维护状态。
+
+- 正式入口：`support::facades::MaintenanceMode`、`foundation::MaintenanceModeManager`（也可从 `foundation::maintenance` 导入）。公开构造器接受 `&Arc<Container>`，捕获 Config 并弱持有容器；Provider 创建 singleton 管理器，Contract 使用 bind -> 当前 driver。
+- 管理器七入口与动态委托四入口的参数、返回、默认、错误、生命周期和对应测试记在原 JSON。`driver(None)`/空字符串选默认，未配置默认 file；extend 的显式类型回调接收实际容器，可解析其他驱动；循环依赖明确报错。clear 不删除 creator，既有 Arc 继续有效；并发仅创建一次，回调、析构不持注册表锁。
+- set_container 只换容器，保留最初配置、驱动与 creator，符合 Manager 原机制。新 file 驱动使用所选容器 Paths；过往 file 驱动保留原 Paths。弱持有的应用释放后 get_container 明确返回 Unavailable。
+- HTTP 每个未排除请求重新解析实际 MaintenanceMode Contract，支持热切换默认、清空实例与用户显式替换；公开中间件 new(mode,except) 仍保留显式固定服务用法。命令、调度器和 Worker 继续使用 Application.maintenance_mode 同一正式 Contract，不增加旁路。
+- cache 后端现在保留管理器与具名 store，而不是永久持有第一次解析的 Repository；每次操作重新解析，因此 purge 后能看到替换。写入使用仓储默认 TTL（初始 3600 秒、None 永久），与固定基线 put 默认行为一致，不再无条件 forever。store 未指定时按捕获配置的 cache.default 选择，set_container 不偷换配置来源。
+- Rust 差异已明确测试：data 返回 Option<Map>，无状态为 None，激活空载荷为 Some(empty)；PHP array 驱动 inactive 为 []。Rust async 返回 Result，把后端和拒绝写入作为错误传递，调用方不能把错误当成非维护状态。驱动自定义接收显式容器和捕获值，不需要 PHP Closure 的隐式 this 重绑定。该适配实际验证重入创建器、循环错误及并发，而非以静态语言为由跳过入口。
+- 应用/生成骨架均复用已有默认 Provider 装配，不需要额外样例 Provider 或预置安装资源。三语配置文档增加正式门面、驱动、容器切换、有效期与进程边界。
+
+已保留验收证据（`target/tmp/facade-alignment/maintenance/`）：
+
+- `third.log`：7 项 Cache 公开门面回归、3 项初始维护门面及 4 项既有维护状态通过，证明提取注册表未改 Cache 调用行为。
+- `framework-final.log`：初始维护 3 项、状态 4 项及真实 Artisan 调度器 2 项通过；普通任务跳过维护、允许维护任务执行、应用隔离和分钟内维护状态记忆均实际运行。
+- `facade-worker.log`：5 项维护专项全部通过，含独立 Redis 8.10.3 的 Artisan queue:work --once --sleep=0 --timeout=0，验证阻止预约、--force 处理及 up 后恢复；任务处理器从 MaintenanceMode 门面读取真实状态。
+- `http-artisan-redis.log`：根应用 3 项真实 HTTP/Artisan 测试通过，含独立 Redis 支持的两个 HTTP 实例共享维护状态及预渲染。临时 Redis 容器已清理，未动数据库或数据卷。
+- `docs-resumed.log`：三语内容检查与文档构建通过；`browser.log`：三语桌面／移动端维护章节共 6 次浏览器检查通过。
+- `first.log`（测试调用了错误的既有 API）和 `second.log`（暴露旧 HTTP 驱动持有问题）保留，修正后不覆盖。`clippy.log` 在全工作区检查末尾遭磁盘停线，不计通过；`docs.log` 因同一停线未启动，不计通过。
+- `cleanup.log`：守卫持有全部 Cargo 锁后清理项目编译/文档产物，释放 71,288,389,632 字节，清后可用 102,876,880,896 字节；日志、源码、未提交改动、下载依赖、数据库和卷保留。先前停止尝试遇到 Operation not permitted，随后确认无活跃 Cargo 后才重试清理，未无锁删除。
+
+`resumed.log`：清理后实际重新编译，维护专项 5 项（含新增构造器、显式容器设置、无效默认配置与真实 Redis Worker）、状态 4 项、调度器 2 项再次通过。`clippy-resumed.log`：随后全工作区 all-targets 严格 Clippy 通过，完成最后的惰性错误构造修正；不把先前中断计通过。通用 Facade 基类测试 API 尚未全量裁决，因此本门面仍保持 partial；其余七个缺失核心门面仍在原清单，不因此变更整体完成率。

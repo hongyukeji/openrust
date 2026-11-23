@@ -196,7 +196,7 @@ impl Kernel {
                         .container()
                         .get::<Factory>(crate::container::ServiceKey::typed::<Factory>())?,
                 );
-                let maintenance = self.application.maintenance_mode()?;
+                self.application.maintenance_mode()?;
                 if self.routes.is_none() {
                     let mut routes = self
                         .application
@@ -239,10 +239,12 @@ impl Kernel {
                 }
                 self.middleware.global.insert(
                     maintenance_index,
-                    Arc::new(middleware::PreventRequestsDuringMaintenance::new(
-                        maintenance,
-                        std::mem::take(&mut self.middleware.maintenance_exceptions),
-                    )),
+                    Arc::new(
+                        middleware::PreventRequestsDuringMaintenance::for_application(
+                            Arc::downgrade(&self.application.container_handle()),
+                            std::mem::take(&mut self.middleware.maintenance_exceptions),
+                        ),
+                    ),
                 );
                 self.middleware
                     .global

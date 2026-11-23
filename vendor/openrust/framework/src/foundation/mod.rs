@@ -29,6 +29,7 @@ pub use bootstrap_error::BootstrapError;
 pub use dev_commands::{DevCommand, DevCommandMode, DevCommands, DevProcess};
 pub use entry::run_application;
 pub use inspiring::Inspiring;
+pub use maintenance::MaintenanceModeManager;
 pub use package_manifest::{DiscoveredPackage, PackageManifest};
 pub use paths::Paths;
 pub use precognition::Precognition;

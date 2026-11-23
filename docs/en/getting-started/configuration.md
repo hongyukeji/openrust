@@ -192,6 +192,28 @@ async fn activate_maintenance(
 
 Read the state with `is_down_for_maintenance().await` and clear it with `app.maintenance_mode()?.deactivate().await?`. Queue workers read this state before reserving jobs.
 
+### Maintenance facade and drivers {#maintenance-facade}
+
+`MaintenanceMode` resolves the same application manager used by HTTP, Artisan and the scheduler. `get_default_driver` reads `app.maintenance.driver`, defaulting to `file` when absent. `driver(None)` selects it; `driver(Some("file"))`, `driver(Some("array"))` and `driver(Some("cache"))` select built-in drivers explicitly. Resolved drivers are shared within an application, while applications remain isolated.
+
+```rust
+use openrust::{foundation::maintenance::MaintenanceError, support::facades::MaintenanceMode};
+use serde_json::{Map, json};
+
+pub async fn update_maintenance() -> Result<(), MaintenanceError> {
+    MaintenanceMode::activate(&Map::from_iter([("status".into(), json!(503))])).await?;
+    assert!(MaintenanceMode::active().await?);
+    let _payload = MaintenanceMode::data().await?;
+    MaintenanceMode::deactivate().await
+}
+```
+
+`extend(name, creator)` registers a creator receiving `&Container` and returning `Arc<dyn contracts::foundation::MaintenanceMode>`. Existing resolved drivers stay in use until `forget_drivers`. The creator executes without a registry lock, may resolve another driver, and runs once for concurrent resolutions. Circular dependencies return `MaintenanceError::DriverResolutionCycle`. `get_drivers` returns resolved handles; old handles survive cache clearing. Subsequent HTTP requests and command/scheduler lookups resolve the current binding, including an explicitly replaced MaintenanceMode contract.
+
+`get_container` returns the owning container. `set_container(&Arc<Container>)` affects future creation and retains the manager's captured configuration, resolved drivers and creators. It uses weak ownership; access after that application is dropped returns an error. These are lifecycle controls for embedded applications, rather than per-request configuration.
+
+The cache driver captures `app.maintenance.store`, falling back to `cache.default`, and resolves that named repository for each operation. It follows repository replacement and uses `put_with_default`: initially 3600 seconds, or indefinitely when that repository's default lifetime is `None`. File maintenance stays active until explicitly cleared. Missing state is represented by `data() == None`; backend, decoding and rejected-write errors propagate. The `array` driver is local to the application process, so it cannot coordinate separate server or Worker processes.
+
 ## Testing Environment and Bootstrap Snapshot {#testing-environment}
 
 `Application::running_unit_tests()` and the application contract return `Result<bool, BindingResolutionError>`. The result is true only when the bound `env` is exactly `testing`, regardless of whether a test harness is running. Before the environment is bound it returns `Ok(false)` without resolving a service. Resolution errors propagate. Changing `config("app.env")` later does not replace the detected environment binding.

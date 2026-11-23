@@ -797,10 +797,92 @@
       "type": "MaintenanceMode",
       "source": "src/Illuminate/Support/Facades/MaintenanceMode.php",
       "public_entries": [
-        "getDefaultDriver", "driver", "extend", "getDrivers", "getContainer", "setContainer",
+        "getDefaultDriver",
+        "driver",
+        "extend",
+        "getDrivers",
+        "getContainer",
+        "setContainer",
         "forgetDrivers"
       ],
-      "review": "pending"
+      "review": "partial",
+      "local": "support::facades::MaintenanceMode -> foundation::MaintenanceModeManager",
+      "target_sources": [
+        "src/Illuminate/Foundation/MaintenanceModeManager.php",
+        "src/Illuminate/Support/Manager.php",
+        "src/Illuminate/Support/RebindsCallbacksToSelf.php",
+        "src/Illuminate/Contracts/Foundation/MaintenanceMode.php",
+        "src/Illuminate/Foundation/Providers/FoundationServiceProvider.php"
+      ],
+      "delegated_entries": [
+        "activate",
+        "deactivate",
+        "active",
+        "data"
+      ],
+      "constructor": "MaintenanceModeManager::new(&Arc<Container>) -> Result<Self, MaintenanceError>; captures config and weakly owns container",
+      "tested_entries": {
+        "getDefaultDriver": {
+          "local": "get_default_driver() -> Result<String, MaintenanceError>",
+          "defaults": "missing=file; configured string retained; non-string InvalidDriver",
+          "test": "maintenance_facade_uses_real_manager_custom_creators_and_concurrent_resolution"
+        },
+        "driver": {
+          "local": "driver(Option<&str>) -> Result<Arc<dyn MaintenanceMode>, MaintenanceError>",
+          "defaults": "None/empty chooses default; built-ins file,array,cache; custom creator takes precedence",
+          "errors": "InvalidDriver / DriverResolutionCycle / Unavailable / backend error",
+          "lifecycle": "one resolved driver per name per manager, concurrent calls share it; callback runs outside registry locks",
+          "test": "maintenance_facade_uses_real_manager_custom_creators_and_concurrent_resolution"
+        },
+        "extend": {
+          "local": "extend(name, Fn(&Container) -> Result<Arc<dyn MaintenanceMode>, MaintenanceError>) -> Result<Arc<MaintenanceModeManager>, MaintenanceError>",
+          "defaults": "custom factories retained by forget_drivers; existing resolved instance retained until forgotten",
+          "adaptation": "typed closure receives actual container; it may capture a weak manager handle or resolve the bound manager, preserving callback receiver use without PHP Closure rebinding",
+          "test": "maintenance_facade_uses_real_manager_custom_creators_and_concurrent_resolution"
+        },
+        "getDrivers": {
+          "local": "get_drivers() -> Result<HashMap<String, Arc<dyn MaintenanceMode>>, MaintenanceError>",
+          "lifecycle": "only resolved entries; old returned handles survive cache clearing",
+          "test": "maintenance_facade_uses_real_manager_custom_creators_and_concurrent_resolution"
+        },
+        "getContainer": {
+          "local": "get_container() -> Result<Arc<Container>, MaintenanceError>",
+          "errors": "Unavailable after owning application is dropped",
+          "test": "maintenance_driver_changes_are_visible_to_application_and_keep_captured_config"
+        },
+        "setContainer": {
+          "local": "set_container(&Arc<Container>) -> Result<Arc<MaintenanceModeManager>, MaintenanceError>",
+          "lifecycle": "retains captured configuration, creators and resolved drivers; future resolution receives selected container; weak ownership prevents cycles",
+          "test": "maintenance_facade_uses_real_manager_custom_creators_and_concurrent_resolution / maintenance_driver_changes_are_visible_to_application_and_keep_captured_config"
+        },
+        "forgetDrivers": {
+          "local": "forget_drivers() -> Result<Arc<MaintenanceModeManager>, MaintenanceError>",
+          "lifecycle": "drops resolved entries outside registry lock; no stale middleware handle; custom creators retained",
+          "test": "maintenance_facade_uses_real_manager_custom_creators_and_concurrent_resolution"
+        },
+        "activate": {
+          "local": "activate(&MaintenancePayload) async -> Result<(), MaintenanceError>",
+          "errors": "I/O, decoding, cache, rejected writes propagate",
+          "lifecycle": "HTTP/Artisan/Schedule/Worker use same configured service; cache driver uses repository default TTL and current named repository",
+          "test": "maintenance_cache_uses_repository_default_lifetime_and_follows_purge / artisan_worker_uses_maintenance_manager_and_force_with_real_redis_queue"
+        },
+        "deactivate": {
+          "local": "deactivate() async -> Result<(), MaintenanceError>",
+          "lifecycle": "same actual driver as application/commands; file removed, cache forgotten, array inactive",
+          "test": "maintenance_http_resolves_explicit_contract_replacement_after_kernel_start"
+        },
+        "active": {
+          "local": "active() async -> Result<bool, MaintenanceError>",
+          "lifecycle": "actual current driver status, including explicit contract replacement",
+          "test": "maintenance_facade_uses_real_manager_custom_creators_and_concurrent_resolution"
+        },
+        "data": {
+          "local": "data() async -> Result<Option<MaintenancePayload>, MaintenanceError>",
+          "adaptation": "None represents absent/inactive data; Some(empty map) represents active empty payload. This preserves existing Rust contract and exposes the active/inactive distinction; PHP array inactive payload is []",
+          "test": "maintenance_facade_uses_real_manager_custom_creators_and_concurrent_resolution / file_maintenance_is_atomic_shared_by_root_and_reports_invalid_payload"
+        }
+      },
+      "qualification": "本批管理器、四个实际驱动委托与运行消费者已验收；清理后重新编译、真实 Redis Worker 和全工作区严格 Clippy 通过。通用Facade基类继承的测试替身与缓存生命周期仍归公共基类审计，暂不宣布完整门面闭合。"
     },
     {
       "type": "Notification",

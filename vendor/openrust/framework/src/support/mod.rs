@@ -9,6 +9,7 @@ mod data;
 mod date;
 
 mod deferred_provider;
+pub(crate) mod driver_registry;
 mod dumping;
 mod enumerable;
 pub mod facades;

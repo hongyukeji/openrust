@@ -192,6 +192,28 @@ async fn activate_maintenance(
 
 用 `is_down_for_maintenance().await` 读取状态，用 `app.maintenance_mode()?.deactivate().await?` 清除。队列 Worker 在预约任务前读取此状态。
 
+### 维护模式门面与驱动 {#maintenance-facade}
+
+`MaintenanceMode` 使用 HTTP、Artisan 和调度器共用的应用管理器。`get_default_driver` 读取 `app.maintenance.driver`，缺失时默认 `file`。`driver(None)` 选择默认驱动；`driver(Some("file"))`、`driver(Some("array"))` 和 `driver(Some("cache"))` 显式选择内置驱动。已解析驱动在应用内共享，不同应用相互隔离。
+
+```rust
+use openrust::{foundation::maintenance::MaintenanceError, support::facades::MaintenanceMode};
+use serde_json::{Map, json};
+
+pub async fn update_maintenance() -> Result<(), MaintenanceError> {
+    MaintenanceMode::activate(&Map::from_iter([("status".into(), json!(503))])).await?;
+    assert!(MaintenanceMode::active().await?);
+    let _payload = MaintenanceMode::data().await?;
+    MaintenanceMode::deactivate().await
+}
+```
+
+`extend(name, creator)` 注册创建器，接收 `&Container` 并返回 `Arc<dyn contracts::foundation::MaintenanceMode>`。已有驱动继续使用，直到 `forget_drivers` 清空实例。创建器不持注册表锁，可解析其他驱动；并发解析同一驱动只执行一次创建。循环依赖返回 `MaintenanceError::DriverResolutionCycle`。`get_drivers` 返回已解析句柄，清空后旧句柄仍有效。后续 HTTP 请求、命令和调度器解析当前绑定，也遵循显式替换的 MaintenanceMode Contract。
+
+`get_container` 返回所属容器。`set_container(&Arc<Container>)` 影响后续创建，保留管理器构造时取得的配置、已解析驱动和创建器。容器使用弱持有，所属应用释放后访问会报错。这些入口用于嵌入应用的生命周期控制，不宜作为逐请求配置。
+
+缓存驱动记录 `app.maintenance.store`，未指定时回退 `cache.default`，每次操作重新解析该具名仓储，因此能跟随仓储替换。写入使用 `put_with_default`：初始有效期为 3600 秒，仓储默认时长设为 `None` 时永久保存。文件维护状态保留至显式清除。没有状态时 `data()` 返回 `None`，后端、解码及拒绝写入的错误向上传递。`array` 仅限应用进程内，不能协调独立的服务器或 Worker 进程。
+
 ## 测试环境与启动快照 {#testing-environment}
 
 `Application::running_unit_tests()` 和应用契约返回 `Result<bool, BindingResolutionError>`。仅当容器中的 `env` 精确为 `testing` 时结果为 true，与是否正在运行测试程序无关。环境未绑定时返回 `Ok(false)`，不触发服务解析；解析错误沿 `Result` 传播。后续修改 `config("app.env")` 不会替换已检测的环境绑定。
