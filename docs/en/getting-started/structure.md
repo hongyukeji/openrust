@@ -6,6 +6,10 @@ The root `main.rs` connects Tokio and `bootstrap::create_application`. `Cargo.to
 
 The framework lives in `vendor/openrust/framework/`. Views are in `resources/views/`, website files in `public/`, and the public storage disk in `storage/app/public/`. Tests belong in the root application's or the owning crate's `tests/` directory.
 
+## Models, persistence and services
+
+`app/models/` contains model mappings, casts, relationships and model behavior. Keep generated table and column constants near the top of each model; schema inspection and source generation belong to the framework. Place application-specific database queries in `app/repositories/` and business workflows in `app/services/` when needed. Models retain their Eloquent query and save APIs; repositories implement persistence, and services coordinate business rules and transactions.
+
 ## The Bootstrap Directory
 
 The application’s `bootstrap/` directory contains the declarations used to construct the application.

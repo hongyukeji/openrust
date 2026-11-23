@@ -54,7 +54,7 @@ pub trait HasApiTokens: Model + Authenticatable {
         sanctum.require_token_model::<T>()?;
         let owner = self.tokens(sanctum, database)?;
         Ok(
-            super::token_model::EloquentTokenStore::<T>::new(owner.store.connection().clone())
+            super::token_store::EloquentTokenStore::<T>::new(owner.store.connection().clone())
                 .owner_query(owner.owner_type, owner.owner_id),
         )
     }

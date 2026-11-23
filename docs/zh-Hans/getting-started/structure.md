@@ -6,6 +6,10 @@
 
 框架源码位于 `vendor/openrust/framework/`。视图位于 `resources/views/`，网站文件位于 `public/`，公共存储磁盘位于 `storage/app/public/`。测试放在根应用或所属 crate 的 `tests/` 目录。
 
+## 模型、持久化与服务
+
+`app/models/` 保存模型映射、属性转换、关系和模型自身行为。生成的表名与列名常量放在模型顶部附近，数据库结构读取与源码生成由框架负责。按业务需要，将应用专用查询放在 `app/repositories/`，业务流程放在 `app/services/`。模型保留 Eloquent 查询和保存接口；仓储实现持久化，服务协调业务规则与事务。
+
 ## Bootstrap 目录
 
 应用的 `bootstrap/` 目录存放构造应用所需的装配声明。

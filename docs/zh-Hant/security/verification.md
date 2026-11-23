@@ -27,6 +27,8 @@ pub async fn verify(
 
 驗證連結只適用於目前信箱的精確拼法，包括大小寫。應用程式更換信箱時，應在同一次資料庫更新中清除 `email_verified_at`，並傳送新連結。儲存驗證狀態時，應以目前信箱和未設定的驗證時間作為更新條件。用 `where_exact_text` 比對信箱可避免定序影響。並行請求中只有寫入時間戳記的一次會派送 `Verified`。
 
+預設 `User` 將條件更新委託給 `openrust::auth::email_verification::set_verification`，傳入模型及電子郵件、驗證時間與更新時間的欄位名稱。此方法使用模型的連線與資料表，比對主鍵及精確電子郵件，成功寫入後才同步記憶體屬性。狀態已符合目標或電子郵件過時時回傳 `false`，資料庫錯誤繼續向上傳遞。此條件更新不派送 Eloquent 儲存事件；`Verified` 事件仍由 `EmailVerificationRequest::fulfill` 負責派送。
+
 <span id="default-email-verification-mail"></span>
 
 預設驗證郵件提供本地化按鈕，純文字版本包含暫時簽署的連結。

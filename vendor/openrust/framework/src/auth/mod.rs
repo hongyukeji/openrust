@@ -7,6 +7,7 @@ mod basic;
 pub(crate) mod console;
 mod database_user_provider;
 mod eloquent_user_provider;
+pub mod email_verification;
 pub mod events;
 pub mod listeners;
 pub mod middleware;

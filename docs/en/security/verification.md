@@ -27,6 +27,8 @@ The verification request checks the authenticated user and the current email dig
 
 A verification link applies to the exact current email address, including case. When an application changes the address, clear `email_verified_at` in the same database update and send a new link. Persist verification with a conditional update for the current address and an unset verification timestamp. Use `where_exact_text` to match the address independently of the database collation. Concurrent requests dispatch `Verified` only for the request that writes the timestamp.
 
+The default `User` delegates its conditional update to `openrust::auth::email_verification::set_verification`, passing the model and its email, verification timestamp and update timestamp column names. The helper uses the model connection and table, matches the primary key and exact email, and updates in-memory attributes only after a successful write. It returns `false` for an already-matching state or a stale email and propagates database errors. This conditional update does not dispatch Eloquent save events; `EmailVerificationRequest::fulfill` remains responsible for dispatching `Verified`.
+
 <span id="default-email-verification-mail"></span>
 
 The default verification email uses a localized action button and includes the temporary signed URL in its plain-text version.

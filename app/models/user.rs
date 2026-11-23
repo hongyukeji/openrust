@@ -5,7 +5,7 @@ use openrust::{
     },
     contracts::auth::{Authenticatable, CanResetPassword, MustVerifyEmail},
     database::{
-        Db, Value,
+        Value,
         eloquent::{Model, ModelMetadata, ModelState, casts::AttributeCast},
     },
 };
@@ -138,42 +138,14 @@ impl MustVerifyEmail for User {
 
 impl User {
     async fn set_verification(&mut self, verified: bool) -> AuthResult<bool> {
-        let now = jiff::Timestamp::now()
-            .strftime("%Y-%m-%d %H:%M:%S")
-            .to_string();
-        let value = if verified {
-            Value::Text(now.clone())
-        } else {
-            Value::Null
-        };
-        let query = Db::connection(self.get_connection_name())?
-            .table(self.get_table())
-            .r#where(
-                self.get_key_name(),
-                "=",
-                Value::from(self.get_auth_identifier()),
-            )
-            .where_exact_text(Self::EMAIL, self.get_email_for_verification());
-        let query = if verified {
-            query.where_null(Self::EMAIL_VERIFIED_AT)
-        } else {
-            query.where_not_null(Self::EMAIL_VERIFIED_AT)
-        };
-        let changed = query
-            .update(
-                [
-                    (Self::EMAIL_VERIFIED_AT.into(), value.clone()),
-                    (Self::UPDATED_AT.into(), now.clone().into()),
-                ]
-                .into(),
-            )
-            .await?
-            != 0;
-        if changed {
-            self.set_attribute(Self::EMAIL_VERIFIED_AT, value);
-            self.set_attribute(Self::UPDATED_AT, now);
-        }
-        Ok(changed)
+        openrust::auth::email_verification::set_verification(
+            self,
+            verified,
+            Self::EMAIL,
+            Self::EMAIL_VERIFIED_AT,
+            Self::UPDATED_AT,
+        )
+        .await
     }
 }
 

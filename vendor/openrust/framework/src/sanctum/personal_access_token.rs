@@ -7,7 +7,8 @@ use crate::{
     database::{Connection, DatabaseError, DatabaseResult, Value, query::Record},
 };
 
-use super::token_model::{EloquentTokenStore, ModelStore, ModelToken, PersonalAccessTokenModel};
+use super::token_model::PersonalAccessTokenModel;
+use super::token_store::{EloquentTokenStore, ModelStore, ModelToken};
 
 pub(super) const TIMESTAMP: &str = "%Y-%m-%d %H:%M:%S";
 
@@ -23,7 +24,7 @@ pub struct PersonalAccessToken {
     pub updated_at: Option<Timestamp>,
     pub last_used_at: Option<Timestamp>,
     pub expires_at: Option<Timestamp>,
-    pub(super) serialized_model: super::token_model::SerializedModel,
+    pub(super) serialized_model: super::token_store::SerializedModel,
 }
 
 impl serde::Serialize for PersonalAccessToken {

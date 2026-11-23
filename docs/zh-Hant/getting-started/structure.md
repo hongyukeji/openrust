@@ -6,6 +6,10 @@
 
 框架原始碼位於 `vendor/openrust/framework/`。檢視位於 `resources/views/`，網站檔案位於 `public/`，公開儲存磁碟位於 `storage/app/public/`。測試放在根應用程式或所屬 crate 的 `tests/` 目錄。
 
+## 模型、持久化與服務
+
+`app/models/` 儲存模型映射、屬性轉換、關聯及模型自身行為。產生的資料表與欄位名稱常數放在模型頂部附近，資料庫結構讀取與原始碼產生由框架負責。依業務需要，將應用程式專用查詢放在 `app/repositories/`，業務流程放在 `app/services/`。模型保留 Eloquent 查詢與儲存介面；儲存庫實作持久化，服務協調業務規則與交易。
+
 ## Bootstrap 目錄
 
 應用程式的 `bootstrap/` 目錄存放建立應用程式所需的裝配宣告。

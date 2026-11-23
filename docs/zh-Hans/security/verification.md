@@ -27,6 +27,8 @@ pub async fn verify(
 
 验证链接只适用于当前邮箱的准确写法，包括大小写。应用更换邮箱时，应在同一次数据库更新中清除 `email_verified_at`，并发送新链接。保存验证状态时，应以当前邮箱和未设置的验证时间作为更新条件。用 `where_exact_text` 匹配邮箱可避免排序规则影响。并发请求中只有写入时间戳的一次会派送 `Verified`。
 
+默认 `User` 将条件更新委托给 `openrust::auth::email_verification::set_verification`，传入模型及邮箱、验证时间和更新时间的列名。该方法使用模型的连接和表，匹配主键及精确邮箱，成功写入后才同步内存属性。状态已符合目标或邮箱过时时返回 `false`，数据库错误继续向上传递。该条件更新不派发 Eloquent 保存事件；`Verified` 事件仍由 `EmailVerificationRequest::fulfill` 负责派发。
+
 <span id="default-email-verification-mail"></span>
 
 默认验证邮件提供本地化按钮，纯文本版本包含临时签名链接。
