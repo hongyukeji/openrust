@@ -10,6 +10,8 @@
 
 原生接口及用法见 [Views](../the-basics/views.md)。集成其他库或服务时，应用需实现适配层，并按该服务的契约验证生命周期、错误与凭据处理。
 
+入口清单解析、资源标签与开发服务器接线见[资源构建／Vite](../the-basics/vite.md)。
+
 ## 范围 {#scope}
 
 OpenRust 不提供此集成的安装命令。不要因存在此导航入口就将框架Composer 或 Artisan 命令照搬到 OpenRust。

@@ -303,3 +303,11 @@ impl From<crate::filesystem::FileError> for HttpError {
         }
     }
 }
+
+impl From<crate::foundation::vite::ViteError> for HttpError {
+    fn from(source: crate::foundation::vite::ViteError) -> Self {
+        Self::Internal {
+            source: Box::new(source),
+        }
+    }
+}

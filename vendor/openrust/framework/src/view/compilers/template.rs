@@ -871,7 +871,7 @@ impl<'a> Parser<'a> {
             }
             return self.custom_condition(depth, name, negated).map(Some);
         }
-        if !self.extensions.directives.contains_key(name) {
+        if self.extensions.directive(name).is_none() {
             return Ok(None);
         }
         self.consume_statement(rest);
@@ -1324,7 +1324,7 @@ impl<'a> Parser<'a> {
 
     fn custom_stop(&mut self) -> Option<Stop<'a>> {
         let (name, rest) = self.custom_tag()?;
-        if self.extensions.directives.contains_key(name) {
+        if self.extensions.directive(name).is_some() {
             return None;
         }
         let (base, is_else) = if let Some(base) = name.strip_prefix("else") {
@@ -1354,7 +1354,7 @@ impl<'a> Parser<'a> {
             return false;
         };
         if !token.eq_ignore_ascii_case(name)
-            || self.extensions.directives.contains_key(token)
+            || self.extensions.directive(token).is_some()
             || self.extensions.conditions.contains_key(token)
         {
             return false;
@@ -2043,10 +2043,10 @@ fn render_nodes(
                 output.push('"');
             }
             Node::CustomDirective(name, arguments) => {
-                let callback =
-                    context.extensions.directives.get(name).ok_or_else(|| {
-                        render_error("Blade directive registration was not found.")
-                    })?;
+                let callback = context
+                    .extensions
+                    .directive(name)
+                    .ok_or_else(|| render_error("Blade directive registration was not found."))?;
                 let arguments = arguments
                     .iter()
                     .map(|argument| value(argument, data, bindings).map(Cow::into_owned))

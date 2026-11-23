@@ -268,6 +268,7 @@ impl View {
                         .into(),
                 })?;
             let context = crate::support::facades::context_snapshot();
+            let url = crate::http::request_context::UrlSnapshot::capture(request);
             let locale = crate::translation::LocaleSnapshot::capture();
             let scope = crate::container::ScopeSnapshot::capture();
             let errors = middleware::shared_errors();
@@ -276,7 +277,13 @@ impl View {
             let mut rendering = tokio::task::spawn_blocking(move || {
                 middleware::render_scope(errors, || {
                     locale.run(|| {
-                        scope.run(|| context.run(|| factory.render_in_request(self, request_data)))
+                        scope.run(|| {
+                            context.run(|| {
+                                crate::http::request_context::UrlSnapshot::run(url, || {
+                                    factory.render_in_request(self, request_data)
+                                })
+                            })
+                        })
                     })
                 })
             });

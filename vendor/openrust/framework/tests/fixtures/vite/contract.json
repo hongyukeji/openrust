@@ -1,0 +1,66 @@
+{
+    "dynamic": "<link rel=\"preload\" as=\"style\" href=\"https://dynamic.test/3/build/assets/vendor.css\" nonce=\"changed\" integrity=\"sha384-vendor-css\" /><link rel=\"preload\" as=\"style\" href=\"https://dynamic.test/6/build/assets/app.css\" nonce=\"changed\" integrity=\"sha384-css\" /><link rel=\"preload\" as=\"style\" href=\"https://dynamic.test/8/build/assets/app.css\" nonce=\"changed\" integrity=\"sha384-css\" /><link rel=\"modulepreload\" as=\"script\" href=\"https://dynamic.test/1/build/assets/app.js\" nonce=\"changed\" integrity=\"sha384-app\" /><link rel=\"modulepreload\" as=\"script\" href=\"https://dynamic.test/2/build/assets/vendor.js\" nonce=\"changed\" integrity=\"sha384-vendor\" /><link rel=\"stylesheet\" href=\"https://dynamic.test/4/build/assets/vendor.css\" integrity=\"sha384-vendor-css\" /><link rel=\"stylesheet\" href=\"https://dynamic.test/7/build/assets/app.css\" nonce=\"changed\" integrity=\"sha384-css\" /><link rel=\"stylesheet\" href=\"https://dynamic.test/9/build/assets/app.css\" nonce=\"changed\" integrity=\"sha384-css\" /><script type=\"module\" src=\"https://dynamic.test/5/build/assets/app.js\" nonce=\"changed\" integrity=\"sha384-app\"></script>",
+    "dynamic_calls": 9,
+    "plain": "<link rel=\"preload\" as=\"style\" href=\"https://app.test/build/assets/vendor.css\" integrity=\"sha384-vendor-css\" /><link rel=\"preload\" as=\"style\" href=\"https://app.test/build/assets/app.css\" integrity=\"sha384-css\" /><link rel=\"modulepreload\" as=\"script\" href=\"https://app.test/build/assets/app.js\" integrity=\"sha384-app\" /><link rel=\"modulepreload\" as=\"script\" href=\"https://app.test/build/assets/vendor.js\" integrity=\"sha384-vendor\" /><link rel=\"stylesheet\" href=\"https://app.test/build/assets/vendor.css\" integrity=\"sha384-vendor-css\" /><link rel=\"stylesheet\" href=\"https://app.test/build/assets/app.css\" integrity=\"sha384-css\" /><script type=\"module\" src=\"https://app.test/build/assets/app.js\" integrity=\"sha384-app\"></script>",
+    "preloaded": {
+        "https://app.test/build/assets/vendor.css": [
+            "rel=\"preload\"",
+            "as=\"style\"",
+            "integrity=\"sha384-vendor-css\""
+        ],
+        "https://app.test/build/assets/app.css": [
+            "rel=\"preload\"",
+            "as=\"style\"",
+            "integrity=\"sha384-css\""
+        ],
+        "https://app.test/build/assets/app.js": [
+            "rel=\"modulepreload\"",
+            "as=\"script\"",
+            "integrity=\"sha384-app\""
+        ],
+        "https://app.test/build/assets/vendor.js": [
+            "rel=\"modulepreload\"",
+            "as=\"script\"",
+            "integrity=\"sha384-vendor\""
+        ]
+    },
+    "custom": "<link rel=\"preload\" as=\"style\" href=\"https://app.test/build/assets/vendor.css\" nonce=\"fixed-nonce\" crossorigin integrity=\"sha384-vendor-css\" /><link rel=\"preload\" as=\"style\" href=\"https://app.test/build/assets/app.css\" nonce=\"fixed-nonce\" crossorigin integrity=\"sha384-css\" /><link rel=\"modulepreload\" as=\"script\" href=\"https://app.test/build/assets/app.js\" nonce=\"fixed-nonce\" integrity=\"sha384-app\" /><link rel=\"modulepreload\" as=\"script\" href=\"https://app.test/build/assets/vendor.js\" nonce=\"fixed-nonce\" integrity=\"sha384-vendor\" /><link rel=\"stylesheet\" href=\"https://app.test/build/assets/vendor.css\" nonce=\"fixed-nonce\" integrity=\"sha384-vendor-css\" crossorigin /><link rel=\"stylesheet\" href=\"https://app.test/build/assets/app.css\" nonce=\"fixed-nonce\" integrity=\"sha384-css\" crossorigin /><script type=\"module\" src=\"https://app.test/build/assets/app.js\" nonce=\"fixed-nonce\" integrity=\"sha384-app\" defer data-number=\"0\"></script>",
+    "custom_preloaded": {
+        "https://app.test/build/assets/vendor.css": [
+            "rel=\"preload\"",
+            "as=\"style\"",
+            "nonce=\"fixed-nonce\"",
+            "crossorigin",
+            "integrity=\"sha384-vendor-css\""
+        ],
+        "https://app.test/build/assets/app.css": [
+            "rel=\"preload\"",
+            "as=\"style\"",
+            "nonce=\"fixed-nonce\"",
+            "crossorigin",
+            "integrity=\"sha384-css\""
+        ],
+        "https://app.test/build/assets/app.js": [
+            "rel=\"modulepreload\"",
+            "as=\"script\"",
+            "nonce=\"fixed-nonce\"",
+            "integrity=\"sha384-app\""
+        ],
+        "https://app.test/build/assets/vendor.js": [
+            "rel=\"modulepreload\"",
+            "as=\"script\"",
+            "nonce=\"fixed-nonce\"",
+            "integrity=\"sha384-vendor\""
+        ]
+    },
+    "content": "console.log('app');\n",
+    "hash": "8021de00f215402ef79e0c753b42f3bc",
+    "to_html": "<link rel=\"preload\" as=\"style\" href=\"https://app.test/build/assets/vendor.css\" nonce=\"fixed-nonce\" crossorigin integrity=\"sha384-vendor-css\" /><link rel=\"preload\" as=\"style\" href=\"https://app.test/build/assets/app.css\" nonce=\"fixed-nonce\" crossorigin integrity=\"sha384-css\" /><link rel=\"modulepreload\" as=\"script\" href=\"https://app.test/build/assets/app.js\" nonce=\"fixed-nonce\" integrity=\"sha384-app\" /><link rel=\"modulepreload\" as=\"script\" href=\"https://app.test/build/assets/vendor.js\" nonce=\"fixed-nonce\" integrity=\"sha384-vendor\" /><link rel=\"stylesheet\" href=\"https://app.test/build/assets/vendor.css\" nonce=\"fixed-nonce\" integrity=\"sha384-vendor-css\" crossorigin /><link rel=\"stylesheet\" href=\"https://app.test/build/assets/app.css\" nonce=\"fixed-nonce\" integrity=\"sha384-css\" crossorigin /><script type=\"module\" src=\"https://app.test/build/assets/app.js\" nonce=\"fixed-nonce\" integrity=\"sha384-app\" defer data-number=\"0\"></script>",
+    "after_flush": [],
+    "nonce": "fixed-nonce",
+    "missing": true,
+    "dev": "<script type=\"module\" src=\"http://127.0.0.1:5173/@vite/client\" nonce=\"fixed-nonce\" defer data-number=\"0\"></script><script type=\"module\" src=\"http://127.0.0.1:5173/resources/js/app.js\" nonce=\"fixed-nonce\" defer data-number=\"0\"></script><link rel=\"stylesheet\" href=\"http://127.0.0.1:5173/resources/css/app.css\" nonce=\"fixed-nonce\" crossorigin />",
+    "refresh": "<script type=\"module\" nonce=\"fixed-nonce\">\n    import RefreshRuntime from 'http://127.0.0.1:5173/@react-refresh'\n    RefreshRuntime.injectIntoGlobalHook(window)\n    window.$RefreshReg$ = () => {}\n    window.$RefreshSig$ = () => (type) => type\n    window.__vite_plugin_react_preamble_installed__ = true\n</script>",
+    "dev_asset": "http://127.0.0.1:5173/resources/js/app.js",
+    "dev_hash": null
+}

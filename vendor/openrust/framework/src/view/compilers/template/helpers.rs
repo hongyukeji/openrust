@@ -17,6 +17,13 @@ enum Operation {
     Config,
     HasConfig,
     StringConfig,
+    ViteAsset,
+    ViteContent,
+    ViteHash,
+    ViteNonce,
+    ViteHot,
+    ViteDevServer,
+    ViteHtml,
     Request(RequestOperation),
 }
 
@@ -65,6 +72,13 @@ impl Helper {
             ("Config::get", Operation::Config, 1, 2),
             ("Config::has", Operation::HasConfig, 1, 1),
             ("Config::string", Operation::StringConfig, 1, 1),
+            ("Vite::asset", Operation::ViteAsset, 1, 2),
+            ("Vite::content", Operation::ViteContent, 1, 2),
+            ("Vite::manifestHash", Operation::ViteHash, 0, 1),
+            ("Vite::cspNonce", Operation::ViteNonce, 0, 0),
+            ("Vite::isRunningHot", Operation::ViteHot, 0, 0),
+            ("Vite::devServerUrl", Operation::ViteDevServer, 0, 0),
+            ("Vite::toHtml", Operation::ViteHtml, 0, 0),
             (
                 "Lang::hasForLocale",
                 Operation::HasTranslationForLocale,
@@ -167,6 +181,54 @@ impl Helper {
                 .map_err(|source| super::ViewError::RenderFailed(Box::new(source))),
             Operation::Repository => Ok(crate::foundation::Application::REPOSITORY.into()),
             Operation::FrameworkVersion => Ok(crate::foundation::Application::VERSION.into()),
+            Operation::ViteAsset
+            | Operation::ViteContent
+            | Operation::ViteHash
+            | Operation::ViteNonce
+            | Operation::ViteHot
+            | Operation::ViteDevServer
+            | Operation::ViteHtml => {
+                use crate::support::facades::Vite;
+                let text = |index: usize| -> ViewResult<&str> {
+                    arguments[index]
+                        .as_ref()
+                        .as_str()
+                        .ok_or_else(|| render_error("前端资源参数必须是字符串"))
+                };
+                let optional = |index: usize| -> ViewResult<Option<&str>> {
+                    arguments
+                        .get(index)
+                        .filter(|value| !value.is_null())
+                        .map(|_| text(index))
+                        .transpose()
+                };
+                let error = |source| super::ViewError::RenderFailed(Box::new(source));
+                match self.operation {
+                    Operation::ViteAsset => Vite::asset(text(0)?, optional(1)?)
+                        .map(ViewValue::String)
+                        .map_err(error),
+                    Operation::ViteContent => {
+                        let bytes = Vite::content(text(0)?, optional(1)?).map_err(error)?;
+                        String::from_utf8(bytes)
+                            .map(ViewValue::String)
+                            .map_err(|source| super::ViewError::RenderFailed(Box::new(source)))
+                    }
+                    Operation::ViteHash => Vite::manifest_hash(optional(0)?)
+                        .map(|value| value.map(ViewValue::String).unwrap_or_default())
+                        .map_err(error),
+                    Operation::ViteNonce => Vite::csp_nonce()
+                        .map(|value| value.map(ViewValue::String).unwrap_or_default())
+                        .map_err(error),
+                    Operation::ViteHot => {
+                        Vite::is_running_hot().map(ViewValue::Bool).map_err(error)
+                    }
+                    Operation::ViteDevServer => Vite::dev_server_url()
+                        .map(|value| value.map(ViewValue::String).unwrap_or_default())
+                        .map_err(error),
+                    Operation::ViteHtml => Vite::to_html().map(ViewValue::String).map_err(error),
+                    _ => unreachable!(),
+                }
+            }
             Operation::StringConfig => {
                 let key = arguments[0]
                     .as_ref()

@@ -2411,15 +2411,210 @@
       "type": "Vite",
       "source": "src/Illuminate/Support/Facades/Vite.php",
       "public_entries": [
-        "preloadedAssets", "cspNonce", "useCspNonce", "useIntegrityKey", "withEntryPoints",
-        "mergeEntryPoints", "useManifestFilename", "createAssetPathsUsing", "hotFile", "useHotFile",
-        "useBuildDirectory", "useScriptTagAttributes", "useStyleTagAttributes", "usePreloadTagAttributes",
-        "prefetch", "useWaterfallPrefetching", "useAggressivePrefetching", "usePrefetchStrategy",
-        "reactRefresh", "devServerUrl", "asset", "content", "manifestHash", "fonts",
-        "useFontsManifestFilename", "isRunningHot", "toHtml", "flush", "macro", "mixin", "hasMacro",
+        "preloadedAssets",
+        "cspNonce",
+        "useCspNonce",
+        "useIntegrityKey",
+        "withEntryPoints",
+        "mergeEntryPoints",
+        "useManifestFilename",
+        "createAssetPathsUsing",
+        "hotFile",
+        "useHotFile",
+        "useBuildDirectory",
+        "useScriptTagAttributes",
+        "useStyleTagAttributes",
+        "usePreloadTagAttributes",
+        "prefetch",
+        "useWaterfallPrefetching",
+        "useAggressivePrefetching",
+        "usePrefetchStrategy",
+        "reactRefresh",
+        "devServerUrl",
+        "asset",
+        "content",
+        "manifestHash",
+        "fonts",
+        "useFontsManifestFilename",
+        "isRunningHot",
+        "toHtml",
+        "flush",
+        "macro",
+        "mixin",
+        "hasMacro",
         "flushMacros"
       ],
-      "review": "pending"
+      "review": "partial",
+      "local": "support::facades::Vite -> foundation::Vite application singleton + scoped Execution; actual Blade compiler builtins",
+      "tested_entries": {
+        "preloadedAssets": {
+          "local": "preloaded_assets",
+          "status": "verified-native-adapter",
+          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs"
+        },
+        "cspNonce": {
+          "local": "csp_nonce",
+          "status": "verified-native-adapter",
+          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs"
+        },
+        "useCspNonce": {
+          "local": "use_csp_nonce",
+          "status": "verified-native-adapter",
+          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs"
+        },
+        "useIntegrityKey": {
+          "local": "use_integrity_key",
+          "status": "verified-native-adapter",
+          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs"
+        },
+        "withEntryPoints": {
+          "local": "with_entry_points",
+          "status": "verified-native-adapter",
+          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs"
+        },
+        "mergeEntryPoints": {
+          "local": "merge_entry_points",
+          "status": "verified-native-adapter",
+          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs"
+        },
+        "useManifestFilename": {
+          "local": "use_manifest_filename",
+          "status": "verified-native-adapter",
+          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs"
+        },
+        "createAssetPathsUsing": {
+          "local": "create_asset_paths_using",
+          "status": "verified-native-adapter",
+          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs"
+        },
+        "hotFile": {
+          "local": "hot_file",
+          "status": "verified-native-adapter",
+          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs"
+        },
+        "useHotFile": {
+          "local": "use_hot_file",
+          "status": "verified-native-adapter",
+          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs"
+        },
+        "useBuildDirectory": {
+          "local": "use_build_directory",
+          "status": "verified-native-adapter",
+          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs"
+        },
+        "useScriptTagAttributes": {
+          "local": "use_script_tag_attributes / *_using / *_using_fallible",
+          "status": "verified-native-adapter",
+          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs"
+        },
+        "useStyleTagAttributes": {
+          "local": "use_style_tag_attributes / *_using / *_using_fallible",
+          "status": "verified-native-adapter",
+          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs"
+        },
+        "usePreloadTagAttributes": {
+          "local": "use_preload_tag_attributes / *_using / *_using_fallible",
+          "status": "verified-native-adapter",
+          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs"
+        },
+        "prefetch": {
+          "local": null,
+          "status": "pending",
+          "evidence": "下一批补齐；不能以现有@fonts或View绕行代替正式门面"
+        },
+        "useWaterfallPrefetching": {
+          "local": null,
+          "status": "pending",
+          "evidence": "下一批补齐；不能以现有@fonts或View绕行代替正式门面"
+        },
+        "useAggressivePrefetching": {
+          "local": null,
+          "status": "pending",
+          "evidence": "下一批补齐；不能以现有@fonts或View绕行代替正式门面"
+        },
+        "usePrefetchStrategy": {
+          "local": null,
+          "status": "pending",
+          "evidence": "下一批补齐；不能以现有@fonts或View绕行代替正式门面"
+        },
+        "reactRefresh": {
+          "local": "react_refresh",
+          "status": "verified-native-adapter",
+          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs"
+        },
+        "devServerUrl": {
+          "local": "dev_server_url",
+          "status": "verified-native-adapter",
+          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs"
+        },
+        "asset": {
+          "local": "asset",
+          "status": "verified-native-adapter",
+          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs"
+        },
+        "content": {
+          "local": "content",
+          "status": "verified-native-adapter",
+          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs"
+        },
+        "manifestHash": {
+          "local": "manifest_hash",
+          "status": "verified-native-adapter",
+          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs"
+        },
+        "fonts": {
+          "local": null,
+          "status": "pending",
+          "evidence": "下一批补齐；不能以现有@fonts或View绕行代替正式门面"
+        },
+        "useFontsManifestFilename": {
+          "local": null,
+          "status": "pending",
+          "evidence": "下一批补齐；不能以现有@fonts或View绕行代替正式门面"
+        },
+        "isRunningHot": {
+          "local": "is_running_hot",
+          "status": "verified-native-adapter",
+          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs"
+        },
+        "toHtml": {
+          "local": "to_html",
+          "status": "verified-native-adapter",
+          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs"
+        },
+        "flush": {
+          "local": "flush",
+          "status": "verified-native-adapter",
+          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs"
+        },
+        "macro": {
+          "local": null,
+          "status": "pending",
+          "evidence": "下一批补齐；不能以现有@fonts或View绕行代替正式门面"
+        },
+        "mixin": {
+          "local": null,
+          "status": "pending",
+          "evidence": "下一批补齐；不能以现有@fonts或View绕行代替正式门面"
+        },
+        "hasMacro": {
+          "local": null,
+          "status": "pending",
+          "evidence": "下一批补齐；不能以现有@fonts或View绕行代替正式门面"
+        },
+        "flushMacros": {
+          "local": null,
+          "status": "pending",
+          "evidence": "下一批补齐；不能以现有@fonts或View绕行代替正式门面"
+        }
+      },
+      "remaining": [
+        "prefetch / waterfall / aggressive / custom strategy",
+        "fonts / useFontsManifestFilename 与现有字体解析统一",
+        "macro / mixin / hasMacro / flushMacros",
+        "Facade继承测试契约，完整逐入口最终裁决",
+        "发布环境及React应用HMR实机不计当前浏览器验收"
+      ]
     }
   ]
 }

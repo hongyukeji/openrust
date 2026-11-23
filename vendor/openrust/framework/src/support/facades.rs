@@ -25,6 +25,7 @@ pub use crate::cookie::facade::Cookie;
 pub use crate::database::{Db, schema::Schema};
 pub use crate::encryption::Crypt;
 pub use crate::filesystem::{File, Storage};
+pub use crate::foundation::vite::ViteFacade as Vite;
 pub use crate::hashing::Hash;
 pub use crate::http::client::Http;
 pub use crate::image::ImageFacade as Image;

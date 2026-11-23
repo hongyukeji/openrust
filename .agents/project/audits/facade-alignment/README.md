@@ -339,3 +339,18 @@ python3 -B tests/build_guard.py --workflow facade-alignment --target-dir target/
 - tests-resumed.log：5项新条件测试+11项File+5项实际模块测试，共21项本机通过；另2项后端缺环境早返回不计。覆盖非Clone业务对象、回退实例身份、空值/标量、真假副作用、查询/操作失败、跨应用原服务以及实际HTTP首次写入/重复跳过/JSON500和Artisan读取。初次内部方法可见性、HTTP夹具闭包路径借用问题已修复，失败日志保留；tests-final.log来自未完成脚本同步的旧源，不作为新增HTTP验收，最终以resumed为准。
 - workers.log：独立MySQL8.4.13和Redis8.10.3各1项真实Artisan queue:work通过，实际模块通过条件回调写入，两个任务完成、模块执行一次；测试表和临时容器已清理。全workspace/all-targets严格Clippy、fmt、三语构建和6项浏览器通过：clippy.log/fmt.log/docs.log/browser.log。
 - 本轮期间32GB磁盘守卫安全持锁清理本项目编译profile及生成站点，build-guard-events.jsonl记录释放62,832,758,784字节、清理后94,699,384,832字节；源码、未提交改动、日志和依赖保留。后续重新编译及文档构建通过，当前增量缓存按规范保留。File其余JSON/glob/hash/MIME/平台与共享Facade测试契约仍未闭合。
+
+
+### Vite：清单、资源标签与真实渲染接线（2026-11-24，仍 partial）
+
+- 固定Vite.php已从官方提交核对SHA256并与本地归档逐字一致，参考记录`vite/reference.json`。旧版未发现可复用的Vite服务；复用当前URL生成器、容器、View编译器、HtmlString和现有md5。没有新增前端工具包装或平行模板引擎。
+- 正式Vite门面接应用单例与HTTP/Artisan/Worker作用域配置；Provider中boot默认值供新作用域继承，nonce/属性回调/预加载记录的执行期覆盖不会泄漏到下个请求或任务。清单缓存应用独立；flush只清预加载。22个已验收公开入口逐项登记在JSON，其余仍pending。
+- 实现生产清单入口、静态imports与CSS、去重/排序、SRI、nonce、属性与自定义URL回调、热更新标记、React前导、asset/content/manifest_hash；content保持原字节，清单哈希不读取hot内容。回调在锁外执行，回调错误保留真实source，支持重入。
+- @vite/@viteReactRefresh走真实编译器内置指令，用户自定义同名指令优先，不污染get_custom_directives。保留已提交@error else；缓存格式递进为47。模板的Vite读取入口同步接正式服务，非同名占位。
+- 新增HTTP域名反例发现同步模板线程丢失请求URL：现在渲染只继承具应用身份的只读URL快照，不复制可变请求/会话。真实HTTP验证配置域名与当前请求域名、并发不同域名和nonce；Artisan退回应用域名。保留其他请求功能与协作者修改。
+- 固定PHP原类+真实Collections/Macroable等及已声明Symfony polyfill实际执行（oracle-final.json），比较全部HTML、预加载、哈希、热模式、React前导及动态URL9次调用顺序；只用夹具提供public_path/asset，不冒充完整PHP部署。前两次缺辅助依赖失败保留，不计通过。
+- 本机回归复用已通过Blade App12、表达式5、Facade5、查询6、请求配置9、翻译7；新增及受影响消费者最终日志`tests-final-origin.log`包括Vite12（其中1项无浏览器环境早返回不计）、Blade语句6、Request11、ResponseSession8、原生视图6。最终Clippy/fmt见`clippy-final-origin.log`/`fmt-final.log`，失败和修复日志完整保留。
+- `browser.log`：实际Vite8.3.7构建+Rust HTTP Kernel生成HTML+Chrome读取JS/CSS；开发服务器WebSocket连接和CSS热更新通过。HTML由本地夹具服务器提供，不计Rust生产监听/部署；React仅原前导字符串等价，未计真实React应用HMR。
+- `workers-final.log`：独立MySQL8.4.13与Redis8.10.3各1项实际Artisan queue:work，每后端消费2任务，逐任务nonce/属性/预加载隔离通过。临时容器与测试表已清理。最后仅将MutexGuard显式词法块化，不改变发送或Worker逻辑；工作区全目标严格Clippy验证该测试。
+- 三语Vite页与前端概览链接已更新，`docs-verified.log`构建和`docs-browser.log`三语桌面/移动6项检查通过。早期被旧父树覆盖的文档构建不作为最终证据。
+- 32GB停线时守卫释放62,557,171,712字节，恢复94,595,948,544字节；重建后保留热缓存、全部源码与日志。prefetch、正式fonts接线、宏与共享Facade测试能力继续开发，不将本批或已有@fonts计为完整Vite闭合。

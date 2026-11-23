@@ -23,6 +23,7 @@ pub mod providers;
 mod runner;
 mod runner_pattern;
 pub mod support;
+pub mod vite;
 
 pub use application::Application;
 pub use bootstrap_error::BootstrapError;
@@ -34,3 +35,4 @@ pub use package_manifest::{DiscoveredPackage, PackageManifest};
 pub use paths::Paths;
 pub use precognition::Precognition;
 pub use runner::{Runner, RunnerContext, RunningService, RuntimeResult, wait_for_shutdown};
+pub use vite::Vite;

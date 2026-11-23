@@ -219,6 +219,42 @@ pub(crate) fn with_attributes<T>(get: impl FnOnce(&RequestAttributes) -> T) -> O
     with_metadata(|metadata| get(&metadata.attributes))
 }
 
+// 同步模板线程只继承只读 URL 信息，不持有或复制可变请求。
+#[derive(Clone)]
+pub(crate) struct UrlSnapshot {
+    owner: Weak<Container>,
+    uri: crate::http::Uri,
+    base_url: String,
+}
+tokio::task_local! {
+    static RENDER_URL: UrlSnapshot;
+}
+impl UrlSnapshot {
+    pub(crate) fn capture(request: &Request) -> Option<Self> {
+        Some(Self {
+            owner: Arc::downgrade(&current_container()?),
+            uri: crate::routing::url_uri(request.uri(), request.headers().get(http::header::HOST)),
+            base_url: request.get_base_url().to_owned(),
+        })
+    }
+    pub(crate) fn run<T>(snapshot: Option<Self>, render: impl FnOnce() -> T) -> T {
+        match snapshot {
+            Some(snapshot) => RENDER_URL.sync_scope(snapshot, render),
+            None => render(),
+        }
+    }
+    fn current<T>(read: impl FnOnce(&Self) -> T) -> Option<T> {
+        RENDER_URL
+            .try_with(|snapshot| {
+                let owner = snapshot.owner.upgrade()?;
+                current_container().filter(|active| Arc::ptr_eq(active, &owner))?;
+                Some(read(snapshot))
+            })
+            .ok()
+            .flatten()
+    }
+}
+
 pub(crate) fn with_url_uri() -> Option<crate::http::Uri> {
     if let Some(request) = current_request().and_then(|request| request.try_lock_owned().ok()) {
         return Some(crate::routing::url_uri(
@@ -227,6 +263,7 @@ pub(crate) fn with_url_uri() -> Option<crate::http::Uri> {
         ));
     }
     with_metadata(|metadata| crate::routing::url_uri(&metadata.uri, metadata.host.as_ref()))
+        .or_else(|| UrlSnapshot::current(|snapshot| snapshot.uri.clone()))
 }
 
 pub(crate) fn base_url() -> Option<String> {
@@ -234,6 +271,7 @@ pub(crate) fn base_url() -> Option<String> {
         return Some(request.get_base_url().to_owned());
     }
     with_metadata(|metadata| metadata.base_url.clone())
+        .or_else(|| UrlSnapshot::current(|snapshot| snapshot.base_url.clone()))
 }
 
 fn with_metadata<T>(get: impl FnOnce(&Metadata) -> T) -> Option<T> {

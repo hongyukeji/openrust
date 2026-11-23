@@ -1,6 +1,6 @@
 use std::{
     any::{Any, TypeId},
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     fmt::Write as _,
     fs,
     io::{self, Write as _},
@@ -22,7 +22,7 @@ use crate::view::{
 
 const PREFIX: &str = "blade-v1-";
 const SUFFIX: &str = ".json";
-const COMPILER_VERSION: u32 = 46;
+const COMPILER_VERSION: u32 = 47;
 
 pub type DirectiveCallback = Arc<dyn Fn(&[ViewValue]) -> ViewResult<DirectiveOutput> + Send + Sync>;
 type Directive = DirectiveCallback;
@@ -35,11 +35,32 @@ type AttributeFilter = Arc<dyn Fn(&str, &ViewValue) -> bool + Send + Sync>;
 pub(in crate::view) struct BladeExtensions {
     pub(in crate::view) native_views: &'static [crate::view::NativeTemplate],
     pub(in crate::view) directives: BTreeMap<String, Directive>,
+    builtins: BTreeMap<String, Directive>,
     pub(in crate::view) conditions: BTreeMap<String, Condition>,
     pub(in crate::view) preserve_html_entities: bool,
     stringables: BTreeMap<TypeId, Stringable>,
     pub(in crate::view) iterable_echo: Option<IterableEcho>,
     pub(in crate::view) attribute_filters: BTreeMap<String, AttributeFilter>,
+}
+
+impl BladeExtensions {
+    pub(in crate::view) fn directive(&self, name: &str) -> Option<&Directive> {
+        self.directives.get(name).or_else(|| {
+            self.builtins
+                .iter()
+                .find(|(key, _)| key.eq_ignore_ascii_case(name))
+                .map(|(_, callback)| callback)
+        })
+    }
+    fn directive_names(&self) -> Vec<String> {
+        self.directives
+            .keys()
+            .chain(self.builtins.keys())
+            .cloned()
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect()
+    }
 }
 
 /// Output produced by a registered Rust Blade directive.
@@ -92,7 +113,7 @@ impl CompiledTemplate {
 
 impl Compiled {
     fn syntax_matches(&self, extensions: &BladeExtensions) -> bool {
-        extensions.directives.keys().eq(self.directives.iter())
+        extensions.directive_names() == self.directives
             && extensions.conditions.keys().eq(self.conditions.iter())
     }
 }
@@ -231,6 +252,21 @@ impl BladeCompiler {
         Ok(())
     }
 
+    /// 内置指令复用同一解析与渲染管线，但不混入公开的自定义指令清单。
+    pub(crate) fn builtin_directive(
+        &self,
+        name: &str,
+        callback: impl Fn(&[ViewValue]) -> ViewResult<DirectiveOutput> + Send + Sync + 'static,
+    ) -> ViewResult<()> {
+        if !super::template::identifier(name) {
+            return Err(invalid_registration("内置指令名称无效"));
+        }
+        Arc::make_mut(&mut self.extensions.write().unwrap())
+            .builtins
+            .insert(name.to_owned(), Arc::new(callback));
+        Ok(())
+    }
+
     /// Registers a Rust callback for a custom Blade directive name.
     pub fn directive(
         &self,
@@ -366,7 +402,7 @@ impl BladeCompiler {
             compiler_version: COMPILER_VERSION,
             source: fingerprint,
             template: Template::compile(source, &name, extensions)?,
-            directives: extensions.directives.keys().cloned().collect(),
+            directives: extensions.directive_names(),
             conditions: extensions.conditions.keys().cloned().collect(),
         };
         self.publish(&name, &compiled)?;
