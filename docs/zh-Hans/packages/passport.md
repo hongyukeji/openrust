@@ -9,7 +9,7 @@
 ./artisan passport:install --no-interaction
 ```
 
-API 安装器启用随项目提供的 `passport` Cargo feature，保留其他默认 feature，为默认 User 添加 `HasApiTokens`、配置 `api` Passport guard，并生成及注册 `routes/api.rs`。它重建应用，调用 `passport:install`，再重建已发布的配置和迁移。Cargo feature 与编译承担 Composer 安装的职责，不提供 `--composer`。执行迁移前设置 `APP_KEY` 和数据库连接。默认用户端点使用 `auth:api`，遵守 `API_PREFIX`，支持多级前缀。
+API 安装器启用随项目提供的 `passport` Cargo feature，保留其他默认 feature，为默认 User 添加 `HasApiTokens`、配置 `api` Passport guard，并向未改动的 API 空骨架加入认证路由，缺少文件时补齐并注册；已有业务路由默认保留。它重建应用，调用 `passport:install`，再重建已发布的配置和迁移。Cargo feature 与编译承担 Composer 安装的职责，不提供 `--composer`。执行迁移前设置 `APP_KEY` 和数据库连接。默认用户端点使用 `auth:api`，遵守 `API_PREFIX`，支持多级前缀。
 
 `passport:install` 保留已有完整密钥对，发布配置和五个迁移并挂载配置加载器。真实终端中询问运行迁移和创建个人客户端，两项默认 yes；`--no-interaction` 执行两项，每次成功重跑可能再次创建个人客户端。`--without-migration-prompt` 只发布并明确报告迁移待执行，就绪后执行第二条命令；此显式跳过选项是包安装器的原生扩展。没有终端也未传 `--no-interaction` 时报告待执行工作，不等待输入。生产迁移仍需要明确确认，可先执行部署步骤 `artisan migrate --force`，再单独执行 `artisan passport:client --personal --no-interaction` 创建个人客户端。
 

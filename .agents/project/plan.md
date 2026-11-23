@@ -170,7 +170,7 @@
 | <a id="unit-sanctum-02"></a>Sanctum-02 令牌和 SPA 认证 | [Sanctum-01](#unit-sanctum-01)、[05-08](#unit-05-08) 认证基础、[04-04](#unit-04-04) Session 基础 | 接通令牌签发、哈希、能力、过期、撤销及 `auth:sanctum`。显式 `statefulApi` 接入 Session、Cookie、CSRF。通过实际 HTTP 验收有效凭据、拒绝路径、来源匹配及 SPA 与 Bearer 路径。                            |
 | <a id="unit-sanctum-03"></a>Sanctum-03 API 安装命令    | [Sanctum-02](#unit-sanctum-02)、[00-02](#unit-00-02) API 路由                                    | 接通 `install:api` 和受保护的 `/user`，验收首次安装、重复运行、已有路由、`--force`、`--without-migration-prompt` 和迁移交互。用真实 HTTP 核对默认 `/api/user` 和 `API_PREFIX=api/admin` 的成功及 401。 |
 
-`install:api` 按需生成并注册 `config/api.rs`，保留既有配置及 `API_PREFIX` 覆盖方式。按固定 [Laravel ApiInstallCommand](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Console/ApiInstallCommand.php) 验收可观察行为，记录 Composer 安装与 Cargo 编译装配的差异。Passport-08 已接通 `--passport` 并完成[本机实际验收](audits/passport-08/README.md)，Windows嵌套重建仍待实机验证。三批分别同步三语 Sanctum 文档和相关安装／路由章节，实际验收后本地提交。
+API 基础文件与接线默认预置；`install:api` 按需安装认证，缺少基础文件时仍补齐，并保留既有配置及 `API_PREFIX` 覆盖方式。按固定 [Laravel ApiInstallCommand](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Console/ApiInstallCommand.php) 验收可观察行为，记录 Composer 安装与 Cargo 编译装配的差异。Passport-08 已接通 `--passport` 并完成[本机实际验收](audits/passport-08/README.md)，Windows嵌套重建仍待实机验证。三批分别同步三语 Sanctum 文档和相关安装／路由章节，实际验收后本地提交。
 
 ## 应用交互式初始化
 
@@ -184,7 +184,7 @@
 - 正式入口为 `./artisan init`；Windows 为 `artisan.bat init`。沿用同一 Artisan 命令分发机制；不增加 `install:all`、`setup` 等同义入口。
 - 命令是 OpenRust 的便捷扩展，组合各模块正式安装流程，不改对应固定 Laravel 基线的迁移、发布、配置、路由或认证契约。保留全部单项安装入口，提取共享安装服务，不能递归启动各安装命令造成重复提示或重复构建。
 - 发布前明确并公开 v0.1.0 的完整安装清单：API 与 Sanctum、Passport／OAuth2、第一代已确定的认证辅助扩展、广播／Reverb、gRPC，以及其他确需发布资源的已交付模块。按依赖登记，不盲目安装全部第三方包；未就绪的必需项必须明确报告，不能跳过后宣称完整安装成功。
-- API 配置、路由及受保护入口仍按需生成，保留 `API_PREFIX`。Sanctum 和 Passport 都安装时不得擅自替换已有路由的守卫；需先确定并验收共同安装方案。OIDC／SSO 的范围沿用第一代 API 扩展计划，不将 Passport 等同于 OIDC。
+- API 配置与普通路由入口默认预置；认证及受保护入口仍按需安装，保留 `API_PREFIX`。Sanctum 和 Passport 都安装时不得擅自替换已有路由的守卫；需先确定并验收共同安装方案。OIDC／SSO 的范围沿用第一代 API 扩展计划，不将 Passport 等同于 OIDC。
 - 安装不等于自动启动所有监听器或配置外部账号。运行方式沿用主应用与可选独立进程的既定边界；厂商凭据由开发者提供，缺失时明确说明哪些能力未配置。
 
 ### 交互式引导与配置
@@ -270,7 +270,7 @@ Fortify、Socialite 的包源码固定版本与对应 JS／Passkey 依赖须在�
 | <a id="unit-passport-05"></a>Passport-05 设备授权 | Passport-04 | device-authorization-grant；补默认开关及路由、device_code／user_code、设备批准／拒绝、轮询与时间限制 | 真实 HTTP 设备和浏览器两方流程、MySQL 单次消费、pending／slow_down／拒绝／过期；显式关闭后不注册端点 |
 | <a id="unit-passport-06"></a>Passport-06 Scope 与其他默认路径 | Passport-04 | client-credentials-grant／personal-access-tokens／token-scopes／spa-authentication／events／testing；专用 PAT、机器令牌、默认／显式 scopes、资源中间件、SPA Cookie 与事件 | 实际 Artisan 客户端和 HTTP 签发／使用／撤销；身份／scope 不足、PAT 归属、机器令牌与用户令牌隔离；Session／CSRF 及双应用错误响应 |
 | <a id="unit-passport-07"></a>Passport-07 显式可选授权与默认门禁 | Passport-04 | password-grant／implicit-grant；实现固定版显式开关与定制 UserProvider 的等价契约，默认禁止；不新增无授权默认启用 | HTTP 默认拒绝、显式启用／关闭、限制 scope／provider、错误密码和重复状态；不把可选旧授权方式作为推荐示例 |
-| <a id="unit-passport-08"></a>Passport-08 API 安装与生成应用 | Passport-01 至 07、Sanctum-03 | 固定框架 ApiInstallCommand 的 install:api --passport；包接线、配置、密钥、迁移、API 路由、全部适用选项与重建提示 | 实际 Artisan 首装／重复／force／无交互／迁移失败，干净生成应用编译和真实 HTTP；默认及多级 API_PREFIX；保留 API 路由按需生成契约 |
+| <a id="unit-passport-08"></a>Passport-08 API 安装与生成应用 | Passport-01 至 07、Sanctum-03 | 固定框架 ApiInstallCommand 的 install:api --passport；包接线、配置、密钥、迁移、API 路由、全部适用选项与重建提示 | 实际 Artisan 首装／重复／force／无交互／迁移失败，干净生成应用编译和真实 HTTP；默认及多级 API_PREFIX；保留基础 API 默认预置、认证路由按需安装契约 |
 | <a id="unit-passport-09"></a>Passport-09 定制与共存整合 | Passport-08、Sanctum-02／03 | overriding-default-models／overriding-routes／testing；自定义模型、UserProvider、连接、路由前缀、Sanctum／Passport 共存与第三方客户端调用 | MySQL 8.4、独立第三方 HTTP 客户端和 Artisan；Guard／token／用户归属不串用、多应用隔离；只复验新增影响的既有 Sanctum／安装路径 |
 
 各单元保持 HTTP OAuth 字段、错误码、响应头和端点公开契约，以固定上游测试和真实协议调用为准。Rust 编译注册、密钥／密文内部格式或原生对象与 PHP 序列化差异逐项说明，不用 JSON 统一响应包装破坏 OAuth 协议响应。

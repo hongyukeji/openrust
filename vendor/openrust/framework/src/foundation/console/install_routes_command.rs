@@ -442,11 +442,26 @@ fn install_unlocked(
         .as_deref()
         .map(str::as_bytes)
         .unwrap_or(spec.stub);
-    let existing = !create_source(&routes, stub)?;
-    if existing && force {
+    let mut existing = !create_source(&routes, stub)?;
+    if existing {
         let previous = read(&routes)?;
-        let stub = std::str::from_utf8(stub).expect("API stub is UTF-8");
-        replace(&routes, &previous, stub)?;
+        // 默认 API 空骨架属于基础能力，安装认证时可安全替换；业务路由仍须显式覆盖。
+        let basic_api = api
+            && previous
+                .lines()
+                .map(str::trim)
+                .filter(|line| !line.is_empty())
+                .eq(include_str!("stubs/api-base-routes.stub")
+                    .lines()
+                    .map(str::trim)
+                    .filter(|line| !line.is_empty()));
+        if force || basic_api {
+            let stub = std::str::from_utf8(stub).expect("API stub is UTF-8");
+            replace(&routes, &previous, stub)?;
+            if basic_api {
+                existing = false;
+            }
+        }
     }
     if let Some(updated) = modules_update {
         replace(&routes_module, &modules, &updated)?;

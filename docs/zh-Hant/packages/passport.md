@@ -9,7 +9,7 @@
 ./artisan passport:install --no-interaction
 ```
 
-API 安裝器啟用隨專案提供的 `passport` Cargo feature，保留其他預設 feature，為預設 User 加入 `HasApiTokens`、設定 `api` Passport guard，並產生及註冊 `routes/api.rs`。它重新建置應用程式，呼叫 `passport:install`，再重新建置已發布的設定與遷移。Cargo feature 與編譯承擔 Composer 安裝的職責，不提供 `--composer`。執行遷移前設定 `APP_KEY` 與資料庫連線。預設使用者端點使用 `auth:api`，遵守 `API_PREFIX`，支援多級前綴。
+API 安裝器啟用隨專案提供的 `passport` Cargo feature，保留其他預設 feature，為預設 User 加入 `HasApiTokens`、設定 `api` Passport guard，並向未修改的 API 空骨架加入驗證路由，缺少檔案時補齊並註冊；既有業務路由預設保留。它重新建置應用程式，呼叫 `passport:install`，再重新建置已發布的設定與遷移。Cargo feature 與編譯承擔 Composer 安裝的職責，不提供 `--composer`。執行遷移前設定 `APP_KEY` 與資料庫連線。預設使用者端點使用 `auth:api`，遵守 `API_PREFIX`，支援多級前綴。
 
 `passport:install` 保留既有完整金鑰組，發布設定與五個遷移並掛載設定載入器。真實終端中詢問執行遷移與建立個人用戶端，兩項預設 yes；`--no-interaction` 執行兩項，每次成功重跑可能再次建立個人用戶端。`--without-migration-prompt` 僅發布並明確回報遷移待執行，就緒後執行第二條命令；此明確略過選項是套件安裝器的原生擴充。沒有終端也未傳 `--no-interaction` 時回報待執行工作，不等待輸入。正式環境遷移仍需明確確認，可先執行部署步驟 `artisan migrate --force`，再單獨執行 `artisan passport:client --personal --no-interaction` 建立個人用戶端。
 

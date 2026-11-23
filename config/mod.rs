@@ -2,6 +2,7 @@ use std::{collections::BTreeMap, path::Path};
 
 use openrust::config::{ConfigError, Environment, Value};
 
+mod api;
 pub(crate) mod app;
 mod auth;
 mod broadcasting;
@@ -36,6 +37,7 @@ pub(crate) fn load(
     let database = database::load(base_path, env, app.name)?;
     let queue = queue::load(env, &database["default"])?;
     Ok(BTreeMap::from([
+        ("api".to_owned(), api::load(env)?),
         ("auth".to_owned(), auth::load(env)?),
         ("broadcasting".to_owned(), broadcasting::load(env)?),
         ("cache".to_owned(), cache::load(base_path, env, app.name)?),

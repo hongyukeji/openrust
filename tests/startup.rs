@@ -122,8 +122,9 @@ fn artisan_installs_optional_routes_without_overwriting_or_duplication() {
     fs::write(&bootstrap, default_bootstrap).unwrap();
     fs::write(&modules, default_modules).unwrap();
     assert!(!api.exists());
-    assert!(!default_bootstrap.contains(".api(routes::api::register)"));
-    assert!(!default_modules.contains("mod api;"));
+    assert!(default_bootstrap.contains(".api(routes::api::register)"));
+    assert!(default_modules.contains("mod api;"));
+    fs::write(&api, include_str!("../routes/api.rs").replace('\n', "\r\n")).unwrap();
     for (command, module, registration) in [
         ("install:api", "api", ".api(routes::api::register)"),
         (
@@ -141,6 +142,16 @@ fn artisan_installs_optional_routes_without_overwriting_or_duplication() {
         );
         let routes = root.0.join(format!("routes/{module}.rs"));
         assert!(fs::read_to_string(&routes).unwrap().contains("fn register"));
+        if module == "api" {
+            assert!(
+                fs::read_to_string(&routes)
+                    .unwrap()
+                    .contains("auth:sanctum")
+            );
+            assert!(
+                !String::from_utf8_lossy(&result.stderr).contains("API routes file already exists")
+            );
+        }
         fs::write(&routes, "// Existing application routes\n").unwrap();
         assert!(run(&[command]).status.success());
         assert_eq!(
