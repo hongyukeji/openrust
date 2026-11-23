@@ -74,6 +74,19 @@ fn account_rules() -> ValidationResult<RuleSet> {
 
 ## 表单请求验证 {#form-request-validation}
 
+### 创建表单请求 {#creating-form-requests}
+
+```sh
+./artisan make:request StoreArticleRequest
+./artisan make:request Admin/StoreArticleRequest
+```
+
+命令创建 `app/http/requests/store_article_request.rs`，嵌套名称写入 `admin/` 子模块。生成类型实现 `FormRequest`、派生 `Default`，并提供 `authorize` 和 `rules`。默认拒绝授权，使用前须明确编写授权逻辑；规则初始为空，由应用声明字段。
+
+在 `app/http/mod.rs` 声明 `pub(crate) mod requests;`，并在 `app/http/requests/mod.rs` 声明生成文件模块，例如 `pub(crate) mod store_article_request;`。Rust 需要编译期模块声明；生成器保留已有模块文件。之后以 `ValidatedFormRequest<StoreArticleRequest>` 作为动作的类型化参数。
+
+`-f`／`--force` 覆盖已有文件；不加选项重复生成会报告冲突、保留内容并退出 0，与通用生成器契约一致；无效名称或写入错误退出 1。`./artisan stub:publish` 发布 `stubs/request.rs.stub`，修改后用于后续生成。嵌套名称接受 `/` 或 `\`，也支持 `App/Http/Requests/StoreArticleRequest`。
+
 把 `ValidatedFormRequest<F>` 声明为 action 的类型参数。路由在调用 action 前创建表单请求，依次准备输入、授权、验证并调用 `passed_validation`。授权拒绝返回 HTTP 403。
 
 ```rust

@@ -193,3 +193,5 @@ API 相关扩展自 2026-11-19 起纳入第一代。OIDC RP 与双应用 SSO 分
 2026-11-24 URL第四组：补齐相对优先级配置，实际HTTP观察默认值→模型绑定→后置顺序，14项模型／中间件／URL回归（真实MySQL8.4.13）及补强Uri工厂／组件通过。URL章各教程的入口、消费者和既有APP_URL／同源previous差异已逐节列在[教程记录](../audits/docs-tutorials/README.md)，不等同于完整类型审计或完全行为无差异。
 
 2026-11-24 Validation第五组：未知字段拒绝的表单／应用策略、嵌套与通配符、正文/查询/文件边界已接通；实测修复Blade @error/@else的500。独立最终22目标121项（MySQL8.4.13、三语十二段提取）通过，严格Clippy/fmt/三语构建浏览器通过。整章未关闭：make:request仍为planned命令，Closure／Implicit对象／Rule builders与email扩展模式列为明确接续项，见[当前逐节边界](../audits/docs-tutorials/README.md)。
+
+2026-11-24 Validation第六组：make:request已从真实CLI占位失败补成正式生成器，含默认拒绝、命名空间/force/模板发布与保护。三语6条实际Artisan命令生成相同代码，typed动作真实HTTP403/422/201通过；5项CLI回归及严格Clippy/fmt/三语构建通过。第五组make:request缺口关闭，其余规则对象／builder接续。

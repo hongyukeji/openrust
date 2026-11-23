@@ -74,6 +74,19 @@ Fluent rules support query constraints and soft-deleted rows. When updating a ro
 
 ## Form Request Validation {#form-request-validation}
 
+### Creating a form request {#creating-form-requests}
+
+```sh
+./artisan make:request StoreArticleRequest
+./artisan make:request Admin/StoreArticleRequest
+```
+
+The command creates `app/http/requests/store_article_request.rs` (or the nested `admin/` module file). The generated type implements `FormRequest`, derives `Default`, and defines `authorize` and `rules`. Authorization denies by default: explicitly implement your authorization before using the form. Rules start empty, ready for your application’s fields.
+
+Declare `pub(crate) mod requests;` in `app/http/mod.rs`, then declare the generated file module in `app/http/requests/mod.rs` (for example, `pub(crate) mod store_article_request;`). Rust requires compiled module declarations; the generator preserves existing module files. Use `ValidatedFormRequest<StoreArticleRequest>` as the typed action argument.
+
+`-f` / `--force` replaces an existing file. Without it, duplicate generation reports the conflict, preserves the file and exits 0, matching the general generator contract; invalid names and write errors exit 1. `./artisan stub:publish` publishes `stubs/request.rs.stub`; edit it to customize future requests. Nested names accept `/` or `\`; `App/Http/Requests/StoreArticleRequest` is also supported.
+
 Use `ValidatedFormRequest<F>` as a typed action parameter. The router creates the form request, prepares the input, authorizes, validates, and calls `passed_validation` before dispatching the action. An authorization denial returns HTTP 403.
 
 ```rust

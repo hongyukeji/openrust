@@ -298867,6 +298867,25 @@
         "PHP Request子类别名与现有Data准备接口差异，PHP带else的message泄漏不复制"
       ],
       "evidence": ".agents/project/audits/docs-tutorials/README.md"
+    },
+    {
+      "date": "2026-11-24",
+      "kind": "documentation_tutorial_make_request_generator",
+      "status": "make:request教程及生成消费者闭合，整章继续",
+      "finding": "原命令仅planned目录，真实CLI传name退出1且不生成文件",
+      "implementation": "RequestMakeCommand、request.rs.stub及Stub发布接线；复用GeneratorCommand/原子写入，默认拒绝授权、空规则，Rust模块显式声明",
+      "consumers": [
+        "tests/request_generator.rs",
+        "tests/request_generator_tutorial.py",
+        "tests/resource_generator.rs"
+      ],
+      "actual_results": "最新0684e8e01隔离组合5项CLI+1实际TCP生成消费者；三语6条正式shell命令分别真实./artisan执行；默认403、定制后422/201；workspace严格Clippy/fmt/三语构建通过",
+      "remaining": [
+        "每字段Closure和Implicit规则对象及make:rule",
+        "Rule fluent builders/anyOf/forEach等逐入口核对",
+        "email扩展模式"
+      ],
+      "evidence": ".agents/project/audits/docs-tutorials/README.md"
     }
   ]
 }

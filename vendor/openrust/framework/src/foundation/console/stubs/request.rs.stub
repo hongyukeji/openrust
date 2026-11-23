@@ -1,0 +1,28 @@
+use openrust::{
+    auth::access::{AuthorizationError, Response as Authorization},
+    foundation::http::FormRequest,
+    http::Request,
+    validation::{Data, RuleSet, ValidationFuture, ValidationResult},
+};
+
+#[derive(Default)]
+pub struct {{class}};
+
+impl FormRequest for {{class}} {
+    fn authorize<'a>(
+        &'a self,
+        _request: &'a mut Request,
+        _input: &'a Data,
+    ) -> ValidationFuture<'a, Result<(), AuthorizationError>> {
+        Box::pin(async {
+            Err(AuthorizationError::Denied(Authorization::deny(
+                "此操作未经授权。",
+            )))
+        })
+    }
+
+    fn rules(&self) -> ValidationResult<RuleSet> {
+        // 在此声明字段规则。
+        Ok(RuleSet::new())
+    }
+}

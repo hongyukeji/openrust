@@ -133,3 +133,20 @@ URL第二组最终补验：清理后实际重编译，request_docs_generated三�
 | email DNS/spoof/strict/filter等扩展模式 | 现有明确拒绝，不能用RFC通过替代 | 仍为已知功能差异，后续独立实现／验收 |
 
 本组关闭具体新增入口和失败路径，Validation整章仍未宣布闭合。以上未完成项继续当前开发，不推送，不混入其他在途源码。
+
+## 第六组：make:request正式生成器与生成文件HTTP消费者
+
+固定RequestMakeCommand与request.stub要求name、-f/--force、默认Http/Requests命名空间、可覆盖stub，以及authorize默认false和空rules。原CLI已实际复现：`make:request StoreArticleRequest`退出1并报告unexpected argument，根本未生成文件，见request-make-before.json。v0.x没有对应可复用的请求生成器；复用当前GeneratorCommand、source_name_parts、原子write_generated和Stub发布机制，不新建脚手架系统。
+
+- 新增正式RequestMakeCommand，目录app/http/requests，嵌套／App前缀名称按既有生成器规则转换为Rust模块文件名；拒绝无效名称、路径穿越、Rust保留模块名及文件／目录模块冲突。
+- 新增request.rs.stub并接入Stub::ALL与应用级stubs覆盖；生成Default表单类型，提供authorize和rules，默认明确拒绝。框架FormRequest默认授权行为不改，只对新生成的表单按固定上游默认拒绝。
+- -f覆盖文件，无force重名保留文件、报告冲突且退出0（与固定通用生成器返回false的退出契约一致）。生成器不改写用户模块声明；Rust需要开发者在父mod.rs显式声明后编译，三语说明准确列出步骤。
+- 新增命令帮助、消息、默认未授权提示和注释采用简体中文；保留准确crate导入、CLI命令及参数。模板为空规则属于新应用代码的开发起点，不是框架占位命令。
+
+实际验收：根二进制3项请求生成器和2项资源／发布回归通过；tests/request_generator_tutorial.py直接提取三语创建章节各2条shell命令，通过真正`./artisan`分别在三个独立应用执行，三语生成文件字节一致。复制真实生成代码到隔离测试夹具（SHA前后一致），再编译为typed FormRequest动作，真实TCP确认默认403且动作不执行；仅自定义模板明确授权后，缺失／短title422，合法title201且admin过滤。发布和重名／force／无效路径均从实际二进制验收，未用平行手写实现冒充生成器输出。
+
+在本地HEAD新增0684e8e01后刷新隔离来源为该提交＋本组差异，touch首方源强制实际编译，再取得5项CLI与1项生成HTTP通过；request-generator-final-combination.log、request-generated-final-combination.log。workspace/all-targets严格Clippy和fmt、三语构建通过，浏览器最终来源见request-generator-browser-final.log。较早一次测试夹具误用了根应用未依赖的tempfile与PathBuf借用已改为既有标准库临时目录模式；一次typed动作返回裸Response不符合既有IntoRouteHandler契约，改为正式Result签名，未把它伪装成框架缺陷。
+
+三语新章节creating-form-requests已同步路径、显式模块声明、默认拒绝、退出码和stub覆盖。第五组表中make:request缺口由本组关闭；每字段Closure／Implicit对象、make:rule与fluent builders等仍按专用入口接续，email扩展模式仍非已完成。源码／日志位于同一项目target/tmp下，独立测试应用已自动清理，生成消费者夹具和热缓存供后续验收复用；不推送。
+
+第六组最终文档复验发现既有check_scope把所有带support-status的页面限定为恰好3个h2，已扩展的已提交Vite页面含6个h2而失败；这不是生成器或页面内容空缺。检查改为逐项要求唯一的support-status／available-entry-points／scope三个h2锚点，继续保留实际HTTP200、非空正文、原生引用、三语覆盖和浏览器错误断言。完整两种挂载／三语导航复验及普通浏览器、无API导出参考页均退出0，见request-generator-browser-rechecked.log；首次失败保留，不计通过。未修改Vite功能或其在途字体实现。

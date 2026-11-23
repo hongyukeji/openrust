@@ -74,6 +74,19 @@ fn account_rules() -> ValidationResult<RuleSet> {
 
 ## 表單請求驗證 {#form-request-validation}
 
+### 建立表單請求 {#creating-form-requests}
+
+```sh
+./artisan make:request StoreArticleRequest
+./artisan make:request Admin/StoreArticleRequest
+```
+
+命令建立 `app/http/requests/store_article_request.rs`，巢狀名稱寫入 `admin/` 子模組。產生型別實作 `FormRequest`、衍生 `Default`，並提供 `authorize` 和 `rules`。預設拒絕授權，使用前須明確撰寫授權邏輯；規則初始為空，由應用程式宣告欄位。
+
+在 `app/http/mod.rs` 宣告 `pub(crate) mod requests;`，並在 `app/http/requests/mod.rs` 宣告產生檔案的模組，例如 `pub(crate) mod store_article_request;`。Rust 需要編譯期模組宣告；產生器保留既有模組檔案。之後以 `ValidatedFormRequest<StoreArticleRequest>` 作為動作的型別參數。
+
+`-f`／`--force` 覆寫既有檔案；不加選項重複產生會報告衝突、保留內容並結束為 0，與通用產生器契約一致；無效名稱或寫入錯誤結束為 1。`./artisan stub:publish` 發布 `stubs/request.rs.stub`，修改後用於後續產生。巢狀名稱接受 `/` 或 `\`，亦支援 `App/Http/Requests/StoreArticleRequest`。
+
 將 `ValidatedFormRequest<F>` 宣告為 action 的型別參數。路由在呼叫 action 前建立表單請求，依序準備輸入、授權、驗證並呼叫 `passed_validation`。授權拒絕回傳 HTTP 403。
 
 ```rust

@@ -119,6 +119,7 @@ pub(crate) enum Stub {
     Policy,
     Provider,
     Resource,
+    Request,
     JsonApiResource,
     ResourceCollection,
     Seeder,
@@ -128,7 +129,7 @@ pub(crate) enum Stub {
 }
 
 impl Stub {
-    pub(crate) const ALL: [Self; 37] = [
+    pub(crate) const ALL: [Self; 38] = [
         Self::Job,
         Self::QueuedJob,
         Self::BatchedQueuedJob,
@@ -160,6 +161,7 @@ impl Stub {
         Self::Policy,
         Self::Provider,
         Self::Resource,
+        Self::Request,
         Self::JsonApiResource,
         Self::ResourceCollection,
         Self::Seeder,
@@ -281,6 +283,10 @@ impl Stub {
             Self::Provider => (
                 "provider.rs.stub",
                 include_str!("../foundation/console/stubs/provider.rs.stub"),
+            ),
+            Self::Request => (
+                "request.rs.stub",
+                include_str!("../foundation/console/stubs/request.rs.stub"),
             ),
             Self::Resource => (
                 "resource.rs.stub",

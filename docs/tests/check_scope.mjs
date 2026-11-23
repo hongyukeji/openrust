@@ -20,7 +20,9 @@ try{
      const response=await page.goto(url);assert.equal(response.status(),200,url);
      const article=page.locator('.vp-doc');assert((await article.innerText()).trim().length>80,`${url}: empty article`);
      if(await article.locator('#support-status').count()){
-      assert.equal(await article.locator('h2').count(),3,url);
+      for(const anchor of ['support-status','available-entry-points','scope']){
+       assert.equal(await article.locator(`h2#${anchor}`).count(),1,`${url}: missing support section ${anchor}`);
+      }
       assert(await article.locator('a[href*=".html"]').count()>0,`${url}: no native reference`);count++;
      }
     }
