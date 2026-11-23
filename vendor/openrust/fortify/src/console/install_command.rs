@@ -149,13 +149,26 @@ fn plan(root: &Path) -> Result<Vec<Edit>, ConsoleError> {
     if !previous.contains("\"two_factor_secret\"")
         || !previous.contains("\"two_factor_recovery_codes\"")
     {
-        if !previous.contains(".hidden(&[\"password\", \"remember_token\"])") {
-            return Err(manual(
+        // 默认模型以字段常量声明隐藏项，旧应用可能仍使用字符串；只修改这两种已知骨架。
+        let hidden = [
+            ".hidden(&[\"password\", \"remember_token\"])",
+            ".hidden(&[User::PASSWORD, User::REMEMBER_TOKEN])",
+        ]
+        .into_iter()
+        .find(|candidate| previous.matches(candidate).count() == 1)
+        .ok_or_else(|| {
+            manual(
                 &path,
                 "hide two_factor_secret and two_factor_recovery_codes",
-            ));
-        }
-        updated=updated.replace(".hidden(&[\"password\", \"remember_token\"])",".hidden(&[\"password\", \"remember_token\", \"two_factor_secret\", \"two_factor_recovery_codes\"])");
+            )
+        })?;
+        updated = updated.replace(
+            hidden,
+            &format!(
+                "{}, \"two_factor_secret\", \"two_factor_recovery_codes\"])",
+                &hidden[..hidden.len() - 2]
+            ),
+        );
     }
     if previous != updated {
         edits.push((path, previous, updated));

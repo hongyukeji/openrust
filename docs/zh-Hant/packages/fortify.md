@@ -117,3 +117,5 @@ cargo run -- artisan vendor:publish --tag=passkeys-migrations
 發佈會保留自訂檔案並避免重複遷移。將產生的 Rust 設定與遷移模組接入應用載入器及遷移清單，再重新建置並遷移。資源 Provider 只登記可發佈檔案；獨立認證還需設定 `PasskeysServiceProvider`、使用者模型、Guard 和中介軟體。Fortify 安裝繼續使用產生的 Fortify 設定。
 
 PHP 憑證 JSON 無法直接作為 Rust 憑證儲存格式。
+
+安裝器支援預設模型使用 `User::PASSWORD`、`User::REMEMBER_TOKEN` 的隱藏欄位清單，也相容等價的字串寫法。未知自訂結構仍保留原檔並要求手動設定。

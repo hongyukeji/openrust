@@ -117,3 +117,5 @@ cargo run -- artisan vendor:publish --tag=passkeys-migrations
 Publishing preserves customized files and avoids duplicate migrations. Wire the generated Rust configuration and migration modules into the application's loader and migration list before rebuilding and migrating. The resource provider only registers publishable files; standalone authentication additionally requires the configured `PasskeysServiceProvider`, user model, guard and middleware. Fortify installations continue to use their generated Fortify configuration.
 
 PHP credential JSON is not a portable Rust credential storage format.
+
+The installer supports the default model’s hidden-field list written with `User::PASSWORD` and `User::REMEMBER_TOKEN`, as well as the equivalent string literals. It preserves custom source and requests manual configuration for unrecognized layouts.

@@ -205,3 +205,26 @@ async fn installer_preserves_source_line_endings_and_existing_action_modules() {
             .starts_with("// existing application actions\r\n")
     );
 }
+
+#[tokio::test]
+async fn installer_keeps_literal_hidden_fields_supported() {
+    let root = Root::new();
+    let path = root.0.join("app/models/user.rs");
+    let source = root.read("app/models/user.rs").replace(
+        ".hidden(&[User::PASSWORD, User::REMEMBER_TOKEN])",
+        ".hidden(&[\"password\", \"remember_token\"])",
+    );
+    std::fs::write(&path, source).unwrap();
+    let mut output = Output::default();
+    assert_eq!(
+        root.kernel()
+            .handle(&["fortify:install".into()], &mut output)
+            .await,
+        0,
+        "{}",
+        output.stderr
+    );
+    assert!(root.read("app/models/user.rs").contains(
+        ".hidden(&[\"password\", \"remember_token\", \"two_factor_secret\", \"two_factor_recovery_codes\"])"
+    ));
+}
