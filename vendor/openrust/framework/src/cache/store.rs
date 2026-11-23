@@ -193,8 +193,8 @@ impl Store for StoreCore {
         Box::pin(async move { self.data.flush().await.map(|()| true) })
     }
 
-    fn get_prefix(&self) -> &str {
-        &self.prefix
+    fn get_prefix(&self) -> std::borrow::Cow<'_, str> {
+        self.prefix.as_str().into()
     }
 
     fn lock_flusher(&self) -> Option<&dyn CanFlushLocks> {
@@ -351,9 +351,9 @@ macro_rules! impl_store {
                 $crate::contracts::cache::Store::flush(&self.0)
             }
 
-            fn get_prefix(&self) -> &str {
-                $crate::contracts::cache::Store::get_prefix(&self.0)
-            }
+            fn get_prefix(&self) -> std::borrow::Cow<'_, str> {
+        $crate::contracts::cache::Store::get_prefix(&self.0)
+    }
 
             fn lock_flusher(&self) -> Option<&dyn $crate::contracts::cache::CanFlushLocks> {
                 $crate::contracts::cache::Store::lock_flusher(&self.0)

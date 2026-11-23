@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::cache::{CacheFuture, CacheResult, Ttl, Value};
 
 use super::Store;
@@ -23,5 +25,5 @@ pub trait Repository: Send + Sync {
     fn forget<'a>(&'a self, key: &'a str) -> CacheFuture<'a, CacheResult<bool>>;
     fn increment<'a>(&'a self, key: &'a str, amount: i64) -> CacheFuture<'a, CacheResult<i64>>;
     fn decrement<'a>(&'a self, key: &'a str, amount: i64) -> CacheFuture<'a, CacheResult<i64>>;
-    fn get_store(&self) -> &dyn Store;
+    fn get_store(&self) -> Arc<dyn Store>;
 }

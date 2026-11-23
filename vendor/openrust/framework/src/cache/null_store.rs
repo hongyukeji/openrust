@@ -79,8 +79,8 @@ impl Store for NullStore {
         Box::pin(async { Ok(true) })
     }
 
-    fn get_prefix(&self) -> &str {
-        ""
+    fn get_prefix(&self) -> std::borrow::Cow<'_, str> {
+        "".into()
     }
 
     fn lock_flusher(&self) -> Option<&dyn CanFlushLocks> {

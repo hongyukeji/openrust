@@ -26,6 +26,7 @@ impl ServiceProvider for CacheServiceProvider {
             let base = app.base_path().to_path_buf();
             let owner = Arc::downgrade(&app.container_handle());
             container.scoped::<MemoizedRepositories, _>(|_| Ok(Arc::default()))?;
+            container.singleton::<super::macro_support::CacheMacros, _>(|_| Ok(Arc::default()))?;
             container.singleton_named("cache", move |container| {
                 let config = container.get::<dyn Config>("config")?;
                 let database = container.get::<DatabaseManager>("db")?;
@@ -35,7 +36,8 @@ impl ServiceProvider for CacheServiceProvider {
                     CacheManager::new(config, database, base.clone())
                         .with_redis(redis)
                         .with_filesystem(filesystem)
-                        .with_owner(owner.clone()),
+                        .with_owner(owner.clone())
+                        .with_macros(container.make::<super::macro_support::CacheMacros>()?),
                 ))
             })?;
             container.alias(

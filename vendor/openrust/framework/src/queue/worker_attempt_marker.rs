@@ -61,7 +61,8 @@ impl AttemptMarker {
     }
 
     async fn lock(&self) -> QueueResult<Box<dyn Lock>> {
-        let provider = crate::contracts::cache::Repository::get_store(self.cache.as_ref())
+        let store = crate::contracts::cache::Repository::get_store(self.cache.as_ref());
+        let provider = store
             .lock_provider()
             .ok_or(QueueError::InvalidConfiguration)?;
         let mut lock = provider

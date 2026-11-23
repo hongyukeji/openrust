@@ -146,7 +146,8 @@ impl FailoverStore {
             let mut last = CacheError::LocksUnsupported;
             for name in &self.stores {
                 let result = manager.store(Some(name)).and_then(|store| {
-                    let locks = crate::contracts::cache::Repository::get_store(store.as_ref())
+                    let backend = crate::contracts::cache::Repository::get_store(store.as_ref());
+                    let locks = backend
                         .lock_provider()
                         .ok_or(CacheError::LocksUnsupported)?;
                     operation(locks)
@@ -194,8 +195,8 @@ impl Store for FailoverStore {
         self.attempt(|store| Box::pin(async move { store.flush().await }))
     }
 
-    fn get_prefix(&self) -> &str {
-        &self.prefix
+    fn get_prefix(&self) -> std::borrow::Cow<'_, str> {
+        self.prefix.as_str().into()
     }
 
     fn lock_flusher(&self) -> Option<&dyn CanFlushLocks> {

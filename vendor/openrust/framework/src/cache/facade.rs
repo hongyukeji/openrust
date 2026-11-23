@@ -38,6 +38,66 @@ impl Cache {
         Ok(())
     }
 
+    pub fn set_application(
+        application: &crate::foundation::Application,
+    ) -> CacheResult<Arc<CacheManager>> {
+        let manager = Self::get_facade_root()?;
+        manager.set_application(application);
+        Ok(manager)
+    }
+
+    pub fn refresh_event_dispatcher() -> CacheResult<()> {
+        Self::get_facade_root()?.refresh_event_dispatcher()
+    }
+
+    pub fn resolve(name: &str) -> CacheResult<Repository> {
+        Self::get_facade_root()?.resolve(name)
+    }
+
+    pub fn repository(
+        store: Arc<dyn Store>,
+        config: &serde_json::Value,
+    ) -> CacheResult<Repository> {
+        Self::get_facade_root()?.repository(store, config)
+    }
+
+    pub fn get_default_driver() -> CacheResult<String> {
+        Self::get_facade_root()?.get_default_driver()
+    }
+
+    pub fn set_default_driver(name: &str) -> CacheResult<()> {
+        Self::get_facade_root()?.set_default_driver(name)
+    }
+
+    pub fn get_prefix() -> CacheResult<String> {
+        Ok(Self::store(None)?.get_store().get_prefix().into_owned())
+    }
+
+    pub fn set_default_cache_time(seconds: Option<i64>) -> CacheResult<Arc<Repository>> {
+        let repository = Self::store(None)?;
+        repository.set_default_cache_time(seconds);
+        Ok(repository)
+    }
+
+    pub fn set_store(store: Arc<dyn Store>) -> CacheResult<Arc<Repository>> {
+        let repository = Self::store(None)?;
+        repository.set_store(store);
+        Ok(repository)
+    }
+
+    pub fn set_event_dispatcher(dispatcher: Arc<dyn Dispatcher>) -> CacheResult<()> {
+        Self::store(None)?.set_event_dispatcher(dispatcher);
+        Ok(())
+    }
+
+    pub fn forget_drivers(names: &[&str]) -> CacheResult<()> {
+        let manager = Self::get_facade_root()?;
+        for name in names {
+            manager.forget_driver(Some(name))?;
+        }
+        Ok(())
+    }
+
     pub fn build(config: serde_json::Value) -> CacheResult<Repository> {
         Self::get_facade_root()?.build(config)
     }
@@ -278,7 +338,15 @@ impl Cache {
     }
 
     pub fn lock(name: &str, lease: Option<Duration>) -> CacheResult<Box<dyn Lock>> {
-        Self::store(None)?.lock(name, lease, None)
+        Self::lock_with_owner(name, lease, None)
+    }
+
+    pub fn lock_with_owner(
+        name: &str,
+        lease: Option<Duration>,
+        owner: Option<&str>,
+    ) -> CacheResult<Box<dyn Lock>> {
+        Self::store(None)?.lock(name, lease, owner)
     }
 
     pub fn restore_lock(name: &str, owner: &str) -> CacheResult<Box<dyn Lock>> {

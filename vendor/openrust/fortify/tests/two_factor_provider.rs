@@ -74,7 +74,7 @@ impl Cache for RecordingCache {
     delegate!(forget(key:&'a str)->bool);
     delegate!(increment(key:&'a str,amount:i64)->i64);
     delegate!(decrement(key:&'a str,amount:i64)->i64);
-    fn get_store(&self) -> &dyn Store {
+    fn get_store(&self) -> Arc<dyn Store> {
         openrust::contracts::cache::Repository::get_store(&self.inner)
     }
 }

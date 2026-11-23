@@ -286,7 +286,7 @@ async fn repository_settings_survive_tagging_and_only_modify_owned_repositories(
     assert!(named.get_event_dispatcher().is_none());
 
     let quiet = manager.store(Some("quiet")).unwrap();
-    let mut copy = quiet.as_ref().clone();
+    let copy = quiet.as_ref().clone();
     assert_eq!(quiet.get_name(), Some("quiet"));
     assert!(quiet.get_event_dispatcher().is_none());
     assert!(Arc::ptr_eq(&quiet.get_store(), &copy.get_store()));

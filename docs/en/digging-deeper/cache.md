@@ -91,13 +91,13 @@ pub async fn report_title() -> CacheResult<Value> {
 
 ### Typed cache reads {#typed-cache-values}
 
-Use `string`, `integer`, `float`, `boolean`, or `array` to validate the value after a read. Pass `None` for no default or `Some(value)` to cover a missing or null entry. Use the matching `OrElse` method for a lazy default. An incompatible value or default returns `CacheError::InvalidType`. Strings and booleans are checked by type, numeric reads accept validated numeric strings, and `array` accepts JSON arrays and objects.
+Use `string`, `integer`, `float`, `boolean`, or `array` without a default argument. Use `_or` for a default, such as `integer_or("reports:limit", 10)`, or `_or_else` for an asynchronous fallback. Missing entries and cached JSON `null` use the fallback; hits do not evaluate it. Incompatible cached values return `CacheError::InvalidType` even when a default exists. Numeric reads retain cache-specific validated numeric-string conversion; `array` accepts JSON arrays and objects.
 
 ```rust
 use openrust::{cache::{CacheResult, Value}, support::facades::Cache};
 
 pub async fn report_limit() -> CacheResult<i64> {
-    Cache::integer("reports:limit", Some(Value::from(10))).await
+    Cache::integer_or("reports:limit", 10).await
 }
 ```
 
@@ -105,7 +105,7 @@ Redis preserves the spelling and type of newly written numeric strings. Existing
 
 ### Batch operations {#cache-batch-operations}
 
-`get_multiple(keys, default)` returns a map in input order with a shared optional default. `many_or` accepts a default for each key, and `many_or_else` resolves defaults lazily by key. The reads query the store once, and a missing or null value uses the default. Use `set` and `set_multiple` to write, `delete` and `delete_multiple` to remove entries, and `clear` to flush the selected store. A batch delete attempts the remaining keys after a missing entry and returns `false` if any key was absent.
+`get_multiple(keys)` returns an ordered map of optional values. `get_multiple_or(keys, default)` fills missing and null entries with a shared default. `many_or` accepts per-key defaults and `many_or_else` resolves them lazily. Each batch reads the backend once. Use `set` and `set_multiple` to write, `delete` and `delete_multiple` to remove entries, and `clear` to flush the selected store. Batch deletion attempts remaining keys after a miss and returns `false` if any key was absent.
 
 ```rust
 use openrust::{cache::{CacheResult, Value}, support::facades::Cache};
@@ -194,18 +194,40 @@ pub async fn report() -> CacheResult<Value> {
 
 `get_name`, `get_store`, and `get_event_dispatcher` expose the configured store name, backend, and dispatcher. A named repository keeps its name when cache events are disabled. A tagged repository inherits the name, dispatcher, and default lifetime of its parent at creation.
 
-`put_with_default` uses `get_default_cache_time`, which starts at 3600 seconds. An explicit `put(key, value, None)` stores the value indefinitely. Use `set_default_cache_time` on an owned repository to change the default. `set_store` and `set_event_dispatcher` also configure an owned repository. Cloning shares the backend while allowing each copy to replace its own settings.
+`put_with_default` uses `get_default_cache_time`, initially 3600 seconds; `None` means forever. An explicit `put(key, value, None)` also stores indefinitely. `Cache::set_default_cache_time`, `set_store`, and `set_event_dispatcher` update the actual shared default repository, including existing handles. The same setters on a named repository update that repository. Cloning copies settings while sharing the backend. `get_store` returns an owned `Arc`, so a previously acquired backend remains valid after replacement. Store implementations return `Cow<str>` from `get_prefix`; adapters can follow backend changes safely.
 
 ```rust
 use openrust::{cache::{CacheResult, Value}, support::facades::Cache};
 
 pub async fn cache_report() -> CacheResult<bool> {
-    let mut repository = Cache::store(Some("redis"))?.as_ref().clone();
+    let repository = Cache::store(Some("redis"))?;
     repository.set_default_cache_time(Some(60));
     let reports = repository.tags(&["reports"])?;
     reports.put_with_default("latest", &Value::from("ready")).await
 }
 ```
+
+## Manager and extensions {#cache-manager-extensions}
+
+`get_default_driver` and `set_default_driver` read and change the current application's default selection. `store(Some("name"))` reuses a resolved repository; `resolve("name")` resolves a fresh one. `build(config)` constructs an on-demand store, and `repository(store, config)` wraps a custom backend. `forget_driver(None)` forgets the current default, `forget_drivers(&["first", "second"])` forgets a list, and `purge` removes a selected resolved instance. Existing handles remain valid.
+
+`extend` registers a custom driver creator. Macros use the actual selected repository and share a registry within one application's manager, including named, tagged, and memoized repositories. Other applications have separate registries. `mixin` accepts named `CacheMacro` callbacks and a replacement flag; `has_macro`, `flush_macros`, and `macro_call` inspect, clear, and invoke them. Unknown names return `CacheError::UnknownMacro`.
+
+```rust
+use openrust::{cache::CacheResult, support::facades::Cache};
+
+pub async fn register_report_macro() -> CacheResult<()> {
+    Cache::r#macro("report", |repository, _| Box::pin(async move {
+        repository.get_or("reports:title", "Untitled".into()).await
+    }))?;
+    let _title = Cache::macro_call("report", vec![]).await?;
+    Ok(())
+}
+```
+
+New repositories capture the event dispatcher at construction. `refresh_event_dispatcher` updates resolved repositories after changing the application's dispatcher binding; `set_event_dispatcher` explicitly changes the default repository. `set_application` changes the manager's application for future resolution without discarding resolved stores or creators. An in-progress resolution retains its original application. Use this lifecycle operation deliberately when embedding multiple applications.
+
+`lock_with_owner` accepts an explicit owner token; `restore_lock` uses that token to restore ownership. A memoized wrapper starts with its own 3600-second default lifetime and no store name or outer dispatcher; its underlying repository performs real I/O and events.
 
 ## Cache Tags {#cache-tags}
 

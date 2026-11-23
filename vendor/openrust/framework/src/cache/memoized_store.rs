@@ -91,7 +91,7 @@ impl MemoizedStore {
         Arc::new(repository.memoized_view(store))
     }
 
-    fn backend(&self) -> &dyn Store {
+    fn backend(&self) -> Arc<dyn Store> {
         crate::contracts::cache::Repository::get_store(self.repository.as_ref())
     }
 
@@ -353,7 +353,10 @@ impl Store for MemoizedStore {
         value: &'a Value,
         seconds: Option<NonZeroU64>,
     ) -> CacheFuture<'a, CacheResult<bool>> {
-        Box::pin(self.write(key, self.backend().add(key, value, seconds)))
+        Box::pin(async move {
+            let backend = self.backend();
+            self.write(key, backend.add(key, value, seconds)).await
+        })
     }
 
     fn pull<'a>(&'a self, key: &'a str) -> CacheFuture<'a, CacheResult<Option<Value>>> {
@@ -369,7 +372,10 @@ impl Store for MemoizedStore {
         key: &'a str,
         seconds: NonZeroU64,
     ) -> CacheFuture<'a, CacheResult<bool>> {
-        Box::pin(self.write(key, self.backend().touch(key, seconds)))
+        Box::pin(async move {
+            let backend = self.backend();
+            self.write(key, backend.touch(key, seconds)).await
+        })
     }
 
     fn forget<'a>(&'a self, key: &'a str) -> CacheFuture<'a, CacheResult<bool>> {
@@ -377,11 +383,17 @@ impl Store for MemoizedStore {
     }
 
     fn increment<'a>(&'a self, key: &'a str, amount: i64) -> CacheFuture<'a, CacheResult<i64>> {
-        Box::pin(self.write(key, self.backend().increment(key, amount)))
+        Box::pin(async move {
+            let backend = self.backend();
+            self.write(key, backend.increment(key, amount)).await
+        })
     }
 
     fn decrement<'a>(&'a self, key: &'a str, amount: i64) -> CacheFuture<'a, CacheResult<i64>> {
-        Box::pin(self.write(key, self.backend().decrement(key, amount)))
+        Box::pin(async move {
+            let backend = self.backend();
+            self.write(key, backend.decrement(key, amount)).await
+        })
     }
 
     fn flush(&self) -> CacheFuture<'_, CacheResult<bool>> {
@@ -391,16 +403,49 @@ impl Store for MemoizedStore {
         })
     }
 
-    fn get_prefix(&self) -> &str {
-        self.backend().get_prefix()
+    fn get_prefix(&self) -> std::borrow::Cow<'_, str> {
+        std::borrow::Cow::Owned(self.backend().get_prefix().into_owned())
     }
 
     fn lock_flusher(&self) -> Option<&dyn CanFlushLocks> {
-        self.backend().lock_flusher()
+        self.backend()
+            .lock_flusher()
+            .map(|_| self as &dyn CanFlushLocks)
     }
 
     fn lock_provider(&self) -> Option<&dyn LockProvider> {
-        self.backend().lock_provider()
+        self.backend()
+            .lock_provider()
+            .map(|_| self as &dyn LockProvider)
+    }
+}
+
+impl LockProvider for MemoizedStore {
+    fn lock(
+        &self,
+        name: &str,
+        lease: Option<std::time::Duration>,
+        owner: Option<&str>,
+    ) -> CacheResult<Box<dyn crate::contracts::cache::Lock>> {
+        self.repository.lock(name, lease, owner)
+    }
+    fn restore_lock(
+        &self,
+        name: &str,
+        owner: &str,
+    ) -> CacheResult<Box<dyn crate::contracts::cache::Lock>> {
+        self.repository.restore_lock(name, owner)
+    }
+}
+
+impl CanFlushLocks for MemoizedStore {
+    fn flush_locks(&self) -> CacheFuture<'_, CacheResult<bool>> {
+        Box::pin(async move { self.repository.flush_locks().await })
+    }
+    fn has_separate_lock_store(&self) -> bool {
+        self.backend()
+            .lock_flusher()
+            .is_some_and(CanFlushLocks::has_separate_lock_store)
     }
 }
 

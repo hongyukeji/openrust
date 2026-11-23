@@ -91,13 +91,13 @@ pub async fn report_title() -> CacheResult<Value> {
 
 ### 类型化读取 {#typed-cache-values}
 
-用 `string`、`integer`、`float`、`boolean` 和 `array` 校验读取结果。默认值传 `None` 或 `Some(value)`，键缺失或值为 null 时使用。惰性默认值用对应的 `OrElse` 方法。缓存值或默认值的类型不符合要求时返回 `CacheError::InvalidType`。字符串和布尔值按类型校验，数字方法接受有效的数字字符串，`array` 接受 JSON 数组和对象。
+用 `string`、`integer`、`float`、`boolean` 和 `array` 直接读取，不必传默认值参数。需要默认值时用 `_or`，例如 `integer_or("reports:limit", 10)`；异步惰性默认值用 `_or_else`。缺失键和缓存中的 JSON `null` 使用默认值，命中时不执行默认回调。缓存值类型不符时仍返回 `CacheError::InvalidType`，不会由默认值掩盖。数字读取保留缓存自身的有效数字字符串转换，`array` 接受 JSON 数组和对象。
 
 ```rust
 use openrust::{cache::{CacheResult, Value}, support::facades::Cache};
 
 pub async fn report_limit() -> CacheResult<i64> {
-    Cache::integer("reports:limit", Some(Value::from(10))).await
+    Cache::integer_or("reports:limit", 10).await
 }
 ```
 
@@ -105,7 +105,7 @@ Redis 保留新写入的数字字符串及其原始写法。已有整数条目�
 
 ### 批量操作 {#cache-batch-operations}
 
-`get_multiple(keys, default)` 按输入顺序返回映射，可传入统一的默认值。`many_or` 为每个键接收默认值，`many_or_else` 按键计算惰性默认值。批量读取只调用一次存储，缺失键和 null 使用默认值。`set` 和 `set_multiple` 写入，`delete` 和 `delete_multiple` 移除条目，`clear` 清空所选仓库。批量删除遇到缺失键会继续，并在任一键缺失时返回 `false`。
+`get_multiple(keys)` 按输入顺序返回可选值映射；`get_multiple_or(keys, default)` 用统一默认值填补缺失和 null。`many_or` 接收逐键默认值，`many_or_else` 按键惰性计算。每批只读取一次后端。`set` 和 `set_multiple` 写入，`delete` 和 `delete_multiple` 移除，`clear` 清空所选仓储。批量删除遇到缺失键会继续，并在任一键缺失时返回 `false`。
 
 ```rust
 use openrust::{cache::{CacheResult, Value}, support::facades::Cache};
@@ -194,18 +194,40 @@ pub async fn report() -> CacheResult<Value> {
 
 `get_name`、`get_store` 和 `get_event_dispatcher` 分别读取已配置的仓库名称、底层存储和事件分发器。具名仓库关闭缓存事件后仍可读取名称。创建标签仓库时，它会继承来源仓库的名称、事件分发器和默认时长。
 
-`put_with_default` 使用 `get_default_cache_time` 返回的时长，初始值为 3600 秒。显式调用 `put(key, value, None)` 会永久保存。用 `set_default_cache_time` 修改自有仓库的默认时长，`set_store` 和 `set_event_dispatcher` 也用于自有仓库。克隆后的仓库共享底层存储，每份副本可各自替换设置。
+`put_with_default` 使用 `get_default_cache_time`，初始为 3600 秒，`None` 表示永久。显式 `put(key, value, None)` 也永久保存。`Cache::set_default_cache_time`、`set_store` 和 `set_event_dispatcher` 修改实际共享的默认仓储，已取得的句柄也能观察到变化；具名仓储上的同名方法修改该仓储。克隆复制设置并共享后端。`get_store` 返回持有所有权的 `Arc`，替换后端后，先前取得的后端仍有效。实现 `Store` 时，`get_prefix` 返回 `Cow<str>`，便于适配器安全跟随后端变化。
 
 ```rust
 use openrust::{cache::{CacheResult, Value}, support::facades::Cache};
 
 pub async fn cache_report() -> CacheResult<bool> {
-    let mut repository = Cache::store(Some("redis"))?.as_ref().clone();
+    let repository = Cache::store(Some("redis"))?;
     repository.set_default_cache_time(Some(60));
     let reports = repository.tags(&["reports"])?;
     reports.put_with_default("latest", &Value::from("ready")).await
 }
 ```
+
+## 管理器与扩展 {#cache-manager-extensions}
+
+`get_default_driver` 和 `set_default_driver` 读取或修改当前应用的默认选择。`store(Some("name"))` 复用已解析仓储，`resolve("name")` 创建新实例。`build(config)` 按需构建存储，`repository(store, config)` 包装自定义后端。`forget_driver(None)` 忘记当前默认实例，`forget_drivers(&["first", "second"])` 接收列表，`purge` 移除所选实例；已有句柄仍有效。
+
+`extend` 注册自定义驱动创建器。宏绑定实际选中的仓储，同一应用管理器下的具名、标签和记忆化仓储共享宏注册表，应用之间隔离。`mixin` 接收具名 `CacheMacro` 回调和替换开关；`has_macro`、`flush_macros` 和 `macro_call` 分别检查、清空和调用。未知宏返回 `CacheError::UnknownMacro`。
+
+```rust
+use openrust::{cache::CacheResult, support::facades::Cache};
+
+pub async fn register_report_macro() -> CacheResult<()> {
+    Cache::r#macro("report", |repository, _| Box::pin(async move {
+        repository.get_or("reports:title", "Untitled".into()).await
+    }))?;
+    let _title = Cache::macro_call("report", vec![]).await?;
+    Ok(())
+}
+```
+
+新仓储在创建时取得事件分派器。修改应用的分派器绑定后，用 `refresh_event_dispatcher` 更新已解析仓储；`set_event_dispatcher` 显式修改默认仓储。`set_application` 只改变后续解析使用的应用，不丢弃已有仓储和创建器；正在解析的操作保留原应用。嵌入多个应用时应明确控制这一生命周期操作。
+
+`lock_with_owner` 接收显式所有者令牌，`restore_lock` 用该令牌恢复所有权。记忆化包装器使用独立的 3600 秒默认时长，不带仓储名和外层分派器；实际后端访问与事件仍由被包装仓储处理。
 
 ## 缓存标签 {#cache-tags}
 

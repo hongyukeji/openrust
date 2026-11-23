@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     path::PathBuf,
-    sync::{Arc, Mutex, Weak},
+    sync::{Arc, Mutex, RwLock, Weak},
 };
 
 use serde::Deserialize;
@@ -13,6 +13,7 @@ use crate::{
         cache::{Factory, Store},
         config::Repository as Config,
         container::Container as _,
+        foundation::Application as _,
     },
     database::DatabaseManager,
     filesystem::FilesystemManager,
@@ -32,6 +33,7 @@ type DriverFactory = dyn Fn(&CacheManager, &Value) -> CacheResult<Repository> + 
 /// Resolves named cache stores and repositories.
 pub struct CacheManager {
     inner: Arc<CacheManagerState>,
+    selection: Option<Option<CacheApplication>>,
 }
 
 pub(super) struct CacheManagerState {
@@ -44,6 +46,14 @@ pub(super) struct CacheManagerState {
     memcached: memcached::Connector,
     factories: Mutex<HashMap<String, Arc<DriverFactory>>>,
     owner: Weak<Container>,
+    application: RwLock<Option<CacheApplication>>,
+    macros: Arc<super::macro_support::CacheMacros>,
+}
+
+#[derive(Clone)]
+struct CacheApplication {
+    owner: Weak<Container>,
+    base: PathBuf,
 }
 
 #[derive(Deserialize)]
@@ -99,7 +109,10 @@ impl CacheManager {
                 factories: Mutex::default(),
                 memcached: memcached::Connector::default(),
                 owner: Weak::new(),
+                application: RwLock::new(None),
+                macros: Arc::default(),
             }),
+            selection: None,
         }
     }
 
@@ -125,16 +138,136 @@ impl CacheManager {
     }
 
     pub(super) fn from_state(inner: Arc<CacheManagerState>) -> Self {
-        Self { inner }
+        Self {
+            inner,
+            selection: None,
+        }
+    }
+
+    pub(super) fn with_macros(mut self, macros: Arc<super::macro_support::CacheMacros>) -> Self {
+        Arc::get_mut(&mut self.inner)
+            .expect("unshared cache manager")
+            .macros = macros;
+        self
+    }
+
+    fn application(&self) -> Option<CacheApplication> {
+        self.selection.clone().unwrap_or_else(|| {
+            self.inner
+                .application
+                .read()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .clone()
+        })
+    }
+
+    fn snapshot(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+            selection: Some(self.application()),
+        }
+    }
+
+    fn owner(&self) -> Weak<Container> {
+        self.application()
+            .map_or_else(|| self.inner.owner.clone(), |application| application.owner)
+    }
+
+    fn base_path(&self) -> PathBuf {
+        self.application()
+            .map_or_else(|| self.inner.base.clone(), |application| application.base)
+    }
+
+    fn config(&self) -> CacheResult<Arc<dyn Config>> {
+        match self.application() {
+            None => Ok(self.inner.config.clone()),
+            Some(application) => Ok(application
+                .owner
+                .upgrade()
+                .ok_or(CacheError::Unavailable(
+                    crate::contracts::container::BindingResolutionError::FacadeNotSet,
+                ))?
+                .get::<dyn Config>("config")?),
+        }
+    }
+
+    fn database(&self) -> CacheResult<Arc<DatabaseManager>> {
+        match self.application() {
+            None => Ok(self.inner.database.clone()),
+            Some(application) => Ok(application
+                .owner
+                .upgrade()
+                .ok_or(CacheError::Unavailable(
+                    crate::contracts::container::BindingResolutionError::FacadeNotSet,
+                ))?
+                .get::<DatabaseManager>("db")?),
+        }
+    }
+
+    fn redis(&self) -> CacheResult<Arc<RedisManager>> {
+        match self.application() {
+            None => Ok(self.inner.redis.clone()),
+            Some(application) => Ok(application
+                .owner
+                .upgrade()
+                .ok_or(CacheError::Unavailable(
+                    crate::contracts::container::BindingResolutionError::FacadeNotSet,
+                ))?
+                .get::<RedisManager>("redis")?),
+        }
+    }
+
+    fn filesystem(&self) -> CacheResult<Arc<FilesystemManager>> {
+        match self.application() {
+            None => Ok(self.inner.filesystem.clone()),
+            Some(application) => Ok(application
+                .owner
+                .upgrade()
+                .ok_or(CacheError::Unavailable(
+                    crate::contracts::container::BindingResolutionError::FacadeNotSet,
+                ))?
+                .get::<FilesystemManager>("filesystem")?),
+        }
+    }
+
+    fn macro_registry(&self) -> CacheResult<Arc<super::macro_support::CacheMacros>> {
+        match self.application() {
+            None => Ok(self.inner.macros.clone()),
+            Some(application) => Ok(application
+                .owner
+                .upgrade()
+                .ok_or(CacheError::Unavailable(
+                    crate::contracts::container::BindingResolutionError::FacadeNotSet,
+                ))?
+                .make::<super::macro_support::CacheMacros>()?),
+        }
+    }
+
+    /// 只更换后续解析使用的应用，不提前访问服务或删除已解析仓储。
+    pub fn set_application(&self, application: &crate::foundation::Application) -> &Self {
+        let next = CacheApplication {
+            owner: Arc::downgrade(&application.container_handle()),
+            base: application.base_path().to_path_buf(),
+        };
+        let retired = self
+            .inner
+            .application
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .replace(next);
+        drop(retired);
+        self
     }
 
     /// Memoizes reads of the selected store within the current application lifecycle.
     pub fn memo(&self, name: Option<&str>) -> CacheResult<Arc<Repository>> {
+        self.snapshot().memo_selected(name)
+    }
+
+    fn memo_selected(&self, name: Option<&str>) -> CacheResult<Arc<Repository>> {
         let repository = self.store(name)?;
         if let Some(owner) = self
-            .inner
-            .owner
-            .upgrade()
+            .get_container()
             .filter(|owner| owner.has_active_scope())
         {
             let repositories = owner.make::<MemoizedRepositories>()?;
@@ -144,7 +277,7 @@ impl CacheManager {
     }
 
     pub fn get_default_driver(&self) -> CacheResult<String> {
-        match self.inner.config.get("cache.default") {
+        match self.config()?.get("cache.default") {
             None | Some(Value::Null) => Ok("null".into()),
             Some(serde_json::Value::String(name)) if !name.is_empty() => Ok(name),
             _ => Err(CacheError::InvalidConfiguration),
@@ -173,24 +306,24 @@ impl CacheManager {
 
     /// Returns the application container when the manager belongs to an application.
     pub fn get_container(&self) -> Option<Arc<Container>> {
-        self.inner.owner.upgrade()
+        self.owner().upgrade()
     }
 
     pub fn set_default_driver(&self, name: &str) -> CacheResult<()> {
         if name.is_empty() {
             return Err(CacheError::InvalidConfiguration);
         }
-        self.inner
-            .config
+        self.config()?
             .set("cache.default", name.into())
             .map_err(backend)
     }
 
     pub fn store(&self, name: Option<&str>) -> CacheResult<Arc<Repository>> {
-        let name = self.store_name(name)?;
+        let manager = self.snapshot();
+        let name = manager.store_name(name)?;
         self.inner
             .stores
-            .get_or_resolve(&name, || self.resolve(&name))
+            .get_or_resolve(&name, || manager.resolve(&name))
     }
 
     pub fn driver(&self, name: Option<&str>) -> CacheResult<Arc<Repository>> {
@@ -217,7 +350,8 @@ impl CacheManager {
 
     /// Creates a fresh repository from a named store's configuration.
     pub fn resolve(&self, name: &str) -> CacheResult<Repository> {
-        self.build(self.store_config(name)?)
+        let manager = self.snapshot();
+        manager.build(manager.store_config(name)?)
     }
 
     fn store_config(&self, name: &str) -> CacheResult<Value> {
@@ -225,8 +359,7 @@ impl CacheManager {
             return Ok(serde_json::json!({ "driver": "null", "store": "null" }));
         }
         let mut config = self
-            .inner
-            .config
+            .config()?
             .get("cache.stores")
             .and_then(|stores| stores.get(name).cloned())
             .ok_or_else(|| CacheError::UnknownStore {
@@ -245,7 +378,8 @@ impl CacheManager {
         connection: Option<&str>,
         prefix: Option<&str>,
     ) -> CacheResult<Repository> {
-        let mut config = self.store_config(name)?;
+        let manager = self.snapshot();
+        let mut config = manager.store_config(name)?;
         if config.get("driver").and_then(Value::as_str) != Some("redis") {
             return Err(CacheError::InvalidConfiguration);
         }
@@ -253,11 +387,15 @@ impl CacheManager {
         if let Some(prefix) = prefix.filter(|prefix| !prefix.is_empty()) {
             config["prefix"] = prefix.into();
         }
-        self.build(config)
+        manager.build(config)
     }
 
     /// Builds an on-demand repository without registering it as a named store.
-    pub fn build(&self, mut config: Value) -> CacheResult<Repository> {
+    pub fn build(&self, config: Value) -> CacheResult<Repository> {
+        self.snapshot().build_selected(config)
+    }
+
+    fn build_selected(&self, mut config: Value) -> CacheResult<Repository> {
         let params = config
             .as_object_mut()
             .ok_or(CacheError::InvalidConfiguration)?;
@@ -280,7 +418,8 @@ impl CacheManager {
             .get(driver)
             .cloned();
         if let Some(factory) = factory {
-            return factory(self, &config);
+            let repository = factory(self, &config)?;
+            return Ok(repository.with_macros(self.macro_registry()?));
         }
         if !matches!(
             driver,
@@ -304,12 +443,12 @@ impl CacheManager {
             Options::Array => Arc::new(ArrayStore::new()),
             Options::Failover { stores } => Arc::new(FailoverStore::new(
                 Arc::downgrade(&self.inner),
-                self.inner.owner.clone(),
+                self.owner(),
                 stores,
                 self.prefix(&config)?,
             )?),
             Options::Session { key } => Arc::new(SessionStore::new(
-                self.inner.owner.clone(),
+                self.owner(),
                 key.unwrap_or_else(|| "_cache".into()),
             )?),
             Options::Memcached {
@@ -327,11 +466,7 @@ impl CacheManager {
                 Arc::new(DynamoDbStore::configure(options, self.prefix(&config)?)?)
             }
             Options::Storage { disk, path } => {
-                let disk = self
-                    .inner
-                    .filesystem
-                    .disk(disk.as_deref())
-                    .map_err(backend)?;
+                let disk = self.filesystem()?.disk(disk.as_deref()).map_err(backend)?;
                 Arc::new(StorageStore::new(
                     disk,
                     path.as_deref().unwrap_or_default(),
@@ -346,9 +481,11 @@ impl CacheManager {
                 {
                     return Err(CacheError::InvalidConfiguration);
                 }
-                let path = self.inner.base.join(path);
-                let lock_path = lock_path
-                    .map_or_else(|| path.clone(), |lock_path| self.inner.base.join(lock_path));
+                let path = self.base_path().join(path);
+                let lock_path = lock_path.map_or_else(
+                    || path.clone(),
+                    |lock_path| self.base_path().join(lock_path),
+                );
                 Arc::new(FileStore::new(path, lock_path))
             }
             Options::Redis {
@@ -357,13 +494,11 @@ impl CacheManager {
             } => {
                 let connection = connection.as_deref().unwrap_or("default");
                 let data = self
-                    .inner
-                    .redis
+                    .redis()?
                     .connection(Some(connection))
                     .map_err(backend)?;
                 let locks = self
-                    .inner
-                    .redis
+                    .redis()?
                     .connection(lock_connection.as_deref().or(Some(connection)))
                     .map_err(backend)?;
                 Arc::new(RedisStore::new(data, locks, self.prefix(&config)?))
@@ -375,13 +510,11 @@ impl CacheManager {
                 lock_table,
             } => {
                 let locks = self
-                    .inner
-                    .database
+                    .database()?
                     .connection(lock_connection.as_deref().or(connection.as_deref()))
                     .map_err(backend)?;
                 let connection = self
-                    .inner
-                    .database
+                    .database()?
                     .connection(connection.as_deref())
                     .map_err(backend)?;
                 Arc::new(DatabaseStore::new(
@@ -398,18 +531,53 @@ impl CacheManager {
 
     /// Wraps a store implementation using the application's repository event settings.
     pub fn repository(&self, store: Arc<dyn Store>, config: &Value) -> CacheResult<Repository> {
+        self.snapshot().repository_selected(store, config)
+    }
+
+    fn repository_selected(
+        &self,
+        store: Arc<dyn Store>,
+        config: &Value,
+    ) -> CacheResult<Repository> {
         let events = match config.get("events") {
             None => config.get("driver").and_then(Value::as_str) != Some("failover"),
             Some(Value::Null) => true,
             Some(value) => value.as_bool().ok_or(CacheError::InvalidConfiguration)?,
         };
         let name = config.get("store").and_then(Value::as_str);
-        let repository = Repository::new(store).with_name(name);
-        if events {
-            Ok(repository.with_events(self.inner.owner.clone()))
-        } else {
-            Ok(repository)
+        let repository = Repository::new(store)
+            .with_name(name)
+            .with_macros(self.macro_registry()?);
+        if events && let Some(dispatcher) = self.event_dispatcher()? {
+            repository.set_event_dispatcher(dispatcher);
         }
+        Ok(repository)
+    }
+
+    fn event_dispatcher(
+        &self,
+    ) -> CacheResult<Option<Arc<dyn crate::contracts::events::Dispatcher>>> {
+        let Some(owner) = self.get_container() else {
+            return Ok(None);
+        };
+        if owner.bound::<dyn crate::contracts::events::Dispatcher>() {
+            return Ok(Some(
+                owner.make::<dyn crate::contracts::events::Dispatcher>()?,
+            ));
+        }
+        if owner.bound::<crate::events::Dispatcher>() {
+            return Ok(Some(owner.make::<crate::events::Dispatcher>()?));
+        }
+        Ok(None)
+    }
+
+    pub fn refresh_event_dispatcher(&self) -> CacheResult<()> {
+        if let Some(dispatcher) = self.event_dispatcher()? {
+            for repository in self.inner.stores.resolved() {
+                repository.set_event_dispatcher(dispatcher.clone());
+            }
+        }
+        Ok(())
     }
 
     fn prefix(&self, config: &Value) -> CacheResult<String> {
@@ -419,7 +587,7 @@ impl CacheManager {
                 .map(str::to_owned)
                 .ok_or(CacheError::InvalidConfiguration);
         }
-        match self.inner.config.get("cache.prefix") {
+        match self.config()?.get("cache.prefix") {
             None | Some(serde_json::Value::Null) => Ok(String::new()),
             Some(serde_json::Value::String(prefix)) => Ok(prefix),
             _ => Err(CacheError::InvalidConfiguration),

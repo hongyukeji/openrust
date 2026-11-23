@@ -156,17 +156,378 @@
       "type": "Cache",
       "source": "src/Illuminate/Support/Facades/Cache.php",
       "public_entries": [
-        "store", "driver", "memo", "resolve", "build", "repository", "refreshEventDispatcher",
-        "getDefaultDriver", "setDefaultDriver", "forgetDriver", "purge", "extend", "setApplication",
-        "handleUnserializableClassUsing", "has", "missing", "get", "many", "getMultiple", "pull", "string",
-        "integer", "float", "boolean", "array", "put", "set", "putMany", "setMultiple", "add", "increment",
-        "decrement", "forever", "remember", "rememberWithWarmth", "sear", "rememberForever", "flexible",
-        "touch", "withoutOverlapping", "funnel", "forget", "delete", "deleteMultiple", "clear",
-        "flushLocks", "tags", "getName", "supportsTags", "supportsFlushingLocks", "getDefaultCacheTime",
-        "setDefaultCacheTime", "getStore", "setStore", "getEventDispatcher", "setEventDispatcher", "macro",
-        "mixin", "hasMacro", "flushMacros", "macroCall", "flush", "getPrefix", "lock", "restoreLock", "spy"
+        "store",
+        "driver",
+        "memo",
+        "resolve",
+        "build",
+        "repository",
+        "refreshEventDispatcher",
+        "getDefaultDriver",
+        "setDefaultDriver",
+        "forgetDriver",
+        "purge",
+        "extend",
+        "setApplication",
+        "handleUnserializableClassUsing",
+        "has",
+        "missing",
+        "get",
+        "many",
+        "getMultiple",
+        "pull",
+        "string",
+        "integer",
+        "float",
+        "boolean",
+        "array",
+        "put",
+        "set",
+        "putMany",
+        "setMultiple",
+        "add",
+        "increment",
+        "decrement",
+        "forever",
+        "remember",
+        "rememberWithWarmth",
+        "sear",
+        "rememberForever",
+        "flexible",
+        "touch",
+        "withoutOverlapping",
+        "funnel",
+        "forget",
+        "delete",
+        "deleteMultiple",
+        "clear",
+        "flushLocks",
+        "tags",
+        "getName",
+        "supportsTags",
+        "supportsFlushingLocks",
+        "getDefaultCacheTime",
+        "setDefaultCacheTime",
+        "getStore",
+        "setStore",
+        "getEventDispatcher",
+        "setEventDispatcher",
+        "macro",
+        "mixin",
+        "hasMacro",
+        "flushMacros",
+        "macroCall",
+        "flush",
+        "getPrefix",
+        "lock",
+        "restoreLock",
+        "spy"
       ],
-      "review": "pending"
+      "review": "partial",
+      "target_sources": [
+        "src/Illuminate/Cache/CacheManager.php",
+        "src/Illuminate/Cache/Repository.php",
+        "src/Illuminate/Cache/MemoizedStore.php",
+        "src/Illuminate/Cache/MemoizedTaggedCache.php",
+        "src/Illuminate/Macroable/Traits/Macroable.php"
+      ],
+      "tested_entries": {
+        "getDefaultDriver": {
+          "local": "get_default_driver",
+          "test": "facade_manager_selection_and_detached_repositories_are_real",
+          "status": "verified-paths",
+          "parameters": "store/driver: Option<&str>, None=current default; resolve:&str; repository:Arc<dyn Store>,&Json; forget_driver:Option<&str>, forget_drivers:&[&str]",
+          "returns": "CacheResult; store/driver shared Arc<Repository>; resolve/repository owned Repository; getter String",
+          "errors": "UnknownStore / InvalidConfiguration / Unavailable / backend error",
+          "lifecycle": "store caches named repositories; resolve fresh; forgetting retains old Arc handles"
+        },
+        "setDefaultDriver": {
+          "local": "set_default_driver",
+          "test": "facade_manager_selection_and_detached_repositories_are_real",
+          "status": "verified-paths",
+          "parameters": "store/driver: Option<&str>, None=current default; resolve:&str; repository:Arc<dyn Store>,&Json; forget_driver:Option<&str>, forget_drivers:&[&str]",
+          "returns": "CacheResult; store/driver shared Arc<Repository>; resolve/repository owned Repository; getter String",
+          "errors": "UnknownStore / InvalidConfiguration / Unavailable / backend error",
+          "lifecycle": "store caches named repositories; resolve fresh; forgetting retains old Arc handles"
+        },
+        "store": {
+          "local": "store",
+          "test": "facade_manager_selection_and_detached_repositories_are_real",
+          "status": "verified-paths",
+          "parameters": "store/driver: Option<&str>, None=current default; resolve:&str; repository:Arc<dyn Store>,&Json; forget_driver:Option<&str>, forget_drivers:&[&str]",
+          "returns": "CacheResult; store/driver shared Arc<Repository>; resolve/repository owned Repository; getter String",
+          "errors": "UnknownStore / InvalidConfiguration / Unavailable / backend error",
+          "lifecycle": "store caches named repositories; resolve fresh; forgetting retains old Arc handles"
+        },
+        "driver": {
+          "local": "driver",
+          "test": "facade_manager_selection_and_detached_repositories_are_real",
+          "status": "verified-paths",
+          "parameters": "store/driver: Option<&str>, None=current default; resolve:&str; repository:Arc<dyn Store>,&Json; forget_driver:Option<&str>, forget_drivers:&[&str]",
+          "returns": "CacheResult; store/driver shared Arc<Repository>; resolve/repository owned Repository; getter String",
+          "errors": "UnknownStore / InvalidConfiguration / Unavailable / backend error",
+          "lifecycle": "store caches named repositories; resolve fresh; forgetting retains old Arc handles"
+        },
+        "resolve": {
+          "local": "resolve",
+          "test": "facade_manager_selection_and_detached_repositories_are_real",
+          "status": "verified-paths",
+          "parameters": "store/driver: Option<&str>, None=current default; resolve:&str; repository:Arc<dyn Store>,&Json; forget_driver:Option<&str>, forget_drivers:&[&str]",
+          "returns": "CacheResult; store/driver shared Arc<Repository>; resolve/repository owned Repository; getter String",
+          "errors": "UnknownStore / InvalidConfiguration / Unavailable / backend error",
+          "lifecycle": "store caches named repositories; resolve fresh; forgetting retains old Arc handles"
+        },
+        "repository": {
+          "local": "repository",
+          "test": "facade_manager_selection_and_detached_repositories_are_real",
+          "status": "verified-paths",
+          "parameters": "store/driver: Option<&str>, None=current default; resolve:&str; repository:Arc<dyn Store>,&Json; forget_driver:Option<&str>, forget_drivers:&[&str]",
+          "returns": "CacheResult; store/driver shared Arc<Repository>; resolve/repository owned Repository; getter String",
+          "errors": "UnknownStore / InvalidConfiguration / Unavailable / backend error",
+          "lifecycle": "store caches named repositories; resolve fresh; forgetting retains old Arc handles"
+        },
+        "forgetDriver": {
+          "local": "forget_driver / forget_drivers",
+          "test": "facade_manager_selection_and_detached_repositories_are_real",
+          "status": "verified-paths",
+          "parameters": "store/driver: Option<&str>, None=current default; resolve:&str; repository:Arc<dyn Store>,&Json; forget_driver:Option<&str>, forget_drivers:&[&str]",
+          "returns": "CacheResult; store/driver shared Arc<Repository>; resolve/repository owned Repository; getter String",
+          "errors": "UnknownStore / InvalidConfiguration / Unavailable / backend error",
+          "lifecycle": "store caches named repositories; resolve fresh; forgetting retains old Arc handles"
+        },
+        "purge": {
+          "local": "purge",
+          "test": "facade_manager_selection_and_detached_repositories_are_real",
+          "status": "verified-paths",
+          "parameters": "store/driver: Option<&str>, None=current default; resolve:&str; repository:Arc<dyn Store>,&Json; forget_driver:Option<&str>, forget_drivers:&[&str]",
+          "returns": "CacheResult; store/driver shared Arc<Repository>; resolve/repository owned Repository; getter String",
+          "errors": "UnknownStore / InvalidConfiguration / Unavailable / backend error",
+          "lifecycle": "store caches named repositories; resolve fresh; forgetting retains old Arc handles"
+        },
+        "getName": {
+          "local": "get_name",
+          "test": "facade_setters_update_existing_arcs_and_clones_keep_their_settings",
+          "status": "verified-paths",
+          "parameters": "default TTL Option<i64>, initially Some(3600), None forever, 0 removes implicit write; store Arc<dyn Store>",
+          "returns": "CacheResult; setter returns same Arc<Repository>; store getter owned Arc",
+          "errors": "Unavailable; operations preserve backend errors",
+          "lifecycle": "same repository Arc sees settings changes; Clone snapshots settings and shares backend; retained store Arc remains valid"
+        },
+        "getStore": {
+          "local": "get_store",
+          "test": "facade_setters_update_existing_arcs_and_clones_keep_their_settings",
+          "status": "verified-paths",
+          "parameters": "default TTL Option<i64>, initially Some(3600), None forever, 0 removes implicit write; store Arc<dyn Store>",
+          "returns": "CacheResult; setter returns same Arc<Repository>; store getter owned Arc",
+          "errors": "Unavailable; operations preserve backend errors",
+          "lifecycle": "same repository Arc sees settings changes; Clone snapshots settings and shares backend; retained store Arc remains valid"
+        },
+        "getDefaultCacheTime": {
+          "local": "get_default_cache_time",
+          "test": "facade_setters_update_existing_arcs_and_clones_keep_their_settings",
+          "status": "verified-paths",
+          "parameters": "default TTL Option<i64>, initially Some(3600), None forever, 0 removes implicit write; store Arc<dyn Store>",
+          "returns": "CacheResult; setter returns same Arc<Repository>; store getter owned Arc",
+          "errors": "Unavailable; operations preserve backend errors",
+          "lifecycle": "same repository Arc sees settings changes; Clone snapshots settings and shares backend; retained store Arc remains valid"
+        },
+        "setDefaultCacheTime": {
+          "local": "set_default_cache_time",
+          "test": "facade_setters_update_existing_arcs_and_clones_keep_their_settings",
+          "status": "verified-paths",
+          "parameters": "default TTL Option<i64>, initially Some(3600), None forever, 0 removes implicit write; store Arc<dyn Store>",
+          "returns": "CacheResult; setter returns same Arc<Repository>; store getter owned Arc",
+          "errors": "Unavailable; operations preserve backend errors",
+          "lifecycle": "same repository Arc sees settings changes; Clone snapshots settings and shares backend; retained store Arc remains valid"
+        },
+        "setStore": {
+          "local": "set_store",
+          "test": "facade_setters_update_existing_arcs_and_clones_keep_their_settings",
+          "status": "verified-paths",
+          "parameters": "default TTL Option<i64>, initially Some(3600), None forever, 0 removes implicit write; store Arc<dyn Store>",
+          "returns": "CacheResult; setter returns same Arc<Repository>; store getter owned Arc",
+          "errors": "Unavailable; operations preserve backend errors",
+          "lifecycle": "same repository Arc sees settings changes; Clone snapshots settings and shares backend; retained store Arc remains valid"
+        },
+        "string": {
+          "local": "string",
+          "test": "facade_typed_reads_preserve_cache_conversions_and_null_fallbacks",
+          "status": "verified-paths",
+          "parameters": "plain(key); _or(key, typed default); _or_else(key, async Value fallback); get_multiple(&[&str]); get_multiple_or(keys,Value)",
+          "returns": "CacheResult<typed value>; ordered IndexMap optional vs populated values",
+          "errors": "InvalidType for wrong cached type; default never masks it; backend errors propagate",
+          "lifecycle": "null/missing invoke fallback, hit leaves callback unevaluated; cache numeric conversion retained"
+        },
+        "integer": {
+          "local": "integer",
+          "test": "facade_typed_reads_preserve_cache_conversions_and_null_fallbacks",
+          "status": "verified-paths",
+          "parameters": "plain(key); _or(key, typed default); _or_else(key, async Value fallback); get_multiple(&[&str]); get_multiple_or(keys,Value)",
+          "returns": "CacheResult<typed value>; ordered IndexMap optional vs populated values",
+          "errors": "InvalidType for wrong cached type; default never masks it; backend errors propagate",
+          "lifecycle": "null/missing invoke fallback, hit leaves callback unevaluated; cache numeric conversion retained"
+        },
+        "float": {
+          "local": "float",
+          "test": "facade_typed_reads_preserve_cache_conversions_and_null_fallbacks",
+          "status": "verified-paths",
+          "parameters": "plain(key); _or(key, typed default); _or_else(key, async Value fallback); get_multiple(&[&str]); get_multiple_or(keys,Value)",
+          "returns": "CacheResult<typed value>; ordered IndexMap optional vs populated values",
+          "errors": "InvalidType for wrong cached type; default never masks it; backend errors propagate",
+          "lifecycle": "null/missing invoke fallback, hit leaves callback unevaluated; cache numeric conversion retained"
+        },
+        "boolean": {
+          "local": "boolean",
+          "test": "facade_typed_reads_preserve_cache_conversions_and_null_fallbacks",
+          "status": "verified-paths",
+          "parameters": "plain(key); _or(key, typed default); _or_else(key, async Value fallback); get_multiple(&[&str]); get_multiple_or(keys,Value)",
+          "returns": "CacheResult<typed value>; ordered IndexMap optional vs populated values",
+          "errors": "InvalidType for wrong cached type; default never masks it; backend errors propagate",
+          "lifecycle": "null/missing invoke fallback, hit leaves callback unevaluated; cache numeric conversion retained"
+        },
+        "array": {
+          "local": "array",
+          "test": "facade_typed_reads_preserve_cache_conversions_and_null_fallbacks",
+          "status": "verified-paths",
+          "parameters": "plain(key); _or(key, typed default); _or_else(key, async Value fallback); get_multiple(&[&str]); get_multiple_or(keys,Value)",
+          "returns": "CacheResult<typed value>; ordered IndexMap optional vs populated values",
+          "errors": "InvalidType for wrong cached type; default never masks it; backend errors propagate",
+          "lifecycle": "null/missing invoke fallback, hit leaves callback unevaluated; cache numeric conversion retained"
+        },
+        "getMultiple": {
+          "local": "get_multiple / get_multiple_or",
+          "test": "facade_typed_reads_preserve_cache_conversions_and_null_fallbacks",
+          "status": "verified-paths",
+          "parameters": "plain(key); _or(key, typed default); _or_else(key, async Value fallback); get_multiple(&[&str]); get_multiple_or(keys,Value)",
+          "returns": "CacheResult<typed value>; ordered IndexMap optional vs populated values",
+          "errors": "InvalidType for wrong cached type; default never masks it; backend errors propagate",
+          "lifecycle": "null/missing invoke fallback, hit leaves callback unevaluated; cache numeric conversion retained"
+        },
+        "macro": {
+          "local": "r#macro",
+          "test": "facade_macros_bind_the_selected_repository_and_are_isolated",
+          "status": "verified-paths",
+          "parameters": "named async callback &Repository,Vec<Value> -> CacheFuture<Value>; mixin iterable CacheMacro with explicit replace bool",
+          "returns": "CacheResult; macro_call Value; has_macro bool",
+          "errors": "UnknownMacro for absent name; callback errors propagate",
+          "lifecycle": "actual selected repository receiver; reentrant registration; one registry per application, shared by named/tagged/memoized handles"
+        },
+        "mixin": {
+          "local": "mixin",
+          "test": "facade_macros_bind_the_selected_repository_and_are_isolated",
+          "status": "verified-paths",
+          "parameters": "named async callback &Repository,Vec<Value> -> CacheFuture<Value>; mixin iterable CacheMacro with explicit replace bool",
+          "returns": "CacheResult; macro_call Value; has_macro bool",
+          "errors": "UnknownMacro for absent name; callback errors propagate",
+          "lifecycle": "actual selected repository receiver; reentrant registration; one registry per application, shared by named/tagged/memoized handles"
+        },
+        "hasMacro": {
+          "local": "has_macro",
+          "test": "facade_macros_bind_the_selected_repository_and_are_isolated",
+          "status": "verified-paths",
+          "parameters": "named async callback &Repository,Vec<Value> -> CacheFuture<Value>; mixin iterable CacheMacro with explicit replace bool",
+          "returns": "CacheResult; macro_call Value; has_macro bool",
+          "errors": "UnknownMacro for absent name; callback errors propagate",
+          "lifecycle": "actual selected repository receiver; reentrant registration; one registry per application, shared by named/tagged/memoized handles"
+        },
+        "flushMacros": {
+          "local": "flush_macros",
+          "test": "facade_macros_bind_the_selected_repository_and_are_isolated",
+          "status": "verified-paths",
+          "parameters": "named async callback &Repository,Vec<Value> -> CacheFuture<Value>; mixin iterable CacheMacro with explicit replace bool",
+          "returns": "CacheResult; macro_call Value; has_macro bool",
+          "errors": "UnknownMacro for absent name; callback errors propagate",
+          "lifecycle": "actual selected repository receiver; reentrant registration; one registry per application, shared by named/tagged/memoized handles"
+        },
+        "macroCall": {
+          "local": "macro_call",
+          "test": "facade_macros_bind_the_selected_repository_and_are_isolated",
+          "status": "verified-paths",
+          "parameters": "named async callback &Repository,Vec<Value> -> CacheFuture<Value>; mixin iterable CacheMacro with explicit replace bool",
+          "returns": "CacheResult; macro_call Value; has_macro bool",
+          "errors": "UnknownMacro for absent name; callback errors propagate",
+          "lifecycle": "actual selected repository receiver; reentrant registration; one registry per application, shared by named/tagged/memoized handles"
+        },
+        "getPrefix": {
+          "local": "get_prefix",
+          "test": "facade_reads_writes_locks_and_memo_follow_backend_changes",
+          "status": "verified-paths",
+          "parameters": "memo Option<&str>; lock(name,Option<Duration>), lock_with_owner(name,lease,Option<&str>); restore_lock(name,owner)",
+          "returns": "CacheResult; prefix String; memo Arc<Repository>; locks Arc<dyn Lock>",
+          "errors": "LocksUnsupported / backend errors",
+          "lifecycle": "memo request/worker scope; independent TTL3600/name None; dynamic backend prefix/lock capability; binary payload and expiry verified"
+        },
+        "memo": {
+          "local": "memo",
+          "test": "facade_reads_writes_locks_and_memo_follow_backend_changes",
+          "status": "verified-paths",
+          "parameters": "memo Option<&str>; lock(name,Option<Duration>), lock_with_owner(name,lease,Option<&str>); restore_lock(name,owner)",
+          "returns": "CacheResult; prefix String; memo Arc<Repository>; locks Arc<dyn Lock>",
+          "errors": "LocksUnsupported / backend errors",
+          "lifecycle": "memo request/worker scope; independent TTL3600/name None; dynamic backend prefix/lock capability; binary payload and expiry verified"
+        },
+        "lock": {
+          "local": "lock / lock_with_owner",
+          "test": "facade_reads_writes_locks_and_memo_follow_backend_changes",
+          "status": "verified-paths",
+          "parameters": "memo Option<&str>; lock(name,Option<Duration>), lock_with_owner(name,lease,Option<&str>); restore_lock(name,owner)",
+          "returns": "CacheResult; prefix String; memo Arc<Repository>; locks Arc<dyn Lock>",
+          "errors": "LocksUnsupported / backend errors",
+          "lifecycle": "memo request/worker scope; independent TTL3600/name None; dynamic backend prefix/lock capability; binary payload and expiry verified"
+        },
+        "restoreLock": {
+          "local": "restore_lock",
+          "test": "facade_reads_writes_locks_and_memo_follow_backend_changes",
+          "status": "verified-paths",
+          "parameters": "memo Option<&str>; lock(name,Option<Duration>), lock_with_owner(name,lease,Option<&str>); restore_lock(name,owner)",
+          "returns": "CacheResult; prefix String; memo Arc<Repository>; locks Arc<dyn Lock>",
+          "errors": "LocksUnsupported / backend errors",
+          "lifecycle": "memo request/worker scope; independent TTL3600/name None; dynamic backend prefix/lock capability; binary payload and expiry verified"
+        },
+        "getEventDispatcher": {
+          "local": "get_event_dispatcher",
+          "test": "facade_dispatcher_refresh_preserves_old_selection_until_requested",
+          "status": "verified-paths",
+          "parameters": "set Arc<dyn events::Dispatcher>; refresh no arguments",
+          "returns": "CacheResult<Option<Arc<dyn Dispatcher>>> / CacheResult<()>",
+          "errors": "Unavailable / dispatcher errors propagate",
+          "lifecycle": "repository snapshots dispatcher; application rebinding requires refresh for resolved repositories; explicit setter updates same Arc"
+        },
+        "setEventDispatcher": {
+          "local": "set_event_dispatcher",
+          "test": "facade_dispatcher_refresh_preserves_old_selection_until_requested",
+          "status": "verified-paths",
+          "parameters": "set Arc<dyn events::Dispatcher>; refresh no arguments",
+          "returns": "CacheResult<Option<Arc<dyn Dispatcher>>> / CacheResult<()>",
+          "errors": "Unavailable / dispatcher errors propagate",
+          "lifecycle": "repository snapshots dispatcher; application rebinding requires refresh for resolved repositories; explicit setter updates same Arc"
+        },
+        "refreshEventDispatcher": {
+          "local": "refresh_event_dispatcher",
+          "test": "facade_dispatcher_refresh_preserves_old_selection_until_requested",
+          "status": "verified-paths",
+          "parameters": "set Arc<dyn events::Dispatcher>; refresh no arguments",
+          "returns": "CacheResult<Option<Arc<dyn Dispatcher>>> / CacheResult<()>",
+          "errors": "Unavailable / dispatcher errors propagate",
+          "lifecycle": "repository snapshots dispatcher; application rebinding requires refresh for resolved repositories; explicit setter updates same Arc"
+        },
+        "setApplication": {
+          "local": "set_application",
+          "test": "facade_application_replacement_preserves_cached_stores_and_pins_inflight_builds",
+          "status": "verified-paths",
+          "parameters": "&Application; weak ownership, lazy service resolution",
+          "returns": "CacheResult<Arc<CacheManager>>",
+          "errors": "Unavailable if selected app is dropped",
+          "lifecycle": "keeps cached stores and custom creators; future fresh resolutions use new app; one in-flight resolution pins original app including macro registry"
+        }
+      },
+      "remaining": [
+        "spy: specialized typed recording/assertion and memo interaction remain open; generic caller-supplied Facade replacement is not closure",
+        "handleUnserializableClassUsing: trace PHP class-deserialization behavior against JSON/Bytes codec; no no-op compatibility method",
+        "build/extend, remaining repository/lock/tags/flexible/funnel dynamic delegations: reuse valid earlier evidence, complete parameter/default/error decisions and public facade consumer coverage before closure",
+        "Full Facade base inherited test APIs and extension facades audited separately"
+      ],
+      "qualification": "只登记本批实际执行路径；不把门面类型或转发存在当成全量对齐。Rust所有权适配详见README；外部厂商驱动验收未重跑。"
     },
     {
       "type": "Cloud",

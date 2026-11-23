@@ -20,6 +20,7 @@ mod flexible;
 mod helper;
 pub mod limiters;
 mod lock;
+mod macro_support;
 mod memcached_connector;
 mod memcached_lock;
 mod memcached_store;
@@ -33,6 +34,7 @@ mod redis_store;
 mod redis_tag_set;
 mod redis_tagged_cache;
 mod repository;
+pub use macro_support::CacheMacro;
 mod session_store;
 mod storage_store;
 mod store;
@@ -83,6 +85,9 @@ pub type CacheResult<T> = Result<T, CacheError>;
 #[non_exhaustive]
 pub enum CacheError {
     UnknownStore {
+        name: String,
+    },
+    UnknownMacro {
         name: String,
     },
     UnsupportedDriver,
@@ -176,6 +181,7 @@ impl std::fmt::Display for CacheError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::UnknownStore { name } => write!(f, "Cache store [{name}] is not configured."),
+            Self::UnknownMacro { name } => write!(f, "未定义缓存宏 [{name}]"),
             Self::UnsupportedDriver => f.write_str("The cache driver is unsupported."),
             Self::InvalidConfiguration => f.write_str("Invalid cache configuration."),
             Self::StoreResolutionCycle => f.write_str("Cache store resolution contains a cycle."),

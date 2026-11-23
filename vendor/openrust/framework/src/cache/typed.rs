@@ -5,37 +5,38 @@ use serde_json::Value as Json;
 use super::{Cache, CacheError, CacheResult, Repository, Value};
 
 macro_rules! typed_reads {
-    ($($name:ident, $lazy:ident, $return:ty, $parse:expr, $expected:literal;)+) => {
-                impl Repository {
+    ($($name:ident, $or:ident, $lazy:ident, $return:ty, $default:ty, $encode:path, $parse:expr, $expected:literal;)+) => {
+        impl Repository {
             $(
-                #[doc = concat!("Reads a cached ", $expected, " or checks the default on a miss.")]
-                pub async fn $name(&self, key: &str, default: Option<Value>) -> CacheResult<$return> {
-                    self.$lazy(key, || async { Ok(default.unwrap_or(Value::Json(Json::Null))) }).await
+                #[doc = concat!("读取并验证缓存 ", $expected, "；缺失、空值或类型不符时报错。")]
+                pub async fn $name(&self, key: &str) -> CacheResult<$return> {
+                    self.$lazy(key, || async { Ok(Value::Json(Json::Null)) }).await
                 }
 
-                #[doc = concat!("Reads a cached ", $expected, " with a lazy default.")]
+                #[doc = concat!("读取缓存 ", $expected, "，只在缺失或空值时使用默认值。")]
+                pub async fn $or(&self, key: &str, default: $default) -> CacheResult<$return> {
+                    self.$lazy(key, || async { $encode(default).map_err(|_| CacheError::InvalidType { key: key.to_owned(), expected: $expected }) }).await
+                }
+
+                #[doc = concat!("读取缓存 ", $expected, "，只在缺失或空值时执行默认回调。")]
                 pub async fn $lazy<F>(&self, key: &str, default: impl FnOnce() -> F) -> CacheResult<$return>
-                where
-                    F: Future<Output = CacheResult<Value>>,
-                {
+                where F: Future<Output = CacheResult<Value>> {
                     let value = self.get_or_else(key, default).await?;
                     ($parse)(value).ok_or_else(|| CacheError::InvalidType { key: key.into(), expected: $expected })
                 }
             )+
         }
 
-                impl Cache {
+        impl Cache {
             $(
-                #[doc = concat!("Reads a cached ", $expected, " from the default store.")]
-                pub async fn $name(key: &str, default: Option<Value>) -> CacheResult<$return> {
-                    Self::store(None)?.$name(key, default).await
+                pub async fn $name(key: &str) -> CacheResult<$return> {
+                    Self::store(None)?.$name(key).await
                 }
-
-                #[doc = concat!("Reads a cached ", $expected, " with a lazy default.")]
+                pub async fn $or(key: &str, default: $default) -> CacheResult<$return> {
+                    Self::store(None)?.$or(key, default).await
+                }
                 pub async fn $lazy<F>(key: &str, default: impl FnOnce() -> F) -> CacheResult<$return>
-                where
-                    F: Future<Output = CacheResult<Value>>,
-                {
+                where F: Future<Output = CacheResult<Value>> {
                     Self::store(None)?.$lazy(key, default).await
                 }
             )+
@@ -44,11 +45,29 @@ macro_rules! typed_reads {
 }
 
 typed_reads! {
-    string, string_or_else, String, |value| match value { Value::Json(Json::String(text)) => Some(text), _ => None }, "string";
-    integer, integer_or_else, i64, integer_value, "integer";
-    float, float_or_else, f64, float_value, "float";
-    boolean, boolean_or_else, bool, |value| match value { Value::Json(Json::Bool(flag)) => Some(flag), _ => None }, "boolean";
-    array, array_or_else, Json, |value| match value { Value::Json(value @ (Json::Array(_) | Json::Object(_))) => Some(value), _ => None }, "array";
+    string, string_or, string_or_else, String, impl Into<String>, string_default, |value| match value { Value::Json(Json::String(text)) => Some(text), _ => None }, "string";
+    integer, integer_or, integer_or_else, i64, i64, integer_default, integer_value, "integer";
+    float, float_or, float_or_else, f64, f64, float_default, float_value, "float";
+    boolean, boolean_or, boolean_or_else, bool, bool, boolean_default, |value| match value { Value::Json(Json::Bool(flag)) => Some(flag), _ => None }, "boolean";
+    array, array_or, array_or_else, Json, Json, array_default, |value| match value { Value::Json(value @ (Json::Array(_) | Json::Object(_))) => Some(value), _ => None }, "array";
+}
+
+fn string_default(value: impl Into<String>) -> CacheResult<Value> {
+    Ok(Value::Json(value.into().into()))
+}
+fn integer_default(value: i64) -> CacheResult<Value> {
+    Ok(value.into())
+}
+fn boolean_default(value: bool) -> CacheResult<Value> {
+    Ok(Value::Json(value.into()))
+}
+fn array_default(value: Json) -> CacheResult<Value> {
+    Ok(Value::Json(value))
+}
+fn float_default(value: f64) -> CacheResult<Value> {
+    serde_json::Number::from_f64(value)
+        .map(|value| Value::Json(value.into()))
+        .ok_or(CacheError::InvalidValue)
 }
 
 fn integer_value(value: Value) -> Option<i64> {

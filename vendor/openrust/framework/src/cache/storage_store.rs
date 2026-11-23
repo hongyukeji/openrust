@@ -225,8 +225,8 @@ impl Store for StorageStore {
         })
     }
 
-    fn get_prefix(&self) -> &str {
-        self.get_prefix()
+    fn get_prefix(&self) -> std::borrow::Cow<'_, str> {
+        self.get_prefix().into()
     }
 
     fn lock_provider(&self) -> Option<&dyn LockProvider> {

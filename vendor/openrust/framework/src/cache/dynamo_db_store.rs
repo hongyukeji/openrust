@@ -609,8 +609,8 @@ impl Store for DynamoDbStore {
         Box::pin(async { Err(CacheError::FlushUnsupported) })
     }
 
-    fn get_prefix(&self) -> &str {
-        &self.prefix
+    fn get_prefix(&self) -> std::borrow::Cow<'_, str> {
+        self.prefix.as_str().into()
     }
 
     fn lock_provider(&self) -> Option<&dyn LockProvider> {

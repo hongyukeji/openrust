@@ -69,7 +69,8 @@ async fn exercise_tags(initial: i64) -> CacheResult<()> {
     let ordered = memo.tags(&["memo-first", "memo-second"])?;
     let reversed = memo.tags(&["memo-second", "memo-first"])?;
     let unrelated = memo.tags(&["memo-unrelated"])?;
-    assert_eq!(ordered.get_name(), Some("redis"));
+    // 外层 memo 仓储没有 store 配置，标签视图沿用该配置。
+    assert_eq!(ordered.get_name(), None);
 
     live.forever("key", &initial.into()).await?;
     first.forever("key", &2.into()).await?;

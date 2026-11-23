@@ -21,6 +21,12 @@ impl ServiceProvider for EventServiceProvider {
             app.register_deferred_load_events(&dispatcher)?;
             container.instance_named("events", dispatcher)?;
             container.alias("events", ServiceKey::typed::<Dispatcher>())?;
+            container.bind::<dyn crate::contracts::events::Dispatcher, _>(|container| {
+                Ok(
+                    container.make::<Dispatcher>()?
+                        as Arc<dyn crate::contracts::events::Dispatcher>,
+                )
+            })?;
             Ok(())
         })
     }

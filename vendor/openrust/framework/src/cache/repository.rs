@@ -1,18 +1,16 @@
 use std::{
     future::Future,
     num::NonZeroU64,
-    sync::{Arc, Weak},
+    sync::{Arc, RwLock},
     time::{Duration, SystemTime},
 };
 
 use crate::{
-    container::Container,
     contracts::{
         cache::{Lock, LockProvider, Repository as Contract, Store},
-        container::Container as _,
         events::{Dispatcher as EventDispatcher, Event},
     },
-    events::{Dispatcher, EventContext},
+    events::EventContext,
 };
 
 use super::{
@@ -21,31 +19,39 @@ use super::{
 };
 
 /// Applies application-level semantics to a cache store.
-#[derive(Clone)]
 pub struct Repository {
-    store: Arc<dyn Store>,
+    store: RwLock<Arc<dyn Store>>,
     name: Option<String>,
-    default_cache_time: Option<i64>,
-    dispatcher: Option<RepositoryDispatcher>,
+    default_cache_time: RwLock<Option<i64>>,
+    dispatcher: RwLock<Option<Arc<dyn EventDispatcher>>>,
     tags: Vec<String>,
+    pub(super) macros: Arc<super::macro_support::CacheMacros>,
 }
 
-#[derive(Clone)]
-enum RepositoryDispatcher {
-    Application(Weak<Container>),
-    Explicit(Arc<dyn EventDispatcher>),
+impl Clone for Repository {
+    fn clone(&self) -> Self {
+        Self {
+            store: RwLock::new(self.get_store()),
+            name: self.name.clone(),
+            default_cache_time: RwLock::new(self.get_default_cache_time()),
+            dispatcher: RwLock::new(
+                self.dispatcher
+                    .read()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .clone(),
+            ),
+            tags: self.tags.clone(),
+            macros: self.macros.clone(),
+        }
+    }
 }
 
 impl Repository {
     /// Builds a concurrency limiter on this repository's store.
     pub fn funnel(&self, name: impl Into<String>) -> CacheResult<ConcurrencyLimiterBuilder> {
-        self.store
-            .lock_provider()
-            .ok_or(CacheError::LocksUnsupported)?;
-        Ok(ConcurrencyLimiterBuilder::new(
-            Arc::clone(&self.store),
-            name.into(),
-        ))
+        let store = self.get_store();
+        store.lock_provider().ok_or(CacheError::LocksUnsupported)?;
+        Ok(ConcurrencyLimiterBuilder::new(store, name.into()))
     }
 
     /// Runs a single callback under an exclusive lock, waiting up to ten seconds.
@@ -79,52 +85,56 @@ impl Repository {
     }
 
     pub fn tags(&self, names: &[&str]) -> CacheResult<TaggedCache> {
-        let mut tagged = Arc::clone(&self.store).tags(names)?;
+        let mut tagged = self.get_store().tags(names)?;
         tagged.repository.name.clone_from(&self.name);
-        tagged.repository.default_cache_time = self.default_cache_time;
-        if self.dispatcher.is_some() {
-            tagged.repository.dispatcher.clone_from(&self.dispatcher);
+        tagged
+            .repository
+            .set_default_cache_time(self.get_default_cache_time());
+        let dispatcher = self
+            .dispatcher
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone();
+        if dispatcher.is_some() {
+            *tagged
+                .repository
+                .dispatcher
+                .write()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) = dispatcher;
         }
+        tagged.repository.macros = self.macros.clone();
         tagged.repository.tags = names.iter().map(|name| (*name).to_owned()).collect();
         Ok(tagged)
     }
 
     pub fn supports_tags(&self) -> bool {
-        self.store.supports_tags()
+        self.get_store().supports_tags()
     }
 
     pub fn new(store: Arc<dyn Store>) -> Self {
         Self {
-            store,
+            store: RwLock::new(store),
             name: None,
-            default_cache_time: Some(3600),
-            dispatcher: None,
+            default_cache_time: RwLock::new(Some(3600)),
+            dispatcher: RwLock::new(None),
             tags: Vec::new(),
+            macros: Arc::default(),
         }
     }
 
     pub(super) fn memoized_view(&self, store: Arc<dyn Store>) -> Self {
-        Self {
-            store,
-            dispatcher: None,
-            ..self.clone()
-        }
+        Self::new(store).with_macros(self.macros.clone())
     }
 
     pub(super) async fn clear_store(&self, store: Arc<dyn Store>) -> CacheResult<bool> {
         let mut repository = self.clone();
-        repository.store = store;
+        repository.set_store(store);
         repository.tags.clear();
         repository.flush().await
     }
 
     pub(super) fn with_name(mut self, name: Option<&str>) -> Self {
         self.name = name.map(str::to_owned);
-        self
-    }
-
-    pub(super) fn with_events(mut self, owner: Weak<Container>) -> Self {
-        self.dispatcher = Some(RepositoryDispatcher::Application(owner));
         self
     }
 
@@ -135,46 +145,63 @@ impl Repository {
 
     /// Returns a handle to this repository's storage backend.
     pub fn get_store(&self) -> Arc<dyn Store> {
-        Arc::clone(&self.store)
+        self.store
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone()
     }
 
-    /// Replaces the storage backend on a uniquely borrowed repository.
-    pub fn set_store(&mut self, store: Arc<dyn Store>) -> &mut Self {
-        self.store = store;
+    /// 替换当前仓储的后端；已取得的后端句柄与进行中的操作保持原有归属。
+    pub fn set_store(&self, store: Arc<dyn Store>) -> &Self {
+        let retired = {
+            let mut current = self
+                .store
+                .write()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            std::mem::replace(&mut *current, store)
+        };
+        drop(retired);
         self
     }
 
     /// Returns the current event dispatcher, if event delivery is configured.
     pub fn get_event_dispatcher(&self) -> Option<Arc<dyn EventDispatcher>> {
-        match self.dispatcher.as_ref()? {
-            RepositoryDispatcher::Application(owner) => owner
-                .upgrade()?
-                .make::<Dispatcher>()
-                .ok()
-                .map(|dispatcher| dispatcher as Arc<dyn EventDispatcher>),
-            RepositoryDispatcher::Explicit(dispatcher) => Some(Arc::clone(dispatcher)),
-        }
+        self.dispatcher
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone()
     }
 
-    /// Overrides event delivery for this repository.
-    pub fn set_event_dispatcher(&mut self, dispatcher: Arc<dyn EventDispatcher>) {
-        self.dispatcher = Some(RepositoryDispatcher::Explicit(dispatcher));
+    /// 替换实际事件派发器；回调和旧派发器均在设置锁外释放。
+    pub fn set_event_dispatcher(&self, dispatcher: Arc<dyn EventDispatcher>) {
+        let retired = self
+            .dispatcher
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .replace(dispatcher);
+        drop(retired);
     }
 
     /// Returns the lifetime used by `put_with_default`, in seconds.
     pub fn get_default_cache_time(&self) -> Option<i64> {
-        self.default_cache_time
+        *self
+            .default_cache_time
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
     /// Sets the default lifetime. `None` writes values indefinitely.
-    pub fn set_default_cache_time(&mut self, seconds: Option<i64>) -> &mut Self {
-        self.default_cache_time = seconds;
+    pub fn set_default_cache_time(&self, seconds: Option<i64>) -> &Self {
+        *self
+            .default_cache_time
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = seconds;
         self
     }
 
     /// Writes a value with this repository's default lifetime.
     pub async fn put_with_default(&self, key: &str, value: &Value) -> CacheResult<bool> {
-        self.put(key, value, self.default_cache_time.map(Ttl::Seconds))
+        self.put(key, value, self.get_default_cache_time().map(Ttl::Seconds))
             .await
     }
 
@@ -267,7 +294,7 @@ impl Repository {
             keys: keys.iter().map(|key| (*key).to_owned()).collect(),
         })
         .await?;
-        let values = self.store.many(keys).await?;
+        let values = self.get_store().many(keys).await?;
         for (key, value) in keys.iter().zip(&values) {
             self.retrieved(key, value.as_ref()).await?;
         }
@@ -312,8 +339,8 @@ impl Repository {
         })
         .await?;
         let result = match seconds {
-            Some(seconds) => self.store.put(key, value, seconds).await?,
-            None => self.store.forever(key, value).await?,
+            Some(seconds) => self.get_store().put(key, value, seconds).await?,
+            None => self.get_store().forever(key, value).await?,
         };
         self.written(key, value, seconds.map(NonZeroU64::get), result)
             .await?;
@@ -337,7 +364,7 @@ impl Repository {
             seconds: Some(seconds.get()),
         })
         .await?;
-        let result = self.store.put_many(entries, seconds).await?;
+        let result = self.get_store().put_many(entries, seconds).await?;
         for (key, value) in entries {
             self.written(key, value, Some(seconds.get()), result)
                 .await?;
@@ -444,12 +471,12 @@ impl Repository {
     }
 
     pub fn supports_flushing_locks(&self) -> bool {
-        self.store.lock_flusher().is_some()
+        self.get_store().lock_flusher().is_some()
     }
 
     pub async fn flush_locks(&self) -> CacheResult<bool> {
-        let store = self
-            .store
+        let backend = self.get_store();
+        let store = backend
             .lock_flusher()
             .ok_or(CacheError::LockFlushUnsupported)?;
         self.emit(|store_name, _| CacheLocksFlushing { store_name })
@@ -468,7 +495,7 @@ impl Repository {
     pub async fn flush(&self) -> CacheResult<bool> {
         self.emit(|store_name, tags| CacheFlushing { store_name, tags })
             .await?;
-        let result = self.store.flush().await?;
+        let result = self.get_store().flush().await?;
         if result {
             self.emit(|store_name, tags| CacheFlushed { store_name, tags })
                 .await?;
@@ -489,7 +516,7 @@ impl Contract for Repository {
                 tags,
             })
             .await?;
-            let value = self.store.get(key).await?;
+            let value = self.get_store().get(key).await?;
             self.retrieved(key, value.as_ref()).await?;
             Ok(value)
         })
@@ -517,9 +544,11 @@ impl Contract for Repository {
         ttl: Option<Ttl>,
     ) -> CacheFuture<'a, CacheResult<bool>> {
         match ttl {
-            None => self.store.add(key, value, None),
+            None => Box::pin(async move { self.get_store().add(key, value, None).await }),
             Some(ttl) => match seconds(ttl) {
-                Some(seconds) => self.store.add(key, value, Some(seconds)),
+                Some(seconds) => {
+                    Box::pin(async move { self.get_store().add(key, value, Some(seconds)).await })
+                }
                 None => Box::pin(async { Ok(false) }),
             },
         }
@@ -531,7 +560,7 @@ impl Contract for Repository {
 
     fn touch<'a>(&'a self, key: &'a str, ttl: Ttl) -> CacheFuture<'a, CacheResult<bool>> {
         match seconds(ttl) {
-            Some(seconds) => self.store.touch(key, seconds),
+            Some(seconds) => Box::pin(async move { self.get_store().touch(key, seconds).await }),
             None => self.forget(key),
         }
     }
@@ -550,7 +579,7 @@ impl Contract for Repository {
                 tags,
             })
             .await?;
-            let value = self.store.pull(key).await?;
+            let value = self.get_store().pull(key).await?;
             self.retrieved(key, value.as_ref()).await?;
             self.forgotten(key, value.is_some()).await?;
             Ok(value)
@@ -565,22 +594,22 @@ impl Contract for Repository {
                 tags,
             })
             .await?;
-            let result = self.store.forget(key).await?;
+            let result = self.get_store().forget(key).await?;
             self.forgotten(key, result).await?;
             Ok(result)
         })
     }
 
     fn increment<'a>(&'a self, key: &'a str, amount: i64) -> CacheFuture<'a, CacheResult<i64>> {
-        self.store.increment(key, amount)
+        Box::pin(async move { self.get_store().increment(key, amount).await })
     }
 
     fn decrement<'a>(&'a self, key: &'a str, amount: i64) -> CacheFuture<'a, CacheResult<i64>> {
-        self.store.decrement(key, amount)
+        Box::pin(async move { self.get_store().decrement(key, amount).await })
     }
 
-    fn get_store(&self) -> &dyn Store {
-        self.store.as_ref()
+    fn get_store(&self) -> Arc<dyn Store> {
+        Repository::get_store(self)
     }
 }
 
@@ -591,14 +620,14 @@ impl LockProvider for Repository {
         lease: Option<Duration>,
         owner: Option<&str>,
     ) -> CacheResult<Box<dyn Lock>> {
-        self.store
+        self.get_store()
             .lock_provider()
             .ok_or(CacheError::LocksUnsupported)?
             .lock(name, lease, owner)
     }
 
     fn restore_lock(&self, name: &str, owner: &str) -> CacheResult<Box<dyn Lock>> {
-        self.store
+        self.get_store()
             .lock_provider()
             .ok_or(CacheError::LocksUnsupported)?
             .restore_lock(name, owner)

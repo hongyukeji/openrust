@@ -2879,13 +2879,13 @@ async fn verify_typed_and_batch(cache: &Repository) {
             .await
             .unwrap()
     );
-    assert_eq!(cache.string("title", None).await.unwrap(), "Rust");
-    assert_eq!(cache.integer("count", None).await.unwrap(), 12);
-    assert_eq!(cache.float("ratio", None).await.unwrap(), 5.0);
-    assert!(!cache.boolean("listed", None).await.unwrap());
-    assert_eq!(cache.array("tags", None).await.unwrap(), json!(["news"]));
+    assert_eq!(cache.string("title").await.unwrap(), "Rust");
+    assert_eq!(cache.integer("count").await.unwrap(), 12);
+    assert_eq!(cache.float("ratio").await.unwrap(), 5.0);
+    assert!(!cache.boolean("listed").await.unwrap());
+    assert_eq!(cache.array("tags").await.unwrap(), json!(["news"]));
     assert_eq!(
-        cache.array("indexed", None).await.unwrap(),
+        cache.array("indexed").await.unwrap(),
         json!({"topic":"news"})
     );
     assert_eq!(
@@ -2922,53 +2922,45 @@ async fn verify_typed_and_batch(cache: &Repository) {
             .unwrap(),
         json!(["fallback"])
     );
-    assert!(
-        cache
-            .boolean("missing", Some(json!(true).into()))
-            .await
-            .unwrap()
-    );
+    assert!(cache.boolean_or("missing", true).await.unwrap());
     assert!(matches!(
-        cache.integer("padded", None).await,
+        cache.integer("padded").await,
         Err(CacheError::InvalidType {
             expected: "integer",
             ..
         })
     ));
     assert!(matches!(
-        cache.integer("ratio", None).await,
+        cache.integer("ratio").await,
         Err(CacheError::InvalidType { .. })
     ));
     assert!(matches!(
-        cache.float("ratio-underflow", None).await,
+        cache.float("ratio-underflow").await,
         Err(CacheError::InvalidType {
             expected: "float",
             ..
         })
     ));
     assert!(
-        matches!(cache.string("zero", Some("fallback".into())).await, Err(CacheError::InvalidType { key, expected: "string" }) if key == "zero")
+        matches!(cache.string_or("zero", "fallback").await, Err(CacheError::InvalidType { key, expected: "string" }) if key == "zero")
     );
     assert!(matches!(
-        cache.array("missing", None).await,
+        cache.array("missing").await,
         Err(CacheError::InvalidType { .. })
     ));
 
     let multiple = cache
-        .get_multiple(&["count", "null", "missing", "count"], Some(7.into()))
+        .get_multiple_or(&["count", "null", "missing", "count"], 7.into())
         .await
         .unwrap();
     assert_eq!(
         multiple.keys().map(String::as_str).collect::<Vec<_>>(),
         ["count", "null", "missing"]
     );
-    assert_eq!(multiple["count"], Some(" +12 ".into()));
-    assert_eq!(multiple["null"], Some(7.into()));
-    assert_eq!(multiple["missing"], Some(7.into()));
-    let without_default = cache
-        .get_multiple(&["null", "missing"], None)
-        .await
-        .unwrap();
+    assert_eq!(multiple["count"], " +12 ".into());
+    assert_eq!(multiple["null"], 7.into());
+    assert_eq!(multiple["missing"], 7.into());
+    let without_default = cache.get_multiple(&["null", "missing"]).await.unwrap();
     assert_eq!(without_default["null"], None);
     assert_eq!(without_default["missing"], None);
     let separate = cache
@@ -3040,14 +3032,14 @@ async fn cache_typed_and_batch_methods_keep_values_defaults_and_deletion_semanti
             repo.put("numeric-text", &" +12 ".into(), ttl)
                 .await
                 .unwrap();
-            assert_eq!(repo.string("numeric-text", None).await.unwrap(), " +12 ");
+            assert_eq!(repo.string("numeric-text").await.unwrap(), " +12 ");
             assert_eq!(repo.increment("numeric-text", 1).await.unwrap(), 13);
             repo.put("overflow-text", &"9223372036854775807".into(), ttl)
                 .await
                 .unwrap();
             assert!(repo.increment("overflow-text", 1).await.is_err());
             assert_eq!(
-                repo.string("overflow-text", None).await.unwrap(),
+                repo.string("overflow-text").await.unwrap(),
                 "9223372036854775807"
             );
             assert_eq!(

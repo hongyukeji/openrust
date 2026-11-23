@@ -45,7 +45,7 @@ pub trait Store: Send + Sync {
     fn increment<'a>(&'a self, key: &'a str, amount: i64) -> CacheFuture<'a, CacheResult<i64>>;
     fn decrement<'a>(&'a self, key: &'a str, amount: i64) -> CacheFuture<'a, CacheResult<i64>>;
     fn flush(&self) -> CacheFuture<'_, CacheResult<bool>>;
-    fn get_prefix(&self) -> &str;
+    fn get_prefix(&self) -> std::borrow::Cow<'_, str>;
     fn lock_flusher(&self) -> Option<&dyn CanFlushLocks> {
         None
     }

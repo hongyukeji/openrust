@@ -191,8 +191,8 @@ impl Store for MemcachedStore {
         Box::pin(async move { self.client.flush().await.map(|()| true) })
     }
 
-    fn get_prefix(&self) -> &str {
-        &self.prefix
+    fn get_prefix(&self) -> std::borrow::Cow<'_, str> {
+        self.prefix.as_str().into()
     }
 
     fn lock_provider(&self) -> Option<&dyn LockProvider> {

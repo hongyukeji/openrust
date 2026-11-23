@@ -115,8 +115,8 @@ async fn acquire<'a>(
     repository: &dyn Repository,
     keys: impl IntoIterator<Item = &'a str>,
 ) -> CacheResult<Vec<Box<dyn Lock>>> {
-    let provider = repository
-        .get_store()
+    let backend = repository.get_store();
+    let provider = backend
         .lock_provider()
         .ok_or(CacheError::LocksUnsupported)?;
     let mut locks = Vec::new();

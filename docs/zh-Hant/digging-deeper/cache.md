@@ -91,13 +91,13 @@ pub async fn report_title() -> CacheResult<Value> {
 
 ### 型別化讀取 {#typed-cache-values}
 
-用 `string`、`integer`、`float`、`boolean` 和 `array` 驗證讀取結果。預設值傳 `None` 或 `Some(value)`，鍵缺少或值為 null 時使用。延遲計算的預設值用對應的 `OrElse` 方法。快取值或預設值的型別不符時回傳 `CacheError::InvalidType`。字串和布林值按型別驗證，數字方法接受有效的數字字串，`array` 接受 JSON 陣列和物件。
+用 `string`、`integer`、`float`、`boolean` 和 `array` 直接讀取，不必傳預設值參數。需要預設值時用 `_or`，例如 `integer_or("reports:limit", 10)`；非同步延遲計算用 `_or_else`。缺少的鍵與快取中的 JSON `null` 使用預設值，命中時不執行預設回呼。快取值型別不符時仍傳回 `CacheError::InvalidType`，不會被預設值掩蓋。數字讀取保留快取本身的有效數字字串轉換，`array` 接受 JSON 陣列和物件。
 
 ```rust
 use openrust::{cache::{CacheResult, Value}, support::facades::Cache};
 
 pub async fn report_limit() -> CacheResult<i64> {
-    Cache::integer("reports:limit", Some(Value::from(10))).await
+    Cache::integer_or("reports:limit", 10).await
 }
 ```
 
@@ -105,7 +105,7 @@ Redis 保留新寫入的數字字串及其原始寫法。既有整數項目可�
 
 ### 批次操作 {#cache-batch-operations}
 
-`get_multiple(keys, default)` 按輸入順序回傳對應表，可傳入統一的預設值。`many_or` 為每個鍵接收預設值，`many_or_else` 按鍵延遲計算預設值。批次讀取只呼叫一次儲存空間，缺少的鍵和 null 使用預設值。`set` 和 `set_multiple` 寫入，`delete` 和 `delete_multiple` 移除項目，`clear` 清空所選儲存庫。批次刪除遇到缺少的鍵會繼續，並在任一鍵缺少時回傳 `false`。
+`get_multiple(keys)` 依輸入順序傳回可選值映射；`get_multiple_or(keys, default)` 用統一預設值填補缺少的鍵與 null。`many_or` 接收逐鍵預設值，`many_or_else` 依鍵延遲計算。每批只讀取一次後端。`set` 和 `set_multiple` 寫入，`delete` 和 `delete_multiple` 移除，`clear` 清空所選儲存庫。批次刪除遇到缺少的鍵會繼續，並在任一鍵缺少時傳回 `false`。
 
 ```rust
 use openrust::{cache::{CacheResult, Value}, support::facades::Cache};
@@ -194,18 +194,40 @@ pub async fn report() -> CacheResult<Value> {
 
 `get_name`、`get_store` 和 `get_event_dispatcher` 分別讀取已設定的儲存庫名稱、底層儲存空間和事件分派器。具名儲存庫停用快取事件後仍可讀取名稱。建立標籤儲存庫時，會繼承來源儲存庫的名稱、事件分派器和預設有效時間。
 
-`put_with_default` 使用 `get_default_cache_time` 回傳的時間，初始值為 3600 秒。明確呼叫 `put(key, value, None)` 會永久保存。使用 `set_default_cache_time` 修改自有儲存庫的預設有效時間。`set_store` 和 `set_event_dispatcher` 也用於自有儲存庫。複製後的儲存庫共用底層儲存空間，每份副本可以各自取代設定。
+`put_with_default` 使用 `get_default_cache_time`，初始為 3600 秒，`None` 表示永久。明確的 `put(key, value, None)` 也永久儲存。`Cache::set_default_cache_time`、`set_store` 和 `set_event_dispatcher` 修改實際共用的預設儲存庫，既有控制代碼也能觀察變化；具名儲存庫上的同名方法修改該儲存庫。複製會複製設定並共用後端。`get_store` 傳回擁有所有權的 `Arc`，替換後端後，先前取得的後端仍有效。實作 `Store` 時，`get_prefix` 傳回 `Cow<str>`，讓配接器安全跟隨後端變化。
 
 ```rust
 use openrust::{cache::{CacheResult, Value}, support::facades::Cache};
 
 pub async fn cache_report() -> CacheResult<bool> {
-    let mut repository = Cache::store(Some("redis"))?.as_ref().clone();
+    let repository = Cache::store(Some("redis"))?;
     repository.set_default_cache_time(Some(60));
     let reports = repository.tags(&["reports"])?;
     reports.put_with_default("latest", &Value::from("ready")).await
 }
 ```
+
+## 管理器與擴充 {#cache-manager-extensions}
+
+`get_default_driver` 和 `set_default_driver` 讀取或修改目前應用的預設選擇。`store(Some("name"))` 重用已解析儲存庫，`resolve("name")` 建立新實例。`build(config)` 隨需建構儲存，`repository(store, config)` 包裝自訂後端。`forget_driver(None)` 忘記目前預設實例，`forget_drivers(&["first", "second"])` 接收清單，`purge` 移除所選實例；既有控制代碼仍有效。
+
+`extend` 註冊自訂驅動建立器。巨集綁定實際選中的儲存庫，同一應用管理器下的具名、標籤和記憶化儲存庫共用巨集註冊表，應用之間隔離。`mixin` 接收具名 `CacheMacro` 回呼和替換開關；`has_macro`、`flush_macros` 和 `macro_call` 分別檢查、清空和呼叫。未知巨集傳回 `CacheError::UnknownMacro`。
+
+```rust
+use openrust::{cache::CacheResult, support::facades::Cache};
+
+pub async fn register_report_macro() -> CacheResult<()> {
+    Cache::r#macro("report", |repository, _| Box::pin(async move {
+        repository.get_or("reports:title", "Untitled".into()).await
+    }))?;
+    let _title = Cache::macro_call("report", vec![]).await?;
+    Ok(())
+}
+```
+
+新儲存庫在建立時取得事件分派器。修改應用的分派器綁定後，用 `refresh_event_dispatcher` 更新已解析儲存庫；`set_event_dispatcher` 明確修改預設儲存庫。`set_application` 只改變後續解析使用的應用，不丟棄既有儲存庫和建立器；正在解析的操作保留原應用。嵌入多個應用時應明確控制此生命週期操作。
+
+`lock_with_owner` 接收明確的擁有者權杖，`restore_lock` 用該權杖還原所有權。記憶化包裝器使用獨立的 3600 秒預設時長，不帶儲存庫名稱和外層分派器；實際後端存取與事件仍由被包裝儲存庫處理。
 
 ## 快取標籤 {#cache-tags}
 

@@ -149,7 +149,7 @@ impl Store for TaggedStore {
         })
     }
 
-    fn get_prefix(&self) -> &str {
+    fn get_prefix(&self) -> std::borrow::Cow<'_, str> {
         self.0.store.get_prefix()
     }
 

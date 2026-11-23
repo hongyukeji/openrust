@@ -45,17 +45,29 @@ impl Repository {
         Ok(results)
     }
 
-    /// Reads each key once, applying the same default to all misses.
+    /// 批量读取，缺失或空值以 None 表示，重复键保持首次出现的顺序。
     pub async fn get_multiple(
         &self,
         keys: &[&str],
-        default: Option<Value>,
     ) -> CacheResult<IndexMap<String, Option<Value>>> {
         Ok(self
             .keyed_many(keys)
             .await?
             .into_iter()
-            .map(|(key, value)| (key.to_owned(), value.or_else(|| default.clone())))
+            .map(|(key, value)| (key.to_owned(), value))
+            .collect())
+    }
+
+    pub async fn get_multiple_or(
+        &self,
+        keys: &[&str],
+        default: Value,
+    ) -> CacheResult<IndexMap<String, Value>> {
+        Ok(self
+            .get_multiple(keys)
+            .await?
+            .into_iter()
+            .map(|(key, value)| (key, value.unwrap_or_else(|| default.clone())))
             .collect())
     }
 
@@ -116,11 +128,15 @@ impl Cache {
         Self::store(None)?.many_or_else(keys, default).await
     }
 
-    pub async fn get_multiple(
+    pub async fn get_multiple(keys: &[&str]) -> CacheResult<IndexMap<String, Option<Value>>> {
+        Self::store(None)?.get_multiple(keys).await
+    }
+
+    pub async fn get_multiple_or(
         keys: &[&str],
-        default: Option<Value>,
-    ) -> CacheResult<IndexMap<String, Option<Value>>> {
-        Self::store(None)?.get_multiple(keys, default).await
+        default: Value,
+    ) -> CacheResult<IndexMap<String, Value>> {
+        Self::store(None)?.get_multiple_or(keys, default).await
     }
 
     pub async fn set(key: &str, value: &Value, ttl: Option<Ttl>) -> CacheResult<bool> {

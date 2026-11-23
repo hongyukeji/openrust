@@ -99,6 +99,17 @@ impl StoreRegistry {
         drop(removed);
     }
 
+    pub(super) fn resolved(&self) -> Vec<Arc<Repository>> {
+        self.lock()
+            .stores
+            .values()
+            .filter_map(|entry| match entry {
+                Entry::Ready(repository) => Some(repository.clone()),
+                Entry::Resolving(_) => None,
+            })
+            .collect()
+    }
+
     fn lock(&self) -> MutexGuard<'_, State> {
         self.state.lock().unwrap_or_else(PoisonError::into_inner)
     }

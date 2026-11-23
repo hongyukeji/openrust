@@ -101,3 +101,31 @@ python3 -B tests/build_guard.py --workflow facade-alignment --target-dir target/
 ```
 
 尚未据此验收真实 Redis、Windows/Linux 原生行为、所有数据库、全部 JSON 编码选项、ResponseFactory Contract、SessionManager 驱动切换/handler/宏及其他 43 个具体门面的完整公开契约。**本批是已验范围交付，不是全量对齐完成。**
+
+### Cache：共享状态、管理器转发与宏（2026-11-24，已验收批次，门面仍 partial）
+
+本批沿用固定 Framework `1449bf241017087fbd38c118ecaabef3f6797fdc` 的 CacheManager、Repository、MemoizedStore、MemoizedTaggedCache 与 Macroable 调用链；不是只核门面注解。旧版 `openrust-v0.x` `6d1a81924451e15f595f68c8dfb520ad6d6c44cf` 的 `framework/src/cache.rs` 没有当前门面／管理器装配，复用当前驱动、仓储、锁、事件和 memo 生命周期，不移植旧 API，也未把旧版测试计入本批结果。
+
+| 公开契约 | 本批实现与可观察行为 |
+|---|---|
+| 默认选择、解析与删除实例 | 门面开放 `get_default_driver/set_default_driver/resolve/repository`；保留 store/driver/build/extend/purge。`forget_driver(None)` 选择当前默认，`forget_drivers(&[...])` 表达上游数组参数；已取得 Arc 不因忘记实例而失效。resolve 新建而 store 复用。 |
+| 仓储设置 | TTL、Store 与事件分派器改为短锁保护的共享状态，静态 setter 修改同一个仓储，不要求开发者取 root 或克隆绕行；Clone 复制设置并共享原后端。替换的对象在锁外析构，回调与 await 不持设置锁。 |
+| 所有权适配 | Repository Contract 的 `get_store` 返回 `Arc<dyn Store>`，而非借用后端；Store 的 `get_prefix` 返回 `Cow<str>`，通常借用，动态适配器持有字符串。memo 的前缀与锁能力跟随当前后端。RateLimiter、Worker marker、Failover 与 Fortify 测试消费者同步处理持有期；没有不安全借用或泄漏对象。 |
+| 事件快照与刷新 | 新仓储捕获事件分派器；容器替换绑定不会悄悄改变已解析仓储，`refresh_event_dispatcher` 才统一更新；`set_event_dispatcher` 直改所选仓储。Events Provider 提供实际分派器 Contract 绑定，允许自定义实现，无平行事件体系。 |
+| setApplication | `set_application(&Application)` 惰性切换未来解析来源，弱持有应用，不丢弃已缓存仓储和自定义创建器；单次解析固定来源，创建器中切换应用也不混合配置、后端与宏注册表。 |
+| 宏与 mixin | `r#macro/mixin/has_macro/flush_macros/macro_call` 在实际仓储上执行；同一应用的具名、标签和 memo 仓储共享注册表，应用之间隔离。回调可重入注册，无宏锁跨 await；未知名称明确报错。mixin 用具名 CacheMacro 迭代器表达可调用对象，replace 为显式 bool。 |
+| 普通／默认读取 | 宏生成的 string/integer/float/boolean/array 使用普通读取、`_or` 和 `_or_else`；保留 Cache 数字字符串等已有转换，不套用 Request 规则。null/缺失走默认，错误类型与后端错误不被默认掩盖，命中不计算惰性默认。get_multiple 普通返回可选值映射，get_multiple_or 填充统一默认。 |
+| memo 默认与锁 | 包装仓储默认 TTL 为 3600 秒、name=None、外层 events=None；标签视图继承外层配置。实际 I/O 与事件仍通过内层仓储。`lock_with_owner` 保留可选 owner，restore_lock 恢复同一令牌。 |
+
+验收日志统一在 `target/tmp/facade-alignment/cache/`：
+
+- `final-file.log`：7 项公开门面 HTTP 路径通过，另 scope 关闭用例通过；其中无 Redis 环境的条件测试不计 Redis 验收。
+- `sqlite-fixed.log`、`mysql.log`、`postgres.log`：上述 7 项分别在真实 SQLite 文件、独立 MySQL 8.4、独立 PostgreSQL 18 通过；数据库 fixture 使用独立表/容器，无开发数据库操作。
+- `redis-final.log`：7 项公开门面测试及 2 项 memo 测试通过；真实 Redis 8 的 HTTP 与 Artisan `queue:work --stop-when-empty --sleep=0 --timeout=0 --tries=1` 分别验证请求与任务生命周期。独立临时 Redis 容器已清理，无共享缓存或卷操作。
+- `typed-mysql-redis.log`：要求夹具存在的类型／批量消费者，在同批独立 MySQL 8.4.13 和 Redis 8.10.3 实际通过；同时覆盖 array/file。`consumer-tests.log`：根 cache 过滤组 20 项及事件 3 项返回通过，未设置外部服务的条件分支不计外部验收；实际 file/SQLite/array、Artisan cache 命令和事件路径已运行。`dependent-tests.log`：补跑仓储克隆设置 1 项与 Fortify 4 项通过。
+- `fmt.log`：冻结源码 `cargo fmt --all -- --check` 通过。
+- `clippy-final.log`：冻结源码 `cargo clippy --workspace --all-targets -- -D warnings` 通过。首次 Clippy 指出已有测试的冗余 mut，已修正；失败日志保留。
+- `docs.log`：三语内容检查与站点构建通过；`browser.log`：三语、桌面／移动端四个 Cache 章节，共 24 次实际页面检查通过。
+- 保留 `initial-tests.log`（事件名错误）、`sqlite.log`（夹具漏建 SQLite 文件）、`redis.log`（镜像无声明卷而夹具限制过严）、`redis-fixed.log`（旧 memo 标签名称断言）和 `clippy.log`，后续成功不覆盖失败记录。memo 名称断言修改依据是 CacheManager.memo 创建无 store 配置的外层 Repository，Repository.tags 再把外层配置传给标签视图。
+
+**未闭合**：本批仅关闭已列路径的缺口。专用 Cache spy 与 memo 测试交互、`handleUnserializableClassUsing` 对 PHP 类反序列化的精确 Rust 裁决，以及其余委托的完整参数／默认／错误与真实消费者证据仍需完成。JSON/Bytes 不包含 PHP 类加载，但不能用无操作兼容方法宣称对齐；通用 Facade 替换也不代替专用 spy。完整门面保持 partial，不更新核心完成率；外部 Memcached/DynamoDB/S3 与发布矩阵未在本批重验。

@@ -261,10 +261,7 @@ async fn named_redis_connections_cache_and_locks_work_across_entrypoints() {
         .put("text-counter", &Value::from(stored), ttl)
         .await
         .unwrap();
-    assert_eq!(
-        repository.string("text-counter", None).await.unwrap(),
-        stored
-    );
+    assert_eq!(repository.string("text-counter").await.unwrap(), stored);
     assert_eq!(second.increment("text-counter", 1).await.unwrap(), 13);
     assert_eq!(
         repository.get("text-counter").await.unwrap(),
