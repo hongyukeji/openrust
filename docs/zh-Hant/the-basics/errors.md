@@ -283,3 +283,21 @@ async fn check_unhandled(app: &mut TestApp) -> Result<(), Box<dyn std::error::Er
 `Exception::downcast_chain_ref::<E>()` 明確讀取診斷來源，包括映射前例外；`including_sources` 選擇器也使用它。映射後的規則仍僅匹配新根。來源搜尋最多檢查 32 個節點，循環 `source()` 不會掛起測試或報告。
 
 `TestApp` 自動捕獲未處理錯誤。直接呼叫底層 Kernel 的 Future 時，用 `Exceptions::catch_reported(future).await` 包裹；僅傳回 `Response` 的舊處理器方法在明確關閉模式下以 `SharedException` 為載荷 panic。需要 `Result` 時使用可失敗的門面或測試入口。
+
+### 所有例外的限流策略 {#global-exception-throttle}
+
+透過 `Exceptions::throttle_using_all` 註冊全域策略，或在啟動設定中使用 `configuration.throttle_all`。它與 `throttle_using::<E>` 共用有序回呼集合。回傳 `None` 繼續尋找；回傳 `Unlimited` 明確放行並停止尋找。
+
+```rust
+Exceptions::throttle_using_all(|exception| {
+    if exception.downcast_ref::<TransientFailure>().is_some() {
+        Some(ReportThrottle::Limit(Limit::per_minute(5)))
+    } else {
+        None
+    }
+})?;
+```
+
+未指定 `.by(...)` 時依實際 Rust 錯誤型別分組，不依訊息分組。擁有錯誤的 `Exceptions::report(error)` 自動保留型別；借用查詢使用 `Exception::typed(&error)`，具體型別的 `Arc<E>` 使用 `SharedException::from_typed_arc(error)`。映射後的報告依目標型別計費；明確的 `.by("supplier-timeout")` 可讓不同型別共用配額。
+
+已抹除型別的 `Arc<dyn Error + Send + Sync>` 或 `Exception::Error(&dyn_error)` 無法還原 Rust 具體型別名稱。請明確指定 `.by(...)`，或使用上述建構器保留型別。全域無鍵策略遇到缺少型別資訊時沿用限流失敗放行規則，保留原例外報告，不會把所有未知型別悄悄混入同一配額。原有具型別策略仍可為舊借用呼叫推斷符合的型別。

@@ -268,6 +268,17 @@ impl Exceptions {
             configuration.should_render_json_when(callback);
         })
     }
+    /// 为全部错误注册策略，复用与具类型策略相同的有序回调集合。
+    pub fn throttle_using_all(
+        callback: impl Fn(&Exception<'_>) -> Option<crate::foundation::configuration::ReportThrottle>
+        + Send
+        + Sync
+        + 'static,
+    ) -> Result<(), BindingResolutionError> {
+        Self::configure(|configuration| {
+            configuration.throttle_all(callback);
+        })
+    }
     pub fn throttle_using<E: Error + 'static>(
         callback: impl Fn(&E) -> Option<crate::foundation::configuration::ReportThrottle>
         + Send

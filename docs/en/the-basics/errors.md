@@ -283,3 +283,21 @@ The public `Exceptions::render` returns a fallible boxed-error result, retaining
 `Exception::downcast_chain_ref::<E>()` explicitly inspects diagnostic sources, including a mapped error's previous exception; `including_sources` selectors use it too. Mapped rule matching still uses only the new root. Source searches stop after 32 nodes, so a cyclic `source()` does not hang a test or report.
 
 `TestApp` captures unhandled errors automatically. For a low-level kernel future, use `Exceptions::catch_reported(future).await`; direct legacy handler methods returning only `Response` use a typed `SharedException` panic in explicitly disabled mode. Use the fallible facade or test entry points when a `Result` is needed.
+
+### Policies for all exception types {#global-exception-throttle}
+
+Use `Exceptions::throttle_using_all` for a catch-all policy or `configuration.throttle_all` during bootstrap. Typed `throttle_using::<E>` and catch-all callbacks run in registration order. `None` continues to the next callback; `Unlimited` stops matching and admits the report.
+
+```rust
+Exceptions::throttle_using_all(|exception| {
+    if exception.downcast_ref::<TransientFailure>().is_some() {
+        Some(ReportThrottle::Limit(Limit::per_minute(5)))
+    } else {
+        None
+    }
+})?;
+```
+
+A limit without `.by(...)` groups by the actual Rust error type, not its message. Owned `Exceptions::report(error)` preserves this metadata automatically. For borrowed queries use `Exception::typed(&error)`; for a typed `Arc<E>` use `SharedException::from_typed_arc(error)`. Mapped reports use the mapped type. An explicit `.by("supplier-timeout")` can share a quota across types.
+
+A previously erased `Arc<dyn Error + Send + Sync>` or `Exception::Error(&dyn_error)` cannot recover a concrete Rust type name. Supply a `.by(...)` key or retain the type with these constructors. If a catch-all keyless limit receives no type metadata, it admits the original report, following the limiter-failure policy; it never silently groups all unknown types together. Existing typed policies can infer their matching type for legacy borrowed calls.

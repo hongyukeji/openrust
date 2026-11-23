@@ -314,3 +314,11 @@ python3 -B tests/build_guard.py --workflow facade-alignment --target-dir target/
 - 固定PHP原Trait、Fake、Container实际执行通过：关闭资格、原对象、except、恢复及Fake保留；oracle仅补PSR接口声明，不将其当作完整PHP HTTP/Console部署验收。证据without-exceptions/oracle.log。
 - tests-combination.log共125项返回通过，其中8项缺外部环境早返回不计，实际本机117项通过；最后所有权整理后ownership-final.log再次跑新模式12项及Fake消费者。workers.log另用独立MySQL8.4.13、Redis8.10.3各1项真实Artisan queue:work验证关闭模式记录被忽略的任务原始错误、恢复资格；测试表/容器已删除。
 - workspace/all-targets严格Clippy、fmt、三语站点构建及6项桌面/移动浏览器检查通过，证据clippy-final.log/fmt.log/docs.log/browser.log。保留失败与全部成功日志。全局throttle回调、继承Facade测试接口和其他门面仍待补齐，未宣称完整闭合。
+
+### Exceptions：全局限流策略与实际类型分组（2026-11-24）
+
+- 固定Handler::throttleUsing的有序回调集合与首个非null结果继续复用；新增正式Exceptions::throttle_using_all和配置throttle_all，与原具类型策略混合注册。None继续、Unlimited停止、Lottery及Limit执行现有限流器；不增加平行计数器。旧版foundation/exceptions.rs有全局回调但基于统一Error及本地计数，不适配当前契约，继续使用当前RateLimiter和共享错误。
+- SharedException拥有入口保留具体Rust类型名，重复共享包装保留身份及元数据；新增from_typed_arc、Exception::typed保留具体Arc和借用信息。默认Limit按实际根类型计费，映射后按目标类型；显式by键可跨类型共享。既有已擦除dyn Error无运行时类名反射，使用显式键或新构造器；无元数据的全局无键策略按限流失败放行，绝不将未知类型混为一组。三语文档明确此原生约束，未笼统认定擦除路径完全等价。
+- exception-throttle/oracle.log：固定PHP原Handler实际执行全局None->具类型Unlimited、全局拒绝及首个结果停止。tests-delivery.log的7组共85项返回通过，其中8项缺后端环境早返回不计，实际本机77项；新增顺序、默认类型/不同消息、跨类型显式键、重入注册、跨应用隔离、映射目标配额及报告只计费一次。
+- workers.log：独立MySQL8.4.13及Redis8.10.3各1项真实Artisan queue:work通过，原始QueueError类型和来源42保留，全局无键Limit只调用一次。初次选择器拼写错误导致0项，workers-zero-not-accepted.log保留且不计验收；修正后实际各跑1项。临时容器/测试表已清理。
+- 全workspace/all-targets严格Clippy、格式、三语构建及6项桌面/移动浏览器通过：clippy.log/fmt.log/docs.log/browser.log。共享Facade测试契约、剩余门面和逐入口最终裁决继续处理，未将本批等同全部完成。

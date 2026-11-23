@@ -283,3 +283,21 @@ async fn check_unhandled(app: &mut TestApp) -> Result<(), Box<dyn std::error::Er
 `Exception::downcast_chain_ref::<E>()` 显式读取诊断来源，包括映射前异常；`including_sources` 选择器也使用它。映射后的规则仍只匹配新根。来源搜索最多检查 32 个节点，循环 `source()` 不会挂起测试或报告。
 
 `TestApp` 自动捕获未处理错误。直接调用底层 Kernel 的 Future 时，用 `Exceptions::catch_reported(future).await` 包裹；只返回 `Response` 的旧处理器方法在显式关闭模式下以 `SharedException` 为载荷 panic。需要 `Result` 时使用可失败的门面或测试入口。
+
+### 所有异常的限流策略 {#global-exception-throttle}
+
+通过 `Exceptions::throttle_using_all` 注册全局策略，或在启动配置中使用 `configuration.throttle_all`。它与 `throttle_using::<E>` 共用有序回调集合。返回 `None` 继续查找；返回 `Unlimited` 明确放行并停止查找。
+
+```rust
+Exceptions::throttle_using_all(|exception| {
+    if exception.downcast_ref::<TransientFailure>().is_some() {
+        Some(ReportThrottle::Limit(Limit::per_minute(5)))
+    } else {
+        None
+    }
+})?;
+```
+
+未指定 `.by(...)` 时按实际 Rust 错误类型分组，不按消息分组。拥有错误的 `Exceptions::report(error)` 自动保留类型；借用查询使用 `Exception::typed(&error)`，具体类型的 `Arc<E>` 使用 `SharedException::from_typed_arc(error)`。映射后的报告按目标类型计费；显式 `.by("supplier-timeout")` 可以让不同类型共享配额。
+
+已擦除类型的 `Arc<dyn Error + Send + Sync>` 或 `Exception::Error(&dyn_error)` 无法恢复 Rust 具体类型名。请显式指定 `.by(...)`，或使用上述构造器保留类型。全局无键策略遇到缺失类型信息时沿用限流失败放行规则，保留原异常报告，不会把所有未知类型悄悄混入同一配额。原有具类型策略仍可为旧借用调用推断匹配类型。

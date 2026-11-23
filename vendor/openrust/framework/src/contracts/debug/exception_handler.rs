@@ -13,7 +13,7 @@ use crate::{
 
 /// An error with explicit, shared instance identity for duplicate reporting.
 #[derive(Clone, Debug)]
-pub struct SharedException(Arc<dyn Error + Send + Sync>);
+pub struct SharedException(Arc<dyn Error + Send + Sync>, Option<&'static str>);
 
 /// 借用的错误无法凭空取得共享所有权，不能用字符串快照代替原对象。
 #[derive(Clone, Copy, Debug)]
@@ -29,11 +29,11 @@ impl Error for ExceptionOwnershipError {}
 
 impl SharedException {
     /// 重复传入共享包装时复用原始实例与去重身份。
-    pub fn new(error: impl Error + Send + Sync + 'static) -> Self {
+    pub fn new<E: Error + Send + Sync + 'static>(error: E) -> Self {
         if let Some(shared) = (&error as &(dyn Error + 'static)).downcast_ref::<Self>() {
             shared.clone()
         } else {
-            Self(Arc::new(error))
+            Self(Arc::new(error), Some(std::any::type_name::<E>()))
         }
     }
 
@@ -41,7 +41,16 @@ impl SharedException {
         if let Some(shared) = error.as_ref().downcast_ref::<Self>() {
             shared.clone()
         } else {
-            Self(error)
+            Self(error, None)
+        }
+    }
+
+    /// 保留已知具体类型；已擦除类型的Arc可继续用from_arc并在限流策略显式指定键。
+    pub fn from_typed_arc<E: Error + Send + Sync + 'static>(error: Arc<E>) -> Self {
+        if let Some(shared) = (error.as_ref() as &(dyn Error + 'static)).downcast_ref::<Self>() {
+            shared.clone()
+        } else {
+            Self(error, Some(std::any::type_name::<E>()))
         }
     }
 
@@ -77,14 +86,31 @@ pub enum Exception<'a> {
     /// 映射后的业务错误按根类型匹配，来源只保留为诊断链。
     Mapped(&'a SharedException),
     Error(&'a (dyn Error + Send + Sync + 'static)),
+    /// 显式借用具体类型，保留按类型分组所需的原生标识。
+    Typed(&'a (dyn Error + Send + Sync + 'static), &'static str),
 }
 
-impl Exception<'_> {
+impl<'a> Exception<'a> {
+    pub fn typed<E: Error + Send + Sync + 'static>(error: &'a E) -> Self {
+        Self::Typed(error, std::any::type_name::<E>())
+    }
+
+    pub fn type_name(&self) -> Option<&'static str> {
+        if let Some(shared) = self.error().downcast_ref::<SharedException>() {
+            return shared.1;
+        }
+        match self {
+            Self::Http(_) => Some(std::any::type_name::<HttpError>()),
+            Self::Typed(_, name) => Some(name),
+            Self::Error(_) | Self::Mapped(_) => None,
+        }
+    }
+
     pub(crate) fn error(&self) -> &(dyn Error + 'static) {
         match self {
             Self::Http(error) => *error,
             Self::Mapped(error) => *error,
-            Self::Error(error) => *error,
+            Self::Error(error) | Self::Typed(error, _) => *error,
         }
     }
 

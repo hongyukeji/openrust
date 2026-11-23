@@ -1157,7 +1157,7 @@
         "extensions": "new render_http contract hook has default report+render; concrete Handler overrides with existing request logging context, validation redirects and report throttling; downstream custom handlers remain source compatible"
       },
       "remaining": [
-        "global catch-all throttleUsing callback/default grouping vs native typed policy; full result/chain defaults",
+        "erased-error class metadata requires typed constructor/explicit key; full result/chain defaults and inherited testing contracts still need final per-entry decisions",
         "isReporting borrowed zero-sized Rust value identity cannot imply PHP object identity; owned facade report uses Arc-backed identity; review remaining direct borrowed contract consumers during owned-error/fake work",
         "borrowed opaque exception retention requires explicit SharedException ownership; custom callers and full request/task/Worker failure restoration plus inherited base mocks/spy remain to audit",
         "remaining dynamic Handler/config forwarding contracts still require closure"
@@ -1168,7 +1168,7 @@
         "isReporting": "tracks active owner-handler + actual exception identity in lexical async task-local report scope; false outside, true for same error during reporter callback, false for other error, restores on panic/completion; does not mean report eligibility",
         "shouldReport": "duplicate/ignore + sampling/throttle admission; repeated queries execute admission; each real report checks once; pure-query claim superseded",
         "owned_report": "Facade owned errors retain Arc-backed SharedException identity; existing SharedException clones are not rewrapped, preserving duplicates and actual type/source callbacks",
-        "limits": "typed throttling registration reuses existing per-type policy; full global callback replacement remains open"
+        "limits": "typed throttling registration reuses existing per-type policy; global callbacks append to the same ordered collection; no replacement semantics"
       },
       "reportable_handler": {
         "local_type": "foundation::exceptions::ReportableHandler",
@@ -1223,6 +1223,14 @@
         "semantics": "first original preserved; selected except render only; disabled report no-op; fake keeps records and bypasses disabled should_report; restore original qualification; owned HTTP errors retain identity and 404 method/query-free URL",
         "ownership": "SharedException constructors preserve existing owner; borrowed opaque render fails with ExceptionOwnershipError; mapped duplicate identity structural; diagnostic chain bounded32",
         "evidence": "without-exceptions/oracle.log, tests-combination.log, ownership-final.log, workers.log, clippy-final.log, fmt.log, docs.log, browser.log"
+      },
+      "global_throttle": {
+        "entry": "throttleUsing -> throttle_using_all / throttle_using<E>",
+        "status": "verified-native-paths",
+        "order": "one ordered collection; None continues; Unlimited stops; callbacks execute outside config lock",
+        "default_key": "owned root actual type; mapped target actual type; typed borrowing/Arc constructors retain metadata; explicit keys share across types",
+        "erased_error_limit": "dyn Error without metadata requires explicit key or typed constructor; unknown keyless global policy fails open without conflating classes",
+        "evidence": "exception-throttle/oracle.log, tests-delivery.log (77 actual local), workers.log (2 real MySQL/Redis Artisan Workers), clippy.log, fmt.log, docs.log, browser.log"
       }
     },
     {

@@ -464,3 +464,220 @@ async fn fake_respects_throttle_eligibility_and_ignored_errors_do_not_invoke_pol
     })
     .await;
 }
+
+#[tokio::test]
+async fn global_throttles_share_order_with_typed_callbacks_and_stop_at_first_policy() {
+    use openrust::foundation::configuration::ReportThrottle;
+    use std::sync::Mutex;
+    let app = fixture().await;
+    let trace = Arc::new(Mutex::new(Vec::new()));
+    App::set_facade_application(Some(app.app()), async {
+        let observed = trace.clone();
+        Exceptions::throttle_using_all(move |_| {
+            observed.lock().unwrap().push("global-null");
+            None
+        })
+        .unwrap();
+        let observed = trace.clone();
+        Exceptions::throttle_using::<DomainFailure>(move |_| {
+            observed.lock().unwrap().push("typed-unlimited");
+            Some(ReportThrottle::Unlimited)
+        })
+        .unwrap();
+        let observed = trace.clone();
+        Exceptions::throttle_using_all(move |_| {
+            observed.lock().unwrap().push("global-reject");
+            Some(ReportThrottle::Lottery(
+                openrust::support::Lottery::odds(0, 1).unwrap(),
+            ))
+        })
+        .unwrap();
+        assert!(
+            Exceptions::should_report(&Exception::typed(&DomainFailure("allowed")))
+                .await
+                .unwrap()
+        );
+        assert_eq!(*trace.lock().unwrap(), ["global-null", "typed-unlimited"]);
+        trace.lock().unwrap().clear();
+        assert!(
+            !Exceptions::should_report(&Exception::typed(&std::io::Error::other("denied")))
+                .await
+                .unwrap()
+        );
+        assert_eq!(*trace.lock().unwrap(), ["global-null", "global-reject"]);
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn global_limit_default_groups_are_types_not_messages_and_explicit_keys_can_share() {
+    use openrust::{
+        cache::rate_limiting::Limit, contracts::debug::SharedException,
+        foundation::configuration::ReportThrottle,
+    };
+    let mut app = TestApp::create(|b| {
+        b.with_config(|_, _| {
+            Ok([
+                ("app".into(), serde_json::json!({"env":"testing"})),
+                (
+                    "cache".into(),
+                    serde_json::json!({"default":"array","stores":{"array":{"driver":"array"}}}),
+                ),
+            ]
+            .into())
+        })
+    })
+    .unwrap();
+    app.boot().await.unwrap();
+    App::set_facade_application(Some(app.app()), async {
+        Exceptions::throttle_using_all(|_| Some(ReportThrottle::Limit(Limit::per_minute(1))))
+            .unwrap();
+        let a = SharedException::new(DomainFailure("one"));
+        let b = SharedException::from_typed_arc(Arc::new(std::io::Error::other("two")));
+        assert!(
+            Exceptions::should_report(&Exception::Error(&a))
+                .await
+                .unwrap()
+        );
+        assert!(
+            !Exceptions::should_report(&Exception::typed(&DomainFailure("different-message")))
+                .await
+                .unwrap()
+        );
+        assert!(
+            Exceptions::should_report(&Exception::Error(&b))
+                .await
+                .unwrap()
+        );
+        assert!(
+            !Exceptions::should_report(&Exception::typed(&std::io::Error::other("new")))
+                .await
+                .unwrap()
+        );
+        assert_eq!(
+            Exception::Error(&SharedException::new(a.clone())).type_name(),
+            Some(std::any::type_name::<DomainFailure>())
+        );
+        let erased: Arc<dyn std::error::Error + Send + Sync> = Arc::new(DomainFailure("erased"));
+        let erased = SharedException::from_arc(erased);
+        assert_eq!(Exception::Error(&erased).type_name(), None);
+        // 类型擦除后不能伪造按类分组；未指定键时采用限流失败放行。
+        assert!(
+            Exceptions::should_report(&Exception::Error(&erased))
+                .await
+                .unwrap()
+        );
+    })
+    .await;
+    let mut second = TestApp::create(|b| {
+        b.with_config(|_, _| {
+            Ok([
+                ("app".into(), serde_json::json!({"env":"testing"})),
+                (
+                    "cache".into(),
+                    serde_json::json!({"default":"array","stores":{"array":{"driver":"array"}}}),
+                ),
+            ]
+            .into())
+        })
+    })
+    .unwrap();
+    second.boot().await.unwrap();
+    App::set_facade_application(Some(second.app()), async {
+        Exceptions::throttle_using_all(|_| {
+            Some(ReportThrottle::Limit(
+                Limit::per_minute(1).by("shared-limit"),
+            ))
+        })
+        .unwrap();
+        assert!(
+            Exceptions::should_report(&Exception::typed(&DomainFailure("one")))
+                .await
+                .unwrap()
+        );
+        assert!(
+            !Exceptions::should_report(&Exception::typed(&std::io::Error::other("two")))
+                .await
+                .unwrap()
+        );
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn global_throttle_policy_configuration_is_reentrant_and_isolated_per_application() {
+    use openrust::foundation::configuration::ReportThrottle;
+    let app = fixture().await;
+    App::set_facade_application(Some(app.app()), async {
+        Exceptions::throttle_using_all(|_| {
+            // 回调运行时不持配置锁，可注册后续策略而不死锁。
+            Exceptions::throttle_using_all(|_| Some(ReportThrottle::Unlimited)).unwrap();
+            Some(ReportThrottle::Lottery(
+                openrust::support::Lottery::odds(0, 1).unwrap(),
+            ))
+        })
+        .unwrap();
+        assert!(
+            !Exceptions::should_report(&Exception::typed(&DomainFailure("denied")))
+                .await
+                .unwrap()
+        );
+    })
+    .await;
+    let other = fixture().await;
+    App::set_facade_application(Some(other.app()), async {
+        assert!(
+            Exceptions::should_report(&Exception::typed(&DomainFailure("different-app")))
+                .await
+                .unwrap()
+        );
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn mapped_global_limits_use_the_target_class_and_report_charges_only_once() {
+    use openrust::{
+        cache::rate_limiting::Limit,
+        foundation::configuration::{ReportDecision, ReportThrottle},
+    };
+    let mut app = TestApp::create(|b| {
+        b.with_config(|_, _| {
+            Ok([
+                ("app".into(), serde_json::json!({"env":"testing"})),
+                (
+                    "cache".into(),
+                    serde_json::json!({"default":"array","stores":{"array":{"driver":"array"}}}),
+                ),
+            ]
+            .into())
+        })
+    })
+    .unwrap();
+    app.boot().await.unwrap();
+    let reports = Arc::new(AtomicUsize::new(0));
+    App::set_facade_application(Some(app.app()), async {
+        Exceptions::map::<DomainFailure, std::io::Error>(|_| std::io::Error::other("mapped"))
+            .unwrap();
+        Exceptions::throttle_using_all(|exception| {
+            assert_eq!(
+                exception.type_name(),
+                Some(std::any::type_name::<std::io::Error>())
+            );
+            Some(ReportThrottle::Limit(Limit::per_minute(1)))
+        })
+        .unwrap();
+        let observed = reports.clone();
+        Exceptions::reportable::<std::io::Error>(move |_| {
+            observed.fetch_add(1, Ordering::SeqCst);
+            ReportDecision::Stop
+        })
+        .unwrap();
+        Exceptions::report(DomainFailure("first")).await.unwrap();
+        Exceptions::report(std::io::Error::other("same-target-quota"))
+            .await
+            .unwrap();
+        assert_eq!(reports.load(Ordering::SeqCst), 1);
+    })
+    .await;
+}

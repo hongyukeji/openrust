@@ -9,7 +9,8 @@ use crate::{
 };
 
 type JsonPolicy = dyn Fn(&Request, &Exception<'_>) -> bool + Send + Sync;
-type Throttle = dyn Fn(&Exception<'_>) -> Option<(ReportThrottle, &'static str)> + Send + Sync;
+type Throttle =
+    dyn Fn(&Exception<'_>) -> Option<(ReportThrottle, Option<&'static str>)> + Send + Sync;
 type Reporter = dyn Fn(&Exception<'_>) -> ReportDecision + Send + Sync;
 type Renderer = dyn Fn(&Exception<'_>, &Request) -> Option<Response> + Send + Sync;
 type Responder = dyn Fn(Response, &Exception<'_>, &Request) -> Response + Send + Sync;
@@ -198,7 +199,23 @@ impl Exceptions {
             exception
                 .downcast_ref::<E>()
                 .and_then(&callback)
-                .map(|policy| (policy, std::any::type_name::<E>()))
+                .map(|policy| {
+                    (
+                        policy,
+                        exception.type_name().or(Some(std::any::type_name::<E>())),
+                    )
+                })
+        }));
+        self
+    }
+
+    /// 按注册顺序处理所有异常；None继续，Unlimited明确停止策略查找。
+    pub fn throttle_all(
+        &mut self,
+        callback: impl Fn(&Exception<'_>) -> Option<ReportThrottle> + Send + Sync + 'static,
+    ) -> &mut Self {
+        self.throttles.push(Arc::new(move |exception| {
+            callback(exception).map(|policy| (policy, exception.type_name()))
         }));
         self
     }
@@ -206,7 +223,7 @@ impl Exceptions {
     pub(crate) fn report_throttle(
         &self,
         exception: &Exception<'_>,
-    ) -> Option<(ReportThrottle, &'static str)> {
+    ) -> Option<(ReportThrottle, Option<&'static str>)> {
         self.throttles
             .iter()
             .find_map(|throttle| throttle(exception))

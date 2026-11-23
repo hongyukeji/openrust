@@ -282,7 +282,13 @@ impl Handler {
             .and_then(|config| config.report_throttle(exception))
         {
             Some((ReportThrottle::Lottery(lottery), _)) => lottery.choose(),
-            Some((ReportThrottle::Limit(limit), kind)) => self.admit_report(limit, kind).await,
+            Some((ReportThrottle::Limit(limit), kind)) => {
+                // 类型已被擦除且没有显式键时，按上游限流失败的规则放行原异常。
+                if limit.key.is_empty() && kind.is_none() {
+                    return true;
+                }
+                self.admit_report(limit, kind.unwrap_or_default()).await
+            }
             Some((ReportThrottle::Unlimited, _)) | None => true,
         }
     }

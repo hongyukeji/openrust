@@ -345,6 +345,24 @@ async fn worker_fake(
         .await;
         app.without_exception_handling(&[]).await.unwrap();
     }
+    let global_policies = Arc::new(AtomicUsize::new(0));
+    if !without_handling && !mapping {
+        App::set_facade_application(Some(app.app()), async {
+            let observed = global_policies.clone();
+            Exceptions::throttle_using_all(move |exception| {
+                assert_eq!(
+                    exception.type_name(),
+                    Some(std::any::type_name::<QueueError>())
+                );
+                observed.fetch_add(1, Ordering::SeqCst);
+                Some(openrust::foundation::configuration::ReportThrottle::Limit(
+                    openrust::cache::rate_limiting::Limit::per_minute(1),
+                ))
+            })
+            .unwrap();
+        })
+        .await;
+    }
     let mapped_reports = Arc::new(AtomicUsize::new(0));
     if mapping {
         App::set_facade_application(Some(app.app()), async {
@@ -431,6 +449,9 @@ async fn worker_fake(
             .downcast_ref::<Failure>()
             .expect("Worker 保留任务原始错误");
         assert_eq!(*failure.0.lock().unwrap(), 42);
+    }
+    if !without_handling && !mapping {
+        assert_eq!(global_policies.load(Ordering::SeqCst), 1);
     }
     if without_handling {
         app.with_exception_handling().await.unwrap();

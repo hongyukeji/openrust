@@ -105,7 +105,7 @@ fn debug_sources(exception: &Exception<'_>) -> Vec<String> {
     let original = exception.root_error();
     let mut current = match exception {
         Exception::Http(_) => original.source(),
-        Exception::Error(_) | Exception::Mapped(_) => Some(original),
+        Exception::Error(_) | Exception::Mapped(_) | Exception::Typed(_, _) => Some(original),
     };
     let mut sources = Vec::new();
     while let Some(error) = current {
