@@ -14,7 +14,9 @@ use openrust::{
         facades::{Facade, Route},
     },
 };
-use openrust_settings::{Settings, SettingsRepository, SettingsServiceProvider};
+use openrust_settings::{
+    Settings, SettingsManager, SettingsOptions, SettingsRepository, SettingsServiceProvider,
+};
 use serde_json::json;
 use std::sync::{Arc, Mutex};
 use support::{DeliverySettings, Fixture, Site};
@@ -39,8 +41,19 @@ impl ServiceProvider for Host {
                 .get::<dyn openrust::contracts::config::Repository>("config")?;
             config.set("database", self.database.clone())?;
             config.set("queue",json!({"default":"database","connections":{"database":{"driver":"database","connection":"testing","table":self.queue_table,"queue":"default","retry_after":90}},"failed":{"driver":"null"}}))?;
+            let manager = Arc::new(SettingsManager::new(
+                self.repository.clone(),
+                SettingsOptions {
+                    namespace: self.queue_table.clone(),
+                    refresh_interval: std::time::Duration::from_millis(50),
+                    ..Default::default()
+                },
+                None,
+            )?);
             app.container()
-                .instance::<dyn SettingsRepository>(self.repository.clone())?;
+                .instance::<SettingsManager>(manager.clone())?;
+            app.container()
+                .instance::<dyn SettingsRepository>(manager)?;
             SettingsServiceProvider::register_settings::<Site>(app).await?;
             SettingsServiceProvider::register_settings::<DeliverySettings>(app).await?;
             Ok(())
@@ -131,7 +144,11 @@ async fn real_http_requests_refresh_and_two_apps_remain_isolated() {
     assert_eq!((one.as_str(), two.as_str()), ("A", "B"));
     settings.fill(json!({"name":"A changed"})).await.unwrap();
     settings.save().await.unwrap();
-    assert_eq!(send(a_addr).await, "A changed");
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
+    while send(a_addr).await != "A changed" {
+        assert!(tokio::time::Instant::now() < deadline);
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    }
     assert_eq!(send(b_addr).await, "B");
     a_task.abort();
     b_task.abort();
@@ -219,8 +236,10 @@ async fn real_worker_jobs_get_new_settings_on_the_next_attempt_scope() {
         "--memory=0",
     ]
     .map(Into::into);
+    let manager = app.make::<SettingsManager>().await.unwrap();
     assert_eq!(app.handle_command(&args).await.unwrap(), 0);
     assert_eq!(*observed.lock().unwrap(), vec!["First", "Next"]);
+    manager.shutdown().await;
     f.connection
         .get_schema_builder()
         .drop_if_exists(&jobs)
@@ -293,6 +312,11 @@ async fn scoped_async_bindings_coalesce_and_duplicate_groups_are_rejected() {
                     .enabled
             );
         })
+        .await;
+    app.make::<SettingsManager>()
+        .await
+        .unwrap()
+        .shutdown()
         .await;
     f.close().await;
 }

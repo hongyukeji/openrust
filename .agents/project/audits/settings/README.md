@@ -79,3 +79,7 @@ node docs/tests/check_settings.mjs
 框架范围为类型化设置底座；后台产品、权限和具体服务适配由应用接入。保留单表版本锚点、事务冲突检测、显式异步加载及请求／任务作用域，不把数据库保存等同组件自动生效。
 
 原计划 `database-settings.md` 已删除；历史设计、调研及执行前快照可从提交 `f80096ea6` 的 `.agents/project/plans/database-settings.md` 查阅。本文保留实际验收与未验边界，不因归档补计测试。
+
+## 单机与集群协调扩展（2026-11-24）
+
+后续完成的版本协调、可选缓存加速、应用刷新处理器、六种数据源／Redis组合及资源清理见[Settings 协调验收](../settings-coordination/README.md)。此扩展不回写 S1 历史验收结论；仍不自动实现应用后台、业务权限或具体服务热替换。

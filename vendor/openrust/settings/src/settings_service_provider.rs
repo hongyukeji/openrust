@@ -1,5 +1,6 @@
 use crate::{
-    DatabaseSettingsRepository, Settings, SettingsError, SettingsGroup, SettingsRepository,
+    DatabaseSettingsRepository, Settings, SettingsError, SettingsGroup, SettingsManager,
+    SettingsOptions, SettingsRepository,
 };
 use openrust::{
     contracts::{
@@ -38,7 +39,7 @@ impl ServiceProvider for SettingsServiceProvider {
             app.container()
                 .singleton::<RegisteredGroups, _>(|_| Ok(Arc::new(RegisteredGroups::default())))?;
             app.container()
-                .singleton::<dyn SettingsRepository, _>(|container| {
+                .singleton::<SettingsManager, _>(|container| {
                     let config =
                         container.get::<dyn openrust::contracts::config::Repository>("config")?;
                     if config
@@ -63,11 +64,76 @@ impl ServiceProvider for SettingsServiceProvider {
                         .make::<DatabaseManager>()?
                         .connection(connection)
                         .map_err(binding)?;
-                    Ok(Arc::new(
+                    let namespace = match config.get("settings.namespace") {
+                        None | Some(serde_json::Value::Null) => format!(
+                            "{}:{}:{}:{}:{}",
+                            config
+                                .get("app.env")
+                                .and_then(|v| v.as_str().map(str::to_owned))
+                                .unwrap_or_else(|| "production".into()),
+                            connection.get_driver_name(),
+                            connection.get_database_name(),
+                            connection.get_table_prefix(),
+                            table
+                        ),
+                        Some(serde_json::Value::String(v)) => v,
+                        _ => return Err(binding(SettingsError::InvalidDefinition)),
+                    };
+                    let seconds = |key: &str, default| -> Result<u64, BindingResolutionError> {
+                        match config.get(key) {
+                            None => Ok(default),
+                            Some(v) => v
+                                .as_u64()
+                                .ok_or_else(|| binding(SettingsError::InvalidDefinition)),
+                        }
+                    };
+                    let options = SettingsOptions {
+                        namespace,
+                        refresh_interval: std::time::Duration::from_secs(seconds(
+                            "settings.refresh_interval",
+                            5,
+                        )?),
+                        cache_ttl: std::time::Duration::from_secs(seconds(
+                            "settings.cache.ttl",
+                            3600,
+                        )?),
+                    };
+                    let enabled = match config.get("settings.cache.enabled") {
+                        None => true,
+                        Some(serde_json::Value::Bool(v)) => v,
+                        _ => return Err(binding(SettingsError::InvalidDefinition)),
+                    };
+                    let store = match config.get("settings.cache.store") {
+                        None | Some(serde_json::Value::Null) => None,
+                        Some(serde_json::Value::String(v)) => Some(v),
+                        _ => return Err(binding(SettingsError::InvalidDefinition)),
+                    };
+                    let cache = if !enabled {
+                        None
+                    } else if container.bound::<openrust::cache::CacheManager>() {
+                        Some(
+                            container
+                                .make::<openrust::cache::CacheManager>()?
+                                .store(store.as_deref())
+                                .map_err(binding)?,
+                        )
+                    } else if store.is_some() {
+                        return Err(binding(SettingsError::InvalidDefinition));
+                    } else {
+                        None
+                    };
+                    let source = Arc::new(
                         DatabaseSettingsRepository::new(connection)
                             .with_table(table)
                             .map_err(binding)?,
-                    ) as Arc<dyn SettingsRepository>)
+                    );
+                    Ok(Arc::new(
+                        SettingsManager::new(source, options, cache).map_err(binding)?,
+                    ))
+                })?;
+            app.container()
+                .singleton::<dyn SettingsRepository, _>(|container| {
+                    Ok(container.make::<SettingsManager>()? as Arc<dyn SettingsRepository>)
                 })?;
             Ok(())
         })

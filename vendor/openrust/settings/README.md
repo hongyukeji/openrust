@@ -2,7 +2,7 @@
 
 Optional typed database settings, following Spatie the framework Settings conventions.
 Application code declares groups; the repository persists overrides in `settings`.
-No backend routes, automatic service configuration overrides or shared cache are installed.
+The same Settings API supports single-instance and clustered applications through a database-backed version coordinator and optional acceleration using the existing Cache store. No backend routes or automatic service configuration overrides are installed.
 
 ```rust,no_run
 use openrust::{contracts::config::Repository, config::Repository as Config};
@@ -56,14 +56,14 @@ Unlike Spatie's silent exclusion, attempted writes to locked properties return a
 Each group has one reserved `__settings_version` row (not a user property), in addition
 to Spatie's normal group/name/payload/locked/timestamp rows. It anchors transactional
 locking and compare-and-save even for groups with no overrides. Reset never deletes
-the anchor. No history table, polling loop or extra cache is required. All writes must
+the anchor. No history table or external configuration service is required. All writes must
 use this repository. Conflicts return `SettingsError::Conflict`; refresh and resolve
 the edit deliberately. Older group schemas preserve unknown persisted properties.
 
 `save_in` uses a savepoint in the supplied database transaction. The caller must select
 the correct database/table and commit the outer transaction. It leaves the settings
 instance unchanged as a database snapshot; refresh after commit. In-memory pending
-edits remain visible through `get`, but no global cache or consumer is published.
+edits remain visible through `get`, but the coordinator publishes a metadata hint only after the outer commit.
 A failed or rolled-back outer transaction does not commit any settings changes.
 
 Declare sensitive **top-level** properties with `encrypted()`. An entire object may
@@ -75,12 +75,12 @@ With previous keys installed, `re_encrypt` rewrites only existing unlocked encry
 overrides under the current key. Keep old keys until rewriting and restore checks
 complete. Missing keys and damaged ciphertext fail instead of falling back.
 
-Reads use one bounded query on the write connection. Missing tables and unavailable
+Raw reads use one bounded query on the write connection. The provider wraps this repository in `SettingsManager`, which batch-checks active group versions every five seconds and shares version-checked snapshots through the configured Cache store. Redis is optional; missed hints and cache failures recover through database checks. Missing tables and unavailable
 databases fail; only absent properties fall back to application defaults. Maximum
 group size is 256 properties and 1 MiB of persisted JSON. The reserved row is internal.
 The application supplies authorization, persistent audit, public projections and
-consumer refresh. A successful save affects future scopes; existing operations keep
-their snapshots. SMS, mail and filesystem managers need separate explicit adapters.
+consumer refresh. Changes converge into future scopes; existing operations keep
+their snapshots. Explicit `refresh()` always bypasses the interval. SMS, mail and filesystem managers need separate explicit adapters.
 
 Module-owned settings use the same table and registration contract:
 
@@ -103,3 +103,14 @@ Package configuration defaults and the publishable `settings-config` template li
 the package. The default application does not ship `config/settings.rs`; publish
 only when application overrides are needed, register its `load(env)` in the
 application configuration map, and rebuild. Cached configuration remains authoritative.
+
+`SettingsManager` exposes `on_change`, `forget_handler`, `status`, `poll`, `notify`
+and `shutdown`. Change handlers are per-process, idempotent application adapters;
+successful versions are deduplicated and failures retry. Status is not a cluster-wide
+acknowledgement. Use `downgrade()` when retaining the manager in a handler. Cache
+notifications contain namespace, group and version only, not setting values. The
+namespace isolates cache metadata; independent applications also need separate tables
+or connections to isolate their database values. The existing database layout is unchanged.
+
+See [single-instance and cluster usage](../../../docs/en/packages/settings.md#single-instance-and-cluster)
+for configuration, callback examples, custom repository contracts and lifecycle limits.

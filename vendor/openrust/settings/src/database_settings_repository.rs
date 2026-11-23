@@ -176,6 +176,57 @@ impl SettingsRepository for DatabaseSettingsRepository {
             snapshot(rows, group)
         })
     }
+    fn versions<'a>(
+        &'a self,
+        groups: &'a [String],
+    ) -> SettingsFuture<'a, BTreeMap<String, Option<String>>> {
+        Box::pin(async move {
+            if groups.len() > 256 || groups.iter().any(|group| !identifier(group)) {
+                return Err(Error::InvalidDefinition);
+            }
+            let mut result: BTreeMap<_, _> = groups.iter().cloned().map(|g| (g, None)).collect();
+            if groups.is_empty() {
+                return Ok(result);
+            }
+            let rows = self
+                .connection
+                .table(&self.table)
+                .use_write_pdo()
+                .select(["group", "payload"])
+                .r#where("name", "=", VERSION)
+                .where_in(
+                    "group",
+                    groups.iter().map(|g| Value::from(g.as_str())).collect(),
+                )
+                .limit((groups.len() + 1) as u64)
+                .get()
+                .await
+                .map_err(|_| Error::Database)?;
+            let mut seen = std::collections::BTreeSet::new();
+            for row in rows {
+                let Some(Value::Text(group)) = row.get("group") else {
+                    return Err(Error::InvalidValue);
+                };
+                if !seen.insert(group.clone()) || !result.contains_key(group) {
+                    return Err(Error::InvalidDefinition);
+                }
+                let payload = match row.get("payload") {
+                    Some(Value::Json(v)) => v.clone(),
+                    Some(Value::Text(v)) if v.len() < 1024 => {
+                        serde_json::from_str(v).map_err(|_| Error::InvalidValue)?
+                    }
+                    _ => return Err(Error::InvalidValue),
+                };
+                let version = match payload {
+                    Json::Null => None,
+                    Json::String(v) if Uuid::parse_str(&v).is_ok() => Some(v),
+                    _ => return Err(Error::InvalidValue),
+                };
+                result.insert(group.clone(), version);
+            }
+            Ok(result)
+        })
+    }
     fn save<'a>(
         &'a self,
         group: &'a str,

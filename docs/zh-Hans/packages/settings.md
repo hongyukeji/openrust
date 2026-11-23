@@ -56,9 +56,65 @@ impl SettingsGroup for DeliverySettings {
 
 `save()` 成功提交后才更新实例的持久快照。`save_in(&mut transaction)` 在调用方事务内使用保存点，不发布新的持久快照；传入目标数据库的事务，外层提交后调用 `refresh`。外层回滚后仍可重试待提交编辑。取消操作时，事务所有者须回滚或释放事务。
 
-每组从写连接一次查询，当前请求／任务内复用，下一作用域读取数据库新值。不要把设置实例保存在永久单例里。长命令、调度轮次和流式连接须明确刷新边界；多个组不保证全局同一快照。数据库故障及损坏数据明确失败，只有缺失的覆盖值回退默认值。
+每组通过进程内版本快照供现有请求／任务作用域复用。使用 `SettingsServiceProvider` 时，下个作用域在对账后看到新值（默认五秒），不再每次请求查询完整属性。已有作用域及未保存编辑保留原快照；`refresh()` 可绕过间隔并丢弃本地编辑。长命令、调度轮次和流式连接须明确刷新边界；多个组不保证全局同一快照。数据库故障及损坏数据在检查时明确失败，只有缺失的覆盖值回退默认值。
 
 默认仓储每组限制 256 个属性、1 MiB 持久 JSON，内部少量元数据单独计入限制。无需共享缓存即可使用；静态 `Config` 契约保持，动态设置不会写进 `config:cache`。
+
+## 单机与集群
+
+单台服务器与多个应用／Worker 进程使用相同的 `Settings<T>` 接口、Provider 和配置。各节点共用权威设置数据库及表，不需要集群开关、Redis 或额外守护命令。首次实际读取启动轻量进程内检查器；仅注册设置组不查询设置表。
+
+发布的 `config/settings.rs` 包含以下可选配置：
+
+```rust,ignore
+"namespace": null,
+"refresh_interval": 5,
+"cache": {
+    "enabled": true,
+    "store": null,
+    "ttl": 3600,
+},
+```
+
+`refresh_interval` 单位为秒（Provider 支持 1～86400）。`cache.store = null` 沿用应用默认 Cache 存储；显式选择的存储必须存在，`cache.enabled = false` 则停用缓存加速。默认命名空间由环境、数据库驱动、数据库名、表前缀及表名组成，各节点须保持一致且稳定。独立应用共用 Cache 时，应使用不同命名空间及独立设置表或连接。命名空间隔离缓存与通知，**不隔离数据库行**；默认身份无法区分部署或数据库 Schema 时，需显式设置。
+
+检查器仅对本进程已使用的组，从**写连接**批量读取持久版本；版本改变才重读完整属性。现有 Cache 保存带版本的原始快照和仅含元数据的变更提示，每个命名空间／组最多两个键，不随每次更新积累缓存文件。声明为加密的属性在共享快照中仍为密文。提示检查间隔最长一秒；没有共享缓存、使用本地缓存、提示丢失、缓存过期或 Redis 重启时，仍由数据库定期对账补齐。这是最终一致，不保证各节点同时切换；慢数据库或应用处理器可能延长正常间隔。
+
+数据库提交是权威结果，缓存超时或处理器失败不会把已提交的保存伪装成回滚。缓存操作有超时限制，故障期间暂时绕过缓存，`cache_failures()` 提供进程故障计数。数据库故障使已检查状态失效，新加载明确失败直到恢复；已有作用域的值仍可用。新进程直接读取最新提交状态，无需重放通知。所有更新须走仓储写接口以更新版本；直接 SQL 修改但不更改版本时，须显式 `refresh()`。
+
+`save_in` 仅在外层事务提交后发布提示，回滚不发布。提交与提示之间崩溃，由下次数据库检查恢复。每个处理器按本进程观察到的版本去重，失败处理器重试；连续更新的中间版本可能合并。处理器须幂等，进程重启不提供业务事件的持久或恰好一次投递保证。
+
+### 刷新应用消费者
+
+通过 `SettingsManager` 注册应用自己的失效／重建逻辑。包注册后使用 `app.make::<SettingsManager>().await?` 获取。例如，使应用自己的缓存投影失效：
+
+```rust,ignore
+use openrust::{cache::CacheManager, contracts::cache::Repository as _};
+use openrust_settings::{SettingsError, SettingsManager};
+
+let manager = app.make::<SettingsManager>().await?;
+let cache = app.make::<CacheManager>().await?.store(None)?;
+let handler = manager.on_change("site", move |_change| {
+    let cache = cache.clone();
+    Box::pin(async move {
+        cache.forget("site:rendered").await
+            .map_err(|_| SettingsError::Refresh)?;
+        Ok(())
+    })
+}).await?;
+
+let state = manager.status("site").await;
+// state：observed_version、applied_version、pending_handlers、last_error
+manager.forget_handler("site", handler).await;
+```
+
+处理器在独立异步任务中执行，不继承当前 HTTP／任务的门面作用域，须捕获所需依赖。需要管理器本身时，捕获 `manager.downgrade()` 并在处理器内 `upgrade()`，避免循环引用。处理器五秒超时会记录脱敏错误并保留待处理版本，没有新版本时也继续重试。首次加载只建立基线，不触发变更处理器。`status()` 只表示本进程已注册处理器的状态，**不代表集群全部节点确认**，不能用作全局发布屏障或持久审计。
+
+`poll().await?` 主动对账所有活动组；`notify(&SettingsNotification { namespace, group, version }).await?` 可接入应用可选的通知传输层，只接受元数据并向数据库核实，忽略其他命名空间及非活动组，不信任通知传入的值。两者都不依赖 Redis Pub/Sub。`shutdown().await` 停止本管理器后台任务，不关闭共享连接；之后仍可显式 load／refresh／poll。
+
+不使用应用 Provider 时，可组合 `SettingsManager::new(source, SettingsOptions::default(), None)?`，包装为 `Arc` 后交给 `Settings::<T>::load`；按部署设置稳定命名空间即可。自定义 `SettingsRepository` 可覆写 `versions()` 进行批量检查，默认回退完整读取。非空快照须通过 `SettingsSnapshot::with_version` 提供非空、不透明且每次提交变化的版本；从未持久化的空组可没有版本。
+
+本功能不分发 `.env`、不改写 `Config`、部署密钥、监听端口或数据库连接池。服务自己的刷新边界与滚动发布仍由应用显式控制。
 
 ## 凭据与后台接入
 

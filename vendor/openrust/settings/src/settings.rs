@@ -189,7 +189,7 @@ impl<T: SettingsGroup> Settings<T> {
     /// Explicitly discards local edits. A failed load preserves the current instance.
     pub async fn refresh(&self) -> SettingsResult<()> {
         let mut state = self.state.lock().await;
-        let snapshot = self.repository.load(T::group()).await?;
+        let snapshot = self.repository.refresh(T::group()).await?;
         let values = decode::<T>(&self.defaults, &snapshot, self.encrypter.as_deref())?;
         state.values = values;
         state.snapshot = snapshot;

@@ -9,7 +9,12 @@ mod database_settings_repository;
 mod error;
 mod migration;
 mod settings;
+mod settings_manager;
 mod settings_repository;
+pub use settings_manager::{
+    SettingsChange, SettingsManager, SettingsNotification, SettingsOptions, SettingsStatus,
+    WeakSettingsManager,
+};
 mod settings_service_provider;
 
 pub use database_settings_repository::DatabaseSettingsRepository;

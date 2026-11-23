@@ -16,6 +16,7 @@ pub enum SettingsError {
     Encryption,
     Decryption,
     Commit,
+    Refresh,
 }
 
 impl fmt::Display for SettingsError {
@@ -30,6 +31,7 @@ impl fmt::Display for SettingsError {
             Self::Database => "Settings database operation failed; check connection and migrations.",
             Self::Encryption => "Settings encryption failed.",
             Self::Decryption => "Settings decryption failed; check the application key ring.",
+            Self::Refresh => "设置变更处理失败或超时，等待重试。",
             Self::Commit => "Settings commit failed or its completion hook failed; reload to confirm persistence.",
         })
     }
