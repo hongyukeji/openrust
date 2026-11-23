@@ -14,6 +14,7 @@ mod rule_parameters;
 mod rule_set;
 pub mod rules;
 mod scalar_rules;
+pub(crate) mod unknown_fields;
 mod validated_input;
 mod validation_exception;
 mod validation_service_provider;

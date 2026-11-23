@@ -8,6 +8,26 @@ use crate::{
     },
 };
 
+/// 表单验证的应用级默认策略，不跨应用共享状态。
+#[derive(Default)]
+pub struct FormRequestDefaults {
+    reject_unknown: std::sync::atomic::AtomicBool,
+}
+
+impl FormRequestDefaults {
+    /// 为此应用的表单设置未知字段拒绝默认值，显式表单策略优先。
+    pub fn fail_on_unknown_fields(&self, reject: bool) -> &Self {
+        self.reject_unknown
+            .store(reject, std::sync::atomic::Ordering::Relaxed);
+        self
+    }
+
+    pub fn should_fail_on_unknown_fields(&self) -> bool {
+        self.reject_unknown
+            .load(std::sync::atomic::Ordering::Relaxed)
+    }
+}
+
 /// A failure while resolving an application form request.
 #[derive(Debug)]
 pub enum FormRequestError {
@@ -44,6 +64,24 @@ pub trait FormRequest: Send + Sync {
             for callback in self.after() {
                 validator.after(callback);
             }
+            let reject_unknown = match self.fail_on_unknown_fields() {
+                Some(reject) => reject,
+                None => match current_container() {
+                    Some(container) => container
+                        .make::<FormRequestDefaults>()?
+                        .should_fail_on_unknown_fields(),
+                    None => false,
+                },
+            };
+            if reject_unknown {
+                let fields = request.validation_body_fields().await?;
+                let allowed = self.validation_rules(request)?;
+                validator.after(move |validator| {
+                    crate::validation::unknown_fields::reject_unknown_fields(
+                        &fields, &allowed, validator,
+                    )
+                });
+            }
             let validated = validator
                 .validate_request(request)
                 .await
@@ -62,6 +100,11 @@ pub trait FormRequest: Send + Sync {
             self.passed_validation(request, &validated)?;
             Ok(validated)
         })
+    }
+
+    /// None 使用应用默认值；Some 显式启用或关闭当前表单的未知字段拒绝。
+    fn fail_on_unknown_fields(&self) -> Option<bool> {
+        None
     }
 
     /// 当前表单的验证消息，支持字段与规则组合键。

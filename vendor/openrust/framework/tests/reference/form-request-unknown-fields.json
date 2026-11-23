@@ -1,0 +1,81 @@
+[
+  {
+    "input": {
+      "title": "Hello",
+      "admin": true
+    },
+    "errors": {
+      "admin": [
+        "The admin field is prohibited."
+      ]
+    }
+  },
+  {
+    "input": {
+      "title": "Hello",
+      "profile": {
+        "name": "Ada",
+        "role": "admin"
+      }
+    },
+    "errors": {
+      "profile.role": [
+        "The profile.role field is prohibited."
+      ]
+    }
+  },
+  {
+    "input": {
+      "items": [
+        {
+          "name": "Ada",
+          "admin": true
+        }
+      ]
+    },
+    "errors": {
+      "items.0.admin": [
+        "The items.0.admin field is prohibited."
+      ]
+    }
+  },
+  {
+    "input": {
+      "password": "secret",
+      "password_confirmation": "secret",
+      "_token": "a",
+      "_method": "POST"
+    },
+    "errors": []
+  },
+  {
+    "input": {
+      "author.name": "Ada"
+    },
+    "errors": []
+  },
+  {
+    "input": {
+      "items": {
+        "foo.bar": {
+          "name": "Ada"
+        }
+      }
+    },
+    "errors": []
+  },
+  {
+    "input": {
+      "": true,
+      "extra": []
+    },
+    "errors": {
+      "": [
+        "The  field is prohibited."
+      ],
+      "extra": [
+        "The extra field is prohibited."
+      ]
+    }
+  }
+]

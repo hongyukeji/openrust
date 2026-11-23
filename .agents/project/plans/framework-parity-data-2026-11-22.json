@@ -298846,6 +298846,27 @@
         "整个UrlGenerator/Uri类型的全API审计不由章节测试替代"
       ],
       "evidence": ".agents/project/audits/docs-tutorials/README.md"
+    },
+    {
+      "date": "2026-11-24",
+      "kind": "documentation_tutorial_form_request_unknown_fields_and_error_else",
+      "status": "新增策略和Blade回退已验收；Validation整章继续",
+      "finding": "缺未知字段局部/全局开关；官方@error/@else返回500",
+      "implementation": "FormRequest默认策略继承应用FormRequestDefaults，after检查正文键；私有Error节点支持fallback并升级缓存版本。应用状态替代PHP静态全局，原Data准备及Rust局部绑定保持",
+      "consumers": [
+        "framework/tests/form_request_unknown_fields.rs",
+        "framework/tests/reference/form-request-unknown-fields.json",
+        "tests/request_tutorial_docs.py",
+        "framework/tests/blade_statements.rs"
+      ],
+      "actual_results": "固定PHP七例；最终22目标121项0忽略，真实MySQL8.4.13；workspace严格Clippy/fmt、三语十二段消费者及构建/浏览器通过",
+      "remaining": [
+        "make:request仍是占位，需正式生成器及生成消费者",
+        "Closure/Implicit规则对象及fluent builder等逐入口接续",
+        "email扩展模式尚未实现",
+        "PHP Request子类别名与现有Data准备接口差异，PHP带else的message泄漏不复制"
+      ],
+      "evidence": ".agents/project/audits/docs-tutorials/README.md"
     }
   ]
 }

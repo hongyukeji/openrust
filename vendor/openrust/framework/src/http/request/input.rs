@@ -577,6 +577,18 @@ impl Request {
         value.as_ref().map_err(|error| HttpError::from(*error))
     }
 
+    /// 从正文缓存收集验证字段，不复制字段值或把查询参数并入正文。
+    pub(crate) async fn validation_body_fields(
+        &mut self,
+    ) -> Result<Vec<crate::validation::unknown_fields::InputField>, HttpError> {
+        let source = match self.input_source()? {
+            InputSource::Json => InputSource::Json,
+            _ => InputSource::Form,
+        };
+        let body = self.source_values(source).await?;
+        Ok(crate::validation::unknown_fields::input_fields(body))
+    }
+
     pub(crate) async fn validation_uploads(
         &mut self,
     ) -> Result<(&Value, &[UploadedFile]), HttpError> {

@@ -22,7 +22,7 @@ use crate::view::{
 
 const PREFIX: &str = "blade-v1-";
 const SUFFIX: &str = ".json";
-const COMPILER_VERSION: u32 = 45;
+const COMPILER_VERSION: u32 = 46;
 
 pub type DirectiveCallback = Arc<dyn Fn(&[ViewValue]) -> ViewResult<DirectiveOutput> + Send + Sync>;
 type Directive = DirectiveCallback;

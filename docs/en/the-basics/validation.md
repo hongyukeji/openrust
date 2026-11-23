@@ -337,3 +337,46 @@ fn store_with_messages(request: &mut Request) -> HttpFuture<'_, Result<Response,
 ```
 
 For manually constructed validators, call `Validator::make_with(data, rules, messages, attributes)`. A Form Request can override `messages()` and `attributes()`, both returning `BTreeMap<String, String>`. All entries use the same application factory and preserve JSON 422, Web redirects/error bags and Precognition. These maps apply only to that validator and do not change shared translations.
+
+## Rejecting unknown fields {#failing-on-unknown-fields}
+
+Return `Some(true)` from `FormRequest::fail_on_unknown_fields` to reject body fields absent from the declared rules. `Some(false)` explicitly disables it for that form; the default `None` inherits the application default. The default application policy is disabled.
+
+```rust
+use openrust::{
+    foundation::http::FormRequest,
+    http::{HttpError, HttpFuture, Request, Response, StatusCode},
+    validation::{RuleSet, ValidationResult},
+};
+
+struct StoreArticle;
+
+impl FormRequest for StoreArticle {
+    fn rules(&self) -> ValidationResult<RuleSet> {
+        RuleSet::parse([("title", "required|string")])
+    }
+
+    fn fail_on_unknown_fields(&self) -> Option<bool> {
+        Some(true)
+    }
+}
+
+fn store_strict(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let data = StoreArticle.validate_resolved(request).await?;
+        Response::json(StatusCode::CREATED, data.into_value())
+    })
+}
+```
+
+In a provider’s boot method, resolve `foundation::http::FormRequestDefaults` through `app.container().make::<FormRequestDefaults>()?` and call `fail_on_unknown_fields(true)`. This replaces the upstream process-wide static toggle with application-scoped state, preventing one application from changing another. Validation uses body leaf keys, including nested and wildcard declarations and confirmation companions. Query parameters, uploads, `_token` and `_method` are not rejected by this policy. An `array` rule alone does not authorize every child key. Failures use the existing translated `validation.prohibited` message, JSON 422 or Web error bag; Precognition applies this check before successful preflight completion.
+
+A named bag also works with `@error` and its `@else` fallback:
+
+```blade
+@error('title', 'article')
+    <span>{{ $message }}</span>
+@else
+    <span>—</span>
+@enderror
+```

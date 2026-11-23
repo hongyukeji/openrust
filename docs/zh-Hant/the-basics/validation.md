@@ -337,3 +337,46 @@ fn store_with_messages(request: &mut Request) -> HttpFuture<'_, Result<Response,
 ```
 
 手動建立驗證器時呼叫 `Validator::make_with(data, rules, messages, attributes)`。Form Request 可覆寫 `messages()` 和 `attributes()`，兩者傳回 `BTreeMap<String, String>`。這些入口復用應用程式驗證工廠，保留 JSON 422、Web 重新導向／錯誤包和 Precognition；訊息只影響本次驗證器，不修改共用翻譯。
+
+## 拒絕未知欄位 {#failing-on-unknown-fields}
+
+在 `FormRequest::fail_on_unknown_fields` 傳回 `Some(true)`，拒絕正文中未宣告規則的欄位。`Some(false)` 明確關閉此表單的策略，預設 `None` 繼承應用程式預設值；應用程式預設關閉。
+
+```rust
+use openrust::{
+    foundation::http::FormRequest,
+    http::{HttpError, HttpFuture, Request, Response, StatusCode},
+    validation::{RuleSet, ValidationResult},
+};
+
+struct StoreArticle;
+
+impl FormRequest for StoreArticle {
+    fn rules(&self) -> ValidationResult<RuleSet> {
+        RuleSet::parse([("title", "required|string")])
+    }
+
+    fn fail_on_unknown_fields(&self) -> Option<bool> {
+        Some(true)
+    }
+}
+
+fn store_strict(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let data = StoreArticle.validate_resolved(request).await?;
+        Response::json(StatusCode::CREATED, data.into_value())
+    })
+}
+```
+
+在 Provider 的 boot 階段，透過 `app.container().make::<FormRequestDefaults>()?` 取得 `foundation::http::FormRequestDefaults`，呼叫 `fail_on_unknown_fields(true)`。這裡以應用程式狀態替代上游行程靜態開關，避免一個應用程式改變另一個應用程式。策略核對正文葉子鍵，支援巢狀、萬用字元宣告和確認欄位；查詢參數、上傳檔案、`_token` 和 `_method` 不在此拒絕範圍。只有 `array` 規則並不代表任意子鍵都獲授權。失敗復用已翻譯的 `validation.prohibited`、JSON 422 或 Web 錯誤包；Precognition 亦在成功回應前執行此檢查。
+
+具名錯誤包亦可使用 `@error` 及其 `@else` 回退分支：
+
+```blade
+@error('title', 'article')
+    <span>{{ $message }}</span>
+@else
+    <span>—</span>
+@enderror
+```

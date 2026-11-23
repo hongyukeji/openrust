@@ -102,3 +102,34 @@ URL第二组最终补验：清理后实际重编译，request_docs_generated三�
 本表只核定本章教程组合，不替代每个UrlGenerator／Uri公开方法的完整类型审计。APP_URL显式优先是既有项目选择，固定文档默认使用请求来源；已在三语保留说明。全章记录列明这两项行为差异，不能称为逐字节完全等价。
 
 验收：独立MySQL8.4.13模型绑定2项（含SQLite回归）、中间件生命周期5项、默认值1项、urls6项，共14项通过。补强Uri所有工厂与链式组件后的默认值1项再通过。workspace/all-targets严格Clippy及三语构建通过；新增测试最终再定向严格Clippy和fmt。三语浏览器、根及/docs全部导航、无API导出的参考页检查均退出0。日志位于target/tmp/docs-chapters-20261124/defaults-*.log及chapters-browser.log；原源码和日志保留，不重复清空热缓存。
+
+## 第五组：未知字段拒绝与教程中的Blade错误回退
+
+基于967b29334的独立候选。固定FormRequest::validateNoUnknownFields读取JSON／表单正文叶子键，对照原始validationRules，放入after回调；排除_token/_method，不核对查询与上传。已用固定PHP8.5.12／框架13.40.0实际执行七组嵌套、通配符、字面点、确认字段及空键案例，保存为reference/form-request-unknown-fields.json正式测试数据；原PHP脚本与输出留在target/tmp/docs-chapters-20261124/reference/unknown-fields-oracle.*。
+
+- FormRequest::fail_on_unknown_fields返回Option<bool>：Some(true)/Some(false)显式启闭，None继承应用默认；默认关闭。
+- 新的foundation::http::FormRequestDefaults由原ValidationServiceProvider注册，Provider::boot可启用应用默认。PHP进程静态布尔值适配为每应用AtomicBool，不影响其他应用；真实双应用反例证明隔离。没有新增环境变量、额外验证器或进程全局缓存。
+- 仅在启用策略时读取正文缓存并收集键及路径片段，不再复制JSON字段值；复用RuleSet路径解析、原译文、错误包、after与Precognition顺序。未声明长字段名返回422，不因把不可信键当作受限规则路径解析而返回500。仍遵守既有输入大小／深度预算，没有性能基准结论。
+- FormRequest准备钩子仍按现有Data接口运行，不把Data的单独修改自动写回HTTP正文；本策略读取真实正文。该既有Rust适配不等同于PHP Request子类对象别名完全对齐。
+
+实际HTTP补验中，官方@error('field','bag')/@else/@enderror返回500。原AST只有错误块且解析器遇到Else拒绝。新增私有fallback块及渲染分支，空错误显示clean，具名真实会话flash显示错误；编译缓存版本从45升46并验证旧缓存失效重建。共享工作区另有Vite变更占用46，因此工作区保留合并版本47及对应测试；本单元暂存／验收只含46和本组三个AST修改，未夹带Vite注册、宏或声明。
+
+额外PHP oracle发现其@error带@else时$message清理仅在else分支，错误为真可能泄漏到外层变量。Rust沿用原局部绑定，不复制这一PHP编译副作用；官方教程HTML错误／空状态分别已验收，但不声称变量泄漏完全相同。原输出保留于error-else-oracle.json，无改写历史证据。
+
+最终冻结组合：22个目标121项通过、0忽略，含真实MySQL8.4.13验证presence／typed FormRequest／文件规则、验证器生命周期／扩展／消息、31项请求与三语／未知字段消费者，以及视图和编译缓存回归。日志unknown-all-final.log；此前unknown-all-accepted.log同为121项，之后补强了长字段名实现与断言再全量通过。未知字段专项4项包含七组固定PHP数据、JSON/URLencoded/multipart、真实Web302具名cookie及Blade两个分支、应用默认启闭与Precognition。tests/request_tutorial_docs.py累计直接提取十二段正式三语代码，三组HTTP Kernel消费者通过。新增无必要引用触发的一次Clippy失败已修正，无lint豁免；unknown-clippy-frozen.log的workspace/all-targets -D warnings和unknown-fmt-frozen.log退出0。三语构建、浏览器、两种挂载的全部导航和无API导出参考检查通过。
+
+### Validation章节当前对账边界
+
+| 教程部分 | 本轮或复验消费者 | 当前结论 |
+| --- | --- | --- |
+| Request即时验证、自定义消息、具名错误包、JSON422 | request实例／门面、options、三语直接提取 | 已通过列明入口组合 |
+| 授权、prepare/passed、typed FormRequest注入、文件上传 | validation_http真实HTTP（含MySQL）、current_password、request_value | 既有消费者复验通过；Data准备接口仍为既定Rust适配 |
+| after、bail、stopOnFirstFailure、safe/validated | validation_lifecycle／mutation／extensions | 56项章节回归中的对应类型已通过，不代表全部上游类方法 |
+| 未知字段拒绝、应用默认与单表单覆盖 | 新增4项真实HTTP与PHP数据 | 本组已接通并通过 |
+| 重定向、旧输入、具名错误、敏感字段、Blade@error/@else | validation_web、form_request_unknown_fields、视图回归 | 本组修复else，实际HTTP通过 |
+| 条件、嵌套、标量、邮件RFC、DNS、密码、文件、数据库规则 | validation_paths/scalars/email/dns/password/http等 | 本轮复验通过现有实际支持范围；不能视为所有规则教程完整对齐 |
+| 创建Form Request：make:request | 核对发现仍列在console/planned.rs | 明确未闭合，接续正式生成器及生成文件消费者验收 |
+| 每字段Closure规则、Implicit Rule对象、Rule fluent builders/anyOf/forEach | 类型／入口待完整核对，现有extend_*不代替专用入口 | 接续教程差异，不写为语言不适用或已完成 |
+| email DNS/spoof/strict/filter等扩展模式 | 现有明确拒绝，不能用RFC通过替代 | 仍为已知功能差异，后续独立实现／验收 |
+
+本组关闭具体新增入口和失败路径，Validation整章仍未宣布闭合。以上未完成项继续当前开发，不推送，不混入其他在途源码。

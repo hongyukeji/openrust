@@ -82,7 +82,7 @@ enum Node {
     Once(OnceId, Vec<Node>),
     Csrf,
     Method(Expression),
-    Error(Expression, Option<Expression>, Vec<Node>),
+    Error(Expression, Option<Expression>, Vec<Node>, Vec<Node>),
     Fragment(Expression, Vec<Node>),
     BooleanAttribute(String, Expression),
     BooleanText(Expression),
@@ -772,10 +772,15 @@ impl<'a> Parser<'a> {
         } else if self.directive("error") {
             let (field, bag) = self.named_argument()?;
             let (body, stop) = self.block(depth + 1)?;
+            let (otherwise, stop) = if stop == Some(Stop::Else) {
+                self.block(depth + 1)?
+            } else {
+                (Vec::new(), stop)
+            };
             if stop != Some(Stop::EndError) {
                 return Err(invalid("Expected @enderror."));
             }
-            Node::Error(field, bag, body)
+            Node::Error(field, bag, body, otherwise)
         } else if self.directive("fragment") {
             let name = expression_value(&self.arguments()?)?;
             let (body, stop) = self.block(depth + 1)?;
@@ -1985,7 +1990,7 @@ fn render_nodes(
                     &evaluated_name(expression, data, bindings)?,
                 );
             }
-            Node::Error(field, bag, nodes) => {
+            Node::Error(field, bag, nodes, otherwise) => {
                 let field = evaluated_name(field, data, bindings)?;
                 let mut bag_name = Cow::Borrowed("default");
                 if let Some(bag) = bag {
@@ -2001,6 +2006,8 @@ fn render_nodes(
                     let mut local = bindings.to_vec();
                     local.push(("message", message));
                     render_block!(nodes, data, &local, output, context);
+                } else {
+                    render_block!(otherwise, data, bindings, output, context);
                 }
             }
             Node::Fragment(name, nodes) => {
