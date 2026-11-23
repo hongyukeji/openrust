@@ -2,6 +2,10 @@
 
 固定上游文档使用 [Laravel 13.x 快照](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/documentation.md)。下表以依赖排序，三语导航保持上游目录顺序。表里的 OpenRust 路径链接到英文正文，简体和繁体使用相同的相对路径。链接指向既有正文入口，功能状态以实际验收记录为准。
 
+## Rust 命名统一
+
+2026-11-23 用户确认按 Rust 原生命名统一标识符，替代旧的上游大小写保留要求；固定行为基线、数据和外部协议契约不变。[专项计划](plans/rust-naming-unification.md)列出 N-01 至 N-06 的范围、依赖与验收条件，用户已追加授权实施并分批本地提交；N-01 已完成盘点，其余按[专项验收](audits/rust-naming/README.md)推进，不计作功能簇已完成。
+
 ## 每批怎样闭合
 
 1. 先核对该单元的固定上游章节、源码与测试，再检查 `openrust-v0.x` 的对应实现。记录 Rust 适配、公开契约及需要拆分的差异。
