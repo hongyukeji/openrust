@@ -1,7 +1,14 @@
+use crate::store::{
+    claim_event, complete_event, customer_subscriptions, db, ensure_active, locked_customer_for,
+    map_db, mark_customer_deleted, save_invoice, save_subscription,
+};
+use crate::{BillingStore, Invoice, Subscription, store::WebhookOutcome};
 use crate::{Client, Error, Provider, Result};
 use aws_lc_rs::hmac;
 use http::HeaderMap;
+use openrust::database::{DatabaseFuture, DatabaseResult, Transaction};
 use serde_json::Value;
+use std::sync::Arc;
 
 /// Constructible only after verifying the untouched body and the named endpoint secret.
 #[derive(Clone)]
@@ -138,4 +145,100 @@ pub(crate) fn verify(client: &Client, headers: &HeaderMap, body: &[u8]) -> Resul
         invoice: None,
         customer_deleted: false,
     })
+}
+
+// 保留事务内远端读取与应用回调的顺序，不在分层整理中调整锁周期。
+pub(crate) async fn process(
+    store: &BillingStore,
+    client: &Client,
+    event: &VerifiedEvent,
+    handler: impl for<'a> Fn(
+        &'a mut Transaction,
+        &'a VerifiedEvent,
+    ) -> DatabaseFuture<'a, DatabaseResult<()>>
+    + Send
+    + Sync
+    + 'static,
+) -> Result<WebhookOutcome> {
+    if event.scope != client.scope() {
+        return Err(Error::Ownership);
+    }
+    let (client, event, handler) = (client.clone(), event.clone(), Arc::new(handler));
+    store
+        .connection()
+        .transaction(
+            move |tx| {
+                let (client, mut event, handler) = (client.clone(), event.clone(), handler.clone());
+                Box::pin(async move {
+                    let key = BillingStore::remote_key(&client, &event.id);
+                    if claim_event(tx, &event, &key).await? {
+                        return Ok(WebhookOutcome::Duplicate);
+                    }
+                    let stripe = client.provider() == Provider::Stripe;
+                    let resource = if (stripe && event.kind.starts_with("customer.subscription."))
+                        || (!stripe && event.kind.starts_with("subscription."))
+                    {
+                        Some("subscriptions")
+                    } else if stripe && event.kind.starts_with("invoice.") {
+                        Some("invoices")
+                    } else if !stripe && event.kind.starts_with("transaction.") {
+                        Some("transactions")
+                    } else {
+                        None
+                    };
+                    if let Some(resource) = resource {
+                        let id = crate::types::text(&event.payload, "id").map_err(db)?;
+                        let remote = if stripe {
+                            crate::types::object_id(&event.payload["customer"])
+                        } else {
+                            crate::types::text(&event.payload, "customer_id")
+                        }
+                        .map_err(db)?;
+                        let customer = locked_customer_for(tx, &client, &remote).await?;
+                        ensure_active(tx, &customer).await?;
+                        let current = client.retrieve(resource, &id).await.map_err(db)?;
+                        if resource == "subscriptions" {
+                            let sub =
+                                Subscription::parse(client.provider(), &current).map_err(db)?;
+                            if sub.customer != remote || sub.id != id {
+                                return Err(db(Error::Ownership));
+                            }
+                            save_subscription(tx, &client, &customer, &sub).await?;
+                            event.subscription = Some(sub);
+                        } else {
+                            let invoice =
+                                Invoice::parse(client.provider(), &current).map_err(db)?;
+                            if invoice.customer != remote || invoice.id != id {
+                                return Err(db(Error::Ownership));
+                            }
+                            save_invoice(tx, &client, &id, &customer, &invoice).await?;
+                            event.invoice = Some(invoice);
+                        }
+                    }
+                    if stripe && event.kind == "customer.deleted" {
+                        let remote = crate::types::text(&event.payload, "id").map_err(db)?;
+                        let customer = locked_customer_for(tx, &client, &remote).await?;
+                        let current = client.retrieve("customers", &remote).await.map_err(db)?;
+                        if current["id"] != remote || current["deleted"] != true {
+                            return Err(db(Error::OutcomeUnknown));
+                        }
+                        mark_customer_deleted(tx, &customer).await?;
+                        for sub in customer_subscriptions(tx, &customer).await? {
+                            let mut sub = sub?;
+                            sub.status = "canceled".into();
+                            sub.ends_at = Some(jiff::Timestamp::now().as_second());
+                            sub.trial_ends_at = None;
+                            save_subscription(tx, &client, &customer, &sub).await?;
+                        }
+                        event.customer_deleted = true;
+                    }
+                    handler(tx, &event).await?;
+                    complete_event(tx, &key).await?;
+                    Ok(WebhookOutcome::Processed)
+                })
+            },
+            1,
+        )
+        .await
+        .map_err(map_db)
 }

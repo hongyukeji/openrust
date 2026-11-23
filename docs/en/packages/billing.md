@@ -33,6 +33,8 @@ Stripe customer APIs retain `stripe_id`, `has_stripe_id`, `create_as_stripe_cust
 use openrust_cashier::{Billable, BillingStore, Price, facades::Cashier};
 use serde_json::json;
 
+Use the existing `Billable` and `BillingStore` APIs for billing operations and verified webhooks. Billing and webhook services coordinate remote calls and business decisions; storage keeps operation claims, account locks and durable writes. Remote reads and the application SQL handler retain their existing transaction order, so a rollback keeps the event retryable.
+
 let client = Cashier::driver("stripe")?;
 let store = BillingStore::new(connection.clone());
 let user = Billable::new(client.clone(), store.clone(), "users:42")?;

@@ -1,4 +1,5 @@
 use crate::client::identifier;
+use crate::store::{db, ensure_active, lock_customer, map_db, save_subscription};
 use crate::{
     BillingStore, Client, Error, Invoice, Price, Proration, Provider, Result, Subscription,
 };
@@ -1208,4 +1209,63 @@ fn https(value: &str) -> Result<()> {
         return Err(Error::InvalidInput("URL"));
     }
     Ok(())
+}
+
+// 修改请求的渠道策略与结果裁决归业务层，Store 只记录幂等状态。
+pub(crate) async fn execute_operation(
+    store: &BillingStore,
+    client: &Client,
+    method: http::Method,
+    path: &str,
+    params: &Value,
+    key: &str,
+) -> Result<Value> {
+    crate::client::operation_key(key)?;
+    if client.provider() == Provider::Stripe {
+        return client.call(method, path, params, Some(key)).await;
+    }
+    let id = BillingStore::remote_key(client, key);
+    let fingerprint = crate::webhook::hash(
+        &serde_json::to_vec(&(method.as_str(), path, params))
+            .map_err(|_| Error::InvalidInput("parameters"))?,
+    );
+    store.claim_operation(&id, &fingerprint).await?;
+    let result = client.call(method, path, params, None).await;
+    let state = match &result {
+        Ok(_) => "done",
+        Err(Error::Rejected(_) | Error::InvalidInput(_)) => "rejected",
+        Err(_) => "unknown",
+    };
+    store.finish_operation(&id, state).await?;
+    result
+}
+pub(crate) async fn sync_subscription(
+    store: &BillingStore,
+    client: &Client,
+    owner: &str,
+    id: &str,
+) -> Result<Subscription> {
+    let (client, owner, id) = (client.clone(), owner.to_owned(), id.to_owned());
+    store
+        .connection()
+        .transaction(
+            move |tx| {
+                let (client, owner, id) = (client.clone(), owner.clone(), id.clone());
+                Box::pin(async move {
+                    let key = BillingStore::customer_key(&client, &owner);
+                    let remote = lock_customer(tx, &key).await?;
+                    ensure_active(tx, &key).await?;
+                    let v = client.retrieve("subscriptions", &id).await.map_err(db)?;
+                    let sub = Subscription::parse(client.provider(), &v).map_err(db)?;
+                    if sub.customer != remote || sub.id != id {
+                        return Err(db(Error::Ownership));
+                    }
+                    save_subscription(tx, &client, &key, &sub).await?;
+                    Ok(sub)
+                })
+            },
+            1,
+        )
+        .await
+        .map_err(map_db)
 }

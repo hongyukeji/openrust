@@ -1,10 +1,9 @@
 use crate::webhook::hash;
-use crate::{Client, Error, Invoice, Provider, Result, Subscription, VerifiedEvent};
+use crate::{Client, Error, Invoice, Result, Subscription, VerifiedEvent};
 use openrust::database::{
     Connection, DatabaseError, DatabaseFuture, DatabaseResult, Transaction, Value as SqlValue,
 };
 use serde_json::Value;
-use std::sync::Arc;
 type Record = std::collections::BTreeMap<String, SqlValue>;
 #[derive(Clone)]
 pub struct BillingStore {
@@ -16,6 +15,45 @@ pub enum WebhookOutcome {
     Duplicate,
 }
 impl BillingStore {
+    pub(crate) fn connection(&self) -> &Connection {
+        &self.connection
+    }
+    pub(crate) async fn claim_operation(&self, id: &str, fingerprint: &str) -> Result<()> {
+        let n = self
+            .connection
+            .table("cashier_operations")
+            .insert_or_ignore(&[record([
+                ("id", id.into()),
+                ("fingerprint", fingerprint.into()),
+                ("status", "pending".into()),
+            ])])
+            .await
+            .map_err(map_db)?;
+        if n == 0 {
+            let old = self
+                .connection
+                .table("cashier_operations")
+                .r#where("id", "=", id)
+                .value("fingerprint")
+                .await
+                .map_err(map_db)?;
+            return Err(if old == fingerprint.into() {
+                Error::OutcomeUnknown
+            } else {
+                Error::EventConflict
+            });
+        }
+        Ok(())
+    }
+    pub(crate) async fn finish_operation(&self, id: &str, state: &str) -> Result<()> {
+        self.connection
+            .table("cashier_operations")
+            .r#where("id", "=", id)
+            .update(record([("status", state.into())]))
+            .await
+            .map_err(|_| Error::OutcomeUnknown)?;
+        Ok(())
+    }
     pub fn new(connection: Connection) -> Self {
         Self { connection }
     }
@@ -100,52 +138,7 @@ impl BillingStore {
         params: &Value,
         key: &str,
     ) -> Result<Value> {
-        crate::client::operation_key(key)?;
-        if client.provider() == Provider::Stripe {
-            return client.call(method, path, params, Some(key)).await;
-        }
-        let id = Self::remote_key(client, key);
-        let fingerprint = hash(
-            &serde_json::to_vec(&(method.as_str(), path, params))
-                .map_err(|_| Error::InvalidInput("parameters"))?,
-        );
-        let n = self
-            .connection
-            .table("cashier_operations")
-            .insert_or_ignore(&[record([
-                ("id", id.clone().into()),
-                ("fingerprint", fingerprint.clone().into()),
-                ("status", "pending".into()),
-            ])])
-            .await
-            .map_err(map_db)?;
-        if n == 0 {
-            let old = self
-                .connection
-                .table("cashier_operations")
-                .r#where("id", "=", id)
-                .value("fingerprint")
-                .await
-                .map_err(map_db)?;
-            return Err(if old == fingerprint.into() {
-                Error::OutcomeUnknown
-            } else {
-                Error::EventConflict
-            });
-        }
-        let result = client.call(method, path, params, None).await;
-        let state = match &result {
-            Ok(_) => "done",
-            Err(Error::Rejected(_) | Error::InvalidInput(_)) => "rejected",
-            Err(_) => "unknown",
-        };
-        self.connection
-            .table("cashier_operations")
-            .r#where("id", "=", id)
-            .update(record([("status", state.into())]))
-            .await
-            .map_err(|_| Error::OutcomeUnknown)?;
-        result
+        crate::billing::execute_operation(self, client, method, path, params, key).await
     }
     pub async fn operation_status(&self, client: &Client, key: &str) -> Result<Option<String>> {
         match self
@@ -245,28 +238,7 @@ impl BillingStore {
         owner: &str,
         id: &str,
     ) -> Result<Subscription> {
-        let (client, owner, id) = (client.clone(), owner.to_owned(), id.to_owned());
-        self.connection
-            .transaction(
-                move |tx| {
-                    let (client, owner, id) = (client.clone(), owner.clone(), id.clone());
-                    Box::pin(async move {
-                        let key = Self::customer_key(&client, &owner);
-                        let remote = lock_customer(tx, &key).await?;
-                        ensure_active(tx, &key).await?;
-                        let v = client.retrieve("subscriptions", &id).await.map_err(db)?;
-                        let sub = Subscription::parse(client.provider(), &v).map_err(db)?;
-                        if sub.customer != remote || sub.id != id {
-                            return Err(db(Error::Ownership));
-                        }
-                        save_subscription(tx, &client, &key, &sub).await?;
-                        Ok(sub)
-                    })
-                },
-                1,
-            )
-            .await
-            .map_err(map_db)
+        crate::billing::sync_subscription(self, client, owner, id).await
     }
     /// Verify first, then atomically reconcile provider state, run application SQL, and mark done.
     /// Handlers must use the supplied transaction; external effects need a transactional outbox.
@@ -282,157 +254,7 @@ impl BillingStore {
         + Sync
         + 'static,
     ) -> Result<WebhookOutcome> {
-        if event.scope != client.scope() {
-            return Err(Error::Ownership);
-        }
-        let (client, event, handler) = (client.clone(), event.clone(), Arc::new(handler));
-        self.connection
-            .transaction(
-                move |tx| {
-                    let (client, mut event, handler) =
-                        (client.clone(), event.clone(), handler.clone());
-                    Box::pin(async move {
-                        let key = Self::remote_key(&client, &event.id);
-                        tx.table("cashier_events")
-                            .upsert(
-                                &[record([
-                                    ("id", key.clone().into()),
-                                    ("fingerprint", event.fingerprint.clone().into()),
-                                    ("status", "pending".into()),
-                                ])],
-                                &["id"],
-                                Some(&["id"]),
-                            )
-                            .await?;
-                        let row = tx
-                            .table("cashier_events")
-                            .r#where("id", "=", key.clone())
-                            .lock_for_update()
-                            .first()
-                            .await?
-                            .ok_or_else(|| db(Error::Database))?;
-                        if row.get("fingerprint") != Some(&event.fingerprint.clone().into()) {
-                            return Err(db(Error::EventConflict));
-                        }
-                        if row.get("status") == Some(&SqlValue::from("done")) {
-                            return Ok(WebhookOutcome::Duplicate);
-                        }
-                        let stripe = client.provider() == Provider::Stripe;
-                        let resource = if (stripe
-                            && event.kind.starts_with("customer.subscription."))
-                            || (!stripe && event.kind.starts_with("subscription."))
-                        {
-                            Some("subscriptions")
-                        } else if stripe && event.kind.starts_with("invoice.") {
-                            Some("invoices")
-                        } else if !stripe && event.kind.starts_with("transaction.") {
-                            Some("transactions")
-                        } else {
-                            None
-                        };
-                        if let Some(resource) = resource {
-                            let id = crate::types::text(&event.payload, "id").map_err(db)?;
-                            let remote = if stripe {
-                                crate::types::object_id(&event.payload["customer"])
-                            } else {
-                                crate::types::text(&event.payload, "customer_id")
-                            }
-                            .map_err(db)?;
-                            let customer = tx
-                                .table("cashier_customers")
-                                .r#where("remote_key", "=", Self::remote_key(&client, &remote))
-                                .value("id")
-                                .await?;
-                            let SqlValue::Text(customer) = customer else {
-                                return Err(db(Error::Ownership));
-                            };
-                            if lock_customer(tx, &customer).await? != remote {
-                                return Err(db(Error::Ownership));
-                            }
-                            ensure_active(tx, &customer).await?;
-                            let current = client.retrieve(resource, &id).await.map_err(db)?;
-                            if resource == "subscriptions" {
-                                let sub =
-                                    Subscription::parse(client.provider(), &current).map_err(db)?;
-                                if sub.customer != remote || sub.id != id {
-                                    return Err(db(Error::Ownership));
-                                }
-                                save_subscription(tx, &client, &customer, &sub).await?;
-                                event.subscription = Some(sub);
-                            } else {
-                                let invoice =
-                                    Invoice::parse(client.provider(), &current).map_err(db)?;
-                                if invoice.customer != remote || invoice.id != id {
-                                    return Err(db(Error::Ownership));
-                                }
-                                tx.table("cashier_invoices")
-                                    .upsert(
-                                        &[record([
-                                            ("id", Self::remote_key(&client, &id).into()),
-                                            ("customer_key", customer.into()),
-                                            (
-                                                "payload",
-                                                serde_json::to_string(&invoice)
-                                                    .map_err(|_| db(Error::Database))?
-                                                    .into(),
-                                            ),
-                                        ])],
-                                        &["id"],
-                                        Some(&["payload"]),
-                                    )
-                                    .await?;
-                                event.invoice = Some(invoice);
-                            }
-                        }
-                        if stripe && event.kind == "customer.deleted" {
-                            let remote = crate::types::text(&event.payload, "id").map_err(db)?;
-                            let customer = tx
-                                .table("cashier_customers")
-                                .r#where("remote_key", "=", Self::remote_key(&client, &remote))
-                                .value("id")
-                                .await?;
-                            let SqlValue::Text(customer) = customer else {
-                                return Err(db(Error::Ownership));
-                            };
-                            if lock_customer(tx, &customer).await? != remote {
-                                return Err(db(Error::Ownership));
-                            }
-                            let current =
-                                client.retrieve("customers", &remote).await.map_err(db)?;
-                            if current["id"] != remote || current["deleted"] != true {
-                                return Err(db(Error::OutcomeUnknown));
-                            }
-                            tx.table("cashier_customers")
-                                .r#where("id", "=", customer.clone())
-                                .update(record([("status", "deleted".into())]))
-                                .await?;
-                            for row in tx
-                                .table("cashier_subscriptions")
-                                .r#where("customer_key", "=", customer.clone())
-                                .get()
-                                .await?
-                            {
-                                let mut sub: Subscription =
-                                    decode(row.get("payload")).map_err(db)?;
-                                sub.status = "canceled".into();
-                                sub.ends_at = Some(jiff::Timestamp::now().as_second());
-                                sub.trial_ends_at = None;
-                                save_subscription(tx, &client, &customer, &sub).await?;
-                            }
-                            event.customer_deleted = true;
-                        }
-                        handler(tx, &event).await?;
-                        tx.table("cashier_events")
-                            .r#where("id", "=", key)
-                            .update(record([("status", "done".into())]))
-                            .await?;
-                        Ok(WebhookOutcome::Processed)
-                    })
-                },
-                1,
-            )
-            .await
-            .map_err(map_db)
+        crate::webhook::process(self, client, event, handler).await
     }
     pub async fn handle_webhook(
         &self,
@@ -443,7 +265,7 @@ impl BillingStore {
             .await
     }
 }
-async fn lock_customer(tx: &mut Transaction, key: &str) -> DatabaseResult<String> {
+pub(crate) async fn lock_customer(tx: &mut Transaction, key: &str) -> DatabaseResult<String> {
     tx.table("cashier_customers")
         .r#where("id", "=", key)
         .update(record([("id", key.into())]))
@@ -459,7 +281,7 @@ async fn lock_customer(tx: &mut Transaction, key: &str) -> DatabaseResult<String
         _ => Err(db(Error::Ownership)),
     }
 }
-async fn ensure_active(tx: &mut Transaction, key: &str) -> DatabaseResult<()> {
+pub(crate) async fn ensure_active(tx: &mut Transaction, key: &str) -> DatabaseResult<()> {
     let status = tx
         .table("cashier_customers")
         .r#where("id", "=", key)
@@ -471,7 +293,7 @@ async fn ensure_active(tx: &mut Transaction, key: &str) -> DatabaseResult<()> {
     }
     Ok(())
 }
-async fn save_subscription(
+pub(crate) async fn save_subscription(
     tx: &mut Transaction,
     client: &Client,
     customer: &str,
@@ -505,12 +327,119 @@ fn decode<T: serde::de::DeserializeOwned>(value: Option<&SqlValue>) -> Result<T>
 fn record<const N: usize>(v: [(&str, SqlValue); N]) -> Record {
     v.into_iter().map(|(k, v)| (k.into(), v)).collect()
 }
-fn db(e: Error) -> DatabaseError {
+pub(crate) fn db(e: Error) -> DatabaseError {
     DatabaseError::Embedding(Box::new(e))
 }
-fn map_db(e: DatabaseError) -> Error {
+pub(crate) fn map_db(e: DatabaseError) -> Error {
     match e {
         DatabaseError::Embedding(e) => e.downcast::<Error>().map(|e| *e).unwrap_or(Error::Database),
         _ => Error::Database,
     }
+}
+
+// 返回是否已处理，保留同一事务中的占用、锁定和指纹判定顺序。
+pub(crate) async fn claim_event(
+    tx: &mut Transaction,
+    event: &VerifiedEvent,
+    key: &str,
+) -> DatabaseResult<bool> {
+    tx.table("cashier_events")
+        .upsert(
+            &[record([
+                ("id", key.into()),
+                ("fingerprint", event.fingerprint.clone().into()),
+                ("status", "pending".into()),
+            ])],
+            &["id"],
+            Some(&["id"]),
+        )
+        .await?;
+    let row = tx
+        .table("cashier_events")
+        .r#where("id", "=", key)
+        .lock_for_update()
+        .first()
+        .await?
+        .ok_or_else(|| db(Error::Database))?;
+    if row.get("fingerprint") != Some(&event.fingerprint.clone().into()) {
+        return Err(db(Error::EventConflict));
+    }
+    if row.get("status") == Some(&SqlValue::from("done")) {
+        return Ok(true);
+    }
+    Ok(false)
+}
+pub(crate) async fn locked_customer_for(
+    tx: &mut Transaction,
+    client: &Client,
+    remote: &str,
+) -> DatabaseResult<String> {
+    let customer = tx
+        .table("cashier_customers")
+        .r#where("remote_key", "=", BillingStore::remote_key(client, remote))
+        .value("id")
+        .await?;
+    let SqlValue::Text(customer) = customer else {
+        return Err(db(Error::Ownership));
+    };
+    if lock_customer(tx, &customer).await? != remote {
+        return Err(db(Error::Ownership));
+    }
+    Ok(customer)
+}
+pub(crate) async fn save_invoice(
+    tx: &mut Transaction,
+    client: &Client,
+    id: &str,
+    customer: &str,
+    invoice: &Invoice,
+) -> DatabaseResult<()> {
+    tx.table("cashier_invoices")
+        .upsert(
+            &[record([
+                ("id", BillingStore::remote_key(client, id).into()),
+                ("customer_key", customer.into()),
+                (
+                    "payload",
+                    serde_json::to_string(invoice)
+                        .map_err(|_| db(Error::Database))?
+                        .into(),
+                ),
+            ])],
+            &["id"],
+            Some(&["payload"]),
+        )
+        .await?;
+    Ok(())
+}
+pub(crate) async fn mark_customer_deleted(
+    tx: &mut Transaction,
+    customer: &str,
+) -> DatabaseResult<()> {
+    tx.table("cashier_customers")
+        .r#where("id", "=", customer)
+        .update(record([("status", "deleted".into())]))
+        .await?;
+    Ok(())
+}
+pub(crate) async fn customer_subscriptions(
+    tx: &mut Transaction,
+    customer: &str,
+) -> DatabaseResult<impl Iterator<Item = DatabaseResult<Subscription>> + use<>> {
+    let rows = tx
+        .table("cashier_subscriptions")
+        .r#where("customer_key", "=", customer)
+        .get()
+        .await?;
+    // 逐条解码并传播错误，保留原来与保存操作交错的顺序。
+    Ok(rows
+        .into_iter()
+        .map(|row| decode(row.get("payload")).map_err(db)))
+}
+pub(crate) async fn complete_event(tx: &mut Transaction, key: &str) -> DatabaseResult<()> {
+    tx.table("cashier_events")
+        .r#where("id", "=", key)
+        .update(record([("status", "done".into())]))
+        .await?;
+    Ok(())
 }

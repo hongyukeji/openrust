@@ -4206,6 +4206,7 @@ version = "0.0.0"
 dependencies = [
  "aws-lc-rs",
  "axum",
+ "clap",
  "http 1.5.0",
  "jiff 0.2.46",
  "openrust-framework",

@@ -1,9 +1,8 @@
 //! Retains the actual selected Eloquent model across actions, responses and events.
-use crate::{AuthenticationOptions, PasskeyModel, StoredCredential, WebAuthn, internal, invalid};
+use crate::{AuthenticationOptions, PasskeyModel, StoredCredential, WebAuthn, internal};
 use openrust::{
     database::{Connection, DatabaseFuture, DatabaseResult, Transaction, Value},
     http::{HttpError, HttpFuture},
-    support::now,
 };
 use std::{any::Any, sync::Arc};
 use tokio::sync::Mutex;
@@ -119,36 +118,10 @@ impl<M: PasskeyModel> LoadedPasskey for Loaded<M> {
                 .refresh_for_update(transaction)
                 .await
                 .map_err(internal)?;
-            let key = model.get_attribute("user_id").cloned().ok_or_else(|| {
-                invalid("Passkey not recognized. It may have been removed from your account.")
-            })?;
-            if expected.is_some_and(|expected| {
-                crate::contracts::scalar(&key) != crate::contracts::scalar(expected)
-            }) {
-                return Err(invalid(
-                    "Passkey not recognized. It may have been removed from your account.",
-                ));
-            }
-            let mut credential = model.credential().map_err(internal)?;
-            web.verify(value, options, &mut credential, expected.is_none())
-                .map_err(|_| invalid("Unable to verify passkey. Please try again."))?;
-            let now = now(None)
-                .map_err(internal)?
-                .as_date_time()
-                .strftime("%Y-%m-%d %H:%M:%S")
-                .to_string();
-            model
-                .force_fill(
-                    [
-                        (
-                            "credential".into(),
-                            Value::Json(serde_json::to_value(credential).map_err(internal)?),
-                        ),
-                        ("last_used_at".into(), now.into()),
-                    ]
-                    .into(),
-                )
-                .map_err(internal)?;
+            let (key, attributes) = crate::actions::verified_credential_attributes(
+                &*model, value, options, web, expected,
+            )?;
+            model.force_fill(attributes).map_err(internal)?;
             model
                 .save_in_transaction(transaction)
                 .await

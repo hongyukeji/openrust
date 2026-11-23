@@ -109,6 +109,8 @@ await Passkeys.verify({ routes: {
 
 在應用 Provider 中呼叫 `Passkeys::use_passkey_model::<CustomPasskey>()` 選擇實際 Eloquent 模型。為實作 `Model + Clone` 且具備憑證轉換及必要欄位的型別實作 `PasskeyModel`；查詢、插入、資料列鎖驗證及刪除均使用其資料表、主鍵、存取器和觀察者。`Passkeys::passkey_model()` 與 `user_model()` 傳回所選型別名稱。Rust 使用 `PasskeyRelation` 提供 `get_results`、`exists` 與 `create`，傳回 `PasskeyRecord`。記錄的 `get_key`、`get_attribute_value` 和 `to_array` 為非同步方法；`record.model::<CustomPasskey>()` 傳回非同步互斥鎖中的實際共用模型。呼叫其他記錄方法前先釋放該鎖。事件的 `passkey::<CustomPasskey>(context)` 讀取型別化快照，事件的 `passkey` 記錄保留實際共用模型。
 
+憑證驗證繼續透過既有 Passkeys 動作流程完成。`PasskeyRecord` 保留所選模型的實際實例，驗證與憑證更新仍受同一模型鎖和資料庫交易保護。自訂模型的轉換與觀察器繼續生效，應用程式無須將憑證驗證與儲存拆成兩次獨立操作。
+
 預設模型附加 `authenticator`，依註冊 AAGUID 查詢名稱。`Aaguids::label_for`、`icon_for(id, "light")`、`all` 與 `flush` 使用固定上游資源。需要圖示時，在模型 appends 中明確加入 `authenticator_icon_light` 與 `authenticator_icon_dark`。未知或缺少 AAGUID 傳回 null，舊儲存憑證缺少此欄位仍可使用。none 證明模式下，名稱和圖示僅展示所回報的 AAGUID，不認證製造商身分。
 
 獨立發佈資源時，在 Provider 清單中明確註冊 `openrust_passkeys` 的 `PasskeysResourcesServiceProvider` 並重新建置，然後執行：

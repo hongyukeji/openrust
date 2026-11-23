@@ -7,8 +7,8 @@
 | M01 Activitylog | 已验收 |
 | M02 数据库通知 | 已验收 |
 | M03／M04 Fortify | 已验收 |
-| M05 Passkeys | 待验收 |
-| M06 Cashier | 待验收 |
+| M05 Passkeys | 已验收 |
+| M06 Cashier | 已验收 |
 
 ## 第一批：Activitylog 与数据库通知
 
@@ -44,3 +44,23 @@ cargo test --locked -p openrust-framework --test notification_store
 - Artisan 完成动作使用独立 SQLite；此批没有新 SQL 方言实现，未新增 PostgreSQL Fortify HTTP 验收结论。纯 Rust 实现，无 PHP 运行依赖。
 - 隔离源码继续只同步本批文件；全仓格式与 workspace／all-targets 严格 Clippy 通过。三语 Fortify 指南说明自定义密码动作与完成步骤的分工、验证状态返回值与事件顺序；内容、命令入口、站点构建和两种挂载路径下的三语桌面／移动端检查通过。
 - 本批数据库容器已回收，测试临时应用由夹具清理；文档产物在收尾回收，保留日志与后续批次复用的独占构建缓存。不推送。
+
+## 第三批：Passkeys 与 Cashier
+
+### 实现与契约
+
+- Passkeys：`PasskeyRecord` 和实际模型实例投影不变；适配器继续持有原模型 Mutex，执行事务内 `refresh_for_update` 与保存。归属判定、WebAuthn 验证、凭据属性与时间生成移到现有 Actions 的内部辅助函数，在原锁与事务范围内调用，没有将验证挪到锁外。
+- Cashier：`BillingStore::execute/sync_subscription/process/handle_webhook` 的公开签名保留。billing／webhook 模块负责渠道策略、远端调用、状态裁决及事务编排；Store 提供幂等占用、状态更新、账户锁、事件锁及数据读写。保留远端读取在原事务内的位置、事件处理次序、应用回调和错误分类。
+- 客户删除时，订阅查询返回拥有数据的惰性解码迭代器；用 Rust 的 `use<>` 精确捕获避免迭代器额外借用事务，保留逐行解码／保存及错误传播顺序。没有预先批量解码或改变锁周期。
+- Cashier 新增原生 Artisan 消费者；仅增加既有 clap 的开发依赖及对应锁文件条目，没有增加运行期依赖。
+
+### 验收结果
+
+- Rust 1.94.0，`cargo test --locked -p openrust-passkeys -p openrust-cashier --tests`：SQLite 及纯逻辑测试共26项通过，覆盖模型实例、自定义配置、发布、签名、协议和持久化。1项要求外部固定 PHP SDK 重新签名的历史对照测试保持显式 ignored，不计入通过；本轮未执行 PHP。
+- MySQL 8.4.13、PostgreSQL 18（180007）：分别运行 Cashier 的 `artisan`、`callback_http`、`persistence`，各3项通过。两种支付渠道使用真实回环 HTTP 协议模拟，覆盖远端操作、Paddle 重复 key、订阅同步、签名 Webhook、重复／冲突、失败回滚、取消恢复、并发、陈旧事件及客户删除。没有调用托管支付平台或真实资金接口。
+- Passkeys 默认模型在隔离 MySQL 生成应用中完整通过；自定义模型在隔离 PostgreSQL 生成应用中完整通过。使用真实 Rust HTTP 服务、原生 Session／SQL、Chrome CTAP2 虚拟认证器和固定 `@laravel/passkeys` 0.4.1 客户端，验证注册、确认、登录、remember、Session／CSRF 轮换、跨账户／Session 拒绝、挑战过期、并发消费、同计数器行锁串行、删除拒绝和外键级联。自定义模型另覆盖表名、主键、setter、hidden／appends、动态关系、观察器和 typed 事件。
+- 生成应用通过真正的 Artisan 安装、重复安装保留定制、重新编译、迁移、回滚重建、生成应用严格 Clippy 与关闭 feature 构建；其中也重新运行原 Fortify HTTP／CSRF／邮件／重置／2FA 流程。软件认证器和本机回环邮件不代表真实硬件或正式邮件平台验收。
+- 沿用 `tests/fortify_install.py`、`tests/passkeys_http.mjs`。仅在隔离脚本副本的安全目录名前缀白名单中加入本批实际名称；输出仍全部位于项目 `target/tmp/`，未改动脚本的行为断言或提交该临时适配。客户端归档和 package-lock SHA 与既有固定清单一致，按锁文件安装并打包，没有修改客户端源码。
+- 最终隔离源码执行全仓格式与 `cargo clippy --workspace --all-targets --locked -- -D warnings` 通过。三语 Fortify／Cashier 共享指南同步模型与动作、业务与存储职责及事务规则；内容、命令入口、VitePress 构建和 `/`、`/docs/` 三语桌面／移动端检查通过。
+
+本批32项原生驱动／测试执行通过，另有两套完整生成应用的 HTTP／浏览器／Artisan 验收；不将 ignored 对照、空协议驱动入口或浏览器内部断言累加为 Rust 测试数。全部六项已按范围验收，S01／S02 保留为可选组织改善。每批只提交所属实现、测试、三语指南和本记录；不推送。收尾回收生成应用、下载与客户端构建、临时源码副本、文档产物及闲置夹具，保留验收日志和可复用的独占构建缓存；数据库容器由标签夹具回收，不删除数据卷。

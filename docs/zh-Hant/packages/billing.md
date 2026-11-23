@@ -33,6 +33,8 @@ Stripe 客戶介面保留 `stripe_id`、`has_stripe_id`、`create_as_stripe_cust
 use openrust_cashier::{Billable, BillingStore, Price, facades::Cashier};
 use serde_json::json;
 
+帳務操作和已驗證 Webhook 繼續使用既有 `Billable` 與 `BillingStore` API。帳務與 Webhook 服務協調遠端呼叫及業務決策，儲存層負責操作占用、帳戶鎖與持久化寫入。遠端讀取與應用程式 SQL 處理器保持原有交易順序，回滾後事件仍可重試。
+
 let client = Cashier::driver("stripe")?;
 let store = BillingStore::new(connection.clone());
 let user = Billable::new(client.clone(), store.clone(), "users:42")?;

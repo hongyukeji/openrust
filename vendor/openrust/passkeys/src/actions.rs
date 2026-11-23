@@ -177,3 +177,40 @@ impl DeletePasskey {
         crate::events::deleted(user, passkey).await
     }
 }
+
+// 在 Record 已持有的模型锁和事务内执行；不将校验移到锁外。
+pub(crate) fn verified_credential_attributes<M: crate::PasskeyModel>(
+    model: &M,
+    value: serde_json::Value,
+    options: &AuthenticationOptions,
+    web: &crate::WebAuthn,
+    expected: Option<&Value>,
+) -> Result<(Value, openrust::database::eloquent::Attributes), HttpError> {
+    let key = model.get_attribute("user_id").cloned().ok_or_else(|| {
+        invalid("Passkey not recognized. It may have been removed from your account.")
+    })?;
+    if expected.is_some_and(|expected| {
+        crate::contracts::scalar(&key) != crate::contracts::scalar(expected)
+    }) {
+        return Err(invalid(
+            "Passkey not recognized. It may have been removed from your account.",
+        ));
+    }
+    let mut credential = model.credential().map_err(internal)?;
+    web.verify(value, options, &mut credential, expected.is_none())
+        .map_err(|_| invalid("Unable to verify passkey. Please try again."))?;
+    let now = openrust::support::now(None)
+        .map_err(internal)?
+        .as_date_time()
+        .strftime("%Y-%m-%d %H:%M:%S")
+        .to_string();
+    let attributes = [
+        (
+            "credential".into(),
+            Value::Json(serde_json::to_value(credential).map_err(internal)?),
+        ),
+        ("last_used_at".into(), now.into()),
+    ]
+    .into();
+    Ok((key, attributes))
+}
