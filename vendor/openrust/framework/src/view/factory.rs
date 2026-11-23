@@ -626,6 +626,10 @@ impl Factory {
         &self.engines
     }
 
+    pub(crate) fn compiler_handle(&self) -> Arc<super::compilers::BladeCompiler> {
+        self.engines.blade().compiler_handle()
+    }
+
     pub(crate) fn compiler(&self) -> &BladeCompiler {
         self.engines.blade().get_compiler()
     }

@@ -181,6 +181,15 @@ impl Facade for View {
 }
 
 impl View {
+    pub fn render(name: &str, data: &crate::view::ViewData) -> crate::view::ViewResult<String> {
+        Self::get_facade_root()?.render(name, data)
+    }
+    pub fn render_inline(
+        source: &str,
+        data: &crate::view::ViewData,
+    ) -> crate::view::ViewResult<String> {
+        Self::get_facade_root()?.render_inline(source, data)
+    }
     pub fn render_when(
         condition: bool,
         view: &str,
@@ -774,3 +783,5 @@ impl RegisteredCommand {
             .map_err(|_| ConsoleError::new("No active Artisan registration scope."))?
     }
 }
+
+pub use crate::view::Blade;

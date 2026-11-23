@@ -24,7 +24,8 @@ const PREFIX: &str = "blade-v1-";
 const SUFFIX: &str = ".json";
 const COMPILER_VERSION: u32 = 45;
 
-type Directive = Arc<dyn Fn(&[ViewValue]) -> ViewResult<DirectiveOutput> + Send + Sync>;
+pub type DirectiveCallback = Arc<dyn Fn(&[ViewValue]) -> ViewResult<DirectiveOutput> + Send + Sync>;
+type Directive = DirectiveCallback;
 type Condition = Arc<dyn Fn(&[ViewValue]) -> ViewResult<bool> + Send + Sync>;
 type Stringable = Arc<dyn Fn(&dyn Any) -> ViewResult<String> + Send + Sync>;
 type IterableEcho = Arc<dyn Fn(&ViewValue) -> ViewResult<String> + Send + Sync>;
@@ -52,6 +53,7 @@ pub enum DirectiveOutput {
 /// Compiles Blade source into a cacheable tree of template instructions.
 pub struct BladeCompiler {
     directory: PathBuf,
+    path: RwLock<Option<PathBuf>>,
     extensions: RwLock<Arc<BladeExtensions>>,
 }
 
@@ -65,6 +67,29 @@ struct Compiled {
     template: Template,
 }
 
+/// 可重复渲染的原生编译结果；不生成或执行 PHP 源码。
+#[derive(Clone)]
+pub struct CompiledTemplate {
+    template: Arc<Template>,
+    extensions: Arc<BladeExtensions>,
+}
+impl CompiledTemplate {
+    pub fn render(&self, data: &ViewData) -> ViewResult<String> {
+        self.render_with_factory(data, None)
+    }
+    pub fn render_with_factory(
+        &self,
+        data: &ViewData,
+        factory: Option<&crate::view::Factory>,
+    ) -> ViewResult<String> {
+        let mut context = RenderContext::new(factory);
+        context.extensions = self.extensions.clone();
+        self.template
+            .render(data, &mut context)
+            .map(trim_php_output)
+    }
+}
+
 impl Compiled {
     fn syntax_matches(&self, extensions: &BladeExtensions) -> bool {
         extensions.directives.keys().eq(self.directives.iter())
@@ -73,6 +98,34 @@ impl Compiled {
 }
 
 impl BladeCompiler {
+    pub fn get_path(&self) -> Option<PathBuf> {
+        self.path.read().unwrap().clone()
+    }
+    pub fn set_path(&self, path: impl Into<PathBuf>) {
+        *self.path.write().unwrap() = Some(path.into());
+    }
+    /// 按源表达式的字节规则去除首尾；保留未闭合输入的可观察结果。
+    pub fn strip_parentheses(expression: impl AsRef<[u8]>) -> Vec<u8> {
+        let expression = expression.as_ref();
+        if expression.first() == Some(&b'(') {
+            expression[1..expression.len().saturating_sub(1).max(1)].to_vec()
+        } else {
+            expression.to_vec()
+        }
+    }
+    pub fn get_custom_directives(&self) -> BTreeMap<String, DirectiveCallback> {
+        self.extensions.read().unwrap().directives.clone()
+    }
+    pub fn compile_string(&self, source: &str) -> ViewResult<CompiledTemplate> {
+        let extensions = self.extensions.read().unwrap().clone();
+        let name = format!("inline-{}", digest(source.as_bytes()));
+        self.validate_native(Path::new(&name), source, &extensions)?;
+        Ok(CompiledTemplate {
+            template: Arc::new(Template::compile(source, &name, &extensions)?),
+            extensions,
+        })
+    }
+
     /// 装配构建期生成的不可变函数表；不启动编译器或执行模板业务。
     #[doc(hidden)]
     pub fn native_views(&self, templates: &'static [crate::view::NativeTemplate]) {
@@ -108,6 +161,7 @@ impl BladeCompiler {
     pub fn new(directory: PathBuf) -> Self {
         Self {
             directory,
+            path: RwLock::default(),
             extensions: RwLock::default(),
         }
     }
@@ -371,6 +425,7 @@ impl Compiler for BladeCompiler {
     }
 
     fn compile(&self, path: &Path) -> ViewResult<()> {
+        self.set_path(path);
         let source = fs::read_to_string(path).map_err(ViewError::ReadFailed)?;
         let extensions = self.extensions.read().unwrap().clone();
         self.load(path, &source, &extensions)?;

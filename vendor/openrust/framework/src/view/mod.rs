@@ -8,8 +8,10 @@ use ::http::{HeaderValue, header::CONTENT_TYPE};
 
 use crate::http::{Body, HttpError, HttpFuture, Request, Response, StatusCode};
 
+mod blade_facade;
 pub mod compilers;
 mod component;
+pub use blade_facade::Blade;
 pub(crate) mod console;
 pub mod engines;
 mod factory;

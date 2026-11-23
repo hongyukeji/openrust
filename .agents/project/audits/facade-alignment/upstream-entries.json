@@ -108,17 +108,288 @@
       "type": "Blade",
       "source": "src/Illuminate/Support/Facades/Blade.php",
       "public_entries": [
-        "compile", "getPath", "setPath", "compileString", "render", "renderComponent", "stripParentheses",
-        "extend", "getExtensions", "if", "check", "component", "components", "getClassComponentAliases",
-        "anonymousComponentPath", "anonymousComponentNamespace", "componentNamespace",
-        "getAnonymousComponentPaths", "getAnonymousComponentNamespaces", "getClassComponentNamespaces",
-        "aliasComponent", "include", "aliasInclude", "bindDirective", "directive", "getCustomDirectives",
-        "prepareStringsForCompilationUsing", "precompiler", "getCompiledPath", "usingEchoFormat",
-        "setEchoFormat", "withDoubleEncoding", "withoutDoubleEncoding", "withoutComponentTags", "isExpired",
-        "newComponentHash", "compileClassComponentOpening", "compileEndComponentClass",
-        "sanitizeComponentAttribute", "compileEndOnce", "stringable", "compileEchos", "applyEchoHandler"
+        "compile",
+        "getPath",
+        "setPath",
+        "compileString",
+        "render",
+        "renderComponent",
+        "stripParentheses",
+        "extend",
+        "getExtensions",
+        "if",
+        "check",
+        "component",
+        "components",
+        "getClassComponentAliases",
+        "anonymousComponentPath",
+        "anonymousComponentNamespace",
+        "componentNamespace",
+        "getAnonymousComponentPaths",
+        "getAnonymousComponentNamespaces",
+        "getClassComponentNamespaces",
+        "aliasComponent",
+        "include",
+        "aliasInclude",
+        "bindDirective",
+        "directive",
+        "getCustomDirectives",
+        "prepareStringsForCompilationUsing",
+        "precompiler",
+        "getCompiledPath",
+        "usingEchoFormat",
+        "setEchoFormat",
+        "withDoubleEncoding",
+        "withoutDoubleEncoding",
+        "withoutComponentTags",
+        "isExpired",
+        "newComponentHash",
+        "compileClassComponentOpening",
+        "compileEndComponentClass",
+        "sanitizeComponentAttribute",
+        "compileEndOnce",
+        "stringable",
+        "compileEchos",
+        "applyEchoHandler"
       ],
-      "review": "pending"
+      "review": "partial",
+      "local": "support::facades::Blade -> blade.compiler singleton -> existing View factory compiler Arc",
+      "tested_entries": {
+        "compile": {
+          "local": "compile",
+          "status": "verified-native-paths-not-complete",
+          "evidence": "framework/tests/blade_facade.rs; blade_statements, blade_app, view_finder, view_native_values combination in target/tmp/facade-alignment/blade"
+        },
+        "getPath": {
+          "local": "get_path",
+          "status": "verified-native-paths-not-complete",
+          "evidence": "framework/tests/blade_facade.rs; blade_statements, blade_app, view_finder, view_native_values combination in target/tmp/facade-alignment/blade"
+        },
+        "setPath": {
+          "local": "set_path",
+          "status": "verified-native-paths-not-complete",
+          "evidence": "framework/tests/blade_facade.rs; blade_statements, blade_app, view_finder, view_native_values combination in target/tmp/facade-alignment/blade"
+        },
+        "compileString": {
+          "local": "compile_string",
+          "status": "verified-native-paths-not-complete",
+          "evidence": "framework/tests/blade_facade.rs; blade_statements, blade_app, view_finder, view_native_values combination in target/tmp/facade-alignment/blade"
+        },
+        "render": {
+          "local": "render",
+          "status": "verified-native-paths-not-complete",
+          "evidence": "framework/tests/blade_facade.rs; blade_statements, blade_app, view_finder, view_native_values combination in target/tmp/facade-alignment/blade"
+        },
+        "renderComponent": {
+          "local": "render_component",
+          "status": "pending",
+          "evidence": "not implemented/verified through this facade; existing View API is not a substitute"
+        },
+        "stripParentheses": {
+          "local": "strip_parentheses",
+          "status": "verified-native-paths-not-complete",
+          "evidence": "framework/tests/blade_facade.rs; blade_statements, blade_app, view_finder, view_native_values combination in target/tmp/facade-alignment/blade"
+        },
+        "extend": {
+          "local": "extend",
+          "status": "pending",
+          "evidence": "not implemented/verified through this facade; existing View API is not a substitute"
+        },
+        "getExtensions": {
+          "local": "get_extensions",
+          "status": "pending",
+          "evidence": "not implemented/verified through this facade; existing View API is not a substitute"
+        },
+        "if": {
+          "local": "r#if",
+          "status": "verified-native-paths-not-complete",
+          "evidence": "framework/tests/blade_facade.rs; blade_statements, blade_app, view_finder, view_native_values combination in target/tmp/facade-alignment/blade"
+        },
+        "check": {
+          "local": "check",
+          "status": "verified-native-paths-not-complete",
+          "evidence": "framework/tests/blade_facade.rs; blade_statements, blade_app, view_finder, view_native_values combination in target/tmp/facade-alignment/blade"
+        },
+        "component": {
+          "local": "component",
+          "status": "pending",
+          "evidence": "not implemented/verified through this facade; existing View API is not a substitute"
+        },
+        "components": {
+          "local": "components",
+          "status": "pending",
+          "evidence": "not implemented/verified through this facade; existing View API is not a substitute"
+        },
+        "getClassComponentAliases": {
+          "local": "get_class_component_aliases",
+          "status": "pending",
+          "evidence": "not implemented/verified through this facade; existing View API is not a substitute"
+        },
+        "anonymousComponentPath": {
+          "local": "anonymous_component_path",
+          "status": "pending",
+          "evidence": "not implemented/verified through this facade; existing View API is not a substitute"
+        },
+        "anonymousComponentNamespace": {
+          "local": "anonymous_component_namespace",
+          "status": "pending",
+          "evidence": "not implemented/verified through this facade; existing View API is not a substitute"
+        },
+        "componentNamespace": {
+          "local": "component_namespace",
+          "status": "pending",
+          "evidence": "not implemented/verified through this facade; existing View API is not a substitute"
+        },
+        "getAnonymousComponentPaths": {
+          "local": "get_anonymous_component_paths",
+          "status": "pending",
+          "evidence": "not implemented/verified through this facade; existing View API is not a substitute"
+        },
+        "getAnonymousComponentNamespaces": {
+          "local": "get_anonymous_component_namespaces",
+          "status": "pending",
+          "evidence": "not implemented/verified through this facade; existing View API is not a substitute"
+        },
+        "getClassComponentNamespaces": {
+          "local": "get_class_component_namespaces",
+          "status": "pending",
+          "evidence": "not implemented/verified through this facade; existing View API is not a substitute"
+        },
+        "aliasComponent": {
+          "local": "alias_component",
+          "status": "pending",
+          "evidence": "not implemented/verified through this facade; existing View API is not a substitute"
+        },
+        "include": {
+          "local": "include",
+          "status": "pending",
+          "evidence": "not implemented/verified through this facade; existing View API is not a substitute"
+        },
+        "aliasInclude": {
+          "local": "alias_include",
+          "status": "pending",
+          "evidence": "not implemented/verified through this facade; existing View API is not a substitute"
+        },
+        "bindDirective": {
+          "local": "bind_directive",
+          "status": "pending",
+          "evidence": "not implemented/verified through this facade; existing View API is not a substitute"
+        },
+        "directive": {
+          "local": "directive",
+          "status": "verified-native-paths-not-complete",
+          "evidence": "framework/tests/blade_facade.rs; blade_statements, blade_app, view_finder, view_native_values combination in target/tmp/facade-alignment/blade"
+        },
+        "getCustomDirectives": {
+          "local": "get_custom_directives",
+          "status": "verified-native-paths-not-complete",
+          "evidence": "framework/tests/blade_facade.rs; blade_statements, blade_app, view_finder, view_native_values combination in target/tmp/facade-alignment/blade"
+        },
+        "prepareStringsForCompilationUsing": {
+          "local": "prepare_strings_for_compilation_using",
+          "status": "pending",
+          "evidence": "not implemented/verified through this facade; existing View API is not a substitute"
+        },
+        "precompiler": {
+          "local": "precompiler",
+          "status": "pending",
+          "evidence": "not implemented/verified through this facade; existing View API is not a substitute"
+        },
+        "getCompiledPath": {
+          "local": "get_compiled_path",
+          "status": "verified-native-paths-not-complete",
+          "evidence": "framework/tests/blade_facade.rs; blade_statements, blade_app, view_finder, view_native_values combination in target/tmp/facade-alignment/blade"
+        },
+        "usingEchoFormat": {
+          "local": "using_echo_format",
+          "status": "pending",
+          "evidence": "not implemented/verified through this facade; existing View API is not a substitute"
+        },
+        "setEchoFormat": {
+          "local": "set_echo_format",
+          "status": "pending",
+          "evidence": "not implemented/verified through this facade; existing View API is not a substitute"
+        },
+        "withDoubleEncoding": {
+          "local": "with_double_encoding",
+          "status": "verified-native-paths-not-complete",
+          "evidence": "framework/tests/blade_facade.rs; blade_statements, blade_app, view_finder, view_native_values combination in target/tmp/facade-alignment/blade"
+        },
+        "withoutDoubleEncoding": {
+          "local": "without_double_encoding",
+          "status": "verified-native-paths-not-complete",
+          "evidence": "framework/tests/blade_facade.rs; blade_statements, blade_app, view_finder, view_native_values combination in target/tmp/facade-alignment/blade"
+        },
+        "withoutComponentTags": {
+          "local": "without_component_tags",
+          "status": "pending",
+          "evidence": "not implemented/verified through this facade; existing View API is not a substitute"
+        },
+        "isExpired": {
+          "local": "is_expired",
+          "status": "verified-native-paths-not-complete",
+          "evidence": "framework/tests/blade_facade.rs; blade_statements, blade_app, view_finder, view_native_values combination in target/tmp/facade-alignment/blade"
+        },
+        "newComponentHash": {
+          "local": "new_component_hash",
+          "status": "pending",
+          "evidence": "not implemented/verified through this facade; existing View API is not a substitute"
+        },
+        "compileClassComponentOpening": {
+          "local": "compile_class_component_opening",
+          "status": "pending",
+          "evidence": "not implemented/verified through this facade; existing View API is not a substitute"
+        },
+        "compileEndComponentClass": {
+          "local": "compile_end_component_class",
+          "status": "pending",
+          "evidence": "not implemented/verified through this facade; existing View API is not a substitute"
+        },
+        "sanitizeComponentAttribute": {
+          "local": "sanitize_component_attribute",
+          "status": "pending",
+          "evidence": "not implemented/verified through this facade; existing View API is not a substitute"
+        },
+        "compileEndOnce": {
+          "local": "compile_end_once",
+          "status": "pending",
+          "evidence": "not implemented/verified through this facade; existing View API is not a substitute"
+        },
+        "stringable": {
+          "local": "stringable",
+          "status": "verified-native-paths-not-complete",
+          "evidence": "framework/tests/blade_facade.rs; blade_statements, blade_app, view_finder, view_native_values combination in target/tmp/facade-alignment/blade"
+        },
+        "compileEchos": {
+          "local": "compile_echos",
+          "status": "pending",
+          "evidence": "not implemented/verified through this facade; existing View API is not a substitute"
+        },
+        "applyEchoHandler": {
+          "local": "apply_echo_handler",
+          "status": "verified-native-paths-not-complete",
+          "evidence": "framework/tests/blade_facade.rs; blade_statements, blade_app, view_finder, view_native_values combination in target/tmp/facade-alignment/blade"
+        }
+      },
+      "adaptations": {
+        "compileString": "returns a reusable CompiledTemplate holding native instructions and extension snapshot rather than PHP executable source string; actual rendering/encoding/typed directives tested; snapshot vs late-bound PHP callbacks remains a reviewed difference, not full parity",
+        "render": "current View factory context, same compiler; no intermediate generated PHP file; default inline native render tested; deleteCachedView and broad component/slot parity pending",
+        "stripParentheses": "byte Vec result; actual pinned startsWith(\"(\") then substr(1,-1) including malformed UTF8 byte output; PHP oracle and Rust positive/negative vectors match",
+        "directive": "typed native runtime callback -> DirectiveOutput Text/Html instead of PHP compile-time string handler; actual named view rendering tested; bound directive compiler context still pending",
+        "getCustomDirectives": "returns actual typed custom callbacks, not only names; PHP also exposes generated condition directive callbacks, which local separate condition registry does not yet expose",
+        "stringable/applyEchoHandler": "existing native typed value formatter integrated with same compiler; expression-code helpers are not yet complete",
+        "View::render/render_inline": "native convenience helpers forwarding actual Factory, not counted as Laravel annotation parity"
+      },
+      "remaining": [
+        "renderComponent, component(s), class aliases, anonymous component paths/namespaces, class component namespaces and getters must be exposed through Blade and real render consumers; existing Factory methods alone do not close facade",
+        "extend/getExtensions, prepareStringsForCompilationUsing, precompiler: actual preprocessing phases, raw/comment/component boundaries and cache invalidation",
+        "bindDirective, directive bind flag, include/aliasInclude/aliasComponent and full getCustomDirectives including generated condition helpers",
+        "usingEchoFormat/setEchoFormat, withoutComponentTags and full scoped restoration/unwind/async isolation",
+        "newComponentHash, compileClassComponentOpening/compileEndComponentClass, sanitizeComponentAttribute, compileEndOnce, compileEchos and expression applyEchoHandler native compiled-code contract",
+        "compileString extension snapshot vs PHP late-bound condition/formatter lifecycle; inspect exact Rust adaptation before closure",
+        "Blade::render deleteCachedView parameter and cache/filesystem side effects; default native inline path alone is not full render parity",
+        "inherited Facade mocks/spy and all public BladeCompiler inherited/trait methods beyond declared annotation list"
+      ]
     },
     {
       "type": "Broadcast",

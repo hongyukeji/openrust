@@ -46,6 +46,13 @@ impl ServiceProvider for ViewServiceProvider {
                 })
             })?;
             container.alias("view", crate::container::ServiceKey::typed::<Factory>())?;
+            container.singleton_named("blade.compiler", |container| {
+                Ok(container.get::<Factory>("view")?.compiler_handle())
+            })?;
+            container.alias(
+                "blade.compiler",
+                crate::container::ServiceKey::typed::<super::compilers::BladeCompiler>(),
+            )?;
             container.singleton_named::<dyn crate::contracts::view::Factory, _>(
                 "view.contract",
                 |container| {

@@ -714,3 +714,23 @@ PHP 模板可以呼叫任意 PHP 函式和物件。OpenRust 編譯 Rust 指令�
 PHP 函式呼叫或 `@php` 程式區塊需要的值，可以在 Rust 處理器、視圖建立器或組合器中準備，再傳入視圖。需要渲染期同步運算時，使用[原生 Rust 程式區塊](#native-rust-blocks)的明確上下文。PHP 類別元件及其動態類別探索對應 `Factory::component` 明確註冊的 Rust `Component` 工廠。匿名元件由視圖尋找器解析。
 
 用 `@once` 在同一呈現樹中只輸出一次內容。`@pushOnce` 和 `@prependOnce` 也接受可跨範本共用的選用識別碼。
+
+## Blade 門面 {#blade-facade}
+
+`openrust::support::facades::Blade` 解析應用 View 工廠實際使用的同一個 `blade.compiler`。註冊指令、條件、型別格式化器或雙重編碼設定會影響真實視圖渲染，不會另建一份編譯器。
+
+```rust
+use openrust::{support::facades::Blade, view::{ViewData, ViewResult, compilers::DirectiveOutput}};
+
+fn render_badge() -> ViewResult<String> {
+    Blade::directive("badge", |_| Ok(DirectiveOutput::Html("<b>Ready</b>".into())))?;
+    let compiled = Blade::compile_string("@badge")?;
+    compiled.render(&ViewData::new())
+}
+```
+
+`compile_string` 回傳包含原生指令與擴充快照的 `CompiledTemplate`，可重複渲染，不產生可執行 PHP 原始碼。`Blade::render(source, &data)` 使用目前應用的視圖上下文，支援查找包含視圖。`CompiledTemplate::render` 不附帶視圖查找；在門面之外編譯且需要包含或元件時，使用 `render_with_factory`。`View::render(name, &data)` 與 `View::render_inline(source, &data)` 也提供直接的公開工廠轉發。
+
+用 `set_path` 搭配 `compile(None)`，或直接呼叫 `compile(Some(path))`，發布正常快取產物。`get_compiled_path` 與 `is_expired` 讀取 View 渲染所用的同一份產物。未設定路徑、檔案缺失或模板語法錯誤都會回傳錯誤。指令與條件按應用隔離；`get_custom_directives` 回傳已註冊的型別回呼，`check` 執行已註冊條件。`strip_parentheses` 回傳位元組，因為來源表達式契約可能按位元組截斷未閉合的 UTF-8 輸入。
+
+目前門面提供這裡列出的原生編譯與格式化介面。原始碼預編譯器、透過 Blade 註冊元件／別名／命名空間、其他跳脫格式與產生程式碼輔助介面仍待單獨對齊；既有 View 元件介面繼續可用。編譯指令快照保留原回呼及編碼策略，不等同於動態 PHP 原始碼字串。

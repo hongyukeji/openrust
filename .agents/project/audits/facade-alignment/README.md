@@ -18,7 +18,7 @@
 | App | `support::facades::App` | 本批补容器注册/解析、别名/钩子/作用域、标签/工厂/调用与部分路径/环境入口；Application 生命周期、其余路径覆盖和宏等仍待核 |
 | Artisan | `support::facades::Artisan` | 有 call/queue/command/add；继续核对 Kernel 的 all/output/resolve/启动回调及参数/退出状态 |
 | Auth | `support::facades::Auth` | 逐项核对 Manager、默认 Guard、用户 Provider、认证状态与 fake/test 入口 |
-| Blade | 未开放对应门面 | 复用现有 BladeCompiler，补实际编译器绑定和公开转发，不以 View 工厂替代 |
+| Blade | 已接 `support::facades::Blade` 与真实 `blade.compiler` 单例 | 原生编译产物、渲染、路径/缓存、指令/条件与类型格式化已实测；预编译阶段、组件完整入口及生成代码契约仍待补齐 |
 | Broadcast | `support::facades::Broadcast` | 核对广播管理、频道注册/鉴权、连接、事件与测试替身 |
 | Bus | `support::facades::Bus` | 核对 Dispatcher、批次/链、同步/提交后派发及 fake |
 | Cache | `support::facades::Cache` | 核对默认仓储、Store、锁、tags、memo、替身及上下文隔离 |
@@ -194,3 +194,12 @@ python3 -B tests/build_guard.py --workflow facade-alignment --target-dir target/
 - 固定 PHP8.5.12 容器直接加载固定 Filesystem/两个trait；实际运行6摘要+大写算法、chmod零值/显式模式、非法JSON、删除失败后继续、SplFileObject行尾/空文件。日志 `target/tmp/facade-alignment/file/oracle.log`；容器自动删除，所有可写数据在项目target/tmp。
 - 本批11项File专项、基类/spy组合与严格Clippy结果以 `file/` 实际日志为准。三语文件存储页同步新增本地File章节并单列当前MIME、JSON/glob标志与平台限制。
 - File仍为 partial。逐入口结果和未实现/待验收项在同一JSON，未提前关闭File或46门面总账；继续处理原任务剩余缺口。
+
+### Blade 编译器门面第一批
+
+- `blade.compiler` 名称及 BladeCompiler 类型别名复用 View 工厂中的同一个 Arc；没有添加独立编译器。编译器引擎由持有值改为持有 Arc，Factory/Engine 的现有公开访问方式保持。
+- `compile_string` 返回可复用原生指令对象，`Blade::render` 带入真实Factory上下文；路径选择、正常缓存发布/失效、指令/条件、双重编码及类型格式化直接转发已有能力。实际 View 渲染器消费同一批设置。
+- `get_custom_directives` 返回实际类型回调映射；上游 `if` 另生成的四种指令回调尚未在此映射呈现，已登记明确差异。编译对象快照与上游运行时静态回调查找的差异也未略过。
+- 固定 PHP 容器实际加载原 BladeCompiler、Compiler、Concerns 和框架辅助类，验证 stripParentheses 的字节截断、if 生成指令与紧邻字母的结束标签边界；原始日志 `blade/oracle.log`。最初不合法模板 `yes@endallowed` 在固定PHP也不会编译结束标签，测试已改为合法HTML边界，没有改解析器规避失败。
+- 原生字节截断用例包含未闭合UTF8输入，结果与PHP十六进制一致。旧版使用独立视图服务，没有当前BladeCompiler/Facade；复用本版已验收的指令树、渲染上下文及缓存机制。
+- 本批5项门面专项，与既有 Blade声明、Finder、真实HTTP应用和原生值消费者组合验收；严格workspace Clippy和三语文档证据在 `target/tmp/facade-alignment/blade/`。该记录不替代JSON中的剩余项，Blade仍为 partial，整体任务继续。

@@ -1,14 +1,14 @@
-use std::path::Path;
+use std::{path::Path, sync::Arc};
 
 use super::FileEngine;
 use crate::view::{ViewData, ViewResult, compilers::BladeCompiler, rendering::RenderContext};
 
 /// Renders templates through the Blade compiler and its compiled artifacts.
-pub struct CompilerEngine(BladeCompiler);
+pub struct CompilerEngine(Arc<BladeCompiler>);
 
 impl CompilerEngine {
     pub fn new(compiler: BladeCompiler) -> Self {
-        Self(compiler)
+        Self(Arc::new(compiler))
     }
 
     pub(in crate::view) fn render_with(
@@ -23,6 +23,10 @@ impl CompilerEngine {
 
     pub fn render(&self, path: &Path, source: &str, data: &ViewData) -> ViewResult<String> {
         self.0.render(path, source, data)
+    }
+
+    pub(crate) fn compiler_handle(&self) -> Arc<BladeCompiler> {
+        self.0.clone()
     }
 
     pub fn get_compiler(&self) -> &BladeCompiler {

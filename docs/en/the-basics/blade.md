@@ -714,3 +714,23 @@ PHP templates can call arbitrary PHP functions and objects. OpenRust compiles a 
 Prepare values that require PHP function calls or `@php` blocks in a Rust handler, view creator, or composer, then pass them to the view. For synchronous computation during rendering, use the explicit context in [native Rust blocks](#native-rust-blocks). For PHP class components and dynamic class discovery, register the corresponding Rust `Component` factory with `Factory::component`. Anonymous components resolve through the view finder.
 
 Use `@once` for content that should render only once per view tree. `@pushOnce` and `@prependOnce` also accept an optional ID shared across templates.
+
+## Blade facade {#blade-facade}
+
+`openrust::support::facades::Blade` resolves the same `blade.compiler` instance used by the application’s View factory. Registering directives, conditions, typed formatters or double-encoding settings therefore affects actual view rendering, rather than a separate compiler.
+
+```rust
+use openrust::{support::facades::Blade, view::{ViewData, ViewResult, compilers::DirectiveOutput}};
+
+fn render_badge() -> ViewResult<String> {
+    Blade::directive("badge", |_| Ok(DirectiveOutput::Html("<b>Ready</b>".into())))?;
+    let compiled = Blade::compile_string("@badge")?;
+    compiled.render(&ViewData::new())
+}
+```
+
+`compile_string` returns a reusable `CompiledTemplate` containing native instructions and an extension snapshot. It generates no executable PHP source. `Blade::render(source, &data)` renders inline with the current application’s views, including view lookup. `CompiledTemplate::render` works without view lookup; use `render_with_factory` when compiling outside the facade and rendering includes or components. `View::render(name, &data)` and `View::render_inline(source, &data)` are direct public factory forwards.
+
+Use `set_path` followed by `compile(None)`, or `compile(Some(path))`, to publish a normal cached artifact. `get_compiled_path` and `is_expired` observe the same artifacts as View rendering. An unset path, missing file or malformed template returns an error. Directives and conditions remain application-scoped. `get_custom_directives` returns the registered typed callbacks; `check` executes a registered condition. `strip_parentheses` returns bytes because the source expression contract can truncate malformed UTF-8 input at a byte boundary.
+
+This facade exposes the documented native compilation and formatting APIs. Source precompilers, component registration/aliases/namespaces through Blade, alternate echo formats and generated-code helpers still require separate parity work; existing View component APIs remain available. A compiled instruction snapshot retains its original callbacks and encoding policy; it is not a dynamic PHP source string.
