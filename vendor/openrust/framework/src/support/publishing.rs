@@ -97,14 +97,16 @@ fn register_sources<'a>(
     let resources = sources
         .into_iter()
         .map(|(path, source)| {
+            let absolute = path.is_absolute() && matches!(&source, PublishSource::Path(_));
             if path.as_os_str().is_empty()
-                || path
-                    .components()
-                    .any(|part| !matches!(part, Component::Normal(_)))
+                || path.components().any(|part| {
+                    !(matches!(part, Component::Normal(_))
+                        || absolute && matches!(part, Component::Prefix(_) | Component::RootDir))
+                })
             {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
-                    "publish destination must be relative to the application",
+                    "发布目标必须为绝对路径或应用内不含越界片段的相对路径",
                 ));
             }
             Ok(PublishableResource {

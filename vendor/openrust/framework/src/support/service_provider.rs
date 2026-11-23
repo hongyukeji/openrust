@@ -216,7 +216,7 @@ pub trait ServiceProvider: Any + Send + Sync {
         crate::support::publishing::register(app, self.name(), files, tag, false)
     }
 
-    /// Register package files or directories with application-relative destinations.
+    /// 注册包文件或目录，目标支持应用内相对路径及明确指定的绝对路径。
     fn publishesPaths(
         &self,
         app: &Application,

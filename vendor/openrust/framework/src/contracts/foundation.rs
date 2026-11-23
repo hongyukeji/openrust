@@ -19,6 +19,11 @@ pub trait Application: Send + Sync {
         crate::foundation::paths::join(&self.base_path().join("storage"), path)
     }
 
+    #[allow(non_snake_case)]
+    fn langPath(&self, path: &str) -> std::path::PathBuf {
+        crate::foundation::paths::join(&crate::translation::language_path(self.base_path()), path)
+    }
+
     /// Checks whether the currently bound environment is exactly `testing`.
     #[allow(non_snake_case, reason = "Matches Laravel's application contract")]
     fn runningUnitTests(&self) -> Result<bool, BindingResolutionError> {

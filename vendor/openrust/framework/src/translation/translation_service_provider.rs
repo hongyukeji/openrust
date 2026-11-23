@@ -21,10 +21,9 @@ impl ServiceProvider for TranslationServiceProvider {
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
             let container = app.container();
-            let root = app.base_path();
-            let lang = super::language_path(root);
+            let paths = container.make::<crate::foundation::Paths>()?;
             container.singletonNamed("translation.loader", move |_| {
-                Ok(Arc::new(FileLoader::new(lang.clone())))
+                Ok(Arc::new(FileLoader::new(paths.langPath(""))))
             })?;
             container.singleton::<dyn Loader, _>(|container| {
                 Ok(container.get::<FileLoader>("translation.loader")?)

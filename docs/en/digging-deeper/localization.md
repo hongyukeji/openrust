@@ -509,3 +509,19 @@ Faker keeps native provider keys private; `locale()` and `randomLocale()` return
 ## Replacing plural selection
 
 `Translator::getSelector()` returns the active `Arc<dyn Selector>`. Implement `openrust::translation::Selector` and pass the instance to `setSelector` to customize plural branch selection. Its `choose` method receives the untranslated line, `PluralCount`, and resolved locale, and returns `TranslationResult<String>`. Replacement of `:count` and other placeholders happens afterward. Restore the default with `setSelector(MessageSelector)`. `getLoader()` returns the actual shared `Arc<FileLoader>`; previously returned selector and loader handles remain valid.
+
+## Language directories
+
+At application creation, OpenRust uses `resources/lang/` when that directory exists; otherwise it selects the root `lang/`. Path selection does not create directories. The application contract exposes `langPath("")` and accepts a suffix such as `langPath("en/validation.json")`.
+
+To override the directory, set it during application assembly, before resolving the translation loader:
+
+```rust
+use openrust::contracts::foundation::Application as _;
+
+app.useLangPath(app.base_path().join("translations"))?;
+```
+
+`App::langPath("")` and `openrust::support::lang_path("")` read the same application path inside an HTTP, Artisan or queue scope. `App::useLangPath(...)` is also available. These paths are application-wide; do not switch them per request. A loader that has already been resolved keeps its original directory, so configure paths before loading services rather than expecting live reload.
+
+`lang:publish` writes to this directory and preserves existing files by default. `--force` overwrites available templates, while `--existing` overwrites only templates already published. For package resources, use `app.langPath("vendor/package/...")` as the destination passed to `publishesPaths`; `vendor:publish` supports explicitly configured absolute paths, including directories outside the application. Relative traversal and symbolic links remain rejected. Application package overrides are loaded from this same language directory.

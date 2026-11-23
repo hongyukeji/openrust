@@ -263,6 +263,26 @@ impl Application {
         Ok(self)
     }
 
+    /// 返回应用语言目录及可选后缀。
+    #[allow(non_snake_case)]
+    pub fn langPath(&self, path: &str) -> PathBuf {
+        self.shared.paths.langPath(path)
+    }
+
+    /// 覆盖语言目录；应在解析翻译加载器之前调用。
+    #[allow(non_snake_case)]
+    pub fn useLangPath(
+        &self,
+        path: impl Into<PathBuf>,
+    ) -> Result<&Self, crate::contracts::container::BindingResolutionError> {
+        let path = path.into();
+        self.shared
+            .container
+            .instanceNamed("path.lang", Arc::new(path.clone()))?;
+        self.shared.paths.use_lang_path(path);
+        Ok(self)
+    }
+
     /// Whether bootstrap loaded an existing configuration snapshot.
     #[allow(non_snake_case, reason = "Matches Laravel's configuration cache API")]
     pub fn configurationIsCached(&self) -> bool {
@@ -499,6 +519,9 @@ impl Application {
         container
             .instance(paths.clone())
             .expect("application paths are initially unbound");
+        container
+            .instanceNamed("path.lang", Arc::new(paths.langPath("")))
+            .expect("初始语言路径尚未绑定");
         container
             .instanceNamed("path.storage", Arc::new(paths.storagePath("")))
             .expect("the initial storage path is unbound");
@@ -1196,7 +1219,11 @@ impl foundation::Application for Application {
     fn is_booted(&self) -> bool {
         self.shared.state.load(Ordering::Acquire) == BOOTED
     }
-    #[allow(non_snake_case, reason = "Matches Laravel's application contract")]
+    #[allow(non_snake_case)]
+    fn langPath(&self, path: &str) -> PathBuf {
+        self.shared.paths.langPath(path)
+    }
+    #[allow(non_snake_case)]
     fn storagePath(&self, path: &str) -> PathBuf {
         self.shared.paths.storagePath(path)
     }

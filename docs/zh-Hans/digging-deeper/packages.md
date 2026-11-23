@@ -45,6 +45,6 @@ HTTP 和 Artisan 启动时直接使用已链接的清单。要检查当前构建
 
 ## 发布资源
 
-嵌入文件使用 `publishes`，本地文件或目录使用 `publishesPaths`，目标路径相对于应用根目录。运行 `./artisan vendor:publish` 后，键入文字即可筛选 Provider、标签或全部资源。用 ↑ 和 ↓ 移动，回车确认，Esc 取消。也可用 `--provider`、`--tag` 或 `--all` 直接选择。发布目录时保留文件的相对路径。默认保留已有文件，`--force` 覆盖已有文件，`--existing` 只更新已存在的文件。
+嵌入文件使用 `publishes`，目标路径相对于应用根目录。本地文件或目录使用 `publishesPaths`，目标支持应用内相对路径及明确配置的绝对路径，例如 `app.langPath("vendor/package")`。运行 `./artisan vendor:publish` 后，键入文字即可筛选 Provider、标签或全部资源。用 ↑ 和 ↓ 移动，回车确认，Esc 取消。也可用 `--provider`、`--tag` 或 `--all` 直接选择。发布目录时保留文件的相对路径。默认保留已有文件，`--force` 覆盖已有文件，`--existing` 只更新已存在的文件。
 
 可组合 `--provider` 与一个或多个 `--tag`，按源路径筛选资源。`--all` 跨 Provider 和标签发布。`--existing` 和 `--force` 同用时也只更新已存在的文件。相对源路径从应用根目录解析，安装在其他位置的包可显式提供绝对源路径。应用内的源路径和目标路径均拒绝符号链接，迁移文件名查找也遵守此规则。

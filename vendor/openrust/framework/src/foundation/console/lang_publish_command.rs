@@ -10,7 +10,6 @@ use crate::{
         Application as Artisan, Command, CommandDefinition, ConsoleError, ConsoleFuture, Input,
         Output,
     },
-    contracts::foundation::Application as _,
     foundation::Application,
 };
 
@@ -67,7 +66,7 @@ impl Command for LangPublish {
         output: &'a mut Output,
     ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
         Box::pin(async move {
-            let path = crate::translation::language_path(app.base_path()).join("en");
+            let path = app.langPath("").join("en");
             let existing = input.matches().get_flag("existing");
             let force = input.matches().get_flag("force");
             tokio::task::spawn_blocking(move || {

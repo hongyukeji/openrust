@@ -509,3 +509,19 @@ Faker 原生 provider 键仅保留在私有边界，`locale()`、`randomLocale()
 ## 替换复数选择器
 
 `Translator::getSelector()` 返回当前 `Arc<dyn Selector>`。实现 `openrust::translation::Selector` 后传入 `setSelector`，即可自定义复数分支选择。其 `choose` 接收原始文案、`PluralCount` 和解析后的语言，返回 `TranslationResult<String>`，之后才替换 `:count` 等占位符。通过 `setSelector(MessageSelector)` 恢复默认选择器。`getLoader()` 返回实际共享的 `Arc<FileLoader>`；先前取出的选择器和加载器句柄仍然有效。
+
+## 语言目录
+
+应用创建时，若 `resources/lang/` 已存在，OpenRust 优先使用它，否则选择根目录的 `lang/`。读取路径不会创建目录。应用 Contract 提供 `langPath("")`，也可传入 `langPath("en/validation.json")` 等后缀。
+
+需要自定义目录时，在应用装配阶段、解析翻译加载器之前设置：
+
+```rust
+use openrust::contracts::foundation::Application as _;
+
+app.useLangPath(app.base_path().join("translations"))?;
+```
+
+在 HTTP、Artisan 或队列作用域内，`App::langPath("")` 与 `openrust::support::lang_path("")` 读取同一应用路径，也可使用 `App::useLangPath(...)`。目录属于整个应用，不应逐请求切换。已经解析的加载器保留原目录，因此应在加载服务之前配置，不依赖热切换。
+
+`lang:publish` 发布到此目录，默认保留已有文件；`--force` 覆盖可发布模板，`--existing` 只覆盖已经发布的模板。包资源可将 `app.langPath("vendor/package/...")` 传给 `publishesPaths` 作为目标；`vendor:publish` 支持明确配置的绝对路径，包括项目外目录，仍拒绝相对路径穿越及符号链接。包翻译的应用覆盖也从此语言目录加载。

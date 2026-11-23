@@ -509,3 +509,19 @@ Faker 原生 provider 鍵僅保留於私有邊界，`locale()`、`randomLocale()
 ## 替換複數選擇器
 
 `Translator::getSelector()` 傳回目前的 `Arc<dyn Selector>`。實作 `openrust::translation::Selector` 後傳入 `setSelector`，即可自訂複數分支選擇。其 `choose` 接收原始文案、`PluralCount` 和解析後的語言，傳回 `TranslationResult<String>`，之後才替換 `:count` 等預留位置。透過 `setSelector(MessageSelector)` 恢復預設選擇器。`getLoader()` 傳回實際共用的 `Arc<FileLoader>`；先前取出的選擇器和載入器控制代碼仍然有效。
+
+## 語言目錄
+
+應用程式建立時，若 `resources/lang/` 已存在，OpenRust 優先使用它，否則選擇根目錄的 `lang/`。讀取路徑不會建立目錄。應用程式 Contract 提供 `langPath("")`，也可傳入 `langPath("en/validation.json")` 等後綴。
+
+需要自訂目錄時，在應用程式組裝階段、解析翻譯載入器之前設定：
+
+```rust
+use openrust::contracts::foundation::Application as _;
+
+app.useLangPath(app.base_path().join("translations"))?;
+```
+
+在 HTTP、Artisan 或佇列作用域內，`App::langPath("")` 與 `openrust::support::lang_path("")` 讀取相同的應用程式路徑，也可使用 `App::useLangPath(...)`。目錄屬於整個應用程式，不應逐請求切換。已解析的載入器保留原目錄，因此應在載入服務之前設定，不依賴熱切換。
+
+`lang:publish` 發布至此目錄，預設保留既有檔案；`--force` 覆寫可發布範本，`--existing` 只覆寫已發布的範本。套件資源可將 `app.langPath("vendor/package/...")` 傳給 `publishesPaths` 作為目標；`vendor:publish` 支援明確設定的絕對路徑，包括專案外目錄，仍拒絕相對路徑穿越及符號連結。套件翻譯的應用程式覆寫也從此語言目錄載入。

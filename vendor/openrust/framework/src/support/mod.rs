@@ -52,7 +52,7 @@ pub use deferred_provider::DeferredProvider;
 pub use dumping::{Dumped, dump};
 pub use enumerable::Enumerable;
 pub use fluent::{Fluent, FluentError};
-pub use helpers::{Retry, blank, defer, filled, storage_path};
+pub use helpers::{Retry, blank, defer, filled, lang_path, storage_path};
 pub use html_string::HtmlString;
 pub(crate) use html_string::{decode_html_entities, escape_html};
 pub use lazy_collection::{

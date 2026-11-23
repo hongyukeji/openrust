@@ -22,6 +22,18 @@ impl App {
         Ok(Self::getFacadeRoot()?.version())
     }
 
+    pub fn langPath(path: &str) -> Result<std::path::PathBuf, BindingResolutionError> {
+        Ok(Self::getFacadeRoot()?.langPath(path))
+    }
+
+    pub fn useLangPath(
+        path: impl Into<std::path::PathBuf>,
+    ) -> Result<std::sync::Arc<Application>, BindingResolutionError> {
+        let app = Self::getFacadeRoot()?;
+        app.useLangPath(path)?;
+        Ok(app)
+    }
+
     pub fn getLocale() -> TranslationResult<String> {
         Self::application()?.getLocale()
     }

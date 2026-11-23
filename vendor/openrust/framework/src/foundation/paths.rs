@@ -20,15 +20,20 @@ pub struct Paths {
 #[derive(Default)]
 struct State {
     storagePath: Option<PathBuf>,
+    langPath: PathBuf,
     environment: Option<Arc<Environment>>,
 }
 
 impl Paths {
     pub(crate) fn new(base: PathBuf) -> Self {
+        let lang = crate::translation::language_path(&base);
         Self {
             base,
             initial_storage: std::env::var_os("APP_STORAGE_PATH"),
-            state: RwLock::default(),
+            state: RwLock::new(State {
+                langPath: lang,
+                ..State::default()
+            }),
         }
     }
 
@@ -55,6 +60,23 @@ impl Paths {
             }
         };
         join(&base, path)
+    }
+
+    /// 返回应用级语言目录，不创建目录。
+    #[allow(non_snake_case)]
+    pub fn langPath(&self, path: &str) -> PathBuf {
+        let state = self
+            .state
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        join(&state.langPath, path)
+    }
+
+    pub(crate) fn use_lang_path(&self, path: PathBuf) {
+        self.state
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .langPath = path;
     }
 
     pub(crate) fn use_storage_path(&self, path: PathBuf) {

@@ -505,8 +505,19 @@ fn publish_file<B: AsRef<[u8]>>(
 }
 
 fn checked_path(root: &Path, target: &Path) -> io::Result<()> {
+    // 绝对目标由已注册的 Provider 明确给出；仍逐层检查，禁止越界片段和符号链接。
+    let boundary = if target.starts_with(root) {
+        root
+    } else if target.is_absolute() {
+        target
+            .ancestors()
+            .last()
+            .ok_or_else(|| invalid_path(target))?
+    } else {
+        return Err(invalid_path(target));
+    };
     let relative = target
-        .strip_prefix(root)
+        .strip_prefix(boundary)
         .map_err(|_| invalid_path(target))?;
     if relative
         .components()
@@ -514,7 +525,7 @@ fn checked_path(root: &Path, target: &Path) -> io::Result<()> {
     {
         return Err(invalid_path(target));
     }
-    let mut current = root.to_owned();
+    let mut current = boundary.to_owned();
     for component in relative.components() {
         current.push(component);
         match fs::symlink_metadata(&current) {

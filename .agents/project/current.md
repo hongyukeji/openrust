@@ -4,6 +4,8 @@
 
 ## 正在推进与等待条件
 
+- 应用级[语言路径与发布接线](audits/language-paths/README.md)已完成本批验收：Application／Contract／App／lang_path 和 path.lang 共用路径，Loader、lang:publish 与包翻译发布跟随装配配置；本地映射支持项目内外绝对目标，原遍历及符号链接保护保留。18语集合交集的3项路径消费者、5项发布回归、框架严格Clippy、三语站点及12项浏览器检查通过，Windows／Linux实机矩阵未纳入。用户追加授权仅本批本地提交，不推送；共享文件按语言路径分块提交，18语资源改动保留在工作区，证据在 target/tmp/language-paths-20261123。
+
 - RustRover Artisan 依赖警告已复现并修复根因：rav1e 常量／生命周期、SQLite 日期弃用 API、AVIF 遗留 cfg_attr；Rust 1.94 隔离定向31项测试和严格Clippy通过，RustRover默认1.99.1真实生成无警告且退出0。见[依赖警告验收](audits/dependency-warnings-2026-11-23.md)。用户随后授权将本批本地提交，未授权推送；其他协作改动保留。
 - 全框架对齐仍未完成，接续[开发计划](plans/framework-parity-remediation-2026-11-22.md)及[统一数据](plans/framework-parity-data-2026-11-22.json)。逐类型、公开入口、装配与官方示例分别裁决，不以历史通过关闭未核对范围。
 - 最近对齐提交 `1f36d7a9f` 补充路由入口、命名分发及图片驱动生命周期；局部范围验收通过，RouteMatched／完整resolver、注册期绑定等剩余项见上述计划。

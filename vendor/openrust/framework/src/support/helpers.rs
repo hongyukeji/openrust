@@ -39,6 +39,17 @@ pub fn storage_path(
         .map(|paths| paths.storagePath(path))
 }
 
+/// 读取当前应用的语言目录，不创建目录。
+pub fn lang_path(
+    path: &str,
+) -> Result<std::path::PathBuf, crate::contracts::container::BindingResolutionError> {
+    use crate::contracts::container::{BindingResolutionError, Container as _};
+    super::facades::current_container()
+        .ok_or(BindingResolutionError::FacadeNotSet)?
+        .make::<crate::foundation::Paths>()
+        .map(|paths| paths.langPath(path))
+}
+
 /// Tests Laravel's blank-value rules for JSON values.
 pub fn blank(value: &Value) -> bool {
     match value {
