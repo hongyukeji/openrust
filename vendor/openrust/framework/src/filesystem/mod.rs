@@ -21,7 +21,7 @@ pub use filesystem_adapter::FilesystemAdapter;
 pub use filesystem_manager::{FilesystemManager, LocalDiskConfig};
 pub use filesystem_service_provider::FilesystemServiceProvider;
 pub use local_filesystem::{
-    DirectoryDepth, FileError, FileInfo, FileMacro, FileMode, FileResult, Filesystem,
+    DirectoryDepth, FileError, FileInfo, FileMacro, FileMode, FileResult, Filesystem, RequiredFile,
 };
 pub use local_filesystem_adapter::LocalFilesystemAdapter;
 pub use local_permissions::LocalPermissions;

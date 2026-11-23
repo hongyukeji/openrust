@@ -94,6 +94,24 @@ file_operations! {
     fn r#type(path:impl AsRef<Path>)->&'static str;
 }
 impl File {
+    pub fn register_module<A: Any + Send + Sync, T: Any + Send + Sync>(
+        path: impl AsRef<Path>,
+        callback: impl Fn(&Filesystem, A) -> FileResult<T> + Send + Sync + 'static,
+    ) -> FileResult<()> {
+        Self::get_facade_root()?.register_module(path, callback)
+    }
+    pub fn get_require<T: Any + Send + Sync, A: Any + Send + Sync>(
+        path: impl AsRef<Path>,
+        data: A,
+    ) -> FileResult<T> {
+        Self::get_facade_root()?.get_require(path, data)
+    }
+    pub fn require_once<T: Any + Send + Sync, A: Any + Send + Sync>(
+        path: impl AsRef<Path>,
+        data: A,
+    ) -> FileResult<super::RequiredFile<T>> {
+        Self::get_facade_root()?.require_once(path, data)
+    }
     pub fn delete_many<P: AsRef<Path>>(paths: impl IntoIterator<Item = P>) -> FileResult<bool> {
         Ok(Self::get_facade_root()?.delete_many(paths))
     }

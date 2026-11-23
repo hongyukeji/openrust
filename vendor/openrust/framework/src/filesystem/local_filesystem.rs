@@ -2,12 +2,14 @@
 mod directories;
 mod links;
 mod macros;
+mod modules;
 mod paths;
 mod reading;
 pub use directories::{DirectoryDepth, FileInfo};
 
 use crate::contracts::container::BindingResolutionError;
 pub use macros::FileMacro;
+pub use modules::RequiredFile;
 use std::{
     collections::HashMap,
     fmt,
@@ -46,6 +48,7 @@ pub enum FileError {
     Pattern(String),
     InvalidDepth(String),
     UnknownMacro(String),
+    UnregisteredModule(PathBuf),
     MacroType {
         name: String,
         expected: &'static str,
@@ -67,6 +70,9 @@ impl fmt::Display for FileError {
             Self::InvalidDepth(value) => write!(f, "无效的目录深度条件：{value}"),
             Self::Pattern(value) => write!(f, "无效的文件匹配模式：{value}"),
             Self::InvalidTime => f.write_str("文件时间超出可表示的范围"),
+            Self::UnregisteredModule(path) => {
+                write!(f, "文件没有注册已编译的加载回调 [{}]", path.display())
+            }
             Self::UnknownMacro(name) => write!(f, "未注册文件宏：{name}"),
             Self::MacroType {
                 name,
@@ -105,6 +111,8 @@ fn io_error(path: &Path, source: io::Error) -> FileError {
 #[derive(Default)]
 pub struct Filesystem {
     macros: RwLock<HashMap<String, FileMacro>>,
+    modules: RwLock<HashMap<PathBuf, FileMacro>>,
+    included: std::sync::Mutex<std::collections::HashSet<PathBuf>>,
 }
 impl Filesystem {
     pub fn new() -> Self {

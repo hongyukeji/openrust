@@ -1807,7 +1807,7 @@
         "mixin": "explicit replace bool; default application macro isolation"
       },
       "remaining": [
-        "getRequire/requireOnce native compiled module registration, extracted typed parameters, missing-file errors and once-execution lifetime; no dynamic source interpreter or placeholder implementation",
+        "getRequire/requireOnce native compiled module paths verified; dynamic PHP interpreter not provided; Windows canonical alias/case matrix remains release acceptance",
         "when/unless callbacks, fallback returns and higher-order conditional proxy are not implemented in this batch",
         "json PHP decode flag equivalents including invalid UTF8, large numbers, 512-depth boundary; only default/strict read path verified",
         "glob full PHP flag contract including brace, noescape, mark, nosort, nocheck and onlydir; basic shell matching implemented using mature glob0.3.4, not an ad-hoc parser",
@@ -1819,7 +1819,14 @@
         "pathinfo special dot/root/trailing separator and Windows pathname matrix remains to review; Unix nonUTF8 hidden filenames verified",
         "File shared Facade mock/spy inherited APIs pending base completion; application service integration and macro isolation tested",
         "additional real external-process Artisan and Worker File consumers beyond current TestApp real kernels; no separate queue features introduced"
-      ]
+      ],
+      "compiled_modules": {
+        "local": "File::register_module/get_require/require_once; Filesystem same methods; RequiredFile<T>",
+        "semantics": "registered compiled native callback; owned typed data; canonical path; get_require executes every time and marks included; require_once marks before execution and skips after failure/panic/recursion; Value vs AlreadyIncluded distinct",
+        "scope": "application files singleton, HTTP/Artisan/Worker shared; applications isolated; concurrent claim once without waiting for completion; replacement does not reset included set",
+        "errors": "missing/nonfile/removed -> FileError::Io; existing unregistered -> UnregisteredModule; callback types checked with existing FileMacro adapter; no source interpreter",
+        "evidence": "file-modules/oracle.log; tests.log (16 local); workers-second.log (2 real MySQL/Redis cases, 2 jobs each); clippy.log/clippy-final.log/fmt.log/docs.log/browser.log"
+      }
     },
     {
       "type": "Gate",

@@ -271,3 +271,28 @@ fn write_report(directory: &Path) -> FileResult<()> {
 Typed `r#macro`, `mixin`, `macro_call`, `has_macro` and `flush_macros` share the current application’s local service and stay isolated from other applications. `File` requires an active application scope, including HTTP, Artisan and Worker scopes. Read errors passed through `?` in HTTP handlers enter normal exception reporting; a missing local file is not automatically an HTTP 404.
 
 MIME detection reuses OpenRust’s content detector, reading at most 8 KiB; it does not claim the full libmagic database. This initial File API does not execute dynamic PHP/Rust source, expose every PHP glob/JSON flag, or implement every PHP hashing algorithm. Windows directory links currently require symlink support; native junction equivalence and Windows ACL behavior remain outside the verified Unix behavior.
+
+### Compiled file modules {#compiled-file-modules}
+
+Register an existing source path with `File::register_module(path, callback)` during application setup. The callback is compiled Rust code; the file is not interpreted or compiled at runtime. Its typed argument replaces dynamically extracted local variables; use `()` for no arguments. Reuse actual application functions rather than adding a second runtime script engine. Changing Rust code requires rebuilding the application.
+
+```rust
+use openrust::{filesystem::{FileResult, RequiredFile}, support::facades::File};
+use std::path::Path;
+
+fn register_and_load(path: &Path) -> FileResult<()> {
+    File::register_module(path, |files, name: String| {
+        // 中文参数说明：回调是编译进应用的 Rust 函数。
+        Ok(format!("Hello {name}: {}", files.exists("Cargo.toml")))
+    })?;
+    let value: String = File::get_require(path, "OpenRust".to_owned())?;
+    let once: RequiredFile<String> = File::require_once(path, "ignored".to_owned())?;
+    assert_eq!(once, RequiredFile::AlreadyIncluded);
+    assert!(value.starts_with("Hello OpenRust"));
+    Ok(())
+}
+```
+
+`get_require` executes the callback on every call and returns its typed value. `require_once` returns `RequiredFile::Value(value)` on the first inclusion and `AlreadyIncluded` later, distinct from a module returning `true`. Any `get_require` also marks the file as included. Inclusion is recorded before execution: recursion and later calls skip a module even after its callback fails or panics. Replacing registration does not reset inclusion; explicit `get_require` still executes the replacement.
+
+Paths are canonicalized, so symlink aliases share inclusion. A missing, deleted or non-file path produces a file error even if previously included. An existing unregistered file returns `UnregisteredModule`; wrong input/output types return a typed callback error, never a fabricated module value. Registrations and inclusion belong to the application’s `files` singleton, shared by its HTTP/Artisan/Worker calls and isolated from other applications. Unlike a global interpreter include table, they do not leak between applications. Concurrent `require_once` claims one execution; another caller may see `AlreadyIncluded` before the first callback completes. Callbacks and retired registrations are not invoked or dropped while holding registry locks.

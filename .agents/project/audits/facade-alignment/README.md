@@ -322,3 +322,11 @@ python3 -B tests/build_guard.py --workflow facade-alignment --target-dir target/
 - exception-throttle/oracle.log：固定PHP原Handler实际执行全局None->具类型Unlimited、全局拒绝及首个结果停止。tests-delivery.log的7组共85项返回通过，其中8项缺后端环境早返回不计，实际本机77项；新增顺序、默认类型/不同消息、跨类型显式键、重入注册、跨应用隔离、映射目标配额及报告只计费一次。
 - workers.log：独立MySQL8.4.13及Redis8.10.3各1项真实Artisan queue:work通过，原始QueueError类型和来源42保留，全局无键Limit只调用一次。初次选择器拼写错误导致0项，workers-zero-not-accepted.log保留且不计验收；修正后实际各跑1项。临时容器/测试表已清理。
 - 全workspace/all-targets严格Clippy、格式、三语构建及6项桌面/移动浏览器通过：clippy.log/fmt.log/docs.log/browser.log。共享Facade测试契约、剩余门面和逐入口最终裁决继续处理，未将本批等同全部完成。
+
+### File：编译模块加载与只执行一次（2026-11-24，仍 partial）
+
+- 固定Filesystem::getRequire/requireOnce已实际PHP执行：具名数据、内部路径变量不被输入覆盖、getRequire每次执行并记入包含集合、失败后requireOnce仍跳过、缺文件报错。file-modules/oracle.log。旧版没有可移植的现代File加载器，复用当前FileMacro的具类型回调及files应用单例，不新增解释器或动态编译。
+- 新增register_module/get_require/require_once及RequiredFile。应用注册编译后的Rust函数，实际源码路径须存在；具类型参数代替extract，回调局部状态不能被用户数据覆盖。路径canonicalize后共享包含身份，首次返回Value(T)，重复为AlreadyIncluded，与实际true返回值区分；get_require重复执行，包含标记在执行前，失败/panic/递归不重执行once。替换注册不重置包含集合。
+- 注册表及包含集合应用级隔离，不照搬PHP进程全局表；并发只认领一次，其他线程可在首个回调完成前返回AlreadyIncluded。回调及旧注册析构不持注册表锁。未注册文件、缺失/删除路径和输入输出类型不符明确报错，不把原始源码文本当作执行结果。Rust源码改动需重新构建。
+- tests.log：5项新模块与11项原File消费者通过，涵盖HTTP/Artisan真实Kernel共享、具类型参数与返回值、失败、panic、重入、8线程、应用隔离及Unix符号链接别名。workers-second.log另独立MySQL8.4.13、Redis8.10.3各1项真实Artisan queue:work通过，每后端2个任务完成但模块执行一次，Worker后门面仍见已包含；测试表和临时容器已清理。首轮Worker缺Application trait导入的编译失败保留，未计通过。
+- 全workspace/all-targets严格Clippy通过；追加Worker夹具后相关目标严格Clippy再次通过（clippy-final.log）。fmt、三语站点构建及6项浏览器通过。未将动态解释器、Windows原生链接矩阵、所有glob/JSON/hash标志或File全部继承契约计为完成。

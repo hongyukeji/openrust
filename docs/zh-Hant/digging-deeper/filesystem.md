@@ -271,3 +271,28 @@ fn write_report(directory: &Path) -> FileResult<()> {
 帶型別的 `r#macro`、`mixin`、`macro_call`、`has_macro` 與 `flush_macros` 共用目前應用的本機服務，不與其他應用共用。`File` 需要有效的應用作用域，包括 HTTP、Artisan 與 Worker。HTTP 處理器透過 `?` 傳遞的讀取錯誤接入正常例外報告；本機檔案缺失不會自動成為 HTTP 404。
 
 MIME 偵測重用 OpenRust 內容識別器，最多讀取 8 KiB，不等同於完整的 libmagic 資料庫。此批 File API 不執行動態 PHP／Rust 原始碼，也未涵蓋全部 PHP glob／JSON 旗標與摘要演算法。Windows 目錄連結目前依賴符號連結能力；原生 junction 等價行為及 Windows ACL 尚未包含在已驗證的 Unix 行為範圍內。
+
+### 編譯後的檔案模組 {#compiled-file-modules}
+
+在應用裝配時透過 `File::register_module(path, callback)` 註冊實際存在的原始碼路徑。回呼是編譯進應用的 Rust 程式碼，不在執行時解譯或編譯檔案；具型別參數代替動態擷取區域變數，無參數時傳 `()`。直接重用應用函式，不新增執行時指令碼引擎。修改 Rust 程式碼後需要重新建置應用。
+
+```rust
+use openrust::{filesystem::{FileResult, RequiredFile}, support::facades::File};
+use std::path::Path;
+
+fn register_and_load(path: &Path) -> FileResult<()> {
+    File::register_module(path, |files, name: String| {
+        // 中文参数说明：回调是编译进应用的 Rust 函数。
+        Ok(format!("Hello {name}: {}", files.exists("Cargo.toml")))
+    })?;
+    let value: String = File::get_require(path, "OpenRust".to_owned())?;
+    let once: RequiredFile<String> = File::require_once(path, "ignored".to_owned())?;
+    assert_eq!(once, RequiredFile::AlreadyIncluded);
+    assert!(value.starts_with("Hello OpenRust"));
+    Ok(())
+}
+```
+
+`get_require` 每次執行回呼並回傳具型別結果。`require_once` 首次回傳 `RequiredFile::Value(value)`，之後回傳 `AlreadyIncluded`，與模組回傳 `true` 區分。任何 `get_require` 也會記入包含集合。執行前標記，因此遞迴以及失敗或 panic 後的再次呼叫都會跳過；替換註冊不清空包含狀態，但明確呼叫 `get_require` 仍執行替換後的回呼。
+
+路徑正規化後依實際路徑判斷，符號連結別名共用包含狀態。缺少、已刪除或非普通檔案路徑回傳檔案錯誤，即使之前已包含；已存在但未註冊的檔案回傳 `UnregisteredModule`，參數或結果型別不符明確報錯，不偽造模組值。註冊及包含集合屬於應用的 `files` 單例，在同應用 HTTP／Artisan／Worker 呼叫間共用，與其他應用隔離，不採用解譯器的行程全域包含表。並行 `require_once` 只認領一次執行；其他呼叫可能在首個回呼尚未完成時看到 `AlreadyIncluded`。執行回呼和銷毀被替換的註冊時不持註冊表鎖。

@@ -29,6 +29,22 @@ impl FileMacro {
             }),
         }
     }
+    pub(super) fn invoke<T: Any + Send + Sync, A: Any + Send + Sync>(
+        &self,
+        filesystem: &Filesystem,
+        name: &str,
+        arguments: A,
+    ) -> FileResult<T> {
+        let result = (self.callback)(filesystem, Box::new(arguments))?;
+        result
+            .downcast::<T>()
+            .map(|value| *value)
+            .map_err(|_| FileError::MacroType {
+                name: name.to_owned(),
+                expected: type_name::<T>(),
+                actual: self.output,
+            })
+    }
 }
 impl Filesystem {
     pub fn r#macro<A: Any + Send + Sync, T: Any + Send + Sync>(
@@ -88,14 +104,6 @@ impl Filesystem {
             .get(name)
             .cloned()
             .ok_or_else(|| FileError::UnknownMacro(name.to_owned()))?;
-        let result = (callback.callback)(self, Box::new(arguments))?;
-        result
-            .downcast::<T>()
-            .map(|value| *value)
-            .map_err(|_| FileError::MacroType {
-                name: name.to_owned(),
-                expected: type_name::<T>(),
-                actual: callback.output,
-            })
+        callback.invoke(self, name, arguments)
     }
 }
