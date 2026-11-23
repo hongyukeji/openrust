@@ -298905,6 +298905,27 @@
         "fluent builders/anyOf/forEach和email扩展模式"
       ],
       "evidence": ".agents/project/audits/docs-tutorials/README.md"
+    },
+    {
+      "date": "2026-11-24",
+      "kind": "documentation_tutorial_rule_generator",
+      "status": "make:rule、隐式模板及生成代码消费者已验收；整章继续",
+      "finding": "缺正式规则生成器；合法类型名与请求模板导入/标准库冲突导致编译失败",
+      "implementation": "RuleMakeCommand及普通/隐式两类stub；模块限定导入和标准库绝对路径避免名称冲突，保持既有Generator/Stub/验证管线",
+      "consumers": [
+        "tests/rule_generator.rs",
+        "tests/rule_generator_tutorial.py",
+        "tests/request_generator.rs",
+        "tests/request_generator_tutorial.py",
+        "tests/resource_generator.rs"
+      ],
+      "actual_results": "CLI8项和生成代码真实TCP2项通过；三语12条正式命令；默认403/200、定制422/201和隐式调度；严格Clippy/fmt/三语构建通过",
+      "remaining": [
+        "逐失败首选语言及DataAware/ValidatorAware setter",
+        "Rule fluent builders/anyOf/forEach",
+        "email扩展模式"
+      ],
+      "evidence": ".agents/project/audits/docs-tutorials/README.md"
     }
   ]
 }

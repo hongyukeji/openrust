@@ -120,6 +120,8 @@ pub(crate) enum Stub {
     Provider,
     Resource,
     Request,
+    Rule,
+    ImplicitRule,
     JsonApiResource,
     ResourceCollection,
     Seeder,
@@ -162,6 +164,8 @@ impl Stub {
         Self::Provider,
         Self::Resource,
         Self::Request,
+        Self::Rule,
+        Self::ImplicitRule,
         Self::JsonApiResource,
         Self::ResourceCollection,
         Self::Seeder,
@@ -283,6 +287,14 @@ impl Stub {
             Self::Provider => (
                 "provider.rs.stub",
                 include_str!("../foundation/console/stubs/provider.rs.stub"),
+            ),
+            Self::Rule => (
+                "rule.rs.stub",
+                include_str!("../foundation/console/stubs/rule.rs.stub"),
+            ),
+            Self::ImplicitRule => (
+                "rule.implicit.rs.stub",
+                include_str!("../foundation/console/stubs/rule.implicit.rs.stub"),
             ),
             Self::Request => (
                 "request.rs.stub",

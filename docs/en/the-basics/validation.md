@@ -394,6 +394,19 @@ A named bag also works with `@error` and its `@else` fallback:
 @enderror
 ```
 
+## Generate rule objects {#creating-custom-rules}
+
+Create a normal rule or an implicit rule with the following commands (use separate names):
+
+```sh
+./artisan make:rule Uppercase
+./artisan make:rule RequiredTitle --implicit
+```
+
+Files are written to `app/rules/uppercase.rs` and `app/rules/required_title.rs`. Declare them in `app/rules/mod.rs` and expose the `rules` module from `app/mod.rs`, then import the generated type and pass it to `Rule::custom`. Nested names such as `Admin/Uppercase` are supported. `-i` is the short form of `--implicit`; `-f` / `--force` overwrites an existing file. Without force, a duplicate reports a conflict and preserves the original file.
+
+`./artisan stub:publish` exposes `stubs/rule.rs.stub` and `stubs/rule.implicit.rs.stub` for application-specific generation. Both templates initially return an empty failure list: an implicit flag alone does not require a field. Implement rejection in `validate`, for example as shown below. Module-qualified imports also allow type names such as `RuleContext`, `Box`, `Option` or `Result` without conflicting with template internals.
+
 ## Field-specific closures {#using-closures}
 
 Pass a synchronous closure directly to `Rule::custom`; no application-wide registration is needed. It receives the current rule context, the unescaped attribute name and `Option<&Value>`; return a list of `RuleFailure` values. An execution error propagates through the normal HTTP error pipeline. Rule objects keep the existing async `ValidationRule::validate` contract.

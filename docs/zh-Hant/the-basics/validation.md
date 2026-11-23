@@ -394,6 +394,19 @@ fn store_strict(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
 @enderror
 ```
 
+## 產生規則物件 {#creating-custom-rules}
+
+使用不同名稱，分別產生一般規則和隱式規則：
+
+```sh
+./artisan make:rule Uppercase
+./artisan make:rule RequiredTitle --implicit
+```
+
+檔案分別位於 `app/rules/uppercase.rs` 和 `app/rules/required_title.rs`。在 `app/rules/mod.rs` 宣告模組，並在 `app/mod.rs` 匯出 `rules` 模組；匯入產生的型別後交給 `Rule::custom`。支援 `Admin/Uppercase` 等巢狀名稱。`-i` 等同於 `--implicit`；`-f` / `--force` 覆寫既有檔案。不帶 force 的重名操作回報衝突並保留原檔案。
+
+執行 `./artisan stub:publish` 後，可透過 `stubs/rule.rs.stub` 與 `stubs/rule.implicit.rs.stub` 自訂產生範本。兩種範本最初均回傳空失敗清單；隱式標誌本身不代表欄位必填。請在 `validate` 中實作拒絕邏輯，例如下文所示。範本使用模組限定匯入，型別命名為 `RuleContext`、`Box`、`Option` 或 `Result` 也不會與內部名稱衝突。
+
 ## 欄位層級閉包 {#using-closures}
 
 直接向 `Rule::custom` 傳入同步閉包，無需應用程式層級註冊。參數為目前規則上下文、已還原跳脫的欄位名稱和 `Option<&Value>`，傳回 `RuleFailure` 清單。執行錯誤進入既有 HTTP 例外管線；規則物件保留既有非同步 `ValidationRule::validate` 契約。

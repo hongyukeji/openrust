@@ -80,7 +80,7 @@ fn request_command_generates_nested_types_and_requires_an_explicit_name() {
     ] {
         root.run(&["make:request", name]);
         let code = fs::read_to_string(root.path(path)).unwrap();
-        assert!(code.contains(&format!("impl FormRequest for {class}")));
+        assert!(code.contains(&format!("impl foundation::http::FormRequest for {class}")));
         assert!(code.contains("AuthorizationError::Denied"));
         assert!(!code.contains("{{class}}"));
     }

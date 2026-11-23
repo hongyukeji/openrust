@@ -166,3 +166,19 @@ URL第二组最终补验：清理后实际重编译，request_docs_generated三�
 本组只关闭直接闭包与对象隐式标志、列明原始字段名和只读Data消费者。DataAware/ValidatorAware的可变setter、逐失败首选语言参数、make:rule、fluent builders与其他规则仍需逐类型处理，不能用只读RuleContext或extend_implicit冒充整个类型已齐。三语说明准确标明当前接口不提供的参数；Validation整章继续，未推送。
 
 第七组暂存核对后统一了普通／隐式两个调用分支的Cow路径，随后真实字段与三语消费者5项、专项严格Clippy和全范围fmt再通过；rule-frozen-{tests,clippy}.log及rule-fmt-frozen.log为最后补验。源码与候选逐字一致，未提高递归上限或添加lint豁免。
+
+## 第八组：规则生成器、隐式模板与生成类型名称冲突
+
+对照固定13.40.0的Foundation/Console/RuleMakeCommand与rule／rule.implicit stub：name、--force/-f、--implicit/-i、Rules命名空间、应用自定义模板均使用原GeneratorCommand与发布／原子写入机制。固定源：https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Console/RuleMakeCommand.php 。v0.x未找到可复用的make:rule；不复活旧RuleError协议或另造生成系统。
+
+- 新增RuleMakeCommand、两个正式Rust stub及Stub发布接线。默认生成app/rules；嵌套与App前缀遵循既有规则，模块由开发者显式声明。重复无force保留文件并退出0，--force覆盖；目录模块冲突与非法名称拒绝。
+- 默认规则返回空失败列表，隐式模板只增加is_implicit=true，不把该标志误当作必填拒绝；业务验证由生成文件的validate实现。普通和隐式分别读取对应的应用已发布stub。
+- 新发现：合法类型名Request／FormRequest／Box／Option／Vec／Result与原请求模板导入或标准库类型冲突，实际编译复现15项错误。请求和规则模板改用模块限定及标准库绝对路径，保持授权／规则行为；不禁止合法名称或添加lint豁免。原始反例见request-symbol-collision-before.log。
+
+基于f3c15d1ad独立组合，根CLI8项（request3、rule3、resource2）通过。tests/request_generator_tutorial.py与新增tests/rule_generator_tutorial.py直接提取正式三语创建章节各两条命令，分别使用真实./artisan生成；每类三语生成文件字节一致。原始生成文件不经人工修订复制到隔离测试模块，并校验格式化前后SHA一致：请求6个冲突名称编译、默认403、定制后422/201；规则6个冲突名称编译、默认普通／隐式均通过、定制后普通缺失/空串跳过、nullable null通过、隐式缺失/空串/null拒绝422、合法输入200，共2项实际TCP测试通过。日志rule-generator-tests-v2.log、request-symbol-collision-accepted.log、rule-generated-http.log及两个generator-commands.json保留。
+
+第一次严格检查和文档构建触及32GB停线，均中断、不计通过；守卫持锁清理释放61,940,658,176字节，源码／日志保留。恢复后workspace/all-targets严格Clippy（1m19s）、全范围fmt、三语构建通过，见rule-generator-clippy-resumed.log、rule-generator-fmt.log、rule-generator-docs-resumed.log。早期一次隔离组合混入新Stub切片与旧publisher的array.map，已刷新为同一提交基线后验收；此夹具错误不冒称正式源码缺陷。
+
+make:rule与生成模板消费者本组闭合。逐失败首选语言、DataAware/ValidatorAware可变setter、fluent builders/anyOf/forEach及email扩展模式仍是明确待处理事项，不将本组生成器验收写为Validation整章完成。
+
+第八组三语浏览器检查、根与/docs两种挂载的全部导航，以及不带API导出的参考页检查均退出0，见rule-generator-browser.log与对应三份check日志。没有新增数据库／容器／后台服务；保留同工作流热缓存与证据，临时应用由脚本退出时删除。

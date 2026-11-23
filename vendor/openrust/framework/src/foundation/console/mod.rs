@@ -32,6 +32,7 @@ mod provider_make_command;
 mod queued_command;
 mod request_make_command;
 mod resource_make_command;
+mod rule_make_command;
 pub(super) mod serve_command;
 #[doc(hidden)]
 pub mod source_edit;
@@ -195,6 +196,7 @@ impl Kernel {
                             provider_make_command::register(&mut self.artisan)?;
                             resource_make_command::register(&mut self.artisan)?;
                             request_make_command::register(&mut self.artisan)?;
+                            rule_make_command::register(&mut self.artisan)?;
                             key_generate_command::register(&mut self.artisan)?;
                             lang_publish_command::register(&mut self.artisan)?;
                             mail_make_command::register(&mut self.artisan)?;

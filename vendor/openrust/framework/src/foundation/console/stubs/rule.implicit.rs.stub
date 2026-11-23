@@ -1,0 +1,25 @@
+use openrust::{contracts, validation};
+
+#[derive(Default)]
+pub struct {{class}};
+
+impl contracts::validation::ValidationRule for {{class}} {
+    fn is_implicit(&self) -> bool {
+        true
+    }
+
+    fn validate<'a>(
+        &'a self,
+        _context: &'a validation::RuleContext<'_>,
+        _attribute: &'a str,
+        _value: ::core::option::Option<&'a validation::Value>,
+    ) -> validation::ValidationFuture<
+        'a,
+        validation::ValidationResult<::std::vec::Vec<validation::RuleFailure>>,
+    > {
+        ::std::boxed::Box::pin(async {
+            // 在此返回失败消息，空列表表示通过。
+            ::std::result::Result::Ok(::std::vec::Vec::new())
+        })
+    }
+}

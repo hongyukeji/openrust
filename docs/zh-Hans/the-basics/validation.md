@@ -394,6 +394,19 @@ fn store_strict(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
 @enderror
 ```
 
+## 生成规则对象 {#creating-custom-rules}
+
+使用不同名称，分别生成普通规则和隐式规则：
+
+```sh
+./artisan make:rule Uppercase
+./artisan make:rule RequiredTitle --implicit
+```
+
+文件分别位于 `app/rules/uppercase.rs` 和 `app/rules/required_title.rs`。在 `app/rules/mod.rs` 声明模块，并在 `app/mod.rs` 导出 `rules` 模块；导入生成的类型后交给 `Rule::custom`。支持 `Admin/Uppercase` 等嵌套名称。`-i` 等同于 `--implicit`；`-f` / `--force` 覆盖已有文件。不带 force 的重名操作报告冲突并保留原文件。
+
+执行 `./artisan stub:publish` 后，可通过 `stubs/rule.rs.stub` 与 `stubs/rule.implicit.rs.stub` 自定义生成模板。两种模板最初均返回空失败列表；隐式标志本身不代表字段必填。请在 `validate` 中实现拒绝逻辑，例如下文所示。模板使用模块限定导入，类型命名为 `RuleContext`、`Box`、`Option` 或 `Result` 也不会与内部名称冲突。
+
 ## 字段级闭包 {#using-closures}
 
 直接向 `Rule::custom` 传入同步闭包，无需应用级注册。参数为当前规则上下文、已反转义的字段名和 `Option<&Value>`，返回 `RuleFailure` 列表。执行错误进入原有 HTTP 异常管线；规则对象保留既有异步 `ValidationRule::validate` 契约。

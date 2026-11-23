@@ -54,13 +54,16 @@ with tempfile.TemporaryDirectory(dir=evidence, prefix='request-consumer-') as te
     (fixture / 'denied.rs').write_bytes(generated[0])
     env['APP_BASE_PATH'] = str(app)
     active_locale = None
+    for name in ('Request', 'FormRequest', 'Box', 'Option', 'Vec', 'Result'):
+        artisan('make:request', name)
+        shutil.copy2(app / 'app/http/requests' / (('form_request' if name == 'FormRequest' else name.lower()) + '.rs'), fixture / ('collision_' + name.lower() + '.rs'))
     artisan('stub:publish')
     stub = app / 'stubs/request.rs.stub'
-    text = stub.read_text().replace('auth::access::{AuthorizationError, Response as Authorization}', 'auth::access::AuthorizationError')
-    start = text.index('        Box::pin(async {')
+    text = stub.read_text()
+    start = text.index('        ::std::boxed::Box::pin(async {')
     end = text.index('\n        })', start) + len('\n        })')
-    text = text[:start] + '        Box::pin(async { Ok(()) })' + text[end:]
-    text = text.replace('Ok(RuleSet::new())', 'RuleSet::parse([("title", "required|string|min:3")])')
+    text = text[:start] + '        ::std::boxed::Box::pin(async { ::std::result::Result::Ok(()) })' + text[end:]
+    text = text.replace('::std::result::Result::Ok(validation::RuleSet::new())', 'validation::RuleSet::parse([("title", "required|string|min:3")])')
     text = subprocess.check_output(['rustfmt', '+1.94.0', '--edition', '2024', '--emit', 'stdout'], input=text.replace('{{class}}', 'GeneratedRequest').encode()).decode().replace('GeneratedRequest', '{{class}}')
     stub.write_text(text)
     artisan('make:request', 'ApprovedRequest')
@@ -70,6 +73,7 @@ with tempfile.TemporaryDirectory(dir=evidence, prefix='request-consumer-') as te
 support = (source / 'vendor/openrust/framework/tests/request_signature_tutorial.rs').read_text()
 transport = support[support.index('async fn transport('):support.index('async fn start(')]
 send = support[support.index('async fn send('):support.index('#[tokio::test]')]
+modules = ''.join(f'#[path="fixtures/request_generated/collision_{name.lower()}.rs"]mod collision_{name.lower()};\n' for name in ('Request', 'FormRequest', 'Box', 'Option', 'Vec', 'Result'))
 code = '''use axum::{extract::State,handler::Handler as _};
 use openrust::{contracts::http::Kernel as _,foundation::{Application,configuration::Routing,http::{Kernel,ValidatedFormRequest}},http::{HttpError,Response,StatusCode},routing::Router};
 use serde_json::{Value,json};use std::{collections::BTreeMap,net::SocketAddr,sync::Arc,time::Duration};
@@ -78,12 +82,15 @@ use tokio::{net::{TcpListener,TcpStream},io::{AsyncReadExt,AsyncWriteExt},time::
 #[path="fixtures/request_generated/approved.rs"]mod approved;
 async fn deny(_:ValidatedFormRequest<denied::StoreArticleRequest>)->Result<Response,HttpError>{panic!("默认生成的表单必须先获得授权");}
 async fn approve(form:ValidatedFormRequest<approved::ApprovedRequest>)->Result<Response,HttpError>{Response::json(StatusCode::CREATED,form.into_parts().1.into_value())}
+''' + modules + '''
+async fn collision<F:openrust::foundation::http::FormRequest+Default+'static>(_:ValidatedFormRequest<F>)->Result<Response,HttpError>{panic!("默认表单必须拒绝");}
 ''' + transport + send + '''
 #[tokio::test]
 async fn generated_request_types_authorize_and_validate_real_http_before_dispatch(){
  let root=tempfile::tempdir().unwrap();let app=Application::configure(root.path().to_owned()).with_config(|_,_|Ok(BTreeMap::from([("app".into(),json!({"locale":"en","supported_locales":[]}))])))
- .with_routing(Routing::new(|_|{let mut r=Router::new();r.post("/deny",deny)?;r.post("/approve",approve)?;Ok(r)})).create().unwrap();
+ .with_routing(Routing::new(|_|{let mut r=Router::new();r.post("/deny",deny)?;r.post("/approve",approve)?;r.post("/collision/Request",collision::<collision_request::Request>)?;r.post("/collision/FormRequest",collision::<collision_formrequest::FormRequest>)?;r.post("/collision/Box",collision::<collision_box::Box>)?;r.post("/collision/Option",collision::<collision_option::Option>)?;r.post("/collision/Vec",collision::<collision_vec::Vec>)?;r.post("/collision/Result",collision::<collision_result::Result>)?;Ok(r)})).create().unwrap();
  let mut kernel=Kernel::new(app);kernel.bootstrap().await.unwrap();let listener=TcpListener::bind("127.0.0.1:0").await.unwrap();let address=listener.local_addr().unwrap();let service=transport.with_state(Arc::new(kernel)).into_make_service();let server=tokio::spawn(async move{axum::serve(listener,service).await.unwrap()});
+ for path in ["/collision/Request","/collision/FormRequest","/collision/Box","/collision/Option","/collision/Vec","/collision/Result"]{assert_eq!(send(address,"POST",path,"{}","").await.0,403);}
  assert_eq!(send(address,"POST","/deny",r#"{"title":"Hello"}"#,"").await.0,403);
  for body in ["{}",r#"{"title":"x"}"#]{let (status,data,_)=send(address,"POST","/approve",body,"").await;assert_eq!(status,422,"{data}");assert!(data["errors"]["title"].is_array());}
  let (status,data,_)=send(address,"POST","/approve",r#"{"title":"Hello","admin":true}"#,"").await;assert_eq!(status,201);assert_eq!(data,json!({"title":"Hello"}));server.abort();let _=server.await;

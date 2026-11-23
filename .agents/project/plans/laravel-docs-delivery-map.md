@@ -197,3 +197,5 @@ API 相关扩展自 2026-11-19 起纳入第一代。OIDC RP 与双应用 SSO 分
 2026-11-24 Validation第六组：make:request已从真实CLI占位失败补成正式生成器，含默认拒绝、命名空间/force/模板发布与保护。三语6条实际Artisan命令生成相同代码，typed动作真实HTTP403/422/201通过；5项CLI回归及严格Clippy/fmt/三语构建通过。第五组make:request缺口关闭，其余规则对象／builder接续。
 
 2026-11-24 Validation第七组：Rule::custom支持字段级闭包，对象is_implicit控制缺失/nullable/空值调度；修正字面点字段名，复用原管线。固定PHP10组调度与真实HTTP、MySQL8.4.13等89项通过，三语18段提取及严格Clippy/fmt/构建浏览器通过。make:rule和其余对象setter/首选语言/builder等继续逐入口收尾。
+
+2026-11-24 Validation第八组：make:rule／--implicit与两类可发布模板已接通；修复请求／规则模板合法类型名与导入、标准库名称冲突。8项实际CLI、三语12条命令生成文件、2项真实TCP生成代码消费者通过；清理后严格workspace Clippy/fmt/三语构建通过。生成器子范围闭合，逐失败语言、规则setter、builder和email扩展模式继续按[教程记录](../audits/docs-tutorials/README.md)逐项处理，整章不提前关闭。
