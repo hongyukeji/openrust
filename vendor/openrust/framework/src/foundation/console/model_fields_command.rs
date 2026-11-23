@@ -156,6 +156,7 @@ impl Command for ModelFieldsCommand {
                 let definition = compiled_definition(&parts)?;
                 let literals = table_literals(&previous, class)?;
                 let declared = literals.first().map(|(_, table)| table.as_str());
+                let generated = generated_table(&previous, class)?;
                 if table.is_none()
                     && definition
                         .as_ref()
@@ -171,6 +172,7 @@ impl Command for ModelFieldsCommand {
                     .map(String::as_str)
                     .or_else(|| definition.as_ref().map(|(table, _)| table.as_str()))
                     .or(declared)
+                    .or(generated.as_deref())
                     .unwrap_or(&inferred);
                 let selected_database = database.map(String::as_str).or_else(|| {
                     definition
@@ -415,6 +417,27 @@ pub(super) fn merge(source: &str, block: &str, name: &str) -> Result<String, Con
     match (begin, end) {
         (None, None) => {}
         (Some(begin), Some(end)) if begin < end => {
+            // 标记只界定候选区域；混入业务项或其他模型时不能整段删除。
+            let legacy = syn::parse_file(&source[begin..end]).map_err(error)?;
+            let [syn::Item::Macro(item)] = legacy.items.as_slice() else {
+                return Err(ConsoleError::new(
+                    "旧模型字段区域混有其他源码，未修改文件。",
+                ));
+            };
+            let owns_model = legacy_owns_model(item.mac.tokens.clone(), class);
+            if !item.attrs.is_empty()
+                || item
+                    .mac
+                    .path
+                    .segments
+                    .last()
+                    .is_none_or(|segment| segment.ident != "model_fields")
+                || !owns_model
+            {
+                return Err(ConsoleError::new(
+                    "旧模型字段区域不属于当前模型或含有附加属性，未修改文件。",
+                ));
+            }
             // 移走文件末尾的旧分区时，同时移除它与业务代码之间的一行空白。
             let begin = if end == source.len() && source[..begin].ends_with("\r\n\r\n") {
                 begin - 2
@@ -651,6 +674,83 @@ fn bind_table(source: &str, class: &str) -> Result<String, ConsoleError> {
         updated.replace_range(range, &format!("{class}::TABLE"));
     }
     Ok(updated)
+}
+
+// 旧宏的注册类型和常量所属类型都必须匹配，只迁移生成器支持的列常量语法。
+fn legacy_owns_model(tokens: proc_macro2::TokenStream, class: &str) -> bool {
+    use syn::parse::Parser as _;
+
+    let parser = |input: syn::parse::ParseStream<'_>| -> syn::Result<bool> {
+        let _: syn::Token![@] = input.parse()?;
+        let keyword: syn::Ident = input.parse()?;
+        let model: syn::Ident = input.parse()?;
+        let _: syn::Token![;] = input.parse()?;
+        let _ = input.call(syn::Attribute::parse_outer)?;
+        let _: syn::Token![impl] = input.parse()?;
+        let owner: syn::Ident = input.parse()?;
+        let fields;
+        syn::braced!(fields in input);
+        while !fields.is_empty() {
+            let _ = fields.call(syn::Attribute::parse_outer)?;
+            let _: syn::Visibility = fields.parse()?;
+            let _: syn::Token![const] = fields.parse()?;
+            let _: syn::Ident = fields.parse()?;
+            let _: syn::Token![=] = fields.parse()?;
+            let _: syn::LitStr = fields.parse()?;
+            let _: syn::Token![;] = fields.parse()?;
+        }
+        Ok(keyword == "model" && model == class && owner == class)
+    };
+    parser.parse2(tokens).unwrap_or(false)
+}
+
+// 新模型尚未编入命令程序时，复用生成区中唯一维护的表名，不退回类名推断。
+fn generated_table(source: &str, class: &str) -> Result<Option<String>, ConsoleError> {
+    use syn::parse::Parser as _;
+
+    let (file, _) = parse_source(source)?;
+    let mut table = None;
+    for item in &file.items {
+        let syn::Item::Macro(item) = item else {
+            continue;
+        };
+        if item
+            .mac
+            .path
+            .segments
+            .last()
+            .is_none_or(|segment| segment.ident != "model_fields")
+            || !matches!(item.mac.tokens.clone().into_iter().next(), Some(proc_macro2::TokenTree::Ident(model)) if model == class)
+        {
+            continue;
+        }
+        let parser = |input: syn::parse::ParseStream<'_>| -> syn::Result<Option<String>> {
+            let _: syn::Ident = input.parse()?;
+            let content;
+            syn::braced!(content in input);
+            let _ = content.call(syn::Attribute::parse_outer)?;
+            if content.is_empty() {
+                return Ok(None);
+            }
+            let field: syn::Ident = content.parse()?;
+            let value = if field == "TABLE" {
+                let _: syn::Token![=] = content.parse()?;
+                let value: syn::LitStr = content.parse()?;
+                let _: syn::Token![;] = content.parse()?;
+                Some(value.value())
+            } else {
+                None
+            };
+            let _: proc_macro2::TokenStream = content.parse()?;
+            Ok(value)
+        };
+        if let Some(value) = parser.parse2(item.mac.tokens.clone()).map_err(error)?
+            && table.replace(value).is_some()
+        {
+            return Err(ConsoleError::new("模型存在多份生成表名，未修改文件。"));
+        }
+    }
+    Ok(table)
 }
 
 fn parse_source(source: &str) -> Result<(syn::File, usize), ConsoleError> {

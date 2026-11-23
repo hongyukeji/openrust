@@ -27,6 +27,7 @@ def main():
     environment = dict(os.environ, APP_BASE_PATH=str(source), APP_ENV='testing', APP_LOCALE='zh-Hans',
                        DB_CONNECTION={'postgres': 'pgsql'}.get(driver, driver),
                        DB_URL=os.environ[url[driver]] if driver in url else '',
+                       DB_PREFIX='',
                        DB_DATABASE=str(work / 'fields.sqlite') if driver == 'sqlite' else 'openrust_acceptance',
                        FIELD_DRIVER=driver, FIELD_SQLITE=str(work / 'fields.sqlite'))
     binary = target / 'debug' / ('main.exe' if os.name == 'nt' else 'main')
@@ -65,8 +66,8 @@ fn object(entries: &[(&str, Value)]) -> Value {
 }
 fn database() -> Connection {
     let configuration = match std::env::var("FIELD_DRIVER").unwrap().as_str() {
-        "sqlite" => object(&[("driver", "sqlite".into()), ("database", std::env::var("FIELD_SQLITE").unwrap().into())]),
-        _ => object(&[("url", std::env::var("DB_URL").unwrap().into())]),
+        "sqlite" => object(&[("driver", "sqlite".into()), ("database", std::env::var("FIELD_SQLITE").unwrap().into()), ("prefix", std::env::var("DB_PREFIX").unwrap_or_default().into())]),
+        _ => object(&[("url", std::env::var("DB_URL").unwrap().into()), ("prefix", std::env::var("DB_PREFIX").unwrap_or_default().into())]),
     };
     DatabaseManager::new(Arc::new(Repository::new(BTreeMap::from([(
         "database".into(), object(&[("default", "test".into()), ("connections", object(&[("test",configuration)]))])
@@ -398,6 +399,10 @@ async fn main() {
         assert migrated.endswith('// 保留业务代码\n')
         compile_code('migrated', migrated + reference.replace('::NAME', '::FULL_NAME'), deny_warnings=True)
         for label, broken in [
+            ('legacy-business-item', legacy.replace('// openrust:model-fields end', 'pub fn business_logic() -> bool { true }\n// openrust:model-fields end')),
+            ('legacy-wrong-model', legacy.replace('@model FieldReferenceProbe;', '@model AnotherProbe;')),
+            ('legacy-wrong-owner', legacy.replace('impl FieldReferenceProbe { pub const', 'impl AnotherProbe { pub const')),
+            ('legacy-macro-attribute', legacy.replace('openrust::database::eloquent::model_fields!', '#[cfg(any())]\nopenrust::database::eloquent::model_fields!')),
             ('damaged', legacy.replace('// openrust:model-fields end', '// removed end')),
             ('duplicate-marker', legacy + '// openrust:model-fields begin\n'),
             ('reversed-marker', legacy.replace('// openrust:model-fields begin', '// openrust:model-fields TEMP').replace('// openrust:model-fields end', '// openrust:model-fields begin').replace('// openrust:model-fields TEMP', '// openrust:model-fields end')),
@@ -498,6 +503,55 @@ async fn main() {
         artisan('manual-table-conflict', 'model:fields', 'FieldReferenceProbe', success=False)
         assert generated.read_text() == manual_table
         generated.write_text(refreshed)
+        # 表结构重建后的列顺序变化也属于过期内容；主键不享有特殊展示位置。
+        order_model = source / 'app/models/order_probe.rs'
+        sql('order-create', 'create table field_order_probes (zeta integer, id integer primary key, alpha integer)')
+        try:
+            artisan('order-generate', 'make:model', 'OrderProbe', '--force', '--fields', '--table=field_order_probes')
+            sql('order-recreate-drop', 'drop table field_order_probes')
+            sql('order-recreate', 'create table field_order_probes (alpha integer, zeta integer, id integer primary key)')
+            before_order = (order_model.read_bytes(), order_model.stat().st_mtime_ns)
+            result = artisan(
+                'order-stale', 'model:fields', 'OrderProbe', '--check', success=False)
+            assert result.returncode == 1
+            assert before_order == (order_model.read_bytes(), order_model.stat().st_mtime_ns)
+            artisan('order-refresh', 'model:fields', 'OrderProbe')
+            assert re.findall(r'^        ([A-Z_0-9]+) = ', order_model.read_text(), re.MULTILINE) == ['TABLE', 'ALPHA', 'ZETA', 'ID']
+            compile_code('order-model', order_model.read_text(), deny_warnings=True)
+            artisan('order-fresh', 'model:fields', 'OrderProbe', '--check')
+        finally:
+            sql('order-drop', 'drop table field_order_probes')
+            order_model.unlink(missing_ok=True)
+        # 常量保存逻辑表名，连接前缀继续由既有 Schema 和查询语法器处理。
+        prefix_model = source / 'app/models/prefix_probe.rs'
+        sql('prefix-create', 'create table tenant_field_prefix_probes (id integer primary key, title varchar(80))')
+        sql('prefix-insert', "insert into tenant_field_prefix_probes (id, title) values (1, '前缀表')")
+        try:
+            if driver != 'sqlite':
+                statement = ("alter table tenant_field_prefix_probes comment = '租户记录'" if driver == 'mysql'
+                             else "comment on table tenant_field_prefix_probes is '租户记录'")
+                sql('prefix-comment', statement)
+            environment['DB_PREFIX'] = 'tenant_'
+            artisan('prefix-generate', 'make:model', 'PrefixProbe', '--force', '--fields', '--table=field_prefix_probes')
+            text = prefix_model.read_text()
+            assert 'TABLE = "field_prefix_probes";' in text
+            assert ('/// 租户记录' in text) == (driver != 'sqlite')
+            consumer = compile_code('prefix-consumer', text + db_setup + '''
+#[tokio::main]
+async fn main() {
+    let db = database();
+    let mut query = PrefixProbe::queryOn(&db);
+    query.r#where(PrefixProbe::TITLE, "=", "前缀表");
+    assert_eq!(query.get().await.unwrap().len(), 1);
+    assert_eq!(db.table(PrefixProbe::TABLE).get().await.unwrap().len(), 1);
+}
+''', executable=True)
+            run('prefix-consumer-run', [str(consumer)])
+            artisan('prefix-fresh', 'model:fields', 'PrefixProbe', '--check')
+        finally:
+            environment['DB_PREFIX'] = ''
+            sql('prefix-drop', 'drop table tenant_field_prefix_probes')
+            prefix_model.unlink(missing_ok=True)
         artisan('exists', 'make:model', 'FieldReferenceProbe', '--fields', success=False)
         assert generated.read_text() == refreshed
         artisan('plain', 'make:model', 'PlainProbe', '--force')

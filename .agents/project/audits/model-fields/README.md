@@ -288,6 +288,70 @@ python3 -B target/tmp/model-fields-sync-20261123/table-docs.py
 
 提交授权补记：用户于2026-11-23追加“提交代码”指令，本主题模型布局、表名及字段生成、既有密码／令牌常量引用、测试、三语文档与验收记录一起纳入本次本地提交；未推送。上文“未授权／未提交”均描述当时验收阶段，不再代表本次追加授权后的状态。提交前11项技术／正文文件仍与通过验收的隔离源码逐字节一致，未重复构建。
 
+## 完整需求复核与安全刷新（2026-11-23）
+
+### 方案与范围
+
+按用户补充的14项目标重新核对源码及实际消费者。复用已提交的模型顶部布局、`TABLE`、数据库列顺序、字段说明、查询和生成模板，不重复实现。数据库结构仍是字段集合的唯一来源；表名和连接仍由模型映射及显式命令选项决定。普通构建不连接数据库，不新增ORM、服务包装、管理器或依赖。本轮未获得新的Git写入授权，不暂存、提交或推送。
+
+| 用户目标 | 实际入口与裁决 |
+| --- | --- |
+| 1、9、10：查询体验及保障 | `database/eloquent/fields.rs`的关联字符串常量复用既有Query Builder；实际API为`r#where(User::NAME, "=", value)`，不新增示意`whereEq`。只保证关联常量存在，不检查模型归属、值类型或外部数据库列存在。字段不自动限定表名，联表／别名继续经既有标识符语法器处理，值参数绑定。 |
+| 2、3、7：来源、生成及刷新 | `model_make_command.rs`与`model_fields_command.rs`复用Schema的`getColumns()`；TABLE第一，字段保留数据库列顺序，不从fillable/casts推测。保留单模型、批量、显式连接／表、只读check及标准模板。新增未重新构建的新模型复用生成TABLE的回退，避免自定义表名丢失。 |
+| 4、5、6、13：目录、阅读及安全编辑 | 模型文件只保存映射与自身行为，框架负责数据库访问和生成，业务服务职责不变。imports后使用配置式分区与简洁宏，宏内集中抑制警告；AST定位保留文档、属性与业务原文。新增旧区完整形状及双重模型归属校验，安全拒绝混入业务项、外层属性或其他模型。 |
+| 8：业务说明 | 继续使用数据库列说明生成`///`，控制字符用转义doc属性，无描述不猜测。保留并复验协作中的表描述、无描述时的本地化默认标签，以及APP_LOCALE三语生成说明；表／列描述保持数据库原文。 |
+| 11：真实消费者 | 本轮验收状态见下文；生成文本检查与实际编译、运行、查询、编译失败反例分别执行。使用隔离数据库，未操作开发数据。 |
+| 12、14：成熟方案与文档 | 延续固定上游与已锁定解析依赖，补查官方实现；三语文档明确命令、布局、重建及类型保障边界。 |
+
+### 本轮发现与处理
+
+1. 真实旧区最小实验中，将普通`business_logic`函数放在begin/end之间，刷新退出0且函数被删除。迁移不能只信任机器标记；现在要求区内恰好一个无外层属性的字段宏，完整解析旧生成语法，注册模型与内部impl类型都必须是当前模型。混入业务项、附加宏属性、其他注册模型或impl所属模型时拒绝且保留原文件。`legacy-wrong-owner`反例另外复现了仅检查注册名仍会误删其他模型声明的问题，已补双重归属检查。失败证据保留为`contract-boundary-before.log`和`contract-wrong-owner-before*.log`。
+2. 新生成且尚未编入命令程序的自定义表模型，立即刷新曾回退到类名推断表名。现在优先级为显式选项、已编译映射、标准metadata字面量、现有生成TABLE、类名推断。复用已生成TABLE不需要数据库编译期反射；未编译的自定义连接仍须显式`--database`，重新构建后读取模型连接。动态配置不承诺源码反射。
+3. 新增列顺序实际改变后的check／刷新／编译，以及连接前缀下生成模型和真实查询。TABLE保存逻辑表名，连接前缀交由原Schema和查询机制处理，不重复写入常量。
+4. 保留并整合其他协作者的表描述与生成说明本地化修改，未覆盖其代码。`console::localization::text_for_locale`复用现有翻译入口，生成器读取当前应用译器语言；三语切换与表描述变化纳入消费者，不将其当作本轮独立重写。
+
+### 调研依据
+
+web检索返回空结果，使用实际HTTPS下载的官方固定源码继续核对；材料位于`target/tmp/model-fields-sync-20261123/research/contract-*`，未新增PHP文件。
+
+- [Rust 1.94关联项](https://doc.rust-lang.org/1.94.0/reference/items/associated-items.html)：关联常量提供名称解析和补全，无自动数据库反射或字符串值类型推断。
+- 固定[Model.php](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Model.php)及[模型测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseEloquentModelTest.php)：保持表名推断／自定义映射、动态模型和字符串查询；字段生成属于OpenRust可选增强。
+- [MyBatis-Plus v3.5.14 AbstractLambdaWrapper](https://github.com/baomidou/mybatis-plus/blob/v3.5.14/mybatis-plus-core/src/main/java/com/baomidou/mybatisplus/core/conditions/AbstractLambdaWrapper.java)：方法引用依赖序列化lambda、属性命名与列缓存，不能直接移植为Rust getter反射；采用关联常量满足补全体验。
+- [SeaQuery 0.32.7标识符类型](https://github.com/SeaQL/sea-query/blob/0.32.7/src/types.rs)、前节SeaORM 1.1.19和Diesel 2.3.3生成器：借鉴显式结构生成、标识符与值分离，不引入平行实体、列枚举及查询框架。
+- [IDE Helper v3.6.0 ModelsCommand](https://github.com/barryvdh/laravel-ide-helper/blob/v3.6.0/src/Console/ModelsCommand.php)：借鉴数据库结构／说明面向IDE生成，不要求开发者逐字段维护。
+
+没有采用新依赖。继续使用锁定syn 2.0.119与proc-macro2 1.0.107，MIT OR Apache-2.0，声明MSRV 1.71；本轮Rust 1.94.0实际构建。新检查复用已有解析器，维护成本限于既有生成格式的显式迁移；任意业务Rust表达式不自动改写。
+
+### 验收状态
+
+方案定稿、安全刷新修复及消费者实现完成，下列本轮范围验收通过。独立源码、TMPDIR、日志、参考材料及独占Cargo缓存统一位于`target/tmp/model-fields-sync-20261123/`；沿用Rust 1.94.0、正常并发和增量缓存。没有访问开发数据。
+
+实际执行入口如下，均通过守卫设置项目内TMPDIR与独占CARGO_TARGET_DIR：
+
+```sh
+python3 -B tests/build_guard.py --workflow model-fields-sync-20261123 -- python3 -B target/tmp/model-fields-sync-20261123/contract.py
+python3 -B tests/build_guard.py --workflow model-fields-sync-20261123 -- python3 -B target/tmp/model-fields-sync-20261123/contract-followup.py
+python3 -B tests/build_guard.py --workflow model-fields-sync-20261123 -- python3 -B target/tmp/model-fields-sync-20261123/contract-docs.py
+```
+
+- `contract.py`：隔离manifest的`cargo +1.94.0 fmt --all --check`、`clippy --workspace --all-targets --locked -- -D warnings`、`build --bin main --locked`及2项宏rustdoc正反例通过。真实`tests/model_fields_acceptance.py`分别在SQLite、隔离PostgreSQL 18.7、隔离MySQL 8.4.13退出0；后两者使用项目对应acceptance夹具。日志`contract.log`及`contract-{sqlite,postgres,mysql}.log`，各同名目录保存实际消费者输出。
+- 三库实际覆盖生成／刷新／编译／查询、字符串查询等价、映射／保留字／NULL、字段增加删除重命名、列顺序改变、表和列描述改变、三语分区切换、表前缀、自定义表及已编译连接复用、未重建自定义TABLE、旧底部和旧紧凑布局升级、doc/derive/inner属性、BOM/shebang/CRLF、只读check内容和mtime不变、重复刷新稳定、批量预检、异常安全拒绝。不存在／重命名常量均确认因E0599编译失败；真实生成模型在`-D warnings`下编译，普通模型及自定义模板不退化。
+- `contract-followup.py`先执行`contract-queries.py`：框架`--test model_fields`在三库分别通过，覆盖现有选择、筛选、排序、更新、关系、带别名自联表、参数绑定、动态属性、原始表达式及真实缺列错误。日志`contract-query-{sqlite,postgres,mysql}.log`。没有仅用生成文本代替查询执行。
+- 随后`contract-post.py`使用独立MySQL执行真实应用迁移和User同步，验证TABLE复用及8项实际字段说明。真实生成物在TABLE上方直接显示数据库说明“用户表”，生成区外业务源码逐字节不变，根模型保留这一协作调整。生成物再次通过fmt、workspace/all-targets严格Clippy和main构建；2项应用骨架、7项Artisan、1项缓存配置模型装配、1项真实TCP密码重置／邮箱验证，以及7项框架字段／绑定／主键回归全部通过。日志`contract-post.log`与`contract-post-*.log`、`contract-framework.log`。
+- 最后`contract-check.py`在独立MySQL、重新构建后的真实命令程序执行`model:fields --all --check`，退出0，User字节和mtime不变。日志`contract-check.log`、`contract-user-final-*.log`。
+- `contract-docs.py`的`npm run build`（含正文和命令入口检查）、真实浏览器12组桌面／移动页面与6组三语导航全部通过，包含`/`和`/docs/`。日志`contract-docs{,-build,-browser,-scope}.log`。保留既有第三方编译warning与VitePress体积提示，不声明所有输出零warning。
+
+最终8个技术／正文文件与通过验收的隔离快照逐字节相同，Python语法检查与`git diff --check`通过，暂存区为空。格式同步前先单独格式化根文件并比对快照，未用旧快照覆盖协作者语义改动。相关批次隔离数据库容器由夹具回收，其他工作流容器及数据卷保留。收尾核对还发现协作者将表描述调整为不加标签的原文，无描述时使用本地化“表名”标签；已保留该调整并修正连接前缀消费者，前一组合的完整通过日志保存在`before-table-label/`。最新格式已重新执行上述全部入口，全部退出0；8项技术／正文文件再次逐字节比对一致，Python语法、空白和空暂存区检查通过，6个本批隔离数据库容器均已回收。最终可用46,794,064KiB，高于31,250,000KiB停线，未清理可复用缓存。
+
+本次14项目标所述范围没有剩余实现阻塞。未验完整workspace测试、all-features、SQL Server、其他数据库版本、Windows、release、生产及性能；三库关系查询通过不等于完整数据库矩阵全部功能通过。非ASCII／转换后冲突列名仍安全拒绝，SQLite不提供原生表／列描述；任意动态配置源码不自动反射。常量只提供名称存在性检查，外部结构变化仍须显式刷新并重新构建。其他协作者的全部工作、框架整体对齐及正式发布不在本结论内。未暂存、提交、推送或发布。
+
+本轮文件范围：
+
+- 实现：`vendor/openrust/framework/src/foundation/console/model_fields_command.rs`。
+- 消费者：`tests/model_fields_acceptance.py`。
+- 文档：`docs/en/eloquent/getting-started.md`、`docs/zh-Hans/eloquent/getting-started.md`、`docs/zh-Hant/eloquent/getting-started.md`。
+- 接续记录：本文及`.agents/project/current.md`。
+- 整合复验的协作文件：`app/models/user.rs`、`vendor/openrust/framework/src/console/localization.rs`、`vendor/openrust/framework/src/console/mod.rs`，以及上列文件中的协作生成说明／表描述改动。收尾时检测到并行本地提交`20ac72347`，已保留；本轮没有执行Git暂存或提交。显式核对上述8项技术／正文文件与最终验收快照一致，不依赖当前未提交文件数量推断源码组合。
 
 ## 生成说明本地化与表注释（2026-11-23）
 
@@ -308,3 +372,6 @@ python3 -B tests/build_guard.py --workflow model-table-doc-20261123 -- python3 -
 Rust 1.94.0的fmt、框架all-targets严格Clippy、main构建通过。SQLite、隔离MySQL 8.4及PostgreSQL 18消费者分别验证三语刷新、只读check、无表描述的本地化标签、有描述的原文、描述变更／空白／删除、特殊字符及生成源码实际编译；既有查询与字段编译正反例通过。三语正文检查、站点构建、12组页面和6组导航浏览器检查通过。日志为`scoped-{fmt,clippy,build,sqlite,mysql,postgres,docs-content}.log`及`scoped-docs-{build,browser,scope}.log`。真实User使用隔离MySQL迁移后刷新及check通过，生成`/// 用户表`，字段描述保持原文；证据为`generated-user.rs`与`user-{migrate,refresh,check}.log`。
 
 未验证完整workspace测试、all-features、SQL Server、Windows、release或生产部署；自定义翻译历史任意变更后的旧分区识别不作完整承诺。未推送或发布，其他协作者改动保留。
+
+
+提交授权补记（2026-11-23）：用户追加“提交代码”，将“完整需求复核与安全刷新”的修复、消费者测试、三语文档及交接记录纳入本地提交。提交前5项剩余技术／正文文件与最新通过验收的隔离快照逐字节一致，Python语法及差异空白检查通过；复用上述验收结果，未重复构建，未推送或发布。
