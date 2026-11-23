@@ -1160,7 +1160,7 @@
         "global catch-all throttleUsing callback/default grouping vs native typed policy; full result/chain defaults",
         "isReporting borrowed zero-sized Rust value identity cannot imply PHP object identity; owned facade report uses Arc-backed identity; review remaining direct borrowed contract consumers during owned-error/fake work",
         "borrowed opaque exception retention requires explicit SharedException ownership; custom callers and full request/task/Worker failure restoration plus inherited base mocks/spy remain to audit",
-        "withoutExceptionHandling handler mode, remaining dynamic Handler/config forwarding contracts still require closure"
+        "remaining dynamic Handler/config forwarding contracts still require closure"
       ],
       "runtime_configuration": {
         "handler": "existing handler stores configuration behind RwLock; methods clone snapshots before invoking callbacks or awaiting. Setters preserve constructor configuration and existing duplicate map; old callbacks are retired outside the write lock",
@@ -1209,6 +1209,20 @@
         "consumers": "report maps before ignore/report callbacks; HTTP report and render map separately; mapped HttpError preserves status/response/validation path; Fake records original and delegates render; raw should_report does not map",
         "JSON": "policy receives actual Exception including mapped domain, synthetic fallback HTTP error removed; default API/request-only closures remain unchanged",
         "scope": "per Handler configuration with snapshot before callbacks; reentry/replacement and applications isolated; no mapper/registry credentials in queue payload"
+      },
+      "without_exception_handling": {
+        "status": "verified-native-paths",
+        "entries": [
+          "TestApp::without_exception_handling",
+          "with_exception_handling",
+          "handle_exceptions",
+          "handle_validation_exceptions",
+          "ExceptionHandler::render_result",
+          "Exceptions::render"
+        ],
+        "semantics": "first original preserved; selected except render only; disabled report no-op; fake keeps records and bypasses disabled should_report; restore original qualification; owned HTTP errors retain identity and 404 method/query-free URL",
+        "ownership": "SharedException constructors preserve existing owner; borrowed opaque render fails with ExceptionOwnershipError; mapped duplicate identity structural; diagnostic chain bounded32",
+        "evidence": "without-exceptions/oracle.log, tests-combination.log, ownership-final.log, workers.log, clippy-final.log, fmt.log, docs.log, browser.log"
       }
     },
     {

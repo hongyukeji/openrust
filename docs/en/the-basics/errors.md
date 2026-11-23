@@ -259,3 +259,27 @@ Actual reporting maps before ignore rules, report callbacks and logging. Renderi
 The mapped root controls report/render/ignore rules: a retained source error remains diagnostic data and does not accidentally select its old policy. A mapping to `HttpError` keeps its status and response handling. `should_render_json_when` now receives the actual `Exception`, including mapped domain errors; use `downcast_ref::<E>()` when the policy depends on its type. There is no synthetic HTTP exception in place of a business error.
 
 For a wrapper with an optional inner exception, register `inner_exception::<Wrapper>(callback)` returning `Option<SharedException>`. This explicitly adapts an inner-error method that is not part of Rust's `Error` trait. A nonempty inner error takes priority over normal maps and is returned without remapping; `None` continues matching. Clone the shared inner handle to preserve its original instance.
+
+### Disabling exception handling {#without-exception-handling}
+
+Use `without_exception_handling(&[])` to return unhandled HTTP errors from test calls, and `with_exception_handling()` to restore the first original handler. Non-Clone errors retain their actual owned instance. A missing route includes the method and URL without query parameters, while its original `HttpError::NotFound` remains in the source chain.
+
+```rust
+use openrust::{contracts::debug::Exception, http::HttpError, testing::TestApp};
+
+async fn check_unhandled(app: &mut TestApp) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    app.without_exception_handling(&[]).await?;
+    let error = app.get("/missing").await.expect_err("expected an unhandled error");
+    assert!(Exception::Error(error.as_ref()).downcast_chain_ref::<HttpError>().is_some());
+    app.with_exception_handling().await?;
+    Ok(())
+}
+```
+
+`handle_exceptions(&types)` keeps rendering the selected types; `handle_validation_exceptions()` keeps the normal validation response. `ExceptionType::matching::<HttpError>(predicate)` selects individual Rust enum variants. Repeated mode changes do not nest old disabled handlers. A fake installed before or after disabling handling keeps its report list; it records otherwise ignored exceptions while handling is disabled, then respects the original reporting rules after restoration. Console failures still render normally. Other applications keep their own mode.
+
+The public `Exceptions::render` returns a fallible boxed-error result, retaining the original shared error in disabled mode. Borrowed opaque errors cannot be retained: pass `SharedException`, use an owned HTTP test entry, or handle the distinct `ExceptionOwnershipError`. `SharedException::from_exception` clones an existing shared owner; `new` / `from_arc` preserve the identity when a shared error is supplied again, including a mapper returning the same target, so duplicate reporting remains correct.
+
+`Exception::downcast_chain_ref::<E>()` explicitly inspects diagnostic sources, including a mapped error's previous exception; `including_sources` selectors use it too. Mapped rule matching still uses only the new root. Source searches stop after 32 nodes, so a cyclic `source()` does not hang a test or report.
+
+`TestApp` captures unhandled errors automatically. For a low-level kernel future, use `Exceptions::catch_reported(future).await`; direct legacy handler methods returning only `Response` use a typed `SharedException` panic in explicitly disabled mode. Use the fallible facade or test entry points when a `Result` is needed.

@@ -15,13 +15,42 @@ use crate::{
 #[derive(Clone, Debug)]
 pub struct SharedException(Arc<dyn Error + Send + Sync>);
 
+/// 借用的错误无法凭空取得共享所有权，不能用字符串快照代替原对象。
+#[derive(Clone, Copy, Debug)]
+pub struct ExceptionOwnershipError;
+impl fmt::Display for ExceptionOwnershipError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(
+            "此入口需要共享异常所有权；请使用 SharedException 或接收错误所有权的公开入口",
+        )
+    }
+}
+impl Error for ExceptionOwnershipError {}
+
 impl SharedException {
+    /// 重复传入共享包装时复用原始实例与去重身份。
     pub fn new(error: impl Error + Send + Sync + 'static) -> Self {
-        Self(Arc::new(error))
+        if let Some(shared) = (&error as &(dyn Error + 'static)).downcast_ref::<Self>() {
+            shared.clone()
+        } else {
+            Self(Arc::new(error))
+        }
     }
 
     pub fn from_arc(error: Arc<dyn Error + Send + Sync>) -> Self {
-        Self(error)
+        if let Some(shared) = error.as_ref().downcast_ref::<Self>() {
+            shared.clone()
+        } else {
+            Self(error)
+        }
+    }
+
+    pub fn from_exception(exception: &Exception<'_>) -> Result<Self, ExceptionOwnershipError> {
+        exception
+            .error()
+            .downcast_ref::<Self>()
+            .cloned()
+            .ok_or(ExceptionOwnershipError)
     }
 
     pub(crate) fn identity(&self) -> Weak<dyn Error + Send + Sync> {
@@ -72,8 +101,14 @@ impl Exception<'_> {
         if matches!(self, Self::Mapped(_)) {
             return self.root_error().downcast_ref::<E>();
         }
+        self.downcast_chain_ref::<E>()
+    }
+
+    /// 显式读取完整诊断链，包括映射前来源；限制深度以免循环source阻塞调用。
+    pub fn downcast_chain_ref<E: Error + 'static>(&self) -> Option<&E> {
         let mut current = Some(self.error());
-        while let Some(error) = current {
+        for _ in 0..32 {
+            let error = current?;
             if let Some(matched) = error.downcast_ref::<E>() {
                 return Some(matched);
             }
@@ -102,6 +137,10 @@ fn unsupported_handler_method(
 
 /// Reports exceptions and renders them at the appropriate application boundary.
 pub trait ExceptionHandler: Any + Send + Sync {
+    /// 对应测试处理器的标记接口；普通处理器不启用此模式。
+    fn is_without_exception_handling(&self) -> bool {
+        false
+    }
     /// 标准处理器明确实现空注册；自定义处理器不可伪造能力成功。
     fn register(&self) -> Result<(), crate::contracts::container::BindingResolutionError> {
         Err(unsupported_handler_method("register"))
@@ -206,6 +245,14 @@ pub trait ExceptionHandler: Any + Send + Sync {
         error: &'a HttpError,
     ) -> HttpFuture<'a, Response> {
         Box::pin(async move { self.render(request, &Exception::Http(error)) })
+    }
+    /// 保留可失败的原生渲染入口，关闭处理时仍可用Result传出原始共享错误。
+    fn render_result(
+        &self,
+        request: &Request,
+        exception: &Exception<'_>,
+    ) -> Result<Response, SharedException> {
+        Ok(self.render(request, exception))
     }
     fn render(&self, request: &Request, exception: &Exception<'_>) -> Response;
     fn render_for_console(&self, output: &mut Output, exception: &Exception<'_>);

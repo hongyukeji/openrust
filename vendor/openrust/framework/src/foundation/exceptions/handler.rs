@@ -243,7 +243,11 @@ impl Handler {
         {
             return false;
         }
-        let Some(shared) = exception.downcast_ref::<SharedException>() else {
+        let Some(shared) = exception
+            .error()
+            .downcast_ref::<SharedException>()
+            .or_else(|| exception.downcast_chain_ref::<SharedException>())
+        else {
             return false;
         };
         let identity = shared.identity();

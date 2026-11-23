@@ -293,6 +293,7 @@ async fn worker_fake(
     redis: Option<u16>,
     rethrow: bool,
     mapping: bool,
+    without_handling: bool,
 ) {
     use openrust::{
         contracts::container::Container as _,
@@ -336,6 +337,13 @@ async fn worker_fake(
             })
             .await
             .unwrap();
+    }
+    if without_handling {
+        App::set_facade_application(Some(app.app()), async {
+            Exceptions::dont_report::<QueueError>().unwrap();
+        })
+        .await;
+        app.without_exception_handling(&[]).await.unwrap();
     }
     let mapped_reports = Arc::new(AtomicUsize::new(0));
     if mapping {
@@ -424,6 +432,18 @@ async fn worker_fake(
             .expect("Worker 保留任务原始错误");
         assert_eq!(*failure.0.lock().unwrap(), 42);
     }
+    if without_handling {
+        app.with_exception_handling().await.unwrap();
+        App::set_facade_application(Some(app.app()), async {
+            assert!(
+                !Exceptions::should_report(&Exception::Error(&QueueError::Timeout))
+                    .await
+                    .unwrap()
+            );
+        })
+        .await;
+        fake.assert_reported_count(1);
+    }
     if driver == "database" {
         app.app()
             .container()
@@ -440,7 +460,7 @@ async fn worker_fake(
 #[tokio::test]
 async fn mysql_artisan_worker_records_original_job_error() {
     match std::env::var("OPENRUST_TEST_MYSQL_URL") {
-        Ok(url) => worker_fake("database", Some(url), None, false, false).await,
+        Ok(url) => worker_fake("database", Some(url), None, false, false, false).await,
         Err(_) => assert!(
             std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none(),
             "缺少 MySQL 验收夹具"
@@ -450,7 +470,17 @@ async fn mysql_artisan_worker_records_original_job_error() {
 #[tokio::test]
 async fn redis_artisan_worker_records_original_job_error() {
     match std::env::var("OPENRUST_TEST_REDIS_PORT") {
-        Ok(port) => worker_fake("redis", None, Some(port.parse().unwrap()), false, false).await,
+        Ok(port) => {
+            worker_fake(
+                "redis",
+                None,
+                Some(port.parse().unwrap()),
+                false,
+                false,
+                false,
+            )
+            .await
+        }
         Err(_) => assert!(
             std::env::var_os("OPENRUST_REQUIRE_QUEUE_REDIS").is_none(),
             "缺少 Redis 验收夹具"
@@ -580,7 +610,7 @@ async fn infallible_artisan_compatibility_path_panics_only_for_explicit_throw_mo
 #[tokio::test]
 async fn mysql_artisan_worker_propagates_original_job_error_in_throw_mode() {
     match std::env::var("OPENRUST_TEST_MYSQL_URL") {
-        Ok(url) => worker_fake("database", Some(url), None, true, false).await,
+        Ok(url) => worker_fake("database", Some(url), None, true, false, false).await,
         Err(_) => assert!(
             std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none(),
             "缺少 MySQL 验收夹具"
@@ -590,7 +620,17 @@ async fn mysql_artisan_worker_propagates_original_job_error_in_throw_mode() {
 #[tokio::test]
 async fn redis_artisan_worker_propagates_original_job_error_in_throw_mode() {
     match std::env::var("OPENRUST_TEST_REDIS_PORT") {
-        Ok(port) => worker_fake("redis", None, Some(port.parse().unwrap()), true, false).await,
+        Ok(port) => {
+            worker_fake(
+                "redis",
+                None,
+                Some(port.parse().unwrap()),
+                true,
+                false,
+                false,
+            )
+            .await
+        }
         Err(_) => assert!(
             std::env::var_os("OPENRUST_REQUIRE_QUEUE_REDIS").is_none(),
             "缺少 Redis 验收夹具"
@@ -629,7 +669,7 @@ impl std::error::Error for WorkerMapped {
 #[tokio::test]
 async fn mysql_artisan_worker_uses_mapped_reporting_rules() {
     match std::env::var("OPENRUST_TEST_MYSQL_URL") {
-        Ok(url) => worker_fake("database", Some(url), None, false, true).await,
+        Ok(url) => worker_fake("database", Some(url), None, false, true, false).await,
         Err(_) => assert!(
             std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none(),
             "缺少 MySQL 验收夹具"
@@ -639,7 +679,48 @@ async fn mysql_artisan_worker_uses_mapped_reporting_rules() {
 #[tokio::test]
 async fn redis_artisan_worker_uses_mapped_reporting_rules() {
     match std::env::var("OPENRUST_TEST_REDIS_PORT") {
-        Ok(port) => worker_fake("redis", None, Some(port.parse().unwrap()), false, true).await,
+        Ok(port) => {
+            worker_fake(
+                "redis",
+                None,
+                Some(port.parse().unwrap()),
+                false,
+                true,
+                false,
+            )
+            .await
+        }
+        Err(_) => assert!(
+            std::env::var_os("OPENRUST_REQUIRE_QUEUE_REDIS").is_none(),
+            "缺少 Redis 验收夹具"
+        ),
+    }
+}
+
+#[tokio::test]
+async fn mysql_worker_fake_records_ignored_jobs_without_exception_handling() {
+    match std::env::var("OPENRUST_TEST_MYSQL_URL") {
+        Ok(url) => worker_fake("database", Some(url), None, false, false, true).await,
+        Err(_) => assert!(
+            std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none(),
+            "缺少 MySQL 验收夹具"
+        ),
+    }
+}
+#[tokio::test]
+async fn redis_worker_fake_records_ignored_jobs_without_exception_handling() {
+    match std::env::var("OPENRUST_TEST_REDIS_PORT") {
+        Ok(port) => {
+            worker_fake(
+                "redis",
+                None,
+                Some(port.parse().unwrap()),
+                false,
+                false,
+                true,
+            )
+            .await
+        }
         Err(_) => assert!(
             std::env::var_os("OPENRUST_REQUIRE_QUEUE_REDIS").is_none(),
             "缺少 Redis 验收夹具"

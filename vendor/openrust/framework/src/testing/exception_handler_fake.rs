@@ -36,7 +36,7 @@ pub(crate) async fn catch_reported<T>(
         .await
 }
 
-async fn escape_report(error: SharedException) -> LogResult<()> {
+pub(crate) async fn escape_report(error: SharedException) -> LogResult<()> {
     let captured = REPORT_ESCAPE
         .try_with(|slot| {
             slot.lock()
@@ -74,12 +74,24 @@ impl ExceptionType {
             matches: Arc::new(|exception| root_error(exception.error()).is::<E>()),
         }
     }
-    pub fn including_sources<E: Error + 'static>() -> Self {
+    /// 以谓词选择Rust枚举变体，根类型不匹配时不调用谓词。
+    pub fn matching<E: Error + 'static>(
+        predicate: impl Fn(&E) -> bool + Send + Sync + 'static,
+    ) -> Self {
         Self {
-            matches: Arc::new(|exception| exception.downcast_ref::<E>().is_some()),
+            matches: Arc::new(move |exception| {
+                root_error(exception.error())
+                    .downcast_ref::<E>()
+                    .is_some_and(&predicate)
+            }),
         }
     }
-    fn matches(&self, exception: &Exception<'_>) -> bool {
+    pub fn including_sources<E: Error + 'static>() -> Self {
+        Self {
+            matches: Arc::new(|exception| exception.downcast_chain_ref::<E>().is_some()),
+        }
+    }
+    pub(crate) fn matches(&self, exception: &Exception<'_>) -> bool {
         (self.matches)(exception)
     }
 }
@@ -218,7 +230,10 @@ impl ExceptionHandler for ExceptionHandlerFake {
             .build_log_exception(exception, name, reported)
     }
     fn should_report<'a>(&'a self, exception: &'a Exception<'_>) -> HttpFuture<'a, bool> {
-        Box::pin(async move { self.handler().should_report(exception).await })
+        Box::pin(async move {
+            let handler = self.handler();
+            handler.is_without_exception_handling() || handler.should_report(exception).await
+        })
     }
     fn report<'a>(&'a self, exception: &'a Exception<'_>) -> HttpFuture<'a, LogResult<()>> {
         Box::pin(async move {
@@ -226,18 +241,11 @@ impl ExceptionHandler for ExceptionHandlerFake {
             if !self.fakes(exception) {
                 return handler.report(exception).await;
             }
-            if !handler.should_report(exception).await {
+            if !handler.is_without_exception_handling() && !handler.should_report(exception).await {
                 return Ok(());
             }
-            let error = exception
-                .error()
-                .downcast_ref::<SharedException>()
-                .cloned()
-                .ok_or_else(|| {
-                    LogError::WriteFailed(Box::new(std::io::Error::other(
-                        "记录异常需要共享所有权，请使用 Exceptions::report 或 SharedException",
-                    )))
-                })?;
+            let error = SharedException::from_exception(exception)
+                .map_err(|error| LogError::WriteFailed(Box::new(error)))?;
             self.reported.lock().unwrap().push(error.clone());
             if self.throw_on_report.load(Ordering::Acquire) {
                 return escape_report(error).await;
@@ -270,7 +278,11 @@ impl ExceptionHandler for ExceptionHandlerFake {
             }
             let shared = SharedException::from_arc(error.clone());
             let _ = self.report(&Exception::Error(&shared)).await;
-            handler.render_http_response(request, &error).await
+            if handler.is_without_exception_handling() {
+                handler.handle_http(request, error).await
+            } else {
+                handler.render_http_response(request, &error).await
+            }
         })
     }
     fn render_http_response<'a>(
@@ -279,6 +291,13 @@ impl ExceptionHandler for ExceptionHandlerFake {
         error: &'a HttpError,
     ) -> HttpFuture<'a, Response> {
         Box::pin(async move { self.handler().render_http_response(request, error).await })
+    }
+    fn render_result(
+        &self,
+        request: &Request,
+        exception: &Exception<'_>,
+    ) -> Result<Response, SharedException> {
+        self.handler().render_result(request, exception)
     }
     fn render(&self, request: &Request, exception: &Exception<'_>) -> Response {
         self.handler().render(request, exception)

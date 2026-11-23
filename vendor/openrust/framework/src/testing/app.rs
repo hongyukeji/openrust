@@ -43,6 +43,7 @@ impl Default for ResponseCaptureOptions {
 /// An application with its own configuration, container, and temporary root.
 pub struct TestApp {
     app: Application,
+    original_exception_handler: Option<Arc<dyn crate::contracts::debug::ExceptionHandler>>,
     pub(super) clock: Arc<TestClock>,
     http: Option<Kernel>,
     response_capture: ResponseCaptureOptions,
@@ -79,6 +80,7 @@ impl TestApp {
         app.container().instance(clock.clone())?;
         Ok(Self {
             app,
+            original_exception_handler: None,
             clock,
             http: None,
             response_capture: ResponseCaptureOptions::default(),
@@ -267,6 +269,70 @@ impl TestApp {
     /// Returns the application created for this test.
     pub fn app(&self) -> &Application {
         &self.app
+    }
+
+    /// 关闭HTTP异常处理，例外类型仍委托原处理器渲染；不丢弃已安装的Fake记录。
+    pub async fn without_exception_handling(
+        &mut self,
+        except: &[super::ExceptionType],
+    ) -> Result<&mut Self, Box<dyn Error + Send + Sync>> {
+        self.boot().await?;
+        if self.original_exception_handler.is_none() {
+            self.original_exception_handler = Some(
+                application_scope(self.app.container_handle(), async {
+                    crate::support::facades::Exceptions::handler()
+                })
+                .await?,
+            );
+        }
+        let handler: Arc<dyn crate::contracts::debug::ExceptionHandler> = Arc::new(
+            super::without_exception_handling::WithoutExceptionHandling::new(
+                self.original_exception_handler.as_ref().unwrap().clone(),
+                except.to_vec(),
+            ),
+        );
+        self.set_exception_test_handler(handler).await?;
+        Ok(self)
+    }
+    async fn set_exception_test_handler(
+        &self,
+        handler: Arc<dyn crate::contracts::debug::ExceptionHandler>,
+    ) -> Result<(), crate::contracts::container::BindingResolutionError> {
+        application_scope(self.app.container_handle(), async {
+            use crate::support::facades::Exceptions;
+            let current = Exceptions::get_facade_root()?;
+            let erased: Arc<dyn std::any::Any + Send + Sync> = current;
+            match erased.downcast::<super::ExceptionHandlerFake>() {
+                Ok(fake) => {
+                    fake.set_handler(handler);
+                    Ok(())
+                }
+                Err(_) => Exceptions::swap(handler),
+            }
+        })
+        .await
+    }
+    pub async fn with_exception_handling(
+        &mut self,
+    ) -> Result<&mut Self, Box<dyn Error + Send + Sync>> {
+        if let Some(handler) = &self.original_exception_handler {
+            self.set_exception_test_handler(handler.clone()).await?;
+        }
+        Ok(self)
+    }
+    pub async fn handle_exceptions(
+        &mut self,
+        except: &[super::ExceptionType],
+    ) -> Result<&mut Self, Box<dyn Error + Send + Sync>> {
+        self.without_exception_handling(except).await
+    }
+    pub async fn handle_validation_exceptions(
+        &mut self,
+    ) -> Result<&mut Self, Box<dyn Error + Send + Sync>> {
+        self.handle_exceptions(&[super::ExceptionType::including_sources::<
+            crate::validation::ValidationException,
+        >()])
+        .await
     }
 
     /// Returns the fixture's application root.

@@ -259,3 +259,27 @@ fn configure_mapping() -> Result<(), BindingResolutionError> {
 映射后的根类型决定报告、渲染和忽略规则；保留的源错误只作为诊断链，不再误触发旧类型的规则。映射为 `HttpError` 时保留其状态和响应处理。`should_render_json_when` 现在接收真实 `Exception`，包括映射后的业务异常；需要按类型判断时用 `downcast_ref::<E>()`，不会用合成 HTTP 错误代替业务错误。
 
 包装错误具有可选内层异常时，可用 `inner_exception::<包装类型>(callback)` 返回 `Option<SharedException>`，显式接入 Rust `Error` 未定义的内层错误方法。存在内层错误时优先于普通映射，直接返回且不再次映射；`None` 继续匹配。克隆共享内层句柄可保留原始实例。
+
+### 关闭异常处理 {#without-exception-handling}
+
+使用 `without_exception_handling(&[])` 让 HTTP 测试调用返回未处理错误，`with_exception_handling()` 恢复最初的原处理器。非 Clone 错误仍保留真实的拥有所有权的实例。路由不存在时补充方法和不含查询参数的 URL，原始 `HttpError::NotFound` 留在来源链中。
+
+```rust
+use openrust::{contracts::debug::Exception, http::HttpError, testing::TestApp};
+
+async fn check_unhandled(app: &mut TestApp) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    app.without_exception_handling(&[]).await?;
+    let error = app.get("/missing").await.expect_err("expected an unhandled error");
+    assert!(Exception::Error(error.as_ref()).downcast_chain_ref::<HttpError>().is_some());
+    app.with_exception_handling().await?;
+    Ok(())
+}
+```
+
+`handle_exceptions(&types)` 保留所选类型的正常渲染，`handle_validation_exceptions()` 保留正常验证响应。`ExceptionType::matching::<HttpError>(predicate)` 可选择 Rust 枚举的具体变体。重复切换不会嵌套旧的关闭处理器。关闭前或关闭后安装的 Fake 都保留记录列表；关闭时记录原本被忽略的异常，恢复后重新遵守原报告规则。控制台失败仍正常渲染，其他应用保持各自模式。
+
+正式 `Exceptions::render` 返回可失败的装箱错误结果，关闭处理时保留原始共享错误。借用的不透明错误不能被长期保存：请传入 `SharedException`、使用拥有错误所有权的 HTTP 测试入口，或处理独立的 `ExceptionOwnershipError`。`SharedException::from_exception` 克隆已有共享所有者；再次将共享错误传给 `new`／`from_arc` 时保留原身份，包括映射重复返回同一目标时，确保重复报告判断正确。
+
+`Exception::downcast_chain_ref::<E>()` 显式读取诊断来源，包括映射前异常；`including_sources` 选择器也使用它。映射后的规则仍只匹配新根。来源搜索最多检查 32 个节点，循环 `source()` 不会挂起测试或报告。
+
+`TestApp` 自动捕获未处理错误。直接调用底层 Kernel 的 Future 时，用 `Exceptions::catch_reported(future).await` 包裹；只返回 `Response` 的旧处理器方法在显式关闭模式下以 `SharedException` 为载荷 panic。需要 `Result` 时使用可失败的门面或测试入口。

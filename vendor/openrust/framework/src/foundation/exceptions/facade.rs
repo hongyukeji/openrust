@@ -101,19 +101,8 @@ impl Exceptions {
             configuration.context_with(callback);
         })
     }
-    fn share(
-        error: impl Error + Send + Sync + 'static,
-    ) -> crate::contracts::debug::SharedException {
-        if let Some(shared) = (&error as &(dyn Error + 'static))
-            .downcast_ref::<crate::contracts::debug::SharedException>()
-        {
-            shared.clone()
-        } else {
-            crate::contracts::debug::SharedException::new(error)
-        }
-    }
     pub async fn report(error: impl Error + Send + Sync + 'static) -> LogResult<()> {
-        let shared = Self::share(error);
+        let shared = crate::contracts::debug::SharedException::new(error);
         Self::get_facade_root()?
             .report(&Exception::Error(&shared))
             .await
@@ -122,7 +111,7 @@ impl Exceptions {
         request: &mut Request,
         error: impl Error + Send + Sync + 'static,
     ) -> LogResult<()> {
-        let shared = Self::share(error);
+        let shared = crate::contracts::debug::SharedException::new(error);
         Self::get_facade_root()?
             .report_with_request(request, &Exception::Error(&shared))
             .await
@@ -136,8 +125,8 @@ impl Exceptions {
     pub fn render(
         request: &Request,
         exception: &Exception<'_>,
-    ) -> Result<Response, BindingResolutionError> {
-        Ok(Self::get_facade_root()?.render(request, exception))
+    ) -> Result<Response, Box<dyn Error + Send + Sync>> {
+        Ok(Self::get_facade_root()?.render_result(request, exception)?)
     }
     pub fn render_for_console(
         output: &mut Output,

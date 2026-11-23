@@ -23,3 +23,5 @@ pub use database_truncation::{DatabaseTruncationOptions, DatabaseTruncationTable
 pub use facade_spy::{FacadeSpy, ReceivedCalls};
 pub use response::{ContentValues, HeaderExpectation, TestResponse};
 pub use time::Wormhole;
+
+mod without_exception_handling;
