@@ -241,3 +241,14 @@ python3 -B tests/build_guard.py --workflow facade-alignment --target-dir target/
 - 记录在 `target/tmp/facade-alignment/error-ownership/`：test-second.log、worker.log、native-consumer-resumed.log、clippy.log。初次全workspace检查触及32GB停线，已安全持锁清理66,105,139,200字节并重建；该中断不计通过，源码/日志/下载/数据库完整保留。源码目录与可复用增量缓存按现行规范保留。
 - 已核对旧版core/error与foundation/exceptions：旧统一Error仍含Box源，旧report_shared用Arc/Weak保留实例身份。本版沿用已有SharedException及其回归，不搬旧统一错误体系，也未发现可直接替代当前Fake契约的旧实现。
 - 本单元仅闭合错误共享所有权前置；异常fake实现另在途，不夹带入此提交，也不把Exceptions整体宣称完成。
+
+### Exceptions：具类型异常替身与实际入口接线（2026-11-24，仍 partial）
+
+- 固定上游 ExceptionHandlerFake 原类已用 PHP8.5.12 实际执行，精确根类型筛选、保留对象、忽略规则、首条错误、记录后抛错、handler/setHandler 均核对；`exception-fake/oracle.log`。旧版没有此类型，复用当前容器、Handler 和 SharedException，不增加平行日志体系。
+- 新增 `Exceptions::fake/fake_with`、`ExceptionType::of/including_sources`、具类型条件/正反/数量断言、reported、原处理器解包及替换。记录保留真实共享错误和来源，条件回调不持有记录锁；重复 fake 不嵌套。fresh facade scope 未解析前 is_fake=false 与基类缓存契约一致，不误改为自动解析。
+- HTTP 增加拥有 Arc<HttpError> 的 handle_http 及单独 render_http_response 钩子，真实 Next/Kernel 使用它；具体 Handler 保留日志请求上下文、验证重定向与响应钩子。替身筛选后报告，渲染仍委托原处理器且不重复日志。Artisan 报告拥有的 ConsoleError；Worker、任务中间件、隔离任务、健康检查、延迟回调与流错误保留 SharedException。应用开放 report_owned，借用 report 仍可用；只有短期借用的不透明错误无法安全长期保留，替身明确报错，不伪造快照。
+- `tests-fourth.log`：7项新替身、10项门面和原报告7/渲染5，共29项通过。`workers-second.log`：强制独立MySQL8.4及Redis8环境，各通过1项真实 Artisan queue:work；验证独立队列消费失败任务，记录QueueError并保留非Clone任务源错误。未配置服务的默认早返回不计实测。临时容器和唯一测试表已清理。
+- `clippy.log`：冻结工作区全workspace/all-targets严格Clippy通过。失败日志（错误目标名、测试夹具缺trait/捕获loader、fresh scope缓存断言）均保留，后续成功不覆盖。
+- 仍有明确缺口：throw_on_report 目前在直接报告中以Result返回原始错误，HTTP/Artisan/Worker消费日志失败的边界尚未自动传播；withoutExceptionHandling模式、完整map/context/register和继承Fake/spy契约继续开发，不能将本批算作整个Exceptions或全部门面闭合。
+
+- 本批三语文档构建、异常测试章节桌面/移动端6项浏览器检查、全workspace格式检查通过：`exception-fake/docs.log`、`browser.log`、`fmt.log`。增量缓存按当前规则保留，临时容器已删除，验收记录保留。

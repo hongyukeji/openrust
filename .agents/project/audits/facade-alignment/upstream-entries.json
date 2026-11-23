@@ -1095,29 +1095,29 @@
           "evidence": "framework/tests/exceptions_facade.rs (10 current cases), existing exception_reporting(7) and exception_rendering(5); exceptions-config/test-fifth.log; PHP isReporting oracle"
         },
         "handler": {
-          "local": "handler",
-          "status": "verified-current-contract-paths",
-          "evidence": "framework/tests/exceptions_facade.rs; existing exception_reporting and exception_rendering actual TCP consumers"
+          "local": "handler() unwraps fake to original Arc<dyn ExceptionHandler>",
+          "status": "verified-current-native-paths",
+          "evidence": "exception_handler_fake: 7 local cases; forced MySQL8.4/Redis8 real Artisan queue:work each 1; actual fixed PHP ExceptionHandlerFake oracle; exception-fake/tests-fourth.log + workers-second.log + oracle.log"
         },
         "assertReported": {
-          "local": "assert_reported",
-          "status": "pending",
-          "evidence": "not implemented/verified through this facade; bootstrap configuration or underlying method alone is not facade parity"
+          "local": "assert_reported::<E>() / assert_reported_where::<E>(predicate), concrete root type",
+          "status": "verified-current-native-paths",
+          "evidence": "exception_handler_fake: 7 local cases; forced MySQL8.4/Redis8 real Artisan queue:work each 1; actual fixed PHP ExceptionHandlerFake oracle; exception-fake/tests-fourth.log + workers-second.log + oracle.log"
         },
         "assertReportedCount": {
-          "local": "assert_reported_count",
-          "status": "pending",
-          "evidence": "not implemented/verified through this facade; bootstrap configuration or underlying method alone is not facade parity"
+          "local": "assert_reported_count(usize)",
+          "status": "verified-current-native-paths",
+          "evidence": "exception_handler_fake: 7 local cases; forced MySQL8.4/Redis8 real Artisan queue:work each 1; actual fixed PHP ExceptionHandlerFake oracle; exception-fake/tests-fourth.log + workers-second.log + oracle.log"
         },
         "assertNotReported": {
-          "local": "assert_not_reported",
-          "status": "pending",
-          "evidence": "not implemented/verified through this facade; bootstrap configuration or underlying method alone is not facade parity"
+          "local": "assert_not_reported::<E>() / assert_not_reported_where::<E>(predicate)",
+          "status": "verified-current-native-paths",
+          "evidence": "exception_handler_fake: 7 local cases; forced MySQL8.4/Redis8 real Artisan queue:work each 1; actual fixed PHP ExceptionHandlerFake oracle; exception-fake/tests-fourth.log + workers-second.log + oracle.log"
         },
         "assertNothingReported": {
-          "local": "assert_nothing_reported",
-          "status": "pending",
-          "evidence": "not implemented/verified through this facade; bootstrap configuration or underlying method alone is not facade parity"
+          "local": "assert_nothing_reported()",
+          "status": "verified-current-native-paths",
+          "evidence": "exception_handler_fake: 7 local cases; forced MySQL8.4/Redis8 real Artisan queue:work each 1; actual fixed PHP ExceptionHandlerFake oracle; exception-fake/tests-fourth.log + workers-second.log + oracle.log"
         },
         "renderForConsole": {
           "local": "render_for_console",
@@ -1125,45 +1125,44 @@
           "evidence": "framework/tests/exceptions_facade.rs; existing exception_reporting and exception_rendering actual TCP consumers"
         },
         "throwOnReport": {
-          "local": "throw_on_report",
-          "status": "pending",
-          "evidence": "not implemented/verified through this facade; bootstrap configuration or underlying method alone is not facade parity"
+          "local": "throw_on_report(): direct report returns typed source in Err; automatic boundary propagation remains pending",
+          "status": "partial",
+          "evidence": "exception_handler_fake: 7 local cases; forced MySQL8.4/Redis8 real Artisan queue:work each 1; actual fixed PHP ExceptionHandlerFake oracle; exception-fake/tests-fourth.log + workers-second.log + oracle.log"
         },
         "throwFirstReported": {
-          "local": "throw_first_reported",
-          "status": "pending",
-          "evidence": "not implemented/verified through this facade; bootstrap configuration or underlying method alone is not facade parity"
+          "local": "throw_first_reported() -> LogResult<Arc<ExceptionHandlerFake>>; empty succeeds",
+          "status": "verified-current-native-paths",
+          "evidence": "exception_handler_fake: 7 local cases; forced MySQL8.4/Redis8 real Artisan queue:work each 1; actual fixed PHP ExceptionHandlerFake oracle; exception-fake/tests-fourth.log + workers-second.log + oracle.log"
         },
         "reported": {
-          "local": "reported",
-          "status": "pending",
-          "evidence": "not implemented/verified through this facade; bootstrap configuration or underlying method alone is not facade parity"
+          "local": "reported() -> Vec<SharedException>",
+          "status": "verified-current-native-paths",
+          "evidence": "exception_handler_fake: 7 local cases; forced MySQL8.4/Redis8 real Artisan queue:work each 1; actual fixed PHP ExceptionHandlerFake oracle; exception-fake/tests-fourth.log + workers-second.log + oracle.log"
         },
         "setHandler": {
-          "local": "set_handler",
-          "status": "pending",
-          "evidence": "not implemented/verified through this facade; bootstrap configuration or underlying method alone is not facade parity"
+          "local": "set_handler(Arc<dyn ExceptionHandler>) preserves reports",
+          "status": "verified-current-native-paths",
+          "evidence": "exception_handler_fake: 7 local cases; forced MySQL8.4/Redis8 real Artisan queue:work each 1; actual fixed PHP ExceptionHandlerFake oracle; exception-fake/tests-fourth.log + workers-second.log + oracle.log"
         },
         "fake": {
-          "local": "fake",
-          "status": "pending",
-          "evidence": "not implemented/verified through this facade; bootstrap configuration or underlying method alone is not facade parity"
+          "local": "fake()/fake_with(Vec<ExceptionType>) -> Arc<ExceptionHandlerFake>",
+          "status": "verified-current-native-paths",
+          "evidence": "exception_handler_fake: 7 local cases; forced MySQL8.4/Redis8 real Artisan queue:work each 1; actual fixed PHP ExceptionHandlerFake oracle; exception-fake/tests-fourth.log + workers-second.log + oracle.log"
         }
       },
       "lifecycle": {
         "HTTP": "request retains weak owner-container reference; error boundary resolves current trait binding. Handler replaced during request is observed; stale concrete Handler no longer bypasses replacement",
         "Application/Artisan": "explicit application reporting and console failure rendering resolve current trait binding; missing bindings do not reuse initial concrete handler",
-        "Worker": "existing queue Worker, isolated jobs and exception throttling already resolve dyn ExceptionHandler; this batch does not claim new Worker fake evidence",
+        "Worker": "real MySQL8.4 and Redis8 queue:work invoked through TestApp.artisan, failed registered JobHandler recorded as QueueError retaining non-Clone original source; selected reports not forwarded twice",
         "extensions": "new render_http contract hook has default report+render; concrete Handler overrides with existing request logging context, validation redirects and report throttling; downstream custom handlers remain source compatible"
       },
       "remaining": [
-        "fake, handler-unwrapping for nested fakes, typed reported storage and selectors, assertReported/Count/NotReported/NothingReported, throwOnReport/throwFirstReported, setHandler, isFake marker: implement without losing original Rust error identity and source chain",
-        "owned exception propagation needed for retaining HTTP/Artisan/Worker errors across fake lifetimes; borrowed error snapshots alone are not typed predicate equivalence",
-        "handler getter currently returns current contract Arc as native convenience, not yet Laravel fake original-handler unwrapping",
-        "all custom handler/fake request, async, multi-app, Worker and failure restoration consumers plus shared Facade base mocks/spy still pending",
         "register and map, contextForException/buildContextForException runtime public contracts remain to implement and verify",
         "global throttleUsing callback replacement/default grouping vs native typed policy; full result/chain defaults",
-        "isReporting borrowed zero-sized Rust value identity cannot imply PHP object identity; owned facade report uses Arc-backed identity; review remaining direct borrowed contract consumers during owned-error/fake work"
+        "isReporting borrowed zero-sized Rust value identity cannot imply PHP object identity; owned facade report uses Arc-backed identity; review remaining direct borrowed contract consumers during owned-error/fake work",
+        "throwOnReport automatic propagation at HTTP/Artisan/Worker boundaries that intentionally consume reporting errors; current direct report uses Result with original source; no panic-based substitute",
+        "borrowed opaque exception retention requires explicit SharedException ownership; custom callers and full request/task/Worker failure restoration plus inherited base mocks/spy remain to audit",
+        "withoutExceptionHandling handler mode, all dynamic Handler/config forwarding and full context/map/register contracts still require closure"
       ],
       "runtime_configuration": {
         "handler": "existing handler stores configuration behind RwLock; methods clone snapshots before invoking callbacks or awaiting. Setters preserve constructor configuration and existing duplicate map; old callbacks are retired outside the write lock",
@@ -1183,6 +1182,13 @@
         },
         "registration": "same existing configuration reporter vector; old configuration report() fluent return preserved; no parallel dispatcher",
         "evidence": "fixed PHP matches true/other false/before true/self true/after false/calls2/wrong type error/return false; Rust typed/direct/incompatible/clone/registered/global consumers passed"
+      },
+      "fake_native": {
+        "selector": "of<E> matches concrete root after SharedException transport; including_sources<E> explicitly selects by source chain; typed assertions remain exact root",
+        "ownership": "Arc-owned original errors, predicates executed outside report-list lock; no string snapshots; borrowed opaque errors explicitly fail",
+        "scope": "per-application container replacement; normal Facade is_fake inspects current scope resolved cache; fresh context false until resolution is intentional fixed base behavior",
+        "testing": "TestApp.fake_exceptions retains handle across actual HTTP/Artisan calls; unselected errors delegate original report/render; selected HTTP keeps original rendering-only path",
+        "limits": "direct throwOnReport and throwFirstReported use Result; automatic boundary rethrow pending and not counted complete"
       }
     },
     {

@@ -177,7 +177,8 @@ impl ThrottlesExceptions {
             && let Some(container) = current_container()
             && let Ok(handler) = container.make::<dyn ExceptionHandler>()
         {
-            let _ = handler.report(&Exception::Error(&error)).await;
+            let shared = crate::contracts::debug::SharedException::new(error.clone());
+            let _ = handler.report(&Exception::Error(&shared)).await;
         }
         if self.delete_when.iter().any(|callback| callback(&error)) {
             context.release_after = None;

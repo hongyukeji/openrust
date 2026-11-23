@@ -1,4 +1,5 @@
 use std::{
+    any::Any,
     error::Error,
     fmt,
     sync::{Arc, Weak},
@@ -68,7 +69,7 @@ impl Exception<'_> {
 }
 
 /// Reports exceptions and renders them at the appropriate application boundary.
-pub trait ExceptionHandler: Send + Sync {
+pub trait ExceptionHandler: Any + Send + Sync {
     /// 同步修改运行期配置；自定义处理器须显式支持，不能静默忽略。
     fn configure(
         &self,
@@ -119,6 +120,22 @@ pub trait ExceptionHandler: Send + Sync {
             let _ = self.report(&exception).await;
             self.render(request, &exception)
         })
+    }
+    /// 在拥有错误的边界保留原始实例，供测试替身安全记录。
+    fn handle_http<'a>(
+        &'a self,
+        request: &'a mut Request,
+        error: Arc<HttpError>,
+    ) -> HttpFuture<'a, Response> {
+        Box::pin(async move { self.render_http(request, &error).await })
+    }
+    /// 仅渲染，不再次报告；保留具体处理器的验证重定向和响应钩子。
+    fn render_http_response<'a>(
+        &'a self,
+        request: &'a mut Request,
+        error: &'a HttpError,
+    ) -> HttpFuture<'a, Response> {
+        Box::pin(async move { self.render(request, &Exception::Http(error)) })
     }
     fn render(&self, request: &Request, exception: &Exception<'_>) -> Response;
     fn render_for_console(&self, output: &mut Output, exception: &Exception<'_>);

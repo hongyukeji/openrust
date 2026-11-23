@@ -396,7 +396,7 @@ impl console::Kernel for Kernel {
                     Ok(selected) => selected,
                     Err(error) => {
                         self.application
-                            .render_console_exception(output, &error)
+                            .render_console_exception(output, error)
                             .await;
                         return 1;
                     }
@@ -404,7 +404,7 @@ impl console::Kernel for Kernel {
                 if let Err(error) = self.bootstrap_with_environment(selected).await {
                     output.stderr.push_str("Application startup failed: ");
                     self.application
-                        .render_console_exception(output, &error)
+                        .render_console_exception(output, error)
                         .await;
                     return 1;
                 }

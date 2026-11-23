@@ -315,7 +315,7 @@ impl Application {
                     command = Some(name);
                 }
                 Err(error) => {
-                    application.render_console_exception(output, &error).await;
+                    application.render_console_exception(output, error).await;
                     return 1;
                 }
             }
@@ -338,7 +338,7 @@ impl Application {
                 }
                 Ok(None) => {}
                 Err(error) => {
-                    application.render_console_exception(output, &error).await;
+                    application.render_console_exception(output, error).await;
                     return 1;
                 }
             }
@@ -389,7 +389,7 @@ impl Application {
         match result {
             Ok(status) => status,
             Err(error) => {
-                application.render_console_exception(output, &error).await;
+                application.render_console_exception(output, error).await;
                 1
             }
         }

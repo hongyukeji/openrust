@@ -61,6 +61,18 @@ impl Handler {
         {
             let _ = self.write_report(&exception, Some(request)).await;
         }
+        self.render_http_response_only(request, error).await
+    }
+
+    async fn render_http_response_only(
+        &self,
+        request: &mut Request,
+        error: &HttpError,
+    ) -> Response {
+        if matches!(error, HttpError::DumpAndDie(_)) {
+            return error.bare_response();
+        }
+        let exception = Exception::Http(error);
         let configuration_snapshot = self.configuration();
         let config = configuration_snapshot.as_ref();
         let response = if let Some(custom) =
@@ -292,6 +304,14 @@ impl ExceptionHandler for Handler {
         error: &'a HttpError,
     ) -> HttpFuture<'a, Response> {
         Box::pin(async move { Handler::render_http(self, request, error).await })
+    }
+
+    fn render_http_response<'a>(
+        &'a self,
+        request: &'a mut Request,
+        error: &'a HttpError,
+    ) -> HttpFuture<'a, Response> {
+        Box::pin(async move { self.render_http_response_only(request, error).await })
     }
 
     fn build_log_exception(

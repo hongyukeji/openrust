@@ -234,7 +234,8 @@ impl Response {
                     Err(error) => {
                         if let Some((container, handler)) = &reporter {
                             facades::scope(container.clone(), async {
-                                let _ = handler.report(&Exception::Error(error.as_ref())).await;
+                                let shared = crate::contracts::debug::SharedException::from_arc(std::sync::Arc::from(error));
+                            let _ = handler.report(&Exception::Error(&shared)).await;
                             }).await;
                             return;
                         }

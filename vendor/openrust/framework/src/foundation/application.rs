@@ -444,19 +444,29 @@ impl Application {
             .await
     }
 
+    /// 报告并保留原始错误所有权，供替身及异步消费者安全持有。
+    pub async fn report_owned(
+        &self,
+        error: impl Error + Send + Sync + 'static,
+    ) -> crate::log::LogResult<()> {
+        let shared = crate::contracts::debug::SharedException::new(error);
+        self.report(&shared).await
+    }
+
     pub(crate) async fn render_console_exception(
         &self,
         output: &mut Output,
-        error: &(dyn Error + Send + Sync + 'static),
+        error: impl Error + Send + Sync + 'static,
     ) {
-        if let Some(dump) = error
+        let error = crate::contracts::debug::SharedException::new(error);
+        if let Some(dump) = Exception::Error(&error)
             .downcast_ref::<crate::console::ConsoleError>()
             .and_then(crate::console::ConsoleError::dump_output)
         {
             output.stdout.push_str(dump);
             return;
         }
-        let exception = Exception::Error(error);
+        let exception = Exception::Error(&error);
         match self.exception_handler() {
             Ok(handler) => {
                 let _ = handler.report(&exception).await;

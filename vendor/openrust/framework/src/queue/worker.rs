@@ -522,7 +522,8 @@ impl Worker {
     pub(super) async fn report_worker_error(&self, error: &QueueError) {
         if let Ok(handler) = self.app.make::<dyn ExceptionHandler>() {
             application_scope(self.app.clone(), async {
-                let _ = handler.report(&Exception::Error(error)).await;
+                let shared = crate::contracts::debug::SharedException::new(error.clone());
+                let _ = handler.report(&Exception::Error(&shared)).await;
             })
             .await;
         }
@@ -607,7 +608,10 @@ impl Worker {
                         && attempt.cause.is_none(),
                     |error| async move {
                         if let Ok(handler) = self.app.make::<dyn ExceptionHandler>() {
-                            let _ = handler.report(&Exception::Error(error.as_ref())).await;
+                            let shared = crate::contracts::debug::SharedException::from_arc(
+                                std::sync::Arc::from(error),
+                            );
+                            let _ = handler.report(&Exception::Error(&shared)).await;
                         }
                     },
                 ),

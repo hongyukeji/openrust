@@ -53,7 +53,8 @@ impl Handler for HealthCheck {
                     if let Ok(handler) = container
                         .get::<dyn ExceptionHandler>(ServiceKey::typed::<dyn ExceptionHandler>())
                     {
-                        let _ = handler.report(&Exception::Error(&error)).await;
+                        let shared = crate::contracts::debug::SharedException::new(error);
+                        let _ = handler.report(&Exception::Error(&shared)).await;
                     }
                     false
                 }

@@ -46,7 +46,11 @@ impl<'a> Next<'a> {
                 Some(container) => {
                     use crate::contracts::container::Container as _;
                     match container.make::<dyn crate::contracts::debug::ExceptionHandler>() {
-                        Ok(handler) => handler.render_http(request, &error).await,
+                        Ok(handler) => {
+                            handler
+                                .handle_http(request, std::sync::Arc::new(error))
+                                .await
+                        }
                         Err(source) => super::HttpError::from(source).bare_response(),
                     }
                 }

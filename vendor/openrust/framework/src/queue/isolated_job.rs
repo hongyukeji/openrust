@@ -220,7 +220,8 @@ pub(super) async fn execute(
         if let Err(error) = restore_deferred(app.clone(), run)
             && let Ok(handler) = app.make::<dyn ExceptionHandler>()
         {
-            let _ = handler.report(&Exception::Error(&error)).await;
+            let shared = crate::contracts::debug::SharedException::new(error);
+            let _ = handler.report(&Exception::Error(&shared)).await;
         }
     }
     context.release_after = response.release_after;

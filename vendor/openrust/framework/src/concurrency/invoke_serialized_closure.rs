@@ -56,7 +56,7 @@ impl Command for InvokeSerializedClosure {
                 return match result {
                     Ok(_) => Ok(0),
                     Err(error) => {
-                        let _ = application.report(&error).await;
+                        let _ = application.report_owned(error).await;
                         Ok(1)
                     }
                 };

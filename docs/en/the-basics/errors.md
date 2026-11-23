@@ -180,7 +180,7 @@ async fn report_failure() -> LogResult<()> {
 }
 ```
 
-`report` accepts an owned Rust error. `should_report`, `should_stop_retries`, `render` and `render_for_console` forward the existing contract, while `handler` returns its current Arc. `should_report` checks eligibility without consuming sampling or throttling admissions; actual reporting applies those policies. Bootstrap configuration remains in `with_exceptions`. Runtime forwards now include `reportable`, `renderable`, `dont_report`, `ignore`, `stop_ignoring`, `dont_report_when`, `dont_retry`, `dont_retry_when`, `dont_flash`, `level`, `build_context_using`, `respond_using`, `should_render_json_when`, `dont_report_duplicates` and typed `throttle_using`. `is_reporting` checks whether that exact exception instance is currently being reported; it does not test report eligibility or consume a throttling admission. Custom handlers must explicitly support runtime configuration and this read-only query; otherwise these operations return an error. Exception fake/assertion APIs are still pending.
+`report` accepts an owned Rust error. `should_report`, `should_stop_retries`, `render` and `render_for_console` forward the existing contract, while `handler` returns its underlying handler Arc, unwrapping an exception fake. `should_report` checks eligibility without consuming sampling or throttling admissions; actual reporting applies those policies. Bootstrap configuration remains in `with_exceptions`. Runtime forwards now include `reportable`, `renderable`, `dont_report`, `ignore`, `stop_ignoring`, `dont_report_when`, `dont_retry`, `dont_retry_when`, `dont_flash`, `level`, `build_context_using`, `respond_using`, `should_render_json_when`, `dont_report_duplicates` and typed `throttle_using`. `is_reporting` checks whether that exact exception instance is currently being reported; it does not test report eligibility or consume a throttling admission. Custom handlers must explicitly support runtime configuration and this read-only query; otherwise these operations return an error. Exception fake and assertion APIs are described below.
 
 ### Reportable handlers {#reportable-handlers}
 
@@ -197,3 +197,26 @@ fn configure_reports() -> Result<(), BindingResolutionError> {
 ```
 
 `handles` checks a typed handler against an `Exception`; `invoke` returns an error for an incompatible type. Callback execution still occurs before the stop flag is applied. Existing bootstrap `exceptions.report(...)` keeps its fluent configuration return; use bootstrap `exceptions.reportable(...)` when a reportable handle is needed.
+
+### Exception testing {#exception-testing}
+
+Install `Exceptions::fake()` inside the current application facade scope, or use `TestApp::fake_exceptions(&[])` and retain the returned handle across HTTP and Artisan calls. An empty selection records all reportable errors. `ExceptionType::of::<E>()` selects the concrete root error; `including_sources::<E>()` explicitly selects by source chain. Typed assertions still check the root type, rather than counting a nested source as another reported exception.
+
+```rust
+use openrust::{http::HttpError, testing::TestApp};
+
+async fn check_reports(app: &mut TestApp) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let exceptions = app.fake_exceptions(&[]).await?;
+    let _response = app.get("/failure").await?;
+    exceptions.assert_reported::<HttpError>();
+    exceptions.assert_reported_where::<HttpError>(|error| error.to_string().contains("failure"));
+    exceptions.assert_reported_count(1);
+    Ok(())
+}
+```
+
+`assert_reported`, `assert_not_reported`, their `_where` variants, `assert_reported_count`, and `assert_nothing_reported` are available on the handle and the facade. `reported()` returns shared original errors. Predicates run without holding the report-list lock. HTTP rendering, validation redirects and console rendering use the original handler; selected reports do not also reach its logger. Unselected errors delegate normally. `handler()` unwraps the current fake; installing another fake starts a fresh list without nesting the previous fake. `set_handler` replaces its delegate while retaining reports.
+
+`Exceptions::report(error)` and `Application::report_owned(error)` take ownership. HTTP, Artisan and Worker boundaries retain shared errors too. When implementing a custom handler caller with an already borrowed opaque error, use `SharedException` before borrowing it; a fake cannot safely retain an arbitrary borrowed error and returns an explicit error instead of storing a string snapshot. Applications and concurrent tasks do not share fake records.
+
+`throw_on_report()` makes direct `report(...).await` return an error containing the original source; `throw_first_reported()` returns the first recorded error, or succeeds when the list is empty. These use Rust `Result`, not a panic. Automatic propagation through HTTP / Artisan / Worker boundaries that intentionally consume logging failures is still pending; use explicit result checks or `throw_first_reported` in tests. This boundary is not counted as full exception-testing parity.

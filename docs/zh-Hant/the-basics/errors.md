@@ -180,7 +180,7 @@ async fn report_failure() -> LogResult<()> {
 }
 ```
 
-`report` 接收擁有所有權的 Rust 錯誤；`should_report`、`should_stop_retries`、`render` 與 `render_for_console` 轉發既有契約，`handler` 回傳目前 Arc。`should_report` 只查詢報告資格，不消耗採樣或節流配額，實際報告時才執行這些策略。啟動設定繼續寫在 `with_exceptions`。執行期現已提供 `reportable`、`renderable`、`dont_report`、`ignore`、`stop_ignoring`、`dont_report_when`、`dont_retry`、`dont_retry_when`、`dont_flash`、`level`、`build_context_using`、`respond_using`、`should_render_json_when`、`dont_report_duplicates` 與帶型別的 `throttle_using`。`is_reporting` 查詢同一例外實例是否正在被報告，不是報告資格查詢，也不消耗報告節流配額。自訂處理器須明確支援執行期設定及此唯讀查詢，否則回傳錯誤。例外 fake／斷言介面仍待補齊。
+`report` 接收擁有所有權的 Rust 錯誤；`should_report`、`should_stop_retries`、`render` 與 `render_for_console` 轉發既有契約，`handler` 回傳目前 Arc。`should_report` 只查詢報告資格，不消耗採樣或節流配額，實際報告時才執行這些策略。啟動設定繼續寫在 `with_exceptions`。執行期現已提供 `reportable`、`renderable`、`dont_report`、`ignore`、`stop_ignoring`、`dont_report_when`、`dont_retry`、`dont_retry_when`、`dont_flash`、`level`、`build_context_using`、`respond_using`、`should_render_json_when`、`dont_report_duplicates` 與帶型別的 `throttle_using`。`is_reporting` 查詢同一例外實例是否正在被報告，不是報告資格查詢，也不消耗報告節流配額。自訂處理器須明確支援執行期設定及此唯讀查詢，否則回傳錯誤。例外替身與斷言見下文。
 
 ### 可報告回呼控制代碼 {#reportable-handlers}
 
@@ -197,3 +197,26 @@ fn configure_reports() -> Result<(), BindingResolutionError> {
 ```
 
 `handles` 用於檢查型別回呼是否比對某個 `Exception`；`invoke` 遇到不相符型別會回傳錯誤。停止旗標不阻止目前回呼本身執行，而是在它回傳後阻止後續報告。既有啟動設定 `exceptions.report(...)` 保留原來的鏈式設定回傳值，需要控制代碼時使用啟動設定 `exceptions.reportable(...)`。
+
+### 例外測試 {#exception-testing}
+
+在目前應用門面作用域中呼叫 `Exceptions::fake()`，或使用 `TestApp::fake_exceptions(&[])` 保留傳回的句柄，跨 HTTP、Artisan 呼叫進行斷言。空選擇列表記錄所有可報告例外。`ExceptionType::of::<E>()` 精確選擇報告的根型別；`including_sources::<E>()` 才明確檢查錯誤來源鏈。型別斷言仍匹配根型別，不將巢狀來源錯誤算作另一筆報告。
+
+```rust
+use openrust::{http::HttpError, testing::TestApp};
+
+async fn check_reports(app: &mut TestApp) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let exceptions = app.fake_exceptions(&[]).await?;
+    let _response = app.get("/failure").await?;
+    exceptions.assert_reported::<HttpError>();
+    exceptions.assert_reported_where::<HttpError>(|error| error.to_string().contains("failure"));
+    exceptions.assert_reported_count(1);
+    Ok(())
+}
+```
+
+句柄與門面都提供 `assert_reported`、`assert_not_reported`、對應的 `_where` 條件斷言、`assert_reported_count` 與 `assert_nothing_reported`。`reported()` 傳回共享的原始錯誤；執行條件回呼時不持有記錄列表鎖。HTTP 渲染、驗證重新導向與主控台渲染仍使用原處理器，選中並記錄的報告不再重複寫入其日誌，未選中的錯誤正常委派。`handler()` 傳回替身背後的處理器；重複安裝替身使用新的記錄列表，不巢狀包裝舊替身。`set_handler` 更換委派處理器並保留既有記錄。
+
+`Exceptions::report(error)` 與 `Application::report_owned(error)` 接收錯誤所有權，HTTP、Artisan 與 Worker 邊界也保留共享錯誤。自訂呼叫端若只有借用的非透明錯誤，須先持有 `SharedException` 再借用；替身無法安全保存任意短期借用，因此明確傳回錯誤，不降級為字串快照。不同應用與並行任務不會共用替身記錄。
+
+`throw_on_report()` 使直接的 `report(...).await` 傳回含原始來源錯誤的失敗；`throw_first_reported()` 傳回首筆報告的錯誤，空列表則成功。此處使用 Rust `Result`，不會主動 panic。HTTP／Artisan／Worker 中原本消費日誌失敗的邊界，自動傳播報告錯誤的行為仍待補齊；測試暫用明確結果檢查或 `throw_first_reported`。此邊界尚不計為例外測試完整對齊。

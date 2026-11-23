@@ -18,6 +18,9 @@ impl Facade for Exceptions {
     fn get_facade_accessor() -> ServiceKey {
         ServiceKey::typed::<dyn ExceptionHandler>()
     }
+    fn is_fake_root(service: &Self::Service) -> bool {
+        (service as &dyn std::any::Any).is::<crate::testing::ExceptionHandlerFake>()
+    }
 }
 impl Exceptions {
     pub async fn report(error: impl Error + Send + Sync + 'static) -> LogResult<()> {
@@ -52,7 +55,14 @@ impl Exceptions {
         Ok(())
     }
     pub fn handler() -> Result<Arc<dyn ExceptionHandler>, BindingResolutionError> {
-        Self::get_facade_root()
+        let current = Self::get_facade_root()?;
+        let any: Arc<dyn std::any::Any + Send + Sync> = current.clone();
+        Ok(
+            match any.downcast::<crate::testing::ExceptionHandlerFake>() {
+                Ok(fake) => fake.handler(),
+                Err(_) => current,
+            },
+        )
     }
 }
 
@@ -186,5 +196,87 @@ impl Exceptions {
         Self::configure(|configuration| {
             configuration.throttle(callback);
         })
+    }
+}
+
+impl Exceptions {
+    fn fake_root() -> Result<Arc<crate::testing::ExceptionHandlerFake>, BindingResolutionError> {
+        let current: Arc<dyn std::any::Any + Send + Sync> = Self::get_facade_root()?;
+        current
+            .downcast()
+            .map_err(|_| BindingResolutionError::FactoryFailed {
+                service: "ExceptionHandlerFake",
+                source: Box::new(std::io::Error::other("尚未启用异常替身")),
+            })
+    }
+    pub fn fake() -> Result<Arc<crate::testing::ExceptionHandlerFake>, BindingResolutionError> {
+        Self::fake_with(Vec::new())
+    }
+    pub fn fake_with(
+        exceptions: Vec<crate::testing::ExceptionType>,
+    ) -> Result<Arc<crate::testing::ExceptionHandlerFake>, BindingResolutionError> {
+        let fake = Arc::new(crate::testing::ExceptionHandlerFake::new(
+            Self::handler()?,
+            exceptions,
+        ));
+        Self::swap(fake.clone())?;
+        Ok(fake)
+    }
+    pub fn reported()
+    -> Result<Vec<crate::contracts::debug::SharedException>, BindingResolutionError> {
+        Ok(Self::fake_root()?.reported())
+    }
+    pub fn set_handler(
+        handler: Arc<dyn ExceptionHandler>,
+    ) -> Result<Arc<crate::testing::ExceptionHandlerFake>, BindingResolutionError> {
+        let fake = Self::fake_root()?;
+        fake.set_handler(handler);
+        Ok(fake)
+    }
+    pub fn throw_on_report()
+    -> Result<Arc<crate::testing::ExceptionHandlerFake>, BindingResolutionError> {
+        let fake = Self::fake_root()?;
+        fake.throw_on_report();
+        Ok(fake)
+    }
+    pub fn throw_first_reported() -> crate::log::LogResult<Arc<crate::testing::ExceptionHandlerFake>>
+    {
+        let fake = Self::fake_root()?;
+        fake.throw_first_reported()?;
+        Ok(fake)
+    }
+    #[track_caller]
+    pub fn assert_reported<E: Error + 'static>() -> Result<(), BindingResolutionError> {
+        Self::fake_root()?.assert_reported::<E>();
+        Ok(())
+    }
+    #[track_caller]
+    pub fn assert_reported_where<E: Error + 'static>(
+        predicate: impl Fn(&E) -> bool,
+    ) -> Result<(), BindingResolutionError> {
+        Self::fake_root()?.assert_reported_where(predicate);
+        Ok(())
+    }
+    #[track_caller]
+    pub fn assert_not_reported<E: Error + 'static>() -> Result<(), BindingResolutionError> {
+        Self::fake_root()?.assert_not_reported::<E>();
+        Ok(())
+    }
+    #[track_caller]
+    pub fn assert_not_reported_where<E: Error + 'static>(
+        predicate: impl Fn(&E) -> bool,
+    ) -> Result<(), BindingResolutionError> {
+        Self::fake_root()?.assert_not_reported_where(predicate);
+        Ok(())
+    }
+    #[track_caller]
+    pub fn assert_reported_count(count: usize) -> Result<(), BindingResolutionError> {
+        Self::fake_root()?.assert_reported_count(count);
+        Ok(())
+    }
+    #[track_caller]
+    pub fn assert_nothing_reported() -> Result<(), BindingResolutionError> {
+        Self::fake_root()?.assert_nothing_reported();
+        Ok(())
     }
 }

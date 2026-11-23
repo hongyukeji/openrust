@@ -237,6 +237,18 @@ impl TestApp {
         Ok(self.app.make::<Dispatcher>().await?.fake(events))
     }
 
+    /// 注册当前应用的异常替身；空选择列表记录所有可报告异常。
+    pub async fn fake_exceptions(
+        &mut self,
+        exceptions: &[super::ExceptionType],
+    ) -> Result<Arc<super::ExceptionHandlerFake>, Box<dyn Error + Send + Sync>> {
+        self.boot().await?;
+        Ok(application_scope(self.app.container_handle(), async {
+            crate::support::facades::Exceptions::fake_with(exceptions.to_vec())
+        })
+        .await?)
+    }
+
     /// Returns the application created for this test.
     pub fn app(&self) -> &Application {
         &self.app
