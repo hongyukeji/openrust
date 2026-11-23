@@ -1246,10 +1246,10 @@ fn dispatch(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
         } else if kind == "timed_pause" {
             let connection = Queue::connection(None)?;
             let name = connection.get_connection_name();
-            Queue::pause_for(name, "default", Ttl::Seconds(3)).await?;
-            assert!(Queue::is_paused(name, "default").await?);
+            Queue::pause_for(&name, "default", Ttl::Seconds(3)).await?;
+            assert!(Queue::is_paused(&name, "default").await?);
             assert_eq!(
-                Queue::get_paused_queues(name, &["low", "default"]).await?,
+                Queue::get_paused_queues(&name, &["low", "default"]).await?,
                 ["default"]
             );
         } else if matches!(kind, "invoice" | "rollback") {

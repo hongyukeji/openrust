@@ -532,9 +532,9 @@ use openrust::{cache::Ttl, queue::QueueResult, support::facades::Queue};
 async fn pause_default_queue() -> QueueResult<()> {
     let connection = Queue::connection(None)?;
     let name = connection.get_connection_name();
-    Queue::pause_for(name, "default", Ttl::Seconds(3)).await?;
-    assert!(Queue::is_paused(name, "default").await?);
-    assert_eq!(Queue::get_paused_queues(name, &["low", "default"]).await?, ["default"]);
+    Queue::pause_for(&name, "default", Ttl::Seconds(3)).await?;
+    assert!(Queue::is_paused(&name, "default").await?);
+    assert_eq!(Queue::get_paused_queues(&name, &["low", "default"]).await?, ["default"]);
     Ok(())
 }
 ```
@@ -1041,3 +1041,39 @@ The command reports total, pending, delayed, and reserved jobs, and the oldest p
 ## Queued listeners
 
 Use `ListenerRegistry::listen_queued::<YourEvent>` with a stable listener ID and a serializable event. The worker resolves the registered listener from its application. The listener's `after_commit` option can defer enqueueing until the transaction commits.
+
+## Managed queues
+
+The `Cloud` facade reads the application environment snapshot. `hosted()` requires `LARAVEL_CLOUD=1`; `uses_managed_queues()` checks `queue.connections.cloud.driver`, independently of the default queue connection. `queue()` returns the actual managed SQS connection, and `is_managed_queue("priority")` checks its configured queue names strictly.
+
+In a hosted application, `LARAVEL_CLOUD_MANAGED_QUEUES_CONFIG` can contain the JSON configuration below. The nested `connection` belongs to the existing SQS driver; `queues` lists managed queue names. Credentials are read by each application process and are not included in job payloads.
+
+```json
+{
+  "driver": "cloud",
+  "queues": ["default", "priority"],
+  "connection": {
+    "region": "us-east-1",
+    "queue": "default",
+    "prefix": "https://sqs.us-east-1.amazonaws.com/123456789012",
+    "after_commit": false
+  },
+  "agent": {"enabled": true, "socket": "/run/cloud-agent.sock"}
+}
+```
+
+```rust
+use openrust::support::facades::Cloud;
+
+let managed = Cloud::uses_managed_queues()?;
+let priority = Cloud::is_managed_queue("priority")?;
+let queue = Cloud::queue()?;
+let name = queue.get_connection_name();
+let normalized = queue.normalize_queue(Some("priority"))?;
+```
+
+```sh
+./artisan queue:work cloud --queue=priority
+```
+
+Agent polling is enabled only for a matching single queue inside `queue:work`; ordinary callers and multi-queue workers use SQS. The agent receives `processed` or `released` results and owns SQS settlement. Result HTTP 4xx errors remain request errors; connection failures and HTTP 5xx are lost-agent errors. Unix agent transport is supported on Unix systems; other systems can use SQS directly. This initial integration does not yet provide the hosted telemetry, remote failed-job download or shared credential-cache lifecycle; real hosted delivery requires separate acceptance.

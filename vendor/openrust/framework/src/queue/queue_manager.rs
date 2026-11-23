@@ -465,7 +465,7 @@ impl QueueManager {
         let queue = if queue.is_empty() { "default" } else { queue };
         let configured = self.resolve(connection)?;
         configured.queue_name(Some(queue))?;
-        Ok((configured.queue.get_connection_name().into(), queue.into()))
+        Ok((configured.queue.get_connection_name(), queue.into()))
     }
 
     pub async fn dispatch(
@@ -792,7 +792,7 @@ impl QueueManager {
                 return Err(QueueError::InvalidPayload);
             }
             self.resolve_batch_destination(
-                &batch.options(destination.queue.get_connection_name(), queue),
+                &batch.options(&destination.queue.get_connection_name(), queue),
             )?;
         }
         Ok(())
@@ -1022,7 +1022,25 @@ impl QueueManager {
             None if name == "sync" => serde_json::json!({"driver": "sync"}),
             None => return Err(QueueError::UnknownConnection { name: name.into() }),
         };
-        let settings = Settings::deserialize(&raw).map_err(|_| QueueError::InvalidConfiguration)?;
+        // 托管连接的connection是嵌套SQS配置，不是数据库/Redis的连接名称。
+        let settings_source = if raw.get("driver").and_then(Value::as_str) == Some("cloud") {
+            let mut source = raw.clone();
+            let fields = source
+                .as_object_mut()
+                .ok_or(QueueError::InvalidConfiguration)?;
+            if let Some(connection) = fields.remove("connection")
+                && let Some(value) = connection.get("after_commit")
+            {
+                fields
+                    .entry("after_commit")
+                    .or_insert_with(|| value.clone());
+            }
+            source
+        } else {
+            raw.clone()
+        };
+        let settings = Settings::deserialize(&settings_source)
+            .map_err(|_| QueueError::InvalidConfiguration)?;
         let connector = self
             .connectors
             .read()
@@ -1083,6 +1101,45 @@ impl QueueManager {
         Ok(configured)
     }
 
+    pub(crate) fn make_cloud(
+        &self,
+        name: &str,
+        config: &Value,
+    ) -> QueueResult<Arc<crate::foundation::cloud::Queue>> {
+        let connection = config
+            .get("connection")
+            .filter(|value| value.is_object())
+            .ok_or(QueueError::InvalidConfiguration)?;
+        let sqs = self.make_sqs(name, connection)?;
+        Ok(Arc::new(crate::foundation::cloud::Queue::new(
+            sqs,
+            config.clone(),
+            self.owner.clone(),
+        )))
+    }
+    fn make_sqs(&self, name: &str, raw: &Value) -> QueueResult<Arc<super::sqs_queue::SqsQueue>> {
+        let options = super::sqs_queue::Options::deserialize(raw)
+            .map_err(|_| QueueError::InvalidConfiguration)?;
+        let selected = raw
+            .get("queue")
+            .map(|value| value.as_str().ok_or(QueueError::InvalidConfiguration))
+            .transpose()?;
+        let queue = queue_name(selected, "default")?.to_owned();
+        Ok(Arc::new(super::sqs_queue::SqsQueue::new(
+            name.into(),
+            queue,
+            self.registry.clone(),
+            options,
+            |store| {
+                let owner = self
+                    .owner
+                    .upgrade()
+                    .ok_or(QueueError::InvalidConfiguration)?;
+                owner.make::<CacheManager>()?.store(store).map_err(backend)
+            },
+        )?))
+    }
+
     fn make(
         &self,
         name: &str,
@@ -1097,21 +1154,7 @@ impl QueueManager {
         }
         let driver: (Arc<dyn Contract>, BatchBackend) = match settings.driver.as_str() {
             "sqs" => {
-                let options = super::sqs_queue::Options::deserialize(raw)
-                    .map_err(|_| QueueError::InvalidConfiguration)?;
-                let sqs = Arc::new(super::sqs_queue::SqsQueue::new(
-                    name.into(),
-                    queue,
-                    registry,
-                    options,
-                    |store| {
-                        let owner = self
-                            .owner
-                            .upgrade()
-                            .ok_or(QueueError::InvalidConfiguration)?;
-                        owner.make::<CacheManager>()?.store(store).map_err(backend)
-                    },
-                )?);
+                let sqs = self.make_sqs(name, raw)?;
                 (sqs.clone(), BatchBackend::Sqs(sqs))
             }
             "null" | "deferred" | "background" => {
@@ -1266,7 +1309,7 @@ async fn emit_queueing(
     let dispatcher = owner.make::<Dispatcher>()?;
     if dispatcher.observes(super::events::JobQueueing::NAME) {
         let event = super::events::JobQueueing {
-            connection_name: queue.get_connection_name().into(),
+            connection_name: queue.get_connection_name(),
             queue: super::queue_name(options.queue.as_deref(), queue.default_queue())?.into(),
             job: payload.clone(),
         };

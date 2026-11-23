@@ -4,7 +4,9 @@ use http::{HeaderMap, HeaderValue, Method, header};
 use serde::Serialize;
 
 use super::digest::DigestCredentials;
-use super::factory::{BODY_LIMIT, CONNECT_TIMEOUT, TIMEOUT, build_client};
+use super::factory::{
+    BODY_LIMIT, CONNECT_TIMEOUT, TIMEOUT, build_client, build_client_with_socket,
+};
 use super::transport::Transport;
 use super::uri_template;
 use super::{BatchResults, Error, Factory, Form, Pool, Response, Result};
@@ -90,6 +92,7 @@ pub struct PendingRequest {
     redact_response: bool,
     connect_timeout: Duration,
     verify_tls: bool,
+    unix_socket: Option<std::path::PathBuf>,
     timeout: Duration,
     redirects: Option<usize>,
     sink: Option<super::Sink>,
@@ -118,6 +121,7 @@ impl PendingRequest {
             redact_response: false,
             connect_timeout: CONNECT_TIMEOUT,
             verify_tls: true,
+            unix_socket: None,
             timeout: TIMEOUT,
             redirects: Some(5),
             sink: None,
@@ -360,6 +364,11 @@ impl PendingRequest {
         self
     }
 
+    /// 指定HTTP请求的Unix套接字传输；不改变工厂或其他请求。
+    pub fn unix_socket(mut self, path: impl Into<std::path::PathBuf>) -> Self {
+        self.unix_socket = Some(path.into());
+        self
+    }
     pub fn timeout(mut self, duration: Duration) -> Self {
         self.timeout = duration;
         self
@@ -482,7 +491,13 @@ impl PendingRequest {
         if self.timeout.is_zero() || self.connect_timeout.is_zero() {
             return Err(Error::Configuration);
         }
-        let client = if self.connect_timeout == CONNECT_TIMEOUT && self.verify_tls {
+        let client = if self.unix_socket.is_some() {
+            build_client_with_socket(
+                self.connect_timeout,
+                self.verify_tls,
+                self.unix_socket.as_deref(),
+            )?
+        } else if self.connect_timeout == CONNECT_TIMEOUT && self.verify_tls {
             self.factory.client.clone()
         } else {
             build_client(self.connect_timeout, self.verify_tls)?

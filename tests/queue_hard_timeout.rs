@@ -1114,7 +1114,7 @@ mod acceptance {
         assert_eq!(queue.size(Some("clear-two")).await.unwrap(), 1);
 
         let connection = queue.get_connection_name();
-        let args = [connection, selection[0], "--force"];
+        let args = [connection.as_str(), selection[0], "--force"];
         let (code, _, error) = clear(&args, true, true).await;
         assert_eq!(code, Some(1), "{error}");
         assert!(error.contains("Queue clearing is prohibited."), "{error}");
@@ -1783,7 +1783,7 @@ mod acceptance {
             provider
                 .log(&FailedJob {
                     id: id.into(),
-                    connection: queue.get_connection_name().into(),
+                    connection: queue.get_connection_name(),
                     queue: name.into(),
                     payload,
                     exception: "original failure".into(),
@@ -1909,7 +1909,7 @@ mod acceptance {
             provider
                 .log(&FailedJob {
                     id: kind.into(),
-                    connection: queue.get_connection_name().into(),
+                    connection: queue.get_connection_name(),
                     queue: kind.into(),
                     payload,
                     exception: "original failure".into(),

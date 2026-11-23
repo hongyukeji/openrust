@@ -95,7 +95,7 @@ impl Command for WorkCommand {
             let connection = manager
                 .connection(args.get_one::<String>("connection").map(String::as_str))
                 .map_err(error)?;
-            let worker = Worker::new(container).map_err(error)?;
+            let worker = Worker::new(container.clone()).map_err(error)?;
             let queues = args
                 .get_one::<String>("queue")
                 .map(|queues| queues.split(',').collect::<Vec<_>>())
@@ -106,7 +106,7 @@ impl Command for WorkCommand {
             let budget = config
                 .get("queue.memory_limit")
                 .and_then(|value| value.as_u64());
-            let options = WorkerOptions {
+            let mut options = WorkerOptions {
                 force,
                 name: args
                     .get_one::<String>("name")
@@ -148,6 +148,14 @@ impl Command for WorkCommand {
                     .and_then(|value| value.as_bool())
                     .unwrap_or(true),
             };
+            if connection
+                .clone()
+                .into_any()
+                .is_some_and(|queue| queue.is::<crate::foundation::cloud::Queue>())
+            {
+                options.memory = 0;
+                options.timed_out_exit_code = 124;
+            }
             let mut cadence = if once {
                 WorkerCadence {
                     single_run: true,
@@ -175,7 +183,7 @@ impl Command for WorkCommand {
                 .unwrap_or(jiff::tz::TimeZone::UTC);
             let mut status = WorkerOutput::new(output, args, timezone);
             let shutdown = CancellationToken::new();
-            let result = if let Some(shutdown) = input.shutdown() {
+            let result = crate::foundation::cloud::worker::scope(&container,connection.clone(),&queues,async { if let Some(shutdown) = input.shutdown() {
                 worker
                     .daemon_with_status(
                         &*connection,
@@ -189,7 +197,7 @@ impl Command for WorkCommand {
                     )
                     .await
             } else if once {
-                let listener = crate::console::monitor_signals(shutdown.clone()).map_err(error)?;
+                let listener = crate::console::monitor_signals(shutdown.clone()).map_err(crate::queue::backend)?;
                 let result = worker
                     .daemon_with_status(
                         &*connection,
@@ -211,8 +219,9 @@ impl Command for WorkCommand {
             } else {
                 let (signal_state, state) = watch::channel(WorkerSignalState::Running);
                 cadence.signal_state = Some(state);
+                let connection_name = connection.get_connection_name();
                 let mut signals = WorkerSignals::new(
-                    connection.get_connection_name(),
+                    &connection_name,
                     if queues.is_empty() {
                         connection.default_queue().to_owned()
                     } else {
@@ -220,7 +229,7 @@ impl Command for WorkCommand {
                     },
                     &options,
                 )
-                .map_err(error)?;
+                .map_err(crate::queue::backend)?;
                 let run = worker.daemon_with_status(
                     &*connection,
                     &queues,
@@ -235,7 +244,8 @@ impl Command for WorkCommand {
                     () = signals.monitor(&worker, &manager, &shutdown, &signal_state) => run.await,
                     result = &mut run => result,
                 }
-            };
+            }
+            }).await;
             result.map(|(_, exit_code)| exit_code).map_err(error)
         })
     }

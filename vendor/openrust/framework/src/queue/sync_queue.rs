@@ -195,8 +195,8 @@ async fn emit<E: Event>(
 }
 
 impl Contract for SyncQueue {
-    fn get_connection_name(&self) -> &str {
-        &self.name
+    fn get_connection_name(&self) -> String {
+        self.name.clone()
     }
 
     fn size<'a>(&'a self, _queue: Option<&'a str>) -> QueueFuture<'a, QueueResult<u64>> {

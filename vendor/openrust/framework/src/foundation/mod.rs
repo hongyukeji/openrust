@@ -4,6 +4,7 @@ mod application;
 pub mod auth;
 pub mod bootstrap;
 mod bootstrap_error;
+pub mod cloud;
 pub mod configuration;
 pub mod console;
 mod dev_commands;

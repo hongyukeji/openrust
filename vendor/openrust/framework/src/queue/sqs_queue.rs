@@ -74,7 +74,7 @@ struct Pointer {
     key: String,
 }
 
-pub(super) struct SqsQueue {
+pub(crate) struct SqsQueue {
     name: String,
     queue: String,
     registry: Arc<Queue>,
@@ -128,7 +128,7 @@ impl SqsQueue {
         Ok(driver)
     }
 
-    async fn client(&self) -> &Client {
+    pub(crate) async fn client(&self) -> &Client {
         self.client
             .get_or_init(|| async {
                 let mut loader = aws_config::defaults(BehaviorVersion::latest());
@@ -152,7 +152,17 @@ impl SqsQueue {
             .await
     }
 
-    fn url(&self, queue: Option<&str>) -> QueueResult<String> {
+    pub(crate) fn renamed(&self, name: String) -> Self {
+        Self {
+            name,
+            queue: self.queue.clone(),
+            registry: self.registry.clone(),
+            options: self.options.clone(),
+            client: OnceCell::new_with(self.client.get().cloned()),
+            overflow: self.overflow.clone(),
+        }
+    }
+    pub(crate) fn url(&self, queue: Option<&str>) -> QueueResult<String> {
         queue_url(queue.unwrap_or(&self.queue), &self.options)
     }
 }
@@ -271,27 +281,7 @@ impl SqsQueue {
             .and_then(|value| value.parse().ok())
             .ok_or(QueueError::InvalidPayload)?;
         let body = message.body().ok_or(QueueError::InvalidPayload)?;
-        let pointer = self
-            .overflow
-            .as_ref()
-            .and_then(|_| serde_json::from_str::<Pointer>(body).ok());
-        let payload = if let (Some(store), Some(pointer)) = (&self.overflow, &pointer) {
-            let id = pointer
-                .key
-                .strip_prefix(POINTER_PREFIX)
-                .ok_or(QueueError::InvalidPayload)?;
-            if uuid::Uuid::parse_str(id).is_err() {
-                return Err(QueueError::InvalidPayload);
-            }
-            let Some(Value::Json(serde_json::Value::String(body))) =
-                store.cache.get(&pointer.key).await.map_err(backend)?
-            else {
-                return Err(QueueError::InvalidPayload);
-            };
-            Payload::decode(&body)?
-        } else {
-            Payload::decode(body)?
-        };
+        let (payload, pointer) = self.decode_message(body).await?;
         Ok(Some(Box::new(ReservedJob {
             registry: self.registry.clone(),
             storage: Box::new(SqsReservation {
@@ -315,11 +305,71 @@ impl SqsQueue {
             failed: false,
         })))
     }
+    async fn decode_message(&self, body: &str) -> QueueResult<(Payload, Option<Pointer>)> {
+        let pointer = self
+            .overflow
+            .as_ref()
+            .and_then(|_| serde_json::from_str::<Pointer>(body).ok());
+        let payload = if let (Some(store), Some(pointer)) = (&self.overflow, &pointer) {
+            let id = pointer
+                .key
+                .strip_prefix(POINTER_PREFIX)
+                .ok_or(QueueError::InvalidPayload)?;
+            if uuid::Uuid::parse_str(id).is_err() {
+                return Err(QueueError::InvalidPayload);
+            }
+            let Some(Value::Json(serde_json::Value::String(body))) =
+                store.cache.get(&pointer.key).await.map_err(backend)?
+            else {
+                return Err(QueueError::InvalidPayload);
+            };
+            Payload::decode(&body)?
+        } else {
+            Payload::decode(body)?
+        };
+        Ok((payload, pointer))
+    }
+    pub(crate) async fn agent_job(
+        self: &Arc<Self>,
+        id: String,
+        body: &str,
+        url: String,
+        attempts: u32,
+    ) -> QueueResult<Box<dyn Job>> {
+        let (payload, _) = self.decode_message(body).await?;
+        Ok(Box::new(ReservedJob {
+            registry: self.registry.clone(),
+            storage: Box::new(AgentReservation {
+                queue: self.clone(),
+                url: url.clone(),
+            }),
+            id,
+            context: JobContext {
+                connection: self.name.clone(),
+                queue: url,
+                attempts,
+                ..Default::default()
+            },
+            payload,
+            deleted: false,
+            released: false,
+            failed: false,
+        }))
+    }
+    pub(crate) async fn delete_agent_overflow(&self, body: &str) -> QueueResult<()> {
+        if let Some(store) = &self.overflow
+            && store.delete_after_processing
+            && let Ok(pointer) = serde_json::from_str::<Pointer>(body)
+        {
+            store.cache.forget(&pointer.key).await.map_err(backend)?;
+        }
+        Ok(())
+    }
 }
 
 impl Contract for SqsQueue {
-    fn get_connection_name(&self) -> &str {
-        &self.name
+    fn get_connection_name(&self) -> String {
+        self.name.clone()
     }
     fn default_queue(&self) -> &str {
         &self.queue
@@ -656,5 +706,42 @@ where
         QueueError::LostReservation
     } else {
         backend(error)
+    }
+}
+
+// Agent 负责原消息的 SQS 结算，链式后继仍复用相同驱动的发送实现。
+struct AgentReservation {
+    queue: Arc<SqsQueue>,
+    url: String,
+}
+impl Reservation for AgentReservation {
+    fn advance_chain<'a>(
+        &'a mut self,
+        next: &'a Payload,
+        queue: Option<&'a str>,
+        delay: Option<Delay>,
+    ) -> QueueFuture<'a, QueueResult<()>> {
+        Box::pin(async move {
+            let url = queue
+                .map(|q| self.queue.url(Some(q)))
+                .transpose()?
+                .unwrap_or_else(|| self.url.clone());
+            send(
+                self.queue.client().await,
+                &url,
+                next,
+                delay,
+                true,
+                self.queue.overflow.as_ref(),
+            )
+            .await?;
+            Ok(())
+        })
+    }
+    fn delete(&mut self) -> QueueFuture<'_, QueueResult<()>> {
+        Box::pin(async { Ok(()) })
+    }
+    fn release(&mut self, _delay: Duration) -> QueueFuture<'_, QueueResult<()>> {
+        Box::pin(async { Ok(()) })
     }
 }

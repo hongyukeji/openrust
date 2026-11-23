@@ -22,7 +22,7 @@
 | Broadcast | `support::facades::Broadcast` | 核对广播管理、频道注册/鉴权、连接、事件与测试替身 |
 | Bus | `support::facades::Bus` | 核对 Dispatcher、批次/链、同步/提交后派发及 fake |
 | Cache | `support::facades::Cache` | 核对默认仓储、Store、锁、tags、memo、替身及上下文隔离 |
-| Cloud | 未开放对应门面 | 核对托管环境识别、托管队列连接及 managedQueues；真实云账号验收边界单列 |
+| Cloud | `support::facades::Cloud` 与真实托管 SQS/Unix Agent | 8个声明入口已接线，真实 Artisan Worker 领取/上报已验；遥测、远端失败任务、凭据缓存和其余队列契约仍待闭合 |
 | Concurrency | `support::facades::Concurrency` | 核对 Manager 选择、run/defer、驱动和生命周期 |
 | Config | `support::facades::Config` | 核对全部仓储转发、类型读取、缺键默认、多个配置与 Serde 适配 |
 | Context | `support::facades::Context` | 核对可见/隐藏上下文、增删、dehydrate/hydrate、事件及测试行为 |
@@ -385,3 +385,19 @@ python3 -B tests/build_guard.py --workflow facade-alignment --target-dir target/
 - `oracle.json`固定PHP原Macroable执行：原实例nonce、大小写、protected工厂/私有方法边界、replace=false不调用工厂、替换、回调原错误、flush和缺失错误。`tests-fifth.log`实际本机33项通过（35返回通过中2项缺浏览器环境早返回不计）；新宏7项含非Clone/实际类型、原错误Arc身份、析构重入、应用隔离与保留目标、工厂中断、正式HTTP不同nonce、真实Blade自定义宏及当前HTTP域名。沿用先前未受影响的Vite构建/HMR/预取浏览器证据，不重复运行。
 - `workers.log`独立MySQL8.4.13和Redis8.10.3各1项真实Artisan queue:work，两任务使用同一已注册宏读取自己的nonce，宏注册跨任务保留且执行配置不串用；临时容器/表已清理。三语宏用法、模板签名、生命周期与边界同步，`docs.log`构建及`browser.log`桌面/移动6项通过，`clippy.log`及吸收已提交父树的`clippy-parent.log`严格Clippy通过，`fmt.log`格式通过。
 - 32个声明入口在upstream-entries.json补齐参数、默认、返回、错误、状态、消费者、证据和原生约束；附__invoke/动态委托裁决。服务公开入口已有验收，不将共享Facade基类mock/spy等未完成契约计为闭合；其余门面任务继续执行。
+
+### Cloud：实际托管连接与 Agent Worker 第一批（仍 partial）
+
+- 依据固定Framework提交1449bf241017087fbd38c118ecaabef3f6797fdc的CloudManager、Queue、QueueConnector、CloudJob及CloudBootstrapper；官方raw源码另行联网核对。旧版仅有旧队列实现，无可直接复用Cloud服务；复用当前QueueManager、SQS SDK、Payload/ReservedJob、Worker和HTTP Factory。
+- 正式CloudManager单例/Cloud门面提供8个声明入口，逐项参数、默认、返回、错误、生命周期与证据在upstream-entries.json。宏具类型、可重入、应用隔离；不宣称继承Facade契约已闭合。
+- 托管环境接入JSON配置及既有SQS驱动，嵌套connection与普通驱动连接名区分；after_commit和overflow环境默认接线。Queue连接名返回拥有所有权的String快照，运行期改名不悬垂，所有实现/Worker/信号/测试及三语示例同步。
+- set_config只替换配置元数据，不重建SQS客户端/default/prefix/suffix；管理队列列表及总量委托实际连接。真实托管度量未以声明存在计通过。
+- 实际queue:work匹配单队列时使用Unix Agent；普通调用/多队列走SQS。GET /next保留65秒、[0,500]重试、204和数组行为；POST /result保留10秒、仅连接错误重试和4xx/5xx分类。CloudJob先记录终态再上报，由Agent结算SQS；只有接受processed后清理overflow。
+- HTTP补请求级Unix socket及调用/任务域without_global_configuration，保留Fake、记录、事件，不清其他并发调用middleware；嵌套、panic与取消恢复实测。不据此宣称Http全局选项等其余入口完整。
+- tests-third.log实际8项Cloud+2项HTTP作用域通过：真实Unix Socket、实际Artisan Worker执行处理器/processed/released、非字符串receipt省略、空/非法poll响应、500/503重试、结果4xx/5xx无重复上报或释放。源码/日志保留在target/tmp/facade-alignment/cloud。真实AWS账号及托管环境未验收。
+- 仍需补齐托管遥测/Worker停止/超时、远端失败任务Provider、托管不存在错误转换、raw/bulk/queueable options全部入口、跨进程凭据缓存及其他CloudBootstrapper接线；Windows Agent/真实AWS发布验收另列。Cloud和全门面对齐保持未完成，继续实施剩余。
+
+- 固定PHP原Queue受保护方法与CloudJob真实方法在PHP8.4容器执行通过，HTTP请求替换为仅记录参数的探针，未把探针算作厂商网络实测；oracle.json与framework/tests/fixtures/cloud/agent-contract.json保存超时/重试/上报字段及结果丢失后deleted/released状态，含固定源文件SHA。新增真实SQS SDK本机HTTP协议验收通过，覆盖度量/托管总量、发布、实际Artisan Worker领取及唯一DeleteMessage；不等于真实AWS投递。
+
+- 最终本机验收：tests-oracle.log实际11项Cloud+2项HTTP作用域通过；tests-http-regression.log其余HTTP客户端20+选项2项通过；SQLite/MySQL8.4.13/PostgreSQL18.7三库队列实际HTTP读写/保留/删除均通过。PostgreSQL初次变量未绑定的提前返回不计通过，已保存为postgres-http-unbound-not-counted.log，修正REQUIRE与专用变量后postgres-http-bound.log实际8.43秒通过。
+- clippy-fourth.log实际workspace/all-targets严格Clippy通过（21.45秒）；三语文档构建及browser.log桌面/移动6组浏览器检查通过。原API返回String引起的借用/多余转换均修正并编译所有测试目标，没有屏蔽lint。

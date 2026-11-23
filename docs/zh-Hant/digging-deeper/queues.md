@@ -532,9 +532,9 @@ use openrust::{cache::Ttl, queue::QueueResult, support::facades::Queue};
 async fn pause_default_queue() -> QueueResult<()> {
     let connection = Queue::connection(None)?;
     let name = connection.get_connection_name();
-    Queue::pause_for(name, "default", Ttl::Seconds(3)).await?;
-    assert!(Queue::is_paused(name, "default").await?);
-    assert_eq!(Queue::get_paused_queues(name, &["low", "default"]).await?, ["default"]);
+    Queue::pause_for(&name, "default", Ttl::Seconds(3)).await?;
+    assert!(Queue::is_paused(&name, "default").await?);
+    assert_eq!(Queue::get_paused_queues(&name, &["low", "default"]).await?, ["default"]);
     Ok(())
 }
 ```
@@ -1041,3 +1041,39 @@ fn retry_entries<'a>(
 ## 佇列監聽器
 
 透過 `ListenerRegistry::listen_queued::<YourEvent>` 登記可序列化的事件與穩定的監聽器 ID。Worker 在其應用程式內解析監聽器。監聽器的 `after_commit` 可將加入佇列的動作延後至交易提交後。
+
+## 託管佇列
+
+`Cloud` 門面讀取應用的環境快照。`hosted()` 僅在 `LARAVEL_CLOUD=1` 時回傳真；`uses_managed_queues()` 獨立檢查 `queue.connections.cloud.driver`，不依賴預設佇列連線。`queue()` 回傳實際的託管 SQS 連線，`is_managed_queue("priority")` 嚴格比對設定中的佇列名稱。
+
+託管應用可透過 `LARAVEL_CLOUD_MANAGED_QUEUES_CONFIG` 提供以下 JSON 設定。巢狀的 `connection` 重用現有 SQS 驅動；`queues` 宣告託管佇列名稱。憑證由每個應用程序自行讀取，不寫入工作負載。
+
+```json
+{
+  "driver": "cloud",
+  "queues": ["default", "priority"],
+  "connection": {
+    "region": "us-east-1",
+    "queue": "default",
+    "prefix": "https://sqs.us-east-1.amazonaws.com/123456789012",
+    "after_commit": false
+  },
+  "agent": {"enabled": true, "socket": "/run/cloud-agent.sock"}
+}
+```
+
+```rust
+use openrust::support::facades::Cloud;
+
+let managed = Cloud::uses_managed_queues()?;
+let priority = Cloud::is_managed_queue("priority")?;
+let queue = Cloud::queue()?;
+let name = queue.get_connection_name();
+let normalized = queue.normalize_queue(Some("priority"))?;
+```
+
+```sh
+./artisan queue:work cloud --queue=priority
+```
+
+只有 `queue:work` 中相符的單佇列領取會啟用 Agent；一般呼叫與多佇列 Worker 使用 SQS。Agent 接收 `processed` 或 `released` 結果並負責 SQS 結算。結果回報的 HTTP 4xx 保留請求錯誤，連線故障及 HTTP 5xx 視為 Agent 失聯。Unix 系統支援 Unix Agent 傳輸，其他系統可直接使用 SQS。目前尚不提供託管遙測、遠端失敗工作下載及跨程序憑證快取生命週期；真實託管投遞另行驗收。

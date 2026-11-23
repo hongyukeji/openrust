@@ -532,9 +532,9 @@ use openrust::{cache::Ttl, queue::QueueResult, support::facades::Queue};
 async fn pause_default_queue() -> QueueResult<()> {
     let connection = Queue::connection(None)?;
     let name = connection.get_connection_name();
-    Queue::pause_for(name, "default", Ttl::Seconds(3)).await?;
-    assert!(Queue::is_paused(name, "default").await?);
-    assert_eq!(Queue::get_paused_queues(name, &["low", "default"]).await?, ["default"]);
+    Queue::pause_for(&name, "default", Ttl::Seconds(3)).await?;
+    assert!(Queue::is_paused(&name, "default").await?);
+    assert_eq!(Queue::get_paused_queues(&name, &["low", "default"]).await?, ["default"]);
     Ok(())
 }
 ```
@@ -1041,3 +1041,39 @@ fn retry_entries<'a>(
 ## 队列监听器
 
 通过 `ListenerRegistry::listen_queued::<YourEvent>` 登记可序列化的事件及稳定的监听器 ID。Worker 在其应用内解析监听器。监听器的 `after_commit` 可将入队推迟到事务提交后。
+
+## 托管队列
+
+`Cloud` 门面读取应用的环境快照。`hosted()` 仅在 `LARAVEL_CLOUD=1` 时返回真；`uses_managed_queues()` 独立检查 `queue.connections.cloud.driver`，不依赖默认队列连接。`queue()` 返回实际的托管 SQS 连接，`is_managed_queue("priority")` 严格匹配配置中的队列名。
+
+托管应用可通过 `LARAVEL_CLOUD_MANAGED_QUEUES_CONFIG` 提供以下 JSON 配置。嵌套的 `connection` 复用现有 SQS 驱动；`queues` 声明托管队列名。凭据由每个应用进程自行读取，不写入任务载荷。
+
+```json
+{
+  "driver": "cloud",
+  "queues": ["default", "priority"],
+  "connection": {
+    "region": "us-east-1",
+    "queue": "default",
+    "prefix": "https://sqs.us-east-1.amazonaws.com/123456789012",
+    "after_commit": false
+  },
+  "agent": {"enabled": true, "socket": "/run/cloud-agent.sock"}
+}
+```
+
+```rust
+use openrust::support::facades::Cloud;
+
+let managed = Cloud::uses_managed_queues()?;
+let priority = Cloud::is_managed_queue("priority")?;
+let queue = Cloud::queue()?;
+let name = queue.get_connection_name();
+let normalized = queue.normalize_queue(Some("priority"))?;
+```
+
+```sh
+./artisan queue:work cloud --queue=priority
+```
+
+只有 `queue:work` 中匹配的单队列领取会启用 Agent；普通调用及多队列 Worker 使用 SQS。Agent 接收 `processed` 或 `released` 结果并负责 SQS 结算。结果上报的 HTTP 4xx 保留请求错误，连接故障和 HTTP 5xx 视为 Agent 失联。Unix 系统支持 Unix Agent 传输，其他系统可直接使用 SQS。当前尚不提供托管遥测、远端失败任务下载及跨进程凭据缓存生命周期；真实托管投递另行验收。

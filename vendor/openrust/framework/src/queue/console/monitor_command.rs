@@ -56,7 +56,7 @@ impl Command for MonitorCommand {
                 queue_name(Some(name), queue.default_queue()).map_err(error)?;
                 let metrics = queue.metrics(Some(name)).await.map_err(error)?;
                 rows.push(QueueStatus {
-                    connection: queue.get_connection_name().into(),
+                    connection: queue.get_connection_name(),
                     queue: name.into(),
                     status: if metrics.size >= maximum {
                         "ALERT"

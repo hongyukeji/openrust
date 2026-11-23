@@ -788,3 +788,5 @@ impl RegisteredCommand {
 pub use crate::view::Blade;
 
 pub use crate::foundation::exceptions::Exceptions;
+
+pub use crate::foundation::cloud::CloudFacade as Cloud;

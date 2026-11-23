@@ -804,10 +804,88 @@
       "type": "Cloud",
       "source": "src/Illuminate/Support/Facades/Cloud.php",
       "public_entries": [
-        "hosted", "usesManagedQueues", "queue", "isManagedQueue", "macro", "mixin", "hasMacro",
+        "hosted",
+        "usesManagedQueues",
+        "queue",
+        "isManagedQueue",
+        "macro",
+        "mixin",
+        "hasMacro",
         "flushMacros"
       ],
-      "review": "pending"
+      "review": "partial",
+      "local_type": "foundation::cloud::CloudManager; support::facades::Cloud",
+      "entry_reviews": [
+        {
+          "upstream": "hosted",
+          "local": "hosted() -> CloudResult<bool>",
+          "contract": "严格匹配应用环境快照LARAVEL_CLOUD=1；未配置false，环境绑定错误保留来源。",
+          "review": "implemented_tested",
+          "evidence": "framework/tests/cloud.rs::manager_follows_exact_environment_and_configuration_not_default_driver"
+        },
+        {
+          "upstream": "usesManagedQueues",
+          "local": "uses_managed_queues() -> CloudResult<bool>",
+          "contract": "实时检查queue.connections.cloud.driver严格等于cloud；与默认连接及托管标记独立。",
+          "review": "implemented_tested",
+          "evidence": "framework/tests/cloud.rs::manager_follows_exact_environment_and_configuration_not_default_driver"
+        },
+        {
+          "upstream": "queue",
+          "local": "queue() -> CloudResult<Arc<foundation::cloud::Queue>>",
+          "contract": "返回QueueManager真实cloud连接、按应用复用；未配置NotConfigured，非托管实际连接WrongConnectionType。",
+          "review": "implemented_tested",
+          "evidence": "framework/tests/cloud.rs::queue_metadata_normalization_and_owned_names_follow_original_connection"
+        },
+        {
+          "upstream": "isManagedQueue",
+          "local": "is_managed_queue(&str) -> CloudResult<bool>",
+          "contract": "队列名必传；未配置false；managed_queues严格字符串匹配、区分大小写。",
+          "review": "implemented_tested",
+          "evidence": "framework/tests/cloud.rs::manager_follows_exact_environment_and_configuration_not_default_driver"
+        },
+        {
+          "upstream": "macro",
+          "local": "r#macro(name, callback) -> CloudResult<()>",
+          "contract": "具类型Fn(&CloudManager,A)->CloudResult<T>；保留原值和回调错误，应用注册隔离。",
+          "review": "implemented_tested",
+          "evidence": "framework/tests/cloud.rs::macros_are_typed_reentrant_case_sensitive_and_application_owned"
+        },
+        {
+          "upstream": "mixin",
+          "local": "mixin(iter, replace: bool); mixin_using(factories, replace: bool)",
+          "contract": "显式CloudMacro列表/惰性工厂；Rust显式bool，true对应上游默认；false保留已有注册。",
+          "review": "implemented_tested",
+          "evidence": "framework/tests/cloud.rs::macros_are_typed_reentrant_case_sensitive_and_application_owned"
+        },
+        {
+          "upstream": "hasMacro",
+          "local": "has_macro(&str) -> CloudResult<bool>",
+          "contract": "大小写敏感，未知false；不持注册锁执行回调。",
+          "review": "implemented_tested",
+          "evidence": "framework/tests/cloud.rs::macros_are_typed_reentrant_case_sensitive_and_application_owned"
+        },
+        {
+          "upstream": "flushMacros",
+          "local": "flush_macros() -> CloudResult<()>",
+          "contract": "无参数；锁外释放当前应用回调，不改变其他应用。",
+          "review": "implemented_tested",
+          "evidence": "framework/tests/cloud.rs::macros_are_typed_reentrant_case_sensitive_and_application_owned"
+        }
+      ],
+      "additional_contracts": {
+        "queue": "已有SQS驱动/度量、管理列表、名称及元数据接线；Agent领取/结果经真实Artisan Worker验证。其余底层入口尚未闭合。",
+        "lifecycle": "Weak应用owner，应用宏隔离；Agent匹配queue:work实际连接和单队列；Worker控制覆盖限定执行域。",
+        "macro_adaptation": "原生Any参数/返回，显式列表/惰性工厂替代私有反射；继承Facade测试契约未闭合。"
+      },
+      "remaining": [
+        "托管遥测、停止/超时事件",
+        "Cloud失败任务Provider远端操作及事件",
+        "托管不存在错误转换、raw/bulk及queueable options完整契约",
+        "跨进程凭据缓存与其他托管启动接线",
+        "共享Facade mock/spy及默认别名",
+        "真实托管AWS/Agent及Windows发布验收"
+      ]
     },
     {
       "type": "Concurrency",

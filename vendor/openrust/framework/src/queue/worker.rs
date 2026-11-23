@@ -108,7 +108,8 @@ impl Worker {
         options: &WorkerOptions,
     ) -> QueueResult<WorkResult> {
         let manager = self.app.make::<QueueManager>()?;
-        let name = connection.get_connection_name();
+        let connection_name = connection.get_connection_name();
+        let name = connection_name.as_str();
         let queue_name = queue.unwrap_or_else(|| connection.default_queue());
         manager
             .emit_control_event(JobPopping {
@@ -122,7 +123,10 @@ impl Worker {
             })
             .await?
         } else {
-            if manager.polls_interruptions() && manager.is_paused(name, queue_name).await? {
+            if manager.polls_interruptions()
+                && !crate::foundation::cloud::worker::active(&self.app)
+                && manager.is_paused(name, queue_name).await?
+            {
                 manager
                     .emit_control_event(WorkerQueuePaused {
                         connection: name.into(),
@@ -189,7 +193,9 @@ impl Worker {
         };
         let control = manager
             .polls_interruptions()
-            .then(|| manager.worker_control())
+            .then_some(())
+            .filter(|_| !crate::foundation::cloud::worker::active(&self.app))
+            .map(|_| manager.worker_control())
             .transpose()?;
         let initial_restart = if let Some(control) = &control {
             control.restart_generation().await?
@@ -202,7 +208,8 @@ impl Worker {
         } else {
             queues
         };
-        let name = connection.get_connection_name();
+        let connection_name = connection.get_connection_name();
+        let name = connection_name.as_str();
         let start = tokio::time::Instant::now();
         let deadline = options.max_time.and_then(|limit| start.checked_add(limit));
         let queue_names = queues.join(",");
@@ -246,7 +253,10 @@ impl Worker {
             let idle_deadline = cadence
                 .stop_when_empty_for
                 .and_then(|limit| idle_since.checked_add(limit));
-            let worker_paused = current_signal_state(&signal_state) != WorkerSignalState::Running;
+            let signal = current_signal_state(&signal_state);
+            let worker_paused = signal != WorkerSignalState::Running
+                && !(crate::foundation::cloud::worker::active(&self.app)
+                    && signal_is_paused(signal));
             let reservation = async {
                 if worker_paused {
                     return Ok((false, None));
@@ -1221,5 +1231,17 @@ async fn wait_until(deadline: Option<tokio::time::Instant>) {
     match deadline {
         Some(deadline) => tokio::time::sleep_until(deadline).await,
         None => std::future::pending().await,
+    }
+}
+
+fn signal_is_paused(signal: WorkerSignalState) -> bool {
+    #[cfg(unix)]
+    {
+        signal == WorkerSignalState::Paused
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = signal;
+        false
     }
 }

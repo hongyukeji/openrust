@@ -5,7 +5,7 @@ mod chain_edit;
 mod chain_routing;
 pub mod connectors;
 pub mod console;
-mod sqs_queue;
+pub(crate) mod sqs_queue;
 pub use chain_edit::ChainJob;
 pub(crate) use chain_edit::ChainUpdate;
 mod database_queue;

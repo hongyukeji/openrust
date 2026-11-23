@@ -308,8 +308,8 @@ impl Contract for RedisQueue {
         Some(self)
     }
 
-    fn get_connection_name(&self) -> &str {
-        &self.name
+    fn get_connection_name(&self) -> String {
+        self.name.clone()
     }
 
     fn default_queue(&self) -> &str {

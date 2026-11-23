@@ -187,8 +187,8 @@ struct ExtensionQueue {
 }
 
 impl QueueContract for ExtensionQueue {
-    fn get_connection_name(&self) -> &str {
-        &self.name
+    fn get_connection_name(&self) -> String {
+        self.name.clone()
     }
 
     fn size<'a>(&'a self, queue: Option<&'a str>) -> QueueFuture<'a, QueueResult<u64>> {

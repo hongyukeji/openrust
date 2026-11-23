@@ -552,6 +552,7 @@ impl Application {
             Box::new(crate::concurrency::ConcurrencyServiceProvider),
             Box::new(crate::redis::RedisServiceProvider),
             Box::new(crate::queue::QueueServiceProvider),
+            Box::new(super::cloud::CloudServiceProvider),
             Box::new(crate::cache::CacheServiceProvider),
             Box::new(super::maintenance::MaintenanceServiceProvider),
             Box::new(crate::view::ViewServiceProvider),

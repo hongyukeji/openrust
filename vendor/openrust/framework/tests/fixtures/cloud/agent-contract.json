@@ -1,0 +1,134 @@
+{
+  "poll": [
+    {
+      "status": 204,
+      "result": null,
+      "error": null,
+      "calls": {
+        "timeout": 65,
+        "retry": {
+          "0": [
+            0,
+            500
+          ],
+          "throw": false
+        },
+        "get": "/next"
+      }
+    },
+    {
+      "status": 200,
+      "result": [],
+      "error": null,
+      "calls": {
+        "timeout": 65,
+        "retry": {
+          "0": [
+            0,
+            500
+          ],
+          "throw": false
+        },
+        "get": "/next"
+      }
+    },
+    {
+      "status": 200,
+      "result": {
+        "messageId": ""
+      },
+      "error": null,
+      "calls": {
+        "timeout": 65,
+        "retry": {
+          "0": [
+            0,
+            500
+          ],
+          "throw": false
+        },
+        "get": "/next"
+      }
+    },
+    {
+      "status": 200,
+      "error": "Illuminate\\Foundation\\Cloud\\AgentUnreachableException",
+      "calls": {
+        "timeout": 65,
+        "retry": {
+          "0": [
+            0,
+            500
+          ],
+          "throw": false
+        },
+        "get": "/next"
+      }
+    },
+    {
+      "status": 500,
+      "error": "Illuminate\\Foundation\\Cloud\\AgentUnreachableException",
+      "calls": {
+        "timeout": 65,
+        "retry": {
+          "0": [
+            0,
+            500
+          ],
+          "throw": false
+        },
+        "get": "/next"
+      }
+    }
+  ],
+  "processed": {
+    "timeout": 10,
+    "throw": true,
+    "post": "/result",
+    "body": {
+      "messageId": "id",
+      "status": "processed"
+    }
+  },
+  "released": {
+    "timeout": 10,
+    "throw": true,
+    "post": "/result",
+    "body": {
+      "messageId": "id",
+      "receiptHandle": "receipt",
+      "status": "released",
+      "delay": 7
+    }
+  },
+  "delete_failed": {
+    "deleted": true,
+    "released": false,
+    "error": "result lost",
+    "calls": [
+      [
+        "processed",
+        null
+      ]
+    ]
+  },
+  "release_failed": {
+    "deleted": false,
+    "released": true,
+    "error": "result lost",
+    "calls": [
+      [
+        "released",
+        7
+      ]
+    ]
+  },
+  "_source": {
+    "baseline": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+    "files": {
+      "Queue.php": "d1c51af618b744efc147536f20201e87519139c9eb12ea0571f0d203299578e8",
+      "CloudJob.php": "64cd11f049f34965a3643ef8bee4dd2f04a444a8feb4a25eb9b00cae4dd47fd7"
+    },
+    "probe": "Fixed original protected methods and CloudJob flags; request recorder replaces network only. PHP 8.4 CLI Docker; no real hosted service."
+  }
+}

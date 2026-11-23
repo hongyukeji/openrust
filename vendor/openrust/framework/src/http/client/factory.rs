@@ -157,16 +157,34 @@ impl From<&reqwest::Request> for RecordedRequest {
 }
 
 pub(super) fn build_client(connect_timeout: Duration, verify_tls: bool) -> Result<reqwest::Client> {
-    reqwest::Client::builder()
+    build_client_with_socket(connect_timeout, verify_tls, None)
+}
+
+pub(super) fn build_client_with_socket(
+    connect_timeout: Duration,
+    verify_tls: bool,
+    socket: Option<&std::path::Path>,
+) -> Result<reqwest::Client> {
+    let builder = reqwest::Client::builder()
         .connect_timeout(connect_timeout)
         .tls_danger_accept_invalid_certs(!verify_tls)
         .tls_danger_accept_invalid_hostnames(!verify_tls)
         .redirect(reqwest::redirect::Policy::none())
         .no_proxy()
-        .retry(reqwest::retry::never())
-        .build()
-        .map_err(|_| Error::Configuration)
+        .retry(reqwest::retry::never());
+    #[cfg(unix)]
+    let builder = match socket {
+        Some(path) => builder.unix_socket(path),
+        None => builder,
+    };
+    #[cfg(not(unix))]
+    if socket.is_some() {
+        return Err(Error::Configuration);
+    }
+    builder.build().map_err(|_| Error::Configuration)
 }
+
+tokio::task_local! {static WITHOUT_GLOBAL:Vec<usize>;}
 
 impl Factory {
     pub fn new() -> Result<Self> {
@@ -249,12 +267,35 @@ impl Factory {
     }
 
     pub(super) fn middleware(&self) -> Vec<Arc<Middleware>> {
+        if WITHOUT_GLOBAL
+            .try_with(|owners| owners.contains(&self.identity()))
+            .unwrap_or(false)
+        {
+            return vec![];
+        }
         self.middleware
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .clone()
     }
 
+    fn identity(&self) -> usize {
+        Arc::as_ptr(&self.testing).addr()
+    }
+    /// 只在当前调用中创建无全局配置的请求；Fake、记录和事件仍共用原工厂。
+    pub fn without_global_configuration<T>(&self, callback: impl FnOnce(&Self) -> T) -> T {
+        let mut owners = WITHOUT_GLOBAL.try_with(Clone::clone).unwrap_or_default();
+        owners.push(self.identity());
+        WITHOUT_GLOBAL.sync_scope(owners, || callback(self))
+    }
+    pub async fn without_global_configuration_async<T>(
+        &self,
+        operation: impl std::future::Future<Output = T>,
+    ) -> T {
+        let mut owners = WITHOUT_GLOBAL.try_with(Clone::clone).unwrap_or_default();
+        owners.push(self.identity());
+        WITHOUT_GLOBAL.scope(owners, operation).await
+    }
     pub fn with_user_agent(&self, user_agent: &str) -> PendingRequest {
         self.pending_request().with_user_agent(user_agent)
     }

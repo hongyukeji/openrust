@@ -16,7 +16,14 @@ pub struct QueueMetrics {
 
 /// Dispatches and reserves jobs on a queue connection.
 pub trait Queue: Send + Sync {
-    fn get_connection_name(&self) -> &str;
+    fn get_connection_name(&self) -> String;
+
+    /// 可选的实际连接投影，不要求所有自定义队列具有静态生命周期。
+    fn into_any(
+        self: std::sync::Arc<Self>,
+    ) -> Option<std::sync::Arc<dyn std::any::Any + Send + Sync>> {
+        None
+    }
 
     fn clearable(&self) -> Option<&dyn ClearableQueue> {
         None

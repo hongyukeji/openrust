@@ -32,6 +32,20 @@ impl Facade for Http {
 }
 
 impl Http {
+    pub fn without_global_configuration<T>(callback: impl FnOnce(&Factory) -> T) -> Result<T> {
+        Ok(Self::get_facade_root()
+            .map_err(Error::Unavailable)?
+            .without_global_configuration(callback))
+    }
+    pub async fn without_global_configuration_async<T>(
+        operation: impl std::future::Future<Output = Result<T>>,
+    ) -> Result<T> {
+        Self::get_facade_root()
+            .map_err(Error::Unavailable)?
+            .without_global_configuration_async(operation)
+            .await
+    }
+
     pub fn global_middleware(
         middleware: impl for<'a> Fn(super::Request, super::Next<'a>) -> HttpFuture<'a, Result<Response>>
         + Send
