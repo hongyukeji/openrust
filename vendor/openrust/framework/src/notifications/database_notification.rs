@@ -1,10 +1,10 @@
-use jiff::{Timestamp, civil::DateTime as CivilDateTime};
+use jiff::Timestamp;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as Json;
 
-use crate::database::{Db, Value, query::Builder, schema::Blueprint};
+use crate::database::{Value, query::Builder, schema::Blueprint};
 
-use super::{NotificationError, NotificationResult, delivery};
+use super::{NotificationResult, database_store, delivery};
 
 /// The database key of a notifiable model.
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -16,7 +16,7 @@ pub enum DatabaseKey {
 }
 
 impl DatabaseKey {
-    fn binding(&self) -> Value {
+    pub(super) fn binding(&self) -> Value {
         match self {
             Self::Unsigned(key) => Value::Unsigned(*key),
             Self::Integer(key) => Value::Integer(*key),
@@ -57,55 +57,11 @@ impl DatabaseRoute {
     }
 
     pub fn query(&self) -> NotificationResult<Builder<'static>> {
-        Ok(self
-            .table()?
-            .r#where("notifiable_type", "=", self.model_type.as_str())
-            .r#where("notifiable_id", "=", self.key.binding()))
-    }
-
-    fn table(&self) -> NotificationResult<Builder<'static>> {
-        Ok(Db::connection(self.connection.as_deref())
-            .map_err(NotificationError::Database)?
-            .table("notifications"))
+        database_store::query(self)
     }
 
     pub async fn find(&self, id: &str) -> NotificationResult<Option<DatabaseNotification>> {
-        let row = self
-            .query()?
-            .r#where("id", "=", id)
-            .first()
-            .await
-            .map_err(NotificationError::Database)?;
-        row.map(|row| {
-            let text = |key| match row.get(key) {
-                Some(Value::Text(text)) => Ok(text.clone()),
-                _ => Err(delivery("Invalid database notification record.")),
-            };
-            let data = match row.get("data") {
-                Some(Value::Json(json)) => json.clone(),
-                Some(Value::Text(json)) => serde_json::from_str(json).map_err(delivery)?,
-                _ => return Err(delivery("Invalid database notification data.")),
-            };
-            let read_at = match row.get("read_at") {
-                None | Some(Value::Null) => None,
-                Some(Value::Text(value)) => Some(
-                    CivilDateTime::strptime("%Y-%m-%d %H:%M:%S%.f", value)
-                        .map_err(delivery)?
-                        .to_zoned(jiff::tz::TimeZone::UTC)
-                        .map_err(delivery)?
-                        .timestamp(),
-                ),
-                _ => return Err(delivery("Invalid database notification timestamp.")),
-            };
-            Ok(DatabaseNotification {
-                id: text("id")?,
-                kind: text("type")?,
-                route: self.clone(),
-                data,
-                read_at,
-            })
-        })
-        .transpose()
+        database_store::find(self, id).await
     }
 }
 
@@ -152,54 +108,18 @@ impl DatabaseNotification {
     }
 
     async fn set_read_at(&mut self, time: Option<Timestamp>) -> NotificationResult<()> {
-        let query = self.route.query()?.r#where("id", "=", self.id.as_str());
-        let affected = query
-            .update(
-                [
-                    ("read_at".into(), timestamp(time)),
-                    ("updated_at".into(), timestamp(Some(now()))),
-                ]
-                .into(),
-            )
-            .await
-            .map_err(NotificationError::Database)?;
-        if affected > 0 {
+        if database_store::set_read_at(self, time).await? {
             self.read_at = time;
         }
         Ok(())
     }
 
     pub(super) async fn insert(&self) -> NotificationResult<()> {
-        let time = timestamp(Some(now()));
-        self.route
-            .table()?
-            .insert(&[[
-                ("id".into(), self.id.as_str().into()),
-                ("type".into(), self.kind.as_str().into()),
-                (
-                    "notifiable_type".into(),
-                    self.route.model_type.as_str().into(),
-                ),
-                ("notifiable_id".into(), self.route.key.binding()),
-                ("data".into(), self.data.to_string().into()),
-                ("read_at".into(), timestamp(self.read_at)),
-                ("created_at".into(), time.clone()),
-                ("updated_at".into(), time),
-            ]
-            .into()])
-            .await
-            .map_err(NotificationError::Database)?;
-        Ok(())
+        database_store::insert(self).await
     }
 }
 
-fn now() -> Timestamp {
+pub(super) fn now() -> Timestamp {
     Timestamp::from_second(crate::support::timestamp_seconds(Timestamp::now()))
         .expect("current timestamp")
-}
-
-fn timestamp(time: Option<Timestamp>) -> Value {
-    time.map_or(Value::Null, |time| {
-        time.strftime("%Y-%m-%d %H:%M:%S").to_string().into()
-    })
 }

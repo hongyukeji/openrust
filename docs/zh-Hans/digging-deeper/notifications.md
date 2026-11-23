@@ -50,6 +50,8 @@ pub async fn notify(customer: &dyn Notifiable) -> NotificationResult<()> {
 
 通过 `NotificationRoute::Database` 提供模型类型和主键。数据库渠道保存通知 UUID 和 JSON 数据。`DatabaseRoute::query` 按模型限制查询。`find` 返回可调用 `mark_as_read` 和 `mark_as_unread` 的记录。
 
+通过 `DatabaseRoute::find` 和返回记录的状态方法操作通知，避免直接更新通知表。这些方法保留所选连接和收件人范围。重复标记已读或未读保持幂等；数据库错误向上传递，写入失败或记录已删除时不会改变内存中的已读状态。
+
 ## 通知入队
 
 通过 `Notification::queue_options` 为每位收件人的每个渠道返回 `DispatchOptions`。每次投递有自己的队列任务。Worker 解析渠道并触发投递事件。在活动事务中，调用 `ChannelManager::send_in_transaction` 并启用 `after_commit`，使回滚时丢弃待入队通知。

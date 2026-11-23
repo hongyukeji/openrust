@@ -13,6 +13,8 @@ pub mod facades;
 mod logger;
 #[path = "../database/migrations/2026_11_21_000001_create_activity_log_table.rs"]
 mod migration;
+mod model_observer;
+mod model_snapshot;
 mod model_store;
 pub mod models;
 mod provider;

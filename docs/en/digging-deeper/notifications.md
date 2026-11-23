@@ -50,6 +50,8 @@ Run `./artisan make:notifications-table`, register the generated migration in th
 
 Return `NotificationRoute::Database` with the model type and key. The database channel stores the notification UUID and JSON data. `DatabaseRoute::query` scopes queries to the notifiable model, and `find` returns a record with `mark_as_read` and `mark_as_unread`.
 
+Use `DatabaseRoute::find` and the returned record’s state methods instead of updating notification rows directly. These methods retain the selected connection and recipient scope. Repeated read/unread marking is idempotent; database errors propagate, and a failed write or a deleted record does not change the in-memory read state.
+
 ## Queueing notifications
 
 Return `DispatchOptions` from `Notification::queue_options` for each recipient and channel that should be queued. Each delivery gets its own job. The worker resolves the channel and emits delivery events. When using an active transaction, call `ChannelManager::send_in_transaction` with `after_commit` enabled to discard queued deliveries on rollback.

@@ -5,6 +5,7 @@ mod channel_manager;
 pub mod channels;
 pub(crate) mod console;
 mod database_notification;
+mod database_store;
 mod facade;
 pub mod messages;
 mod notifiable;

@@ -50,6 +50,8 @@ pub async fn notify(customer: &dyn Notifiable) -> NotificationResult<()> {
 
 透過 `NotificationRoute::Database` 提供模型類型和主鍵。資料庫管道儲存通知 UUID 和 JSON 資料。`DatabaseRoute::query` 依模型限制查詢。`find` 回傳可呼叫 `mark_as_read` 和 `mark_as_unread` 的記錄。
 
+透過 `DatabaseRoute::find` 與傳回記錄的狀態方法操作通知，避免直接更新通知資料表。這些方法保留選取的連線與收件人範圍。重複標記已讀或未讀保持冪等；資料庫錯誤向上傳遞，寫入失敗或記錄已刪除時不會改變記憶體中的已讀狀態。
+
 ## 通知加入佇列
 
 透過 `Notification::queue_options` 為每位收件人的每個管道回傳 `DispatchOptions`。每次投遞有自己的佇列任務。Worker 解析管道並觸發投遞事件。在使用中的交易裡，呼叫 `ChannelManager::send_in_transaction` 並啟用 `after_commit`，使交易回復時捨棄待加入佇列的通知。

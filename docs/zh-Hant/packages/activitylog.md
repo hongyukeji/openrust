@@ -43,6 +43,8 @@ let record = logger.on(Subject::new("settings", "1")?)
 
 模型實作 `models::concerns::LogsActivity`，在應用 Provider 登記 `ModelType::boot_logs_activity(app, repository)`。`get_activitylog_options` 返回 `LogOptions`，支援 `log_all`、`log_only`、`log_except`、`log_fillable`、`log_unguarded`、`log_only_dirty`、`dont_log_empty_changes`、`dont_log_if_attributes_changed_only`、`use_attribute_raw_values` 及描述回呼。預設不選屬性，但允許空變更日誌。使用原生 Eloquent 事件；顯式交易內同連線日誌與業務一起回滾，其他日誌連線在業務提交後寫入。
 
+模型保留日誌選項與自訂鉤子，並註冊一次 `boot_logs_activity`。快照載入、事件記錄與提交時投遞由套件處理，應用程式模型無須自行插入稽核資料列。儲存業務模型時應保留目前交易，使回滾同時約束對應的稽核記錄。
+
 模型還須實作 `Clone`，儲存以 `Default::default()` 初始化的 `models::LoggingState`，並在 `activitylog_state` 返回該欄位。`disable_logging()`、`enable_logging()` 僅影響該實例；複製會複製目前開關值。用已登記的關聯路徑如 `owner.name` 選擇關聯屬性；舊快照按原外鍵讀取，顯式交易也能讀取交易內關聯。應用採不同名稱時，在原生命名關聯中顯式登記別名。
 
 定製稽核模型時，在應用 Provider 用 `app.container().instance_named("application.activity", value)` 登記 `Arc::new(models::ActivityModel::of::<CustomActivity>())`，並將 `activitylog.activity_model` 設為 `"application.activity"`。保留稽核欄位與 JSON casts；模型中繼資料選擇表及可選連線，顯式 `activitylog.connection` 優先。一般寫入執行原生 Eloquent 儲存事件。定製動作時，以原生容器名稱登記 `LogActivityAction` 或 `CleanActivityLogAction`，再透過 `actions.log_activity`、`actions.clean_log` 選擇；用 `before_logging` 修改日誌，用 `CleanActivityLogAction::using` 定製清理。

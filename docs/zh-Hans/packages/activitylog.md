@@ -43,6 +43,8 @@ let record = logger.on(Subject::new("settings", "1")?)
 
 模型实现 `models::concerns::LogsActivity`，在应用 Provider 登记 `ModelType::boot_logs_activity(app, repository)`。`get_activitylog_options` 返回 `LogOptions`：可选 `log_all`、`log_only`、`log_except`、`log_fillable`、`log_unguarded`、`log_only_dirty`、`dont_log_empty_changes`、`dont_log_if_attributes_changed_only`、`use_attribute_raw_values` 与描述回调。默认不选择属性，但允许空变化日志。模型日志使用原生 Eloquent 事件，显式事务内同连接写入随业务一起回滚；其他日志连接在业务提交后写入。
 
+模型保留日志选项和定制钩子，并登记一次 `boot_logs_activity`。快照加载、事件记录和提交时投递由包处理，应用模型无需自行插入审计行。保存业务模型时应保留当前事务，使回滚同时约束对应的审计记录。
+
 模型还须实现 `Clone`，保存以 `Default::default()` 初始化的 `models::LoggingState`，并在 `activitylog_state` 返回该字段。`disable_logging()`、`enable_logging()` 仅影响该实例；克隆复制当前开关值。用已登记的关系路径如 `owner.name` 选择关联属性；旧快照按原外键读取，显式事务也能读取事务内关系。应用采用不同名称时，在原生命名关系中显式登记别名。
 
 定制审计模型时，在应用 Provider 用 `app.container().instance_named("application.activity", value)` 登记 `Arc::new(models::ActivityModel::of::<CustomActivity>())`，并将 `activitylog.activity_model` 设为 `"application.activity"`。保留审计列与 JSON casts；模型元数据选择表及可选连接，显式 `activitylog.connection` 优先。普通写入执行原生 Eloquent 保存事件。定制动作时，以原生容器名称登记 `LogActivityAction` 或 `CleanActivityLogAction`，再通过 `actions.log_activity`、`actions.clean_log` 选择；用 `before_logging` 修改日志，用 `CleanActivityLogAction::using` 定制清理。
