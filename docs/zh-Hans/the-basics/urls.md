@@ -22,6 +22,25 @@ fn article_link(article: &impl Model) -> UrlResult<String> {
 
 用 `Url::signed_route` 生成长期链接，或用 `Url::temporary_signed_route` 和 `SystemTime` 设置到期时间。为目标路由挂载与签名模式对应的 `signed` 或 `signed:relative` 中间件。篡改或过期的链接返回 HTTP 403。签名按配置原样使用 `APP_KEY`，轮换时可以通过 `APP_PREVIOUS_KEYS` 保留旧链接。
 
+### 在请求上验证签名 {#validating-signed-route-requests}
+
+可以直接在请求实例上验证签名链接。绝对签名显式传入 `true`；相对签名用 `has_valid_relative_signature()`。Rust 要求显式传入绝对模式参数。
+
+```rust
+use openrust::http::{HttpError, HttpFuture, Request, Response, StatusCode};
+
+fn unsubscribe(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        if !request.has_valid_signature(true)? {
+            return Ok(Response::empty(StatusCode::UNAUTHORIZED));
+        }
+        Response::json(StatusCode::OK, request.query("email")?)
+    })
+}
+```
+
+用 `has_valid_signature_while_ignoring(&["page", "order"], true)` 或 `has_valid_relative_signature_while_ignoring(&["page", "order"])` 允许指定查询键变化。被忽略的值不受签名保护。签名只覆盖 URL，不覆盖 JSON 或表单正文：即使是 GET 请求，也应通过 `request.query(...)` 读取已签名值；`input(...)` 可能读到正文中未签名的覆盖值。
+
 ## 请求 URL 与资源 URL
 
 HTTP 请求内生成链接时，依次使用显式 `APP_URL`、当前请求的协议和主机、从监听配置推导的 `app.url`。Artisan 直接使用 `app.url`。监听地址的回退规则见[配置](../getting-started/configuration.md)。`Url::asset` 支持 `ASSET_URL`。普通 URL 可使用 `Url::to`、`Url::current` 和 `Url::query`。

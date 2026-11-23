@@ -22,6 +22,25 @@ fn article_link(article: &impl Model) -> UrlResult<String> {
 
 Use `Url::signed_route` for a persistent link or `Url::temporary_signed_route` with a `SystemTime` deadline. Attach `signed` or `signed:relative` to the destination route to match the signing mode. A modified or expired link receives HTTP 403. Signing uses `APP_KEY` as configured. `APP_PREVIOUS_KEYS` allows existing links to survive key rotation.
 
+### Verifying signatures on the request {#validating-signed-route-requests}
+
+Verify a signed link directly on the request instance. Pass `true` for an absolute signature, or use `has_valid_relative_signature()` for a relative signature. Rust requires the absolute flag explicitly.
+
+```rust
+use openrust::http::{HttpError, HttpFuture, Request, Response, StatusCode};
+
+fn unsubscribe(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        if !request.has_valid_signature(true)? {
+            return Ok(Response::empty(StatusCode::UNAUTHORIZED));
+        }
+        Response::json(StatusCode::OK, request.query("email")?)
+    })
+}
+```
+
+Use `has_valid_signature_while_ignoring(&["page", "order"], true)` or `has_valid_relative_signature_while_ignoring(&["page", "order"])` to permit changes to selected query keys. Ignored values are not protected. A signature covers the URL, not JSON or form input: read signed values with `request.query(...)`, even for GET requests. `input(...)` may return an unsigned body value instead.
+
 ## Request and asset URLs
 
 HTTP link generation uses an explicit `APP_URL` first, then the current request scheme and authority, then the listener-derived `app.url`. Artisan uses `app.url` directly. See [configuration](../getting-started/configuration.md) for the listener fallback. `Url::asset` honors `ASSET_URL`. Use `Url::to`, `Url::current` or `Url::query` for ordinary URLs.

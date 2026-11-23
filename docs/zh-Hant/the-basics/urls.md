@@ -22,6 +22,25 @@ fn article_link(article: &impl Model) -> UrlResult<String> {
 
 使用 `Url::signed_route` 產生長期連結，或使用 `Url::temporary_signed_route` 和 `SystemTime` 設定到期時間。在目的路由掛載與簽名模式對應的 `signed` 或 `signed:relative` 中介軟體。遭竄改或已到期的連結會傳回 HTTP 403。簽名依設定原樣使用 `APP_KEY`，輪替時可以透過 `APP_PREVIOUS_KEYS` 保留舊連結。
 
+### 在請求上驗證簽名 {#validating-signed-route-requests}
+
+可以直接在請求實例上驗證簽名連結。絕對簽名明確傳入 `true`；相對簽名用 `has_valid_relative_signature()`。Rust 要求明確傳入絕對模式參數。
+
+```rust
+use openrust::http::{HttpError, HttpFuture, Request, Response, StatusCode};
+
+fn unsubscribe(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        if !request.has_valid_signature(true)? {
+            return Ok(Response::empty(StatusCode::UNAUTHORIZED));
+        }
+        Response::json(StatusCode::OK, request.query("email")?)
+    })
+}
+```
+
+用 `has_valid_signature_while_ignoring(&["page", "order"], true)` 或 `has_valid_relative_signature_while_ignoring(&["page", "order"])` 允許指定查詢鍵變更。被忽略的值不受簽名保護。簽名只涵蓋 URL，不涵蓋 JSON 或表單本文：即使是 GET 請求，也應透過 `request.query(...)` 讀取已簽名值；`input(...)` 可能讀到本文中未簽名的覆寫值。
+
 ## 請求 URL 與資源 URL
 
 HTTP 請求內產生連結時，依序使用明確設定的 `APP_URL`、目前請求的通訊協定與主機、從監聽設定推導出的 `app.url`。Artisan 直接使用 `app.url`。監聽位址的回退規則請參閱[設定](../getting-started/configuration.md)。`Url::asset` 支援 `ASSET_URL`。一般 URL 可使用 `Url::to`、`Url::current` 和 `Url::query`。

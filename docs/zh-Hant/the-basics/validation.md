@@ -27,6 +27,27 @@ fn store(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 
 `email` 和 `email:rfc` 驗證預設 RFC 地址語法，允許僅產生警告的地址。尚未實作 DNS、spoof、strict 和 filter 模式；解析規則時，不支援的信箱參數傳回 `ValidationError::InvalidRule`，不會作為應用程式自訂規則處理。
 
+## 驗證傳入請求 {#validating-incoming-requests}
+
+在處理器中直接呼叫 `request.validate(rules).await?`。它使用應用程式驗證器和目前請求，只傳回通過驗證的輸入。失敗走正常的 JSON 422 或 Web 重新導向／Session 錯誤管線。
+
+```rust
+use openrust::{
+    http::{HttpError, HttpFuture, Request, Response, StatusCode},
+    validation::RuleSet,
+};
+
+fn store(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let rules = RuleSet::parse([("title", "required|string|max:255")])?;
+        let data = request.validate(rules).await?;
+        Response::json(StatusCode::CREATED, data.into_value())
+    })
+}
+```
+
+用 `request.validate_with_bag("post", rules).await?` 選擇具名錯誤包。Request 門面轉發至同一實例方法。在驗證中介軟體中，Precognition 會依 `Precognition-Validate-Only` 篩選欄位，並在預驗證成功時提前傳回，後續業務邏輯不會執行。一般路由動作不參與預驗證執行；需要預驗證時使用 Form Request 或驗證中介軟體。
+
 ## 資料庫驗證規則 {#database-validation-rules}
 
 用 `exists:table,column` 要求存在符合條件的資料列，用 `unique:table,column` 拒絕已有的值。省略欄位名稱時使用欄位名，在資料表名稱前加 `connection.` 可指定具名連線。兩條規則都使用寫入連線。陣列形式的 `exists` 用一次查詢檢查所有不同的值是否存在。

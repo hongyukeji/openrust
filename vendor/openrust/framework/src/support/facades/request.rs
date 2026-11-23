@@ -871,7 +871,9 @@ impl Request {
     pub async fn validate(
         rules: crate::validation::RuleSet,
     ) -> Result<crate::validation::ValidatedInput, HttpError> {
-        Self::validate_with_bag("default", rules).await
+        let root = Self::instance()?;
+        let mut request = root.borrow()?;
+        request.validate(rules).await
     }
     pub async fn validate_with_bag(
         bag: &str,
@@ -879,17 +881,7 @@ impl Request {
     ) -> Result<crate::validation::ValidatedInput, HttpError> {
         let root = Self::instance()?;
         let mut request = root.borrow()?;
-        let data = crate::validation::Data::from_request(&mut request).await?;
-        let mut validator = crate::validation::facade::Validator::make(data, rules)?;
-        validator
-            .validate_request(&mut request)
-            .await
-            .map_err(|mut error| {
-                if let crate::validation::ValidationError::Invalid(exception) = &mut error {
-                    exception.error_bag(bag);
-                }
-                HttpError::from(error)
-            })
+        request.validate_with_bag(bag, rules).await
     }
     pub fn has_valid_signature(absolute: bool) -> Result<bool, HttpError> {
         Self::has_valid_signature_while_ignoring(&[], absolute)
@@ -905,20 +897,7 @@ impl Request {
         absolute: bool,
     ) -> Result<bool, HttpError> {
         Self::instance()?
-            .with(|request| {
-                super::Url::has_valid_signature(
-                    request,
-                    if absolute {
-                        crate::routing::SignatureMode::Absolute
-                    } else {
-                        crate::routing::SignatureMode::Relative
-                    },
-                    crate::routing::SignatureQueryFilter::Keys(ignore),
-                )
-            })?
-            .map_err(|source| HttpError::Internal {
-                source: source.into(),
-            })
+            .with(|request| request.has_valid_signature_while_ignoring(ignore, absolute))?
     }
     pub async fn dump(keys: &[&str]) -> Result<RequestValue, HttpError> {
         let value = if keys.is_empty() {

@@ -24,6 +24,8 @@ mod metadata;
 mod native;
 mod precognition;
 pub(crate) mod query;
+mod signature;
+mod validation;
 pub(crate) use query::{parse as parse_query, parse_uri as parse_uri_query};
 mod url;
 mod variables;

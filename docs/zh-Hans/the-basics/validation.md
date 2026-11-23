@@ -27,6 +27,27 @@ fn store(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 
 `email` 和 `email:rfc` 验证默认 RFC 地址语法，允许仅产生警告的地址。尚未实现 DNS、spoof、strict 和 filter 模式；解析规则时，不支持的邮箱参数返回 `ValidationError::InvalidRule`，不会作为应用自定义规则处理。
 
+## 验证传入请求 {#validating-incoming-requests}
+
+在处理器中直接调用 `request.validate(rules).await?`。它使用应用验证器和当前请求，只返回通过验证的输入。失败走正常的 JSON 422 或 Web 重定向／Session 错误管线。
+
+```rust
+use openrust::{
+    http::{HttpError, HttpFuture, Request, Response, StatusCode},
+    validation::RuleSet,
+};
+
+fn store(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let rules = RuleSet::parse([("title", "required|string|max:255")])?;
+        let data = request.validate(rules).await?;
+        Response::json(StatusCode::CREATED, data.into_value())
+    })
+}
+```
+
+用 `request.validate_with_bag("post", rules).await?` 选择具名错误包。Request 门面转发到同一实例方法。在验证中间件中，Precognition 会按 `Precognition-Validate-Only` 筛选字段，并在预验证成功时提前返回，后续业务逻辑不会执行。普通路由动作不参与预验证执行；需要预验证时使用 Form Request 或验证中间件。
+
 ## 数据库验证规则 {#database-validation-rules}
 
 用 `exists:table,column` 要求存在匹配行，用 `unique:table,column` 拒绝已有值。省略列名时使用字段名，在表名前加 `connection.` 可指定具名连接。两条规则都使用写连接。数组形式的 `exists` 用一次查询检查所有不同的值是否存在。

@@ -27,6 +27,27 @@ fn store(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 
 `email` and `email:rfc` validate the default RFC address syntax, including warning-only addresses. DNS, spoof, strict and filter modes are not implemented; unsupported email parameters return `ValidationError::InvalidRule` when rules are parsed. They are not treated as application-defined rules.
 
+## Validating incoming requests {#validating-incoming-requests}
+
+Call `request.validate(rules).await?` directly in a handler. It uses the application validator and the current request, returning only validated input. Validation failures use the normal JSON 422 or Web redirect/session error pipeline.
+
+```rust
+use openrust::{
+    http::{HttpError, HttpFuture, Request, Response, StatusCode},
+    validation::RuleSet,
+};
+
+fn store(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let rules = RuleSet::parse([("title", "required|string|max:255")])?;
+        let data = request.validate(rules).await?;
+        Response::json(StatusCode::CREATED, data.into_value())
+    })
+}
+```
+
+Use `request.validate_with_bag("post", rules).await?` for a named error bag. The Request facade delegates to the same instance methods. In validation middleware, Precognition applies `Precognition-Validate-Only` and returns a successful preflight before subsequent business logic. Keep ordinary route actions out of preflight execution; use a Form Request or validation middleware for precognitive validation.
+
 ## Database Validation Rules {#database-validation-rules}
 
 Use `exists:table,column` to require a matching row and `unique:table,column` to reject an existing value. Omit the column to use the field name and prefix the table with `connection.` to select a named database connection. Both rules use the write connection. For an array, `exists` uses one query to check that all distinct values exist.
