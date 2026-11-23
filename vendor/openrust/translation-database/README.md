@@ -50,10 +50,10 @@ pub async fn load_database_translations(
     language_directory: PathBuf,
 ) -> TranslationResult<()> {
     let source = DatabaseLoader::new(connection)
-        .withTable("language_lines")?
-        .withMaxRows(10_000)?
-        .withFallback(Arc::new(FileLoader::new(language_directory)));
-    Lang::loadFrom(
+        .with_table("language_lines")?
+        .with_max_rows(10_000)?
+        .with_fallback(Arc::new(FileLoader::new(language_directory)));
+    Lang::load_from(
         &source,
         &[
             TranslationResource { locale: "fr", group: "messages", namespace: None },

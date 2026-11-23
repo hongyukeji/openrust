@@ -27,3 +27,7 @@
 validation_email首轮暴露已知内置email的未实现参数被通用扩展规则分支接收。按api-f01/email-rule.md既有明确契约，在保留email及email:rfc的同时，对其他email参数直接返回InvalidRule；不冒充已实现DNS／spoof／strict／filter，也不改变应用自定义规则名称的解析。增加组合／未知参数反例，同步三语验证正文的实际支持边界。
 
 最终14个验证／对齐／Precognition目标共75项通过；Precognition外部前端夹具1项ignore不计通过。包括9381组既有RFC数据、实际TCP FormRequest、生命周期、扩展、消息、密码、三库存在性及Web行为；三语内容检查通过。该结论基于本轮最终解析源码，不把首次失败或磁盘中断计入通过。
+
+## 数据库翻译公开示例修复
+
+全workspace实际Rustdoc测试发现translation-database的README及DatabaseLoader文档仍使用withTable／withMaxRows／withFallback／loadFrom。仅将Rust代码示例同步为现有原生命名；接口、加载和SQL行为不变。最终4项Rustdoc编译／执行通过，PostgreSQL18加载目标首轮通过；MySQL／SQLite及三库复验继续在补充矩阵记录。不以Rustdoc通过替代驱动行为验收。

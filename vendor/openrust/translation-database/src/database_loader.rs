@@ -22,8 +22,8 @@ use openrust::{
 /// use openrust_translation_database::DatabaseLoader;
 ///
 /// async fn publish(connection: Connection, translator: &Translator) -> TranslationResult<()> {
-///     let loader = DatabaseLoader::new(connection).withTable("language_lines")?;
-///     translator.loadFrom(&loader, &[TranslationResource {
+///     let loader = DatabaseLoader::new(connection).with_table("language_lines")?;
+///     translator.load_from(&loader, &[TranslationResource {
 ///         locale: "en", group: "messages", namespace: None,
 ///     }]).await
 /// }
