@@ -290,7 +290,14 @@ async fn protected_preference_is_distinct_from_actual_locale_and_never_needs_ses
 #[tokio::test]
 async fn invalid_cookie_values_and_removed_candidates_safely_fall_back() {
     let root = Root::new();
-    let kernel = root.kernel(json!({}), 2, false, |_| {}).await;
+    let kernel = root
+        .kernel(
+            json!({"supported_locales":["en","zh-Hans","zh-Hant"]}),
+            2,
+            false,
+            |_| {},
+        )
+        .await;
     for cookie in ["locale=zh-Hant", "locale=broken", "locale=", "locale[]=bad"] {
         let (status, headers, value) = send(
             &kernel,
@@ -846,9 +853,14 @@ async fn request_body_is_required_and_invalid_values_never_clear_or_write_a_pref
     let root = Root::new();
     // 保留原始空白以验收非空非法标签；默认 TrimStrings 会先把空白转换为空值。
     let kernel = root
-        .kernel(json!({}), 32, false, |m| {
-            m.trim_strings(["locale"]);
-        })
+        .kernel(
+            json!({"supported_locales":["en","zh-Hans","zh-Hant"]}),
+            32,
+            false,
+            |m| {
+                m.trim_strings(["locale"]);
+            },
+        )
         .await;
     let (_, headers, _) = send(&kernel, "POST", "/preference/zh-Hans", "", &[]).await;
     let cookie = saved(&headers);
@@ -1098,4 +1110,18 @@ async fn body_writes_keep_concurrent_clients_and_applications_isolated() {
     .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
     assert!(!has_locale_cookie(&headers));
+}
+
+#[tokio::test]
+async fn bundled_locale_is_discovered_and_can_be_saved_without_application_resources() {
+    let root = Root::new();
+    let kernel = root.kernel(json!({}), 33, false, |_| {}).await;
+    assert!(!root.0.join("lang/fr").exists());
+    let (status, headers, _) = send(&kernel, "POST", "/preference/fr", "", &[]).await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    let cookie = saved(&headers);
+    let (status, _, value) = send(&kernel, "GET", "/", &cookie, &[]).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(value["locale"], "fr");
+    assert_eq!(value["preference"], "fr");
 }

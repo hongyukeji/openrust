@@ -467,6 +467,9 @@ async fn invalid_or_unsupported_callback_values_fail_without_dispatch_or_event()
         .kernel(
             "en",
             |middleware| {
+                middleware
+                    .set_locale(&["en", "de", "fr", "zh-Hans", "zh-Hant"])
+                    .unwrap();
                 middleware.locale_using(header_locale);
             },
             events.clone(),
@@ -888,7 +891,17 @@ async fn callback_source_errors_are_visible_to_registered_exception_renderers() 
 async fn query_is_exact_and_overrides_browser_with_one_event_per_request() {
     let root = Root::new();
     let events = Arc::new(Events::default());
-    let kernel = root.kernel("en", |_| {}, events.clone()).await;
+    let kernel = root
+        .kernel(
+            "en",
+            |middleware| {
+                middleware
+                    .set_locale(&["en", "de", "fr", "zh-Hans", "zh-Hant"])
+                    .unwrap();
+            },
+            events.clone(),
+        )
+        .await;
     for (path, expected) in [
         ("/?locale=en", "en"),
         ("/?locale=zh-Hans", "zh-Hans"),
@@ -996,6 +1009,9 @@ async fn callback_precedes_query_and_none_continues_query() {
         .kernel(
             "en",
             |middleware| {
+                middleware
+                    .set_locale(&["en", "de", "fr", "zh-Hans", "zh-Hant"])
+                    .unwrap();
                 middleware.locale_using(header_locale);
             },
             Arc::new(Events::default()),
@@ -1584,4 +1600,27 @@ async fn protected_cookie_selection_emits_one_synchronized_event_per_request() {
         events.0.lock().unwrap().as_slice(),
         ["zh-Hans", "zh-Hant", "zh-Hans"]
     );
+}
+
+#[tokio::test]
+async fn bundled_locales_are_available_to_query_and_callback_without_local_resources() {
+    let root = Root::new();
+    assert!(!root.0.join("lang/it").exists());
+    let events = Arc::new(Events::default());
+    let kernel = root
+        .kernel(
+            "en",
+            |middleware| {
+                middleware.locale_using(header_locale);
+            },
+            events.clone(),
+        )
+        .await;
+    for (path, selected) in [("/?locale=it", None), ("/", Some("it"))] {
+        let (status, headers, body) = send_selected(&kernel, path, selected, "en").await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(headers["content-language"], "it");
+        assert_eq!(body, "it|Hello");
+    }
+    assert_eq!(*events.0.lock().unwrap(), ["it", "it"]);
 }
