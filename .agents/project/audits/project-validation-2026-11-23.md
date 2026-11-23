@@ -11,3 +11,9 @@
 ## 开发服务器夹具修正
 
 全量遍历首轮artisan_entry失败：欢迎页控制器已按既有设计直接由视图读取配置，旧夹具仍引用未传入的$name，导致等不到FirstServe标题。夹具改用config('app.name')，保持原端口占用/重试、SecondServe环境重载、SIGTERM退出与端口释放断言；两项真实进程测试重新通过（0.54秒）。未修改产品控制器或降低断言。原始失败与补验分别保留在openrust-test-artisan_entry-1.log、artisan-entry-fixed.log。
+
+## 迁移生成源码修复
+
+全量迁移回归发现实际生成源码仍输出getSchemaBuilder/dropIfExists，缓存表Rust模板还残留mediumText/bigInteger。修复已核定的Rust生成片段与模板，保留列类型、SQL、默认值和命令行为。同步字符串断言，增加实际创建表/修改表/空迁移/缓存迁移生成物的Rust编译与命名deny检查，避免生成器和字符串断言一起保留旧名而误过。隔离PostgreSQL18/MySQL8.4与SQLite的13项根迁移回归通过，原失败和各次复验日志保留。38份Rust模板逐项AST复核仅此缓存模板有漏项，其他模板无旧Rust标识符。
+
+验收编排另发现专属数据库URL提前返回导致漏注入、Redis限流缺少必需前缀，已修正编排并将相关目标标记重跑；不作为产品缺陷。安装器首轮还被本代理并行的补验重建覆盖了共享main产物，后续改为独占缓存串行验收并重跑，不把该失败写成框架功能失败。

@@ -65,13 +65,13 @@ impl MigrationCreator {
         let (up, down) = body.map(|(up, down)| (up.to_owned(), down.to_owned())).unwrap_or_else(|| match table {
             Some(table) if create => (
                 format!(
-                    "connection.getSchemaBuilder().create({table:?}, |table| {{\n                table.id();\n                table.timestamps();\n            }}).await"
+                    "connection.get_schema_builder().create({table:?}, |table| {{\n                table.id();\n                table.timestamps();\n            }}).await"
                 ),
-                format!("connection.getSchemaBuilder().dropIfExists({table:?}).await"),
+                format!("connection.get_schema_builder().drop_if_exists({table:?}).await"),
             ),
             Some(table) => (
-                format!("connection.getSchemaBuilder().table({table:?}, |_table| {{}}).await"),
-                format!("connection.getSchemaBuilder().table({table:?}, |_table| {{}}).await"),
+                format!("connection.get_schema_builder().table({table:?}, |_table| {{}}).await"),
+                format!("connection.get_schema_builder().table({table:?}, |_table| {{}}).await"),
             ),
             None => ("Ok(())".into(), "Ok(())".into()),
         });

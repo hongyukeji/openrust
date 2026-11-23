@@ -720,8 +720,10 @@ fn artisan_generates_a_migration_without_overwriting_it() {
     let original = fs::read_to_string(&path).unwrap();
     assert!(
         original.contains("create(\"inventory\"")
-            && original.contains("dropIfExists(\"inventory\"")
+            && original.contains("drop_if_exists(\"inventory\"")
     );
+    #[cfg(unix)]
+    assert_generated_migration_compiles(&path, &root.0.join("compiled"));
     assert_eq!(root.run("local", None, &args).status.code(), Some(1));
     assert_eq!(fs::read_to_string(path).unwrap(), original);
 }
@@ -1421,17 +1423,19 @@ fn artisan_generates_cache_tables_and_rejects_duplicate_migrations() {
     );
     let source = fs::read_to_string(&path).unwrap();
     assert!(source.contains("create(\"cache\""));
-    assert!(source.contains("table.mediumText(\"value\");"));
+    assert!(source.contains("table.medium_text(\"value\");"));
     assert!(source.contains("create(\"cache_locks\""));
     assert_eq!(
         source
-            .matches("table.bigInteger(\"expiration\").index();")
+            .matches("table.big_integer(\"expiration\").index();")
             .count(),
         2
     );
-    assert!(source.contains("dropIfExists(\"cache\")"));
-    assert!(source.contains("dropIfExists(\"cache_locks\")"));
+    assert!(source.contains("drop_if_exists(\"cache\")"));
+    assert!(source.contains("drop_if_exists(\"cache_locks\")"));
 
+    #[cfg(unix)]
+    assert_generated_migration_compiles(&path, &root.0.join("compiled"));
     let duplicate = root.run("local", None, &["make:cache-table"]);
     assert_eq!(duplicate.status.code(), Some(1));
     assert!(String::from_utf8_lossy(&duplicate.stderr).contains("Migration already exists."));
@@ -1456,4 +1460,67 @@ async fn artisan_migrations_use_a_real_postgres_ledger() {
         return;
     };
     verify(Some(&url)).await;
+}
+
+// 直接编译实际生成物，避免旧方法名与旧字符串断言互相掩盖。
+#[cfg(unix)]
+fn assert_generated_migration_compiles(source: &std::path::Path, output: &std::path::Path) {
+    let executable = std::env::current_exe().unwrap();
+    let dependencies = executable.parent().unwrap();
+    let framework = fs::read_dir(dependencies)
+        .unwrap()
+        .map(Result::unwrap)
+        .map(|entry| entry.path())
+        .filter(|path| {
+            path.file_name()
+                .unwrap()
+                .to_string_lossy()
+                .starts_with("libopenrust-")
+                && path
+                    .extension()
+                    .is_some_and(|extension| extension == "rlib")
+        })
+        .max_by_key(|path| path.metadata().unwrap().modified().unwrap())
+        .expect("framework rlib produced by Cargo");
+    fs::create_dir_all(output).unwrap();
+    let result = Command::new("rustc")
+        .args([
+            "--edition=2024",
+            "--crate-type=lib",
+            "--crate-name=generated_migration",
+            "--emit=metadata",
+            "-Dnon_snake_case",
+            "-Dnon_camel_case_types",
+            "-Dnon_upper_case_globals",
+        ])
+        .arg(source)
+        .arg("--out-dir")
+        .arg(output)
+        .arg("-L")
+        .arg(format!("dependency={}", dependencies.display()))
+        .arg("--extern")
+        .arg(format!("openrust={}", framework.display()))
+        .output()
+        .unwrap();
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn artisan_generated_update_and_empty_migrations_compile() {
+    for name in ["AddStatusToAccountsTable", "ReconcileAccounts"] {
+        let root = Root::new();
+        success(root.run("local", None, &["make:migration", name]));
+        let source = fs::read_dir(root.0.join("database/migrations"))
+            .unwrap()
+            .map(Result::unwrap)
+            .next()
+            .unwrap()
+            .path();
+        assert_generated_migration_compiles(&source, &root.0.join("compiled"));
+    }
 }
