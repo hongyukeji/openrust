@@ -69,6 +69,22 @@ impl Exception<'_> {
 
 /// Reports exceptions and renders them at the appropriate application boundary.
 pub trait ExceptionHandler: Send + Sync {
+    /// 同步修改运行期配置；自定义处理器须显式支持，不能静默忽略。
+    fn configure(
+        &self,
+        _update: &mut dyn FnMut(&mut crate::foundation::configuration::Exceptions),
+    ) -> Result<(), crate::contracts::container::BindingResolutionError> {
+        Err(
+            crate::contracts::container::BindingResolutionError::FactoryFailed {
+                service: "ExceptionHandler",
+                source: Box::new(std::io::Error::other("此异常处理器不支持运行期配置")),
+            },
+        )
+    }
+    /// 查询同一异常实例是否正在报告；None 表示自定义处理器未公开此能力。
+    fn is_reporting(&self, _exception: &Exception<'_>) -> Option<bool> {
+        None
+    }
     /// Builds a serializable snapshot of the original exception and its sources.
     fn build_log_exception(
         &self,
@@ -89,7 +105,7 @@ pub trait ExceptionHandler: Send + Sync {
         false
     }
 
-    /// Checks report eligibility, consuming an attempt for a rate-limited report.
+    /// 检查报告资格，不消耗报告限流配额；实际报告阶段再判定采样与限流。
     fn should_report<'a>(&'a self, exception: &'a Exception<'_>) -> HttpFuture<'a, bool>;
     fn report<'a>(&'a self, exception: &'a Exception<'_>) -> HttpFuture<'a, LogResult<()>>;
     /// 默认扩展路径同时报告和渲染；具体处理器可保留请求级重定向与日志上下文。

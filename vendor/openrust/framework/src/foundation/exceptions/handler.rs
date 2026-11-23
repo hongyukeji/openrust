@@ -2,7 +2,7 @@ use std::{
     error::Error,
     fmt::Write as _,
     io::{self, Write as _},
-    sync::{Mutex, Weak},
+    sync::{Mutex, RwLock, Weak},
 };
 
 use crate::{
@@ -22,9 +22,17 @@ use crate::{
     log::{Level, LogError, LogResult},
 };
 
+tokio::task_local! {static CURRENTLY_REPORTING:Option<(usize,usize)>;}
+fn exception_identity(exception: &Exception<'_>) -> usize {
+    if let Some(shared) = exception.error().downcast_ref::<SharedException>() {
+        return shared.identity().as_ptr() as *const () as usize;
+    }
+    exception.error() as *const (dyn Error + 'static) as *const () as usize
+}
+
 /// Reports application exceptions and renders HTTP or console responses.
 pub struct Handler {
-    configuration: Option<Exceptions>,
+    configuration: RwLock<Option<Exceptions>>,
     owner: Weak<Container>,
     reported: Mutex<Vec<Weak<dyn Error + Send + Sync>>>,
 }
@@ -32,10 +40,14 @@ pub struct Handler {
 impl Handler {
     pub(crate) fn new(configuration: Option<Exceptions>, owner: Weak<Container>) -> Self {
         Self {
-            configuration,
+            configuration: RwLock::new(configuration),
             owner,
             reported: Mutex::default(),
         }
+    }
+
+    fn configuration(&self) -> Option<Exceptions> {
+        self.configuration.read().unwrap().clone()
     }
 
     pub(crate) async fn render_http(&self, request: &mut Request, error: &HttpError) -> Response {
@@ -43,10 +55,14 @@ impl Handler {
             return error.bare_response();
         }
         let exception = Exception::Http(error);
-        if self.should_report(&exception).await && !self.duplicate(&exception, true) {
+        if self.should_report(&exception).await
+            && self.allows_throttle(&exception).await
+            && !self.duplicate(&exception, true)
+        {
             let _ = self.write_report(&exception, Some(request)).await;
         }
-        let config = self.configuration.as_ref();
+        let configuration_snapshot = self.configuration();
+        let config = configuration_snapshot.as_ref();
         let response = if let Some(custom) =
             config.and_then(|config| config.render_using(&exception, request))
         {
@@ -70,7 +86,7 @@ impl Handler {
     }
 
     fn renders_json(&self, request: &Request, error: Option<&HttpError>) -> bool {
-        self.configuration.as_ref().map_or_else(
+        self.configuration().as_ref().map_or_else(
             || request.expects_json(),
             |config| config.renders_json(request, error),
         )
@@ -99,7 +115,7 @@ impl Handler {
         exception: &Exception<'_>,
         request: &Request,
     ) -> Response {
-        match self.configuration.as_ref() {
+        match self.configuration().as_ref() {
             Some(config) => config.respond_using(response, exception, request),
             None => response,
         }
@@ -107,7 +123,7 @@ impl Handler {
 
     fn duplicate(&self, exception: &Exception<'_>, claim: bool) -> bool {
         if !self
-            .configuration
+            .configuration()
             .as_ref()
             .is_some_and(Exceptions::suppress_duplicates)
         {
@@ -134,7 +150,7 @@ impl Handler {
             && exception
                 .downcast_ref::<HttpError>()
                 .is_none_or(|error| matches!(error, HttpError::Internal { .. }));
-        self.configuration
+        self.configuration()
             .as_ref()
             .map_or(default, |configuration| {
                 configuration.allows_reporting(exception, default)
@@ -143,7 +159,7 @@ impl Handler {
 
     async fn allows_throttle(&self, exception: &Exception<'_>) -> bool {
         match self
-            .configuration
+            .configuration()
             .as_ref()
             .and_then(|config| config.report_throttle(exception))
         {
@@ -186,8 +202,18 @@ impl Handler {
         exception: &Exception<'_>,
         request: Option<&mut Request>,
     ) -> LogResult<()> {
+        let identity = (self as *const Self as usize, exception_identity(exception));
+        CURRENTLY_REPORTING
+            .scope(Some(identity), self.write_report_inner(exception, request))
+            .await
+    }
+    async fn write_report_inner(
+        &self,
+        exception: &Exception<'_>,
+        request: Option<&mut Request>,
+    ) -> LogResult<()> {
         if self
-            .configuration
+            .configuration()
             .as_ref()
             .is_some_and(|configuration| !configuration.should_continue_reporting(exception))
         {
@@ -198,7 +224,8 @@ impl Handler {
             .upgrade()
             .and_then(|owner| owner.make::<dyn crate::contracts::log::Logger>().ok());
         if let Some(logger) = logger {
-            let configuration = self.configuration.as_ref();
+            let configuration_snapshot = self.configuration();
+            let configuration = configuration_snapshot.as_ref();
             let level = configuration.map_or(Level::Error, |config| config.report_level(exception));
             let mut context = configuration
                 .map(|config| config.report_context(exception))
@@ -236,6 +263,29 @@ impl Handler {
 }
 
 impl ExceptionHandler for Handler {
+    fn configure(
+        &self,
+        update: &mut dyn FnMut(&mut Exceptions),
+    ) -> Result<(), crate::contracts::container::BindingResolutionError> {
+        let mut configuration = self
+            .configuration
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut candidate = configuration.clone().unwrap_or_default();
+        update(&mut candidate);
+        let retired = configuration.replace(candidate);
+        drop(configuration);
+        drop(retired);
+        Ok(())
+    }
+    fn is_reporting(&self, exception: &Exception<'_>) -> Option<bool> {
+        let identity = (self as *const Self as usize, exception_identity(exception));
+        Some(
+            CURRENTLY_REPORTING
+                .try_with(|current| *current == Some(identity))
+                .unwrap_or(false),
+        )
+    }
     fn render_http<'a>(
         &'a self,
         request: &'a mut Request,
@@ -250,7 +300,8 @@ impl ExceptionHandler for Handler {
         name: Option<&'static str>,
         reported: bool,
     ) -> serde_json::Value {
-        let configuration = self.configuration.as_ref();
+        let configuration_snapshot = self.configuration();
+        let configuration = configuration_snapshot.as_ref();
         let name =
             name.or_else(|| configuration.and_then(|config| config.node_name(exception.error())));
         let context = configuration
@@ -270,22 +321,21 @@ impl ExceptionHandler for Handler {
     }
 
     fn should_stop_retries(&self, exception: &Exception<'_>) -> bool {
-        self.configuration
+        self.configuration()
             .as_ref()
             .is_some_and(|configuration| configuration.stops_retries(exception))
     }
 
     fn should_report<'a>(&'a self, exception: &'a Exception<'_>) -> HttpFuture<'a, bool> {
-        Box::pin(async move {
-            !self.duplicate(exception, false)
-                && self.allowed(exception)
-                && self.allows_throttle(exception).await
-        })
+        Box::pin(async move { !self.duplicate(exception, false) && self.allowed(exception) })
     }
 
     fn report<'a>(&'a self, exception: &'a Exception<'_>) -> HttpFuture<'a, LogResult<()>> {
         Box::pin(async move {
-            if !self.should_report(exception).await || self.duplicate(exception, true) {
+            if !self.should_report(exception).await
+                || !self.allows_throttle(exception).await
+                || self.duplicate(exception, true)
+            {
                 return Ok(());
             }
             self.write_report(exception, None).await
@@ -294,7 +344,7 @@ impl ExceptionHandler for Handler {
 
     fn render(&self, request: &Request, exception: &Exception<'_>) -> Response {
         let response = self
-            .configuration
+            .configuration()
             .as_ref()
             .and_then(|config| config.render_using(exception, request))
             .or_else(|| {

@@ -21,8 +21,15 @@ impl Facade for Exceptions {
 }
 impl Exceptions {
     pub async fn report(error: impl Error + Send + Sync + 'static) -> LogResult<()> {
+        let shared = if let Some(shared) = (&error as &(dyn Error + 'static))
+            .downcast_ref::<crate::contracts::debug::SharedException>(
+        ) {
+            shared.clone()
+        } else {
+            crate::contracts::debug::SharedException::new(error)
+        };
         Self::get_facade_root()?
-            .report(&Exception::Error(&error))
+            .report(&Exception::Error(&shared))
             .await
     }
     pub async fn should_report(exception: &Exception<'_>) -> Result<bool, BindingResolutionError> {
@@ -46,5 +53,127 @@ impl Exceptions {
     }
     pub fn handler() -> Result<Arc<dyn ExceptionHandler>, BindingResolutionError> {
         Self::get_facade_root()
+    }
+}
+
+impl Exceptions {
+    fn configure(
+        update: impl FnOnce(&mut crate::foundation::configuration::Exceptions),
+    ) -> Result<(), BindingResolutionError> {
+        let mut update = Some(update);
+        Self::get_facade_root()?.configure(&mut |configuration| {
+            if let Some(update) = update.take() {
+                update(configuration);
+            }
+        })
+    }
+    pub fn is_reporting(exception: &Exception<'_>) -> Result<bool, BindingResolutionError> {
+        Self::get_facade_root()?
+            .is_reporting(exception)
+            .ok_or_else(|| BindingResolutionError::FactoryFailed {
+                service: "ExceptionHandler",
+                source: Box::new(std::io::Error::other(
+                    "此异常处理器未公开正在报告的异常查询",
+                )),
+            })
+    }
+    pub fn reportable<E: Error + 'static>(
+        callback: impl Fn(&E) -> crate::foundation::configuration::ReportDecision
+        + Send
+        + Sync
+        + 'static,
+    ) -> Result<(), BindingResolutionError> {
+        Self::configure(|configuration| {
+            configuration.report(callback);
+        })
+    }
+    pub fn renderable<E: Error + 'static>(
+        callback: impl Fn(&E, &Request) -> Option<Response> + Send + Sync + 'static,
+    ) -> Result<(), BindingResolutionError> {
+        Self::configure(|configuration| {
+            configuration.render(callback);
+        })
+    }
+    pub fn dont_report<E: Error + 'static>() -> Result<(), BindingResolutionError> {
+        Self::configure(|configuration| {
+            configuration.dont_report::<E>();
+        })
+    }
+    pub fn ignore<E: Error + 'static>() -> Result<(), BindingResolutionError> {
+        Self::dont_report::<E>()
+    }
+    pub fn stop_ignoring<E: Error + 'static>() -> Result<(), BindingResolutionError> {
+        Self::configure(|configuration| {
+            configuration.stop_ignoring::<E>();
+        })
+    }
+    pub fn dont_report_when(
+        callback: impl Fn(&Exception<'_>) -> bool + Send + Sync + 'static,
+    ) -> Result<(), BindingResolutionError> {
+        Self::configure(|configuration| {
+            configuration.dont_report_when(callback);
+        })
+    }
+    pub fn dont_retry<E: Error + 'static>() -> Result<(), BindingResolutionError> {
+        Self::configure(|configuration| {
+            configuration.dont_retry::<E>();
+        })
+    }
+    pub fn dont_retry_when(
+        callback: impl Fn(&Exception<'_>) -> bool + Send + Sync + 'static,
+    ) -> Result<(), BindingResolutionError> {
+        Self::configure(|configuration| {
+            configuration.dont_retry_when(callback);
+        })
+    }
+    pub fn dont_report_duplicates() -> Result<(), BindingResolutionError> {
+        Self::configure(|configuration| {
+            configuration.dont_report_duplicates();
+        })
+    }
+    pub fn dont_flash(
+        fields: impl IntoIterator<Item = impl Into<String>>,
+    ) -> Result<(), BindingResolutionError> {
+        Self::configure(|configuration| {
+            configuration.dont_flash(fields);
+        })
+    }
+    pub fn level<E: Error + 'static>(
+        level: crate::log::Level,
+    ) -> Result<(), BindingResolutionError> {
+        Self::configure(|configuration| {
+            configuration.level::<E>(level);
+        })
+    }
+    pub fn build_context_using(
+        callback: impl Fn(&Exception<'_>) -> crate::log::LogContext + Send + Sync + 'static,
+    ) -> Result<(), BindingResolutionError> {
+        Self::configure(|configuration| {
+            configuration.context(callback);
+        })
+    }
+    pub fn respond_using(
+        callback: impl Fn(Response, &Exception<'_>, &Request) -> Response + Send + Sync + 'static,
+    ) -> Result<(), BindingResolutionError> {
+        Self::configure(|configuration| {
+            configuration.respond(callback);
+        })
+    }
+    pub fn should_render_json_when(
+        callback: impl Fn(&Request, &crate::http::HttpError) -> bool + Send + Sync + 'static,
+    ) -> Result<(), BindingResolutionError> {
+        Self::configure(|configuration| {
+            configuration.should_render_json_when(callback);
+        })
+    }
+    pub fn throttle_using<E: Error + 'static>(
+        callback: impl Fn(&E) -> Option<crate::foundation::configuration::ReportThrottle>
+        + Send
+        + Sync
+        + 'static,
+    ) -> Result<(), BindingResolutionError> {
+        Self::configure(|configuration| {
+            configuration.throttle(callback);
+        })
     }
 }

@@ -211,3 +211,13 @@ python3 -B tests/build_guard.py --workflow facade-alignment --target-dir target/
 - 为契约增加默认 `render_http` 扩展钩子，现有具体 Handler 覆盖它继续使用原请求日志上下文、验证重定向与HTML/JSON响应。现有自定义 trait 实现无需补写方法；缺失绑定返回错误，不静默退回最初实例。
 - 新增3项门面/真实Kernel/Artisan契约替换测试，回归5项异常渲染、7项异常报告（含真实TCP HTTP、并发配额和Artisan），全部15项通过。Worker原有路径已解析此契约，仅源码核实，没有把它算成新增fake验收。
 - 仍为 partial：fake必须保留可供类型/谓词断言的真实异常，不能用借用错误的字符串快照冒充；全部配置转发和 shouldReport 与限流资格差异继续登记在同一JSON，下一批继续补齐。
+
+### Exceptions 运行期配置与报告状态
+
+- 原处理器支持运行期配置：reportable/renderable、忽略/恢复、重试抑制、dontFlash、日志级别、上下文、响应/JSON策略、重复报告抑制及带类型的限流策略。既有启动配置保留，不新建处理器或重置已报告实例。
+- 配置读取使用独立快照，实际用户回调与异步日志运行时不持有配置锁；写入先保留原快照，旧回调在解锁后销毁。实际验证报告回调中注册新规则，不发生重入死锁。
+- 纠正初步实现的概念误判：固定 Handler::isReporting 是正在报告的同一异常实例比较，不是资格查询。PHP原类经Reflection仅初始化该属性的实跑结果为 `[false,true,false,false]`；Rust用处理器身份+异常身份的任务局部作用域，验证回调期间同一/不同异常、报告结束、回调panic后恢复。
+- shouldReport 同步对齐为纯报告资格；之前会消耗采样/限流配额，现移动至实际报告阶段。验证重复查询不调用策略，真实报告仅调用一次；原真实TCP并发限流与采样回归保持通过。
+- 门面拥有所有权的错误采用 SharedException 保存真实对象，已有SharedException不二次包装；重复抑制和类型回调保留身份。未以字符串快照替代真实错误。
+- `exceptions-config/test-fifth.log`：当前门面10项+既有报告7项+渲染5项，共22项通过。原first日志的编译失败为测试调用既有API写法错误；初始eligibility版isReporting未提交，已按固定源码纠正，相关失败与中间成功日志完整保留，最终以本节行为和交付日志为准。
+- 自定义处理器不支持配置或当前报告查询时显式返回错误，不提供空操作或默认true来冒充支持。fake/原始异常所有权传播、map、context getters、ReportableHandler链式停止及全局throttle回调仍未闭合，继续原任务。

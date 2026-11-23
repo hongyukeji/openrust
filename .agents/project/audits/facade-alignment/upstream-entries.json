@@ -980,14 +980,14 @@
           "evidence": "not implemented/verified through this facade; bootstrap configuration or underlying method alone is not facade parity"
         },
         "reportable": {
-          "local": "reportable",
-          "status": "pending",
-          "evidence": "not implemented/verified through this facade; bootstrap configuration or underlying method alone is not facade parity"
+          "local": "reportable::<E>(Fn(&E)->ReportDecision)",
+          "status": "partial",
+          "evidence": "framework/tests/exceptions_facade.rs (10 current cases), existing exception_reporting(7) and exception_rendering(5); exceptions-config/test-fifth.log; PHP isReporting oracle"
         },
         "renderable": {
-          "local": "renderable",
-          "status": "pending",
-          "evidence": "not implemented/verified through this facade; bootstrap configuration or underlying method alone is not facade parity"
+          "local": "renderable::<E>(Fn(&E,&Request)->Option<Response>)",
+          "status": "verified-current-native-paths",
+          "evidence": "framework/tests/exceptions_facade.rs (10 current cases), existing exception_reporting(7) and exception_rendering(5); exceptions-config/test-fifth.log; PHP isReporting oracle"
         },
         "map": {
           "local": "map",
@@ -995,29 +995,29 @@
           "evidence": "not implemented/verified through this facade; bootstrap configuration or underlying method alone is not facade parity"
         },
         "dontReport": {
-          "local": "dont_report",
-          "status": "pending",
-          "evidence": "not implemented/verified through this facade; bootstrap configuration or underlying method alone is not facade parity"
+          "local": "dont_report::<E>()",
+          "status": "verified-current-native-paths",
+          "evidence": "framework/tests/exceptions_facade.rs (10 current cases), existing exception_reporting(7) and exception_rendering(5); exceptions-config/test-fifth.log; PHP isReporting oracle"
         },
         "dontReportWhen": {
-          "local": "dont_report_when",
-          "status": "pending",
-          "evidence": "not implemented/verified through this facade; bootstrap configuration or underlying method alone is not facade parity"
+          "local": "dont_report_when(Fn(&Exception)->bool)",
+          "status": "verified-current-native-paths",
+          "evidence": "framework/tests/exceptions_facade.rs (10 current cases), existing exception_reporting(7) and exception_rendering(5); exceptions-config/test-fifth.log; PHP isReporting oracle"
         },
         "ignore": {
-          "local": "ignore",
-          "status": "pending",
-          "evidence": "not implemented/verified through this facade; bootstrap configuration or underlying method alone is not facade parity"
+          "local": "ignore::<E>()",
+          "status": "verified-current-native-paths",
+          "evidence": "framework/tests/exceptions_facade.rs (10 current cases), existing exception_reporting(7) and exception_rendering(5); exceptions-config/test-fifth.log; PHP isReporting oracle"
         },
         "dontRetry": {
-          "local": "dont_retry",
-          "status": "pending",
-          "evidence": "not implemented/verified through this facade; bootstrap configuration or underlying method alone is not facade parity"
+          "local": "dont_retry::<E>()",
+          "status": "verified-current-native-paths",
+          "evidence": "framework/tests/exceptions_facade.rs (10 current cases), existing exception_reporting(7) and exception_rendering(5); exceptions-config/test-fifth.log; PHP isReporting oracle"
         },
         "dontRetryWhen": {
-          "local": "dont_retry_when",
-          "status": "pending",
-          "evidence": "not implemented/verified through this facade; bootstrap configuration or underlying method alone is not facade parity"
+          "local": "dont_retry_when(Fn(&Exception)->bool)",
+          "status": "verified-current-native-paths",
+          "evidence": "framework/tests/exceptions_facade.rs (10 current cases), existing exception_reporting(7) and exception_rendering(5); exceptions-config/test-fifth.log; PHP isReporting oracle"
         },
         "shouldStopRetries": {
           "local": "should_stop_retries",
@@ -1025,14 +1025,14 @@
           "evidence": "framework/tests/exceptions_facade.rs; existing exception_reporting and exception_rendering actual TCP consumers"
         },
         "dontFlash": {
-          "local": "dont_flash",
-          "status": "pending",
-          "evidence": "not implemented/verified through this facade; bootstrap configuration or underlying method alone is not facade parity"
+          "local": "dont_flash(iterator<String>)",
+          "status": "verified-current-native-paths",
+          "evidence": "framework/tests/exceptions_facade.rs (10 current cases), existing exception_reporting(7) and exception_rendering(5); exceptions-config/test-fifth.log; PHP isReporting oracle"
         },
         "level": {
-          "local": "level",
-          "status": "pending",
-          "evidence": "not implemented/verified through this facade; bootstrap configuration or underlying method alone is not facade parity"
+          "local": "level::<E>(Level)",
+          "status": "verified-current-native-paths",
+          "evidence": "framework/tests/exceptions_facade.rs (10 current cases), existing exception_reporting(7) and exception_rendering(5); exceptions-config/test-fifth.log; PHP isReporting oracle"
         },
         "report": {
           "local": "report",
@@ -1040,24 +1040,24 @@
           "evidence": "framework/tests/exceptions_facade.rs; existing exception_reporting and exception_rendering actual TCP consumers"
         },
         "isReporting": {
-          "local": "is_reporting",
-          "status": "pending",
-          "evidence": "not implemented/verified through this facade; bootstrap configuration or underlying method alone is not facade parity"
+          "local": "is_reporting(&Exception)->Result<bool>",
+          "status": "verified-current-native-paths",
+          "evidence": "framework/tests/exceptions_facade.rs (10 current cases), existing exception_reporting(7) and exception_rendering(5); exceptions-config/test-fifth.log; PHP isReporting oracle"
         },
         "shouldReport": {
-          "local": "should_report",
-          "status": "verified-current-contract-paths",
-          "evidence": "framework/tests/exceptions_facade.rs; existing exception_reporting and exception_rendering actual TCP consumers"
+          "local": "should_report(&Exception).await -> Result<bool>",
+          "status": "verified-current-native-paths",
+          "evidence": "framework/tests/exceptions_facade.rs (10 current cases), existing exception_reporting(7) and exception_rendering(5); exceptions-config/test-fifth.log; PHP isReporting oracle"
         },
         "throttleUsing": {
-          "local": "throttle_using",
-          "status": "pending",
-          "evidence": "not implemented/verified through this facade; bootstrap configuration or underlying method alone is not facade parity"
+          "local": "throttle_using::<E>(Fn(&E)->Option<ReportThrottle>)",
+          "status": "partial",
+          "evidence": "framework/tests/exceptions_facade.rs (10 current cases), existing exception_reporting(7) and exception_rendering(5); exceptions-config/test-fifth.log; PHP isReporting oracle"
         },
         "stopIgnoring": {
-          "local": "stop_ignoring",
-          "status": "pending",
-          "evidence": "not implemented/verified through this facade; bootstrap configuration or underlying method alone is not facade parity"
+          "local": "stop_ignoring::<E>()",
+          "status": "verified-current-native-paths",
+          "evidence": "framework/tests/exceptions_facade.rs (10 current cases), existing exception_reporting(7) and exception_rendering(5); exceptions-config/test-fifth.log; PHP isReporting oracle"
         },
         "contextForException": {
           "local": "context_for_exception",
@@ -1070,9 +1070,9 @@
           "evidence": "not implemented/verified through this facade; bootstrap configuration or underlying method alone is not facade parity"
         },
         "buildContextUsing": {
-          "local": "build_context_using",
-          "status": "pending",
-          "evidence": "not implemented/verified through this facade; bootstrap configuration or underlying method alone is not facade parity"
+          "local": "build_context_using(Fn(&Exception)->LogContext)",
+          "status": "verified-current-native-paths",
+          "evidence": "framework/tests/exceptions_facade.rs (10 current cases), existing exception_reporting(7) and exception_rendering(5); exceptions-config/test-fifth.log; PHP isReporting oracle"
         },
         "render": {
           "local": "render",
@@ -1080,19 +1080,19 @@
           "evidence": "framework/tests/exceptions_facade.rs; existing exception_reporting and exception_rendering actual TCP consumers"
         },
         "respondUsing": {
-          "local": "respond_using",
-          "status": "pending",
-          "evidence": "not implemented/verified through this facade; bootstrap configuration or underlying method alone is not facade parity"
+          "local": "respond_using(Fn(Response,&Exception,&Request)->Response)",
+          "status": "verified-current-native-paths",
+          "evidence": "framework/tests/exceptions_facade.rs (10 current cases), existing exception_reporting(7) and exception_rendering(5); exceptions-config/test-fifth.log; PHP isReporting oracle"
         },
         "shouldRenderJsonWhen": {
-          "local": "should_render_json_when",
-          "status": "pending",
-          "evidence": "not implemented/verified through this facade; bootstrap configuration or underlying method alone is not facade parity"
+          "local": "should_render_json_when(Fn(&Request,&HttpError)->bool)",
+          "status": "verified-current-native-paths",
+          "evidence": "framework/tests/exceptions_facade.rs (10 current cases), existing exception_reporting(7) and exception_rendering(5); exceptions-config/test-fifth.log; PHP isReporting oracle"
         },
         "dontReportDuplicates": {
-          "local": "dont_report_duplicates",
-          "status": "pending",
-          "evidence": "not implemented/verified through this facade; bootstrap configuration or underlying method alone is not facade parity"
+          "local": "dont_report_duplicates()",
+          "status": "verified-current-native-paths",
+          "evidence": "framework/tests/exceptions_facade.rs (10 current cases), existing exception_reporting(7) and exception_rendering(5); exceptions-config/test-fifth.log; PHP isReporting oracle"
         },
         "handler": {
           "local": "handler",
@@ -1159,11 +1159,20 @@
       "remaining": [
         "fake, handler-unwrapping for nested fakes, typed reported storage and selectors, assertReported/Count/NotReported/NothingReported, throwOnReport/throwFirstReported, setHandler, isFake marker: implement without losing original Rust error identity and source chain",
         "owned exception propagation needed for retaining HTTP/Artisan/Worker errors across fake lifetimes; borrowed error snapshots alone are not typed predicate equivalence",
-        "register, reportable, renderable, map, dontReport/When, ignore, dontRetry/When, dontFlash, level, throttleUsing, stopIgnoring, contextForException/buildContextForException/buildContextUsing, respondUsing, shouldRenderJsonWhen and dontReportDuplicates runtime facade/Handler forwards still pending",
-        "isReporting and exact Laravel shouldReport eligibility vs current throttling-admission side effect; existing behavior explicitly preserved, not declared complete parity",
         "handler getter currently returns current contract Arc as native convenience, not yet Laravel fake original-handler unwrapping",
-        "all custom handler/fake request, async, multi-app, Worker and failure restoration consumers plus shared Facade base mocks/spy still pending"
-      ]
+        "all custom handler/fake request, async, multi-app, Worker and failure restoration consumers plus shared Facade base mocks/spy still pending",
+        "register and map, contextForException/buildContextForException runtime public contracts remain to implement and verify",
+        "ReportableHandler fluent stop behavior; global throttleUsing callback replacement/default grouping vs native typed policy; full result/chain defaults",
+        "isReporting borrowed zero-sized Rust value identity cannot imply PHP object identity; owned facade report uses Arc-backed identity; review remaining direct borrowed contract consumers during owned-error/fake work"
+      ],
+      "runtime_configuration": {
+        "handler": "existing handler stores configuration behind RwLock; methods clone snapshots before invoking callbacks or awaiting. Setters preserve constructor configuration and existing duplicate map; old callbacks are retired outside the write lock",
+        "custom_handlers": "object-safe configure extension default returns explicit unsupported error; read-only is_reporting capability default None likewise returns explicit unsupported error, never a fabricated answer",
+        "isReporting": "tracks active owner-handler + actual exception identity in lexical async task-local report scope; false outside, true for same error during reporter callback, false for other error, restores on panic/completion; does not mean report eligibility",
+        "shouldReport": "now pure duplicate/ignore eligibility; sampling/throttle admission moved to actual report/HTTP report phases. Repeated eligibility calls do not invoke admission; actual reporting invokes once",
+        "owned_report": "Facade owned errors retain Arc-backed SharedException identity; existing SharedException clones are not rewrapped, preserving duplicates and actual type/source callbacks",
+        "limits": "typed throttling registration reuses existing per-type policy; full global callback replacement and ReportableHandler stop-builder remain open"
+      }
     },
     {
       "type": "Facade",

@@ -162,3 +162,218 @@ async fn replacing_the_handler_inside_the_request_takes_effect_at_the_error_boun
         .unwrap()
         .assert_status(StatusCode::IM_A_TEAPOT);
 }
+
+#[derive(Debug)]
+struct DomainFailure(&'static str);
+impl std::fmt::Display for DomainFailure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.0)
+    }
+}
+impl std::error::Error for DomainFailure {}
+#[tokio::test]
+async fn runtime_rules_change_reporting_and_retries_without_replacing_the_handler() {
+    let app = fixture().await;
+    App::set_facade_application(Some(app.app()), async {
+        let error = DomainFailure("visible");
+        let exception = Exception::Error(&error);
+        assert!(Exceptions::should_report(&exception).await.unwrap());
+        Exceptions::dont_report::<DomainFailure>().unwrap();
+        assert!(!Exceptions::should_report(&exception).await.unwrap());
+        Exceptions::stop_ignoring::<DomainFailure>().unwrap();
+        assert!(Exceptions::should_report(&exception).await.unwrap());
+        Exceptions::ignore::<DomainFailure>().unwrap();
+        assert!(!Exceptions::should_report(&exception).await.unwrap());
+        Exceptions::stop_ignoring::<DomainFailure>().unwrap();
+        Exceptions::dont_report_when(|exception| {
+            exception
+                .downcast_ref::<DomainFailure>()
+                .is_some_and(|error| error.0 == "hidden")
+        })
+        .unwrap();
+        assert!(
+            !Exceptions::should_report(&Exception::Error(&DomainFailure("hidden")))
+                .await
+                .unwrap()
+        );
+        Exceptions::dont_retry::<DomainFailure>().unwrap();
+        assert!(Exceptions::should_stop_retries(&exception).unwrap());
+        Exceptions::dont_retry_when(|exception| {
+            exception.downcast_ref::<std::io::Error>().is_some()
+        })
+        .unwrap();
+        assert!(
+            Exceptions::should_stop_retries(&Exception::Error(&std::io::Error::other("retry")))
+                .unwrap()
+        );
+        let calls = Arc::new(AtomicUsize::new(0));
+        let observed = calls.clone();
+        Exceptions::reportable::<DomainFailure>(move |_| {
+            observed.fetch_add(1, Ordering::SeqCst);
+            openrust::foundation::configuration::ReportDecision::Stop
+        })
+        .unwrap();
+        Exceptions::report(error).await.unwrap();
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        Exceptions::dont_flash(["pin", "profile.secret"]).unwrap();
+        Exceptions::dont_report_duplicates().unwrap();
+    })
+    .await;
+}
+#[tokio::test]
+async fn runtime_renderers_and_response_hooks_are_used_by_real_http() {
+    let mut app = fixture().await;
+    App::set_facade_application(Some(app.app()), async {
+        Exceptions::renderable::<std::io::Error>(|_, _| {
+            Some(Response::json(StatusCode::CONFLICT, "runtime-renderer").unwrap())
+        })
+        .unwrap();
+        Exceptions::respond_using(|response, _, _| {
+            response.header(
+                http::HeaderName::from_static("x-runtime"),
+                http::HeaderValue::from_static("configured"),
+            )
+        })
+        .unwrap();
+    })
+    .await;
+    let response = app.get("/failure").await.unwrap();
+    response
+        .assert_status(StatusCode::CONFLICT)
+        .assert_content("\"runtime-renderer\"");
+    assert_eq!(response.headers().get("x-runtime").unwrap(), "configured");
+}
+#[tokio::test]
+async fn runtime_json_policy_and_log_context_change_the_existing_handler() {
+    let mut app=TestApp::create(|builder|builder.with_config(|_,_|Ok([("app".into(),serde_json::json!({"env":"testing"})),("logging".into(),serde_json::json!({"default":"single","channels":{"single":{"driver":"single","path":"storage/logs/runtime.log","level":"debug"}}}))].into())).with_routing(Routing::default().web(||Route::get("/failure",fail)))).unwrap();
+    app.boot().await.unwrap();
+    App::set_facade_application(Some(app.app()), async {
+        Exceptions::level::<DomainFailure>(openrust::log::Level::Warning).unwrap();
+        Exceptions::build_context_using(|_| {
+            [("runtime".into(), serde_json::json!("configured"))]
+                .into_iter()
+                .collect()
+        })
+        .unwrap();
+        Exceptions::report(DomainFailure("log-entry"))
+            .await
+            .unwrap();
+        Exceptions::should_render_json_when(|_, _| true).unwrap();
+    })
+    .await;
+    let log =
+        std::fs::read_to_string(app.app().base_path().join("storage/logs/runtime.log")).unwrap();
+    assert!(log.contains("WARNING"));
+    assert!(log.contains("configured"));
+    app.get("/failure")
+        .await
+        .unwrap()
+        .assert_status(StatusCode::INTERNAL_SERVER_ERROR)
+        .assert_json_path("message", &serde_json::json!("Server Error"));
+}
+#[tokio::test]
+async fn reporting_queries_do_not_consume_throttle_budget_and_unsupported_handlers_error() {
+    let app = fixture().await;
+    App::set_facade_application(Some(app.app()), async {
+        let admissions = Arc::new(AtomicUsize::new(0));
+        let observed = admissions.clone();
+        Exceptions::throttle_using::<DomainFailure>(move |_| {
+            observed.fetch_add(1, Ordering::SeqCst);
+            Some(
+                openrust::foundation::configuration::ReportThrottle::Lottery(
+                    openrust::support::Lottery::odds(0, 1).unwrap(),
+                ),
+            )
+        })
+        .unwrap();
+        let error = DomainFailure("sampled");
+        let exception = Exception::Error(&error);
+        assert!(!Exceptions::is_reporting(&exception).unwrap());
+        assert!(Exceptions::should_report(&exception).await.unwrap());
+        assert!(Exceptions::should_report(&exception).await.unwrap());
+        assert_eq!(admissions.load(Ordering::SeqCst), 0);
+        Exceptions::report(DomainFailure("sampled-at-report"))
+            .await
+            .unwrap();
+        assert_eq!(admissions.load(Ordering::SeqCst), 1);
+        Exceptions::swap(Arc::new(ObservedHandler::default())).unwrap();
+        assert!(Exceptions::is_reporting(&exception).is_err());
+        assert!(Exceptions::dont_report::<DomainFailure>().is_err());
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn report_callbacks_can_register_new_rules_without_holding_the_configuration_lock() {
+    let app = fixture().await;
+    App::set_facade_application(Some(app.app()), async {
+        Exceptions::reportable::<DomainFailure>(|_| {
+            Exceptions::dont_report::<std::io::Error>().unwrap();
+            openrust::foundation::configuration::ReportDecision::Stop
+        })
+        .unwrap();
+        Exceptions::report(DomainFailure("reentrant"))
+            .await
+            .unwrap();
+        assert!(
+            !Exceptions::should_report(&Exception::Error(&std::io::Error::other("hidden")))
+                .await
+                .unwrap()
+        );
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn is_reporting_tracks_the_same_error_only_while_its_callback_runs() {
+    let app = fixture().await;
+    App::set_facade_application(Some(app.app()), async {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let observed = calls.clone();
+        Exceptions::reportable::<DomainFailure>(move |error| {
+            assert!(Exceptions::is_reporting(&Exception::Error(error)).unwrap());
+            assert!(!Exceptions::is_reporting(&Exception::Error(&DomainFailure("other"))).unwrap());
+            observed.fetch_add(1, Ordering::SeqCst);
+            openrust::foundation::configuration::ReportDecision::Stop
+        })
+        .unwrap();
+        assert!(!Exceptions::is_reporting(&Exception::Error(&DomainFailure("outside"))).unwrap());
+        Exceptions::report(DomainFailure("inside")).await.unwrap();
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        assert!(!Exceptions::is_reporting(&Exception::Error(&DomainFailure("after"))).unwrap());
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn shared_error_identity_is_retained_and_reporting_scope_restores_after_panic() {
+    use futures_util::FutureExt as _;
+    let app = fixture().await;
+    App::set_facade_application(Some(app.app()), async {
+        let seen = Arc::new(AtomicUsize::new(0));
+        let observed = seen.clone();
+        Exceptions::reportable::<DomainFailure>(move |error| {
+            assert!(Exceptions::is_reporting(&Exception::Error(error)).unwrap());
+            if observed.fetch_add(1, Ordering::SeqCst) == 0 {
+                panic!("模拟报告回调中断");
+            }
+            openrust::foundation::configuration::ReportDecision::Stop
+        })
+        .unwrap();
+        let shared = openrust::contracts::debug::SharedException::new(DomainFailure("shared"));
+        assert!(
+            std::panic::AssertUnwindSafe(Exceptions::report(shared.clone()))
+                .catch_unwind()
+                .await
+                .is_err()
+        );
+        assert!(!Exceptions::is_reporting(&Exception::Error(&shared)).unwrap());
+        Exceptions::report(shared.clone()).await.unwrap();
+        assert!(!Exceptions::is_reporting(&Exception::Error(&shared)).unwrap());
+        Exceptions::dont_report_duplicates().unwrap();
+        Exceptions::report(shared.clone()).await.unwrap();
+        Exceptions::report(shared).await.unwrap();
+        assert_eq!(seen.load(Ordering::SeqCst), 3);
+    })
+    .await;
+}

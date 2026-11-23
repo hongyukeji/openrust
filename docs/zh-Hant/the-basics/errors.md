@@ -176,8 +176,8 @@ async fn maintenance() -> Result<Response, HttpError> {
 use openrust::{support::facades::Exceptions, log::LogResult};
 
 async fn report_failure() -> LogResult<()> {
-    Exceptions::report(std::io::Error::other("report failure")).await
+    Exceptions::report(std::io::Error::other("报告失败")).await
 }
 ```
 
-`report` 接收擁有所有權的 Rust 錯誤；`should_report`、`should_stop_retries`、`render` 與 `render_for_console` 轉發既有契約，`handler` 回傳目前 Arc。現有 `should_report` 契約可能消耗一次報告節流配額，不是唯讀的斷言介面。啟動設定繼續寫在 `with_exceptions`。這批門面尚未提供執行期設定轉發及例外 fake／斷言介面。
+`report` 接收擁有所有權的 Rust 錯誤；`should_report`、`should_stop_retries`、`render` 與 `render_for_console` 轉發既有契約，`handler` 回傳目前 Arc。`should_report` 只查詢報告資格，不消耗採樣或節流配額，實際報告時才執行這些策略。啟動設定繼續寫在 `with_exceptions`。執行期現已提供 `reportable`、`renderable`、`dont_report`、`ignore`、`stop_ignoring`、`dont_report_when`、`dont_retry`、`dont_retry_when`、`dont_flash`、`level`、`build_context_using`、`respond_using`、`should_render_json_when`、`dont_report_duplicates` 與帶型別的 `throttle_using`。`is_reporting` 查詢同一例外實例是否正在被報告，不是報告資格查詢，也不消耗報告節流配額。自訂處理器須明確支援執行期設定及此唯讀查詢，否則回傳錯誤。例外 fake／斷言介面仍待補齊。

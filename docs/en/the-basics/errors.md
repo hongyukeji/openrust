@@ -176,8 +176,8 @@ Add a status-specific view such as `resources/views/errors/404.blade.html`. Blad
 use openrust::{support::facades::Exceptions, log::LogResult};
 
 async fn report_failure() -> LogResult<()> {
-    Exceptions::report(std::io::Error::other("report failure")).await
+    Exceptions::report(std::io::Error::other("报告失败")).await
 }
 ```
 
-`report` accepts an owned Rust error. `should_report`, `should_stop_retries`, `render` and `render_for_console` forward the existing contract, while `handler` returns its current Arc. The existing `should_report` contract may consume a report-throttling admission; it is not a read-only assertion API. Bootstrap exception configuration remains in `with_exceptions`. Runtime configuration forwards and exception fake/assertion APIs are not provided by this initial facade batch.
+`report` accepts an owned Rust error. `should_report`, `should_stop_retries`, `render` and `render_for_console` forward the existing contract, while `handler` returns its current Arc. `should_report` checks eligibility without consuming sampling or throttling admissions; actual reporting applies those policies. Bootstrap configuration remains in `with_exceptions`. Runtime forwards now include `reportable`, `renderable`, `dont_report`, `ignore`, `stop_ignoring`, `dont_report_when`, `dont_retry`, `dont_retry_when`, `dont_flash`, `level`, `build_context_using`, `respond_using`, `should_render_json_when`, `dont_report_duplicates` and typed `throttle_using`. `is_reporting` checks whether that exact exception instance is currently being reported; it does not test report eligibility or consume a throttling admission. Custom handlers must explicitly support runtime configuration and this read-only query; otherwise these operations return an error. Exception fake/assertion APIs are still pending.
