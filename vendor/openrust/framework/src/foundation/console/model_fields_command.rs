@@ -16,6 +16,10 @@ use super::{model_make_command::validated_parts, source_edit};
 
 const BEGIN: &str = "// openrust:model-fields begin";
 const END: &str = "// openrust:model-fields end";
+const PREVIOUS_SECTION: &str = "/*\n|--------------------------------------------------------------------------\n| 模型字段\n|--------------------------------------------------------------------------\n|\n| 根据数据库表结构生成字段与说明，通过 model:fields 命令同步。\n| 调整表结构或列说明后，请重新同步并构建；不要直接修改此区域。\n|\n*/";
+const SECTION: &str = "/*\n|--------------------------------------------------------------------------\n| 模型表与字段\n|--------------------------------------------------------------------------\n|\n| 根据数据库表结构生成表名、字段与说明，通过 model:fields 命令同步。\n| 调整表结构或列说明后，请重新同步并构建；不要直接修改此区域。\n|\n*/";
+const PREVIOUS_SINGLE_LINE_SECTION: &str = "/*\n|--------------------------------------------------------------------------\n| 模型表与字段\n|--------------------------------------------------------------------------\n|\n| 根据数据库结构自动生成，请在项目根目录执行 `./artisan model:fields {model}` 同步，勿手动修改。\n|\n*/";
+const SECTION_TEMPLATE: &str = "/*\n|--------------------------------------------------------------------------\n| 模型表与字段\n|--------------------------------------------------------------------------\n|\n| 根据数据库结构自动生成，勿手动修改。\n| 请在项目根目录执行 `./artisan model:fields {model}` 同步。\n|\n*/";
 
 pub(super) fn register(artisan: &mut Artisan) -> Result<(), ConsoleError> {
     artisan.add_command(Box::new(ModelFieldsCommand(CommandDefinition::new(
@@ -96,18 +100,32 @@ impl Command for ModelFieldsCommand {
                 let path = model_path(app, &parts);
                 let previous = source_edit::read(&path)?;
                 let definition = compiled_definition(&parts)?;
+                let literals = table_literals(&previous, class)?;
+                let declared = literals.first().map(|(_, table)| table.as_str());
+                if table.is_none()
+                    && definition
+                        .as_ref()
+                        .zip(declared)
+                        .is_some_and(|((table, _), declared)| table != declared)
+                {
+                    return Err(ConsoleError::new(
+                        "源码表名与已编译模型不一致，请重新构建或显式指定 --table，未修改模型。",
+                    ));
+                }
                 let inferred = pluralizer::pluralize(&snake_case(class), 2, false);
                 let selected_table = table
                     .map(String::as_str)
                     .or_else(|| definition.as_ref().map(|(table, _)| table.as_str()))
+                    .or(declared)
                     .unwrap_or(&inferred);
                 let selected_database = database.map(String::as_str).or_else(|| {
                     definition
                         .as_ref()
                         .and_then(|(_, database)| database.as_deref())
                 });
-                let block = generate_for(app, class, selected_table, selected_database).await?;
-                let updated = merge(&previous, &block)?;
+                let block =
+                    generate_for(app, &parts.join("/"), selected_table, selected_database).await?;
+                let updated = merge(&previous, &block, &parts.join("/"))?;
                 updates.push((path, previous, updated));
             }
             // 数据库预检期间发生的源码修改不能被覆盖，也不能报告为检查通过。
@@ -162,15 +180,17 @@ pub(super) async fn generate(app: &Application, input: &Input) -> Result<String,
         .matches()
         .get_one::<String>("database")
         .map(String::as_str);
-    generate_for(app, class, &table, database).await
+    generate_for(app, &parts.join("/"), &table, database).await
 }
 
 async fn generate_for(
     app: &Application,
-    class: &str,
+    name: &str,
     table: &str,
     database: Option<&str>,
 ) -> Result<String, ConsoleError> {
+    let parts = validated_parts(name)?;
+    let class = parts.last().expect("validated");
     let manager = app
         .container()
         .get::<DatabaseManager>("db")
@@ -187,19 +207,22 @@ async fn generate_for(
             "表 [{table}] 不存在或没有可生成的列。"
         )));
     }
-    let mut fields = BTreeMap::new();
+    let mut names = BTreeMap::new();
+    let mut fields = Vec::with_capacity(columns.len());
     for column in columns {
         let field = constant_name(&column.name)?;
         let name = column.name.clone();
-        if let Some(previous) = fields.insert(field.clone(), column) {
+        if let Some(previous) = names.insert(field.clone(), name.clone()) {
             return Err(ConsoleError::new(format!(
                 "列 [{}] 与 [{name}] 都映射为 [{field}]，未修改模型。",
-                previous.name
+                previous
             )));
         }
+        fields.push((field, column));
     }
+    let section = SECTION_TEMPLATE.replace("{model}", name);
     let mut block = format!(
-        "{BEGIN}\n// 自动生成；请使用 model:fields 刷新，不要手工修改此区域。\nopenrust::database::eloquent::model_fields! {{\n    @model {class};\n    #[allow(dead_code, reason = \"生成的字段引用按需使用\")]\n    impl {class} {{\n"
+        "{section}\nopenrust::model_fields! {{\n    {class} {{\n        TABLE = {table:?};\n"
     );
     for (field, column) in fields {
         if let Some(comment) = column
@@ -207,12 +230,21 @@ async fn generate_for(
             .as_deref()
             .filter(|text| !text.trim().is_empty())
         {
-            // 文档属性等价于 ///；使用 Rust 字符串转义，防止数据库注释破坏生成源码。
-            block.push_str(&format!("        #[doc = {comment:?}]\n"));
+            // 普通说明使用文档注释；控制字符退回转义属性，防止生成非法源码。
+            if comment
+                .chars()
+                .any(|ch| ch.is_control() && ch != '\n' && ch != '\t')
+            {
+                block.push_str(&format!("        #[doc = {comment:?}]\n"));
+            } else {
+                for line in comment.split('\n') {
+                    block.push_str(&format!("        /// {line}\n"));
+                }
+            }
         }
-        block.push_str(&format!("        pub const {field} = {:?};\n", column.name));
+        block.push_str(&format!("        {field} = {:?};\n", column.name));
     }
-    block.push_str(&format!("    }}\n}}\n{END}\n"));
+    block.push_str("    }\n}\n");
     Ok(block)
 }
 
@@ -235,11 +267,41 @@ fn constant_name(column: &str) -> Result<String, ConsoleError> {
     if field.as_bytes()[0].is_ascii_digit() {
         field.insert_str(0, "COLUMN_");
     }
+    // TABLE 留给模型表名，实际同名列使用带前缀的标识，仍参与冲突预检。
+    if field == "TABLE" {
+        field = "COLUMN_TABLE".into();
+    }
     Ok(field)
 }
 
-pub(super) fn merge(source: &str, block: &str) -> Result<String, ConsoleError> {
-    // 只接受整行且唯一的成对标记；损坏标记时拒绝写入，避免删除业务代码。
+pub(super) fn merge(source: &str, block: &str, name: &str) -> Result<String, ConsoleError> {
+    let parts = validated_parts(name)?;
+    let class = *parts.last().expect("validated");
+    let (original, original_base) = parse_source(source)?;
+    let legacy_macros = original
+        .items
+        .iter()
+        .filter_map(|item| {
+            let syn::Item::Macro(item) = item else {
+                return None;
+            };
+            (item.mac.path.segments.last()?.ident == "model_fields").then(|| {
+                original_base
+                    + item
+                        .mac
+                        .path
+                        .segments
+                        .first()
+                        .expect("macro path")
+                        .ident
+                        .span()
+                        .byte_range()
+                        .start
+            })
+        })
+        .collect::<Vec<_>>();
+    let mut source = source.to_owned();
+    // 旧版标记只用于安全迁移；新格式的边界来自真实 Rust 宏的语法位置。
     let mut begin = None;
     let mut end = None;
     let mut offset = 0;
@@ -252,15 +314,259 @@ pub(super) fn merge(source: &str, block: &str) -> Result<String, ConsoleError> {
         }
         offset += line.len();
     }
-    match (begin, end) {
-        (None, None) => Ok(format!("{}\n\n{block}", source)),
-        (Some(begin), Some(end)) if begin < end => {
-            Ok(format!("{}{block}{}", &source[..begin], &source[end..]))
-        }
-        _ => Err(ConsoleError::new(
-            "模型字段生成区域的标记不完整或顺序错误。",
-        )),
+    if let (Some(start), Some(finish)) = (begin, end)
+        && start < finish
+        && !legacy_macros
+            .iter()
+            .any(|offset| (start..finish).contains(offset))
+    {
+        // 原始字符串内的同名文本不是生成区域。
+        begin = None;
+        end = None;
     }
+    match (begin, end) {
+        (None, None) => {}
+        (Some(begin), Some(end)) if begin < end => {
+            // 移走文件末尾的旧分区时，同时移除它与业务代码之间的一行空白。
+            let begin = if end == source.len() && source[..begin].ends_with("\r\n\r\n") {
+                begin - 2
+            } else if end == source.len() && source[..begin].ends_with("\n\n") {
+                begin - 1
+            } else {
+                begin
+            };
+            source.replace_range(begin..end, "");
+        }
+        _ => {
+            return Err(ConsoleError::new(
+                "模型字段生成区域的标记不完整或顺序错误。",
+            ));
+        }
+    }
+    let (file, base) = parse_source(&source)?;
+    let mut headers = [
+        SECTION_TEMPLATE.replace("{model}", name),
+        PREVIOUS_SINGLE_LINE_SECTION.replace("{model}", name),
+        PREVIOUS_SINGLE_LINE_SECTION.replace("{model}", class),
+        SECTION.to_owned(),
+        PREVIOUS_SECTION.to_owned(),
+    ]
+    .into_iter()
+    .flat_map(|section| [section.replace('\n', "\r\n"), section])
+    .collect::<Vec<_>>();
+    headers.sort();
+    headers.dedup();
+    let sections = headers
+        .iter()
+        .flat_map(|section| {
+            source
+                .match_indices(section.as_str())
+                .map(move |(offset, _)| (offset, section.len()))
+        })
+        .collect::<Vec<_>>();
+    let declarations = file
+        .items
+        .iter()
+        .filter_map(|item| {
+            let syn::Item::Macro(item) = item else {
+                return None;
+            };
+            let name = item.mac.path.segments.last()?;
+            if name.ident != "model_fields" {
+                return None;
+            }
+            let first = item.mac.tokens.clone().into_iter().next()?;
+            if !matches!(first, proc_macro2::TokenTree::Ident(ident) if ident == class) {
+                return None;
+            }
+            let start = base
+                + item
+                    .mac
+                    .path
+                    .segments
+                    .first()?
+                    .ident
+                    .span()
+                    .byte_range()
+                    .start;
+            let end = base
+                + item.semi_token.as_ref().map_or_else(
+                    || item.mac.delimiter.span().close().byte_range().end,
+                    |token| token.span.byte_range().end,
+                );
+            Some((start, end, item.attrs.is_empty()))
+        })
+        .collect::<Vec<_>>();
+    match (sections.as_slice(), declarations.as_slice()) {
+        ([], []) => {}
+        ([(section, section_len)], [(start, end, true)])
+            if *section < *start
+                && source[section + section_len..*start].trim().is_empty()
+                && begin.is_none() =>
+        {
+            let trailing =
+                source[*end..].len() - source[*end..].trim_start_matches(['\r', '\n']).len();
+            source.replace_range(*section..end + trailing, "");
+        }
+        _ => {
+            return Err(ConsoleError::new(
+                "模型字段说明或声明不完整、重复或有歧义，未修改源码。",
+            ));
+        }
+    }
+    source = bind_table(&source, class)?;
+    let (file, base) = parse_source(&source)?;
+    if !file.items.iter().any(|item| match item {
+        syn::Item::Struct(item) => item.ident == class,
+        syn::Item::Enum(item) => item.ident == class,
+        _ => false,
+    }) {
+        return Err(ConsoleError::new(format!(
+            "找不到模型类型 [{class}]，未修改源码。"
+        )));
+    }
+    // 跟随连续的文件头导入，保留 inner 属性、文档、derive 和所有业务项的原始文本。
+    let mut insertion = file.attrs.last().map_or(base, |attr| {
+        base + attr.bracket_token.span.close().byte_range().end
+    });
+    for item in &file.items {
+        insertion = match item {
+            syn::Item::Use(item) => base + item.semi_token.span.byte_range().end,
+            syn::Item::ExternCrate(item) => base + item.semi_token.span.byte_range().end,
+            _ => break,
+        };
+        // 分号后的同行注释仍属于原导入行。
+        let line_end = source[insertion..]
+            .find('\n')
+            .map_or(source.len(), |line| insertion + line);
+        let tail = source[insertion..line_end].trim();
+        if tail.is_empty() || tail.starts_with("//") {
+            insertion = (line_end + usize::from(line_end < source.len())).min(source.len());
+        }
+    }
+    insertion += source[insertion..].len()
+        - source[insertion..]
+            .trim_start_matches(char::is_whitespace)
+            .len();
+    let separator = if insertion != 0 && !source[..insertion].ends_with("\n\n") {
+        "\n"
+    } else {
+        ""
+    };
+    Ok(format!(
+        "{}{separator}{block}\n{}",
+        &source[..insertion],
+        &source[insertion..]
+    ))
+}
+
+// 仅迁移标准 metadata 静态初始化中的表名字面量，不重写用户的动态表名逻辑。
+fn table_literals(
+    source: &str,
+    class: &str,
+) -> Result<Vec<(std::ops::Range<usize>, String)>, ConsoleError> {
+    let (file, base) = parse_source(source)?;
+    let mut ranges = Vec::new();
+    for item in &file.items {
+        let syn::Item::Impl(item) = item else {
+            continue;
+        };
+        let syn::Type::Path(model) = item.self_ty.as_ref() else {
+            continue;
+        };
+        if model
+            .path
+            .segments
+            .last()
+            .is_none_or(|segment| segment.ident != class)
+        {
+            continue;
+        }
+        if item.trait_.is_none()
+            && item
+                .items
+                .iter()
+                .any(|item| matches!(item, syn::ImplItem::Const(item) if item.ident == "TABLE"))
+        {
+            return Err(ConsoleError::new(
+                "模型已手写 TABLE 常量，请先消除与自动生成表名的重复声明。",
+            ));
+        }
+        if !item.trait_.as_ref().is_some_and(|(_, path, _)| {
+            path.segments
+                .last()
+                .is_some_and(|segment| segment.ident == "Model")
+        }) {
+            continue;
+        }
+        if item.items.iter().any(
+            |member| matches!(member, syn::ImplItem::Fn(method) if method.sig.ident == "getTable"),
+        ) {
+            continue;
+        }
+        for member in &item.items {
+            let syn::ImplItem::Fn(method) = member else {
+                continue;
+            };
+            if method.sig.ident != "metadata" {
+                continue;
+            }
+            for statement in &method.block.stmts {
+                let syn::Stmt::Item(syn::Item::Static(metadata)) = statement else {
+                    continue;
+                };
+                if metadata.ident != "METADATA" {
+                    continue;
+                }
+                let mut expression = metadata.expr.as_ref();
+                while let syn::Expr::MethodCall(call) = expression {
+                    expression = call.receiver.as_ref();
+                }
+                let syn::Expr::Call(call) = expression else {
+                    continue;
+                };
+                let syn::Expr::Path(path) = call.func.as_ref() else {
+                    continue;
+                };
+                let mut segments = path.path.segments.iter().rev();
+                if segments.next().is_none_or(|segment| segment.ident != "new")
+                    || segments
+                        .next()
+                        .is_none_or(|segment| segment.ident != "ModelMetadata")
+                    || call.args.len() != 1
+                {
+                    continue;
+                }
+                if let Some(syn::Expr::Lit(syn::ExprLit {
+                    lit: syn::Lit::Str(table),
+                    ..
+                })) = call.args.first()
+                {
+                    let range = table.span().byte_range();
+                    ranges.push((base + range.start..base + range.end, table.value()));
+                }
+            }
+        }
+    }
+    Ok(ranges)
+}
+
+fn bind_table(source: &str, class: &str) -> Result<String, ConsoleError> {
+    let ranges = table_literals(source, class)?;
+    let mut updated = source.to_owned();
+    for (range, _) in ranges.into_iter().rev() {
+        updated.replace_range(range, &format!("{class}::TABLE"));
+    }
+    Ok(updated)
+}
+
+fn parse_source(source: &str) -> Result<(syn::File, usize), ConsoleError> {
+    let file = syn::parse_file(source)
+        .map_err(|error| ConsoleError::new(format!("模型源码语法无效，未修改文件：{error}")))?;
+    // syn 剥离 BOM 和 shebang 后计算 span，补回这部分字节才能精确编辑原文。
+    let base = usize::from(source.starts_with('\u{feff}')) * '\u{feff}'.len_utf8()
+        + file.shebang.as_ref().map_or(0, String::len);
+    Ok((file, base))
 }
 
 fn error(error: impl std::fmt::Display) -> ConsoleError {

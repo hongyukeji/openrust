@@ -10,20 +10,51 @@ use openrust::{
     },
 };
 
+/*
+|--------------------------------------------------------------------------
+| 模型表与字段
+|--------------------------------------------------------------------------
+|
+| 根据数据库结构自动生成，勿手动修改。
+| 请在项目根目录执行 `./artisan model:fields User` 同步。
+|
+*/
+openrust::model_fields! {
+    User {
+        TABLE = "users";
+        /// 主键
+        ID = "id";
+        /// 用户名
+        NAME = "name";
+        /// 邮箱
+        EMAIL = "email";
+        /// 邮箱验证时间
+        EMAIL_VERIFIED_AT = "email_verified_at";
+        /// 密码哈希
+        PASSWORD = "password";
+        /// 记住登录令牌
+        REMEMBER_TOKEN = "remember_token";
+        /// 创建时间
+        CREATED_AT = "created_at";
+        /// 更新时间
+        UPDATED_AT = "updated_at";
+    }
+}
+
 pub(crate) struct User(ModelState);
 
 impl Model for User {
     fn metadata() -> &'static ModelMetadata {
-        static METADATA: ModelMetadata = ModelMetadata::new("users")
-            .fillable(&[User::NAME, User::EMAIL, "password"])
-            .hidden(&["password", "remember_token"]);
+        static METADATA: ModelMetadata = ModelMetadata::new(User::TABLE)
+            .fillable(&[User::NAME, User::EMAIL, User::PASSWORD])
+            .hidden(&[User::PASSWORD, User::REMEMBER_TOKEN]);
         &METADATA
     }
 
     fn casts() -> &'static [(&'static str, AttributeCast)] {
         &[
             (Self::EMAIL_VERIFIED_AT, AttributeCast::DateTime),
-            ("password", AttributeCast::Hashed),
+            (User::PASSWORD, AttributeCast::Hashed),
         ]
     }
 
@@ -49,19 +80,19 @@ impl Authenticatable for User {
             .unwrap_or_else(|| AuthIdentifier::String(String::new()))
     }
     fn getAuthPasswordName(&self) -> &str {
-        "password"
+        User::PASSWORD
     }
     fn getAuthPassword(&self) -> Option<&str> {
-        text(self.getAttribute("password"))
+        text(self.getAttribute(User::PASSWORD))
     }
     fn getRememberToken(&self) -> Option<&str> {
-        text(self.getAttribute("remember_token"))
+        text(self.getAttribute(User::REMEMBER_TOKEN))
     }
     fn setRememberToken(&mut self, token: Option<String>) {
-        self.setAttribute("remember_token", token.map_or(Value::Null, Value::Text));
+        self.setAttribute(User::REMEMBER_TOKEN, token.map_or(Value::Null, Value::Text));
     }
     fn getRememberTokenName(&self) -> &str {
-        "remember_token"
+        User::REMEMBER_TOKEN
     }
     fn getAuthAttribute(&self, name: &str) -> AuthResult<Option<Value>> {
         self.getAttributeValue(name).map_err(Into::into)
@@ -162,29 +193,3 @@ fn text(value: Option<&Value>) -> Option<&str> {
         _ => None,
     }
 }
-
-// openrust:model-fields begin
-// 自动生成；请使用 model:fields 刷新，不要手工修改此区域。
-openrust::database::eloquent::model_fields! {
-    @model User;
-    #[allow(dead_code, reason = "生成的字段引用按需使用")]
-    impl User {
-        #[doc = "创建时间"]
-        pub const CREATED_AT = "created_at";
-        #[doc = "邮箱"]
-        pub const EMAIL = "email";
-        #[doc = "邮箱验证时间"]
-        pub const EMAIL_VERIFIED_AT = "email_verified_at";
-        #[doc = "主键"]
-        pub const ID = "id";
-        #[doc = "用户名"]
-        pub const NAME = "name";
-        #[doc = "密码哈希"]
-        pub const PASSWORD = "password";
-        #[doc = "记住登录令牌"]
-        pub const REMEMBER_TOKEN = "remember_token";
-        #[doc = "更新时间"]
-        pub const UPDATED_AT = "updated_at";
-    }
-}
-// openrust:model-fields end

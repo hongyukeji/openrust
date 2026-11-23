@@ -55,6 +55,15 @@ impl FieldModel {
 /// ```
 #[macro_export]
 macro_rules! model_fields {
+    ($model:ident { $($(#[$attribute:meta])* $field:ident = $column:literal;)* }) => {
+        $crate::model_fields! {
+            @model $model;
+            #[allow(dead_code, reason = "数据库列集合包含应用尚未引用的字段")]
+            impl $model {
+                $($(#[$attribute])* pub const $field = $column;)*
+            }
+        }
+    };
     (@model $model:ident; $(#[$implementation:meta])* impl $same:ty { $($fields:tt)* }) => {
         $crate::database::eloquent::__inventory::submit! {
             $crate::database::eloquent::__FieldModel::new::<$model>(module_path!(), stringify!($model))

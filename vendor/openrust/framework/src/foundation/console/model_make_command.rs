@@ -47,7 +47,11 @@ impl Command for ModelMakeCommand {
             let mut stub = self.get_stub(app, input)?.into_owned();
             if input.matches().get_flag("fields") {
                 let block = super::model_fields_command::generate(app, input).await?;
-                stub = super::model_fields_command::merge(&stub, &block)?;
+                stub = super::model_fields_command::merge(
+                    &stub,
+                    &block,
+                    &validated_parts(model_name(input))?.join("/"),
+                )?;
             }
             let force = input.matches().get_flag("force");
             let relative = path
@@ -100,9 +104,15 @@ impl GeneratorCommand for ModelMakeCommand {
         let connection = connection
             .map(|name| format!(".connection({name:?})"))
             .unwrap_or_default();
+        let table_reference = if input.matches().get_flag("fields") {
+            format!("{class}::TABLE")
+        } else {
+            quoted_table.clone()
+        };
         Ok(Cow::Owned(
             stub.replace("{{model}}", class)
                 .replace("{{table}}", &quoted_table[1..quoted_table.len() - 1])
+                .replace("{{table_reference}}", &table_reference)
                 .replace("{{connection}}", &connection),
         ))
     }

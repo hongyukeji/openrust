@@ -4,7 +4,7 @@ pub struct {{model}}(ModelState);
 
 impl Model for {{model}} {
     fn metadata() -> &'static ModelMetadata {
-        static METADATA: ModelMetadata = ModelMetadata::new("{{table}}"){{connection}};
+        static METADATA: ModelMetadata = ModelMetadata::new({{table_reference}}){{connection}};
         &METADATA
     }
 

@@ -1,6 +1,6 @@
 # 模型字段引用验收
 
-日期：2026-11-23。设计边界及验收见本文。用户否定手工逐字段声明，当前自动生成修订及验收见末节；自动生成修订的方案、实现及范围内验收均已完成；以下第一版内容保留为历史。本任务未授权暂存、提交、推送或发布。
+日期：2026-11-23。设计边界及验收见本文，最新模型表名与列顺序修订见末节。前置代码按用户授权提交为 `f80096ea6`；之后的布局修订未授权再次暂存、提交、推送或发布。前面各版记录保留为历史，不能代替最新源码验收。
 
 ## 实现范围
 
@@ -203,3 +203,87 @@ user-comments.py在独立MySQL8.4.13实例以APP_LOCALE=zh-Hans执行真实应�
 以数据库结构生成关联常量和列说明，复用模型表／连接配置与现有命令；只读检查、批量预检及逐文件原子写入边界不变。不提供字段归属和值类型的完整编译期保证。
 
 原计划 `model-field-references.md` 已删除；历史设计、调研及执行前快照可从提交 `f80096ea6` 的 `.agents/project/plans/model-field-references.md` 查阅。本文保留实际验收与未验边界，不因归档补计测试。
+
+
+## 模型顶部生成布局（2026-11-23）
+
+### 方案定稿与实现
+
+按用户最终裁决，自动字段仍保留在 `app/models/user.rs`，放在连续文件头导入之后、模型类型之前。使用与项目配置一致的分区块注释及 `openrust::model_fields! { User { NAME = "name"; } }`；不再输出 begin/end 机器标记、完整 eloquent 宏路径、`@model`、`impl`、`pub const` 或 allow 属性。宏内部生成已有的关联字符串常量与静态模型类型入口，集中处理未引用字段；普通说明使用 `///`，必须转义控制字符时保留安全 doc 属性。字段集合及描述继续以数据库结构为来源，不从 fillable/casts 推测。
+
+不拆伴随文件、不引入 Repository／Service 层或平行 ORM。User 业务代码以及其他协作者的密码／令牌字段常量引用保留。旧标记生成区首次刷新时迁移到顶部；损坏、重复或有歧义的区域拒绝覆盖。解析使用 Rust AST 与真实字节 span，保留模型 doc/derive、模块 inner 属性、BOM/shebang 和业务原文；不会按大括号字符串猜测源码边界。表／连接仍从已编译模型读取；语法解析只负责安全编辑，并不反射尚未编译的业务配置。
+
+### 调研、复用与差异
+
+- 固定 [Laravel 应用配置](https://github.com/laravel/laravel/blob/06d016a364a37430eec9cbc52209adce3d7667ce/config/app.php)与[框架模型模板](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Console/stubs/model.stub)：采用分区说明的阅读风格，模型及现有 Eloquent 装配不变。PHP 上游模型没有本扩展的 Rust 字段常量宏，不声称这是 Laravel 原生 API。
+- [IDE Helper v3.6.0 ModelsCommand](https://github.com/barryvdh/laravel-ide-helper/blob/v3.6.0/src/Console/ModelsCommand.php)：继续采用数据库列注释供 IDE 查看，不引入 PHP 运行依赖。SeaORM/Diesel 的结构生成研究沿用前文；不为输出美化引入另一套实体、列枚举或查询系统。
+- [syn 2.0.119](https://github.com/dtolnay/syn/blob/2.0.119/Cargo.toml)与[proc-macro2 1.0.107](https://github.com/dtolnay/proc-macro2/blob/1.0.107/Cargo.toml)：复用已锁定版本，新增框架直接依赖边，不新增锁文件 package 或升级版本。仅启用解析、full AST 与字节位置能力，避免另写 Rust 词法器。二者声明 MSRV 1.71、MIT OR Apache-2.0；Rust 1.94.0 以实际构建验收。官方 HTTPS 调研材料保存在工作流 research/，均非 PHP 文件。
+
+### 验收状态
+
+方案定稿、实现完成、下列范围验收通过。源码快照、日志、TMPDIR 与独占缓存位于 `target/tmp/model-fields-sync-20261123/`，使用 Rust 1.94.0 与 build_guard；没有连接开发数据库。前置全量 WIP 已按用户要求提交为 `f80096ea6`；本修订没有暂存、提交或推送。并行归档提交 `25ec5d413` 保留；它未改变本修订技术文件。
+
+所有命令均通过 `python3 -B tests/build_guard.py --workflow model-fields-sync-20261123 --` 执行。实际入口：
+
+```sh
+python3 -B target/tmp/model-fields-sync-20261123/layout-final.py
+python3 -B target/tmp/model-fields-sync-20261123/post-layout.py
+python3 -B tests/mysql_acceptance.py -- python3 -B target/tmp/model-fields-sync-20261123/user-check.py
+python3 -B target/tmp/model-fields-sync-20261123/layout-docs.py
+```
+
+- `layout-final.py`：`cargo +1.94.0 fmt --all --check`、`clippy --workspace --all-targets --locked -- -D warnings`、`build --bin main --locked`、`test -p openrust-framework --doc model_fields --locked` 全部通过；Cargo 均显式指定隔离源码的 `--manifest-path`。2项宏 rustdoc 正反例通过。随后 `tests/model_fields_acceptance.py --source <source> --work <work>` 在 SQLite 3.54.1、PostgreSQL 18.7 与 MySQL 8.4.13 全部通过，后两者经对应 `tests/*_acceptance.py` 创建隔离实例。SQLite版本由同批实际链接的libsqlite3_sys查询，日志 `layout-sqlite-version.log`。
+- 新增消费者实际验证：新建／刷新后位于顶部，普通输出无 allow／@model／机器标记，数据库说明可在 rustdoc 查看；旧区迁移、只读过期检测、刷新幂等，重复／损坏区域及非法Rust拒绝且原文不变；保留 doc/derive、inner 属性、BOM/shebang、原始字符串、同行导入、无导入模块和 CRLF 业务字节。原有真实查询、字段不存在／重命名后的编译失败、保留字、NULL、列映射、批量预检、模型表／连接复用、动态模型、普通生成器和自定义模板回归继续通过。日志 `layout-final-final-{sqlite,postgres,mysql}.log` 及其同名目录。
+- `post-layout.py`：在隔离MySQL实际迁移并刷新根应用User，8个字段及真实描述放到顶部；逐字核对生成区外业务内容，保留密码／令牌常量的并行修改。生成物再次通过fmt、workspace/all-targets严格Clippy及main构建；2项应用骨架、7项Artisan、1项缓存配置下真实模型装配、1项真实TCP的密码重置及邮箱验证消费者全部通过。`layout-user-check.log` 额外验证重新构建后的新宏通过真实 `model:fields --all --check`，User内容和mtime不变。日志 `post-layout.log`、`layout-user-*`、`layout-console.log`、`layout-auth.log`、`layout-auth-http.log`。
+- 三语 `getting-started.md` 同步顶部布局、旧区迁移、简洁宏、数据库说明及支持边界。`npm run build`（含内容和命令入口检查）、`node tests/check_browser.mjs` 与 `node tests/check_scope.mjs` 全通过，覆盖12组桌面／移动页面和6组三语导航，包含 `/` 与 `/docs/`。日志 `layout-docs{,-build,-browser,-scope}.log`。未将第三方既有warning或VitePress体积提示声明为零warning。
+
+验收中先后发现严格Clippy的可合并条件及旧区移走后末尾多余空行，均修复并重跑；最终命令退出0。10项技术／正文文件与最终验收快照逐字节相同，`git diff --check` 通过。工作区原有归档与模型业务修改均保留，没有恢复已删除的历史计划。
+
+本轮曾触及32GB停线，守卫安全终止构建，核对占用、持有全部Cargo锁后清理本项目编译产物；源码、日志、依赖下载、交付文件、数据库与数据卷保留。事件记录净释放93,007,200,256字节，锁inode保留；空间恢复后重跑并全部通过。收尾可用约88,336,404KiB，高于31,250,000KiB停线，继续保留当前可复用增量缓存。
+
+本修订范围内无剩余实现阻塞。未重跑完整workspace测试、全部SQL／缓存驱动矩阵、all-features、Windows、release、实际SMTP或生产部署；这些不因局部通过计为完成。字段常量仍为未限定表名的`&'static str`，只提供引用存在性检查，不保证查询模型归属、值类型或外部数据库结构同步；这是可选增强，不是Laravel原生字段API，也不代表全框架完成对齐。
+
+
+## 模型表名复用与数据库列顺序（2026-11-23）
+
+### 方案定稿
+
+沿用上一节的模型内顶部布局、配置式分区、简洁宏、AST 安全编辑与既有 Schema 查询。不增加旁路源码、管理器或查询框架。数据库结构是字段集合与列说明的唯一来源；表名配置继续来自模型或显式命令选项。
+
+- `TABLE` 固定为第一项，其后严格保留 `getColumns()` 返回的数据库列顺序；名称索引只检查冲突，不参与排序。MySQL 按 ordinal_position、PostgreSQL 按 attnum、SQLite 按 cid 的现有结构读取无需修改。
+- 标准模型静态元数据使用具体类型的 `User::TABLE`，表名字面量只保留在常量中。Rust 函数内 static 不允许外层 `Self`，实际生成物曾暴露 E0401，已改为具体模型名并重新验收。
+- 首次刷新未编译模型时，可读取标准 `metadata()` 的 `ModelMetadata::new("table")` 字面量；否则使用既有推断。源码字面量与已编译模型不一致时拒绝隐式刷新，避免旧二进制静默选择另一张表。显式 `--table` 更新生成表名；标准模型重新构建后复用新表。
+- 自定义 `getTable()`、动态表达式及非标准初始化保持原文，不强行重写业务配置。首次自定义连接仍须显式选择；后续复用已编译模型配置。
+- `TABLE` 是保留常量，真实 `table` 列映射为 `COLUMN_TABLE`；与 `column_table` 冲突或模型手写 TABLE 时预检失败，不删除业务声明。
+- 双行简短分区说明保留完整嵌套刷新路径。普通列说明输出 `///`，控制字符使用安全转义 doc 属性，缺少说明不猜测。警告抑制集中封装于宏内部，不出现在生成区。
+
+### 调研与依赖
+
+继续核对固定 [Model.php](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Model.php) 的显式表名／默认推断与现有模型装配；常量是 OpenRust 可选增强，保留原有动态模型和字符串查询。对照 [SeaORM 1.1.19 列生成](https://github.com/SeaQL/sea-orm/blob/1.1.19/sea-orm-codegen/src/entity/column.rs)及 [Diesel 2.3.3 print_schema](https://github.com/diesel-rs/diesel/blob/v2.3.3/diesel_cli/src/print_schema.rs)，采用显式刷新、生成源码随应用构建的方式，不引入其实体或查询系统。固定框架 MySqlGrammar 与现有三个 Schema 驱动已逐项核对。本主题旧版分支未找到可直接复用的生成器。官方 HTTPS 资料保存于本批 research/table-*；无新增 PHP 文件。
+
+表名修订没有新增或升级依赖；上一节锁定的 syn 2.0.119、proc-macro2 1.0.107 及其 MIT OR Apache-2.0 许可、MSRV 1.71 结论不变，Rust 1.94.0 真实构建通过。保留现有语法器与值绑定，不改变公共 SQL 行为。
+
+### 实现与验收
+
+本节方案定稿、实现完成，下列实际范围验收通过。全部临时源码、日志、数据库夹具临时文件和独占构建缓存位于 `target/tmp/model-fields-sync-20261123/`。沿用 build_guard、Rust 1.94.0、增量与正常并发；隔离源码 `source/`，独占 `cargo-target/`。保留现有和协作者改动，未操作开发数据，未暂存、提交、推送或发布。
+
+所有执行入口均以前缀 `python3 -B tests/build_guard.py --workflow model-fields-sync-20261123 --` 运行：
+
+```sh
+python3 -B target/tmp/model-fields-sync-20261123/table.py
+python3 -B target/tmp/model-fields-sync-20261123/table-post.py
+python3 -B tests/mysql_acceptance.py -- python3 -B target/tmp/model-fields-sync-20261123/table-check.py
+python3 -B target/tmp/model-fields-sync-20261123/table-docs.py
+```
+
+- `table.py`：隔离 manifest 的 `cargo +1.94.0 fmt --all --check`、`clippy --workspace --all-targets --locked -- -D warnings`、`build --bin main --locked`、2项宏 rustdoc 正反例均通过。随后真实 Artisan／rustc／查询消费者在 SQLite、PostgreSQL 18.7、MySQL 8.4.13 分别退出0；后两者通过项目夹具创建独立实例。日志 `table.log`、`table-{sqlite,postgres,mysql}.log` 与各消费者目录。
+- 三库实际覆盖：name 在 id 之前以及 zeta/table/id/alpha 列顺序；TABLE 首位；真实模型及字符串查询结果一致；TABLE 用于已有查询及别名；NULL、保留字、列映射、注释及特殊字符；标准表名只出现一次；自定义表及连接；源码首次自定义表、旧编译元数据冲突拒绝、自定义 getter 原文保留；手写 TABLE 和 COLUMN_TABLE 冲突；旧底部与旧紧凑分区升级、doc/derive/inner 属性、BOM/shebang、CRLF、嵌套命令、重复刷新及只读检查；不存在／重命名字段编译失败；普通模型、当前与旧已发布自定义模板生成物真实编译。批量预检、未写入保护和原有动态模型能力保留。
+- `table-post.py`：独立 MySQL 执行应用真实迁移并刷新 User。TABLE 后依次 ID、NAME、EMAIL、EMAIL_VERIFIED_AT、PASSWORD、REMEMBER_TOKEN、CREATED_AT、UPDATED_AT，均来自实际结构；8项中文列说明保留。生成区外仅标准 metadata 的表名引用变化，业务代码逐字一致，保留已有密码／令牌常量修改。该生成物通过 fmt、workspace/all-targets 严格 Clippy、main 构建、2项应用骨架、7项Artisan、1项缓存配置模型装配、1项真实 TCP 密码重置／邮箱验证和7项框架字段／绑定／主键回归。日志 `table-post.log`、`table-post-*.log`、`table-framework.log`。
+- `table-check.py`：重新构建后的真实应用 `model:fields --all --check` 退出0，User内容与mtime不变。日志 `table-check.log`、`table-user-final-*.log`。
+- 三语入门文档同步 TABLE、列顺序、迁移、重建与支持边界。文档 build（含命令入口和正文检查）、12组真实浏览器桌面／移动页面与6组三语导航全部通过，包含 `/` 和 `/docs/`。日志 `table-docs{,-build,-browser,-scope}.log`。
+
+验收过程中修正了测试对 Query Builder 所有权／字符串借用的错误调用，并回收同一测试先前添加的列以免污染后续旧格式等价断言；这些失败不计为通过。最终11项技术／正文文件与实际验收快照逐字节一致，`git diff --check` 通过。最终空间检查仍高于32GB停线，保留可复用缓存；本节未执行清理。隔离实例已由夹具回收，不删除开发服务或数据卷。
+
+本范围无剩余实现阻塞。未运行完整workspace测试、all-features、SQL Server、Windows、release、性能或生产部署；其他工作流改动不因本节通过获得验收结论。字段常量仍是未限定表名的字符串，只保证关联标识存在性，不保证查询模型归属、值类型或外部数据库列存在。普通构建无需数据库；结构及描述变更后仍需显式刷新并重新构建。动态表名逻辑不承诺自动改写或完整源码反射。
+
+提交授权补记：用户于2026-11-23追加“提交代码”指令，本主题模型布局、表名及字段生成、既有密码／令牌常量引用、测试、三语文档与验收记录一起纳入本次本地提交；未推送。上文“未授权／未提交”均描述当时验收阶段，不再代表本次追加授权后的状态。提交前11项技术／正文文件仍与通过验收的隔离源码逐字节一致，未重复构建。

@@ -3,6 +3,7 @@
 import argparse
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 
@@ -87,7 +88,7 @@ async fn main() {
 
     table = 'field_reference_probes'
     generated = source / 'app/models/field_reference_probe.rs'
-    sql('create', f'create table {table} (id integer primary key, name varchar(80), {quote}order{quote} integer, parent_id integer, {quote}display-name{quote} varchar(80), {quote}1st{quote} integer)')
+    sql('create', f'create table {table} (name varchar(80), id integer primary key, {quote}order{quote} integer, parent_id integer, {quote}display-name{quote} varchar(80), {quote}1st{quote} integer)')
 
     def comment(name, text):
         if driver == 'sqlite':
@@ -102,12 +103,20 @@ async fn main() {
         comment('initial-comment', '姓名')
         artisan('generator', 'make:model', 'FieldReferenceProbe', '--force', '--fields')
         original = generated.read_text()
-        assert 'const NAME = "name"' in original and 'const DISPLAY_NAME = "display-name"' in original
-        assert 'const COLUMN_1ST = "1st"' in original and 'const ORDER = "order"' in original
-        assert original.count('#[allow(dead_code') == 1, '未使用字段警告只在生成 impl 上设置一次'
-        assert ('#[doc = "姓名"]' in original) == (driver != 'sqlite')
+        declarations = re.findall(r'^        ([A-Z_0-9]+) = (".*");$', original, re.MULTILINE)
+        assert [(field, json.loads(value)) for field, value in declarations] == [
+            ('TABLE', table), ('NAME', 'name'), ('ID', 'id'), ('ORDER', 'order'),
+            ('PARENT_ID', 'parent_id'), ('DISPLAY_NAME', 'display-name'), ('COLUMN_1ST', '1st')]
+        assert 'ModelMetadata::new(FieldReferenceProbe::TABLE)' in original
+        assert original.count('"' + table + '"') == 1, '表名只在 TABLE 中维护一处'
+        assert 'NAME = "name"' in original and 'DISPLAY_NAME = "display-name"' in original
+        assert 'COLUMN_1ST = "1st"' in original and 'ORDER = "order"' in original
+        assert '#[allow(dead_code' not in original and '@model' not in original
+        assert original.index('openrust::model_fields!') < original.index('pub struct FieldReferenceProbe')
+        assert original.index('use openrust::') < original.index('openrust::model_fields!')
+        assert ('/// 姓名' in original) == (driver != 'sqlite')
         if driver == 'sqlite':
-            assert '#[doc =' not in original, '没有列注释时不得猜测字段说明'
+            assert '#[doc =' not in original and '/// ' not in original, '没有列注释时不得猜测字段说明'
         artisan('refresh', 'model:fields', 'FieldReferenceProbe')
         assert generated.read_text() == original, '重复刷新应保持相同内容'
         generated.write_text(generated.read_text() + '\n// 保留业务代码\n')
@@ -142,7 +151,7 @@ async fn main() {
             for label, empty in [('blank-comment', ' \t\n'), ('deleted-comment', '')]:
                 comment(label, empty)
                 artisan(label + '-refresh', 'model:fields', 'FieldReferenceProbe')
-                assert '#[doc =' not in generated.read_text(), '空白或删除的注释不生成文档'
+                assert '#[doc =' not in generated.read_text() and '/// ' not in generated.read_text(), '空白或删除的注释不生成文档'
             model = generated.read_text()
         # 真正执行生成模型的查询，包含保留字、NULL 和参数绑定。
         sql('insert', f"insert into {table} (id, name, {quote}order{quote}) values (1, '张三', 2)")
@@ -154,6 +163,14 @@ async fn main() {
     query.r#where(FieldReferenceProbe::NAME, "=", "张三");
     query.whereNull(FieldReferenceProbe::PARENT_ID);
     let users = query.orderBy(FieldReferenceProbe::ORDER, "asc").get().await.unwrap();
+    assert_eq!(FieldReferenceProbe::TABLE, "field_reference_probes");
+    assert_eq!(FieldReferenceProbe::from_state(Default::default()).getTable(), FieldReferenceProbe::TABLE);
+    let mut strings = FieldReferenceProbe::queryOn(&db);
+    strings.r#where("name", "=", "张三");
+    assert_eq!(strings.get().await.unwrap().len(), users.len());
+    let aliased = db.table(&format!("{} as u", FieldReferenceProbe::TABLE));
+    let aliased = aliased.r#where(&format!("u.{}", FieldReferenceProbe::NAME), "=", "张三");
+    assert_eq!(aliased.select([format!("u.{}", FieldReferenceProbe::ID).as_str()]).get().await.unwrap().len(), 1);
     assert_eq!(users.len(), 1);
     assert_eq!(users[0].getAttribute(FieldReferenceProbe::ID), Some(&1.into()));
 }
@@ -165,7 +182,7 @@ async fn main() {
         sql('drop', f'alter table {table} drop column parent_id')
         artisan('regenerate', 'model:fields', 'FieldReferenceProbe')
         refreshed = generated.read_text()
-        assert 'const EXTRA' in refreshed and 'const PARENT_ID' not in refreshed
+        assert 'EXTRA' in refreshed and 'PARENT_ID' not in refreshed
         compile_code('renamed', refreshed + reference, False)
         compile_code('new-name', refreshed + reference.replace('::NAME', '::FULL_NAME'))
         before = generated.read_bytes()
@@ -177,8 +194,10 @@ async fn main() {
         artisan('nested', 'make:model', 'Admin/FieldReferenceProbe', '--force', '--fields',
                 f'--table={table}', f'--database={environment["DB_CONNECTION"]}')
         nested = source / 'app/models/admin/field_reference_probe.rs'
+        assert './artisan model:fields Admin/FieldReferenceProbe' in nested.read_text()
         compile_code('nested-model', nested.read_text() + reference.replace('::NAME', '::FULL_NAME'))
-        assert f'ModelMetadata::new("{table}")' in nested.read_text()
+        assert 'ModelMetadata::new(FieldReferenceProbe::TABLE)' in nested.read_text()
+        assert f'TABLE = "{table}";' in nested.read_text()
         assert f'.connection("{environment["DB_CONNECTION"]}")' in nested.read_text()
         # 编译真实模型消费者，再经正式 Application::handleCommand 调用 Artisan。
         # 默认连接故意无效，确保同步实际使用模型保存的连接而不是碰巧命中默认库。
@@ -218,6 +237,11 @@ async fn main() {
                     for path in (linked, nested)}
 
         registered('compiled-check', '--all', '--check')
+        stale_source = linked.read_text().replace('ModelMetadata::new(LinkedProbe::TABLE)', 'ModelMetadata::new("different_table")')
+        linked.write_text(stale_source)
+        registered('outdated-metadata', 'LinkedProbe', success=False)
+        assert linked.read_text() == stale_source
+        linked.write_text(stale_source.replace('ModelMetadata::new("different_table")', 'ModelMetadata::new(LinkedProbe::TABLE)'))
         registered('multiple-check', 'LinkedProbe', 'Admin/FieldReferenceProbe', '--check')
         registered('conflicting-selection', 'LinkedProbe', '--all', success=False)
         empty = compile_code('unregistered', runner_source.split('\n', 1)[1], executable=True)
@@ -249,7 +273,7 @@ async fn main() {
         registered('batch-override', 'LinkedProbe', 'Admin/FieldReferenceProbe', '--table=unused', success=False)
         assert source_snapshot() == unchanged
         registered('compiled-refresh', '--all')
-        assert all('const REGISTERED_EXTRA' in path.read_text() for path in (linked, nested))
+        assert all('REGISTERED_EXTRA' in path.read_text() for path in (linked, nested))
         unchanged = source_snapshot()
         registered('compiled-idempotent', '--all')
         registered('compiled-fresh', '--all', '--check')
@@ -259,15 +283,15 @@ async fn main() {
         # 配置变化重新编译后使用新表，不能要求每次重新输入 --table。
         sql('other-create', 'create table field_reference_other (id integer, payload integer)')
         try:
-            nested.write_text(nested.read_text().replace(f'ModelMetadata::new("{table}")',
-                                                         'ModelMetadata::new("field_reference_other")'))
+            nested.write_text(nested.read_text().replace(f'TABLE = "{table}";', 'TABLE = "field_reference_other";'))
             runner = compile_code('registered', runner_source, executable=True)
             registered('metadata-changed-check', 'Admin/FieldReferenceProbe', '--check', success=False)
             registered('metadata-changed-refresh', 'Admin/FieldReferenceProbe')
-            assert 'const PAYLOAD' in nested.read_text() and 'const REGISTERED_EXTRA' not in nested.read_text()
+            assert 'PAYLOAD' in nested.read_text() and 'REGISTERED_EXTRA' not in nested.read_text()
             registered('metadata-changed-fresh', '--all', '--check')
         finally:
             sql('other-drop', 'drop table field_reference_other')
+        sql('registered-drop', f'alter table {table} drop column registered_extra')
         sql('collision-create', f'create table field_collision ({quote}a-b{quote} integer, a_b integer)')
         try:
             artisan('collision', 'model:fields', 'FieldReferenceProbe', '--table=field_collision', success=False)
@@ -293,17 +317,147 @@ async fn main() {
             compile_code('quoted-model', quoted_model.read_text() + "\npub fn reference() -> &'static str { QuotedProbe::ID }\n")
         finally:
             sql('quoted-drop', f'drop table {identifier}')
-        generated.write_text(refreshed.replace('// openrust:model-fields end', '// removed end'))
-        damaged = generated.read_bytes()
-        artisan('damaged', 'model:fields', 'FieldReferenceProbe', success=False)
-        assert generated.read_bytes() == damaged
+        # 未编译标准模型首先从源码表名读取，不能误用类名推断的表。
+        custom_source = refreshed[refreshed.index('pub struct FieldReferenceProbe'):]
+        custom_source = ('use openrust::database::eloquent::{Model, ModelMetadata, ModelState};\n\n' + custom_source).replace(
+            'FieldReferenceProbe', 'SourceTableProbe').replace('ModelMetadata::new(SourceTableProbe::TABLE)', f'ModelMetadata::new("{table}")')
+        custom_model = source / 'app/models/source_table_probe.rs'
+        custom_model.write_text(custom_source)
+        try:
+            artisan('source-table', 'model:fields', 'SourceTableProbe')
+            assert f'TABLE = "{table}";' in custom_model.read_text()
+            assert 'ModelMetadata::new(SourceTableProbe::TABLE)' in custom_model.read_text()
+            compile_code('source-table', custom_model.read_text(), deny_warnings=True)
+            getter = custom_source.replace('impl Model for SourceTableProbe {',
+                "impl Model for SourceTableProbe {\n    fn getTable(&self) -> &'static str { \"" + table + "\" }")
+            getter = getter.replace(f'ModelMetadata::new("{table}")', 'ModelMetadata::new("fallback")')
+            custom_model.write_text(getter)
+            artisan('custom-table-getter', 'model:fields', 'SourceTableProbe', f'--table={table}')
+            assert 'ModelMetadata::new("fallback")' in custom_model.read_text()
+            compile_code('custom-table-getter', custom_model.read_text(), deny_warnings=True)
+        finally:
+            custom_model.unlink()
+        # 旧版内嵌区域迁移到顶部的新分区；边界由 Rust 语法位置确认。
+        section = refreshed.index('/*\n|---')
+        model_start = refreshed.index('pub struct FieldReferenceProbe')
+        business = refreshed[:section] + refreshed[model_start:]
+        legacy_block = (
+            '// openrust:model-fields begin\n'
+            'openrust::database::eloquent::model_fields! {\n'
+            '    @model FieldReferenceProbe;\n'
+            '    impl FieldReferenceProbe { pub const FULL_NAME = "full_name"; }\n'
+            '}\n// openrust:model-fields end\n')
+        legacy = business.replace('ModelMetadata::new(FieldReferenceProbe::TABLE)', f'ModelMetadata::new("{table}")') + '\n' + legacy_block
+        generated.write_text(legacy)
+        artisan('legacy-check', 'model:fields', 'FieldReferenceProbe', '--check', success=False)
+        assert generated.read_text() == legacy
+        artisan('legacy-migrate', 'model:fields', 'FieldReferenceProbe')
+        migrated = generated.read_text()
+        assert 'openrust:model-fields' not in migrated and '@model' not in migrated
+        assert 'ModelMetadata::new(FieldReferenceProbe::TABLE)' in migrated and migrated.count(f'"{table}"') == 1
+        assert migrated.index('openrust::model_fields!') < migrated.index('pub struct FieldReferenceProbe')
+        assert migrated.endswith('// 保留业务代码\n')
+        compile_code('migrated', migrated + reference.replace('::NAME', '::FULL_NAME'), deny_warnings=True)
         for label, broken in [
-            ('duplicate-marker', refreshed + '// openrust:model-fields begin\n'),
-            ('reversed-marker', refreshed.replace('// openrust:model-fields begin', '// openrust:model-fields TEMP').replace('// openrust:model-fields end', '// openrust:model-fields begin').replace('// openrust:model-fields TEMP', '// openrust:model-fields end')),
+            ('damaged', legacy.replace('// openrust:model-fields end', '// removed end')),
+            ('duplicate-marker', legacy + '// openrust:model-fields begin\n'),
+            ('reversed-marker', legacy.replace('// openrust:model-fields begin', '// openrust:model-fields TEMP').replace('// openrust:model-fields end', '// openrust:model-fields begin').replace('// openrust:model-fields TEMP', '// openrust:model-fields end')),
+            ('duplicate-section', refreshed + refreshed[section:model_start]),
+            ('damaged-section', refreshed.replace('| 模型表与字段', '| removed section')),
+            ('invalid-rust', refreshed + '\nfn incomplete(\n'),
         ]:
             generated.write_text(broken)
             artisan(label, 'model:fields', 'FieldReferenceProbe', success=False)
             assert generated.read_text() == broken
+        # 上一版顶部紧凑布局可原地升级，不留下第二份分区或表名字符串。
+        old_header = '/*\n|--------------------------------------------------------------------------\n| 模型字段\n|--------------------------------------------------------------------------\n|\n| 根据数据库表结构生成字段与说明，通过 model:fields 命令同步。\n| 调整表结构或列说明后，请重新同步并构建；不要直接修改此区域。\n|\n*/\n'
+        old_compact = refreshed.replace(refreshed[section:refreshed.index('openrust::model_fields!')], old_header).replace(
+            f'        TABLE = "{table}";\n', '').replace('ModelMetadata::new(FieldReferenceProbe::TABLE)', f'ModelMetadata::new("{table}")')
+        generated.write_text(old_compact)
+        artisan('compact-upgrade-check', 'model:fields', 'FieldReferenceProbe', '--check', success=False)
+        assert generated.read_text() == old_compact
+        artisan('compact-upgrade', 'model:fields', 'FieldReferenceProbe')
+        assert generated.read_text() == refreshed
+        artisan('compact-upgrade-stable', 'model:fields', 'FieldReferenceProbe', '--check')
+        # 不在 derive / 文档属性和模型类型之间插入；真实语法解析避开字符串中的括号。
+        decorated = ('//! 模型模块说明\n#![allow(dead_code)]\n' + business).replace(
+            'pub struct FieldReferenceProbe',
+            'pub const EXAMPLE: &str = r###"括号 } { 与 \"引号\""###;\n'
+            '/// 模型类型说明\n#[derive(Default)]\npub struct FieldReferenceProbe')
+        generated.write_text(decorated)
+        artisan('decorated-refresh', 'model:fields', 'FieldReferenceProbe')
+        decorated = generated.read_text()
+        assert decorated.startswith('//! 模型模块说明\n#![allow(dead_code)]\n')
+        assert decorated.index('openrust::model_fields!') < decorated.index('pub const EXAMPLE')
+        assert '/// 模型类型说明\n#[derive(Default)]\npub struct FieldReferenceProbe' in decorated
+        compile_code('decorated', decorated + reference.replace('::NAME', '::FULL_NAME'), deny_warnings=True)
+        artisan('decorated-idempotent', 'model:fields', 'FieldReferenceProbe')
+        assert generated.read_text() == decorated
+        # BOM / shebang 的字节偏移不得导致源码被截断。
+        generated.write_text('\ufeff#!/usr/bin/env rust-script\n' + decorated)
+        artisan('bom-shebang', 'model:fields', 'FieldReferenceProbe')
+        assert generated.read_text().startswith('\ufeff#!/usr/bin/env rust-script\n//! 模型模块说明')
+        compile_code('bom-shebang', generated.read_text() + reference.replace('::NAME', '::FULL_NAME'), deny_warnings=True)
+        # Windows 换行的生成区可刷新，业务源码字节保持不变。
+        windows = refreshed.replace('\n', '\r\n')
+        generated.write_bytes(windows.encode())
+        artisan('crlf-refresh', 'model:fields', 'FieldReferenceProbe')
+        assert generated.read_bytes().endswith(business[business.index('pub struct'):].replace('\n', '\r\n').encode())
+        stable = generated.read_bytes()
+        artisan('crlf-idempotent', 'model:fields', 'FieldReferenceProbe')
+        assert generated.read_bytes() == stable
+        # 导入与模型写在同一行时，生成区仍位于类型之前。
+        inline = business.replace(';\n\npub struct', '; pub struct', 1)
+        generated.write_text(inline)
+        artisan('inline-import', 'model:fields', 'FieldReferenceProbe')
+        assert generated.read_text().index('openrust::model_fields!') < generated.read_text().index('pub struct')
+        compile_code('inline-import', generated.read_text() + reference.replace('::NAME', '::FULL_NAME'), deny_warnings=True)
+        # 无导入的模型模块保留文件文档、inner 属性与类型文档。
+        no_import = business.split(';\n', 1)[1].lstrip()
+        no_import = re.sub(r'\b(ModelState|ModelMetadata|Model)\b',
+                           lambda match: 'openrust::database::eloquent::' + match[0], no_import)
+        no_import = '//! 模型模块说明\n#![allow(dead_code)]\n/// 模型类型说明\n' + no_import
+        generated.write_text(no_import)
+        artisan('no-import', 'model:fields', 'FieldReferenceProbe')
+        assert '/// 模型类型说明\npub struct' in generated.read_text()
+        compile_code('no-import', generated.read_text() + reference.replace('::NAME', '::FULL_NAME'), deny_warnings=True)
+        # 原始字符串中的旧边界文本不得被误当作生成区而删除。
+        raw_markers = ('\npub const MARKER_EXAMPLE: &str = r###"\n'
+                       '// openrust:model-fields begin\n保留示例文本\n'
+                       '// openrust:model-fields end\n"###;\n')
+        generated.write_text(business + raw_markers)
+        artisan('raw-markers', 'model:fields', 'FieldReferenceProbe')
+        assert raw_markers in generated.read_text()
+        compile_code('raw-markers', generated.read_text() + reference.replace('::NAME', '::FULL_NAME'), deny_warnings=True)
+        generated.write_text(refreshed)
+        sql('table-column-create', f'create table field_table_column (zeta integer, {quote}table{quote} integer, id integer primary key, alpha integer)')
+        try:
+            artisan('table-column', 'make:model', 'TableColumnProbe', '--force', '--fields', '--table=field_table_column')
+            probe = (source / 'app/models/table_column_probe.rs').read_text()
+            declarations = re.findall(r'^        ([A-Z_0-9]+) = (".*");$', probe, re.MULTILINE)
+            assert [(field, json.loads(value)) for field, value in declarations] == [
+                ('TABLE', 'field_table_column'), ('ZETA', 'zeta'), ('COLUMN_TABLE', 'table'), ('ID', 'id'), ('ALPHA', 'alpha')]
+            compile_code('table-column', probe + "\npub fn reference() -> &'static str { TableColumnProbe::COLUMN_TABLE }\n", deny_warnings=True)
+            # 表名覆盖同步到 TABLE，标准元数据仍引用同一常量。
+            artisan('table-override', 'model:fields', 'FieldReferenceProbe', '--table=field_table_column')
+            override = generated.read_text()
+            assert 'TABLE = "field_table_column";' in override and 'ModelMetadata::new(FieldReferenceProbe::TABLE)' in override
+            assert table not in override
+            compile_code('table-override', override + "\npub fn reference() -> &'static str { FieldReferenceProbe::TABLE }\n", deny_warnings=True)
+        finally:
+            sql('table-column-drop', 'drop table field_table_column')
+            generated.write_text(refreshed)
+        sql('table-collision-create', f'create table field_table_collision ({quote}table{quote} integer, column_table integer)')
+        try:
+            artisan('table-collision', 'model:fields', 'FieldReferenceProbe', '--table=field_table_collision', success=False)
+            assert generated.read_text() == refreshed
+        finally:
+            sql('table-collision-drop', 'drop table field_table_collision')
+        # 手写 TABLE 在生成区外时拒绝覆盖或制造重复关联常量。
+        manual_table = refreshed + '\nimpl FieldReferenceProbe { pub const TABLE: &str = "manual"; }\n'
+        generated.write_text(manual_table)
+        artisan('manual-table-conflict', 'model:fields', 'FieldReferenceProbe', success=False)
+        assert generated.read_text() == manual_table
         generated.write_text(refreshed)
         artisan('exists', 'make:model', 'FieldReferenceProbe', '--fields', success=False)
         assert generated.read_text() == refreshed
@@ -330,6 +484,14 @@ async fn main() {
             artisan('custom-stub', 'make:model', 'StubProbe', '--fields',
                     f'--table={table}', f'--database={environment["DB_CONNECTION"]}')
             assert f'.connection("{environment["DB_CONNECTION"]}")' in (source / 'app/models/stub_probe.rs').read_text()
+            compile_code('custom-stub-model', stub_model.read_text(), deny_warnings=True)
+            stub_model.unlink()
+            custom_stub.write_text(template.replace('{{table_reference}}', '"{{table}}"'))
+            artisan('legacy-custom-stub', 'make:model', 'StubProbe', '--fields',
+                    f'--table={table}', f'--database={environment["DB_CONNECTION"]}')
+            assert 'ModelMetadata::new(StubProbe::TABLE)' in stub_model.read_text()
+            assert stub_model.read_text().count(f'"{table}"') == 1
+            compile_code('legacy-custom-stub-model', stub_model.read_text(), deny_warnings=True)
         finally:
             if old_model is None:
                 stub_model.unlink(missing_ok=True)
