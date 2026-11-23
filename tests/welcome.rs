@@ -1609,7 +1609,7 @@ async fn environment_candidates_control_menu_and_preference_without_bootstrap_co
     assert!(!html.contains("class=\"language-switcher\""));
     fs::write(
         root.0.join(".env"),
-        "APP_LOCALE=en\nAPP_SUPPORTED_LOCALES=null\n",
+        "APP_LOCALE=en\nAPP_SUPPORTED_LOCALES=*\n",
     )
     .unwrap();
     let automatic = root.kernel().await;

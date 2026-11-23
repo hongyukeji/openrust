@@ -84,11 +84,12 @@ impl SetLocale {
             let invalid = || {
                 crate::translation::TranslationError::Source(Box::new(ConfigError::InvalidType {
                     key: "app.supported_locales".into(),
-                    expected: "BCP 47 语言标签数组或 null",
+                    expected: "* 或 BCP 47 语言标签数组",
                 }))
             };
             match config.get("app.supported_locales") {
-                None | Some(serde_json::Value::Null) => {}
+                None => {}
+                Some(serde_json::Value::String(value)) if value == "*" => {}
                 Some(serde_json::Value::Array(locales)) => {
                     let mut supported = Vec::new();
                     for locale in locales {

@@ -529,9 +529,8 @@ fn supported_locale_environment_preserves_automatic_disabled_and_explicit_states
     ));
     fs::create_dir_all(&root).unwrap();
     for (text, expected) in [
-        ("", Value::Null),
-        ("APP_SUPPORTED_LOCALES=null\n", Value::Null),
-        ("APP_SUPPORTED_LOCALES=(NULL)\n", Value::Null),
+        ("", json!("*")),
+        ("APP_SUPPORTED_LOCALES=*\n", json!("*")),
         ("APP_SUPPORTED_LOCALES=\n", json!([])),
         (
             "APP_SUPPORTED_LOCALES=JA,en,zh-Hans\n",
@@ -546,7 +545,9 @@ fn supported_locale_environment_preserves_automatic_disabled_and_explicit_states
             "{text}"
         );
     }
-    for text in ["zh_CN", "en,,ja", "en,", "[]"] {
+    for text in [
+        "null", "NULL", "(null)", "(NULL)", "zh_CN", "en,,ja", "en,", "[]",
+    ] {
         fs::write(root.join(".env"), format!("APP_SUPPORTED_LOCALES={text}\n")).unwrap();
         let env = LoadEnvironmentVariables::bootstrap(&root, None).unwrap();
         assert!(

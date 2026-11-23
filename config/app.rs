@@ -83,7 +83,7 @@ pub(super) fn load(env: &Environment) -> Result<Loaded<'_>, ConfigError> {
         "locale": locale(env, "APP_LOCALE", "en")?,
         "fallback_locale": locale(env, "APP_FALLBACK_LOCALE", "en")?,
         "faker_locale": locale(env, "APP_FAKER_LOCALE", "en-US")?,
-        // null 自动发现语言；数组限制候选，空数组关闭识别。
+        // "*" 自动发现全部可用语言；数组限制候选，空数组关闭语言协商。
         "supported_locales": supported_locales(env)?,
         // 保存语言偏好的表单字段名。
         "locale_form_field": get(env, "APP_LOCALE_FORM_FIELD", "locale")?,
@@ -185,21 +185,24 @@ fn locale(env: &Environment, key: &str, default: &str) -> Result<String, ConfigE
 }
 
 fn supported_locales(env: &Environment) -> Result<Value, ConfigError> {
-    let value = get(env, "APP_SUPPORTED_LOCALES", Value::Null)?;
-    let Some(value) = value.as_str() else {
-        return Ok(Value::Null);
+    let value = get(env, "APP_SUPPORTED_LOCALES", "*")?;
+    let invalid = || ConfigError::InvalidType {
+        key: "APP_SUPPORTED_LOCALES".into(),
+        expected: "* 或逗号分隔的 BCP 47 语言标签，空值关闭",
     };
-    if value.trim().is_empty() {
+    let value = value.as_str().ok_or_else(invalid)?.trim();
+    if value.eq_ignore_ascii_case("null") || value.eq_ignore_ascii_case("(null)") {
+        return Err(invalid());
+    }
+    if value == "*" {
+        return Ok(json!("*"));
+    }
+    if value.is_empty() {
         return Ok(json!([]));
     }
     value
         .split(',')
-        .map(|value| {
-            canonical_locale(value.trim()).map_err(|_| ConfigError::InvalidType {
-                key: "APP_SUPPORTED_LOCALES".into(),
-                expected: "逗号分隔的 BCP 47 语言标签，空值关闭，null 自动发现",
-            })
-        })
+        .map(|value| canonical_locale(value.trim()).map_err(|_| invalid()))
         .collect::<Result<Vec<_>, _>>()
         .map(|locales| json!(locales))
 }

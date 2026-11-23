@@ -305,12 +305,12 @@ async fn configured_candidates_override_discovery_preserve_order_and_normalize_o
 }
 
 #[tokio::test]
-async fn null_discovers_but_configured_lists_and_explicit_candidates_skip_sources() {
+async fn wildcard_discovers_but_configured_lists_and_explicit_candidates_skip_sources() {
     let root = tempfile::tempdir().unwrap();
     write(root.path(), "lang/ja/messages.json");
     let mut automatic = Kernel::new(configured_application(
         root.path(),
-        serde_json::Value::Null,
+        serde_json::json!("*"),
         None,
     ));
     automatic.bootstrap().await.unwrap();
@@ -353,6 +353,10 @@ async fn null_discovers_but_configured_lists_and_explicit_candidates_skip_source
 async fn malformed_candidate_configuration_fails_at_startup_and_can_be_retried() {
     let root = tempfile::tempdir().unwrap();
     for value in [
+        serde_json::Value::Null,
+        serde_json::json!("null"),
+        serde_json::json!(["*"]),
+        serde_json::json!(["en", "*"]),
         serde_json::json!("en,ja"),
         serde_json::json!(false),
         serde_json::json!({"en":true}),
