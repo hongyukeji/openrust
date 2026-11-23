@@ -129,3 +129,43 @@ impl ViteFacade {
         Ok(root)
     }
 }
+
+impl ViteFacade {
+    pub fn r#macro<A: std::any::Any + Send + Sync, T: std::any::Any + Send + Sync>(
+        name: impl Into<String>,
+        callback: impl Fn(&Vite, A) -> ViteResult<T> + Send + Sync + 'static,
+    ) -> ViteResult<()> {
+        Self::get_facade_root()?.r#macro(name, callback);
+        Ok(())
+    }
+    pub fn mixin<K: Into<String>>(
+        macros: impl IntoIterator<Item = (K, super::ViteMacro)>,
+        replace: bool,
+    ) -> ViteResult<()> {
+        Self::get_facade_root()?.mixin(macros, replace);
+        Ok(())
+    }
+    pub fn mixin_using<K, F>(
+        factories: impl IntoIterator<Item = (K, F)>,
+        replace: bool,
+    ) -> ViteResult<()>
+    where
+        K: Into<String>,
+        F: FnOnce() -> ViteResult<super::ViteMacro>,
+    {
+        Self::get_facade_root()?.mixin_using(factories, replace)
+    }
+    pub fn has_macro(name: &str) -> ViteResult<bool> {
+        Ok(Self::get_facade_root()?.has_macro(name))
+    }
+    pub fn flush_macros() -> ViteResult<()> {
+        Self::get_facade_root()?.flush_macros();
+        Ok(())
+    }
+    pub fn macro_call<T: std::any::Any + Send + Sync, A: std::any::Any + Send + Sync>(
+        name: &str,
+        arguments: A,
+    ) -> ViteResult<T> {
+        Self::get_facade_root()?.macro_call(name, arguments)
+    }
+}

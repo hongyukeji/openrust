@@ -60,7 +60,7 @@
 | URL | `support::facades::Url` | 核对 Generator 全部入口、当前请求/默认值、签名、密钥轮换与回调 |
 | Validator | `support::facades::Validator` | 核对 Factory/规则扩展、解析器/存在性/回退消息及 make/validate 委托 |
 | View | `support::facades::View` | 核对 Factory/编译器、命名视图、组件、共享数据、事件、缓存与宏 |
-| Vite | 已接 `support::facades::Vite` 与 `foundation::Vite` | 清单/热模式、资源标签、CSP/SRI、字体、预取与真实模板/Worker/浏览器已实测；宏与共享Facade测试契约、逐入口最终裁决仍待闭合 |
+| Vite | 已接 `support::facades::Vite` 与 `foundation::Vite` | 32个声明入口及实际调用已逐项裁决，清单/字体/预取/宏有正式消费者验收；共享Facade mock/spy等测试契约及最终全门面复核仍待闭合 |
 
 `Sms` 是已批准的框架扩展，单独跟踪，不计入上游 46 个具体门面的对齐数量。
 
@@ -374,3 +374,14 @@ python3 -B tests/build_guard.py --workflow facade-alignment --target-dir target/
 - `tests-final.log`共33项返回通过，其中Vite和预取各1项无浏览器环境早返回不计，实际本机31项；包括原Blade表达式5、原生值6、Vite11、字体6与预取3。`browser.log`另外实际运行两次真实HTTP Kernel生成入口（各1项），Chrome自定义事件前0请求，waterfall最初2链接/网络峰值2，aggressive最初5链接/网络峰值5。首请求503后继续剩余资源，全部5 URL各请求一次，无页面脚本异常。页面由本地HTTP夹具承载，不作为Rust部署验收。
 - `workers.log`独立MySQL8.4.13和Redis8.10.3各1项实际Artisan queue:work，两任务连续消费：首任务启用job:ready预取，第二任务没有继承策略；同时保留nonce/字体/预加载隔离。临时容器和测试表已清理。
 - 三语资源预取章节、默认值、错误与示例同步；`docs.log`构建、`docs-browser.log`桌面/移动共6项通过，`clippy.log`、吸收已提交父树的`clippy-parent.log`及`fmt.log`严格全workspace/all-targets与格式检查通过。修正总表中Vite未实现、Exceptions/File已补入口仍列缺口的过时描述，历史记录原样保留；宏及共享Facade测试仍待闭合。
+
+
+### Vite：具类型宏、惰性mixin与实际模板调用（2026-11-24，仍 partial）
+
+- 按固定Macroable及实际Vite的__call/Facade动态委托核对四个宏入口。沿用现有File宏的原生具类型注册模式，提供ViteMacro、macro、mixin、has_macro、flush_macros及正式macro_call，不另建动态解释器。对象/自由函数均可编译为回调；A/T为Any+Send+Sync，允许非Clone参数与原始返回类型，错误实际保留来源。
+- 具名mixin列表明确公开回调；mixin_using惰性工厂表达原反射方法的执行时机：replace=false跳过既有名称及其工厂，失败保留先前注册，不继续后续工厂。名称转换、回调及捕获析构在注册锁外，支持重入/替换/清空。内置公开方法不被同名宏覆盖；flush不清宏，flush_macros只清宏。宏按应用保留，实际调用读当前请求/命令/任务配置，不按PHP进程全局表污染多个Rust应用。
+- 补齐Blade未知Vite::name(...)到正式macro_call的运行期桥接，复用既有表达式解析和值类型。模板宏注册Vec<ViewValue>->ViewValue，普通输出仍转义，raw输出保持原行为；其他原生签名不静默JSON转换。注册可晚于编译，缺名/类型错误按真实错误传播。无运行时Rust私有方法/字段反射，显式原生列表与公开服务API的约束已写三语，未用笼统静态语言理由省略宏入口。
+- 新helper AST将编译版本递进48；回归发现原版本测试写死47，已改为从产物取得当前版本、要求>=48并验证前版失效/重建，避免后续每次写死版本。初始动态调用前缀拼接错误由正式View消费者复现并修正；所有失败与修复日志保留。
+- `oracle.json`固定PHP原Macroable执行：原实例nonce、大小写、protected工厂/私有方法边界、replace=false不调用工厂、替换、回调原错误、flush和缺失错误。`tests-fifth.log`实际本机33项通过（35返回通过中2项缺浏览器环境早返回不计）；新宏7项含非Clone/实际类型、原错误Arc身份、析构重入、应用隔离与保留目标、工厂中断、正式HTTP不同nonce、真实Blade自定义宏及当前HTTP域名。沿用先前未受影响的Vite构建/HMR/预取浏览器证据，不重复运行。
+- `workers.log`独立MySQL8.4.13和Redis8.10.3各1项真实Artisan queue:work，两任务使用同一已注册宏读取自己的nonce，宏注册跨任务保留且执行配置不串用；临时容器/表已清理。三语宏用法、模板签名、生命周期与边界同步，`docs.log`构建及`browser.log`桌面/移动6项通过，`clippy.log`及吸收已提交父树的`clippy-parent.log`严格Clippy通过，`fmt.log`格式通过。
+- 32个声明入口在upstream-entries.json补齐参数、默认、返回、错误、状态、消费者、证据和原生约束；附__invoke/动态委托裁决。服务公开入口已有验收，不将共享Facade基类mock/spy等未完成契约计为闭合；其余门面任务继续执行。

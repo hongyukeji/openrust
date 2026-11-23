@@ -47,6 +47,10 @@ impl JobHandler for ViteJob {
                 if id == 1 {
                     Vite::prefetch(Some(2), Some("job:ready"))?;
                 }
+                assert_eq!(
+                    Vite::macro_call::<Option<String>, _>("worker_nonce", ())?,
+                    Some(nonce.clone())
+                );
                 let html = Vite::render(["resources/js/app.js"], None)?
                     .to_html()
                     .to_owned();
@@ -121,6 +125,7 @@ async fn worker(driver: &str, url: Option<String>, port: Option<u16>) {
     }
     let completed = Arc::new(Mutex::new(vec![]));
     App::set_facade_application(Some(app.app()), async {
+        Vite::r#macro("worker_nonce", |vite, (): ()| vite.csp_nonce()).unwrap();
         Queue::register(
             "vite-render",
             Arc::new(ViteJob {

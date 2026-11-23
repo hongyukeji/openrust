@@ -1,0 +1,16 @@
+{
+    "has": true,
+    "value": "macro-one",
+    "nonce": "macro-one",
+    "otherHas": true,
+    "caseSensitive": true,
+    "factorySkipped": true,
+    "retained": "macro-two",
+    "added": "added",
+    "hidden": false,
+    "replaced": "mixed",
+    "factoryCalled": true,
+    "error": true,
+    "flushed": true,
+    "missing": true
+}

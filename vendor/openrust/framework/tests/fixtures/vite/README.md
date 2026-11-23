@@ -11,3 +11,6 @@
 
 
 `prefetch-manifest.json` 与 `prefetch-contract.json` 对照固定Vite.php的动态导入遍历及两种脚本输出，包含循环、共享导入、CSS、特殊字符、事件切换和失败分支。`foundation/vite/stubs/`中的脚本保留同一固定源码的可观察调度行为；本地对照、真实Worker及Chrome网络并发证据保存在 `target/tmp/facade-alignment/vite-prefetch/`。序列化复用框架已有Blade JavaScript编码。
+
+
+`macros-contract.json`来自同一固定版本Macroable与Vite原类的实际执行，涵盖具实例宏、大小写、mixin工厂跳过/替换、异常与清理。原始脚本和输出保存在 `target/tmp/facade-alignment/vite-macros/`。Rust以应用注册表、具类型宏/惰性工厂与Vec<ViewValue>模板桥接表达，不进行PHP类反射；具体参数、生命周期及原生约束见既有门面对账。

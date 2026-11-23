@@ -2450,169 +2450,366 @@
         "preloadedAssets": {
           "local": "preloaded_assets",
           "status": "verified-native-adapter",
-          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs"
+          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs",
+          "parameters": "无",
+          "defaults": "空记录",
+          "returns": "ViteResult<IndexMap<URL,Vec<属性文本>>副本>（Facade可用性错误保留）",
+          "lifecycle": "当前执行期预加载记录",
+          "errors": "所属应用不可用明确报错；涉及IO/清单/入口/URL/属性回调的读取保留相应ViteError来源；预取禁用属性与非法策略不静默成功",
+          "consumers": "见该入口evidence对应的正式门面、HTTP/Blade/Artisan/Worker及浏览器实际消费者；不以get_facade_root绕行代替入口"
         },
         "cspNonce": {
           "local": "csp_nonce",
           "status": "verified-native-adapter",
-          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs"
+          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs",
+          "parameters": "无",
+          "defaults": "None",
+          "returns": "ViteResult<Option<String>>（Facade可用性错误保留）",
+          "lifecycle": "当前执行配置",
+          "errors": "所属应用不可用明确报错；涉及IO/清单/入口/URL/属性回调的读取保留相应ViteError来源；预取禁用属性与非法策略不静默成功",
+          "consumers": "见该入口evidence对应的正式门面、HTTP/Blade/Artisan/Worker及浏览器实际消费者；不以get_facade_root绕行代替入口"
         },
         "useCspNonce": {
           "local": "use_csp_nonce",
           "status": "verified-native-adapter",
-          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs"
+          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs",
+          "parameters": "nonce: Option<&str>",
+          "defaults": "None生成40位随机值",
+          "returns": "ViteResult<实际nonce字符串>（Facade可用性错误保留）",
+          "lifecycle": "Provider默认或当前执行配置",
+          "errors": "所属应用不可用明确报错；涉及IO/清单/入口/URL/属性回调的读取保留相应ViteError来源；预取禁用属性与非法策略不静默成功",
+          "consumers": "见该入口evidence对应的正式门面、HTTP/Blade/Artisan/Worker及浏览器实际消费者；不以get_facade_root绕行代替入口"
         },
         "useIntegrityKey": {
           "local": "use_integrity_key",
           "status": "verified-native-adapter",
-          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs"
+          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs",
+          "parameters": "key: Option<&str>",
+          "defaults": "初始integrity；None对应禁用false",
+          "returns": "ViteResult<Facade返回Arc<Vite>，服务返回&Vite>（Facade可用性错误保留）",
+          "lifecycle": "Provider默认或当前执行配置",
+          "errors": "所属应用不可用明确报错；涉及IO/清单/入口/URL/属性回调的读取保留相应ViteError来源；预取禁用属性与非法策略不静默成功",
+          "consumers": "见该入口evidence对应的正式门面、HTTP/Blade/Artisan/Worker及浏览器实际消费者；不以get_facade_root绕行代替入口"
         },
         "withEntryPoints": {
           "local": "with_entry_points",
           "status": "verified-native-adapter",
-          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs"
+          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs",
+          "parameters": "IntoIterator<String>",
+          "defaults": "初始空；替换现有入口",
+          "returns": "ViteResult<Facade Arc<Vite> / 服务&Vite>（Facade可用性错误保留）",
+          "lifecycle": "Provider默认或当前执行配置",
+          "errors": "所属应用不可用明确报错；涉及IO/清单/入口/URL/属性回调的读取保留相应ViteError来源；预取禁用属性与非法策略不静默成功",
+          "consumers": "见该入口evidence对应的正式门面、HTTP/Blade/Artisan/Worker及浏览器实际消费者；不以get_facade_root绕行代替入口"
         },
         "mergeEntryPoints": {
           "local": "merge_entry_points",
           "status": "verified-native-adapter",
-          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs"
+          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs",
+          "parameters": "IntoIterator<String>",
+          "defaults": "稳定去重追加",
+          "returns": "ViteResult<Facade Arc<Vite> / 服务&Vite>（Facade可用性错误保留）",
+          "lifecycle": "Provider默认或当前执行配置",
+          "errors": "所属应用不可用明确报错；涉及IO/清单/入口/URL/属性回调的读取保留相应ViteError来源；预取禁用属性与非法策略不静默成功",
+          "consumers": "见该入口evidence对应的正式门面、HTTP/Blade/Artisan/Worker及浏览器实际消费者；不以get_facade_root绕行代替入口"
         },
         "useManifestFilename": {
           "local": "use_manifest_filename",
           "status": "verified-native-adapter",
-          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs"
+          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs",
+          "parameters": "filename: Into<String>",
+          "defaults": "初始manifest.json",
+          "returns": "ViteResult<Facade Arc<Vite> / 服务&Vite>（Facade可用性错误保留）",
+          "lifecycle": "当前配置；解析缓存按应用/路径",
+          "errors": "所属应用不可用明确报错；涉及IO/清单/入口/URL/属性回调的读取保留相应ViteError来源；预取禁用属性与非法策略不静默成功",
+          "consumers": "见该入口evidence对应的正式门面、HTTP/Blade/Artisan/Worker及浏览器实际消费者；不以get_facade_root绕行代替入口"
         },
         "createAssetPathsUsing": {
           "local": "create_asset_paths_using",
           "status": "verified-native-adapter",
-          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs"
+          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs",
+          "parameters": "Fn(&str,Option<bool>)->ViteResult<String>",
+          "defaults": "初始无回调；clear_asset_path_resolver对应null",
+          "returns": "ViteResult<Facade Arc<Vite> / 服务&Vite>（Facade可用性错误保留）",
+          "lifecycle": "当前执行配置；回调在锁外运行",
+          "errors": "所属应用不可用明确报错；涉及IO/清单/入口/URL/属性回调的读取保留相应ViteError来源；预取禁用属性与非法策略不静默成功",
+          "consumers": "见该入口evidence对应的正式门面、HTTP/Blade/Artisan/Worker及浏览器实际消费者；不以get_facade_root绕行代替入口"
         },
         "hotFile": {
           "local": "hot_file",
           "status": "verified-native-adapter",
-          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs"
+          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs",
+          "parameters": "无",
+          "defaults": "public/hot",
+          "returns": "ViteResult<PathBuf>（Facade可用性错误保留）",
+          "lifecycle": "按所属应用公开路径解析",
+          "errors": "所属应用不可用明确报错；涉及IO/清单/入口/URL/属性回调的读取保留相应ViteError来源；预取禁用属性与非法策略不静默成功",
+          "consumers": "见该入口evidence对应的正式门面、HTTP/Blade/Artisan/Worker及浏览器实际消费者；不以get_facade_root绕行代替入口"
         },
         "useHotFile": {
           "local": "use_hot_file",
           "status": "verified-native-adapter",
-          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs"
+          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs",
+          "parameters": "path: Into<PathBuf>",
+          "defaults": "覆盖public/hot",
+          "returns": "ViteResult<Facade Arc<Vite> / 服务&Vite>（Facade可用性错误保留）",
+          "lifecycle": "Provider默认或当前执行配置",
+          "errors": "所属应用不可用明确报错；涉及IO/清单/入口/URL/属性回调的读取保留相应ViteError来源；预取禁用属性与非法策略不静默成功",
+          "consumers": "见该入口evidence对应的正式门面、HTTP/Blade/Artisan/Worker及浏览器实际消费者；不以get_facade_root绕行代替入口"
         },
         "useBuildDirectory": {
           "local": "use_build_directory",
           "status": "verified-native-adapter",
-          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs"
+          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs",
+          "parameters": "path: Into<String>",
+          "defaults": "初始build；render传入目录优先",
+          "returns": "ViteResult<Facade Arc<Vite> / 服务&Vite>（Facade可用性错误保留）",
+          "lifecycle": "Provider默认或当前执行配置",
+          "errors": "所属应用不可用明确报错；涉及IO/清单/入口/URL/属性回调的读取保留相应ViteError来源；预取禁用属性与非法策略不静默成功",
+          "consumers": "见该入口evidence对应的正式门面、HTTP/Blade/Artisan/Worker及浏览器实际消费者；不以get_facade_root绕行代替入口"
         },
         "useScriptTagAttributes": {
           "local": "use_script_tag_attributes / *_using / *_using_fallible",
           "status": "verified-native-adapter",
-          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs"
+          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs",
+          "parameters": "Attributes或*_using / *_using_fallible回调",
+          "defaults": "空回调集；按注册顺序合并",
+          "returns": "ViteResult<Facade Arc<Vite> / 服务&Vite>（Facade可用性错误保留）",
+          "lifecycle": "当前执行配置；回调在锁外运行",
+          "errors": "所属应用不可用明确报错；涉及IO/清单/入口/URL/属性回调的读取保留相应ViteError来源；预取禁用属性与非法策略不静默成功",
+          "consumers": "见该入口evidence对应的正式门面、HTTP/Blade/Artisan/Worker及浏览器实际消费者；不以get_facade_root绕行代替入口"
         },
         "useStyleTagAttributes": {
           "local": "use_style_tag_attributes / *_using / *_using_fallible",
           "status": "verified-native-adapter",
-          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs"
+          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs",
+          "parameters": "Attributes或*_using / *_using_fallible回调",
+          "defaults": "空回调集；按注册顺序合并",
+          "returns": "ViteResult<Facade Arc<Vite> / 服务&Vite>（Facade可用性错误保留）",
+          "lifecycle": "当前执行配置；回调在锁外运行",
+          "errors": "所属应用不可用明确报错；涉及IO/清单/入口/URL/属性回调的读取保留相应ViteError来源；预取禁用属性与非法策略不静默成功",
+          "consumers": "见该入口evidence对应的正式门面、HTTP/Blade/Artisan/Worker及浏览器实际消费者；不以get_facade_root绕行代替入口"
         },
         "usePreloadTagAttributes": {
           "local": "use_preload_tag_attributes / *_using / *_using_fallible",
           "status": "verified-native-adapter",
-          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs"
+          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs",
+          "parameters": "Option<Attributes>或回调",
+          "defaults": "空回调集；None停止标签",
+          "returns": "ViteResult<Facade Arc<Vite> / 服务&Vite>（Facade可用性错误保留）",
+          "lifecycle": "当前配置；与fonts及prefetch共用解析器",
+          "errors": "所属应用不可用明确报错；涉及IO/清单/入口/URL/属性回调的读取保留相应ViteError来源；预取禁用属性与非法策略不静默成功",
+          "consumers": "见该入口evidence对应的正式门面、HTTP/Blade/Artisan/Worker及浏览器实际消费者；不以get_facade_root绕行代替入口"
         },
         "prefetch": {
           "local": "prefetch(Option<i64>,Option<&str>)",
           "status": "verified-native-adapter",
-          "evidence": "framework/tests/vite_prefetch.rs; fixed source oracle, real HTTP/browser custom event and max concurrency, MySQL/Redis actual Worker in target/tmp/facade-alignment/vite-prefetch; disabled preload resolver preserves explicit error"
+          "evidence": "framework/tests/vite_prefetch.rs; fixed source oracle, real HTTP/browser custom event and max concurrency, MySQL/Redis actual Worker in target/tmp/facade-alignment/vite-prefetch; disabled preload resolver preserves explicit error",
+          "parameters": "concurrency: Option<i64>, event: Option<&str>",
+          "defaults": "None并发用aggressive；None事件用load",
+          "returns": "ViteResult<Facade Arc<Vite> / 服务&Vite>（Facade可用性错误保留）",
+          "lifecycle": "Provider默认或当前执行配置",
+          "errors": "所属应用不可用明确报错；涉及IO/清单/入口/URL/属性回调的读取保留相应ViteError来源；预取禁用属性与非法策略不静默成功",
+          "consumers": "见该入口evidence对应的正式门面、HTTP/Blade/Artisan/Worker及浏览器实际消费者；不以get_facade_root绕行代替入口"
         },
         "useWaterfallPrefetching": {
           "local": "use_waterfall_prefetching",
           "status": "verified-native-adapter",
-          "evidence": "framework/tests/vite_prefetch.rs; fixed source oracle, real HTTP/browser custom event and max concurrency, MySQL/Redis actual Worker in target/tmp/facade-alignment/vite-prefetch; disabled preload resolver preserves explicit error"
+          "evidence": "framework/tests/vite_prefetch.rs; fixed source oracle, real HTTP/browser custom event and max concurrency, MySQL/Redis actual Worker in target/tmp/facade-alignment/vite-prefetch; disabled preload resolver preserves explicit error",
+          "parameters": "concurrency: Option<i64>",
+          "defaults": "None复用原值，初始3",
+          "returns": "ViteResult<Facade Arc<Vite> / 服务&Vite>（Facade可用性错误保留）",
+          "lifecycle": "当前策略；保留事件",
+          "errors": "所属应用不可用明确报错；涉及IO/清单/入口/URL/属性回调的读取保留相应ViteError来源；预取禁用属性与非法策略不静默成功",
+          "consumers": "见该入口evidence对应的正式门面、HTTP/Blade/Artisan/Worker及浏览器实际消费者；不以get_facade_root绕行代替入口"
         },
         "useAggressivePrefetching": {
           "local": "use_aggressive_prefetching",
           "status": "verified-native-adapter",
-          "evidence": "framework/tests/vite_prefetch.rs; fixed source oracle, real HTTP/browser custom event and max concurrency, MySQL/Redis actual Worker in target/tmp/facade-alignment/vite-prefetch; disabled preload resolver preserves explicit error"
+          "evidence": "framework/tests/vite_prefetch.rs; fixed source oracle, real HTTP/browser custom event and max concurrency, MySQL/Redis actual Worker in target/tmp/facade-alignment/vite-prefetch; disabled preload resolver preserves explicit error",
+          "parameters": "无",
+          "defaults": "一次插入全部；保留事件/并发值",
+          "returns": "ViteResult<Facade Arc<Vite> / 服务&Vite>（Facade可用性错误保留）",
+          "lifecycle": "当前策略",
+          "errors": "所属应用不可用明确报错；涉及IO/清单/入口/URL/属性回调的读取保留相应ViteError来源；预取禁用属性与非法策略不静默成功",
+          "consumers": "见该入口evidence对应的正式门面、HTTP/Blade/Artisan/Worker及浏览器实际消费者；不以get_facade_root绕行代替入口"
         },
         "usePrefetchStrategy": {
           "local": "use_prefetch_strategy(Option<&str>,Option<i64>)",
           "status": "verified-native-adapter",
-          "evidence": "framework/tests/vite_prefetch.rs; fixed source oracle, real HTTP/browser custom event and max concurrency, MySQL/Redis actual Worker in target/tmp/facade-alignment/vite-prefetch; disabled preload resolver preserves explicit error"
+          "evidence": "framework/tests/vite_prefetch.rs; fixed source oracle, real HTTP/browser custom event and max concurrency, MySQL/Redis actual Worker in target/tmp/facade-alignment/vite-prefetch; disabled preload resolver preserves explicit error",
+          "parameters": "strategy: Option<&str>, concurrency: Option<i64>",
+          "defaults": "None关闭；仅waterfall更新已指定并发",
+          "returns": "ViteResult<Facade Arc<Vite> / 服务&Vite>（Facade可用性错误保留）",
+          "lifecycle": "当前策略；非法名称推迟到生产渲染报错",
+          "errors": "所属应用不可用明确报错；涉及IO/清单/入口/URL/属性回调的读取保留相应ViteError来源；预取禁用属性与非法策略不静默成功",
+          "consumers": "见该入口evidence对应的正式门面、HTTP/Blade/Artisan/Worker及浏览器实际消费者；不以get_facade_root绕行代替入口"
         },
         "reactRefresh": {
           "local": "react_refresh",
           "status": "verified-native-adapter",
-          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs"
+          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs",
+          "parameters": "无",
+          "defaults": "非hot为None",
+          "returns": "ViteResult<Option<HtmlString>>（Facade可用性错误保留）",
+          "lifecycle": "每次检查实际hot文件与nonce",
+          "errors": "所属应用不可用明确报错；涉及IO/清单/入口/URL/属性回调的读取保留相应ViteError来源；预取禁用属性与非法策略不静默成功",
+          "consumers": "见该入口evidence对应的正式门面、HTTP/Blade/Artisan/Worker及浏览器实际消费者；不以get_facade_root绕行代替入口"
         },
         "devServerUrl": {
           "local": "dev_server_url",
           "status": "verified-native-adapter",
-          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs"
+          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs",
+          "parameters": "无",
+          "defaults": "非hot为None",
+          "returns": "ViteResult<Option<String>>（Facade可用性错误保留）",
+          "lifecycle": "读取当前hot内容",
+          "errors": "所属应用不可用明确报错；涉及IO/清单/入口/URL/属性回调的读取保留相应ViteError来源；预取禁用属性与非法策略不静默成功",
+          "consumers": "见该入口evidence对应的正式门面、HTTP/Blade/Artisan/Worker及浏览器实际消费者；不以get_facade_root绕行代替入口"
         },
         "asset": {
           "local": "asset",
           "status": "verified-native-adapter",
-          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs"
+          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs",
+          "parameters": "asset: &str, build: Option<&str>",
+          "defaults": "None用当前build_directory",
+          "returns": "ViteResult<String URL>（Facade可用性错误保留）",
+          "lifecycle": "当前请求URL只读快照；无请求用配置",
+          "errors": "所属应用不可用明确报错；涉及IO/清单/入口/URL/属性回调的读取保留相应ViteError来源；预取禁用属性与非法策略不静默成功",
+          "consumers": "见该入口evidence对应的正式门面、HTTP/Blade/Artisan/Worker及浏览器实际消费者；不以get_facade_root绕行代替入口"
         },
         "content": {
           "local": "content",
           "status": "verified-native-adapter",
-          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs"
+          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs",
+          "parameters": "asset: &str, build: Option<&str>",
+          "defaults": "None用当前build_directory；hot仍用生产清单",
+          "returns": "ViteResult<Vec<u8>，不做有损字符串替换>（Facade可用性错误保留）",
+          "lifecycle": "应用清单缓存，文件内容每次读取",
+          "errors": "所属应用不可用明确报错；涉及IO/清单/入口/URL/属性回调的读取保留相应ViteError来源；预取禁用属性与非法策略不静默成功",
+          "consumers": "见该入口evidence对应的正式门面、HTTP/Blade/Artisan/Worker及浏览器实际消费者；不以get_facade_root绕行代替入口"
         },
         "manifestHash": {
           "local": "manifest_hash",
           "status": "verified-native-adapter",
-          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs"
+          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs",
+          "parameters": "build: Option<&str>",
+          "defaults": "None用当前build；hot或缺失为None",
+          "returns": "ViteResult<Option<String> MD5>（Facade可用性错误保留）",
+          "lifecycle": "读取当前文件，独立于已解析清单缓存",
+          "errors": "所属应用不可用明确报错；涉及IO/清单/入口/URL/属性回调的读取保留相应ViteError来源；预取禁用属性与非法策略不静默成功",
+          "consumers": "见该入口evidence对应的正式门面、HTTP/Blade/Artisan/Worker及浏览器实际消费者；不以get_facade_root绕行代替入口"
         },
         "fonts": {
           "local": "fonts(Option<&[&str]>)",
           "status": "verified-native-adapter",
-          "evidence": "framework/tests/vite_fonts.rs; view_finder.rs real HTTP; vite_worker.rs real MySQL/Redis; target/tmp/facade-alignment/vite-fonts; preserves public CSS capability boundary and rejects closing style tags"
+          "evidence": "framework/tests/vite_fonts.rs; view_finder.rs real HTTP; vite_worker.rs real MySQL/Redis; target/tmp/facade-alignment/vite-fonts; preserves public CSS capability boundary and rejects closing style tags",
+          "parameters": "aliases: Option<&[&str]>",
+          "defaults": "None全部；Some(&[])空选择",
+          "returns": "ViteResult<HtmlString>（Facade可用性错误保留）",
+          "lifecycle": "应用字体清单缓存及当前执行预加载/nonce",
+          "errors": "所属应用不可用明确报错；涉及IO/清单/入口/URL/属性回调的读取保留相应ViteError来源；预取禁用属性与非法策略不静默成功",
+          "consumers": "见该入口evidence对应的正式门面、HTTP/Blade/Artisan/Worker及浏览器实际消费者；不以get_facade_root绕行代替入口"
         },
         "useFontsManifestFilename": {
           "local": "use_fonts_manifest_filename",
           "status": "verified-native-adapter",
-          "evidence": "framework/tests/vite_fonts.rs; view_finder.rs real HTTP; vite_worker.rs real MySQL/Redis; target/tmp/facade-alignment/vite-fonts; preserves public CSS capability boundary and rejects closing style tags"
+          "evidence": "framework/tests/vite_fonts.rs; view_finder.rs real HTTP; vite_worker.rs real MySQL/Redis; target/tmp/facade-alignment/vite-fonts; preserves public CSS capability boundary and rejects closing style tags",
+          "parameters": "filename: Into<String>",
+          "defaults": "初始fonts-manifest.json",
+          "returns": "ViteResult<Facade Arc<Vite> / 服务&Vite>（Facade可用性错误保留）",
+          "lifecycle": "当前生产配置；hot清单位于实际hot标记旁",
+          "errors": "所属应用不可用明确报错；涉及IO/清单/入口/URL/属性回调的读取保留相应ViteError来源；预取禁用属性与非法策略不静默成功",
+          "consumers": "见该入口evidence对应的正式门面、HTTP/Blade/Artisan/Worker及浏览器实际消费者；不以get_facade_root绕行代替入口"
         },
         "isRunningHot": {
           "local": "is_running_hot",
           "status": "verified-native-adapter",
-          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs"
+          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs",
+          "parameters": "无",
+          "defaults": "只检查当前hot文件是否存在",
+          "returns": "ViteResult<bool>（Facade可用性错误保留）",
+          "lifecycle": "实际文件状态，不解码内容",
+          "errors": "所属应用不可用明确报错；涉及IO/清单/入口/URL/属性回调的读取保留相应ViteError来源；预取禁用属性与非法策略不静默成功",
+          "consumers": "见该入口evidence对应的正式门面、HTTP/Blade/Artisan/Worker及浏览器实际消费者；不以get_facade_root绕行代替入口"
         },
         "toHtml": {
           "local": "to_html",
           "status": "verified-native-adapter",
-          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs"
+          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs",
+          "parameters": "无",
+          "defaults": "使用with_entry_points/merge_entry_points配置，初始空",
+          "returns": "ViteResult<String>（Facade可用性错误保留）",
+          "lifecycle": "调用真实render，影响当前预加载记录",
+          "errors": "所属应用不可用明确报错；涉及IO/清单/入口/URL/属性回调的读取保留相应ViteError来源；预取禁用属性与非法策略不静默成功",
+          "consumers": "见该入口evidence对应的正式门面、HTTP/Blade/Artisan/Worker及浏览器实际消费者；不以get_facade_root绕行代替入口"
         },
         "flush": {
           "local": "flush",
           "status": "verified-native-adapter",
-          "evidence": "framework/tests/vite_fonts.rs; view_finder.rs real HTTP; vite_worker.rs real MySQL/Redis; target/tmp/facade-alignment/vite-fonts; preserves public CSS capability boundary and rejects closing style tags"
+          "evidence": "framework/tests/vite_fonts.rs; view_finder.rs real HTTP; vite_worker.rs real MySQL/Redis; target/tmp/facade-alignment/vite-fonts; preserves public CSS capability boundary and rejects closing style tags",
+          "parameters": "无",
+          "defaults": "保留配置、宏与JS/CSS缓存",
+          "returns": "ViteResult<()>（Facade可用性错误保留）",
+          "lifecycle": "清当前预加载和应用字体缓存",
+          "errors": "所属应用不可用明确报错；涉及IO/清单/入口/URL/属性回调的读取保留相应ViteError来源；预取禁用属性与非法策略不静默成功",
+          "consumers": "见该入口evidence对应的正式门面、HTTP/Blade/Artisan/Worker及浏览器实际消费者；不以get_facade_root绕行代替入口"
         },
         "macro": {
-          "local": null,
-          "status": "pending",
-          "evidence": "下一批补齐；不能以现有@fonts或View绕行代替正式门面"
+          "local": "r#macro<A,T>",
+          "status": "verified-native-adapter",
+          "evidence": "framework/tests/vite_macros.rs; fixed Macroable original execution, actual HTTP/Blade and MySQL/Redis Artisan Worker in target/tmp/facade-alignment/vite-macros",
+          "parameters": "name, Fn(&Vite,A)->ViteResult<T>；A/T:Any+Send+Sync",
+          "defaults": "同名替换；普通已有方法不被覆盖",
+          "returns": "ViteResult<()>（Facade可用性错误保留）",
+          "lifecycle": "应用级注册；实际调用用当前执行配置",
+          "errors": "正式门面未绑定、UnknownMacro、MacroType和真实Callback错误；注册回调不静默转换参数",
+          "consumers": "Vite公开门面/直接服务、原生非Clone参数、Blade Vec<ViewValue>桥接、真实HTTP、Artisan queue:work"
         },
         "mixin": {
-          "local": null,
-          "status": "pending",
-          "evidence": "下一批补齐；不能以现有@fonts或View绕行代替正式门面"
+          "local": "mixin / mixin_using",
+          "status": "verified-native-adapter",
+          "evidence": "framework/tests/vite_macros.rs; fixed Macroable original execution, actual HTTP/Blade and MySQL/Redis Artisan Worker in target/tmp/facade-alignment/vite-macros",
+          "parameters": "具名ViteMacro集合, replace: bool；mixin_using接惰性工厂",
+          "defaults": "默认替换由显式true表达；false保留并跳过工厂",
+          "returns": "ViteResult<()，工厂错误为Err且保留先前注册>（Facade可用性错误保留）",
+          "lifecycle": "应用级注册；原生显式暴露列表，不反射私有方法",
+          "errors": "正式门面未绑定、UnknownMacro、MacroType和真实Callback错误；注册回调不静默转换参数",
+          "consumers": "Vite公开门面/直接服务、原生非Clone参数、Blade Vec<ViewValue>桥接、真实HTTP、Artisan queue:work"
         },
         "hasMacro": {
-          "local": null,
-          "status": "pending",
-          "evidence": "下一批补齐；不能以现有@fonts或View绕行代替正式门面"
+          "local": "has_macro",
+          "status": "verified-native-adapter",
+          "evidence": "framework/tests/vite_macros.rs; fixed Macroable original execution, actual HTTP/Blade and MySQL/Redis Artisan Worker in target/tmp/facade-alignment/vite-macros",
+          "parameters": "name: &str",
+          "defaults": "精确大小写匹配，不隐式注册",
+          "returns": "ViteResult<bool>（Facade可用性错误保留）",
+          "lifecycle": "应用级注册表",
+          "errors": "正式门面未绑定、UnknownMacro、MacroType和真实Callback错误；注册回调不静默转换参数",
+          "consumers": "Vite公开门面/直接服务、原生非Clone参数、Blade Vec<ViewValue>桥接、真实HTTP、Artisan queue:work"
         },
         "flushMacros": {
-          "local": null,
-          "status": "pending",
-          "evidence": "下一批补齐；不能以现有@fonts或View绕行代替正式门面"
+          "local": "flush_macros",
+          "status": "verified-native-adapter",
+          "evidence": "framework/tests/vite_macros.rs; fixed Macroable original execution, actual HTTP/Blade and MySQL/Redis Artisan Worker in target/tmp/facade-alignment/vite-macros",
+          "parameters": "无",
+          "defaults": "仅清注册，不清Vite执行配置",
+          "returns": "ViteResult<()>（Facade可用性错误保留）",
+          "lifecycle": "应用级注册表；销毁捕获在锁外",
+          "errors": "正式门面未绑定、UnknownMacro、MacroType和真实Callback错误；注册回调不静默转换参数",
+          "consumers": "Vite公开门面/直接服务、原生非Clone参数、Blade Vec<ViewValue>桥接、真实HTTP、Artisan queue:work"
         }
       },
       "remaining": [
-        "macro / mixin / hasMacro / flushMacros",
-        "Facade继承测试契约，完整逐入口最终裁决",
-        "发布环境及React应用HMR实机不计当前浏览器验收"
-      ]
+        "Facade继承的partialMock/shouldReceive/expects/spy等共通测试契约及最终全门面复核",
+        "发布环境及真实React应用HMR单列发布验收，不复算本地通过路径"
+      ],
+      "service_review": "32个声明入口、__invoke及Macroable动态委托已裁决并按具体原生适配验收；不是共享Facade基类闭合",
+      "invocation": {
+        "__invoke": "render(entries,Option<build>)->ViteResult<HtmlString>",
+        "__call / Facade::__callStatic": "macro_call::<Return,_>(name,owned_arguments)；Blade支持Vec<ViewValue>->ViewValue；原生既有方法优先",
+        "native_constraints": "无运行时PHP类反射/任意Rust私有字段访问；显式mixin列表/工厂。宏按应用隔离，调用状态按执行作用域；原始字节content保留，可信HTML属性不机械转义；字体CSS保留已有更严格公开目录及关闭标签检查。"
+      }
     }
   ]
 }

@@ -72,9 +72,41 @@ Vite::prefetch(Some(3), Some("vite:ready"))?;
 Vite::use_prefetch_strategy(None, None)?;
 ```
 
+## 自訂巨集 {#macros}
+
+透過 `Vite::r#macro` 註冊具型別回呼，接收實際 `&Vite` 服務及擁有所有權的參數，使用 `macro_call::<回傳型別, _>` 呼叫。參數和結果不經過 JSON，可以使用非 `Clone` 的 Rust 值；缺少名稱、參數或結果型別不符均明確回報錯誤。
+
+```rust
+use openrust::support::{HtmlString, facades::Vite};
+
+Vite::r#macro("scripts", |vite, entry: String| {
+    vite.render([entry], None)
+})?;
+let tags: HtmlString = Vite::macro_call("scripts", "resources/js/app.js".to_owned())?;
+```
+
+`mixin` 安裝具名 `ViteMacro::new` 回呼集合；第二參數為 `true` 時取代同名巨集，`false` 時保留。`mixin_using` 接收延遲工廠，保留同名巨集時不執行工廠，工廠失敗保留前面已成功註冊的巨集。`has_macro` 區分大小寫；`flush_macros` 清理註冊，一般 Vite `flush` 不會清理巨集。
+
+巨集註冊屬於應用程式，跨其 HTTP／Artisan／Worker 作用域保留；呼叫時使用目前執行設定，包括本次請求或工作的 nonce。不同應用程式的註冊表隔離。回呼及被取代的擷取值均在註冊鎖外執行或銷毀，優先使用傳入服務，避免擷取強服務參照形成參照環。
+
+從 Blade 呼叫自訂巨集時，將參數註冊為 `Vec<ViewValue>`，回傳 `ViewValue`。名稱在渲染時解析，支援編譯後再註冊；一般輸出轉義字串，受信任標記使用既有原始輸出語法。其他原生簽章不會被靜默轉換成模板簽章。原生 mixin 清單明確公開回呼，不反射 Rust 私有方法。
+
+```rust
+use openrust::view::ViewValue;
+
+Vite::r#macro("greeting", |_, arguments: Vec<ViewValue>| {
+    let name = arguments.first().and_then(ViewValue::as_str).unwrap_or("OpenRust");
+    Ok(ViewValue::String(format!("你好，{name}")))
+})?;
+```
+
+```blade
+{{ Vite::greeting('OpenRust') }}
+```
+
 ## 支援邊界 {#support-status}
 
-具型別 Vite 巨集與繼承的 Facade 測試輔助入口仍在核對。
+Vite 的 32 個宣告服務入口及實際呼叫路徑已有驗收和明確的原生適配；共用 Facade 的 mock／spy 契約仍在核對，不代表所有門面已閉合。
 
 ## 執行範圍 {#scope}
 

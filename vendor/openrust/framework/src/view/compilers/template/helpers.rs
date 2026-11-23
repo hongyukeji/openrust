@@ -24,6 +24,7 @@ enum Operation {
     ViteHot,
     ViteDevServer,
     ViteHtml,
+    ViteMacro(String),
     Request(RequestOperation),
 }
 
@@ -128,6 +129,27 @@ impl Helper {
         } else {
             source
         };
+        // 内置方法优先；动态资源宏延迟到渲染时解析，保留应用注册时机。
+        if let Some((prefix, _)) = source.split_once('(')
+            && let Some(name) = prefix.trim().strip_prefix("Vite::")
+        {
+            let name = name.trim();
+            if name
+                .chars()
+                .next()
+                .is_some_and(|character| character == '_' || character.is_alphabetic())
+                && name
+                    .chars()
+                    .all(|character| character == '_' || character.is_alphanumeric())
+            {
+                calls.push((
+                    prefix.trim(),
+                    Operation::ViteMacro(name.to_owned()),
+                    0,
+                    usize::MAX,
+                ));
+            }
+        }
         for (name, operation, minimum, maximum) in calls {
             let Some(source) = source
                 .strip_prefix(name)
@@ -176,6 +198,16 @@ impl Helper {
                 .map_err(|source| super::ViewError::RenderFailed(Box::new(source)))
         };
         match self.operation {
+            Operation::ViteMacro(ref name) => {
+                crate::support::facades::Vite::macro_call::<ViewValue, _>(
+                    name,
+                    arguments
+                        .iter()
+                        .map(|value| value.as_ref().clone())
+                        .collect::<Vec<_>>(),
+                )
+                .map_err(|error| super::ViewError::RenderFailed(Box::new(error)))
+            }
             Operation::CurrentLocale => crate::support::facades::App::current_locale()
                 .map(ViewValue::String)
                 .map_err(|source| super::ViewError::RenderFailed(Box::new(source))),

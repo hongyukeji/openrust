@@ -72,9 +72,41 @@ Vite::prefetch(Some(3), Some("vite:ready"))?;
 Vite::use_prefetch_strategy(None, None)?;
 ```
 
+## Custom macros {#macros}
+
+Use `Vite::r#macro` to register a typed callback receiving the actual `&Vite` service and owned arguments. Call it through `macro_call::<Return, _>`; arguments and results do not pass through JSON and can be non-`Clone` Rust values. Missing names and mismatched argument/result types return explicit errors.
+
+```rust
+use openrust::support::{HtmlString, facades::Vite};
+
+Vite::r#macro("scripts", |vite, entry: String| {
+    vite.render([entry], None)
+})?;
+let tags: HtmlString = Vite::macro_call("scripts", "resources/js/app.js".to_owned())?;
+```
+
+`mixin` installs a named collection of `ViteMacro::new` callbacks. Pass `true` to replace existing names, or `false` to retain them. `mixin_using` accepts lazy factories: a retained name does not execute its factory; a factory error keeps earlier successful registrations. `has_macro` is case-sensitive. `flush_macros` clears registrations; the ordinary Vite `flush` leaves them intact.
+
+Registrations belong to the application and remain available across its HTTP/Artisan/Worker scopes. Callback calls use the current execution settings, including request or job nonces. Separate applications have separate registries. Callbacks and retired captures run outside the registry lock; use the provided service instead of capturing a strong service reference.
+
+For Blade custom calls, register arguments as `Vec<ViewValue>` and return `ViewValue`. The template resolves the name during rendering, so registration may happen after compilation. Ordinary echoes escape string results; trusted markup uses the existing raw echo form. A macro registered for another native signature is not silently converted into this template signature. Native mixin lists explicitly expose callbacks instead of reflecting private Rust methods.
+
+```rust
+use openrust::view::ViewValue;
+
+Vite::r#macro("greeting", |_, arguments: Vec<ViewValue>| {
+    let name = arguments.first().and_then(ViewValue::as_str).unwrap_or("OpenRust");
+    Ok(ViewValue::String(format!("Hello, {name}")))
+})?;
+```
+
+```blade
+{{ Vite::greeting('OpenRust') }}
+```
+
 ## Boundaries {#support-status}
 
-Typed Vite macros and inherited Facade test helpers remain under review.
+The 32 declared Vite service entries and invocation path have acceptance coverage with the documented native adapters. Shared Facade mock/spy contracts remain under review; this is not a claim that all facades are closed.
 
 ## Scope {#scope}
 

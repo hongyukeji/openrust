@@ -1,6 +1,8 @@
 //! 前端资源清单、开发服务器与资源标签生成。
 mod facade;
 mod fonts;
+mod macros;
+pub use macros::ViteMacro;
 mod prefetch;
 mod provider;
 mod render;
@@ -50,6 +52,12 @@ pub enum ViteError {
     InvalidFonts(String),
     InvalidPrefetchStrategy(String),
     DisabledPrefetchAttributes,
+    UnknownMacro(String),
+    MacroType {
+        name: String,
+        expected: &'static str,
+        actual: &'static str,
+    },
     Url(crate::routing::UrlError),
     Callback(Box<dyn Error + Send + Sync>),
 }
@@ -67,6 +75,12 @@ impl fmt::Display for ViteError {
             Self::MissingChunk(name) => write!(f, "前端资源清单中没有此入口：{name}"),
             Self::InvalidChunk(name) => write!(f, "前端资源块格式无效：{name}"),
             Self::InvalidAttribute(name) => write!(f, "资源标签属性必须是标量：{name}"),
+            Self::UnknownMacro(name) => write!(f, "没有注册资源宏[{name}]"),
+            Self::MacroType {
+                name,
+                expected,
+                actual,
+            } => write!(f, "资源宏[{name}]类型不符：需要{expected}，实际为{actual}"),
             Self::DisabledPrefetchAttributes => write!(f, "资源预取不能展开被禁用的预加载属性"),
             Self::InvalidPrefetchStrategy(strategy) => write!(f, "资源预取策略无效：{strategy}"),
             Self::InvalidFonts(message) => write!(f, "字体清单无效：{message}"),
@@ -182,6 +196,7 @@ pub struct Vite {
     defaults: Arc<Execution>,
     manifests: RwLock<HashMap<PathBuf, Arc<Manifest>>>,
     font_manifests: RwLock<HashMap<PathBuf, Arc<Value>>>,
+    macros: RwLock<HashMap<String, ViteMacro>>,
 }
 impl Vite {
     pub(super) fn new(owner: Weak<Container>) -> Self {
@@ -190,6 +205,7 @@ impl Vite {
             defaults: Arc::default(),
             manifests: RwLock::default(),
             font_manifests: RwLock::default(),
+            macros: RwLock::default(),
         }
     }
     fn owner(&self) -> ViteResult<Arc<Container>> {

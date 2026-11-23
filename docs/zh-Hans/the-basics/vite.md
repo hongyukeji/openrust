@@ -72,9 +72,41 @@ Vite::prefetch(Some(3), Some("vite:ready"))?;
 Vite::use_prefetch_strategy(None, None)?;
 ```
 
+## 自定义宏 {#macros}
+
+通过 `Vite::r#macro` 注册具类型回调，接收实际 `&Vite` 服务及拥有所有权的参数，使用 `macro_call::<返回类型, _>` 调用。参数和结果不经过 JSON，可以使用非 `Clone` 的 Rust 值；缺失名称、参数或结果类型不符均明确报错。
+
+```rust
+use openrust::support::{HtmlString, facades::Vite};
+
+Vite::r#macro("scripts", |vite, entry: String| {
+    vite.render([entry], None)
+})?;
+let tags: HtmlString = Vite::macro_call("scripts", "resources/js/app.js".to_owned())?;
+```
+
+`mixin` 安装具名 `ViteMacro::new` 回调集合；第二参数为 `true` 时替换同名宏，`false` 时保留。`mixin_using` 接收惰性工厂，保留同名宏时不执行工厂，工厂失败保留前面已成功注册的宏。`has_macro` 区分大小写；`flush_macros` 清理注册，普通 Vite `flush` 不会清理宏。
+
+宏注册属于应用，跨其 HTTP／Artisan／Worker 作用域保留；调用时使用当前执行配置，包括本次请求或任务的 nonce。不同应用的注册表隔离。回调及被替换捕获值均在注册锁外执行或销毁，优先使用传入的服务，避免捕获强服务引用形成引用环。
+
+从 Blade 调用自定义宏时，将参数注册为 `Vec<ViewValue>`，返回 `ViewValue`。名称在渲染时解析，支持编译后再注册；普通输出转义字符串，受信任标记使用已有原始输出语法。其他原生签名不会被静默转换成模板签名。原生 mixin 列表显式公开回调，不反射 Rust 私有方法。
+
+```rust
+use openrust::view::ViewValue;
+
+Vite::r#macro("greeting", |_, arguments: Vec<ViewValue>| {
+    let name = arguments.first().and_then(ViewValue::as_str).unwrap_or("OpenRust");
+    Ok(ViewValue::String(format!("你好，{name}")))
+})?;
+```
+
+```blade
+{{ Vite::greeting('OpenRust') }}
+```
+
 ## 支持边界 {#support-status}
 
-具类型 Vite 宏与继承的 Facade 测试辅助入口仍在核对。
+Vite 的 32 个声明服务入口及实际调用路径已有验收和明确的原生适配；共享 Facade 的 mock／spy 契约仍在核对，不代表所有门面已闭合。
 
 ## 运行范围 {#scope}
 
