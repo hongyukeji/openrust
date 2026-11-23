@@ -4,6 +4,7 @@
 
 ## 正在推进与等待条件
 
+- RustRover Artisan 依赖警告已复现并修复根因：rav1e 常量／生命周期、SQLite 日期弃用 API、AVIF 遗留 cfg_attr；Rust 1.94 隔离定向31项测试和严格Clippy通过，RustRover默认1.99.1真实生成无警告且退出0。见[依赖警告验收](audits/dependency-warnings-2026-11-23.md)。用户随后授权将本批本地提交，未授权推送；其他协作改动保留。
 - 全框架对齐仍未完成，接续[开发计划](plans/framework-parity-remediation-2026-11-22.md)及[统一数据](plans/framework-parity-data-2026-11-22.json)。逐类型、公开入口、装配与官方示例分别裁决，不以历史通过关闭未核对范围。
 - 最近对齐提交 `1f36d7a9f` 补充路由入口、命名分发及图片驱动生命周期；局部范围验收通过，RouteMatched／完整resolver、注册期绑定等剩余项见上述计划。
 - 模型字段与Blade验收记录已随 `f80096ea6` 入库。清理开始时 `app/models/user.rs` 另有将密码／记忆令牌字符串改为字段常量的未提交修改；本次保留，不纳入原验收结论，也不代为提交。清理期间模型字段实现、依赖及其他协作修改仍在推进，归对应任务处理。
