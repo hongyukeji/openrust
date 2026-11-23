@@ -6,10 +6,6 @@ use openrust::{
 use std::{marker::PhantomData, sync::Arc};
 /// Application-local relationship selecting the registered, actual Eloquent model.
 pub struct PasskeyRelation<P>(PhantomData<fn() -> P>);
-#[allow(
-    non_snake_case,
-    reason = "Matches native Eloquent relationship operations"
-)]
 impl<P: PasskeyUser> PasskeyRelation<P> {
     pub(crate) fn new() -> Self {
         Self(PhantomData)

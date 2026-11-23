@@ -61,10 +61,6 @@ pub struct Fortify {
     reset_password_view: RwLock<Option<Arc<crate::http::responses::SimpleViewResponse>>>,
     registers_routes: AtomicBool,
 }
-#[allow(
-    non_snake_case,
-    reason = "Matches Fortify's application configuration API"
-)]
 impl Fortify {
     pub const VERIFICATION_LINK_SENT: &str = "verification-link-sent";
     pub const PROFILE_INFORMATION_UPDATED: &str = "profile-information-updated";

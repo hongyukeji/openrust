@@ -1,5 +1,3 @@
-#![allow(non_snake_case, reason = "保留既定公开接口及命名")]
-
 use crate::{
     EntryType, EntryUpdate, IncomingEntry, IncomingExceptionEntry, Result,
     contracts::EntriesRepository,
@@ -364,7 +362,7 @@ impl Telescope {
                 return Ok(());
             }
         }
-        self.recordModelEvent(
+        self.record_model_event(
             IncomingEntry::make(
                 serde_json::json!({"action":"retrieved","model":model,"count":1})
                     .as_object()
@@ -445,7 +443,7 @@ impl Telescope {
 macro_rules! recorders {
     ($($method:ident => $kind:ident),* $(,)?) => { impl Telescope { $(pub fn $method(&self, entry: IncomingEntry) { self.record(EntryType::$kind, entry); })* } };
 }
-recorders!(recordBatch => Batch, recordCache => Cache, recordCommand => Command, recordEvent => Event, recordGate => Gate, recordJob => Job, recordLog => Log, recordMail => Mail, recordNotification => Notification, recordQuery => Query, recordModelEvent => Model, recordRedis => Redis, recordRequest => Request, recordScheduledCommand => ScheduledTask, recordView => View, recordClientRequest => ClientRequest);
+recorders!(record_batch => Batch, record_cache => Cache, record_command => Command, record_event => Event, record_gate => Gate, record_job => Job, record_log => Log, record_mail => Mail, record_notification => Notification, record_query => Query, record_model_event => Model, record_redis => Redis, record_request => Request, record_scheduled_command => ScheduledTask, record_view => View, record_client_request => ClientRequest);
 fn redact(mut value: serde_json::Value, hidden: &[String]) -> serde_json::Value {
     for path in hidden {
         if let Some(value) = path

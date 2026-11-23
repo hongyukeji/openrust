@@ -336,7 +336,7 @@ SQLite 对需要重建的列或外键变更执行表重建。请在活动事务�
 
 ### 更多列类型 {#additional-column-types}
 
-用 `tinyText`、`year`、`ipAddress`、`mac_address` 和 `r#enum` 声明对应的列。`year` 配合 `use_current()` 时默认采用数据库当前年份。MySQL 使用原生 ENUM 和 SET。SQLite 用 CHECK 约束枚举值，对 SET 返回不支持。
+用 `tiny_text`、`year`、`ip_address`、`mac_address` 和 `r#enum` 声明对应的列。`year` 配合 `use_current()` 时默认采用数据库当前年份。MySQL 使用原生 ENUM 和 SET。SQLite 用 CHECK 约束枚举值，对 SET 返回不支持。
 
 ```rust
 use openrust::database::{DatabaseResult, schema::Schema};
@@ -346,7 +346,7 @@ async fn create_events() -> DatabaseResult<()> {
         table.small_increments("id");
         table.r#enum("status", &["pending", "processed"]).default("pending");
         table.year("batch_year").use_current();
-        table.ipAddress("source_ip").nullable();
+        table.ip_address("source_ip").nullable();
         table.binary_with("digest", 32, true).nullable();
         table.timestamps_tz();
     })
@@ -1078,7 +1078,7 @@ use openrust::database::{DatabaseResult, migrations::MigrationContext, query::Ex
 
 async fn create_generated_table(cx: &mut MigrationContext) -> DatabaseResult<()> {
     cx.get_schema_builder().create("finance.fixture", |table| {
-        table.bigInteger("seq")
+        table.big_integer("seq")
             .generated_as_with(Expression::new("start with 10"))
             .always();
         table.integer("base");

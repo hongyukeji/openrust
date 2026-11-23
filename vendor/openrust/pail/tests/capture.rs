@@ -1,5 +1,3 @@
-#![allow(non_snake_case, reason = "保留既定公开接口及命名")]
-
 use openrust::{
     auth::{AuthFuture, AuthIdentifier, AuthManager},
     config::{ConfigError, Environment, Value},
@@ -201,7 +199,7 @@ fn routes() -> Result<(), RoutingError> {
 fn capture_http(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
         Context::add("scope", "public".into()).unwrap();
-        Context::addHidden("secret", "hidden".into()).unwrap();
+        Context::add_hidden("secret", "hidden".into()).unwrap();
         Log::info("before identity", &LogContext::new()).unwrap();
         Auth::user(request).await.unwrap();
         tokio::task::yield_now().await;
@@ -608,7 +606,7 @@ async fn worker_acceptance(root: &Root) {
         .create("jobs", |table| {
             table.id();
             table.string("queue", 255).index();
-            table.longText("payload");
+            table.long_text("payload");
             table.unsigned_integer("attempts");
             table.unsigned_big_integer("reserved_at").nullable();
             table.unsigned_big_integer("available_at");
@@ -622,8 +620,8 @@ async fn worker_acceptance(root: &Root) {
             table.string("uuid", 255).unique();
             table.text("connection");
             table.text("queue");
-            table.longText("payload");
-            table.longText("exception");
+            table.long_text("payload");
+            table.long_text("exception");
             table.timestamp("failed_at", None).use_current();
         })
         .await

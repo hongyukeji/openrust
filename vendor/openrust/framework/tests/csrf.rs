@@ -21,7 +21,7 @@ fn web() -> Result<(), RoutingError> {
     Route::get("/token", token)?;
     Route::get("/errors", || {
         Context::add("blade.notice", json!("<context>")).unwrap();
-        Context::addHidden("blade.hidden", json!("hidden probe")).unwrap();
+        Context::add_hidden("blade.hidden", json!("hidden probe")).unwrap();
         view("errors-probe")
             .with("value", "outer")
             .with("message", "outer-message")

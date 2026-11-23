@@ -1,4 +1,3 @@
-#![allow(non_snake_case, reason = "保留既定公开接口及命名")]
 use std::sync::Arc;
 
 use ::http::{HeaderName, HeaderValue, header::RETRY_AFTER};

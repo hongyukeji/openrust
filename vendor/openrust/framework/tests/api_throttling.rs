@@ -1,5 +1,3 @@
-#![allow(non_snake_case, reason = "认证接口保留公开名称")]
-
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 
 use axum::{extract::State, handler::Handler as _};

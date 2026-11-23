@@ -453,16 +453,17 @@ async fn scoped_collector_filters_tags_batches_hooks_and_restores_recording_afte
     telescope.after_recording(move |scope, entry| {
         assert!(!scope.is_recording());
         count.fetch_add(1, Ordering::SeqCst);
-        scope.recordLog(entry.clone());
+        scope.record_log(entry.clone());
     });
     let count = stored.clone();
     telescope.after_storing(move |scope, entries| {
         assert!(!scope.is_recording());
         count.fetch_add(entries.len(), Ordering::SeqCst);
     });
-    telescope
-        .recordLog(IncomingEntry::make(json!({"keep":true}).as_object().unwrap().clone()).unwrap());
-    telescope.recordLog(
+    telescope.record_log(
+        IncomingEntry::make(json!({"keep":true}).as_object().unwrap().clone()).unwrap(),
+    );
+    telescope.record_log(
         IncomingEntry::make(json!({"keep":false}).as_object().unwrap().clone()).unwrap(),
     );
     assert!(telescope.store().await.unwrap().is_empty());
@@ -498,8 +499,9 @@ async fn scoped_collector_filters_tags_batches_hooks_and_restores_recording_afte
     assert!(task.await.unwrap_err().is_cancelled());
     assert!(telescope.is_recording());
     telescope.filter_batch(|_| false);
-    telescope
-        .recordLog(IncomingEntry::make(json!({"keep":true}).as_object().unwrap().clone()).unwrap());
+    telescope.record_log(
+        IncomingEntry::make(json!({"keep":true}).as_object().unwrap().clone()).unwrap(),
+    );
     telescope.store().await.unwrap();
     assert_eq!(
         repository
@@ -510,7 +512,7 @@ async fn scoped_collector_filters_tags_batches_hooks_and_restores_recording_afte
         1
     );
     telescope.stop_recording();
-    telescope.recordLog(IncomingEntry::make(Default::default()).unwrap());
+    telescope.record_log(IncomingEntry::make(Default::default()).unwrap());
     telescope.store().await.unwrap();
     assert!(!telescope.is_recording());
     telescope.start_recording(false).await;

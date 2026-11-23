@@ -13,8 +13,7 @@ use super::{
 macro_rules! model_observer {
     ($($event:ident => $method:ident),+ $(,)?) => {
         /// Groups lifecycle handlers for one model type.
-        #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-        pub trait Observer<M: Model>: Send + Sync + 'static {
+                pub trait Observer<M: Model>: Send + Sync + 'static {
             /// Lifecycle methods to register. Rust registers this list at compile time.
             const EVENTS: &'static [ModelEvent];
 
@@ -60,7 +59,7 @@ model_observer! {
     Trashed => trashed,
     Deleting => deleting,
     Deleted => deleted,
-    ForceDeleting => forceDeleting,
+    ForceDeleting => force_deleting,
     ForceDeleted => force_deleted,
 }
 

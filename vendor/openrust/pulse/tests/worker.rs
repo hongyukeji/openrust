@@ -75,7 +75,7 @@ async fn native_worker_records_job_attempts_failures_and_flushes_each_scoped_buf
         .create("jobs", |table| {
             table.id();
             table.string("queue", 255).index();
-            table.longText("payload");
+            table.long_text("payload");
             table.unsigned_integer("attempts");
             table.unsigned_big_integer("reserved_at").nullable();
             table.unsigned_big_integer("available_at");

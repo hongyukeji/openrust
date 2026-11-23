@@ -1,6 +1,5 @@
 //! Third-party login through the application's HTTP client and Session.
 #![forbid(unsafe_code)]
-#![allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub mod contracts;
 mod error;
 pub mod facades;

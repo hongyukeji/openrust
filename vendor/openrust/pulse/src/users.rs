@@ -1,5 +1,3 @@
-#![allow(non_snake_case, reason = "保留既定公开接口及命名")]
-
 use crate::{Error, PulseFuture, Result};
 use openrust::{
     contracts::auth::Authenticatable,

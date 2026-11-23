@@ -81,7 +81,7 @@ impl Command for ProbeCommand {
         Box::pin(async move {
             let root = app.base_path();
             Context::add("stage", serde_json::json!("registered")).unwrap();
-            Context::addHidden("stage", serde_json::json!("private registered")).unwrap();
+            Context::add_hidden("stage", serde_json::json!("private registered")).unwrap();
             Context::add("old", serde_json::json!(true)).unwrap();
             if self.1 == 0 {
                 let _ = Concurrency::defer([
@@ -100,7 +100,7 @@ impl Command for ProbeCommand {
             }
             assert!(!root.join("dehydrating").exists());
             Context::add("stage", serde_json::json!("finished")).unwrap();
-            Context::addHidden("stage", serde_json::json!("private finished")).unwrap();
+            Context::add_hidden("stage", serde_json::json!("private finished")).unwrap();
             Context::forget("old").unwrap();
             output.comment("command completed");
             eprintln!("command stderr");

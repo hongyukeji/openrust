@@ -231,7 +231,7 @@ impl IncomingExceptionEntry {
         entry.exception_reportable = Some(true);
         Ok(Self(entry))
     }
-    /// `reportable` is the native exception handler's `shouldReport` decision.
+    /// `reportable` 为框架异常处理器 `should_report` 的判定结果。
     pub fn make(content: Map<String, Value>, reportable: bool) -> Result<Self> {
         let file = content
             .get("file")

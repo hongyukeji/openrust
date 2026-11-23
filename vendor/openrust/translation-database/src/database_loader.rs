@@ -1,5 +1,3 @@
-#![allow(non_snake_case, reason = "保留既定翻译接口命名")]
-
 use std::{
     collections::{BTreeSet, btree_map::Entry},
     io,

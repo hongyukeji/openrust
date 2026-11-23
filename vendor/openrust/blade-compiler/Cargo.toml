@@ -11,3 +11,6 @@ build = ["dep:syn"]
 
 [dependencies]
 syn = { version = "=2.0.119", default-features = false, features = ["full", "parsing"], optional = true }
+
+[lints]
+workspace = true

@@ -1,5 +1,3 @@
-#![allow(non_snake_case, reason = "保留既定公开接口及命名")]
-
 //! Runs real Artisan workers and their isolated job executors.
 #[cfg(not(any(unix, windows)))]
 fn main() {}
@@ -125,7 +123,6 @@ mod acceptance {
 
     struct Probe(PathBuf, bool);
     impl JobHandler for Probe {
-        #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
         fn unique_job(&self, payload: &Payload) -> Option<UniqueJob> {
             let kind = payload.data().as_str()?;
             kind.starts_with("unique-").then(|| UniqueJob {
@@ -290,7 +287,6 @@ mod acceptance {
             })
         }
 
-        #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
         fn retry_until(&self, payload: &Payload) -> QueueResult<Option<SystemTime>> {
             match payload.data().as_str() {
                 Some("deadline-refresh") => Ok(Some(SystemTime::now() + Duration::from_secs(60))),
@@ -3098,7 +3094,7 @@ mod acceptance {
             .create("jobs", |table| {
                 table.id();
                 table.string("queue", 255).index();
-                table.longText("payload");
+                table.long_text("payload");
                 table.unsigned_integer("attempts");
                 table.unsigned_big_integer("reserved_at").nullable();
                 table.unsigned_big_integer("available_at");
@@ -3112,8 +3108,8 @@ mod acceptance {
                 table.string("uuid", 255).unique();
                 table.text("connection");
                 table.text("queue");
-                table.longText("payload");
-                table.longText("exception");
+                table.long_text("payload");
+                table.long_text("exception");
                 table.timestamp("failed_at", 0);
             })
             .await

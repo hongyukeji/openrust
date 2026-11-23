@@ -153,7 +153,6 @@ impl Router {
         urls
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn get_routes(&self) -> Vec<RouteInfo> {
         self.routes_with_info().map(|(_, info)| info).collect()
     }
@@ -395,7 +394,6 @@ impl Router {
     }
 
     #[track_caller]
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn permanent_redirect(
         &mut self,
         uri: &str,
@@ -619,7 +617,6 @@ impl Router {
     }
 
     /// 使用当前请求重新绑定命名路由，并运行目标路由的中间件与处理器。
-    #[allow(non_snake_case, reason = "沿用固定上游 Router 公开方法")]
     pub async fn respond_with_route(
         &self,
         name: &str,

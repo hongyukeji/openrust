@@ -1,4 +1,3 @@
-#![allow(non_snake_case, reason = "保留既定公开接口及命名")]
 use crate::{ApiTokenCookieFactory, Passport};
 use openrust::{
     contracts::{container::Container as _, http::Middleware, session::Session as _},

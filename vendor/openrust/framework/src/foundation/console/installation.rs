@@ -68,10 +68,6 @@ impl<'a> SourceInstallation<'a> {
     }
     /// Wire an explicitly published `config/{name}.rs` with a `load(env)` entry.
     /// Uses the installation's existing source lock and preserves existing hooks.
-    #[allow(
-        non_snake_case,
-        reason = "Matches the compiled configuration registration API"
-    )]
     pub fn register_configuration(&self, name: &str) -> Result<(), ConsoleError> {
         if name.is_empty()
             || !name.bytes().enumerate().all(|(index, byte)| {

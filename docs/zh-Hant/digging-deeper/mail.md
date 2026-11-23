@@ -100,7 +100,6 @@ use openrust::{
 struct Report(String);
 
 impl Attachable for Report {
-    #[allow(non_snake_case)]
     fn to_mail_attachment(&self) -> MailResult<AttachmentSource> {
         Ok(Attachment::from_url(&self.0)?.r#as("report.pdf"))
     }
@@ -309,7 +308,7 @@ Route::get("/mail-preview/order", preview_order)?;
 ```rust
 receipt
     .assert_has_subject("Receipt for Sam")
-    .assertTo("sam@example.test", None)
+    .assert_to("sam@example.test", None)
     .assert_see_in_html("A & <Sam>", true)
     .await
     .assert_see_in_order_in_text(&["Plain", "receipt"])

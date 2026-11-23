@@ -1,5 +1,3 @@
-#![allow(non_snake_case, reason = "保留既定公开接口及命名")]
-
 use openrust::support::facades::Facade;
 use openrust_telescope::{
     EntryType, IncomingEntry, Telescope, TelescopeServiceProvider,
@@ -103,7 +101,7 @@ async fn native_cache_recording_pause_resume_use_the_selected_cache_store() {
             .get_schema_builder()
             .create("cache", |table| {
                 table.string("key", 255).primary();
-                table.mediumText("value");
+                table.medium_text("value");
                 table.integer("expiration");
             })
             .await
@@ -200,7 +198,7 @@ fn handler(
 ) -> openrust::http::HttpFuture<'_, Result<openrust::http::Response, openrust::http::HttpError>> {
     Box::pin(async {
         let telescope = openrust_telescope::facades::Telescope::get_facade_root().unwrap();
-        telescope.recordEvent(
+        telescope.record_event(
             IncomingEntry::make(json!({"name":"probe"}).as_object().unwrap().clone()).unwrap(),
         );
         openrust::cache::Cache::put("probe", &openrust::cache::Value::Json(json!("value")), None)
@@ -837,7 +835,7 @@ fn retry(
         let entry =
             IncomingEntry::make(json!({"name":"pending"}).as_object().unwrap().clone()).unwrap();
         let id = entry.uuid;
-        telescope.recordEvent(entry);
+        telescope.record_event(entry);
         telescope.store().await.unwrap();
         openrust_telescope::jobs::ProcessPendingUpdates::new(
             vec![openrust_telescope::EntryUpdate::make(
@@ -1149,7 +1147,7 @@ async fn native_database_worker_and_batch_bulk_keep_attempts_isolated_from_the_c
         .create("jobs", |table| {
             table.id();
             table.string("queue", 255).index();
-            table.longText("payload");
+            table.long_text("payload");
             table.unsigned_integer("attempts");
             table.unsigned_big_integer("reserved_at").nullable();
             table.unsigned_big_integer("available_at");
@@ -1407,7 +1405,7 @@ fn identity_handler(
         }
         openrust_telescope::facades::Telescope::get_facade_root()
             .unwrap()
-            .recordEvent(
+            .record_event(
                 IncomingEntry::make(json!({"name":"identity"}).as_object().unwrap().clone())
                     .unwrap(),
             );

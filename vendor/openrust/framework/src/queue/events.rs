@@ -1,5 +1,3 @@
-#![allow(non_snake_case, reason = "保留既定公开接口及命名")]
-
 //! Queue and worker lifecycle events.
 
 use std::{error::Error as _, time::Duration};

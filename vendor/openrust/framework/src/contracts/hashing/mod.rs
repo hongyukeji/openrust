@@ -1,7 +1,5 @@
 //! Password hashing contract.
 
-#![allow(non_snake_case)]
-
 use crate::hashing::{HashFuture, HashInfo, HashOptions, HashResult};
 
 /// Accepts password bytes without lossy text conversions.

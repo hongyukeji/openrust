@@ -1,5 +1,3 @@
-#![allow(non_snake_case, reason = "保留既定公开接口及命名")]
-
 use std::{collections::BTreeMap, net::SocketAddr, time::Duration};
 
 use futures_util::{SinkExt as _, StreamExt as _};

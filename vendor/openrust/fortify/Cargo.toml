@@ -27,3 +27,6 @@ qrcode = { version = "=0.14.1", default-features = false }
 jiff = { version = "=0.2.46", features = ["serde"] }
 axum = { version = "0.8.9", default-features = false, features = ["http1", "tokio"] }
 tokio = { version = "1.54.1", features = ["macros", "rt", "sync", "net", "io-util", "time"] }
+
+[lints]
+workspace = true

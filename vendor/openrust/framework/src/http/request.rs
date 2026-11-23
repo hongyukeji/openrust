@@ -87,7 +87,6 @@ pub struct Request {
 
 impl Request {
     /// 在不持有请求引用的异步操作中借出当前请求，完成或取消后恢复原实例。
-    #[allow(non_snake_case, reason = "Matches the container assembly API")]
     pub async fn with_container<T>(&mut self, resolve: impl std::future::Future<Output = T>) -> T {
         context::resolving(self, resolve).await
     }
@@ -145,7 +144,6 @@ impl Request {
     }
 
     /// Returns the transport method before a POST method override.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn get_real_method(&self) -> &Method {
         self.real_method.as_ref().unwrap_or(&self.parts.method)
     }
@@ -213,7 +211,6 @@ impl Request {
         })
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn user_agent(&self) -> Option<&str> {
         self.headers()
             .get("user-agent")
@@ -275,13 +272,11 @@ impl Request {
             .transpose()
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn has_header(&self, name: &str) -> bool {
         self.headers().contains_key(name)
     }
 
     /// Extracts the token after the last ASCII case-insensitive Bearer marker.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn bearer_token(&self) -> Result<Option<&str>, super::HttpError> {
         Ok(self.header("authorization")?.and_then(|header| {
             let position = header
@@ -299,7 +294,6 @@ impl Request {
     }
 
     /// An empty cookie is present. Missing values and failed decryptions are absent.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn has_cookie(&self, key: &str) -> Result<bool, super::HttpError> {
         Ok(self.cookie_value(Some(key))?.is_some())
     }
@@ -345,7 +339,6 @@ impl Request {
             .is_some_and(|encryption| !encryption.exceptions.contains(name))
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn has_session(&self) -> bool {
         self.session.is_some()
     }
@@ -364,7 +357,6 @@ impl Request {
             .ok_or(crate::session::SessionError::Configuration)
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub(crate) fn attach_session(&mut self, session: crate::session::Store) {
         context::set_session_cache(self, Some(session.cache_attributes().clone()));
         self.session = Some(session);
@@ -407,13 +399,11 @@ impl Request {
         })
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn get_base_url(&self) -> &str {
         &self.proxy.prefix
     }
 
     /// 返回应用路径，保留开头斜杠及已有编码，不包含可信代理的部署前缀。
-    #[allow(non_snake_case, reason = "Matches Symfony Request's inherited API")]
     pub fn get_path_info(&self) -> &str {
         self.uri().path()
     }
@@ -425,7 +415,6 @@ impl Request {
     }
 
     /// Percent-decodes the request path.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn decoded_path(&self) -> Cow<'_, str> {
         percent_decode_str(self.path()).decode_utf8_lossy()
     }
@@ -448,13 +437,11 @@ impl Request {
             .map(str::to_owned)
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn is_method(&self, method: &str) -> bool {
         self.method().as_str().eq_ignore_ascii_case(method)
     }
 
     /// Matches the resolved route name against any supplied wildcard pattern.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn route_is(&self, patterns: &[&str]) -> bool {
         let name = if let Some(route) = self.custom_resolved_route() {
             route.name.as_deref()
@@ -474,7 +461,6 @@ impl Request {
     }
 
     /// Matches paths below the API prefix. An empty prefix has no path-based match.
-    #[allow(non_snake_case, reason = "Matches the application routing API")]
     pub fn is_api_path(&self) -> bool {
         self.api_prefix
             .as_deref()
@@ -515,7 +501,6 @@ impl Request {
 
     /// 当前请求实际执行的语言中间件选择状态；未启用时为空。
     /// 当前实际语言请使用 App::current_locale。
-    #[allow(non_snake_case, reason = "沿用请求方法命名")]
     pub fn locale_selection(&self) -> Option<&super::middleware::LocaleSelection> {
         self.extensions()
             .get::<super::middleware::LocaleSelection>()

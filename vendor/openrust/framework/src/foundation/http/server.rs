@@ -150,10 +150,6 @@ impl Kernel {
     }
 
     /// Dispatches an HTTP transport request and schedules any post-response middleware.
-    #[allow(
-        non_snake_case,
-        reason = "Matches the framework HTTP entry point naming"
-    )]
     pub async fn handle_transport(
         self: Arc<Self>,
         incoming: TransportRequest,

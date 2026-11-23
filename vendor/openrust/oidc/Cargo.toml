@@ -26,3 +26,6 @@ jsonwebtoken = { version = "=11.1.0", default-features = false, features = ["aws
 [dev-dependencies]
 axum = { version = "0.8.9", default-features = false, features = ["http1", "tokio", "json"] }
 tokio = { version = "1.54.1", features = ["macros", "rt", "net", "time"] }
+
+[lints]
+workspace = true

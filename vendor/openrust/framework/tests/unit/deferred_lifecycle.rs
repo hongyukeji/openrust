@@ -1,5 +1,3 @@
-#![allow(non_snake_case, reason = "保留既定公开接口及命名")]
-
 use crate::{
     container::Container,
     contracts::{
@@ -132,7 +130,7 @@ async fn worker_flushes_each_attempt_after_event_with_original_scope_and_failure
         .create("defer_jobs", |table| {
             table.id();
             table.string("queue", 255);
-            table.longText("payload");
+            table.long_text("payload");
             table.unsigned_integer("attempts");
             table.unsigned_big_integer("reserved_at").nullable();
             table.unsigned_big_integer("available_at");

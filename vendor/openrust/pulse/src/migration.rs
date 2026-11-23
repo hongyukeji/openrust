@@ -78,9 +78,9 @@ impl Migration for CreatePulseTables {
                     t.id();
                     t.unsigned_integer("timestamp");
                     t.string("type", None);
-                    t.mediumText("key");
+                    t.medium_text("key");
                     hash(t, driver);
-                    t.mediumText("value");
+                    t.medium_text("value");
                     t.index(&["timestamp"], None);
                     t.index(&["type"], None);
                     t.unique(&["type", "key_hash"], None);
@@ -91,9 +91,9 @@ impl Migration for CreatePulseTables {
                     t.id();
                     t.unsigned_integer("timestamp");
                     t.string("type", None);
-                    t.mediumText("key");
+                    t.medium_text("key");
                     hash(t, driver);
-                    t.bigInteger("value").nullable();
+                    t.big_integer("value").nullable();
                     t.index(&["timestamp"], None);
                     t.index(&["type"], None);
                     t.index(&["key_hash"], None);
@@ -106,7 +106,7 @@ impl Migration for CreatePulseTables {
                     t.unsigned_integer("bucket");
                     t.unsigned_medium_integer("period");
                     t.string("type", None);
-                    t.mediumText("key");
+                    t.medium_text("key");
                     hash(t, driver);
                     t.string("aggregate", None);
                     t.decimal("value", 20, 2);

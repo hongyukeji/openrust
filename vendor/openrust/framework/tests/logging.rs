@@ -722,7 +722,7 @@ fn log_exception(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
     Box::pin(async move {
         let failure = Failure(Previous);
         Context::add("request", json!("json-probe")).unwrap();
-        Context::addHidden("hidden", json!("private-json-marker")).unwrap();
+        Context::add_hidden("hidden", json!("private-json-marker")).unwrap();
         Log::log_exception(Level::Error, "direct failure", &failure, &LogContext::new()).unwrap();
         Log::channel(Some("limited"))
             .unwrap()
@@ -750,7 +750,7 @@ fn record(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
         let id = request.route("id").unwrap();
         Context::add("id", json!(format!("request-{id}"))).unwrap();
         Context::add("scope_only", json!("public")).unwrap();
-        Context::addHidden("token", json!("private-http-token")).unwrap();
+        Context::add_hidden("token", json!("private-http-token")).unwrap();
         tokio::task::yield_now().await;
         assert_eq!(
             Context::get("id").unwrap(),
@@ -962,7 +962,7 @@ fn console_routes() -> Result<(), ConsoleError> {
     Artisan::command("log:probe", |_| {
         assert!(Context::is_empty().unwrap());
         Context::add("command", json!("log:probe")).unwrap();
-        Context::addHidden("token", json!("private-artisan-token")).unwrap();
+        Context::add_hidden("token", json!("private-artisan-token")).unwrap();
         Context::scope_sync(
             || {
                 assert_eq!(Context::get("command").unwrap(), Some(json!("nested")));

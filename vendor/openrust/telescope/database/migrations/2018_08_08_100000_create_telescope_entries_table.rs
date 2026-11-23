@@ -32,7 +32,7 @@ impl Migration for CreateTelescopeEntriesTable {
                     table.string("family_hash", 255).nullable().index();
                     table.boolean("should_display_on_index").default(true);
                     table.string("type", 20);
-                    table.longText("content");
+                    table.long_text("content");
                     table.date_time("created_at", None).nullable().index();
                     table.index(&["type", "should_display_on_index"], None);
                 })

@@ -29,20 +29,12 @@ impl Request {
     }
 
     /// Returns the transport URI before trusted-proxy rewriting.
-    #[allow(
-        non_snake_case,
-        reason = "Pairs with the original request metadata API"
-    )]
     pub fn original_uri(&self) -> &Uri {
         &self.parts.uri
     }
 
     /// Builds an independent native request with the transport URI and effective method.
     /// The bounded body cache remains available to the framework request.
-    #[allow(
-        non_snake_case,
-        reason = "Matches application-facing request method names"
-    )]
     pub async fn to_http_request(&mut self) -> Result<NativeRequest<Bytes>, HttpError> {
         let body = self.body_bytes().await?;
         Ok(NativeRequest::from_parts(self.parts.clone(), body))

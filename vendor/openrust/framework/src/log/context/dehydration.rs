@@ -15,13 +15,13 @@ impl DehydratedContext {
     pub(crate) fn from_repository(context: &Repository) -> Self {
         Self {
             public: context.all(),
-            hidden: context.allHidden(),
+            hidden: context.all_hidden(),
         }
     }
 
     pub(crate) fn fill(&self, context: &Repository) {
-        context.addMany(self.public.clone());
-        context.addManyHidden(self.hidden.clone());
+        context.add_many(self.public.clone());
+        context.add_many_hidden(self.hidden.clone());
     }
 
     pub(crate) fn is_empty(&self) -> bool {

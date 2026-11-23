@@ -30,3 +30,6 @@ tempfile = "3.27"
 [[example]]
 name = "telescope-acceptance"
 path = "tests/fixtures/application.rs"
+
+[lints]
+workspace = true

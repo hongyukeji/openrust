@@ -2,9 +2,9 @@
 
 ## 捕获上下文
 
-在 HTTP 请求或 Artisan 命令中，通过 `Context` Facade 为当前执行添加数据。例如，中间件可以调用 `Context::add("trace_id", trace_id.into())?`。`addMany` 批量添加，`add_if` 保留已有值。键按字符串精确匹配。
+在 HTTP 请求或 Artisan 命令中，通过 `Context` Facade 为当前执行添加数据。例如，中间件可以调用 `Context::add("trace_id", trace_id.into())?`。`add_many` 批量添加，`add_if` 保留已有值。键按字符串精确匹配。
 
-键缺失或值为 JSON null 时，`get` 返回 `None`，可用 `has` 区分两种情况。`only` 和 `except` 读取子集，`forget` 移除键，`pull` 同时读取并移除。`push`、`pop` 和 `stackContains` 操作 JSON 列表，比较使用严格相等。计数器使用带溢出检查的整数运算。
+键缺失或值为 JSON null 时，`get` 返回 `None`，可用 `has` 区分两种情况。`only` 和 `except` 读取子集，`forget` 移除键，`pull` 同时读取并移除。`push`、`pop` 和 `stack_contains` 操作 JSON 列表，比较使用严格相等。计数器使用带溢出检查的整数运算。
 
 ## 作用域上下文
 
@@ -18,7 +18,7 @@ use openrust::log::{LogContext, context::Repository};
 fn main() {
     let context = Repository::default();
     context.add("trace_id", "outer".into());
-    context.addHidden("job_token", "secret".into());
+    context.add_hidden("job_token", "secret".into());
 
     context.scope_sync(
         || assert_eq!(context.get("trace_id"), Some("inner".into())),
@@ -33,7 +33,7 @@ fn main() {
 
 ## 隐藏上下文
 
-通过 `addHidden`、`get_hidden` 和对应方法保存不应进入日志元数据的字段。公开 Context 字段作为第二个 JSON 对象追加到日志，排在单条日志字段之后。占位符替换只读取单条日志字段。
+通过 `add_hidden`、`get_hidden` 和对应方法保存不应进入日志元数据的字段。公开 Context 字段作为第二个 JSON 对象追加到日志，排在单条日志字段之后。占位符替换只读取单条日志字段。
 
 在编译后的参数注入元数据中使用 `openrust::container::attributes::Context::<T>::new(key)`。通过 `.hidden()` 读取隐藏字段，通过 `.with_default(value)` 或 `.with_default_using(factory)` 为缺失或 null 设置默认值。字段必须能反序列化为声明的 Rust 类型。 [日志](../the-basics/logging.md)
 
@@ -45,7 +45,7 @@ fn main() {
 use openrust::support::facades::Context;
 
 fn configure_queue_context() -> Result<(), openrust::log::context::ContextError> {
-    Context::dehydrating(|context| context.forgetHidden("secret"))?;
+    Context::dehydrating(|context| context.forget_hidden("secret"))?;
     Context::hydrated(|context| context.add("hydrated", serde_json::json!(true)))?;
     Ok(())
 }

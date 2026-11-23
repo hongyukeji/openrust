@@ -177,10 +177,10 @@ async fn start(root: PathBuf) -> (SocketAddr, TestServer) {
         db.get_schema_builder()
             .create(&table, |table| {
                 table.string("id", 255).primary();
-                table.bigInteger("user_id").nullable();
+                table.big_integer("user_id").nullable();
                 table.string("ip_address", 45).nullable();
                 table.text("user_agent").nullable();
-                table.longText("payload");
+                table.long_text("payload");
                 table.integer("last_activity");
             })
             .await

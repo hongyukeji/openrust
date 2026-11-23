@@ -28,24 +28,24 @@ fn manages_null_values_stacks_counters_and_hidden_fields() {
             .is_none()
     );
     assert_eq!(
-        context.rememberHidden("cached", || {
-            assert!(context.missingHidden("cached"));
+        context.remember_hidden("cached", || {
+            assert!(context.missing_hidden("cached"));
             json!("ready")
         }),
         Some(json!("ready"))
     );
-    context.addHidden("empty", json!("secret"));
+    context.add_hidden("empty", json!("secret"));
     assert_eq!(context.get_hidden("empty"), Some(json!("secret")));
     assert_eq!(context.only(&["empty"]), fields("empty", json!(null)));
     assert_eq!(
-        context.exceptHidden(&["empty"]),
+        context.except_hidden(&["empty"]),
         fields("cached", json!("ready"))
     );
-    assert_eq!(context.pullHidden("empty"), Some(json!("secret")));
-    assert!(context.missingHidden("empty"));
+    assert_eq!(context.pull_hidden("empty"), Some(json!("secret")));
+    assert!(context.missing_hidden("empty"));
     context.push("stack", [json!(1), json!("1")]).unwrap();
-    assert!(context.stackContains("stack", &json!(1)));
-    assert!(!context.stackContains("stack", &json!(true)));
+    assert!(context.stack_contains("stack", &json!(1)));
+    assert!(!context.stack_contains("stack", &json!(true)));
     assert_eq!(context.pop("stack").unwrap(), json!("1"));
     assert!(matches!(
         context.push("empty", [json!(1)]),
@@ -71,11 +71,11 @@ fn manages_null_values_stacks_counters_and_hidden_fields() {
 async fn sibling_overlays_restore_outer_fields_after_error_cancellation_and_panic() {
     let context = Repository::default();
     context.add("value", json!("base"));
-    context.addHidden("token", json!("base-secret"));
+    context.add_hidden("token", json!("base-secret"));
     let barrier = tokio::sync::Barrier::new(2);
     let left = context.scope(
         async {
-            context.addHidden("token", json!("left-secret"));
+            context.add_hidden("token", json!("left-secret"));
             barrier.wait().await;
             assert_eq!(context.get("value"), Some(json!("left")));
             assert_eq!(context.get_hidden("token"), Some(json!("left-secret")));
@@ -136,7 +136,7 @@ async fn application_tasks_use_distinct_repository_instances() {
     let first = container.scope(async {
         let context = container.make::<Repository>().unwrap();
         context.add("task", json!(1));
-        context.addHidden("task", json!("private-task"));
+        context.add_hidden("task", json!("private-task"));
         let public = ClassAttribute::contextual(|| Ok(ContextAttribute::<u32>::new("task")));
         let hidden =
             ClassAttribute::contextual(|| Ok(ContextAttribute::<String>::new("task").hidden()));
@@ -185,7 +185,7 @@ async fn application_tasks_use_distinct_repository_instances() {
     let second = container.scope(async {
         let context = container.make::<Repository>().unwrap();
         assert!(context.is_empty());
-        context.addHidden("task", json!(2));
+        context.add_hidden("task", json!(2));
         tokio::task::yield_now().await;
         assert!(context.missing("task"));
         context
@@ -198,4 +198,64 @@ async fn application_tasks_use_distinct_repository_instances() {
         })
         .await;
     assert!(container.make::<Repository>().is_err());
+}
+
+#[tokio::test]
+async fn native_context_facade_macros_share_request_fields_without_leaking_hidden_values() {
+    use openrust::{
+        contracts::http::Kernel as _,
+        foundation::{configuration::Routing, http::Kernel},
+        http::{Body, Request},
+        routing::Router,
+        support::facades::Context,
+    };
+    let root = tempfile::tempdir().unwrap();
+    let app = Application::configure(root.path().to_path_buf())
+        .with_routing(Routing::new(|_| {
+            let mut router = Router::new();
+            router.get("/", || {
+                assert!(Context::missing_hidden("token").unwrap());
+                Context::add_many(fields("public", json!("visible"))).unwrap();
+                Context::add_many_hidden(fields("token", json!("secret"))).unwrap();
+                assert!(!Context::add_hidden_if("token", json!("changed")).unwrap());
+                assert_eq!(
+                    Context::remember_hidden("token", || panic!("already stored")).unwrap(),
+                    Some(json!("secret"))
+                );
+                assert!(Context::has_hidden("token").unwrap());
+                assert_eq!(
+                    Context::only_hidden(&["token"]).unwrap(),
+                    fields("token", json!("secret"))
+                );
+                assert!(Context::except_hidden(&["token"]).unwrap().is_empty());
+                Context::push_hidden("stack", [json!(3)]).unwrap();
+                assert!(Context::hidden_stack_contains("stack", &json!(3)).unwrap());
+                assert!(Context::all_hidden().unwrap().contains_key("token"));
+                assert_eq!(
+                    Context::pull_hidden("token").unwrap(),
+                    Some(json!("secret"))
+                );
+                Context::forget_hidden("stack").unwrap();
+                assert!(Context::all_hidden().unwrap().is_empty());
+                serde_json::to_string(&Context::all().unwrap()).unwrap()
+            })?;
+            Ok(router)
+        }))
+        .create()
+        .unwrap();
+    let mut kernel = Kernel::new(app);
+    kernel.bootstrap().await.unwrap();
+    for _ in 0..2 {
+        let mut request = Request::from(
+            http::Request::builder()
+                .uri("/")
+                .body(Body::empty())
+                .unwrap(),
+        );
+        let response = kernel.handle(&mut request).await;
+        assert_eq!(response.status().as_u16(), 200);
+        let (_, body) = response.into_parts();
+        let body = axum::body::to_bytes(body, 1024).await.unwrap();
+        assert_eq!(body.as_ref(), br#"{"public":"visible"}"#);
+    }
 }

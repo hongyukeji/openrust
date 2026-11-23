@@ -1,4 +1,3 @@
-#![allow(non_snake_case, reason = "保留既定公开接口及命名")]
 //! Controlled OP fixture and two native RP applications; this is not a production OP.
 #[path = "support/local_login.rs"]
 mod recipe;

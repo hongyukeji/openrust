@@ -1,5 +1,3 @@
-#![allow(non_snake_case, reason = "保留既定公开接口及命名")]
-
 //! Failed job storage contracts and providers.
 
 mod database_uuid_failed_job_provider;

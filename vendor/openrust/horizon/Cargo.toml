@@ -32,3 +32,6 @@ tempfile = "3.27"
 [[example]]
 name = "horizon-acceptance"
 path = "tests/fixtures/application.rs"
+
+[lints]
+workspace = true

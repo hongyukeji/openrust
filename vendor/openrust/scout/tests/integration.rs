@@ -217,7 +217,7 @@ impl Fixture {
             .create("jobs", |table| {
                 table.id();
                 table.string("queue", 255).index();
-                table.longText("payload");
+                table.long_text("payload");
                 table.unsigned_integer("attempts");
                 table.unsigned_big_integer("reserved_at").nullable();
                 table.unsigned_big_integer("available_at");

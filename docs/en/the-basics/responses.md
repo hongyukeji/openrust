@@ -43,8 +43,6 @@ use openrust::{
 };
 
 struct Report;
-
-#[allow(non_snake_case)]
 impl Responsable for Report {
     async fn to_response(self, request: &mut Request) -> Result<Response, HttpError> {
         Response::json(StatusCode::OK, request.route("id"))

@@ -24,7 +24,7 @@ impl Migration for Definition {
                         .index()
                         .comment(__("schema.columns.queue", &Default::default())?);
                     table
-                        .longText("payload")
+                        .long_text("payload")
                         .comment(__("schema.columns.payload", &Default::default())?);
                     table
                         .unsigned_small_integer("attempts")
@@ -99,10 +99,10 @@ impl Migration for Definition {
                         .text("queue")
                         .comment(__("schema.columns.queue", &Default::default())?);
                     table
-                        .longText("payload")
+                        .long_text("payload")
                         .comment(__("schema.columns.payload", &Default::default())?);
                     table
-                        .longText("exception")
+                        .long_text("exception")
                         .comment(__("schema.columns.exception", &Default::default())?);
                     table
                         .timestamp("failed_at", None)

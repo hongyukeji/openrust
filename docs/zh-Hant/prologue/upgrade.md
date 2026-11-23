@@ -1,5 +1,9 @@
 # 升級指南
 
+## 原生 Rust API 命名
+
+應用程式與擴充套件的 Rust 呼叫統一使用 `with_routing`、`handle_command`、`get_facade_root`、`Db`、`Url` 等原生命名。目前預發布原始碼只維護一套名稱，不長期保留 camelCase 別名。同步重建產生的 Rust 程式碼和自訂 trait 實作。JSON 鍵、佇列載荷、事件字串、CLI 名稱、資料庫內容與既有範本運算式保留契約，不對既有資料做文字取代。見 [API 命名與檢查](../reference/api.md)。
+
 ## 從 v0.x 原始碼遷移
 
 準備新的檢出目錄，對照目前的 `.env.example` 逐項遷移應用程式設定。依現有啟動結構接入應用程式路由、Provider 和設定。將 `APP_SERVER_HOST` 遷移為 `APP_HOST`，將 `SERVER_PORT` 遷移為 `APP_PORT`，並核對公開的 `APP_URL`。重新建置並部署 `main`。原始碼命令使用 `./artisan`，部署後使用 `./main artisan`。 [應用程式生命週期](../architecture-concepts/lifecycle.md)

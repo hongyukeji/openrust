@@ -118,10 +118,6 @@ impl fmt::Debug for FactoryHandle {
     }
 }
 impl FactoryHandle {
-    #[allow(
-        non_snake_case,
-        reason = "Rust identity adapter for original PHP closures"
-    )]
     pub fn same_factory(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.entry.version, &other.entry.version)
     }

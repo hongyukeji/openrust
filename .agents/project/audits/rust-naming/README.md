@@ -9,7 +9,7 @@
 | N-03 | 验收通过 | HTTP／路由／认证／命令及同名调度接口完成命名迁移；隔离构建、实际HTTP/CLI、MySQL、Redis调度、生成器与三语消费验证通过 |
 | N-04 | 验收通过 | 数据/基础服务1814组拼写、真实MySQL58项与Artisan/Redis、生成源码、组合Request、三语及workspace/可选features严格Clippy |
 | N-05 | 验收通过 | 1114组拼写、17项Serde保留、真实Worker/调度、17个扩展、MySQL/Redis、Passport生成项目及最终30项HTTP组合 |
-| N-06 | 待实施 | 全仓复核、三语、Rustdoc、CI、防回归及最终真实消费者 |
+| N-06 | 验收通过 | 258处豁免、21包命名门禁、56组遗漏宏入口、真实消费者、20库Rustdoc/三语/API导航及防回归 |
 
 ## N-01：盘点与边界
 
@@ -145,3 +145,30 @@ HTTP代码生成曾触32GB停线，守卫安全终止且持锁清理全部项目
 - 磁盘守卫曾触及32GB，持锁清理本项目编译profile释放71,158,349,824字节；保留源码、证据、数据和原索引，首次中断不计通过，恢复后Clippy成功。所有临时服务均由隔离wrapper清理，不使用用户数据卷。
 
 证据：target/tmp/rust-naming/N-05/下symbols、collision-decisions、serde-bridges、string-decisions、runtime-counts、各extension/core日志、translation-mysql、docs-browser-accepted及编译门禁日志。真实默认CLI生成项目验收通过（184.97s）：Passport安装重建、重试、保留迁移/密钥、真实终端交互、真实MySQL迁移、与Sanctum共存的HTTP认证/独立撤销及嵌套API前缀；首轮误把根API当作已存在的夹具改动已撤回，仍按安装前不存在检查。独立缓存复用和初始CLI副本仅改变验收资源管理，不改变产品行为。基于42dd7aff9重新三方组合，保留期间独立提交的Request输入及App/Response/Session功能；最终workspace all-targets严格Clippy54.64s、全workspace格式以及共享HTTP真实消费者30项全部通过。仅命名范围入库，原许可删除与用户/并行在途文件保持不变。
+
+## N-06：文档与防回归
+
+本单元完成全仓收尾：21个workspace包继承三种命名lint的deny，删除258处为旧大小写保留的命名豁免；保留原有非命名linker_messages诊断配置。应用、框架、扩展、trait、Facade、宏、生成模板、测试和三语当前用法一起核对。编译器与完整标识符复核发现并补齐56组清单遗漏的宏入口，覆盖Blueprint列类型、Context隐藏字段及栈、缓存惰性默认值、Mailable地址断言、Observer强制删除、Worker异常钩子、Telescope记录方法和MigrationSkipped字段。
+
+### 契约、例外与防回归
+
+- Macro参数和调用方只按Rust IDENT修改；类型、方法、字段与字符串分开。MigrationSkipped.migration_name不实现Serde，事件NAME/接口字符串保持不变；Telescope记录方法依旧使用原EntryType，Worker钩子仍监听原事件NAME，Context与缓存内部数据键不变。前五单元的Serde/动态格式化器桥接继续保留。
+- 全第一方源码的最终AST复核仅剩10处Windows依赖字段引用（dwFlags、hStdInput等），必须匹配外部windows-sys类型；既有6处Windows控制台extern声明保持准确ABI名称。不是本仓库新声明的Rust风格例外，也没有为它们新增全局allow。三语Rust代码块无旧Rust调用；合法CLI、JSON、事件、Blade与外部协议名及历史记录不随之改写。
+- tests/rust_naming.py读取实际workspace成员，检查每包继承及无旧豁免；从真实策略构造Cargo消费者，验证三种错误命名分别失败、原生命名及必要extern声明成功。CI调用同一脚本与cargo fmt，不引入命名检查框架。checkout固定官方v7.0.1提交3d3c42e5aac5ba805825da76410c181273ba90b1。远端工作流因禁止推送尚未运行，本地等价消费者已通过。
+- 当前规范统一维护原生命名与编译器门禁，通用入口继续只引用规范。三语API/升级说明、Rustdoc、例子、源码和生成代码使用相同规则。纠正语言说明中旧“从snake_case迁回原名”的文字，去掉15处文档旧豁免。最后两处Rustdoc行只修方法引用并使用简体中文，非注释token完全相等证明保留在comments-only-proof.json。
+
+### 实际消费者验收
+
+- MySQL 8.4.13与Redis8隔离运行：Schema套件80项通过（其中SQL Server、未提供的PostgreSQL分支早退不作真实驱动验收），Eloquent事件MySQL/SQLite两项、Context四项（新增实际Kernel请求隔离和隐藏数据不泄漏）、邮件33项通过。Worker实际SQLite/MySQL/Redis重试、失败、上下文、回调/控制/停止路径通过；SQL Server与RedisCluster早退不作真实服务验收，ignore辅助进程由集成用例另行启动。
+- 迁移框架八项及根实际Artisan MySQL迁移通过，包含MigrationSkipped原事件契约。缓存类型/惰性回调在array、file、真实Redis及MySQL驱动通过；新增覆盖float命中不调用回调、boolean与array缺失默认值。Telescope完整本批测试通过，含原队列JSON往返和真实HTTP/事件消费者。
+- PostgreSQL 18.7单独隔离补验Schema十二项通过。SQLite实际SQL查询记录运行库版本3.54.1。db:show仍为原有占位命令，不作版本证据，不在命名任务中顺带实现。
+- 真实main二进制：/up与/返回200，Accept分别返回JSON/HTML的404，SIGINT退出0；Artisan inspire/list退出0且JSON输出可解析。实际make:test生成源码已用当前框架编译并执行通过。N-05真实Passport/Sanctum完整生成项目验收仍保留，不用扫描替代生成器消费。
+- workspace/all-targets严格Clippy72秒、兼容根features严格Clippy40.65秒通过，全部格式与21包策略消费者通过。最后两行Rustdoc修正后以实际all-features Rustdoc重新编译20个库，broken/private链接检查通过；源/源码链接/搜索、十二组根与/docs/三语桌面/手机API导航，以及两种挂载的全部三语导航通过。新增宏方法/trait锚点在API浏览器中实际核对。API导出标记本次审查的父版本并校验候选源码指纹，仅为提交前验收，不是发布产物。
+
+### 失败、清理与交付边界
+
+- 移除豁免后前三轮真实编译暴露宏漏项，逐个补齐，不恢复豁免。新增测试曾误用请求/缓存值类型，均按原公开签名修复后重新通过，未改变产品接口或默认值。所有未通过日志单列，不计成功。
+- 本轮再次触及32GB停线，守卫安全终止编译、清理临时MySQL/Redis，持锁清理编译profile释放70,134,587,392字节；保留源码、日志、下载、数据、交付文件、工作区和原索引。恢复后完成上述真实验收；不将中断当作通过。
+- 清理范围仅本任务已结束的生成项目/测试运行目录与初始二进制副本；最终API导出、审计证据及可复用编译缓存保留。用户模型记录/交接变动和原Unicode/Zend删除暂存不夹带；历史验收原貌保留。没有推送或发布。
+
+证据：target/tmp/rust-naming/N-06/下allow-removals、macro-allow-removals、symbols、native-identifiers、windows-external-field-references、documentation-old-calls、comments-only-proof、alignment-proof、source-sha256，以及runtime/core/cache/Artisan/Telescope/PG/SQLite、http-cli-results、generated-consumer、policy-release、clippy-final、clippy-features-final、docs-final各日志。N-01至N-06仅闭合本次命名迁移；全框架功能、真实外部供应商、跨平台发布矩阵及远端CI不因此宣称完成。

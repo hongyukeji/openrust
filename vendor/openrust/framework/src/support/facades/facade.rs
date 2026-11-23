@@ -146,11 +146,6 @@ pub(crate) fn context_identity() -> Option<Arc<()>> {
 }
 
 /// Resolves a facade's underlying service from the current application.
-#[allow(
-    non_snake_case,
-    non_upper_case_globals,
-    reason = "保留既定公开接口及命名"
-)]
 pub trait Facade {
     type Service: ?Sized + Send + Sync + 'static;
     const CACHED: bool = true;

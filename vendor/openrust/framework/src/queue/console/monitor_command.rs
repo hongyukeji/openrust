@@ -1,5 +1,3 @@
-#![allow(non_snake_case, reason = "保留既定公开接口及命名")]
-
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use clap::{Arg, ArgAction, Command as Syntax, value_parser};

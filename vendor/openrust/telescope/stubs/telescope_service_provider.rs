@@ -1,7 +1,3 @@
-#![allow(
-    non_snake_case,
-    reason = "Matches Telescope application provider names"
-)]
 use openrust::{
     contracts::foundation::Application as _,
     foundation::Application,

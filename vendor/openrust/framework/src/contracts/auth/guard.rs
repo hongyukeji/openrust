@@ -3,7 +3,6 @@ use crate::auth::{AuthFuture, AuthIdentifier, AuthResult, Credentials};
 use super::Authenticatable;
 
 /// Resolves the current user and checks credentials.
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub trait Guard: Send {
     fn user(&mut self) -> AuthFuture<'_, AuthResult<Option<&dyn Authenticatable>>>;
     fn id(&mut self) -> AuthFuture<'_, AuthResult<Option<AuthIdentifier>>>;

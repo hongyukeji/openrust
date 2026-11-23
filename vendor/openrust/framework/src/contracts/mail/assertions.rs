@@ -9,7 +9,6 @@ use crate::{
 
 macro_rules! address_assertions {
     ($has:ident, $assert:ident, $field:ident) => {
-        #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
         fn $has(&self, address: &str, name: Option<&str>) -> MailResult<bool> {
             Ok(self.envelope()?.$field.iter().any(|actual| {
                 !address.is_empty()
@@ -18,7 +17,6 @@ macro_rules! address_assertions {
             }))
         }
 
-        #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
         #[track_caller]
         fn $assert(&self, address: &str, name: Option<&str>) -> &Self
         where

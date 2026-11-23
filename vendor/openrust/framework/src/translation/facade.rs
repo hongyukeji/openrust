@@ -1,5 +1,3 @@
-#![allow(non_snake_case, reason = "保留既定公开接口及命名")]
-
 use std::{any::Any, collections::BTreeMap, future::Future, path::PathBuf};
 
 use crate::{container::ServiceKey, contracts::translation::Loader, support::facades::Facade};

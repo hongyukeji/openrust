@@ -72,7 +72,6 @@ impl FailedJobProviderInterface for CollectionProvider {
         Box::pin(async move { (id == "single").then(|| Self::job(id)).transpose() })
     }
 
-    #[allow(non_snake_case, reason = "Implements the retry stream contract")]
     fn find_for_retry<'a>(
         &'a self,
         id: &'a str,
@@ -220,7 +219,7 @@ async fn exercise(mysql: bool) {
         .create("collection_retry_jobs", |table| {
             table.id();
             table.string("queue", 255).index();
-            table.longText("payload");
+            table.long_text("payload");
             table.unsigned_integer("attempts");
             table.unsigned_big_integer("reserved_at").nullable();
             table.unsigned_big_integer("available_at");

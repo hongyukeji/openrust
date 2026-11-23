@@ -63,7 +63,7 @@ fn fail(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
         let kind = request.route("kind").unwrap();
         Context::add("trace", json!(kind)).unwrap();
-        Context::addHidden("token", json!("hidden-exception-token")).unwrap();
+        Context::add_hidden("token", json!("hidden-exception-token")).unwrap();
         let source: Box<dyn std::error::Error + Send + Sync> = if kind == "shared" {
             Box::new(
                 request
@@ -266,7 +266,7 @@ impl Command for FailingCommand {
     ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
         Box::pin(async move {
             Context::add("entry", json!("artisan")).unwrap();
-            Context::addHidden("token", json!("hidden-command-token")).unwrap();
+            Context::add_hidden("token", json!("hidden-command-token")).unwrap();
             Err(ConsoleError::new("artisanal failure"))
         })
     }

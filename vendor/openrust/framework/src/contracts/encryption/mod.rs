@@ -1,7 +1,5 @@
 //! Application encryption contract.
 
-#![allow(non_snake_case)]
-
 use crate::encryption::{DecryptException, EncryptException};
 
 /// Encrypts and decrypts byte strings, with optional PHP string serialization.

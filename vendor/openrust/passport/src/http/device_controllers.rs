@@ -1,4 +1,3 @@
-#![allow(non_snake_case, reason = "保留既定公开接口及命名")]
 //! Device/browser endpoints with the existing authentication, Session and CSRF path.
 use super::{
     AuthorizationViewParameters,

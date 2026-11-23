@@ -88,7 +88,7 @@ impl Migration for Definition {
                         .nullable()
                         .comment(__("schema.columns.user_agent", &Default::default())?);
                     table
-                        .longText("payload")
+                        .long_text("payload")
                         .comment(__("schema.columns.session_data", &Default::default())?);
                     table
                         .integer("last_activity")

@@ -1602,12 +1602,12 @@ async fn verify_additional_column_types(db: Connection, mysql: bool) {
             table
                 .unsigned_medium_integer("medium_value")
                 .default(16_777_215_i64);
-            table.tinyText("summary").nullable();
+            table.tiny_text("summary").nullable();
             table
                 .r#enum("state", &["ready", "customer's choice"])
                 .default("ready");
             table.year("observed_year").use_current();
-            table.ipAddress("network_ip").nullable();
+            table.ip_address("network_ip").nullable();
             table.mac_address("network_mac").nullable();
             table.binary_with("fixed_data", 4, true).nullable();
             table.binary_with("variable_data", 12, false).nullable();
@@ -1726,7 +1726,7 @@ async fn verify_additional_column_types(db: Connection, mysql: bool) {
         ));
         schema
             .table("additional_column_types", |table| {
-                table.ipAddress("network_ip").nullable().change();
+                table.ip_address("network_ip").nullable().change();
             })
             .await
             .unwrap();
@@ -2678,7 +2678,7 @@ async fn sqlite_rebuild_preserves_inline_constraints_and_can_drop_foreign_keys()
     let mut schema = db.get_schema_builder();
     schema
         .table("inline_children", |table| {
-            table.bigInteger("id").change();
+            table.big_integer("id").change();
             table.integer("owner_id").nullable().change();
             table.string("label", 60).change();
         })
@@ -3488,7 +3488,7 @@ async fn mysql_preserves_explicit_primary_and_integer_signedness_with_auto_incre
 
     schema
         .table(name, |table| {
-            table.bigInteger("id").auto_increment().change();
+            table.big_integer("id").auto_increment().change();
         })
         .await
         .unwrap();
@@ -6441,7 +6441,7 @@ async fn postgres_generated_columns_and_explicit_identity_use_native_modes() {
                 db.get_schema_builder()
                     .create("tenant.generated", |table| {
                         table
-                            .bigInteger("seq")
+                            .big_integer("seq")
                             .generated_as_with(Expression::new("start with 10 increment by 2"))
                             .always();
                         table.integer("base");
@@ -6465,7 +6465,7 @@ async fn postgres_generated_columns_and_explicit_identity_use_native_modes() {
             Box::pin(async move {
                 db.get_schema_builder()
                     .create("tenant.other", |table| {
-                        table.bigInteger("seq").generated_as();
+                        table.big_integer("seq").generated_as();
                         table.integer("plain").always();
                         table.primary(&["seq", "plain"], Some("other_primary"));
                     })
@@ -6482,7 +6482,7 @@ async fn postgres_generated_columns_and_explicit_identity_use_native_modes() {
         .get_schema_builder()
         .create("tenant.other", |table| {
             table
-                .bigInteger("seq")
+                .big_integer("seq")
                 .generated_as_with(Expression::new("start with ?").with_bindings(vec![10.into()]));
         })
         .await;
@@ -6514,7 +6514,7 @@ async fn postgres_generated_columns_and_explicit_identity_use_native_modes() {
     schema
         .create("tenant.generated", |table| {
             table
-                .bigInteger("seq")
+                .big_integer("seq")
                 .generated_as_with(Expression::new("start with 10 increment by 2"))
                 .always();
             table.integer("base");
@@ -6561,7 +6561,7 @@ async fn postgres_generated_columns_and_explicit_identity_use_native_modes() {
         .table("tenant.generated", |table| {
             table.integer("saved").drop_expression().change();
             table
-                .bigInteger("seq")
+                .big_integer("seq")
                 .generated_as_with(Expression::new("start with 20"))
                 .change();
         })
@@ -6614,7 +6614,7 @@ async fn postgres_generated_columns_and_explicit_identity_use_native_modes() {
     );
     schema
         .table("tenant.generated", |table| {
-            table.bigInteger("seq").change();
+            table.big_integer("seq").change();
         })
         .await
         .unwrap();

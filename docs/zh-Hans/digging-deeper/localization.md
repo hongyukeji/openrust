@@ -493,7 +493,7 @@ APP_LOCALE=zh-Hant ./artisan help list
 
 ## 契约语言设置
 
-Translator 契约、具体实现和 Lang Facade 均提供 `get_locale`、`set_locale`、`get_fallback`、`set_fallback`。启动时设置应用默认值；请求／队列作用域内设置只影响当前执行。`with_locale` 支持嵌套并在离开后恢复，回退语言独立设置。旧自定义 Loader／Translator 消费者应将契约中的 snake_case 调用迁移为上述原名。
+Translator 契约、具体实现和 Lang Facade 均提供 `get_locale`、`set_locale`、`get_fallback`、`set_fallback`。启动时设置应用默认值；请求／队列作用域内设置只影响当前执行。`with_locale` 支持嵌套并在离开后恢复，回退语言独立设置。Rust 方法采用原生 snake_case 命名；旧 camelCase Rust 消费者改用上述方法。模板表达式保持各自既有名称。
 
 ## 语言设置的所有权
 

@@ -52,7 +52,6 @@ macro_rules! column_types {
     };
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Blueprint {
     pub(super) fn has_online_index(&self) -> bool {
         self.commands
@@ -73,11 +72,11 @@ impl Blueprint {
     }
 
     column_types! {
-        (tinyInteger, TinyInteger), (smallInteger, SmallInteger),
-        (mediumInteger, MediumInteger), (integer, Integer), (bigInteger, BigInteger),
-        (tinyText, TinyText), (text, Text), (mediumText, MediumText), (longText, LongText), (boolean, Boolean),
+        (tiny_integer, TinyInteger), (small_integer, SmallInteger),
+        (medium_integer, MediumInteger), (integer, Integer), (big_integer, BigInteger),
+        (tiny_text, TinyText), (text, Text), (medium_text, MediumText), (long_text, LongText), (boolean, Boolean),
         (double, Double), (binary, Binary), (json, Json), (jsonb, Jsonb), (tsvector, TsVector),
-        (date, Date), (year, Year), (ipAddress, IpAddress), (mac_address, MacAddress),
+        (date, Date), (year, Year), (ip_address, IpAddress), (mac_address, MacAddress),
     }
 
     /// Returns the logical table reference supplied to the schema builder.
@@ -169,19 +168,19 @@ impl Blueprint {
     }
 
     pub fn unsigned_tiny_integer(&mut self, name: &str) -> &mut ColumnDefinition {
-        self.tinyInteger(name).unsigned()
+        self.tiny_integer(name).unsigned()
     }
 
     pub fn unsigned_small_integer(&mut self, name: &str) -> &mut ColumnDefinition {
-        self.smallInteger(name).unsigned()
+        self.small_integer(name).unsigned()
     }
 
     pub fn unsigned_medium_integer(&mut self, name: &str) -> &mut ColumnDefinition {
-        self.mediumInteger(name).unsigned()
+        self.medium_integer(name).unsigned()
     }
 
     pub fn unsigned_big_integer(&mut self, name: &str) -> &mut ColumnDefinition {
-        self.bigInteger(name).unsigned()
+        self.big_integer(name).unsigned()
     }
 
     pub fn unsigned_integer(&mut self, name: &str) -> &mut ColumnDefinition {

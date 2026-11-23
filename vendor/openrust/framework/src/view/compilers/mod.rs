@@ -1,7 +1,5 @@
 //! Compilation and expiration contracts for template engines.
 
-#![allow(non_snake_case)]
-
 mod blade_compiler;
 mod template;
 

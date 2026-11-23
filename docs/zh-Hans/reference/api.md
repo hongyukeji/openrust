@@ -1,5 +1,7 @@
 # API 参考
 
+Rust 类型和 trait 使用 `UpperCamelCase`，方法与字段使用 `snake_case`，常量使用 `SCREAMING_SNAKE_CASE`。workspace 在正常构建时拒绝命名违规。执行 `python3 tests/rust_naming.py` 可核对策略继承和真实编译器拒绝用例；序列化键、事件、CLI 名称与模板表达式保持既有契约。
+
 使用指南介绍应用行为。Rustdoc 列出构建快照中公开的 Rust 模块、类型、方法、feature 条件及源码链接。
 
 `openrust-translation-database` 提供 `DatabaseLoader`，可显式将数据库翻译加载到现有翻译器。装配、文件回退及数据库支持范围见[数据库翻译](../digging-deeper/localization.md#database-translation-loader)。
@@ -11,7 +13,7 @@
 使用 Python 3.11 或更新版本、Rust 1.94.0 和已提交的干净源码快照。在仓库根目录选择新的输出目录和独占 Cargo 产物目录：
 
 ```sh
-python3 -B docs/scripts/build_api.py --output /tmp/openrust-api --target-dir /tmp/openrust-api-target
+python3 -B docs/scripts/build_api.py --output target/tmp/api/export --target-dir target/tmp/api/cargo-target
 ```
 
 没有 Git 元数据的源码归档须加上 `--revision`，传入该归档完整的 40 位提交 SHA。命令使用锁文件，以全部 feature 构建每个 workspace 库的文档，拒绝损坏及指向私有项目的文档链接。每次重建前清理专属 target 的 Rustdoc 页面，防止已删除 API 残留；Cargo 依赖编译缓存保留。已有导出目录不会被覆盖。根应用二进制不属于库 API。
@@ -22,7 +24,7 @@ python3 -B docs/scripts/build_api.py --output /tmp/openrust-api --target-dir /tm
 
 ```sh
 cd docs
-DOCS_API_DIR=/tmp/openrust-api npm run build
+DOCS_API_DIR=../target/tmp/api/export npm run build
 ```
 
 站点先核对当前锁文件及源码指纹，再复制至 `api/`。提供导出目录时，侧栏增加 Rustdoc 入口；支持站点根路径及 `/docs/` 等部署子路径。普通构建无需 API 产物，仍可阅读本指南。单独预览导出时，用本地 HTTP 服务托管其目录并打开 `index.html`。

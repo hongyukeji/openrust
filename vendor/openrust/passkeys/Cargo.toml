@@ -27,3 +27,6 @@ tokio = { version = "1.54.1", features = ["macros", "rt", "sync", "net", "io-uti
 name = "ceremony_driver"
 path = "tests/ceremony_driver.rs"
 harness = false
+
+[lints]
+workspace = true

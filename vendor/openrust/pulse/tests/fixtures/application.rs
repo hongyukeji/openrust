@@ -1,5 +1,3 @@
-#![allow(non_snake_case, reason = "保留既定公开接口及命名")]
-
 //! Native HTTP acceptance host; never installed in the application skeleton.
 use openrust::{
     foundation::{Application, configuration::Routing, run_application},

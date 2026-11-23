@@ -1,7 +1,5 @@
 //! Extension contracts for broadcast events, channel handlers, and drivers.
 
-#![allow(non_snake_case)]
-
 use std::sync::Arc;
 
 use crate::{

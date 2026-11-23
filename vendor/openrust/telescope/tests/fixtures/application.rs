@@ -30,7 +30,7 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
 }
 fn probe(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        openrust_telescope::facades::Telescope::get_facade_root().unwrap().recordEvent(IncomingEntry::make(json!({"name":"<img src=x onerror=window.compromised=true>","payload":{"actual":"observed"}}).as_object().unwrap().clone()).unwrap());
+        openrust_telescope::facades::Telescope::get_facade_root().unwrap().record_event(IncomingEntry::make(json!({"name":"<img src=x onerror=window.compromised=true>","payload":{"actual":"observed"}}).as_object().unwrap().clone()).unwrap());
         Ok(Response::from("observed"))
     })
 }

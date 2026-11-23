@@ -578,8 +578,8 @@ async fn native_retries_keep_transport_ids_separate_from_the_failed_payload_uuid
             table.string("uuid", None).unique();
             table.text("connection");
             table.text("queue");
-            table.longText("payload");
-            table.longText("exception");
+            table.long_text("payload");
+            table.long_text("exception");
             table.timestamp("failed_at", 0);
         })
         .await

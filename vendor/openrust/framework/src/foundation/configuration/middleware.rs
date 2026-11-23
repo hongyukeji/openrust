@@ -218,10 +218,6 @@ impl Middleware {
         self
     }
 
-    #[allow(
-        non_snake_case,
-        reason = "Matches the application middleware configuration API"
-    )]
     pub fn append_terminable<M: crate::contracts::http::TerminableMiddleware>(
         &mut self,
         middleware: Arc<M>,
@@ -229,10 +225,6 @@ impl Middleware {
         self.append(crate::foundation::http::terminable(middleware))
     }
 
-    #[allow(
-        non_snake_case,
-        reason = "Matches the application middleware configuration API"
-    )]
     pub fn prepend_terminable<M: crate::contracts::http::TerminableMiddleware>(
         &mut self,
         middleware: Arc<M>,
@@ -240,10 +232,6 @@ impl Middleware {
         self.prepend(crate::foundation::http::terminable(middleware))
     }
 
-    #[allow(
-        non_snake_case,
-        reason = "Matches the application middleware configuration API"
-    )]
     pub fn alias_terminable<M: crate::contracts::http::TerminableMiddleware>(
         &mut self,
         name: impl Into<String>,

@@ -80,7 +80,7 @@ impl Listener for EventListener {
                         .into()
                 })
             });
-            telescope.recordEvent(IncomingEntry::make(json!({"name":event.name(),"payload":payload,"listeners":listeners,"broadcast":dispatcher.is_broadcasting(event)}).as_object().unwrap().clone()).map_err(|source|openrust::events::EventError::Listener{source:Box::new(source)})?);
+            telescope.record_event(IncomingEntry::make(json!({"name":event.name(),"payload":payload,"listeners":listeners,"broadcast":dispatcher.is_broadcasting(event)}).as_object().unwrap().clone()).map_err(|source|openrust::events::EventError::Listener{source:Box::new(source)})?);
             Ok(None)
         })
     }
@@ -150,7 +150,7 @@ fn register_views(
                 .clone(),
         )
         .map_err(|source| openrust::view::ViewError::RenderFailed(Box::new(source)))?;
-        telescope.recordView(entry);
+        telescope.record_view(entry);
         Ok(())
     });
 }
@@ -408,7 +408,7 @@ impl NativeWatcher {
                     options.insert(key.into(), value);
                 }
             }
-            telescope.recordCommand(IncomingEntry::make(json!({"command":event.command,"exit_code":event.exit_code,"arguments":arguments,"options":options}).as_object().unwrap().clone())?);
+            telescope.record_command(IncomingEntry::make(json!({"command":event.command,"exit_code":event.exit_code,"arguments":arguments,"options":options}).as_object().unwrap().clone())?);
         } else if let Some(event) =
             event.downcast_ref::<openrust::foundation::http::events::RequestHandled>()
         {
@@ -453,7 +453,7 @@ impl NativeWatcher {
                 event.response_content.as_deref(),
             );
             let entry = IncomingEntry::make(json!({"method":event.request.method.as_str(),"uri":event.request.uri.path_and_query().map_or("/", |uri| uri.as_str()),"headers":telescope.headers(&event.request.headers),"response_status":event.response.status.as_u16(),"response_headers":telescope.headers(&event.response.headers),"duration":event.duration.as_secs_f64()*1000.0,"controller_action":route.map(|route|&route.action),"route_name":event.route_name,"payload":event.payload.clone().map(|payload|telescope.request_parameters(payload)),"middleware":route.map(|route|&route.middleware),"response":response}).as_object().unwrap().clone())?;
-            telescope.recordRequest(entry);
+            telescope.record_request(entry);
         } else if let Some(event) =
             event.downcast_ref::<openrust::database::events::QueryExecuted>()
         {
@@ -466,7 +466,7 @@ impl NativeWatcher {
                 .and_then(|v| v.as_f64())
                 .is_some_and(|limit| time >= limit);
             let entry = IncomingEntry::make(json!({"connection":event.connection.get_name(),"driver":event.connection.get_driver_name(),"bindings":[],"sql":event.to_raw_sql()?,"time":format!("{time:.2}"),"slow":slow,"file":null,"line":null,"hash":format!("{:x}",md5::compute(&event.sql))}).as_object().unwrap().clone())?;
-            telescope.recordQuery(if slow { entry.tags(["slow"]) } else { entry });
+            telescope.record_query(if slow { entry.tags(["slow"]) } else { entry });
         } else if let Some(event) = event.downcast_ref::<openrust::log::events::MessageLogged>() {
             if let Some(exception) = event.exception.as_ref().and_then(Value::as_object)
                 && exception.get("class").and_then(Value::as_str).is_some()
@@ -527,7 +527,7 @@ impl NativeWatcher {
                 })
                 .unwrap_or_default();
             let message = interpolate(&event.message, &context);
-            telescope.recordLog(
+            telescope.record_log(
                 IncomingEntry::make(
                     json!({"level":level,"message":message,"context":context})
                         .as_object()
@@ -538,11 +538,11 @@ impl NativeWatcher {
             );
         } else if let Some(event) = event.downcast_ref::<openrust::cache::events::CacheHit>() {
             if self.enabled("CacheWatcher") && !self.cache_ignored(&event.key) {
-                telescope.recordCache(IncomingEntry::make(json!({"type":"hit","key":event.key,"value":self.cache_value(&event.key,&event.value)}).as_object().unwrap().clone())?);
+                telescope.record_cache(IncomingEntry::make(json!({"type":"hit","key":event.key,"value":self.cache_value(&event.key,&event.value)}).as_object().unwrap().clone())?);
             }
         } else if let Some(event) = event.downcast_ref::<openrust::cache::events::CacheMissed>() {
             if self.enabled("CacheWatcher") && !self.cache_ignored(&event.key) {
-                telescope.recordCache(IncomingEntry::make(
+                telescope.record_cache(IncomingEntry::make(
                     json!({"type":"missed","key":event.key})
                         .as_object()
                         .unwrap()
@@ -551,11 +551,11 @@ impl NativeWatcher {
             }
         } else if let Some(event) = event.downcast_ref::<openrust::cache::events::KeyWritten>() {
             if self.enabled("CacheWatcher") && !self.cache_ignored(&event.key) {
-                telescope.recordCache(IncomingEntry::make(json!({"type":"set","key":event.key,"value":self.cache_value(&event.key,&event.value),"expiration":event.seconds}).as_object().unwrap().clone())?);
+                telescope.record_cache(IncomingEntry::make(json!({"type":"set","key":event.key,"value":self.cache_value(&event.key,&event.value),"expiration":event.seconds}).as_object().unwrap().clone())?);
             }
         } else if let Some(event) = event.downcast_ref::<openrust::cache::events::KeyForgotten>() {
             if self.enabled("CacheWatcher") && !self.cache_ignored(&event.key) {
-                telescope.recordCache(IncomingEntry::make(
+                telescope.record_cache(IncomingEntry::make(
                     json!({"type":"forget","key":event.key})
                         .as_object()
                         .unwrap()
@@ -655,14 +655,14 @@ impl NativeWatcher {
                     * 1000.0)
                     .into(),
             );
-            telescope.recordClientRequest(
+            telescope.record_client_request(
                 IncomingEntry::make(content)?.tags(event.request.url.host_str()),
             );
         } else if let Some(event) =
             event.downcast_ref::<openrust::http::client::events::ConnectionFailed>()
             && self.enabled("ClientRequestWatcher")
         {
-            telescope.recordClientRequest(
+            telescope.record_client_request(
                 IncomingEntry::make(client_content(telescope, &event.request))?
                     .tags(event.request.url.host_str()),
             );

@@ -27,3 +27,6 @@ axum = { version = "0.8.9", default-features = false, features = ["http1", "toki
 name = "settings_process"
 path = "tests/process.rs"
 harness = false
+
+[lints]
+workspace = true

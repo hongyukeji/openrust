@@ -110,8 +110,8 @@ async fn native_cache_driver_throttles_by_instance_and_shares_restart_signal() {
     schema
         .create("cache", |t| {
             t.string("key", None).primary();
-            t.mediumText("value");
-            t.bigInteger("expiration");
+            t.medium_text("value");
+            t.big_integer("expiration");
         })
         .await
         .unwrap();
@@ -119,7 +119,7 @@ async fn native_cache_driver_throttles_by_instance_and_shares_restart_signal() {
         .create("cache_locks", |t| {
             t.string("key", None).primary();
             t.string("owner", None);
-            t.bigInteger("expiration");
+            t.big_integer("expiration");
         })
         .await
         .unwrap();

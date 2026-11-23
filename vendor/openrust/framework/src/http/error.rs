@@ -53,19 +53,11 @@ pub fn abort(status: StatusCode, message: impl Into<String>, headers: HeaderMap)
 }
 
 /// Creates an HTTP exception carrying a prepared response.
-#[allow(
-    non_snake_case,
-    reason = "Matches the application-facing HTTP API naming"
-)]
 pub fn abort_response(response: impl Into<Response>) -> HttpError {
     HttpResponseException::new(response.into()).into()
 }
 
 /// Resolves a request-aware response before exiting through the HTTP error path.
-#[allow(
-    non_snake_case,
-    reason = "Matches the application-facing HTTP API naming"
-)]
 pub async fn abort_responsable(response: impl Responsable, request: &mut Request) -> HttpError {
     match response.to_response(request).await {
         Ok(response) => abort_response(response),

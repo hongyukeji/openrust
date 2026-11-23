@@ -1,5 +1,3 @@
-#![allow(non_snake_case, reason = "保留既定公开接口及命名")]
-
 use std::{
     ffi::OsString,
     net::SocketAddr,
@@ -108,7 +106,6 @@ impl JobMiddleware for Tag {
 struct QueuedModel(ModelState);
 
 impl Model for QueuedModel {
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn new_collection(models: Vec<Self>) -> Collection<Self> {
         Collection::from_entries(
             models
@@ -208,7 +205,6 @@ impl JobHandler for RestoreModels {
 struct QueuedPivot(ModelState);
 
 impl Model for QueuedPivot {
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn new_collection(models: Vec<Self>) -> Collection<Self> {
         Collection::from_entries(
             models
@@ -1099,7 +1095,7 @@ impl ServiceProvider for Providers {
             if std::env::var_os("QUEUE_WORKER_ATTEMPT_EVENTS").is_some() {
                 Queue::before(attempt_hook)?;
                 Queue::after(attempt_hook)?;
-                Queue::exceptionOccurred(attempt_hook)?;
+                Queue::exception_occurred(attempt_hook)?;
                 Queue::failing(attempt_hook)?;
                 Queue::when_job_runs_longer_than(Duration::from_millis(75), |job, elapsed| {
                     Box::pin(async move {
@@ -1216,7 +1212,7 @@ impl ServiceProvider for Providers {
                 ]
             })
             .map_err(cache_error)?;
-            Context::dehydrating(|context| context.forgetHidden("secret"))?;
+            Context::dehydrating(|context| context.forget_hidden("secret"))?;
             let crash_root = app.base_path().to_path_buf();
             Context::hydrated(move |context| {
                 context.add("hydrated", json!(true));
@@ -1232,8 +1228,8 @@ fn dispatch(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
         let kind = request.route("kind").unwrap();
         let trace = if kind == "rollback" { "invoice" } else { kind };
         Context::add("trace", json!(trace)).unwrap();
-        Context::addHidden("secret", json!("remove")).unwrap();
-        Context::addHidden("protected", json!("hidden")).unwrap();
+        Context::add_hidden("secret", json!("remove")).unwrap();
+        Context::add_hidden("protected", json!("hidden")).unwrap();
         if matches!(kind, "missing-chain" | "missing-sync") {
             let model = QueuedModel::new_instance(Default::default())?;
             let id = ModelIdentifier::capture(&model)?;
@@ -1701,8 +1697,8 @@ async fn verify_model_restoration(
     schema.drop_if_exists("queued_models").await.unwrap();
     schema
         .create("queued_models", |table| {
-            table.bigInteger("id").primary();
-            table.bigInteger("parent_id").nullable();
+            table.big_integer("id").primary();
+            table.big_integer("parent_id").nullable();
             table.string("label", 80);
             table.timestamp("deleted_at", 0).nullable();
         })
@@ -1926,7 +1922,7 @@ async fn exercise_with_cluster(redis: Option<u16>, database_url: Option<&str>, c
     schema
         .create("receipts", |table| {
             table.string("name", 255);
-            table.bigInteger("value");
+            table.big_integer("value");
         })
         .await
         .unwrap();
@@ -1934,7 +1930,7 @@ async fn exercise_with_cluster(redis: Option<u16>, database_url: Option<&str>, c
         .create("jobs", |table| {
             table.id();
             table.string("queue", 255).index();
-            table.longText("payload");
+            table.long_text("payload");
             table.unsigned_integer("attempts");
             table.unsigned_big_integer("reserved_at").nullable();
             table.unsigned_big_integer("available_at");
@@ -1948,8 +1944,8 @@ async fn exercise_with_cluster(redis: Option<u16>, database_url: Option<&str>, c
             table.string("uuid", 255).unique();
             table.text("connection");
             table.text("queue");
-            table.longText("payload");
-            table.longText("exception");
+            table.long_text("payload");
+            table.long_text("exception");
             table.timestamp("failed_at", 0);
         })
         .await

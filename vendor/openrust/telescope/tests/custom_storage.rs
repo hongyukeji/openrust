@@ -96,7 +96,7 @@ async fn application_can_replace_storage_contract_without_resolving_the_database
         .instance::<dyn EntriesRepository>(store.clone())
         .unwrap();
     let telescope = app.make::<Telescope>().await.unwrap();
-    telescope.recordLog(IncomingEntry::make(serde_json::Map::new()).unwrap());
+    telescope.record_log(IncomingEntry::make(serde_json::Map::new()).unwrap());
     assert!(telescope.store().await.unwrap().is_empty());
     assert_eq!(store.writes.load(Ordering::Relaxed), 1);
     assert_eq!(store.terminations.load(Ordering::Relaxed), 1);

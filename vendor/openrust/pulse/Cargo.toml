@@ -37,3 +37,6 @@ tempfile = "3.27"
 [[example]]
 name = "pulse-acceptance"
 path = "tests/fixtures/application.rs"
+
+[lints]
+workspace = true

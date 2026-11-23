@@ -10,7 +10,6 @@ use super::{Request, matches_pattern};
 
 mod query;
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Request {
     pub fn normalize_query_string(query: &str) -> Result<String, HttpError> {
         query::canonical(query)

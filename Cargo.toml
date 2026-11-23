@@ -15,8 +15,14 @@ exclude = ["vendor/pcre2", "vendor/sqlx-mysql", "vendor/crypto-glue", "vendor/sq
 default-members = ["."]
 resolver = "3"
 
-[lints.rust]
+[workspace.lints.rust]
 linker_messages = "allow"
+non_snake_case = "deny"
+non_camel_case_types = "deny"
+non_upper_case_globals = "deny"
+
+[lints]
+workspace = true
 
 [patch.crates-io]
 pcre2 = { path = "vendor/pcre2" }

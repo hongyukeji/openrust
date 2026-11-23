@@ -1,7 +1,3 @@
-#![allow(
-    non_snake_case,
-    reason = "Preserves names in upstream reference fixtures"
-)]
 use openrust_activitylog::{ActivityLogStatus, CauserResolver, LogOptions, Subject};
 use std::sync::Arc;
 

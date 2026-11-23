@@ -1,4 +1,3 @@
-#![allow(non_snake_case, reason = "保留既定公开接口及命名")]
 //! Application-owned type erasure for explicitly registered Eloquent models.
 use crate::{
     Fortify, FortifyError, FortifyResult, TwoFactorAuthenticatable,

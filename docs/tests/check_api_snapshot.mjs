@@ -50,6 +50,12 @@ try {
                 }
                 for (const [file, methods] of [
                     ["openrust/support/struct.Date.html", ["timezone", "from_utc", "as_date_time"]],
+                    ["openrust/log/context/struct.Context.html", ["add_hidden", "hidden_stack_contains"]],
+                    ["openrust/cache/struct.Repository.html", ["string_or_else", "array_or_else"]],
+                    ["openrust/database/schema/struct.Blueprint.html", ["tiny_integer", "ip_address"]],
+                    ["openrust_telescope/struct.Telescope.html", ["record_query", "record_client_request"]],
+                    ["openrust/contracts/mail/trait.Mailable.html", ["assert_from", "has_reply_to"]],
+                    ["openrust/database/eloquent/trait.Observer.html", ["force_deleting"]],
                     ["openrust_settings/struct.Settings.html", ["get", "save", "save_in", "refresh"]],
                     ["openrust_socialite/wechat/struct.MiniApp.html", ["code_to_session"]],
                     ["openrust_cashier/struct.CashierManager.html", ["driver", "forget_drivers"]],

@@ -1,5 +1,3 @@
-#![allow(non_snake_case)]
-
 use crate::auth::{AuthFuture, AuthResult};
 
 use super::Authenticatable;

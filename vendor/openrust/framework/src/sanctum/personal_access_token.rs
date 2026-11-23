@@ -62,10 +62,6 @@ pub struct NewAccessToken {
     pub plain_text_token: Zeroizing<String>,
 }
 
-#[allow(
-    non_snake_case,
-    reason = "Matches Sanctum's explicit serialization API"
-)]
 impl NewAccessToken {
     /// Includes the plaintext credential for the issuance response.
     pub fn to_array(&self) -> serde_json::Result<serde_json::Value> {

@@ -1,5 +1,3 @@
-#![allow(non_snake_case, reason = "保留既定公开接口及命名")]
-
 use crate::{
     Fortify, FortifyError, FortifyResult, RecoveryCode, actions::emit,
     events::RecoveryCodeReplaced, resolver::internal,

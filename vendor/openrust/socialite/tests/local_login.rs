@@ -1,5 +1,3 @@
-#![allow(non_snake_case, reason = "保留既定公开接口及命名")]
-
 #[path = "support/local_login.rs"]
 mod recipe;
 use axum::{

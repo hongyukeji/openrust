@@ -203,10 +203,6 @@ fn expiration(row: &Row) -> Option<i64> {
  * 永久缓存按 框架 DatabaseStore 保存十年，避免将无限哨兵写入整数列。
  * 亚秒租约向上取整，防止存入后立即过期。
  */
-#[allow(
-    non_snake_case,
-    reason = "Names the database expiration adapter explicitly"
-)]
 fn database_expiration(expires: i64) -> CacheResult<i64> {
     if expires == FOREVER {
         (now()? / 1000)

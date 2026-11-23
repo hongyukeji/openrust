@@ -1,5 +1,3 @@
-#![allow(non_snake_case, reason = "保留既定公开接口及命名")]
-
 use openrust::{
     config::{ConfigError, Environment, Value as Json},
     contracts::{container::Container as _, foundation::Application as _},
@@ -952,7 +950,7 @@ async fn mysql_legacy_client_columns_keep_owners_redirects_and_secret_mutators()
     db.get_schema_builder()
         .create("oauth_clients", |table| {
             table.uuid("id").primary();
-            table.bigInteger("user_id").nullable();
+            table.big_integer("user_id").nullable();
             table.string("name", None);
             table.string("secret", None).nullable();
             table.string("provider", None).nullable();

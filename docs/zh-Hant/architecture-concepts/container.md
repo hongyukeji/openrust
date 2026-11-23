@@ -725,7 +725,6 @@ use std::sync::Arc;
 struct Report(u32);
 
 impl SelfBuilding for Report {
-    #[allow(non_snake_case)]
     fn new_instance(args: ResolvedArgs, container: &Container) -> FactoryFuture<'_, Self> {
         Box::pin(async move {
             let base = container.build::<Self>()?;

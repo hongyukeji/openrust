@@ -14,27 +14,24 @@ pub trait Mailable: Send + Sync {
     fn envelope(&self) -> MailResult<Envelope>;
     fn content(&self) -> MailResult<Content>;
 
-    address_assertions!(hasFrom, assertFrom, from);
-    address_assertions!(hasTo, assertTo, to);
-    address_assertions!(hasCc, assertHasCc, cc);
-    address_assertions!(hasBcc, assertHasBcc, bcc);
-    address_assertions!(hasReplyTo, assertHasReplyTo, reply_to);
+    address_assertions!(has_from, assert_from, from);
+    address_assertions!(has_to, assert_to, to);
+    address_assertions!(has_cc, assert_has_cc, cc);
+    address_assertions!(has_bcc, assert_has_bcc, bcc);
+    address_assertions!(has_reply_to, assert_has_reply_to, reply_to);
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     #[track_caller]
     fn assert_has_to(&self, address: &str, name: Option<&str>) -> &Self
     where
         Self: Sized,
     {
-        self.assertTo(address, name)
+        self.assert_to(address, name)
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn has_subject(&self, subject: &str) -> MailResult<bool> {
         Ok(self.envelope()?.subject == subject)
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     #[track_caller]
     fn assert_has_subject(&self, subject: &str) -> &Self
     where
@@ -48,7 +45,6 @@ pub trait Mailable: Send + Sync {
         self
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn assert_see_in_html<'a>(&'a self, value: &'a str, escape: bool) -> MailFuture<'a, &'a Self>
     where
         Self: Sized,
@@ -60,7 +56,6 @@ pub trait Mailable: Send + Sync {
         ))
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn assert_dont_see_in_html<'a>(
         &'a self,
         value: &'a str,
@@ -76,7 +71,6 @@ pub trait Mailable: Send + Sync {
         ))
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn assert_see_in_order_in_html<'a>(
         &'a self,
         values: &'a [&'a str],
@@ -92,7 +86,6 @@ pub trait Mailable: Send + Sync {
         ))
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn assert_see_in_text<'a>(&'a self, value: &'a str) -> MailFuture<'a, &'a Self>
     where
         Self: Sized,
@@ -100,7 +93,6 @@ pub trait Mailable: Send + Sync {
         Box::pin(assert_body(self, Rendered::Text, Rule::Contains(value)))
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn assert_dont_see_in_text<'a>(&'a self, value: &'a str) -> MailFuture<'a, &'a Self>
     where
         Self: Sized,
@@ -112,7 +104,6 @@ pub trait Mailable: Send + Sync {
         ))
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn assert_see_in_order_in_text<'a>(&'a self, values: &'a [&'a str]) -> MailFuture<'a, &'a Self>
     where
         Self: Sized,
@@ -120,12 +111,10 @@ pub trait Mailable: Send + Sync {
         Box::pin(assert_body(self, Rendered::Text, Rule::InOrder(values)))
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn has_tag(&self, tag: &str) -> MailResult<bool> {
         Ok(self.envelope()?.tags.iter().any(|value| value == tag))
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn has_metadata(&self, name: &str, value: &str) -> MailResult<bool> {
         Ok(self
             .envelope()?
@@ -134,7 +123,6 @@ pub trait Mailable: Send + Sync {
             .is_some_and(|metadata| metadata == value))
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     #[track_caller]
     fn assert_has_tag(&self, tag: &str) -> &Self
     where
@@ -147,7 +135,6 @@ pub trait Mailable: Send + Sync {
         self
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     #[track_caller]
     fn assert_has_metadata(&self, name: &str, value: &str) -> &Self
     where
@@ -170,7 +157,6 @@ pub trait Mailable: Send + Sync {
     }
 
     /// Checks the declared source and options without reading attachment files.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn has_attachment(&self, attachment: &AttachmentSource) -> MailResult<bool> {
         if self
             .attachment_sources()?
@@ -185,7 +171,6 @@ pub trait Mailable: Send + Sync {
             .any(|item| attachment.matches_materialized(item)))
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     #[track_caller]
     fn assert_has_attachment(&self, attachment: &AttachmentSource) -> &Self
     where
@@ -199,7 +184,6 @@ pub trait Mailable: Send + Sync {
         self
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     #[track_caller]
     fn assert_has_no_attachments(&self) -> &Self
     where
@@ -218,7 +202,6 @@ pub trait Mailable: Send + Sync {
         self
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     #[track_caller]
     fn assert_has_attached_data(&self, data: &[u8], name: &str, mime: Option<&str>) -> &Self
     where
@@ -227,7 +210,6 @@ pub trait Mailable: Send + Sync {
         self.assert_has_attachment(&Attachment::from_data(data, name).with_metadata(None, mime))
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     #[track_caller]
     fn assert_has_attachment_from_storage(
         &self,
@@ -241,7 +223,6 @@ pub trait Mailable: Send + Sync {
         self.assert_has_attachment(&Attachment::from_storage(path).with_metadata(name, mime))
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     #[track_caller]
     fn assert_has_attachment_from_storage_disk(
         &self,
@@ -279,7 +260,6 @@ pub trait Mailable: Send + Sync {
     }
 
     /// Renders an HTTP response for a preview route.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn to_response(
         &self,
     ) -> crate::http::HttpFuture<'_, Result<crate::http::Response, crate::http::HttpError>>

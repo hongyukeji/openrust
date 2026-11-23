@@ -376,8 +376,6 @@ impl Model for Flight {
     fn from_state(state: ModelState) -> Self { Self(state) }
     fn state(&self) -> &ModelState { &self.0 }
     fn state_mut(&mut self) -> &mut ModelState { &mut self.0 }
-
-    #[allow(non_snake_case)]
     fn dispatches_events(&self, event: ModelEvent) -> Option<Arc<dyn Event>> {
         let (ModelEvent::Saved, Some(Value::Text(name))) = (event, self.get_attribute("name")) else {
             return None;

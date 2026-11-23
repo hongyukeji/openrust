@@ -28,10 +28,10 @@ impl Migration for Definition {
                         .nullable()
                         .comment(__("schema.columns.submission", &Default::default())?);
                     table
-                        .bigInteger("created_at")
+                        .big_integer("created_at")
                         .comment(__("schema.columns.created_at_unix", &Default::default())?);
                     table
-                        .bigInteger("updated_at")
+                        .big_integer("updated_at")
                         .comment(__("schema.columns.updated_at_unix", &Default::default())?);
                     Ok(())
                 })

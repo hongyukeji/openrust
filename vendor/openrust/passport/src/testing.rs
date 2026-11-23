@@ -1,5 +1,3 @@
-#![allow(non_snake_case, reason = "保留既定公开接口及命名")]
-
 //! Explicit request-local testing substitutions; never a process-global resource server mock.
 use crate::{AccessToken, ClientRecord, Passport, guards::TokenGuard};
 use openrust::{

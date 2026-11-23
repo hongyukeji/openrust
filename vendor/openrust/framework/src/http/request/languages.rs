@@ -4,7 +4,6 @@ use crate::translation::{TranslationResult, canonical_locale};
 
 use super::Request;
 
-#[allow(non_snake_case, reason = "沿用请求语言接口名称")]
 impl Request {
     /// 按偏好顺序读取标准 Accept-Language；合并重复头，忽略无效标签、非法权重及 q=0。
     /// 标签使用 BCP 47；通配符保留为 `*`，不受 app.locale_header 影响。

@@ -267,7 +267,7 @@ With an empty queue, this daemon dispatches the startup, loop, idle, and stoppin
 
 #### Registering worker callbacks {#registering-worker-callbacks}
 
-Register queue callbacks in an application service provider. `Queue::before`, `after`, `exceptionOccurred`, and `failing` listen to processing, processed, exception, and terminal failure events. `starting`, `looping`, and `stopping` listen to daemon lifecycle events.
+Register queue callbacks in an application service provider. `Queue::before`, `after`, `exception_occurred`, and `failing` listen to processing, processed, exception, and terminal failure events. `starting`, `looping`, and `stopping` listen to daemon lifecycle events.
 
 ```rust
 use openrust::{queue::QueueResult, support::facades::Queue};
@@ -980,7 +980,6 @@ use openrust::queue::QueueResult;
 struct ProcessUpload;
 
 impl ProcessUpload {
-    #[allow(non_snake_case)]
     fn retry_until(&self, _previous: Option<SystemTime>) -> QueueResult<Option<SystemTime>> {
         Ok(SystemTime::now().checked_add(Duration::from_secs(300)))
     }

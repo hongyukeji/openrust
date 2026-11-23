@@ -1,4 +1,3 @@
-#![allow(non_snake_case, reason = "授权公开接口保留原名")]
 use openrust::{
     auth::{
         AuthFuture, AuthResult,

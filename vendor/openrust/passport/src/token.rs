@@ -1,5 +1,3 @@
-#![allow(non_snake_case, reason = "保留既定公开接口及命名")]
-
 //! Passport 13.10.0 Token backed by the ordinary Eloquent lifecycle.
 use openrust::database::{
     DatabaseResult, Value,

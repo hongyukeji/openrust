@@ -1,5 +1,3 @@
-#![allow(non_snake_case, reason = "保留既定公开接口及命名")]
-
 use axum::{extract::State, handler::Handler as _};
 use openrust::{
     auth::{Auth, AuthError, AuthIdentifier, AuthManager, AuthResult},

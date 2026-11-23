@@ -6,8 +6,7 @@ use super::{Cache, CacheError, CacheResult, Repository, Value};
 
 macro_rules! typed_reads {
     ($($name:ident, $lazy:ident, $return:ty, $parse:expr, $expected:literal;)+) => {
-        #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-        impl Repository {
+                impl Repository {
             $(
                 #[doc = concat!("Reads a cached ", $expected, " or checks the default on a miss.")]
                 pub async fn $name(&self, key: &str, default: Option<Value>) -> CacheResult<$return> {
@@ -25,8 +24,7 @@ macro_rules! typed_reads {
             )+
         }
 
-        #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-        impl Cache {
+                impl Cache {
             $(
                 #[doc = concat!("Reads a cached ", $expected, " from the default store.")]
                 pub async fn $name(key: &str, default: Option<Value>) -> CacheResult<$return> {
@@ -46,11 +44,11 @@ macro_rules! typed_reads {
 }
 
 typed_reads! {
-    string, stringOrElse, String, |value| match value { Value::Json(Json::String(text)) => Some(text), _ => None }, "string";
-    integer, integerOrElse, i64, integer_value, "integer";
-    float, floatOrElse, f64, float_value, "float";
-    boolean, booleanOrElse, bool, |value| match value { Value::Json(Json::Bool(flag)) => Some(flag), _ => None }, "boolean";
-    array, arrayOrElse, Json, |value| match value { Value::Json(value @ (Json::Array(_) | Json::Object(_))) => Some(value), _ => None }, "array";
+    string, string_or_else, String, |value| match value { Value::Json(Json::String(text)) => Some(text), _ => None }, "string";
+    integer, integer_or_else, i64, integer_value, "integer";
+    float, float_or_else, f64, float_value, "float";
+    boolean, boolean_or_else, bool, |value| match value { Value::Json(Json::Bool(flag)) => Some(flag), _ => None }, "boolean";
+    array, array_or_else, Json, |value| match value { Value::Json(value @ (Json::Array(_) | Json::Object(_))) => Some(value), _ => None }, "array";
 }
 
 fn integer_value(value: Value) -> Option<i64> {

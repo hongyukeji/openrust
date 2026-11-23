@@ -1,5 +1,3 @@
-#![allow(non_snake_case)]
-
 use std::{
     any::{Any, TypeId},
     collections::BTreeMap,

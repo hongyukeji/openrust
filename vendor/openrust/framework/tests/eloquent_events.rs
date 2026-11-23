@@ -172,7 +172,7 @@ impl ModelEventListener<Article> for Record {
 struct ArticleObserver;
 
 impl Observer<Article> for ArticleObserver {
-    const EVENTS: &'static [ModelEvent] = &[Saving, Created, Created];
+    const EVENTS: &'static [ModelEvent] = &[Saving, Created, Created, ForceDeleting];
 
     fn saving<'a>(
         &'a self,
@@ -189,6 +189,17 @@ impl Observer<Article> for ArticleObserver {
                 }
                 _ => {}
             }
+            Ok(ModelEventResponse::Continue)
+        })
+    }
+
+    fn force_deleting<'a>(
+        &'a self,
+        model: &'a mut Article,
+        _: &'a Connection,
+    ) -> DatabaseFuture<'a, DatabaseResult<ModelEventResponse>> {
+        Box::pin(async move {
+            model.set_attribute("observed_force_deleting", true);
             Ok(ModelEventResponse::Continue)
         })
     }
@@ -608,6 +619,10 @@ async fn verify(config: Json, id: &str) {
     );
     assert!(model.force_delete().await.unwrap());
     assert_eq!(take(), [ForceDeleting, Deleting, Deleted, ForceDeleted]);
+    assert_eq!(
+        model.get_attribute("observed_force_deleting"),
+        Some(&true.into())
+    );
     assert!(
         Article::query_on(&db)
             .with_trashed()

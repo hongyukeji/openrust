@@ -1,5 +1,4 @@
 #![forbid(unsafe_code)]
-#![allow(non_snake_case, reason = "保留既定公开接口及命名")]
 
 mod commands;
 pub mod concerns;

@@ -32,7 +32,7 @@ impl NativeWatcher {
                     .chain(&envelope.cc)
                     .chain(&envelope.bcc)
                     .map(|address| address.address.clone());
-                telescope.recordMail(IncomingEntry::make(json!({
+                telescope.record_mail(IncomingEntry::make(json!({
                     "mailable":event.mailable,"queued":event.queued,
                     "from":envelope.from.as_ref().map(|value|addresses(std::slice::from_ref(value))),
                     "replyTo":addresses(&envelope.reply_to),"to":addresses(&envelope.to),
@@ -60,7 +60,7 @@ impl NativeWatcher {
                     }
                     None => Value::Null,
                 };
-                telescope.recordNotification(IncomingEntry::make(json!({"notification":event.kind,"queued":event.queued,"notifiable":event.notifiable,"channel":event.channel,"response":response}).as_object().unwrap().clone())?.tags([event.notifiable.clone()]));
+                telescope.record_notification(IncomingEntry::make(json!({"notification":event.kind,"queued":event.queued,"notifiable":event.notifiable,"channel":event.channel,"response":response}).as_object().unwrap().clone())?.tags([event.notifiable.clone()]));
             }
         } else if let Some(event) =
             event.downcast_ref::<openrust::console::events::ScheduledTaskCompleted>()
@@ -72,7 +72,7 @@ impl NativeWatcher {
                     .filter(|_| !event.should_append_output)
                     .and_then(|path| std::fs::read_to_string(path).ok())
                     .unwrap_or_default();
-                telescope.recordScheduledCommand(IncomingEntry::make(json!({"command":event.command,"description":event.description,"expression":event.expression,"timezone":event.timezone,"user":null,"output":output.trim()}).as_object().unwrap().clone())?);
+                telescope.record_scheduled_command(IncomingEntry::make(json!({"command":event.command,"description":event.description,"expression":event.expression,"timezone":event.timezone,"user":null,"output":output.trim()}).as_object().unwrap().clone())?);
             }
         } else if let Some(event) =
             event.downcast_ref::<openrust::database::eloquent::concerns::ModelLifecycle>()
@@ -120,7 +120,7 @@ impl NativeWatcher {
                     if !event.changes.is_empty() {
                         content.insert("changes".into(), event.changes.clone().into());
                     }
-                    telescope.recordModelEvent(IncomingEntry::make(content)?.tags([model]));
+                    telescope.record_model_event(IncomingEntry::make(content)?.tags([model]));
                 }
             }
         } else if let Some(event) = event.downcast_ref::<openrust::redis::events::CommandExecuted>()
@@ -138,7 +138,7 @@ impl NativeWatcher {
                         .collect::<Vec<_>>()
                         .join(" "),
                 );
-                telescope.recordRedis(IncomingEntry::make(json!({"connection":event.connection_name,"command":command,"time":format!("{:.2}",event.time.as_secs_f64()*1000.0)}).as_object().unwrap().clone())?);
+                telescope.record_redis(IncomingEntry::make(json!({"connection":event.connection_name,"command":command,"time":format!("{:.2}",event.time.as_secs_f64()*1000.0)}).as_object().unwrap().clone())?);
             }
         } else if let Some(event) = event.downcast_ref::<openrust::support::Dumped>() {
             if self.enabled("DumpWatcher") {
@@ -154,7 +154,7 @@ impl NativeWatcher {
             let uuid = Uuid::parse_str(event.job.uuid()).map_err(|_| crate::Error::InvalidEntry)?;
             let options = event.job.options();
             let content = json!({"status":"pending","connection":event.connection_name,"queue":event.queue,"name":event.job.name(),"tries":options.max_tries,"timeout":options.timeout.map(|value|value.as_secs_f64()),"data":event.job.data()});
-            telescope.recordJob(
+            telescope.record_job(
                 IncomingEntry::new(content.as_object().unwrap().clone(), uuid)?
                     .with_family_hash(event.job.batch_id().map(str::to_owned)),
             );
@@ -207,7 +207,7 @@ impl NativeWatcher {
                     "allowsFailures".into(),
                     event.batch.allows_failures().into(),
                 );
-                telescope.recordBatch(
+                telescope.record_batch(
                     IncomingEntry::new(content, uuid)?
                         .with_family_hash(Some(event.batch.id.clone())),
                 );
@@ -233,7 +233,7 @@ impl NativeWatcher {
                 });
             let allowed = event.result.as_ref().is_some_and(|result| result.allowed());
             let message = event.result.as_ref().map(|result| result.message());
-            telescope.recordGate(IncomingEntry::make(json!({"ability":event.ability,"result":if allowed {"allowed"} else {"denied"},"message":message,"arguments":arguments,"file":null,"line":null}).as_object().unwrap().clone())?);
+            telescope.record_gate(IncomingEntry::make(json!({"ability":event.ability,"result":if allowed {"allowed"} else {"denied"},"message":message,"arguments":arguments,"file":null,"line":null}).as_object().unwrap().clone())?);
         }
         Ok(())
     }

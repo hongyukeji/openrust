@@ -3,7 +3,6 @@ use crate::auth::{AuthFuture, AuthIdentifier, AuthResult, Credentials};
 use super::{Authenticatable, Guard};
 
 /// A guard capable of changing the authenticated session.
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub trait StatefulGuard: Guard {
     fn attempt<'a>(
         &'a mut self,

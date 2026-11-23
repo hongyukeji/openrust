@@ -1,7 +1,5 @@
 //! Pagination contracts used by query results and resources.
 
-#![allow(non_snake_case, reason = "保留既定公开接口及命名")]
-
 use crate::pagination::{self, Cursor, PaginationResult};
 
 pub trait Paginator {

@@ -1,5 +1,3 @@
-#![allow(non_snake_case, reason = "保留既定公开接口及命名")]
-
 use openrust::{
     config::{ConfigError, Environment, Value as Json},
     contracts::{console::Kernel as _, container::Container as _, foundation::Application as _},
@@ -905,7 +903,7 @@ async fn mysql_owner_and_user_relations_keep_primary_and_authentication_keys_dis
     main.get_schema_builder()
         .create("management_users", |table| {
             table.id();
-            table.bigInteger("subject");
+            table.big_integer("subject");
         })
         .await
         .unwrap();
@@ -1284,7 +1282,7 @@ async fn managed_app() -> (Root, Application, Arc<DatabaseManager>) {
     main.get_schema_builder()
         .create("management_users", |table| {
             table.id();
-            table.bigInteger("subject");
+            table.big_integer("subject");
             table.string("email", None);
             table.string("password", None);
         })

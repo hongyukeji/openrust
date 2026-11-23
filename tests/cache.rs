@@ -2890,17 +2890,37 @@ async fn verify_typed_and_batch(cache: &Repository) {
     );
     assert_eq!(
         cache
-            .stringOrElse("null", || async { Ok("fallback".into()) })
+            .string_or_else("null", || async { Ok("fallback".into()) })
             .await
             .unwrap(),
         "fallback"
     );
     assert_eq!(
         cache
-            .integerOrElse("count", || async { panic!("cached value") })
+            .integer_or_else("count", || async { panic!("cached value") })
             .await
             .unwrap(),
         12
+    );
+    assert_eq!(
+        cache
+            .float_or_else("ratio", || async { panic!("cached value") })
+            .await
+            .unwrap(),
+        5.0
+    );
+    assert!(
+        cache
+            .boolean_or_else("absent-boolean", || async { Ok(json!(true).into()) })
+            .await
+            .unwrap()
+    );
+    assert_eq!(
+        cache
+            .array_or_else("absent-array", || async { Ok(json!(["fallback"]).into()) })
+            .await
+            .unwrap(),
+        json!(["fallback"])
     );
     assert!(
         cache

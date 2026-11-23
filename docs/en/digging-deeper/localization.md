@@ -493,7 +493,7 @@ Production confirmations and cancellation messages use the same translation grou
 
 ## Locale contract methods
 
-The Translator contract, concrete translator, and Lang facade expose `get_locale`, `set_locale`, `get_fallback`, and `set_fallback`. Boot-time changes configure application defaults; request/queue changes stay in the current scope. Nested `with_locale` restores its caller’s locale; fallback is set separately. Migrate old snake_case contract calls to these names.
+The Translator contract, concrete translator, and Lang facade expose `get_locale`, `set_locale`, `get_fallback`, and `set_fallback`. Boot-time changes configure application defaults; request/queue changes stay in the current scope. Nested `with_locale` restores its caller’s locale; fallback is set separately. Rust methods use native snake_case names; update older camelCase Rust callers to these methods. Existing template expressions keep their own names.
 
 ## Locale Ownership
 

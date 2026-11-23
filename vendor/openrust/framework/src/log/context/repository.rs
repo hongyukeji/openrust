@@ -192,7 +192,6 @@ macro_rules! field_methods {
     };
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Repository {
     fn with_fields<T>(&self, operation: impl FnOnce(&mut Fields) -> T) -> T {
         let identity = std::ptr::from_ref(self).addr();
@@ -217,7 +216,7 @@ impl Repository {
     field_methods!(
         public,
         add,
-        addMany,
+        add_many,
         add_if,
         remember,
         get,
@@ -230,25 +229,25 @@ impl Repository {
         except,
         push,
         pop,
-        stackContains
+        stack_contains
     );
     field_methods!(
         hidden,
-        addHidden,
-        addManyHidden,
-        addHiddenIf,
-        rememberHidden,
+        add_hidden,
+        add_many_hidden,
+        add_hidden_if,
+        remember_hidden,
         get_hidden,
-        hasHidden,
-        missingHidden,
-        allHidden,
-        forgetHidden,
-        pullHidden,
-        onlyHidden,
-        exceptHidden,
+        has_hidden,
+        missing_hidden,
+        all_hidden,
+        forget_hidden,
+        pull_hidden,
+        only_hidden,
+        except_hidden,
         push_hidden,
         pop_hidden,
-        hiddenStackContains
+        hidden_stack_contains
     );
 
     pub fn increment(&self, key: &str, amount: i64) -> Result<i64, ContextError> {

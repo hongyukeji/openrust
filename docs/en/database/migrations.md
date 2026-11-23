@@ -336,7 +336,7 @@ SQLite rebuilds the table for column and foreign key changes that require it. Ru
 
 ### Additional Column Types {#additional-column-types}
 
-Use `tinyText`, `year`, `ipAddress`, `mac_address` and `r#enum` to declare the corresponding columns. A year column with `use_current()` defaults to the database’s current year. MySQL stores native ENUM and SET values. SQLite enforces enum values with a CHECK constraint and returns an unsupported schema error for SET.
+Use `tiny_text`, `year`, `ip_address`, `mac_address` and `r#enum` to declare the corresponding columns. A year column with `use_current()` defaults to the database’s current year. MySQL stores native ENUM and SET values. SQLite enforces enum values with a CHECK constraint and returns an unsupported schema error for SET.
 
 ```rust
 use openrust::database::{DatabaseResult, schema::Schema};
@@ -346,7 +346,7 @@ async fn create_events() -> DatabaseResult<()> {
         table.small_increments("id");
         table.r#enum("status", &["pending", "processed"]).default("pending");
         table.year("batch_year").use_current();
-        table.ipAddress("source_ip").nullable();
+        table.ip_address("source_ip").nullable();
         table.binary_with("digest", 32, true).nullable();
         table.timestamps_tz();
     })
@@ -1078,7 +1078,7 @@ use openrust::database::{DatabaseResult, migrations::MigrationContext, query::Ex
 
 async fn create_generated_table(cx: &mut MigrationContext) -> DatabaseResult<()> {
     cx.get_schema_builder().create("finance.fixture", |table| {
-        table.bigInteger("seq")
+        table.big_integer("seq")
             .generated_as_with(Expression::new("start with 10"))
             .always();
         table.integer("base");

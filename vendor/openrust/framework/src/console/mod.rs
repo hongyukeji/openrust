@@ -97,10 +97,6 @@ impl Output {
     }
 
     /// Writes already-rendered text without interpreting formatter tags.
-    #[allow(
-        non_snake_case,
-        reason = "Names the Rust raw-output adapter explicitly"
-    )]
     pub fn write_raw(&mut self, message: &str) -> io::Result<()> {
         use std::io::Write as _;
         if self.suppressed {

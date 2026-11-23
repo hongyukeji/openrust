@@ -746,7 +746,7 @@ async fn mysql_artisan_dispatches_migration_and_schema_lifecycle_events() {
                     }
                     MigrationSkipped::NAME => {
                         let e = event.downcast_ref::<MigrationSkipped>().unwrap();
-                        format!("skip:{}", e.migrationName)
+                        format!("skip:{}", e.migration_name)
                     }
                     NoPendingMigrations::NAME => {
                         let e = event.downcast_ref::<NoPendingMigrations>().unwrap();

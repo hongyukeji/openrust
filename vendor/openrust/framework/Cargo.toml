@@ -125,3 +125,6 @@ windows-sys = { version = "0.61.2", features = ["Win32_Globalization", "Win32_Se
 name = "concurrency_defer"
 path = "tests/concurrency_defer.rs"
 harness = false
+
+[lints]
+workspace = true

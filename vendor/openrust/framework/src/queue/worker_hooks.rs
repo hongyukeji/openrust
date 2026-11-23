@@ -57,7 +57,6 @@ impl QueueManager {
     }
 
     /// Calls the listener after a measured attempt takes strictly longer than the threshold.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn when_job_runs_longer_than(
         &self,
         threshold: Duration,
@@ -83,7 +82,6 @@ impl QueueManager {
 
 impl QueueFacade {
     /// Calls the listener after a measured attempt takes strictly longer than the threshold.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn when_job_runs_longer_than(
         threshold: Duration,
         callback: impl for<'a> Fn(
@@ -103,8 +101,7 @@ macro_rules! lifecycle_listeners {
         impl QueueManager {
             $(
                 #[doc = concat!("Registers a typed listener for `", stringify!($event), "`.")]
-                #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-                pub fn $method(
+                                pub fn $method(
                     &self,
                     callback: impl for<'a> Fn(&'a $event) -> EventFuture<'a, EventResult<Option<ListenerResponse>>>
                     + Send + Sync + 'static,
@@ -117,8 +114,7 @@ macro_rules! lifecycle_listeners {
         impl QueueFacade {
             $(
                 #[doc = concat!("Registers a typed listener for `", stringify!($event), "`.")]
-                #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-                pub fn $method(
+                                pub fn $method(
                     callback: impl for<'a> Fn(&'a $event) -> EventFuture<'a, EventResult<Option<ListenerResponse>>>
                     + Send + Sync + 'static,
                 ) -> QueueResult<()> {
@@ -132,7 +128,7 @@ macro_rules! lifecycle_listeners {
 lifecycle_listeners!(
     before => JobProcessing,
     after => JobProcessed,
-    exceptionOccurred => JobExceptionOccurred,
+    exception_occurred => JobExceptionOccurred,
     looping => Looping,
     failing => JobFailed,
     starting => WorkerStarting,

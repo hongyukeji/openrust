@@ -1,5 +1,3 @@
-#![allow(non_snake_case, reason = "保留既定公开接口及命名")]
-
 use std::{error::Error, io, path::Path, sync::Arc, time::Duration};
 
 use serde::{Deserialize, Serialize};

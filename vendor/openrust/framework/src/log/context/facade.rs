@@ -14,7 +14,6 @@ use super::{ContextError, Repository};
 /// Accesses the current request or task's context.
 pub struct Context;
 
-#[allow(non_upper_case_globals)]
 impl Facade for Context {
     type Service = Repository;
     const CACHED: bool = false;
@@ -32,7 +31,6 @@ macro_rules! forward {
     };
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Context {
     pub fn repository() -> Result<Arc<Repository>, ContextError> {
         Self::get_facade_root().map_err(Into::into)
@@ -63,31 +61,31 @@ impl Context {
 
     forward! {
         add(key: impl Into<String>, value: Value) -> ();
-        addHidden(key: impl Into<String>, value: Value) -> ();
-        addMany(values: LogContext) -> ();
-        addManyHidden(values: LogContext) -> ();
+        add_hidden(key: impl Into<String>, value: Value) -> ();
+        add_many(values: LogContext) -> ();
+        add_many_hidden(values: LogContext) -> ();
         add_if(key: impl Into<String>, value: Value) -> bool;
-        addHiddenIf(key: impl Into<String>, value: Value) -> bool;
+        add_hidden_if(key: impl Into<String>, value: Value) -> bool;
         remember(key: impl Into<String>, factory: impl FnOnce() -> Value) -> Option<Value>;
-        rememberHidden(key: impl Into<String>, factory: impl FnOnce() -> Value) -> Option<Value>;
+        remember_hidden(key: impl Into<String>, factory: impl FnOnce() -> Value) -> Option<Value>;
         get(key: &str) -> Option<Value>;
         get_hidden(key: &str) -> Option<Value>;
         has(key: &str) -> bool;
-        hasHidden(key: &str) -> bool;
+        has_hidden(key: &str) -> bool;
         missing(key: &str) -> bool;
-        missingHidden(key: &str) -> bool;
+        missing_hidden(key: &str) -> bool;
         all() -> LogContext;
-        allHidden() -> LogContext;
+        all_hidden() -> LogContext;
         forget(key: &str) -> ();
-        forgetHidden(key: &str) -> ();
+        forget_hidden(key: &str) -> ();
         pull(key: &str) -> Option<Value>;
-        pullHidden(key: &str) -> Option<Value>;
+        pull_hidden(key: &str) -> Option<Value>;
         only(keys: &[&str]) -> LogContext;
-        onlyHidden(keys: &[&str]) -> LogContext;
+        only_hidden(keys: &[&str]) -> LogContext;
         except(keys: &[&str]) -> LogContext;
-        exceptHidden(keys: &[&str]) -> LogContext;
-        stackContains(key: &str, value: &Value) -> bool;
-        hiddenStackContains(key: &str, value: &Value) -> bool;
+        except_hidden(keys: &[&str]) -> LogContext;
+        stack_contains(key: &str, value: &Value) -> bool;
+        hidden_stack_contains(key: &str, value: &Value) -> bool;
         flush() -> ();
         is_empty() -> bool;
     }

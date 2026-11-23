@@ -38,10 +38,6 @@ pub trait FailedJobProviderInterface: Send + Sync {
 
     /// Resolve a retry identifier to one or more entries. An empty stream represents an existing
     /// selection without any records. The default adapts the provider's single-record lookup.
-    #[allow(
-        non_snake_case,
-        reason = "Matches the failed job provider method naming"
-    )]
     fn find_for_retry<'a>(
         &'a self,
         id: &'a str,

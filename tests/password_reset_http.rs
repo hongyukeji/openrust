@@ -1,4 +1,3 @@
-#![allow(non_snake_case, reason = "保留既定公开接口及命名")]
 use std::{
     net::SocketAddr,
     path::{Path, PathBuf},

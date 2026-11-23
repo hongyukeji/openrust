@@ -94,7 +94,6 @@ struct AttachmentReceipt {
 struct RemoteReport(String);
 
 impl Attachable for RemoteReport {
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn to_mail_attachment(&self) -> MailResult<AttachmentSource> {
         Attachment::from_url(&self.0)
     }
@@ -747,12 +746,12 @@ fn mail_assertions_from_http(_: &mut Request) -> HttpFuture<'_, Result<Response,
                 .collect(),
             ..Default::default()
         });
-        mail.assertFrom("sales@example.test", Some("Sales"))
-            .assertTo("sam@example.test", None)
+        mail.assert_from("sales@example.test", Some("Sales"))
+            .assert_to("sam@example.test", None)
             .assert_has_to("sam@example.test", None)
-            .assertHasCc("copy@example.test", None)
-            .assertHasBcc("audit@example.test", None)
-            .assertHasReplyTo("support@example.test", None)
+            .assert_has_cc("copy@example.test", None)
+            .assert_has_bcc("audit@example.test", None)
+            .assert_has_reply_to("support@example.test", None)
             .assert_has_subject("Receipt for Sam")
             .assert_see_in_html("A & <Sam>", true)
             .await
@@ -768,8 +767,12 @@ fn mail_assertions_from_http(_: &mut Request) -> HttpFuture<'_, Result<Response,
             .await
             .assert_see_in_order_in_text(&["Plain", "fr", "receipt"])
             .await;
-        assert!(!mail.hasFrom("sales@example.test", Some("Support")).unwrap());
-        assert!(!mail.hasTo("other@example.test", None).unwrap());
+        assert!(
+            !mail
+                .has_from("sales@example.test", Some("Support"))
+                .unwrap()
+        );
+        assert!(!mail.has_to("other@example.test", None).unwrap());
         assert!(!mail.has_subject("Different subject").unwrap());
         for assertion in [
             mail.assert_see_in_html("A & <Sam>", false),
@@ -845,7 +848,7 @@ impl Notice for DeliveryNotice {
             ))
             .with_message(MessageCustomization::new("fixture.append", Json::Null));
         message
-            .assertHasBcc("audit@example.test", None)
+            .assert_has_bcc("audit@example.test", None)
             .assert_has_attached_data(b"memory bytes", "memory.txt", Some("text/plain"));
         Ok(Some(MailDelivery::Message(Box::new(message))))
     }
@@ -3146,7 +3149,7 @@ async fn setup(app: &Application) -> openrust::database::Connection {
         .create("jobs", |table| {
             table.id();
             table.string("queue", 255).index();
-            table.longText("payload");
+            table.long_text("payload");
             table.unsigned_integer("attempts");
             table.unsigned_integer("reserved_at").nullable();
             table.unsigned_integer("available_at");
@@ -3159,7 +3162,7 @@ async fn setup(app: &Application) -> openrust::database::Connection {
             table.id();
             table.string("uuid", 255).unique();
             for column in ["connection", "queue", "payload", "exception"] {
-                table.longText(column);
+                table.long_text(column);
             }
             table.timestamp("failed_at", 0);
         })

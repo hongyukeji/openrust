@@ -267,7 +267,7 @@ Worker 在运行时输出任务进度及暂停、恢复通知。`--json` 每行�
 
 #### 注册 Worker 回调 {#registering-worker-callbacks}
 
-在应用服务提供者中注册队列回调。`Queue::before`、`after`、`exceptionOccurred` 和 `failing` 分别监听开始处理、处理完成、异常和终态失败。`starting`、`looping` 和 `stopping` 监听守护进程生命周期。
+在应用服务提供者中注册队列回调。`Queue::before`、`after`、`exception_occurred` 和 `failing` 分别监听开始处理、处理完成、异常和终态失败。`starting`、`looping` 和 `stopping` 监听守护进程生命周期。
 
 ```rust
 use openrust::{queue::QueueResult, support::facades::Queue};
@@ -980,7 +980,6 @@ use openrust::queue::QueueResult;
 struct ProcessUpload;
 
 impl ProcessUpload {
-    #[allow(non_snake_case)]
     fn retry_until(&self, _previous: Option<SystemTime>) -> QueueResult<Option<SystemTime>> {
         Ok(SystemTime::now().checked_add(Duration::from_secs(300)))
     }

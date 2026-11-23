@@ -478,7 +478,7 @@ async fn mysql_custom_grant_storage_failure_and_cross_connection_transaction_are
         .get_schema_builder()
         .create("custom_codes", |t| {
             t.string("id", 100).primary();
-            t.bigInteger("user_id");
+            t.big_integer("user_id");
             t.string("client_id", 36);
             t.text("scopes");
             t.boolean("revoked");

@@ -1,5 +1,3 @@
-#![allow(non_snake_case, reason = "保留既定公开接口及命名")]
-
 use super::{AuthorizationViewParameters, PendingAuthorization};
 use crate::{AuthorizationServer, OauthError, OauthParameters, Passport};
 use axum::response::IntoResponse as _;

@@ -66,7 +66,7 @@ impl Fixture {
             .create("business", |t| {
                 t.string("id", 36).primary();
                 t.string("value", 255);
-                t.bigInteger("owner_id").nullable();
+                t.big_integer("owner_id").nullable();
                 t.text("data").nullable();
                 t.string("flag", 10).nullable();
                 t.timestamp("removed_on", None).nullable();
@@ -438,7 +438,6 @@ async fn fluent_entries_reset_causers_anonymous_status_and_explicit_timestamp() 
     f.close().await;
 }
 
-#[allow(non_snake_case)]
 fn fixture_config(
     root: &std::path::Path,
     _: &openrust::config::Environment,

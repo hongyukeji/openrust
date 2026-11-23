@@ -200,10 +200,6 @@ impl View {
     }
 
     /// Adds a Rust value formatted as text by this application's Blade compiler.
-    #[allow(
-        non_snake_case,
-        reason = "Matches the Blade stringable registration API"
-    )]
     pub fn with_stringable<T: 'static>(
         self,
         key: impl Into<String>,

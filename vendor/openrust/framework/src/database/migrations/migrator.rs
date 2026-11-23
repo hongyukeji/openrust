@@ -88,7 +88,6 @@ impl Migrator {
     }
 
     /// Replaces the pending migrations excluded by this application.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn without_migrations(&self, migrations: &[&str]) {
         let names = migrations
             .iter()
@@ -113,7 +112,6 @@ impl Migrator {
     }
 
     /// Resolves a migration connection, preferring a configured PostgreSQL direct endpoint.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn resolve_connection(&self, name: Option<&str>) -> DatabaseResult<Connection> {
         self.manager.migration_connection(name)
     }
@@ -354,7 +352,7 @@ impl Migrator {
             {
                 self.manager
                     .dispatch_migration_event(MigrationSkipped {
-                        migrationName: name.clone(),
+                        migration_name: name.clone(),
                     })
                     .await?;
                 outcomes.push(MigrationOutcome {
@@ -458,7 +456,6 @@ impl Migrator {
         Ok(())
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub(crate) async fn dump_schema(
         &self,
         database: Option<&str>,

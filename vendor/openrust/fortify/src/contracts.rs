@@ -51,10 +51,6 @@ pub trait RedirectsIfTwoFactorAuthenticatable: Send + Sync {
 }
 
 /// Owned action result that can also provide immutable authentication event snapshots.
-#[allow(
-    non_snake_case,
-    reason = "Matches the user naming used by Fortify actions"
-)]
 pub trait User: openrust::contracts::auth::Authenticatable {
     fn clone_user(&self) -> Box<dyn openrust::contracts::auth::Authenticatable>;
 }
@@ -86,10 +82,6 @@ pub trait UpdatesUserPasswords: Send + Sync {
         input: &'a openrust::http::RequestValue,
     ) -> HttpFuture<'a, Result<Box<dyn User>, openrust::http::HttpError>>;
     /// Allows application validation to resolve the real request's named guard.
-    #[allow(
-        non_snake_case,
-        reason = "Request-aware adapter for application actions"
-    )]
     fn update_from_request<'a>(
         &'a self,
         _request: &'a mut openrust::http::Request,

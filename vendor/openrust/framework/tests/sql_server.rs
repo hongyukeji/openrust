@@ -177,7 +177,7 @@ async fn sql_server_online_indexes_and_named_foreign_key_drop() {
     schema
         .create(&child, |table| {
             table.id();
-            table.bigInteger("parent_id");
+            table.big_integer("parent_id");
             table.integer("score");
             table.integer("ref");
             table

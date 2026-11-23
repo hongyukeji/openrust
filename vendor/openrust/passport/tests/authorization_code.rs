@@ -1,5 +1,3 @@
-#![allow(non_snake_case, reason = "保留既定公开接口及命名")]
-
 use axum::{extract::State, handler::Handler as _};
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use openrust::{
@@ -318,7 +316,7 @@ impl Fixture {
         db.get_schema_builder()
             .create("users", |t| {
                 t.id();
-                t.bigInteger("subject").unique();
+                t.big_integer("subject").unique();
                 t.string("email", None);
                 t.string("password", None);
             })

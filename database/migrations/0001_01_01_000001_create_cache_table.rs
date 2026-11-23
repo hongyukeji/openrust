@@ -21,10 +21,10 @@ impl Migration for Definition {
                         .primary()
                         .comment(__("schema.columns.key", &Default::default())?);
                     table
-                        .mediumText("value")
+                        .medium_text("value")
                         .comment(__("schema.columns.value", &Default::default())?);
                     table
-                        .bigInteger("expiration")
+                        .big_integer("expiration")
                         .index()
                         .comment(__("schema.columns.expiration", &Default::default())?);
                     Ok(())
@@ -41,7 +41,7 @@ impl Migration for Definition {
                         .string("owner", None)
                         .comment(__("schema.columns.owner", &Default::default())?);
                     table
-                        .bigInteger("expiration")
+                        .big_integer("expiration")
                         .index()
                         .comment(__("schema.columns.expiration", &Default::default())?);
                     Ok(())
