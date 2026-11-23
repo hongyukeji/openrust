@@ -92,6 +92,18 @@ pub trait ExceptionHandler: Send + Sync {
     /// Checks report eligibility, consuming an attempt for a rate-limited report.
     fn should_report<'a>(&'a self, exception: &'a Exception<'_>) -> HttpFuture<'a, bool>;
     fn report<'a>(&'a self, exception: &'a Exception<'_>) -> HttpFuture<'a, LogResult<()>>;
+    /// 默认扩展路径同时报告和渲染；具体处理器可保留请求级重定向与日志上下文。
+    fn render_http<'a>(
+        &'a self,
+        request: &'a mut Request,
+        error: &'a HttpError,
+    ) -> HttpFuture<'a, Response> {
+        Box::pin(async move {
+            let exception = Exception::Http(error);
+            let _ = self.report(&exception).await;
+            self.render(request, &exception)
+        })
+    }
     fn render(&self, request: &Request, exception: &Exception<'_>) -> Response;
     fn render_for_console(&self, output: &mut Output, exception: &Exception<'_>);
 }

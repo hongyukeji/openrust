@@ -935,14 +935,235 @@
       "type": "Exceptions",
       "source": "src/Illuminate/Support/Facades/Exceptions.php",
       "public_entries": [
-        "register", "reportable", "renderable", "map", "dontReport", "dontReportWhen", "ignore",
-        "dontRetry", "dontRetryWhen", "shouldStopRetries", "dontFlash", "level", "report", "isReporting",
-        "shouldReport", "throttleUsing", "stopIgnoring", "contextForException", "buildContextForException",
-        "buildContextUsing", "render", "respondUsing", "shouldRenderJsonWhen", "dontReportDuplicates",
-        "handler", "assertReported", "assertReportedCount", "assertNotReported", "assertNothingReported",
-        "renderForConsole", "throwOnReport", "throwFirstReported", "reported", "setHandler", "fake"
+        "register",
+        "reportable",
+        "renderable",
+        "map",
+        "dontReport",
+        "dontReportWhen",
+        "ignore",
+        "dontRetry",
+        "dontRetryWhen",
+        "shouldStopRetries",
+        "dontFlash",
+        "level",
+        "report",
+        "isReporting",
+        "shouldReport",
+        "throttleUsing",
+        "stopIgnoring",
+        "contextForException",
+        "buildContextForException",
+        "buildContextUsing",
+        "render",
+        "respondUsing",
+        "shouldRenderJsonWhen",
+        "dontReportDuplicates",
+        "handler",
+        "assertReported",
+        "assertReportedCount",
+        "assertNotReported",
+        "assertNothingReported",
+        "renderForConsole",
+        "throwOnReport",
+        "throwFirstReported",
+        "reported",
+        "setHandler",
+        "fake"
       ],
-      "review": "pending"
+      "review": "partial",
+      "local": "support::facades::Exceptions -> contracts::debug::ExceptionHandler; actual HTTP/Application/Artisan/Worker contract",
+      "tested_entries": {
+        "register": {
+          "local": "register",
+          "status": "pending",
+          "evidence": "not implemented/verified through this facade; bootstrap configuration or underlying method alone is not facade parity"
+        },
+        "reportable": {
+          "local": "reportable",
+          "status": "pending",
+          "evidence": "not implemented/verified through this facade; bootstrap configuration or underlying method alone is not facade parity"
+        },
+        "renderable": {
+          "local": "renderable",
+          "status": "pending",
+          "evidence": "not implemented/verified through this facade; bootstrap configuration or underlying method alone is not facade parity"
+        },
+        "map": {
+          "local": "map",
+          "status": "pending",
+          "evidence": "not implemented/verified through this facade; bootstrap configuration or underlying method alone is not facade parity"
+        },
+        "dontReport": {
+          "local": "dont_report",
+          "status": "pending",
+          "evidence": "not implemented/verified through this facade; bootstrap configuration or underlying method alone is not facade parity"
+        },
+        "dontReportWhen": {
+          "local": "dont_report_when",
+          "status": "pending",
+          "evidence": "not implemented/verified through this facade; bootstrap configuration or underlying method alone is not facade parity"
+        },
+        "ignore": {
+          "local": "ignore",
+          "status": "pending",
+          "evidence": "not implemented/verified through this facade; bootstrap configuration or underlying method alone is not facade parity"
+        },
+        "dontRetry": {
+          "local": "dont_retry",
+          "status": "pending",
+          "evidence": "not implemented/verified through this facade; bootstrap configuration or underlying method alone is not facade parity"
+        },
+        "dontRetryWhen": {
+          "local": "dont_retry_when",
+          "status": "pending",
+          "evidence": "not implemented/verified through this facade; bootstrap configuration or underlying method alone is not facade parity"
+        },
+        "shouldStopRetries": {
+          "local": "should_stop_retries",
+          "status": "verified-current-contract-paths",
+          "evidence": "framework/tests/exceptions_facade.rs; existing exception_reporting and exception_rendering actual TCP consumers"
+        },
+        "dontFlash": {
+          "local": "dont_flash",
+          "status": "pending",
+          "evidence": "not implemented/verified through this facade; bootstrap configuration or underlying method alone is not facade parity"
+        },
+        "level": {
+          "local": "level",
+          "status": "pending",
+          "evidence": "not implemented/verified through this facade; bootstrap configuration or underlying method alone is not facade parity"
+        },
+        "report": {
+          "local": "report",
+          "status": "verified-current-contract-paths",
+          "evidence": "framework/tests/exceptions_facade.rs; existing exception_reporting and exception_rendering actual TCP consumers"
+        },
+        "isReporting": {
+          "local": "is_reporting",
+          "status": "pending",
+          "evidence": "not implemented/verified through this facade; bootstrap configuration or underlying method alone is not facade parity"
+        },
+        "shouldReport": {
+          "local": "should_report",
+          "status": "verified-current-contract-paths",
+          "evidence": "framework/tests/exceptions_facade.rs; existing exception_reporting and exception_rendering actual TCP consumers"
+        },
+        "throttleUsing": {
+          "local": "throttle_using",
+          "status": "pending",
+          "evidence": "not implemented/verified through this facade; bootstrap configuration or underlying method alone is not facade parity"
+        },
+        "stopIgnoring": {
+          "local": "stop_ignoring",
+          "status": "pending",
+          "evidence": "not implemented/verified through this facade; bootstrap configuration or underlying method alone is not facade parity"
+        },
+        "contextForException": {
+          "local": "context_for_exception",
+          "status": "pending",
+          "evidence": "not implemented/verified through this facade; bootstrap configuration or underlying method alone is not facade parity"
+        },
+        "buildContextForException": {
+          "local": "build_context_for_exception",
+          "status": "pending",
+          "evidence": "not implemented/verified through this facade; bootstrap configuration or underlying method alone is not facade parity"
+        },
+        "buildContextUsing": {
+          "local": "build_context_using",
+          "status": "pending",
+          "evidence": "not implemented/verified through this facade; bootstrap configuration or underlying method alone is not facade parity"
+        },
+        "render": {
+          "local": "render",
+          "status": "verified-current-contract-paths",
+          "evidence": "framework/tests/exceptions_facade.rs; existing exception_reporting and exception_rendering actual TCP consumers"
+        },
+        "respondUsing": {
+          "local": "respond_using",
+          "status": "pending",
+          "evidence": "not implemented/verified through this facade; bootstrap configuration or underlying method alone is not facade parity"
+        },
+        "shouldRenderJsonWhen": {
+          "local": "should_render_json_when",
+          "status": "pending",
+          "evidence": "not implemented/verified through this facade; bootstrap configuration or underlying method alone is not facade parity"
+        },
+        "dontReportDuplicates": {
+          "local": "dont_report_duplicates",
+          "status": "pending",
+          "evidence": "not implemented/verified through this facade; bootstrap configuration or underlying method alone is not facade parity"
+        },
+        "handler": {
+          "local": "handler",
+          "status": "verified-current-contract-paths",
+          "evidence": "framework/tests/exceptions_facade.rs; existing exception_reporting and exception_rendering actual TCP consumers"
+        },
+        "assertReported": {
+          "local": "assert_reported",
+          "status": "pending",
+          "evidence": "not implemented/verified through this facade; bootstrap configuration or underlying method alone is not facade parity"
+        },
+        "assertReportedCount": {
+          "local": "assert_reported_count",
+          "status": "pending",
+          "evidence": "not implemented/verified through this facade; bootstrap configuration or underlying method alone is not facade parity"
+        },
+        "assertNotReported": {
+          "local": "assert_not_reported",
+          "status": "pending",
+          "evidence": "not implemented/verified through this facade; bootstrap configuration or underlying method alone is not facade parity"
+        },
+        "assertNothingReported": {
+          "local": "assert_nothing_reported",
+          "status": "pending",
+          "evidence": "not implemented/verified through this facade; bootstrap configuration or underlying method alone is not facade parity"
+        },
+        "renderForConsole": {
+          "local": "render_for_console",
+          "status": "verified-current-contract-paths",
+          "evidence": "framework/tests/exceptions_facade.rs; existing exception_reporting and exception_rendering actual TCP consumers"
+        },
+        "throwOnReport": {
+          "local": "throw_on_report",
+          "status": "pending",
+          "evidence": "not implemented/verified through this facade; bootstrap configuration or underlying method alone is not facade parity"
+        },
+        "throwFirstReported": {
+          "local": "throw_first_reported",
+          "status": "pending",
+          "evidence": "not implemented/verified through this facade; bootstrap configuration or underlying method alone is not facade parity"
+        },
+        "reported": {
+          "local": "reported",
+          "status": "pending",
+          "evidence": "not implemented/verified through this facade; bootstrap configuration or underlying method alone is not facade parity"
+        },
+        "setHandler": {
+          "local": "set_handler",
+          "status": "pending",
+          "evidence": "not implemented/verified through this facade; bootstrap configuration or underlying method alone is not facade parity"
+        },
+        "fake": {
+          "local": "fake",
+          "status": "pending",
+          "evidence": "not implemented/verified through this facade; bootstrap configuration or underlying method alone is not facade parity"
+        }
+      },
+      "lifecycle": {
+        "HTTP": "request retains weak owner-container reference; error boundary resolves current trait binding. Handler replaced during request is observed; stale concrete Handler no longer bypasses replacement",
+        "Application/Artisan": "explicit application reporting and console failure rendering resolve current trait binding; missing bindings do not reuse initial concrete handler",
+        "Worker": "existing queue Worker, isolated jobs and exception throttling already resolve dyn ExceptionHandler; this batch does not claim new Worker fake evidence",
+        "extensions": "new render_http contract hook has default report+render; concrete Handler overrides with existing request logging context, validation redirects and report throttling; downstream custom handlers remain source compatible"
+      },
+      "remaining": [
+        "fake, handler-unwrapping for nested fakes, typed reported storage and selectors, assertReported/Count/NotReported/NothingReported, throwOnReport/throwFirstReported, setHandler, isFake marker: implement without losing original Rust error identity and source chain",
+        "owned exception propagation needed for retaining HTTP/Artisan/Worker errors across fake lifetimes; borrowed error snapshots alone are not typed predicate equivalence",
+        "register, reportable, renderable, map, dontReport/When, ignore, dontRetry/When, dontFlash, level, throttleUsing, stopIgnoring, contextForException/buildContextForException/buildContextUsing, respondUsing, shouldRenderJsonWhen and dontReportDuplicates runtime facade/Handler forwards still pending",
+        "isReporting and exact Laravel shouldReport eligibility vs current throttling-admission side effect; existing behavior explicitly preserved, not declared complete parity",
+        "handler getter currently returns current contract Arc as native convenience, not yet Laravel fake original-handler unwrapping",
+        "all custom handler/fake request, async, multi-app, Worker and failure restoration consumers plus shared Facade base mocks/spy still pending"
+      ]
     },
     {
       "type": "Facade",

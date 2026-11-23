@@ -31,7 +31,7 @@
 | DB | `support::facades::Db` | 核对管理器和连接全部委托、事务、事件、查询、危险命令限制 |
 | Date | 只有 `support::Date` 值对象 | 缺门面/工厂；核对时钟、解析、日历、语言、格式化、工厂替换及冻结时间，复用已有 jiff/测试时钟 |
 | Event | `support::facades::Event` | 核对 Dispatcher 全部委托、事务后派发和 fake 的排除/作用域 |
-| Exceptions | 未开放对应门面 | 需接现有 Handler/配置/报告器及测试替身，不能添加脱离实际 HTTP 生命周期的处理器 |
+| Exceptions | 已接 `support::facades::Exceptions` 与真实异常契约 | 报告/渲染/重试判断已转发，修复 HTTP 与应用/Artisan 绕过替换处理器的缺口；fake/断言、运行期配置及精确报告资格仍待补齐 |
 | File | 已接 `support::facades::File` 与 `filesystem::Filesystem` | 本地读写、锁、原子替换、目录、基础 glob、摘要、惰性行与宏已实测；require/条件代理、完整标志与平台边界仍待闭合 |
 | Gate | `support::facades::Gate` | 核对策略、用户/资源、前后钩子、授权响应和事件 |
 | Hash | `support::facades::Hash` | 核对管理器/驱动、校验、重哈希、配置校验与未知算法 |
@@ -203,3 +203,11 @@ python3 -B tests/build_guard.py --workflow facade-alignment --target-dir target/
 - 固定 PHP 容器实际加载原 BladeCompiler、Compiler、Concerns 和框架辅助类，验证 stripParentheses 的字节截断、if 生成指令与紧邻字母的结束标签边界；原始日志 `blade/oracle.log`。最初不合法模板 `yes@endallowed` 在固定PHP也不会编译结束标签，测试已改为合法HTML边界，没有改解析器规避失败。
 - 原生字节截断用例包含未闭合UTF8输入，结果与PHP十六进制一致。旧版使用独立视图服务，没有当前BladeCompiler/Facade；复用本版已验收的指令树、渲染上下文及缓存机制。
 - 本批5项门面专项，与既有 Blade声明、Finder、真实HTTP应用和原生值消费者组合验收；严格workspace Clippy和三语文档证据在 `target/tmp/facade-alignment/blade/`。该记录不替代JSON中的剩余项，Blade仍为 partial，整体任务继续。
+
+### Exceptions 实际契约接线第一批
+
+- 新增 Exceptions 直达报告、资格/重试判断、HTTP/Console渲染和当前处理器读取。访问名称是实际 ExceptionHandler 类型契约，没有旁路处理器。
+- 发现并修复：ApplicationState 持有固定具体 Handler，HTTP/显式报告/Artisan绕过替换后的容器实例。移除固定字段，按实际契约解析；HTTP请求只保留容器弱引用，在错误边界重新解析，因此请求内部 swap 后抛错也生效。
+- 为契约增加默认 `render_http` 扩展钩子，现有具体 Handler 覆盖它继续使用原请求日志上下文、验证重定向与HTML/JSON响应。现有自定义 trait 实现无需补写方法；缺失绑定返回错误，不静默退回最初实例。
+- 新增3项门面/真实Kernel/Artisan契约替换测试，回归5项异常渲染、7项异常报告（含真实TCP HTTP、并发配额和Artisan），全部15项通过。Worker原有路径已解析此契约，仅源码核实，没有把它算成新增fake验收。
+- 仍为 partial：fake必须保留可供类型/谓词断言的真实异常，不能用借用错误的字符串快照冒充；全部配置转发和 shouldReport 与限流资格差异继续登记在同一JSON，下一批继续补齐。

@@ -167,3 +167,17 @@ async fn maintenance() -> Result<Response, HttpError> {
 ## Custom HTTP Error Pages
 
 Add a status-specific view such as `resources/views/errors/404.blade.html`. Blade error views receive `$status` and `$message`. A plain `errors/404.html` also works. You can add `errors/4xx.blade.html` or `errors/5xx.blade.html` for a status family. Statuses 404, 500 and 503 use their dedicated view or the framework fallback. The original status and JSON negotiation apply.
+
+## Exceptions facade {#exceptions-facade}
+
+`Exceptions` resolves the current application’s `dyn ExceptionHandler` binding. HTTP middleware error boundaries, application reporting and Artisan failures resolve that same contract; replacing it also takes effect when a request replaces the handler before failing. Worker reporting already resolves the contract. A missing binding produces an error rather than silently reusing the original concrete handler.
+
+```rust
+use openrust::{support::facades::Exceptions, log::LogResult};
+
+async fn report_failure() -> LogResult<()> {
+    Exceptions::report(std::io::Error::other("report failure")).await
+}
+```
+
+`report` accepts an owned Rust error. `should_report`, `should_stop_retries`, `render` and `render_for_console` forward the existing contract, while `handler` returns its current Arc. The existing `should_report` contract may consume a report-throttling admission; it is not a read-only assertion API. Bootstrap exception configuration remains in `with_exceptions`. Runtime configuration forwards and exception fake/assertion APIs are not provided by this initial facade batch.

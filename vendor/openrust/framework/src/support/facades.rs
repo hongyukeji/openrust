@@ -785,3 +785,5 @@ impl RegisteredCommand {
 }
 
 pub use crate::view::Blade;
+
+pub use crate::foundation::exceptions::Exceptions;

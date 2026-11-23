@@ -236,6 +236,14 @@ impl Handler {
 }
 
 impl ExceptionHandler for Handler {
+    fn render_http<'a>(
+        &'a self,
+        request: &'a mut Request,
+        error: &'a HttpError,
+    ) -> HttpFuture<'a, Response> {
+        Box::pin(async move { Handler::render_http(self, request, error).await })
+    }
+
     fn build_log_exception(
         &self,
         exception: &Exception<'_>,

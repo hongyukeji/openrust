@@ -41,6 +41,17 @@ pub struct Kernel {
 }
 
 impl Kernel {
+    async fn render_exception(
+        &self,
+        request: &mut Request,
+        error: &crate::http::HttpError,
+    ) -> Response {
+        match self.application.exception_handler() {
+            Ok(handler) => handler.render_http(request, error).await,
+            Err(source) => crate::http::HttpError::from(source).bare_response(),
+        }
+    }
+
     pub fn new(application: Application) -> Self {
         let middleware = application.configured_middleware().clone();
         Self {
@@ -100,12 +111,7 @@ impl Kernel {
             }),
         };
         if let Err(error) = dispatched {
-            response = self
-                .application
-                .shared
-                .exceptions
-                .render_http(request, &error)
-                .await;
+            response = self.render_exception(request, &error).await;
             self.prepare_response(request, &mut response, head);
         }
         response
@@ -330,12 +336,7 @@ impl http::Kernel for Kernel {
                         request.attributes().clone(),
                         request.ips().to_vec(),
                         async {
-                            let response = self
-                                .application
-                                .shared
-                                .exceptions
-                                .render_http(request, &error)
-                                .await;
+                            let response = self.render_exception(request, &error).await;
                             let head = request.method() == Method::HEAD;
                             let response = self
                                 .request_handled(
@@ -354,7 +355,7 @@ impl http::Kernel for Kernel {
                 }
                 let previous_exceptions = request
                     .exceptions
-                    .replace(self.application.shared.exceptions.clone());
+                    .replace(Arc::downgrade(&self.application.container_handle()));
                 let previous_views = request.parts_mut().extensions.insert(
                     self.views
                         .as_ref()
@@ -402,13 +403,7 @@ impl http::Kernel for Kernel {
                                     .run(request)
                                     .await
                                 }
-                                Err(error) => {
-                                    self.application
-                                        .shared
-                                        .exceptions
-                                        .render_http(request, &error)
-                                        .await
-                                }
+                                Err(error) => self.render_exception(request, &error).await,
                             };
                             self.request_handled(
                                 request,

@@ -167,3 +167,17 @@ async fn maintenance() -> Result<Response, HttpError> {
 ## 自定义 HTTP 错误页
 
 添加按状态码命名的视图，例如 `resources/views/errors/404.blade.html`。Blade 错误页可以读取 `$status` 和 `$message`，也支持普通的 `errors/404.html`。可以用 `errors/4xx.blade.html` 或 `errors/5xx.blade.html` 处理同类错误。404、500 和 503 使用对应的专属视图或框架回退页。响应沿用原有状态码和 JSON 协商规则。
+
+## Exceptions 门面 {#exceptions-facade}
+
+`Exceptions` 解析当前应用的 `dyn ExceptionHandler` 绑定。HTTP 中间件错误边界、应用报告与 Artisan 失败都解析同一契约；请求执行期间替换处理器后再抛错，也使用新处理器。Worker 报告原本已解析此契约。绑定缺失时返回错误，不会悄悄复用最初的具体处理器。
+
+```rust
+use openrust::{support::facades::Exceptions, log::LogResult};
+
+async fn report_failure() -> LogResult<()> {
+    Exceptions::report(std::io::Error::other("report failure")).await
+}
+```
+
+`report` 接收拥有所有权的 Rust 错误；`should_report`、`should_stop_retries`、`render` 和 `render_for_console` 转发既有契约，`handler` 返回当前 Arc。现有 `should_report` 契约可能消耗一次报告限流配额，不是纯读取的断言接口。启动配置继续写在 `with_exceptions`。这批门面尚未提供运行期配置转发与异常 fake／断言接口。

@@ -38,8 +38,18 @@ impl<'a> Next<'a> {
         };
         match result {
             Ok(response) => response,
-            Err(error) => match request.exceptions.clone() {
-                Some(handler) => handler.render_http(request, &error).await,
+            Err(error) => match request
+                .exceptions
+                .as_ref()
+                .and_then(std::sync::Weak::upgrade)
+            {
+                Some(container) => {
+                    use crate::contracts::container::Container as _;
+                    match container.make::<dyn crate::contracts::debug::ExceptionHandler>() {
+                        Ok(handler) => handler.render_http(request, &error).await,
+                        Err(source) => super::HttpError::from(source).bare_response(),
+                    }
+                }
                 None => error.bare_response(),
             },
         }

@@ -1,6 +1,6 @@
 use std::{
     borrow::Cow,
-    sync::{Arc, OnceLock},
+    sync::{Arc, OnceLock, Weak},
     time::Instant,
 };
 
@@ -8,7 +8,6 @@ use percent_encoding::percent_decode_str;
 
 use crate::{
     container::ParameterValue,
-    foundation::exceptions::Handler,
     routing::binding::{BindingPlan, RouteModels},
 };
 
@@ -77,7 +76,7 @@ pub struct Request {
     route_parameters: context::RouteParameters,
     pub(crate) route_models: RouteModels,
     pub(crate) binding_plan: BindingPlan,
-    pub(crate) exceptions: Option<Arc<Handler>>,
+    pub(crate) exceptions: Option<Weak<crate::container::Container>>,
     pub(crate) api_prefix: Option<Arc<str>>,
     pub(crate) matched_route: bool,
     pub(crate) route_name: Option<String>,

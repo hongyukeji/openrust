@@ -85,7 +85,6 @@ pub(super) struct ApplicationState {
     middleware: OnceLock<Middleware>,
     pub(super) commands: CommandRegistrar,
     pub(super) command_routes: Option<CommandRoutes>,
-    pub(super) exceptions: Arc<Handler>,
     pub(super) routes: Mutex<Option<Router>>,
 }
 
@@ -428,13 +427,19 @@ impl Application {
             .get::<dyn config::Repository>("config")
     }
 
+    pub(crate) fn exception_handler(
+        &self,
+    ) -> Result<Arc<dyn ExceptionHandler>, crate::contracts::container::BindingResolutionError>
+    {
+        self.shared.container.make::<dyn ExceptionHandler>()
+    }
+
     /// Reports an application error through this application's exception handler.
     pub async fn report(
         &self,
         error: &(dyn Error + Send + Sync + 'static),
     ) -> crate::log::LogResult<()> {
-        self.shared
-            .exceptions
+        self.exception_handler()?
             .report(&Exception::Error(error))
             .await
     }
@@ -452,10 +457,19 @@ impl Application {
             return;
         }
         let exception = Exception::Error(error);
-        let _ = self.shared.exceptions.report(&exception).await;
-        self.shared
-            .exceptions
-            .render_for_console(output, &exception);
+        match self.exception_handler() {
+            Ok(handler) => {
+                let _ = handler.report(&exception).await;
+                handler.render_for_console(output, &exception);
+            }
+            Err(source) => {
+                use std::fmt::Write as _;
+                let _ = writeln!(
+                    output.stderr,
+                    "异常处理器解析失败：{source}；原始异常：{error}"
+                );
+            }
+        }
     }
 
     /// Executes an Artisan invocation and terminates its console kernel.
@@ -583,7 +597,6 @@ impl Application {
             middleware: OnceLock::new(),
             commands,
             command_routes,
-            exceptions,
             routes: Mutex::new(None),
         });
         let owner = Arc::downgrade(&shared);

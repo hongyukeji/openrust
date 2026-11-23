@@ -1,6 +1,8 @@
 //! Application exception reporting and rendering.
 
+mod facade;
 mod handler;
+pub use facade::Exceptions;
 mod render;
 mod validation_redirect;
 
