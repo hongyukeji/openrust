@@ -124,7 +124,7 @@ fn artisan_serve_binds_only_http_retries_ports_reloads_and_drains() {
     fs::create_dir_all(&views).unwrap();
     fs::write(
         views.join("welcome.blade.html"),
-        "<title>{{ $name }}</title>",
+        "<title>{{ config('app.name') }}</title>",
     )
     .unwrap();
     let environment = root.0.join(".env.serve-test");

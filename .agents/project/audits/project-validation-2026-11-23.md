@@ -7,3 +7,7 @@
 起点c89577865。剩余两份模型/交接记录仅保存此前已发生的操作与验收，不在本轮重新操作开发库；按其原始历史边界保留，不把旧快照当作当前全量通过。两份translation许可原文逐字核对已完整包含于THIRD_PARTY_NOTICES.md，Docker发行明确携带该声明；删除冗余独立副本，并将choice_case引用改为发行声明，保留全部版权、来源与许可内容。
 
 全量运行验收结果随后按实际日志补充，尚未执行的项不计通过。
+
+## 开发服务器夹具修正
+
+全量遍历首轮artisan_entry失败：欢迎页控制器已按既有设计直接由视图读取配置，旧夹具仍引用未传入的$name，导致等不到FirstServe标题。夹具改用config('app.name')，保持原端口占用/重试、SecondServe环境重载、SIGTERM退出与端口释放断言；两项真实进程测试重新通过（0.54秒）。未修改产品控制器或降低断言。原始失败与补验分别保留在openrust-test-artisan_entry-1.log、artisan-entry-fixed.log。
