@@ -301,13 +301,13 @@ impl Db {
                 .await
                 .unwrap()
         );
-        static ENTRIES: [MigrationEntry; 1] = [MigrationEntry::new(
+        static ENTRIES: &[MigrationEntry] = &[MigrationEntry::new(
             "2026_11_21_000001_create_cashier_tables.rs",
             &CreateCashierTables,
         )];
         let migrator = Migrator::new(
             manager.clone(),
-            Arc::new(MigrationRegistry(&ENTRIES)),
+            Arc::new(MigrationRegistry(ENTRIES)),
             "cashier_migrations".into(),
             path.clone(),
         );

@@ -96,13 +96,13 @@ async fn signed_http_callbacks_acknowledge_only_committed_business_and_recover_d
         "database runtime {:?}",
         connection.scalar(version_sql, &[]).await.unwrap()
     );
-    static ENTRIES: [MigrationEntry; 1] = [MigrationEntry::new(
+    static ENTRIES: &[MigrationEntry] = &[MigrationEntry::new(
         "2026_11_21_000001_create_payment_notifications_table.rs",
         &CreatePaymentNotificationsTable,
     )];
     let migrator = Migrator::new(
         db.clone(),
-        Arc::new(MigrationRegistry(&ENTRIES)),
+        Arc::new(MigrationRegistry(ENTRIES)),
         "pay_migrations".into(),
         path.clone(),
     );

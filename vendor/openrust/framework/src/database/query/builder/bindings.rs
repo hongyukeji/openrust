@@ -3,7 +3,7 @@ use indexmap::IndexMap;
 use super::{Builder, subqueries::Source};
 use crate::database::{DatabaseError, DatabaseResult, Value};
 
-const TYPES: [&str; 9] = [
+const TYPES: &[&str] = &[
     "select",
     "from",
     "join",
@@ -50,7 +50,7 @@ impl Change {
         values.extend(suffix);
     }
 }
-pub(super) type Changes = [Option<Change>; 9];
+pub(super) type Changes = [Option<Change>; TYPES.len()];
 
 fn index(kind: Option<&str>) -> DatabaseResult<usize> {
     TYPES

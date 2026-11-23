@@ -58,11 +58,11 @@ macro_rules! state {
 macro_rules! read_casts {
     () => {
         fn casts() -> &'static [(&'static str, AttributeCast)] {
-            static CASTS: [(&str, AttributeCast); 2] = [
+            static CASTS: &[(&str, AttributeCast)] = &[
                 ("count", AttributeCast::Integer),
                 ("status", AttributeCast::Enum(EnumCast::of::<Status>())),
             ];
-            &CASTS
+            CASTS
         }
         fn attribute(name: &str) -> Option<Attribute> {
             (name == "alias").then(|| {

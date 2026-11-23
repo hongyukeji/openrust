@@ -51,7 +51,7 @@ impl Command for StubPublishCommand {
                 .await
                 .map_err(|error| ConsoleError::new(format!("{}: {error}", directory.display())))?;
             let event = PublishingStubs::default();
-            for (name, source) in Stub::ALL.map(Stub::file) {
+            for (name, source) in Stub::ALL.iter().copied().map(Stub::file) {
                 event
                     .insert(name, source)
                     .expect("valid built-in stub filename");

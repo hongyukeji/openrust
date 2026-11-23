@@ -2,7 +2,7 @@ use crate::database::eloquent::factories::faker_rng::FakerRandom;
 
 use super::{DatabaseResult, Faker, UniqueFaker};
 
-const WINDOWS: [&str; 12] = [
+const WINDOWS: &[&str] = &[
     "Windows NT 6.2",
     "Windows NT 6.1",
     "Windows NT 6.0",
@@ -16,9 +16,9 @@ const WINDOWS: [&str; 12] = [
     "Windows 95",
     "Windows CE",
 ];
-const MAC: [&str; 4] = ["Intel", "PPC", "U; Intel", "U; PPC"];
-const LINUX: [&str; 2] = ["i686", "x86_64"];
-const LANGUAGES: [&str; 3] = ["en-US", "sl-SI", "nl-NL"];
+const MAC: &[&str] = &["Intel", "PPC", "U; Intel", "U; PPC"];
+const LINUX: &[&str] = &["i686", "x86_64"];
+const LANGUAGES: &[&str] = &["en-US", "sl-SI", "nl-NL"];
 
 macro_rules! formatters {
     ($($name:ident [$history:literal] -> $result:ty = $sample:path;)*) => {

@@ -63,12 +63,12 @@ pub fn openrust_providers() -> Vec<Box<dyn ServiceProvider>> {
 impl PayServiceProvider {
     /// Compiled migration entries registered by this provider's boot hook.
     pub fn migrations() -> &'static [openrust::database::migrations::MigrationEntry] {
-        static ENTRIES: [openrust::database::migrations::MigrationEntry; 1] = [
+        static ENTRIES: &[openrust::database::migrations::MigrationEntry] = &[
             openrust::database::migrations::MigrationEntry::new(
                 "vendor/openrust/pay/database/migrations/2026_11_21_000001_create_payment_notifications_table.rs",
                 &create_payment_notifications_table::MIGRATION,
             ),
         ];
-        &ENTRIES
+        ENTRIES
     }
 }

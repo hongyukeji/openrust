@@ -25,7 +25,7 @@ pub enum ResourceAction {
 }
 
 impl ResourceAction {
-    const DEFAULTS: [Self; 7] = [
+    const DEFAULTS: &[Self] = &[
         Self::Index,
         Self::Create,
         Self::Store,
@@ -87,7 +87,7 @@ impl ResourceKind {
     fn actions(self, lifecycle: SingletonLifecycle) -> &'static [ResourceAction] {
         use ResourceAction::{Create, Destroy, Edit, Show, Store, Update};
         if !self.singleton() {
-            return &ResourceAction::DEFAULTS;
+            return ResourceAction::DEFAULTS;
         }
         match lifecycle {
             SingletonLifecycle::Existing => &[Show, Edit, Update],

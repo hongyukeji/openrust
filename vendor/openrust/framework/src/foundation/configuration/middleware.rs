@@ -310,7 +310,7 @@ impl Middleware {
         self.registry
             .aliases
             .insert("framework.prevent_request_forgery".into(), csrf.clone());
-        let stack: [Arc<dyn HttpMiddleware>; 6] = [
+        let stack: [Arc<dyn HttpMiddleware>; _] = [
             Arc::new(EncryptCookies::for_application(
                 self.cookie_exceptions.clone(),
             )),

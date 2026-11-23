@@ -2,7 +2,7 @@ use base64::{Engine as _, engine::general_purpose::STANDARD};
 use openrust::encryption::{Cipher, DecryptException, EncryptException, Encrypter};
 use serde_json::Value;
 
-const CIPHERS: [Cipher; 4] = [
+const CIPHERS: &[Cipher] = &[
     Cipher::Aes128Cbc,
     Cipher::Aes256Cbc,
     Cipher::Aes128Gcm,
@@ -13,7 +13,7 @@ const CIPHERS: [Cipher; 4] = [
 fn reference_payloads_rotate_and_authenticate_for_every_cipher() {
     let fixtures: Vec<Value> =
         serde_json::from_str(include_str!("fixtures/encryption_vectors.json")).unwrap();
-    for (cipher, fixture) in CIPHERS.into_iter().zip(fixtures) {
+    for (cipher, fixture) in CIPHERS.iter().copied().zip(fixtures) {
         assert_eq!(
             fixture["cipher"]
                 .as_str()

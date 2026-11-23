@@ -17,7 +17,7 @@ pub(crate) enum BatchPhase {
 }
 
 impl BatchPhase {
-    pub(crate) const ALL: [Self; 6] = [
+    pub(crate) const ALL: &[Self] = &[
         Self::Before,
         Self::Progress,
         Self::Then,

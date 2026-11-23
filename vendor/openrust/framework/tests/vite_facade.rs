@@ -32,14 +32,14 @@ async fn fixture() -> TestApp {
     app.boot().await.unwrap();
     app
 }
-const ENTRIES: [&str; 2] = ["resources/js/app.js", "resources/css/app.css"];
+const ENTRIES: &[&str] = &["resources/js/app.js", "resources/css/app.css"];
 
 #[tokio::test]
 async fn production_manifest_imports_css_integrity_and_preloads_match_the_fixed_source() {
     let app = fixture().await;
     let expected = expected();
     App::set_facade_application(Some(app.app()), async {
-        let html = Vite::render(ENTRIES, None).unwrap();
+        let html = Vite::render(ENTRIES.iter().copied(), None).unwrap();
         assert_eq!(html.to_html(), expected["plain"].as_str().unwrap());
         assert_eq!(
             serde_json::to_value(Vite::preloaded_assets().unwrap()).unwrap(),
@@ -85,7 +85,9 @@ async fn nonce_attribute_merges_html_entrypoints_flush_and_hot_mode_match_the_fi
         .unwrap();
         Vite::use_style_tag_attributes([("crossorigin".into(), true.into())].into()).unwrap();
         assert_eq!(
-            Vite::render(ENTRIES, None).unwrap().to_html(),
+            Vite::render(ENTRIES.iter().copied(), None)
+                .unwrap()
+                .to_html(),
             expected["custom"].as_str().unwrap()
         );
         assert_eq!(
@@ -93,7 +95,7 @@ async fn nonce_attribute_merges_html_entrypoints_flush_and_hot_mode_match_the_fi
             expected["custom_preloaded"]
         );
         Vite::with_entry_points([ENTRIES[0]]).unwrap();
-        Vite::merge_entry_points(ENTRIES).unwrap();
+        Vite::merge_entry_points(ENTRIES.iter().copied()).unwrap();
         assert_eq!(
             Vite::to_html().unwrap(),
             expected["to_html"].as_str().unwrap()
@@ -107,7 +109,9 @@ async fn nonce_attribute_merges_html_entrypoints_flush_and_hot_mode_match_the_fi
         fs::write(app.root().join("public/hot"), "http://127.0.0.1:5173\n").unwrap();
         assert!(Vite::is_running_hot().unwrap());
         assert_eq!(
-            Vite::render(ENTRIES, None).unwrap().to_html(),
+            Vite::render(ENTRIES.iter().copied(), None)
+                .unwrap()
+                .to_html(),
             expected["dev"].as_str().unwrap()
         );
         assert_eq!(
@@ -134,7 +138,7 @@ async fn custom_paths_resolvers_and_manifest_cache_preserve_the_actual_failure_b
     let app = fixture().await;
     App::set_facade_application(Some(app.app()), async {
         assert!(matches!(
-            Vite::render(ENTRIES, Some("absent")),
+            Vite::render(ENTRIES.iter().copied(), Some("absent")),
             Err(ViteError::ManifestNotFound(_))
         ));
         assert!(Vite::manifest_hash(Some("absent")).unwrap().is_none());
@@ -443,7 +447,9 @@ async fn dynamic_resolver_call_order_and_nonce_changes_match_the_fixed_source() 
         })
         .unwrap();
         assert_eq!(
-            Vite::render(ENTRIES, None).unwrap().to_html(),
+            Vite::render(ENTRIES.iter().copied(), None)
+                .unwrap()
+                .to_html(),
             expected()["dynamic"].as_str().unwrap()
         );
         assert_eq!(
@@ -471,7 +477,7 @@ async fn fallible_attribute_callbacks_keep_the_actual_error_instead_of_panicking
             },
         )
         .unwrap();
-        match Vite::render(ENTRIES, None) {
+        match Vite::render(ENTRIES.iter().copied(), None) {
             Err(ViteError::Callback(error)) => {
                 assert_eq!(error.downcast_ref::<CallbackFailure>().unwrap().0, 42)
             }

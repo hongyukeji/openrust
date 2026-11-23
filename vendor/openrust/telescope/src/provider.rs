@@ -13,13 +13,13 @@ use std::sync::Arc;
 pub struct TelescopeServiceProvider;
 impl TelescopeServiceProvider {
     pub fn migrations() -> &'static [openrust::database::migrations::MigrationEntry] {
-        static ENTRIES: [openrust::database::migrations::MigrationEntry; 1] = [
+        static ENTRIES: &[openrust::database::migrations::MigrationEntry] = &[
             openrust::database::migrations::MigrationEntry::new(
                 "vendor/openrust/telescope/database/migrations/2018_08_08_100000_create_telescope_entries_table.rs",
                 &crate::migration::MIGRATION,
             ),
         ];
-        &ENTRIES
+        ENTRIES
     }
 }
 fn binding() -> BindingResolutionError {

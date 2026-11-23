@@ -28,13 +28,13 @@ pub use webhook::VerifiedEvent;
 pub struct CashierServiceProvider;
 impl CashierServiceProvider {
     pub fn migrations() -> &'static [openrust::database::migrations::MigrationEntry] {
-        static ENTRIES: [openrust::database::migrations::MigrationEntry; 1] = [
+        static ENTRIES: &[openrust::database::migrations::MigrationEntry] = &[
             openrust::database::migrations::MigrationEntry::new(
                 "vendor/openrust/cashier/database/migrations/2026_11_21_000001_create_cashier_tables.rs",
                 &create_cashier_tables::MIGRATION,
             ),
         ];
-        &ENTRIES
+        ENTRIES
     }
 }
 impl ServiceProvider for CashierServiceProvider {

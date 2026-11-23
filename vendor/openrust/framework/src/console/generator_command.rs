@@ -129,7 +129,7 @@ pub(crate) enum Stub {
 }
 
 impl Stub {
-    pub(crate) const ALL: [Self; 38] = [
+    pub(crate) const ALL: &[Self] = &[
         Self::Job,
         Self::QueuedJob,
         Self::BatchedQueuedJob,

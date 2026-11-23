@@ -102,7 +102,7 @@ async fn main() -> ExitCode {
     .await
 }
 
-const PROFILES: [&str; 9] = [
+const PROFILES: &[&str] = &[
     "log",
     "primary",
     "backup",
@@ -147,7 +147,7 @@ impl ServiceProvider for SmsServiceProvider {
             })?;
             let channels = app.container().make::<ChannelManager>()?;
             channels.extend("sms", Arc::new(SmsChannel::default()));
-            for profile in PROFILES {
+            for &profile in PROFILES {
                 channels.extend(profile, Arc::new(SmsChannel::using(profile)));
             }
             Ok(())
@@ -315,11 +315,9 @@ fn register_commands(artisan: &mut Artisan) -> Result<(), ConsoleError> {
                 .requires("template")
                 .action(clap::ArgAction::SetTrue),
         )
-        .arg(
-            clap::Arg::new("profile")
-                .long("profile")
-                .value_parser(PROFILES),
-        )
+        .arg(clap::Arg::new("profile").long("profile").value_parser(
+            clap::builder::PossibleValuesParser::new(PROFILES.iter().copied()),
+        ))
         .arg(
             clap::Arg::new("now")
                 .long("now")

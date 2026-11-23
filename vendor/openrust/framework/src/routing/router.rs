@@ -22,7 +22,7 @@ use super::{
     static_mount::StaticMount,
 };
 
-const VERBS: [&str; 8] = [
+const VERBS: &[&str] = &[
     "GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "QUERY",
 ];
 
@@ -314,8 +314,10 @@ impl Router {
         self.r#match(&Self::all_methods(), uri, handler)
     }
 
-    pub(crate) fn all_methods() -> [Method; 8] {
-        VERBS.map(|verb| Method::from_bytes(verb.as_bytes()).expect("有效的 HTTP 方法"))
+    pub(crate) fn all_methods() -> [Method; VERBS.len()] {
+        std::array::from_fn(|index| {
+            Method::from_bytes(VERBS[index].as_bytes()).expect("有效的 HTTP 方法")
+        })
     }
 
     /// 注册 GET/HEAD 后备路由；仍继承组的前缀、域名和中间件。

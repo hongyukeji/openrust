@@ -640,7 +640,7 @@ impl Faker {
                 "unsupported Faker alphabet locale",
             ));
         }
-        const ALPHABET: [char; 35] = [
+        const ALPHABET: &[char] = &[
             'А', 'Л', 'Х', 'Б', 'М', 'Ц', 'В', 'Н', 'Ч', 'Г', 'О', 'Ш', 'Д', 'Ө', 'Щ', 'Е', 'П',
             'Ъ', 'Ё', 'Р', 'Ы', 'Ж', 'С', 'Ь', 'З', 'Т', 'Э', 'И', 'У', 'Ю', 'Й', 'Ү', 'Я', 'К',
             'Ф',
@@ -784,7 +784,7 @@ impl Faker {
                 "unsupported Faker company registration locale",
             ));
         }
-        const ENTITIES: [&str; 23] = [
+        const ENTITIES: &[&str] = &[
             "01", "02", "06", "07", "08", "09", "10", "11", "12", "14", "15", "16", "17", "20",
             "21", "22", "23", "24", "25", "26", "30", "31", "80",
         ];
@@ -879,7 +879,7 @@ impl Faker {
 
     /// Samples a French establishment identifier with a valid SIREN prefix.
     pub fn siret(&self, formatted: Option<bool>) -> DatabaseResult<String> {
-        const NIC_FORMATS: [&str; 3] = ["####", "0###", "00#%"];
+        const NIC_FORMATS: &[&str] = &["####", "0###", "00#%"];
         let mut number = self.siren(false)?;
         number.push_str(&self.numerify(Some(NIC_FORMATS[self.random.usize(..NIC_FORMATS.len())])));
         number.push(luhn_check_digit(&number));

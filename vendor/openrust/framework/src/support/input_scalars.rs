@@ -5,7 +5,7 @@ use std::borrow::Cow;
 use serde_json::Value;
 
 const TWO_TO_63: f64 = 9_223_372_036_854_775_808.0;
-const FILTER_WHITESPACE: [char; 5] = [' ', '\t', '\r', '\u{b}', '\n'];
+const FILTER_WHITESPACE: &[char] = &[' ', '\t', '\r', '\u{b}', '\n'];
 
 pub(crate) fn string(value: Value) -> String {
     match value {

@@ -424,12 +424,12 @@ sample_formatters! {
 
 impl Faker {
     pub fn blood_type(&self) -> &'static str {
-        const TYPES: [&str; 4] = ["A", "AB", "B", "O"];
+        const TYPES: &[&str] = &["A", "AB", "B", "O"];
         TYPES[self.random.usize(..TYPES.len())]
     }
 
     pub fn blood_rh(&self) -> &'static str {
-        const FACTORS: [&str; 2] = ["+", "-"];
+        const FACTORS: &[&str] = &["+", "-"];
         FACTORS[self.random.usize(..FACTORS.len())]
     }
 
@@ -1710,7 +1710,7 @@ impl Faker {
 
     fn romanian_unit_number(random: &FakerRandom) -> &'static str {
         // FakerPHP picks the one- or two-digit template before substituting digits.
-        let numbers = &faker_address::ROMANIAN_UNIT_NUMBERS;
+        let numbers = faker_address::ROMANIAN_UNIT_NUMBERS;
         if random.bool() {
             random.sample(&numbers[..10])
         } else {
@@ -5354,7 +5354,7 @@ impl Faker {
     }
 
     pub fn century(&self) -> &'static str {
-        const CENTURIES: [&str; 21] = [
+        const CENTURIES: &[&str] = &[
             "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII", "XIII",
             "XIV", "XV", "XVI", "XVII", "XVIII", "XIX", "XX", "XXI",
         ];

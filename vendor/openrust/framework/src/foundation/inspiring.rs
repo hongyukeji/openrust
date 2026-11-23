@@ -24,7 +24,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 */
 
-const QUOTES: [&str; 41] = [
+const QUOTES: &[&str] = &[
     "Act only according to that maxim whereby you can, at the same time, will that it should become a universal law. - Immanuel Kant",
     "An unexamined life is not worth living. - Socrates",
     "Be present above all else. - Naval Ravikant",
@@ -78,7 +78,7 @@ impl Inspiring {
     }
 
     pub fn quotes() -> &'static [&'static str] {
-        &QUOTES
+        QUOTES
     }
 
     fn format_for_console(quote: &str) -> String {

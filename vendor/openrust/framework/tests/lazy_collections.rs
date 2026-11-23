@@ -1504,7 +1504,7 @@ fn lazy_conditional_pipes_and_tap_preserve_the_source_until_pulled() {
     let reads = Cell::new(0);
     let tapped = Cell::new(0);
     let source = LazyCollection::make(|| (1..).inspect(|_| reads.set(reads.get() + 1)));
-    let stages: [fn(_) -> _; 2] = [
+    let stages: [fn(_) -> _; _] = [
         |items: LazyCollection<'_, i32>| items.map(|value, _| value * 3),
         |items: LazyCollection<'_, i32>| items.take(2),
     ];

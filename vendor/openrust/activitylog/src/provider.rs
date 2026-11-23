@@ -277,13 +277,13 @@ impl ServiceProvider for ActivitylogServiceProvider {
 }
 impl ActivitylogServiceProvider {
     pub fn migrations() -> &'static [openrust::database::migrations::MigrationEntry] {
-        static ENTRIES: [openrust::database::migrations::MigrationEntry; 1] = [
+        static ENTRIES: &[openrust::database::migrations::MigrationEntry] = &[
             openrust::database::migrations::MigrationEntry::new(
                 "vendor/openrust/activitylog/database/migrations/2026_11_21_000001_create_activity_log_table.rs",
                 &crate::migration::MIGRATION,
             ),
         ];
-        &ENTRIES
+        ENTRIES
     }
 }
 fn register_commands() -> std::result::Result<(), openrust::console::ConsoleError> {

@@ -6542,7 +6542,7 @@ fn faker_named_file_and_remaining_regional_arguments_preserve_contracts() -> Dat
     fs::create_dir_all(source.join("nested")).unwrap();
     fs::create_dir_all(&target).unwrap();
     fs::write(source.join("nested/ignored.txt"), b"ignored").unwrap();
-    let paths: [Value; 2] = [
+    let paths: [Value; _] = [
         source.to_str().unwrap().into(),
         target.to_str().unwrap().into(),
     ];
