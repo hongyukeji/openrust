@@ -239,3 +239,35 @@ Use `make_directory` to create missing parents with the disk’s directory visib
 The container resolves `dyn contracts::filesystem::Factory`, the default `Filesystem`, and the configured `Cloud` through the existing manager and adapters. Contract stream methods are `read_stream` / `write_stream`; adapters and the Storage facade use `read_stream` / `write_stream`. Use `copy`, `r#move`, `append`, `prepend`, and `json` on the selected disk. Missing files and invalid JSON return empty results; path traversal remains rejected. Resolving `Cloud` depends on `filesystems.cloud` and does not give a local disk S3 presigned upload capabilities.
 
 Rust requires an explicit separator for `append(path, text, separator)` and `prepend(path, text, separator)`. Pass `"\n"` for a line break, or `"\r\n"` when Windows line endings are required. `r#move` uses Rust’s raw identifier syntax because `move` is reserved.
+
+## Local files with File {#local-file-facade}
+
+`openrust::support::facades::File` operates on local paths directly. It uses the application’s `files` singleton (`openrust::filesystem::Filesystem`), independently of the named `Storage` disks. Relative paths follow the process working directory; use absolute application paths when the working directory may vary. These operations are synchronous: put large file operations in a blocking task rather than blocking an async request worker.
+
+```rust
+use openrust::{filesystem::FileResult, support::facades::File};
+use std::path::Path;
+
+fn write_report(directory: &Path) -> FileResult<()> {
+    File::ensure_directory_exists(directory)?;
+    let path = directory.join("report.txt");
+    File::put_with_lock(&path, b"ready\n", true)?;
+    File::append_with_lock(&path, b"complete\n", true)?;
+    let bytes = File::shared_get(&path)?;
+    File::replace(directory.join("copy.txt"), bytes)?;
+    for file in File::all_files(directory)? {
+        println!("{}", file.relative_pathname().display());
+    }
+    Ok(())
+}
+```
+
+`get` returns bytes; `get_text` requires UTF-8. `json` returns JSON null for invalid JSON, while `json_strict` reports a decoding error. File access errors propagate from both. `lines` returns a lazy byte collection, reopening the file on each traversal; a trailing newline produces a final empty item. `hash` defaults to MD5; `hash_with_algorithm` supports MD5, SHA-1, SHA-256/384/512 and xxh128. `has_same_hash` uses xxh128 and returns false if either file cannot be read.
+
+`files` and `directories` return direct children, sorted by relative pathname. `all_files` and `all_directories` recurse without descending through directory symlinks. Hidden entries are excluded by default, and VCS directories remain excluded when hidden files are enabled. Use `files_with_options(path, hidden, DirectoryDepth::parse([">= 1", "< 3"])?)` or `directories_with_depth` for depth filters. Directory children start at depth zero. `glob` supports shell wildcards and excludes dot files unless explicitly matched.
+
+`replace` uses a temporary file in the same directory and atomically renames it. On Unix it follows an existing target symlink and defaults to `0777` masked by umask; use `replace_with_mode` for explicit permissions. `chmod(path, None)` and `chmod(path, Some(0))` return `FileMode::Current` containing the octal mode; `Some(nonzero)` changes permissions. `delete_many` attempts every path and returns false if any deletion fails. `clean_directory` preserves the root; recursive deletion unlinks child symlinks without removing their targets. Directory copying rejects self-nesting and symlink cycles.
+
+Typed `r#macro`, `mixin`, `macro_call`, `has_macro` and `flush_macros` share the current application’s local service and stay isolated from other applications. `File` requires an active application scope, including HTTP, Artisan and Worker scopes. Read errors passed through `?` in HTTP handlers enter normal exception reporting; a missing local file is not automatically an HTTP 404.
+
+MIME detection reuses OpenRust’s content detector, reading at most 8 KiB; it does not claim the full libmagic database. This initial File API does not execute dynamic PHP/Rust source, expose every PHP glob/JSON flag, or implement every PHP hashing algorithm. Windows directory links currently require symlink support; native junction equivalence and Windows ACL behavior remain outside the verified Unix behavior.

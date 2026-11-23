@@ -2456,6 +2456,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e629b9b98ef3dd8afe6ca2bd0f89306cec16d43d907889945bc5d6687f2f13c7"
 
 [[package]]
+name = "glob"
+version = "0.3.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e4eba85ea1d0a966a983acd07deee566e67395d2d96b6fb39e62b5a833f1eb0b"
+
+[[package]]
 name = "group"
 version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4264,6 +4270,7 @@ dependencies = [
  "flate2",
  "futures-util",
  "gif",
+ "glob",
  "hickory-resolver",
  "http 1.5.0",
  "http-body 1.1.0",
@@ -4297,6 +4304,7 @@ dependencies = [
  "oxideav-heif",
  "oxideav-jpegxl",
  "oxideav-webp",
+ "pathdiff",
  "pcre2",
  "percent-encoding",
  "pluralizer",
@@ -4792,6 +4800,12 @@ name = "pastey"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "35fb2e5f958ec131621fdd531e9fc186ed768cbe395337403ae56c17a74c68ec"
+
+[[package]]
+name = "pathdiff"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "df94ce210e5bc13cb6651479fa48d14f601d9858cfe0467f43ae157023b938d3"
 
 [[package]]
 name = "pbkdf2"

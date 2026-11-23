@@ -32,7 +32,7 @@
 | Date | 只有 `support::Date` 值对象 | 缺门面/工厂；核对时钟、解析、日历、语言、格式化、工厂替换及冻结时间，复用已有 jiff/测试时钟 |
 | Event | `support::facades::Event` | 核对 Dispatcher 全部委托、事务后派发和 fake 的排除/作用域 |
 | Exceptions | 未开放对应门面 | 需接现有 Handler/配置/报告器及测试替身，不能添加脱离实际 HTTP 生命周期的处理器 |
-| File | 未开放对应门面 | 缺本地 Filesystem 服务，与 Storage 磁盘分开；核对读取/锁/写入/替换/目录/权限/链接/宏，PHP require 需明确语言适配 |
+| File | 已接 `support::facades::File` 与 `filesystem::Filesystem` | 本地读写、锁、原子替换、目录、基础 glob、摘要、惰性行与宏已实测；require/条件代理、完整标志与平台边界仍待闭合 |
 | Gate | `support::facades::Gate` | 核对策略、用户/资源、前后钩子、授权响应和事件 |
 | Hash | `support::facades::Hash` | 核对管理器/驱动、校验、重哈希、配置校验与未知算法 |
 | Http | `support::facades::Http` | 核对 Factory/PendingRequest 委托、fake/sequence、禁止逸出、批次/并发和断言 |
@@ -183,3 +183,14 @@ python3 -B tests/build_guard.py --workflow facade-alignment --target-dir target/
 - `docs.log` 与 `browser.log`：三语文档内容／构建通过，三语桌面／移动端新增章节共 6 次浏览器检查通过。失败的 first / fourth 日志为测试调用既有 API 的错误，combination 日志暴露 App 即时回调缺口，均保留，不覆盖为成功。
 
 本批尚不能关闭 Facade：原 JSON 明确保留 partialMock／shouldReceive／expects、专用 spy、defaultAliases 以及剩余缓存／转发契约。其余七个缺失门面和全部已有门面仍按原范围继续实施，不因本批通过而结束整体任务。
+
+### File 本地文件服务第一批
+
+- 新增 `File` 门面，`files` 名称与类型别名解析同一个应用单例，独立于 Storage 磁盘根目录。Facade 宏生成的实际转发纳入测试，不能只看普通 `fn`。
+- 二进制读写、共享/独占锁、先取锁再截断、并发追加、原子替换（跟随目标链接/显式权限）、删除全部尝试、MD5/SHA/xxh128、权限、路径、目录深度/隐藏/VCS过滤、链接、基础glob、惰性行、JSON默认/严格及应用级类型宏均有公开消费者。
+- `FileError` 接入 HTTP 正常异常路径。缺本地文件不是 HTTP404；通过实际 HTTP Kernel 的 JSON500 和 Artisan Console Kernel 消费者验证。没有把测试Kernel称作外部HTTP监听/独立进程Worker。
+- 已复核旧版文件系统：受磁盘根目录限制的 Storage 不能代替本地File。MIME识别直接复用现有 UploadedFile 内容识别，不复制一套嗅探器。
+- 成熟组件采用 [glob0.3.4](https://docs.rs/glob/0.3.4/glob/)、[pathdiff0.2.3](https://docs.rs/pathdiff/0.2.3/pathdiff/)；两项无默认额外依赖。锁使用 [std File锁](https://doc.rust-lang.org/std/fs/struct.File.html)，Windows锁定追加使用写句柄取锁后seek，避免仅追加句柄不支持锁。
+- 固定 PHP8.5.12 容器直接加载固定 Filesystem/两个trait；实际运行6摘要+大写算法、chmod零值/显式模式、非法JSON、删除失败后继续、SplFileObject行尾/空文件。日志 `target/tmp/facade-alignment/file/oracle.log`；容器自动删除，所有可写数据在项目target/tmp。
+- 本批11项File专项、基类/spy组合与严格Clippy结果以 `file/` 实际日志为准。三语文件存储页同步新增本地File章节并单列当前MIME、JSON/glob标志与平台限制。
+- File仍为 partial。逐入口结果和未实现/待验收项在同一JSON，未提前关闭File或46门面总账；继续处理原任务剩余缺口。

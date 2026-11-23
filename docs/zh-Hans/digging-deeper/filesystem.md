@@ -239,3 +239,35 @@ async fn daily_reports(disk: &FilesystemAdapter) -> FilesystemResult<Vec<String>
 容器可解析 `dyn contracts::filesystem::Factory`、默认 `Filesystem` 及配置的 `Cloud`，复用现有 Manager 和 Adapter。契约中的流接口为 `read_stream` / `write_stream`；Adapter 和 Storage Facade 使用 `read_stream` / `write_stream`。`copy`、`move`（Rust 为 `r#move`）、`append`、`prepend`、`json` 复用当前磁盘；缺失文件和非法 JSON 返回空结果，路径越界仍拒绝。`Cloud` 解析依赖 `filesystems.cloud`，不表示本地磁盘拥有 S3 的签名上传能力。
 
 Rust 中 `append(path, text, separator)` 和 `prepend(path, text, separator)` 需要显式传入分隔符。换行可传 `"\n"`，需要 Windows 行尾时传 `"\r\n"`。`move` 是 Rust 关键字，因此使用原始标识符 `r#move`。
+
+## 使用 File 操作本地文件 {#local-file-facade}
+
+`openrust::support::facades::File` 直接操作本地路径。它解析应用级 `files` 单例（`openrust::filesystem::Filesystem`），与 `Storage` 的具名磁盘相互独立。相对路径从进程当前目录解析；运行目录不固定时应传应用的绝对路径。此服务使用同步文件操作，大文件任务应放入阻塞任务，避免占用异步请求线程。
+
+```rust
+use openrust::{filesystem::FileResult, support::facades::File};
+use std::path::Path;
+
+fn write_report(directory: &Path) -> FileResult<()> {
+    File::ensure_directory_exists(directory)?;
+    let path = directory.join("report.txt");
+    File::put_with_lock(&path, b"ready\n", true)?;
+    File::append_with_lock(&path, b"complete\n", true)?;
+    let bytes = File::shared_get(&path)?;
+    File::replace(directory.join("copy.txt"), bytes)?;
+    for file in File::all_files(directory)? {
+        println!("{}", file.relative_pathname().display());
+    }
+    Ok(())
+}
+```
+
+`get` 返回原始字节；`get_text` 要求有效 UTF-8。`json` 遇到非法 JSON 返回 null，`json_strict` 则返回解码错误；两者都传播文件访问错误。`lines` 返回惰性字节集合，每次遍历重新打开文件；末尾换行会产生最后一个空项。`hash` 默认使用 MD5，`hash_with_algorithm` 支持 MD5、SHA-1、SHA-256/384/512 和 xxh128。`has_same_hash` 使用 xxh128，任一文件无法读取时返回 false。
+
+`files` 和 `directories` 按相对路径排序，只列直接子项。`all_files` 和 `all_directories` 递归枚举，但不进入目录符号链接。默认排除隐藏项，即使启用隐藏文件，也仍排除版本控制目录。用 `files_with_options(path, hidden, DirectoryDepth::parse([">= 1", "< 3"])?)` 或 `directories_with_depth` 设置深度条件，直接子项深度为零。`glob` 支持 Shell 通配符，除非显式匹配，否则排除点文件。
+
+`replace` 在同目录创建临时文件后原子重命名。Unix 下跟随已有目标符号链接，默认权限为经 umask 过滤的 `0777`；用 `replace_with_mode` 指定权限。`chmod(path, None)` 或 `chmod(path, Some(0))` 返回包含八进制权限的 `FileMode::Current`，非零模式则修改权限。`delete_many` 会尝试所有路径，任一失败便返回 false。`clean_directory` 保留根目录，递归删除只移除子项符号链接，不删除链接目标。目录复制拒绝目标位于源目录内以及符号链接循环。
+
+带类型的 `r#macro`、`mixin`、`macro_call`、`has_macro` 和 `flush_macros` 复用当前应用的本地服务，不与其他应用共享。`File` 需要有效的应用作用域，包括 HTTP、Artisan 和 Worker。HTTP 处理器通过 `?` 传播的读取错误接入正常异常报告；本地文件缺失不会自动变成 HTTP 404。
+
+MIME 检测复用 OpenRust 内容识别器，最多读取 8 KiB，不等同于完整的 libmagic 数据库。此批 File API 不执行动态 PHP／Rust 源码，也未覆盖全部 PHP glob／JSON 标志和摘要算法。Windows 目录链接目前依赖符号链接能力；原生 junction 等价行为及 Windows ACL 尚未包含在已验证的 Unix 行为范围内。

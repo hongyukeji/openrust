@@ -295,3 +295,11 @@ impl From<crate::image::Error> for HttpError {
         }
     }
 }
+
+impl From<crate::filesystem::FileError> for HttpError {
+    fn from(source: crate::filesystem::FileError) -> Self {
+        Self::Internal {
+            source: Box::new(source),
+        }
+    }
+}

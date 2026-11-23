@@ -24,7 +24,7 @@ pub use crate::console::scheduling::ScheduleFacade as Schedule;
 pub use crate::cookie::facade::Cookie;
 pub use crate::database::{Db, schema::Schema};
 pub use crate::encryption::Crypt;
-pub use crate::filesystem::Storage;
+pub use crate::filesystem::{File, Storage};
 pub use crate::hashing::Hash;
 pub use crate::http::client::Http;
 pub use crate::image::ImageFacade as Image;

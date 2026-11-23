@@ -43,6 +43,10 @@ impl fmt::Debug for UploadedFile {
 }
 
 impl UploadedFile {
+    pub(crate) fn detect_type(content: &[u8]) -> Option<(&'static str, &'static str)> {
+        detect_type(content)
+    }
+
     pub(super) fn new(path: String, media_type: Option<String>, content: Bytes) -> Self {
         Self {
             path,

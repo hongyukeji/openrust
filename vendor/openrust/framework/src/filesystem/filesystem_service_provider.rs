@@ -7,7 +7,7 @@ use crate::{
     support::{ProviderResult, ServiceProvider},
 };
 
-use super::FilesystemManager;
+use super::{Filesystem, FilesystemManager};
 
 /// Registers the application-scoped filesystem manager.
 pub struct FilesystemServiceProvider;
@@ -17,6 +17,8 @@ impl ServiceProvider for FilesystemServiceProvider {
         Box::pin(async move {
             let root = app.base_path().to_path_buf();
             let container = app.container();
+            container.singleton_named("files", |_| Ok(Arc::new(Filesystem::new())))?;
+            container.alias("files", crate::container::ServiceKey::typed::<Filesystem>())?;
             container.singleton_named("filesystem", move |container| {
                 let config = container.get::<dyn Repository>("config")?;
                 Ok(Arc::new(FilesystemManager::new(config, root.clone())))

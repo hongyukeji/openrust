@@ -764,15 +764,502 @@
       "type": "File",
       "source": "src/Illuminate/Support/Facades/File.php",
       "public_entries": [
-        "exists", "missing", "get", "json", "sharedGet", "getRequire", "requireOnce", "lines", "hash",
-        "put", "replace", "replaceInFile", "prepend", "append", "chmod", "delete", "move", "copy", "link",
-        "relativeLink", "name", "basename", "dirname", "extension", "guessExtension", "type", "mimeType",
-        "size", "lastModified", "isDirectory", "isEmptyDirectory", "isReadable", "isWritable",
-        "hasSameHash", "isFile", "glob", "files", "allFiles", "directories", "allDirectories",
-        "ensureDirectoryExists", "makeDirectory", "moveDirectory", "copyDirectory", "deleteDirectory",
-        "deleteDirectories", "cleanDirectory", "when", "unless", "macro", "mixin", "hasMacro", "flushMacros"
+        "exists",
+        "missing",
+        "get",
+        "json",
+        "sharedGet",
+        "getRequire",
+        "requireOnce",
+        "lines",
+        "hash",
+        "put",
+        "replace",
+        "replaceInFile",
+        "prepend",
+        "append",
+        "chmod",
+        "delete",
+        "move",
+        "copy",
+        "link",
+        "relativeLink",
+        "name",
+        "basename",
+        "dirname",
+        "extension",
+        "guessExtension",
+        "type",
+        "mimeType",
+        "size",
+        "lastModified",
+        "isDirectory",
+        "isEmptyDirectory",
+        "isReadable",
+        "isWritable",
+        "hasSameHash",
+        "isFile",
+        "glob",
+        "files",
+        "allFiles",
+        "directories",
+        "allDirectories",
+        "ensureDirectoryExists",
+        "makeDirectory",
+        "moveDirectory",
+        "copyDirectory",
+        "deleteDirectory",
+        "deleteDirectories",
+        "cleanDirectory",
+        "when",
+        "unless",
+        "macro",
+        "mixin",
+        "hasMacro",
+        "flushMacros"
       ],
-      "review": "pending"
+      "review": "partial",
+      "local": "support::facades::File -> files singleton -> filesystem::Filesystem",
+      "tested_entries": {
+        "exists": {
+          "local": "exists",
+          "status": "verified-current-paths",
+          "parameters": "native Path/bytes parameters; optional defaults exposed by explicit _with_* APIs; see source and File docs",
+          "returns": "FileResult<T>; binding and operation errors propagate except delete/delete_many, has_same_hash, suppressed directory rename/rmdir outcomes",
+          "lifecycle": "files application singleton; macro registry isolated by application; lazy line handle opens on traversal and closes on iterator drop",
+          "evidence": "framework/tests/file_facade.rs; file/combination.log, oracle.log, delivery.log under target/tmp/facade-alignment"
+        },
+        "missing": {
+          "local": "missing",
+          "status": "verified-current-paths",
+          "parameters": "native Path/bytes parameters; optional defaults exposed by explicit _with_* APIs; see source and File docs",
+          "returns": "FileResult<T>; binding and operation errors propagate except delete/delete_many, has_same_hash, suppressed directory rename/rmdir outcomes",
+          "lifecycle": "files application singleton; macro registry isolated by application; lazy line handle opens on traversal and closes on iterator drop",
+          "evidence": "framework/tests/file_facade.rs; file/combination.log, oracle.log, delivery.log under target/tmp/facade-alignment"
+        },
+        "get": {
+          "local": "get",
+          "status": "verified-current-paths",
+          "parameters": "native Path/bytes parameters; optional defaults exposed by explicit _with_* APIs; see source and File docs",
+          "returns": "FileResult<T>; binding and operation errors propagate except delete/delete_many, has_same_hash, suppressed directory rename/rmdir outcomes",
+          "lifecycle": "files application singleton; macro registry isolated by application; lazy line handle opens on traversal and closes on iterator drop",
+          "evidence": "framework/tests/file_facade.rs; file/combination.log, oracle.log, delivery.log under target/tmp/facade-alignment"
+        },
+        "json": {
+          "local": "json",
+          "status": "partial",
+          "parameters": "native Path/bytes parameters; optional defaults exposed by explicit _with_* APIs; see source and File docs",
+          "returns": "FileResult<T>; binding and operation errors propagate except delete/delete_many, has_same_hash, suppressed directory rename/rmdir outcomes",
+          "lifecycle": "files application singleton; macro registry isolated by application; lazy line handle opens on traversal and closes on iterator drop",
+          "evidence": "framework/tests/file_facade.rs; file/combination.log, oracle.log, delivery.log under target/tmp/facade-alignment"
+        },
+        "sharedGet": {
+          "local": "shared_get",
+          "status": "verified-current-paths",
+          "parameters": "native Path/bytes parameters; optional defaults exposed by explicit _with_* APIs; see source and File docs",
+          "returns": "FileResult<T>; binding and operation errors propagate except delete/delete_many, has_same_hash, suppressed directory rename/rmdir outcomes",
+          "lifecycle": "files application singleton; macro registry isolated by application; lazy line handle opens on traversal and closes on iterator drop",
+          "evidence": "framework/tests/file_facade.rs; file/combination.log, oracle.log, delivery.log under target/tmp/facade-alignment"
+        },
+        "getRequire": {
+          "status": "pending",
+          "remaining": "native compiled file loader and execution lifecycle"
+        },
+        "requireOnce": {
+          "status": "pending",
+          "remaining": "native compiled file loader and execution lifecycle"
+        },
+        "lines": {
+          "local": "lines",
+          "status": "verified-current-paths",
+          "parameters": "native Path/bytes parameters; optional defaults exposed by explicit _with_* APIs; see source and File docs",
+          "returns": "FileResult<T>; binding and operation errors propagate except delete/delete_many, has_same_hash, suppressed directory rename/rmdir outcomes",
+          "lifecycle": "files application singleton; macro registry isolated by application; lazy line handle opens on traversal and closes on iterator drop",
+          "evidence": "framework/tests/file_facade.rs; file/combination.log, oracle.log, delivery.log under target/tmp/facade-alignment"
+        },
+        "hash": {
+          "local": "hash",
+          "status": "partial",
+          "parameters": "native Path/bytes parameters; optional defaults exposed by explicit _with_* APIs; see source and File docs",
+          "returns": "FileResult<T>; binding and operation errors propagate except delete/delete_many, has_same_hash, suppressed directory rename/rmdir outcomes",
+          "lifecycle": "files application singleton; macro registry isolated by application; lazy line handle opens on traversal and closes on iterator drop",
+          "evidence": "framework/tests/file_facade.rs; file/combination.log, oracle.log, delivery.log under target/tmp/facade-alignment"
+        },
+        "put": {
+          "local": "put",
+          "status": "verified-current-paths",
+          "parameters": "native Path/bytes parameters; optional defaults exposed by explicit _with_* APIs; see source and File docs",
+          "returns": "FileResult<T>; binding and operation errors propagate except delete/delete_many, has_same_hash, suppressed directory rename/rmdir outcomes",
+          "lifecycle": "files application singleton; macro registry isolated by application; lazy line handle opens on traversal and closes on iterator drop",
+          "evidence": "framework/tests/file_facade.rs; file/combination.log, oracle.log, delivery.log under target/tmp/facade-alignment"
+        },
+        "replace": {
+          "local": "replace",
+          "status": "verified-current-paths",
+          "parameters": "native Path/bytes parameters; optional defaults exposed by explicit _with_* APIs; see source and File docs",
+          "returns": "FileResult<T>; binding and operation errors propagate except delete/delete_many, has_same_hash, suppressed directory rename/rmdir outcomes",
+          "lifecycle": "files application singleton; macro registry isolated by application; lazy line handle opens on traversal and closes on iterator drop",
+          "evidence": "framework/tests/file_facade.rs; file/combination.log, oracle.log, delivery.log under target/tmp/facade-alignment"
+        },
+        "replaceInFile": {
+          "local": "replace_in_file",
+          "status": "verified-current-paths",
+          "parameters": "native Path/bytes parameters; optional defaults exposed by explicit _with_* APIs; see source and File docs",
+          "returns": "FileResult<T>; binding and operation errors propagate except delete/delete_many, has_same_hash, suppressed directory rename/rmdir outcomes",
+          "lifecycle": "files application singleton; macro registry isolated by application; lazy line handle opens on traversal and closes on iterator drop",
+          "evidence": "framework/tests/file_facade.rs; file/combination.log, oracle.log, delivery.log under target/tmp/facade-alignment"
+        },
+        "prepend": {
+          "local": "prepend",
+          "status": "verified-current-paths",
+          "parameters": "native Path/bytes parameters; optional defaults exposed by explicit _with_* APIs; see source and File docs",
+          "returns": "FileResult<T>; binding and operation errors propagate except delete/delete_many, has_same_hash, suppressed directory rename/rmdir outcomes",
+          "lifecycle": "files application singleton; macro registry isolated by application; lazy line handle opens on traversal and closes on iterator drop",
+          "evidence": "framework/tests/file_facade.rs; file/combination.log, oracle.log, delivery.log under target/tmp/facade-alignment"
+        },
+        "append": {
+          "local": "append",
+          "status": "verified-current-paths",
+          "parameters": "native Path/bytes parameters; optional defaults exposed by explicit _with_* APIs; see source and File docs",
+          "returns": "FileResult<T>; binding and operation errors propagate except delete/delete_many, has_same_hash, suppressed directory rename/rmdir outcomes",
+          "lifecycle": "files application singleton; macro registry isolated by application; lazy line handle opens on traversal and closes on iterator drop",
+          "evidence": "framework/tests/file_facade.rs; file/combination.log, oracle.log, delivery.log under target/tmp/facade-alignment"
+        },
+        "chmod": {
+          "local": "chmod",
+          "status": "verified-current-paths",
+          "parameters": "native Path/bytes parameters; optional defaults exposed by explicit _with_* APIs; see source and File docs",
+          "returns": "FileResult<T>; binding and operation errors propagate except delete/delete_many, has_same_hash, suppressed directory rename/rmdir outcomes",
+          "lifecycle": "files application singleton; macro registry isolated by application; lazy line handle opens on traversal and closes on iterator drop",
+          "evidence": "framework/tests/file_facade.rs; file/combination.log, oracle.log, delivery.log under target/tmp/facade-alignment"
+        },
+        "delete": {
+          "local": "delete",
+          "status": "verified-current-paths",
+          "parameters": "native Path/bytes parameters; optional defaults exposed by explicit _with_* APIs; see source and File docs",
+          "returns": "FileResult<T>; binding and operation errors propagate except delete/delete_many, has_same_hash, suppressed directory rename/rmdir outcomes",
+          "lifecycle": "files application singleton; macro registry isolated by application; lazy line handle opens on traversal and closes on iterator drop",
+          "evidence": "framework/tests/file_facade.rs; file/combination.log, oracle.log, delivery.log under target/tmp/facade-alignment"
+        },
+        "move": {
+          "local": "r#move",
+          "status": "verified-current-paths",
+          "parameters": "native Path/bytes parameters; optional defaults exposed by explicit _with_* APIs; see source and File docs",
+          "returns": "FileResult<T>; binding and operation errors propagate except delete/delete_many, has_same_hash, suppressed directory rename/rmdir outcomes",
+          "lifecycle": "files application singleton; macro registry isolated by application; lazy line handle opens on traversal and closes on iterator drop",
+          "evidence": "framework/tests/file_facade.rs; file/combination.log, oracle.log, delivery.log under target/tmp/facade-alignment"
+        },
+        "copy": {
+          "local": "copy",
+          "status": "verified-current-paths",
+          "parameters": "native Path/bytes parameters; optional defaults exposed by explicit _with_* APIs; see source and File docs",
+          "returns": "FileResult<T>; binding and operation errors propagate except delete/delete_many, has_same_hash, suppressed directory rename/rmdir outcomes",
+          "lifecycle": "files application singleton; macro registry isolated by application; lazy line handle opens on traversal and closes on iterator drop",
+          "evidence": "framework/tests/file_facade.rs; file/combination.log, oracle.log, delivery.log under target/tmp/facade-alignment"
+        },
+        "link": {
+          "local": "link",
+          "status": "partial",
+          "parameters": "native Path/bytes parameters; optional defaults exposed by explicit _with_* APIs; see source and File docs",
+          "returns": "FileResult<T>; binding and operation errors propagate except delete/delete_many, has_same_hash, suppressed directory rename/rmdir outcomes",
+          "lifecycle": "files application singleton; macro registry isolated by application; lazy line handle opens on traversal and closes on iterator drop",
+          "evidence": "framework/tests/file_facade.rs; file/combination.log, oracle.log, delivery.log under target/tmp/facade-alignment"
+        },
+        "relativeLink": {
+          "local": "relative_link",
+          "status": "partial",
+          "parameters": "native Path/bytes parameters; optional defaults exposed by explicit _with_* APIs; see source and File docs",
+          "returns": "FileResult<T>; binding and operation errors propagate except delete/delete_many, has_same_hash, suppressed directory rename/rmdir outcomes",
+          "lifecycle": "files application singleton; macro registry isolated by application; lazy line handle opens on traversal and closes on iterator drop",
+          "evidence": "framework/tests/file_facade.rs; file/combination.log, oracle.log, delivery.log under target/tmp/facade-alignment"
+        },
+        "name": {
+          "local": "name",
+          "status": "partial",
+          "parameters": "native Path/bytes parameters; optional defaults exposed by explicit _with_* APIs; see source and File docs",
+          "returns": "FileResult<T>; binding and operation errors propagate except delete/delete_many, has_same_hash, suppressed directory rename/rmdir outcomes",
+          "lifecycle": "files application singleton; macro registry isolated by application; lazy line handle opens on traversal and closes on iterator drop",
+          "evidence": "framework/tests/file_facade.rs; file/combination.log, oracle.log, delivery.log under target/tmp/facade-alignment"
+        },
+        "basename": {
+          "local": "basename",
+          "status": "partial",
+          "parameters": "native Path/bytes parameters; optional defaults exposed by explicit _with_* APIs; see source and File docs",
+          "returns": "FileResult<T>; binding and operation errors propagate except delete/delete_many, has_same_hash, suppressed directory rename/rmdir outcomes",
+          "lifecycle": "files application singleton; macro registry isolated by application; lazy line handle opens on traversal and closes on iterator drop",
+          "evidence": "framework/tests/file_facade.rs; file/combination.log, oracle.log, delivery.log under target/tmp/facade-alignment"
+        },
+        "dirname": {
+          "local": "dirname",
+          "status": "partial",
+          "parameters": "native Path/bytes parameters; optional defaults exposed by explicit _with_* APIs; see source and File docs",
+          "returns": "FileResult<T>; binding and operation errors propagate except delete/delete_many, has_same_hash, suppressed directory rename/rmdir outcomes",
+          "lifecycle": "files application singleton; macro registry isolated by application; lazy line handle opens on traversal and closes on iterator drop",
+          "evidence": "framework/tests/file_facade.rs; file/combination.log, oracle.log, delivery.log under target/tmp/facade-alignment"
+        },
+        "extension": {
+          "local": "extension",
+          "status": "partial",
+          "parameters": "native Path/bytes parameters; optional defaults exposed by explicit _with_* APIs; see source and File docs",
+          "returns": "FileResult<T>; binding and operation errors propagate except delete/delete_many, has_same_hash, suppressed directory rename/rmdir outcomes",
+          "lifecycle": "files application singleton; macro registry isolated by application; lazy line handle opens on traversal and closes on iterator drop",
+          "evidence": "framework/tests/file_facade.rs; file/combination.log, oracle.log, delivery.log under target/tmp/facade-alignment"
+        },
+        "guessExtension": {
+          "local": "guess_extension",
+          "status": "partial",
+          "parameters": "native Path/bytes parameters; optional defaults exposed by explicit _with_* APIs; see source and File docs",
+          "returns": "FileResult<T>; binding and operation errors propagate except delete/delete_many, has_same_hash, suppressed directory rename/rmdir outcomes",
+          "lifecycle": "files application singleton; macro registry isolated by application; lazy line handle opens on traversal and closes on iterator drop",
+          "evidence": "framework/tests/file_facade.rs; file/combination.log, oracle.log, delivery.log under target/tmp/facade-alignment"
+        },
+        "type": {
+          "local": "r#type",
+          "status": "verified-current-paths",
+          "parameters": "native Path/bytes parameters; optional defaults exposed by explicit _with_* APIs; see source and File docs",
+          "returns": "FileResult<T>; binding and operation errors propagate except delete/delete_many, has_same_hash, suppressed directory rename/rmdir outcomes",
+          "lifecycle": "files application singleton; macro registry isolated by application; lazy line handle opens on traversal and closes on iterator drop",
+          "evidence": "framework/tests/file_facade.rs; file/combination.log, oracle.log, delivery.log under target/tmp/facade-alignment"
+        },
+        "mimeType": {
+          "local": "mime_type",
+          "status": "partial",
+          "parameters": "native Path/bytes parameters; optional defaults exposed by explicit _with_* APIs; see source and File docs",
+          "returns": "FileResult<T>; binding and operation errors propagate except delete/delete_many, has_same_hash, suppressed directory rename/rmdir outcomes",
+          "lifecycle": "files application singleton; macro registry isolated by application; lazy line handle opens on traversal and closes on iterator drop",
+          "evidence": "framework/tests/file_facade.rs; file/combination.log, oracle.log, delivery.log under target/tmp/facade-alignment"
+        },
+        "size": {
+          "local": "size",
+          "status": "verified-current-paths",
+          "parameters": "native Path/bytes parameters; optional defaults exposed by explicit _with_* APIs; see source and File docs",
+          "returns": "FileResult<T>; binding and operation errors propagate except delete/delete_many, has_same_hash, suppressed directory rename/rmdir outcomes",
+          "lifecycle": "files application singleton; macro registry isolated by application; lazy line handle opens on traversal and closes on iterator drop",
+          "evidence": "framework/tests/file_facade.rs; file/combination.log, oracle.log, delivery.log under target/tmp/facade-alignment"
+        },
+        "lastModified": {
+          "local": "last_modified",
+          "status": "verified-current-paths",
+          "parameters": "native Path/bytes parameters; optional defaults exposed by explicit _with_* APIs; see source and File docs",
+          "returns": "FileResult<T>; binding and operation errors propagate except delete/delete_many, has_same_hash, suppressed directory rename/rmdir outcomes",
+          "lifecycle": "files application singleton; macro registry isolated by application; lazy line handle opens on traversal and closes on iterator drop",
+          "evidence": "framework/tests/file_facade.rs; file/combination.log, oracle.log, delivery.log under target/tmp/facade-alignment"
+        },
+        "isDirectory": {
+          "local": "is_directory",
+          "status": "verified-current-paths",
+          "parameters": "native Path/bytes parameters; optional defaults exposed by explicit _with_* APIs; see source and File docs",
+          "returns": "FileResult<T>; binding and operation errors propagate except delete/delete_many, has_same_hash, suppressed directory rename/rmdir outcomes",
+          "lifecycle": "files application singleton; macro registry isolated by application; lazy line handle opens on traversal and closes on iterator drop",
+          "evidence": "framework/tests/file_facade.rs; file/combination.log, oracle.log, delivery.log under target/tmp/facade-alignment"
+        },
+        "isEmptyDirectory": {
+          "local": "is_empty_directory",
+          "status": "verified-current-paths",
+          "parameters": "native Path/bytes parameters; optional defaults exposed by explicit _with_* APIs; see source and File docs",
+          "returns": "FileResult<T>; binding and operation errors propagate except delete/delete_many, has_same_hash, suppressed directory rename/rmdir outcomes",
+          "lifecycle": "files application singleton; macro registry isolated by application; lazy line handle opens on traversal and closes on iterator drop",
+          "evidence": "framework/tests/file_facade.rs; file/combination.log, oracle.log, delivery.log under target/tmp/facade-alignment"
+        },
+        "isReadable": {
+          "local": "is_readable",
+          "status": "verified-current-paths",
+          "parameters": "native Path/bytes parameters; optional defaults exposed by explicit _with_* APIs; see source and File docs",
+          "returns": "FileResult<T>; binding and operation errors propagate except delete/delete_many, has_same_hash, suppressed directory rename/rmdir outcomes",
+          "lifecycle": "files application singleton; macro registry isolated by application; lazy line handle opens on traversal and closes on iterator drop",
+          "evidence": "framework/tests/file_facade.rs; file/combination.log, oracle.log, delivery.log under target/tmp/facade-alignment"
+        },
+        "isWritable": {
+          "local": "is_writable",
+          "status": "verified-current-paths",
+          "parameters": "native Path/bytes parameters; optional defaults exposed by explicit _with_* APIs; see source and File docs",
+          "returns": "FileResult<T>; binding and operation errors propagate except delete/delete_many, has_same_hash, suppressed directory rename/rmdir outcomes",
+          "lifecycle": "files application singleton; macro registry isolated by application; lazy line handle opens on traversal and closes on iterator drop",
+          "evidence": "framework/tests/file_facade.rs; file/combination.log, oracle.log, delivery.log under target/tmp/facade-alignment"
+        },
+        "hasSameHash": {
+          "local": "has_same_hash",
+          "status": "verified-current-paths",
+          "parameters": "native Path/bytes parameters; optional defaults exposed by explicit _with_* APIs; see source and File docs",
+          "returns": "FileResult<T>; binding and operation errors propagate except delete/delete_many, has_same_hash, suppressed directory rename/rmdir outcomes",
+          "lifecycle": "files application singleton; macro registry isolated by application; lazy line handle opens on traversal and closes on iterator drop",
+          "evidence": "framework/tests/file_facade.rs; file/combination.log, oracle.log, delivery.log under target/tmp/facade-alignment"
+        },
+        "isFile": {
+          "local": "is_file",
+          "status": "verified-current-paths",
+          "parameters": "native Path/bytes parameters; optional defaults exposed by explicit _with_* APIs; see source and File docs",
+          "returns": "FileResult<T>; binding and operation errors propagate except delete/delete_many, has_same_hash, suppressed directory rename/rmdir outcomes",
+          "lifecycle": "files application singleton; macro registry isolated by application; lazy line handle opens on traversal and closes on iterator drop",
+          "evidence": "framework/tests/file_facade.rs; file/combination.log, oracle.log, delivery.log under target/tmp/facade-alignment"
+        },
+        "glob": {
+          "local": "glob",
+          "status": "partial",
+          "parameters": "native Path/bytes parameters; optional defaults exposed by explicit _with_* APIs; see source and File docs",
+          "returns": "FileResult<T>; binding and operation errors propagate except delete/delete_many, has_same_hash, suppressed directory rename/rmdir outcomes",
+          "lifecycle": "files application singleton; macro registry isolated by application; lazy line handle opens on traversal and closes on iterator drop",
+          "evidence": "framework/tests/file_facade.rs; file/combination.log, oracle.log, delivery.log under target/tmp/facade-alignment"
+        },
+        "files": {
+          "local": "files",
+          "status": "partial",
+          "parameters": "native Path/bytes parameters; optional defaults exposed by explicit _with_* APIs; see source and File docs",
+          "returns": "FileResult<T>; binding and operation errors propagate except delete/delete_many, has_same_hash, suppressed directory rename/rmdir outcomes",
+          "lifecycle": "files application singleton; macro registry isolated by application; lazy line handle opens on traversal and closes on iterator drop",
+          "evidence": "framework/tests/file_facade.rs; file/combination.log, oracle.log, delivery.log under target/tmp/facade-alignment"
+        },
+        "allFiles": {
+          "local": "all_files",
+          "status": "verified-current-paths",
+          "parameters": "native Path/bytes parameters; optional defaults exposed by explicit _with_* APIs; see source and File docs",
+          "returns": "FileResult<T>; binding and operation errors propagate except delete/delete_many, has_same_hash, suppressed directory rename/rmdir outcomes",
+          "lifecycle": "files application singleton; macro registry isolated by application; lazy line handle opens on traversal and closes on iterator drop",
+          "evidence": "framework/tests/file_facade.rs; file/combination.log, oracle.log, delivery.log under target/tmp/facade-alignment"
+        },
+        "directories": {
+          "local": "directories",
+          "status": "partial",
+          "parameters": "native Path/bytes parameters; optional defaults exposed by explicit _with_* APIs; see source and File docs",
+          "returns": "FileResult<T>; binding and operation errors propagate except delete/delete_many, has_same_hash, suppressed directory rename/rmdir outcomes",
+          "lifecycle": "files application singleton; macro registry isolated by application; lazy line handle opens on traversal and closes on iterator drop",
+          "evidence": "framework/tests/file_facade.rs; file/combination.log, oracle.log, delivery.log under target/tmp/facade-alignment"
+        },
+        "allDirectories": {
+          "local": "all_directories",
+          "status": "verified-current-paths",
+          "parameters": "native Path/bytes parameters; optional defaults exposed by explicit _with_* APIs; see source and File docs",
+          "returns": "FileResult<T>; binding and operation errors propagate except delete/delete_many, has_same_hash, suppressed directory rename/rmdir outcomes",
+          "lifecycle": "files application singleton; macro registry isolated by application; lazy line handle opens on traversal and closes on iterator drop",
+          "evidence": "framework/tests/file_facade.rs; file/combination.log, oracle.log, delivery.log under target/tmp/facade-alignment"
+        },
+        "ensureDirectoryExists": {
+          "local": "ensure_directory_exists",
+          "status": "verified-current-paths",
+          "parameters": "native Path/bytes parameters; optional defaults exposed by explicit _with_* APIs; see source and File docs",
+          "returns": "FileResult<T>; binding and operation errors propagate except delete/delete_many, has_same_hash, suppressed directory rename/rmdir outcomes",
+          "lifecycle": "files application singleton; macro registry isolated by application; lazy line handle opens on traversal and closes on iterator drop",
+          "evidence": "framework/tests/file_facade.rs; file/combination.log, oracle.log, delivery.log under target/tmp/facade-alignment"
+        },
+        "makeDirectory": {
+          "local": "make_directory",
+          "status": "verified-current-paths",
+          "parameters": "native Path/bytes parameters; optional defaults exposed by explicit _with_* APIs; see source and File docs",
+          "returns": "FileResult<T>; binding and operation errors propagate except delete/delete_many, has_same_hash, suppressed directory rename/rmdir outcomes",
+          "lifecycle": "files application singleton; macro registry isolated by application; lazy line handle opens on traversal and closes on iterator drop",
+          "evidence": "framework/tests/file_facade.rs; file/combination.log, oracle.log, delivery.log under target/tmp/facade-alignment"
+        },
+        "moveDirectory": {
+          "local": "move_directory",
+          "status": "verified-current-paths",
+          "parameters": "native Path/bytes parameters; optional defaults exposed by explicit _with_* APIs; see source and File docs",
+          "returns": "FileResult<T>; binding and operation errors propagate except delete/delete_many, has_same_hash, suppressed directory rename/rmdir outcomes",
+          "lifecycle": "files application singleton; macro registry isolated by application; lazy line handle opens on traversal and closes on iterator drop",
+          "evidence": "framework/tests/file_facade.rs; file/combination.log, oracle.log, delivery.log under target/tmp/facade-alignment"
+        },
+        "copyDirectory": {
+          "local": "copy_directory",
+          "status": "partial",
+          "parameters": "native Path/bytes parameters; optional defaults exposed by explicit _with_* APIs; see source and File docs",
+          "returns": "FileResult<T>; binding and operation errors propagate except delete/delete_many, has_same_hash, suppressed directory rename/rmdir outcomes",
+          "lifecycle": "files application singleton; macro registry isolated by application; lazy line handle opens on traversal and closes on iterator drop",
+          "evidence": "framework/tests/file_facade.rs; file/combination.log, oracle.log, delivery.log under target/tmp/facade-alignment"
+        },
+        "deleteDirectory": {
+          "local": "delete_directory",
+          "status": "verified-current-paths",
+          "parameters": "native Path/bytes parameters; optional defaults exposed by explicit _with_* APIs; see source and File docs",
+          "returns": "FileResult<T>; binding and operation errors propagate except delete/delete_many, has_same_hash, suppressed directory rename/rmdir outcomes",
+          "lifecycle": "files application singleton; macro registry isolated by application; lazy line handle opens on traversal and closes on iterator drop",
+          "evidence": "framework/tests/file_facade.rs; file/combination.log, oracle.log, delivery.log under target/tmp/facade-alignment"
+        },
+        "deleteDirectories": {
+          "local": "delete_directories",
+          "status": "verified-current-paths",
+          "parameters": "native Path/bytes parameters; optional defaults exposed by explicit _with_* APIs; see source and File docs",
+          "returns": "FileResult<T>; binding and operation errors propagate except delete/delete_many, has_same_hash, suppressed directory rename/rmdir outcomes",
+          "lifecycle": "files application singleton; macro registry isolated by application; lazy line handle opens on traversal and closes on iterator drop",
+          "evidence": "framework/tests/file_facade.rs; file/combination.log, oracle.log, delivery.log under target/tmp/facade-alignment"
+        },
+        "cleanDirectory": {
+          "local": "clean_directory",
+          "status": "verified-current-paths",
+          "parameters": "native Path/bytes parameters; optional defaults exposed by explicit _with_* APIs; see source and File docs",
+          "returns": "FileResult<T>; binding and operation errors propagate except delete/delete_many, has_same_hash, suppressed directory rename/rmdir outcomes",
+          "lifecycle": "files application singleton; macro registry isolated by application; lazy line handle opens on traversal and closes on iterator drop",
+          "evidence": "framework/tests/file_facade.rs; file/combination.log, oracle.log, delivery.log under target/tmp/facade-alignment"
+        },
+        "when": {
+          "status": "pending",
+          "remaining": "typed conditional callback/return and higher-order proxy contract"
+        },
+        "unless": {
+          "status": "pending",
+          "remaining": "typed conditional callback/return and higher-order proxy contract"
+        },
+        "macro": {
+          "local": "r#macro",
+          "status": "verified-current-paths",
+          "parameters": "native Path/bytes parameters; optional defaults exposed by explicit _with_* APIs; see source and File docs",
+          "returns": "FileResult<T>; binding and operation errors propagate except delete/delete_many, has_same_hash, suppressed directory rename/rmdir outcomes",
+          "lifecycle": "files application singleton; macro registry isolated by application; lazy line handle opens on traversal and closes on iterator drop",
+          "evidence": "framework/tests/file_facade.rs; file/combination.log, oracle.log, delivery.log under target/tmp/facade-alignment"
+        },
+        "mixin": {
+          "local": "mixin",
+          "status": "verified-current-paths",
+          "parameters": "native Path/bytes parameters; optional defaults exposed by explicit _with_* APIs; see source and File docs",
+          "returns": "FileResult<T>; binding and operation errors propagate except delete/delete_many, has_same_hash, suppressed directory rename/rmdir outcomes",
+          "lifecycle": "files application singleton; macro registry isolated by application; lazy line handle opens on traversal and closes on iterator drop",
+          "evidence": "framework/tests/file_facade.rs; file/combination.log, oracle.log, delivery.log under target/tmp/facade-alignment"
+        },
+        "hasMacro": {
+          "local": "has_macro",
+          "status": "verified-current-paths",
+          "parameters": "native Path/bytes parameters; optional defaults exposed by explicit _with_* APIs; see source and File docs",
+          "returns": "FileResult<T>; binding and operation errors propagate except delete/delete_many, has_same_hash, suppressed directory rename/rmdir outcomes",
+          "lifecycle": "files application singleton; macro registry isolated by application; lazy line handle opens on traversal and closes on iterator drop",
+          "evidence": "framework/tests/file_facade.rs; file/combination.log, oracle.log, delivery.log under target/tmp/facade-alignment"
+        },
+        "flushMacros": {
+          "local": "flush_macros",
+          "status": "verified-current-paths",
+          "parameters": "native Path/bytes parameters; optional defaults exposed by explicit _with_* APIs; see source and File docs",
+          "returns": "FileResult<T>; binding and operation errors propagate except delete/delete_many, has_same_hash, suppressed directory rename/rmdir outcomes",
+          "lifecycle": "files application singleton; macro registry isolated by application; lazy line handle opens on traversal and closes on iterator drop",
+          "evidence": "framework/tests/file_facade.rs; file/combination.log, oracle.log, delivery.log under target/tmp/facade-alignment"
+        }
+      },
+      "defaults": {
+        "get/put/append": "lock false; shared_get true; locked put truncates only after acquiring lock",
+        "json": "invalid JSON -> Null; json_strict -> decoding error; I/O errors propagate",
+        "hash": "md5; supports md5/sha1/sha256/sha384/sha512/xxh128, case insensitive",
+        "hasSameHash": "xxh128; unreadable file -> false",
+        "files": "hidden false, depth exact zero; all_files uses unrestricted depth; VCS always excluded; no directory symlink descent",
+        "directories": "hidden false, depth zero; all_directories unrestricted",
+        "replace": "same-directory atomic replace; existing symlink resolves to target; Unix default0777&umask, explicit mode unmasked",
+        "chmod": "None or Some(0) query octal string; nonzero set -> Changed",
+        "makeDirectory": "0755, nonrecursive, force false; force suppresses create error as false",
+        "ensureDirectoryExists": "0755, recursive true",
+        "moveDirectory": "overwrite false; suppressed rename -> false",
+        "deleteDirectory": "preserve false; missing/not directory false; child links unlinked; directory iteration errors propagate",
+        "copyDirectory": "create destination0777, recursive includes dotfiles; rejects self-nesting and ancestor symlink cycles",
+        "mixin": "explicit replace bool; default application macro isolation"
+      },
+      "remaining": [
+        "getRequire/requireOnce native compiled module registration, extracted typed parameters, missing-file errors and once-execution lifetime; no dynamic source interpreter or placeholder implementation",
+        "when/unless callbacks, fallback returns and higher-order conditional proxy are not implemented in this batch",
+        "json PHP decode flag equivalents including invalid UTF8, large numbers, 512-depth boundary; only default/strict read path verified",
+        "glob full PHP flag contract including brace, noescape, mark, nosort, nocheck and onlydir; basic shell matching implemented using mature glob0.3.4, not an ad-hoc parser",
+        "hash remaining PHP algorithms; current six explicitly supported; hasSameHash xxh128 oracle verified",
+        "files/directories full Symfony numeric comparator syntax, complete VCS list and broken-link/unreadable metadata cases; current exact/comparison/AND filters and byte-string sorting tested",
+        "copyDirectory iterator option flags; native cycle/self-nesting rejection is a safety adaptation; broad recursive parity pending",
+        "mimeType/guessExtension full finfo/Symfony MIME database behavior: currently reuses content detector with 8KiB bound and mime_guess map; do not claim complete MIME parity",
+        "link/relativeLink Windows junction/hardlink native verification, ACL permission behavior and cross-drive paths; Unix tested only",
+        "pathinfo special dot/root/trailing separator and Windows pathname matrix remains to review; Unix nonUTF8 hidden filenames verified",
+        "File shared Facade mock/spy inherited APIs pending base completion; application service integration and macro isolation tested",
+        "additional real external-process Artisan and Worker File consumers beyond current TestApp real kernels; no separate queue features introduced"
+      ]
     },
     {
       "type": "Gate",

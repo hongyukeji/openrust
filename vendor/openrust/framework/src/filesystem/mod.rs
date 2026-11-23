@@ -3,9 +3,11 @@
 mod aws_s3_v3_adapter;
 mod download;
 mod facade;
+mod file_facade;
 mod filesystem_adapter;
 mod filesystem_manager;
 mod filesystem_service_provider;
+mod local_filesystem;
 mod local_filesystem_adapter;
 mod local_permissions;
 mod receive_file;
@@ -14,9 +16,13 @@ mod serve_file;
 use std::{error::Error, future::Future, pin::Pin};
 
 pub use aws_s3_v3_adapter::{AwsS3V3Adapter, S3DiskConfig};
+pub use file_facade::File;
 pub use filesystem_adapter::FilesystemAdapter;
 pub use filesystem_manager::{FilesystemManager, LocalDiskConfig};
 pub use filesystem_service_provider::FilesystemServiceProvider;
+pub use local_filesystem::{
+    DirectoryDepth, FileError, FileInfo, FileMacro, FileMode, FileResult, Filesystem,
+};
 pub use local_filesystem_adapter::LocalFilesystemAdapter;
 pub use local_permissions::LocalPermissions;
 pub use receive_file::ReceiveFile;
