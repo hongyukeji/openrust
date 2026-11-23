@@ -37,6 +37,33 @@ impl Messages {
 
 `make_with` 进行一次显式构造，不替换单独缓存的门面根对象；需要该结果时直接通过应用或容器解析。参阅[参数覆盖](container.md#参数覆盖)。
 
+## 解析回调与应用作用域 {#facade-lifecycle}
+
+`resolved(callback)` 观察实际后端服务。所属应用已经解析它时立即回调，未来容器重新解析时也回调；注册回调不会提前创建服务。参数为 `Arc<Service>` 和 `&Container`，可直接保留同一个服务句柄，不必再次解析。回调错误向上传递，即时回调失败时不会继续注册。异步工厂完成解析也会触发同一个钩子。
+
+`App::resolved(callback)` 是公共门面回调。查询容器服务是否已解析时用 `App::is_resolved(key)`，底层容器保留 `resolved(key)`。查询方法使用不同名称，避免遮蔽回调入口。
+
+```rust
+use openrust::{contracts::container::BindingResolutionError, foundation::Application,
+    support::facades::{App, Config, Facade}};
+
+pub async fn inspect(app: &Application) -> Result<(), BindingResolutionError> {
+    App::set_facade_application(Some(app), async {
+        Config::resolved(|repository, _container| {
+            let _name = repository.get("app.name");
+            Ok(())
+        })?;
+        Ok(())
+    }).await
+}
+```
+
+普通 HTTP、Artisan 和 Worker 已有应用作用域。嵌入应用或测试中，`set_facade_application(Some(&app), future).await` 只切换给定操作，结束、取消或 panic 展开后恢复外层应用；`None` 临时隐藏应用。`get_facade_application()` 返回 `Result<Option<Arc<Application>>, BindingResolutionError>`，作用域外为 `None`。同应用嵌套保留门面缓存，不同应用使用独立缓存。显式创建的 Tokio 任务也可用此入口打开自己的作用域。
+
+带作用域的 setter 是全局应用 setter 的 Rust 适配：用明确的生命周期避免进程级修改影响并发请求，不在应用之间合并缓存，也不延长已结束作用域。解析回调属于应用容器，应在启动阶段注册持久回调，避免捕获只应存活于当前请求的数据。
+
+`is_fake()` 只检查已缓存的门面根，不触发解析。Mail、Notification 和 Event 返回实际 Fake 状态，Event 临时替身也生效。清空门面缓存后，在重新解析该根之前返回 false。HTTP、Process 的桩仍属于普通工厂，返回 false；记录调用的 spy 本身也不等于 Fake 标记。自定义门面可覆盖类型安全的 `is_fake_root` 钩子，识别自身服务的 Fake 状态。
+
 ## 应用门面 {#application-facade}
 
 `App` 访问当前应用及其容器。`bind`、`singleton`、`scoped` 及对应的 `_if`、`_named` 注册方法委托给同一容器，不建立第二份注册表。`make`、`get` 和 `make_with` 使用异步接口，保留延迟 Provider 和异步工厂的解析行为。

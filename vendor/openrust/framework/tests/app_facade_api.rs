@@ -44,11 +44,11 @@ async fn inspect() -> Result<Value, HttpError> {
     );
     // 上游 isShared 不展开别名；resolved/getAlias 则会展开。
     assert!(!App::is_shared("number")?);
-    assert!(!App::resolved("number")?);
+    assert!(!App::is_resolved("number")?);
     assert_eq!(App::get_alias("number")?, ServiceKey::typed::<u32>());
     assert_eq!(*App::make::<u32>().await?, 7);
     assert_eq!(*App::get::<u32>("number").await?, 7);
-    assert!(App::resolved("number")?);
+    assert!(App::is_resolved("number")?);
     assert!(calls.load(Ordering::SeqCst) > 0);
     App::extend::<u32, _>("number", |value, _| Ok(Arc::new(*value + 1)))?;
     assert_eq!(*App::make::<u32>().await?, 8);

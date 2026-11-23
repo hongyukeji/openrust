@@ -37,6 +37,33 @@ A pending facade future belongs to its originating application execution. Pollin
 
 `make_with` creates an explicit construction and does not replace a separately cached facade root. Resolve that result directly through the application or container. See [parameter overrides](container.md#parameter-overrides).
 
+## Resolution callbacks and application scopes {#facade-lifecycle}
+
+`resolved(callback)` observes the actual backing service. If the application has already resolved it, the callback runs immediately; it also runs after future container resolutions. Registering the callback does not eagerly construct the service. Its arguments are `Arc<Service>` and `&Container`, so the callback can retain the exact service handle without resolving another instance. Errors propagate; an immediate callback failure prevents registration. The same hook observes asynchronous factory completion.
+
+`App::resolved(callback)` is the common facade callback. Use `App::is_resolved(key)` to query whether a container service has been resolved; the underlying container retains `resolved(key)`. The distinct query name prevents it from hiding the callback entry point.
+
+```rust
+use openrust::{contracts::container::BindingResolutionError, foundation::Application,
+    support::facades::{App, Config, Facade}};
+
+pub async fn inspect(app: &Application) -> Result<(), BindingResolutionError> {
+    App::set_facade_application(Some(app), async {
+        Config::resolved(|repository, _container| {
+            let _name = repository.get("app.name");
+            Ok(())
+        })?;
+        Ok(())
+    }).await
+}
+```
+
+Normal HTTP, Artisan and Worker execution already provide the application scope. For embedded applications and tests, `set_facade_application(Some(&app), future).await` switches only the supplied operation, then restores the outer application, including cancellation and unwinding. `None` temporarily hides the application. `get_facade_application()` returns `Result<Option<Arc<Application>>, BindingResolutionError>`; outside a scope it returns `None`. Nested use of the same application retains its facade cache; another application has a separate cache. Spawned tasks can explicitly open their own scope with this entry point.
+
+The scoped setter is the Rust adaptation of the global application setter: it provides a defined lifetime instead of a process-wide mutation that could affect another concurrent request. It does not merge facade caches between applications or keep a completed scope open. Resolution callbacks belong to the application's container, so register persistent callbacks during bootstrap rather than capturing request-only data.
+
+`is_fake()` checks only an already cached facade root. Mail, Notification and Event report their actual Fake state, including temporary Event fakes. Clearing the facade cache makes the result false until that root is resolved again. HTTP and Process stubs remain ordinary factories and report false; a recording spy alone is not a Fake marker. Custom facade implementations may override the type-safe `is_fake_root` hook to identify their own Fake service.
+
 ## Application facade {#application-facade}
 
 `App` accesses the current application and its container. Registration methods such as `bind`, `singleton`, `scoped`, and their `_if` or `_named` variants delegate to that container; they do not create a second registry. `make`, `get`, and `make_with` are asynchronous so deferred providers and asynchronous factories remain usable.

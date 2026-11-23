@@ -219,7 +219,7 @@ impl App {
     pub fn bound<T: ?Sized + Send + Sync + 'static>() -> Result<bool, BindingResolutionError> {
         Ok(Self::get_container()?.bound::<T>())
     }
-    pub fn resolved(key: impl Into<ServiceKey>) -> Result<bool, BindingResolutionError> {
+    pub fn is_resolved(key: impl Into<ServiceKey>) -> Result<bool, BindingResolutionError> {
         Self::get_container()?.resolved(key)
     }
     pub fn alias(

@@ -14,7 +14,7 @@
 
 | 门面 | 当前公开入口／发现 | 状态与待办 |
 |---|---|---|
-| Facade | `support::facades::Facade` | 核对 resolved、替身、缓存清除、应用上下文、默认别名及异步生命周期；现有 spy/swap 不等于全部测试 API |
+| Facade | `support::facades::Facade` | 已补 resolved、应用读取／带作用域切换、is_fake；完成新路径与现有 spy 的实际验收。partialMock／shouldReceive／expects、专用 spy、defaultAliases 与剩余全局生命周期仍待闭合 |
 | App | `support::facades::App` | 本批补容器注册/解析、别名/钩子/作用域、标签/工厂/调用与部分路径/环境入口；Application 生命周期、其余路径覆盖和宏等仍待核 |
 | Artisan | `support::facades::Artisan` | 有 call/queue/command/add；继续核对 Kernel 的 all/output/resolve/启动回调及参数/退出状态 |
 | Auth | `support::facades::Auth` | 逐项核对 Manager、默认 Guard、用户 Provider、认证状态与 fake/test 入口 |
@@ -162,3 +162,24 @@ python3 -B tests/build_guard.py --workflow facade-alignment --target-dir target/
 - `maintenance/docs-scoped.log` 与 `maintenance/browser-scoped.log` 是剔除并行段落后的文档构建和三语桌面／移动端 6 次页面复核，均通过。维护批次的所有代码与这份冻结验收源码逐字一致；后续新环境文档不属于维护批次。
 - `maintenance/clippy-combination.log`：以已提交 `8e881a75fe0de35375b8c244615174e257d25f82` 组合两批门面改动及环境文件功能，全工作区 `cargo clippy --workspace --all-targets -- -D warnings` 通过。既有维护／HTTP／Worker 行为证据继续按各自实际源码和日志范围使用，不把静态组合检查当成额外行为验收。
 - 均为本地提交，未推送。当前共有 39 个已提供入口的核心门面；新增 MaintenanceMode 不能直接算完整对齐。其余七个缺失入口是 Blade、Cloud、Date、Exceptions、File、ParallelTesting、Vite；原有门面、Facade 基类、Sms／扩展门面的剩余公开契约继续在本对账核对，未达全量闭合条件，不修改核心阶段完成率。
+
+
+### Facade 基类：解析回调、应用切换与 Fake 识别（2026-11-24）
+
+直接补已授权剩余缺口，沿用原对账。固定 Facade.php 的 resolved / getFacadeApplication / setFacadeApplication / isFake 已逐项映射；检查了真实缓存／容器行为与 Fake 标记，未将 Http 或 Process 注册桩误判为 Fake。旧版 framework/src 内没有当前 Facade 类型体系可移植；复用现有 Container.after_resolving、声明类型投影、Tokio 作用域与各服务已有 Fake 状态，不引入依赖或平行容器。
+
+- `resolved` 用实际服务 Arc 和当前容器回调，支持保存准确服务句柄、无尺寸 Contract、同步／异步解析。未解析时不提前创建；已解析即时执行；即时失败不注册后续钩子；异步失败不缓存坏根，重试后可正常缓存。回调不持门面锁，错误不吞掉。
+- 发现 App 原有 `resolved(key)` 查询遮蔽基类回调：改为 `App::is_resolved(key)`，底层 Container.resolved(key) 保留，`App::resolved(callback)` 恢复正式入口。现有 App 实测消费者和三语文档同步更新，无旧重载别名。
+- App 构造完成后使用现有弱入口解析一次，发布已经构造的应用解析状态；没有将强应用引用保存回容器。此前真实 App::resolved 的即时回调未触发，现已补齐，并实际验证应用释放后容器弱引用失效。
+- `get_facade_application` 返回当前 App 门面根，作用域外为 None。setter 采用 `set_facade_application(Some(&app), future).await`，临时 None 可隐藏应用；同应用嵌套共享执行缓存，不同应用与并发任务隔离。完成、取消、panic 展开恢复外层，关闭新作用域。该具体 Rust 适配避免 PHP 静态全局变量影响并发请求，没有把“静态语言不支持”当作省略入口的理由。
+- `is_fake` 只读取已经缓存的根，未缓存／无上下文为 false，不触发服务构造。Mail、Notification、Event 对接真实 Fake 状态，含临时 Event fake；HTTP、Process 桩和普通记录 spy 不等于 Fake 标记。原生自定义门面可以覆盖类型安全的 is_fake_root；未添加另一个全局 Fake 标记表。
+- 常规 HTTP／Artisan／Worker 不需要开发者手工包作用域；公开 setter 供嵌入／测试和显式新任务使用。直接门面读取、容器修改和现有默认请求状态继续共用原运行链路。
+
+实际证据保存在 `target/tmp/facade-alignment/base/`：
+
+- `oracle-final.log`：PHP 8.5.12 容器加载固定真实 Facade.php 与 Fake 接口，最小容器双件只驱动这些基类分支；得到解析前空、即时 [first1,second1]、重解析 [first1,second1,first2,second2]，Fake [false,false,true,false]。这是基类行为对照，不宣称验收了整个上游容器或 Mockery。容器无网络、只读挂载，执行后已自动移除。
+- `lifecycle-final.log`：8 项公开基类消费者、2 项原有 spy（含 HTTP/Artisan）、2 项 App 消费者通过；`delivery.log` 在最后 getter 调整后重复受影响测试并完成全工作区严格 Clippy。回调、同服务 Arc、真实 Config Contract、App 回调、异步错误重试、嵌套／并发／取消／panic 恢复、Fake 类型区别及弱所有权均覆盖。
+- `combination-fixed.log`：新基类与 Cache／MaintenanceMode、App、现有 spy 组合回归通过；无 Redis 变量的条件用例不计实际 Redis。`redis-worker.log`：独立 Redis 8 下重新运行基类、spy、cache_memo 与维护专项，实际 Artisan Worker 的请求／任务生命周期、维护阻止／force／恢复均通过；临时容器已删除，无数据库／数据卷操作。
+- `docs.log` 与 `browser.log`：三语文档内容／构建通过，三语桌面／移动端新增章节共 6 次浏览器检查通过。失败的 first / fourth 日志为测试调用既有 API 的错误，combination 日志暴露 App 即时回调缺口，均保留，不覆盖为成功。
+
+本批尚不能关闭 Facade：原 JSON 明确保留 partialMock／shouldReceive／expects、专用 spy、defaultAliases 以及剩余缓存／转发契约。其余七个缺失门面和全部已有门面仍按原范围继续实施，不因本批通过而结束整体任务。

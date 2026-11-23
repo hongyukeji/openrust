@@ -54,6 +54,10 @@ impl Default for ChannelManager {
 }
 
 impl ChannelManager {
+    pub(crate) fn is_faking(&self) -> bool {
+        self.active_fake().is_some()
+    }
+
     pub fn fake(&self) -> Arc<NotificationFake> {
         let fake = Arc::new(NotificationFake::default());
         *self.fake.write().expect("notification fake lock poisoned") = Some(fake.clone());

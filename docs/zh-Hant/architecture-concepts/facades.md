@@ -37,6 +37,33 @@ impl Messages {
 
 `make_with` 進行一次明確建構，不取代單獨快取的門面根物件；需要該結果時直接透過應用或容器解析。參閱[參數覆寫](container.md#參數覆寫)。
 
+## 解析回呼與應用作用域 {#facade-lifecycle}
+
+`resolved(callback)` 觀察實際後端服務。所屬應用已經解析它時立即回呼，未來容器重新解析時也回呼；註冊回呼不會提前建立服務。參數為 `Arc<Service>` 和 `&Container`，可直接保留同一個服務控制代碼，不必再次解析。回呼錯誤向上傳遞，即時回呼失敗時不會繼續註冊。非同步工廠完成解析也會觸發同一個掛鉤。
+
+`App::resolved(callback)` 是公共門面回呼。查詢容器服務是否已解析時用 `App::is_resolved(key)`，底層容器保留 `resolved(key)`。查詢方法使用不同名稱，避免遮蔽回呼入口。
+
+```rust
+use openrust::{contracts::container::BindingResolutionError, foundation::Application,
+    support::facades::{App, Config, Facade}};
+
+pub async fn inspect(app: &Application) -> Result<(), BindingResolutionError> {
+    App::set_facade_application(Some(app), async {
+        Config::resolved(|repository, _container| {
+            let _name = repository.get("app.name");
+            Ok(())
+        })?;
+        Ok(())
+    }).await
+}
+```
+
+一般 HTTP、Artisan 和 Worker 已有應用作用域。嵌入應用或測試中，`set_facade_application(Some(&app), future).await` 只切換給定操作，結束、取消或 panic 展開後還原外層應用；`None` 暫時隱藏應用。`get_facade_application()` 傳回 `Result<Option<Arc<Application>>, BindingResolutionError>`，作用域外為 `None`。同應用巢狀使用保留門面快取，不同應用使用獨立快取。明確建立的 Tokio 任務也可用此入口開啟自己的作用域。
+
+帶作用域的 setter 是全域應用 setter 的 Rust 配接：用明確的生命週期避免程序級修改影響並行請求，不在應用之間合併快取，也不延長已結束作用域。解析回呼屬於應用容器，應在啟動階段註冊持久回呼，避免捕獲只應存活於目前請求的資料。
+
+`is_fake()` 只檢查已快取的門面根，不觸發解析。Mail、Notification 和 Event 傳回實際 Fake 狀態，Event 暫時替身也生效。清空門面快取後，在重新解析該根之前傳回 false。HTTP、Process 的樁仍屬於一般工廠，傳回 false；記錄呼叫的 spy 本身也不等於 Fake 標記。自訂門面可覆寫型別安全的 `is_fake_root` 掛鉤，識別自身服務的 Fake 狀態。
+
 ## 應用程式門面 {#application-facade}
 
 `App` 存取目前應用程式及其容器。`bind`、`singleton`、`scoped` 及對應的 `_if`、`_named` 註冊方法委託給同一容器，不建立第二份註冊表。`make`、`get` 和 `make_with` 使用非同步介面，保留延遲 Provider 與非同步工廠的解析行為。

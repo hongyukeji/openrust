@@ -617,6 +617,11 @@ impl Application {
             shared.deferred.set(deferred).is_ok(),
             "provider registry already initialized"
         );
+        // 应用本身已构造完成：发布解析状态，但不把强引用存回自身容器。
+        shared
+            .container
+            .get::<Self>("app")
+            .expect("应用入口解析失败");
         Self { shared }
     }
 

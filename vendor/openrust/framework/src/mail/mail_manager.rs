@@ -108,6 +108,10 @@ impl MailManager {
         }
     }
 
+    pub(crate) fn is_faking(&self) -> bool {
+        self.fake.read().expect("mail fake lock poisoned").is_some()
+    }
+
     pub fn fake(&self) -> Arc<MailFake> {
         let fake = Arc::new(MailFake::default());
         *self.fake.write().expect("mail fake lock poisoned") = Some(fake.clone());

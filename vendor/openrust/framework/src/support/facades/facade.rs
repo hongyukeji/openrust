@@ -149,6 +149,85 @@ pub(crate) fn context_identity() -> Option<Arc<()>> {
 pub trait Facade {
     type Service: ?Sized + Send + Sync + 'static;
     const CACHED: bool = true;
+
+    /// 在服务已解析时立即执行，并观察所属应用后续的实际解析。
+    fn resolved(
+        callback: impl Fn(Arc<Self::Service>, &Container) -> Result<(), BindingResolutionError>
+        + Send
+        + Sync
+        + 'static,
+    ) -> Result<(), BindingResolutionError> {
+        let container = with_context(|context| Ok(context.container.clone()))?;
+        let key = Self::get_facade_accessor();
+        let callback = Arc::new(callback);
+        if container.resolved(key.clone())? {
+            callback(Self::get_facade_root()?, &container)?;
+        }
+        container.after_resolving(Some(key), move |event, container| {
+            let service = event.value::<Self::Service>().ok_or_else(|| {
+                BindingResolutionError::TypeMismatch {
+                    service: event.key().clone(),
+                    expected: type_name::<Self::Service>(),
+                    actual: "解析回调中的服务类型不匹配",
+                }
+            })?;
+            callback(service, container)
+        })
+    }
+
+    /// 读取当前作用域的应用；尚未进入或已清空应用作用域时返回 None。
+    fn get_facade_application()
+    -> Result<Option<Arc<crate::foundation::Application>>, BindingResolutionError> {
+        current_container()
+            .map(|_| <super::App as Facade>::get_facade_root())
+            .transpose()
+    }
+
+    /// 在给定 Future 内切换应用，结束或取消后恢复外层作用域，不修改其他任务。
+    fn set_facade_application<F: Future>(
+        application: Option<&crate::foundation::Application>,
+        operation: F,
+    ) -> impl Future<Output = F::Output> {
+        async move {
+            match application {
+                Some(application) => scope(application.container_handle(), operation).await,
+                None => APPLICATION.scope(None, operation).await,
+            }
+        }
+    }
+
+    /// 只检查已缓存的门面替身，不触发服务解析；HTTP/Process 的桩注册不等于 Fake 根。
+    fn is_fake() -> Result<bool, BindingResolutionError> {
+        let cached = match with_context(|context| {
+            Ok(context
+                .resolved
+                .lock()
+                .expect("facade cache poisoned")
+                .get(&Self::get_facade_accessor())
+                .map(|cached| (cached.value.clone(), cached.output)))
+        }) {
+            Err(BindingResolutionError::FacadeNotSet) => return Ok(false),
+            result => result?,
+        };
+        let Some((value, actual)) = cached else {
+            return Ok(false);
+        };
+        let service = value.downcast::<Arc<Self::Service>>().map_err(|_| {
+            BindingResolutionError::TypeMismatch {
+                service: Self::get_facade_accessor(),
+                expected: type_name::<Self::Service>(),
+                actual,
+            }
+        })?;
+        Ok(Self::is_fake_root(service.as_ref().as_ref()))
+    }
+
+    /// 具体门面据其实际服务识别 Fake；编译型替身可覆盖此类型安全钩子。
+    #[doc(hidden)]
+    fn is_fake_root(_service: &Self::Service) -> bool {
+        false
+    }
+
     fn get_facade_accessor() -> ServiceKey;
     fn get_facade_root() -> Result<Arc<Self::Service>, BindingResolutionError> {
         with_context(|context| {

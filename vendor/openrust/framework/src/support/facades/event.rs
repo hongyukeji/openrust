@@ -19,6 +19,10 @@ pub struct Event;
 impl Facade for Event {
     type Service = Dispatcher;
 
+    fn is_fake_root(service: &Self::Service) -> bool {
+        service.is_faking()
+    }
+
     fn get_facade_accessor() -> ServiceKey {
         "events".into()
     }

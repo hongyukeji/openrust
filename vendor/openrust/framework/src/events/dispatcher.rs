@@ -346,6 +346,10 @@ impl Dispatcher {
     }
 
     /// Records the selected events for this application. An empty slice selects all events.
+    pub(crate) fn is_faking(&self) -> bool {
+        self.active_fake(&self.read()).is_some()
+    }
+
     pub fn fake(&self, events: &[&str]) -> Arc<EventFake> {
         self.install_fake(EventFake::new(events, &[]))
     }

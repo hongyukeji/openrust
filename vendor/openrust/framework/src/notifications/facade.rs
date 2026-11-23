@@ -13,6 +13,10 @@ pub struct NotificationFacade;
 impl Facade for NotificationFacade {
     type Service = ChannelManager;
 
+    fn is_fake_root(service: &Self::Service) -> bool {
+        service.is_faking()
+    }
+
     fn get_facade_accessor() -> ServiceKey {
         "notifications".into()
     }

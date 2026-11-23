@@ -13,6 +13,10 @@ pub struct Mail;
 impl Facade for Mail {
     type Service = MailManager;
 
+    fn is_fake_root(service: &Self::Service) -> bool {
+        service.is_faking()
+    }
+
     fn get_facade_accessor() -> ServiceKey {
         "mail.manager".into()
     }

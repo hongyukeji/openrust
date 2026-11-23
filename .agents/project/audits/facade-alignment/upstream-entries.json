@@ -677,11 +677,88 @@
       "type": "Facade",
       "source": "src/Illuminate/Support/Facades/Facade.php",
       "public_entries": [
-        "resolved", "spy", "partialMock", "shouldReceive", "expects", "swap", "isFake", "getFacadeRoot",
-        "clearResolvedInstance", "clearResolvedInstances", "defaultAliases", "getFacadeApplication",
-        "setFacadeApplication", "__callStatic"
+        "resolved",
+        "spy",
+        "partialMock",
+        "shouldReceive",
+        "expects",
+        "swap",
+        "isFake",
+        "getFacadeRoot",
+        "clearResolvedInstance",
+        "clearResolvedInstances",
+        "defaultAliases",
+        "getFacadeApplication",
+        "setFacadeApplication",
+        "__callStatic"
       ],
-      "review": "pending"
+      "review": "partial",
+      "tested_entries": {
+        "resolved": {
+          "local": "resolved(Fn(Arc<Service>, &Container) -> Result<(), BindingResolutionError>)",
+          "default": "no eager service resolution; immediate when container already resolved; retain future after_resolving hook",
+          "returns": "Result<()>; callback failure propagates; failed immediate callback is not registered",
+          "lifecycle": "application container callback, actual service Arc; asynchronous factory completion uses same hook; no facade/cache lock held during callback",
+          "tests": [
+            "resolved_runs_lazily_then_immediately_and_observes_real_container_resolution",
+            "resolved_propagates_callback_failure_without_registering_an_immediate_failed_hook",
+            "resolved_supports_real_config_facade_and_its_unsized_repository_contract",
+            "resolved_observes_asynchronous_factory_and_does_not_cache_a_failed_callback"
+          ]
+        },
+        "getFacadeApplication": {
+          "local": "get_facade_application() -> Result<Option<Arc<Application>>, BindingResolutionError>",
+          "default": "None outside or temporarily hidden scope; current App facade root inside",
+          "tests": [
+            "application_replacement_is_nested_isolated_and_restored_on_unwind_and_cancellation",
+            "resolved_supports_real_config_facade_and_its_unsized_repository_contract"
+          ]
+        },
+        "setFacadeApplication": {
+          "local": "set_facade_application(Option<&Application>, Future).await -> Future::Output",
+          "adaptation": "lexical task-local switch rather than process-global mutation; same app nested scope shares cache; other apps isolate cache; restores on completion/cancel/panic; None temporarily clears ambient facade access",
+          "tests": [
+            "application_replacement_is_nested_isolated_and_restored_on_unwind_and_cancellation",
+            "parallel_applications_do_not_share_roots_or_resolution_callbacks"
+          ]
+        },
+        "isFake": {
+          "local": "is_fake() -> Result<bool, BindingResolutionError>",
+          "default": "false when root uncached or scope absent; never resolves service; plain spies/stubs are not Fake marker",
+          "adaptation": "type-safe is_fake_root hook; actual Mail/Notification/Event fake state including scoped Event fake; Http/Process factories remain non-Fake",
+          "tests": [
+            "is_fake_inspects_cached_roots_and_distinguishes_marker_fakes_from_stubs"
+          ]
+        },
+        "getFacadeRoot": {
+          "local": "get_facade_root / get_facade_root_async",
+          "evidence": "existing root and spy tests reused; current callback tests cover cached root and retry after async callback failure",
+          "status": "verified-paths-not-complete"
+        },
+        "clearResolvedInstance": {
+          "local": "clear_resolved_instance(Option<ServiceKey>)",
+          "tests": [
+            "resolved_runs_lazily_then_immediately_and_observes_real_container_resolution",
+            "is_fake_inspects_cached_roots_and_distinguishes_marker_fakes_from_stubs"
+          ],
+          "status": "verified-paths-not-complete"
+        },
+        "swap": {
+          "local": "swap(Arc<Service>)",
+          "tests": [
+            "facade_spy_replaces_an_already_resolved_root",
+            "spy_records_http_artisan_and_container_calls_in_one_app"
+          ],
+          "status": "existing-evidence-reused"
+        }
+      },
+      "remaining": [
+        "partialMock, shouldReceive, expects: typed expectation/partial mock contract and actual consumers still required; existing caller-supplied spy is not automatic Mockery parity",
+        "spy: specialized Cache and other facade implementations still need their own contracts; current typed replacement spy tests do not close all facade-specific spy behavior",
+        "defaultAliases: exact pinned aliases and native public imports must be verified after missing facade types exist; no map of non-existent Rust types as placeholder closure",
+        "clearResolvedInstances and __callStatic: finish all shared lifecycle/typed forwarding decisions and macro-generated public consumers; existing scope tests are partial evidence",
+        "Sms and extension facade inherited APIs remain separately tracked; do not mark complete from this shared batch"
+      ]
     },
     {
       "type": "File",
