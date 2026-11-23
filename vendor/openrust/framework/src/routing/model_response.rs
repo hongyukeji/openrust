@@ -62,8 +62,15 @@ where
     F: Fn() -> T + Send + Sync,
     T: ModelOutput,
 {
-    fn handle<'a>(&'a self, _: &'a mut Request) -> HttpFuture<'a, Result<Response, HttpError>> {
-        Box::pin(async { (self.0)().into_response() })
+    fn handle<'a>(
+        &'a self,
+        request: &'a mut Request,
+    ) -> HttpFuture<'a, Result<Response, HttpError>> {
+        Box::pin(async {
+            request
+                .with_container(async { (self.0)().into_response() })
+                .await
+        })
     }
 }
 
@@ -86,8 +93,15 @@ where
     Fut: Future<Output = T> + Send,
     T: ModelOutput,
 {
-    fn handle<'a>(&'a self, _: &'a mut Request) -> HttpFuture<'a, Result<Response, HttpError>> {
-        Box::pin(async { (self.0)().await.into_response() })
+    fn handle<'a>(
+        &'a self,
+        request: &'a mut Request,
+    ) -> HttpFuture<'a, Result<Response, HttpError>> {
+        Box::pin(async {
+            request
+                .with_container(async { (self.0)().await.into_response() })
+                .await
+        })
     }
 }
 

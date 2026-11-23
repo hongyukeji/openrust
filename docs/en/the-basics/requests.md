@@ -73,9 +73,68 @@ Use `request.field("name").await?` for the lookup the framework performs on dyna
 
 Use `request.only(&["user.name", "document"]).await?` to select fields from input and uploads. It omits missing paths and preserves explicit null and typed files. `request.except(&["document"]).await?` removes fields without renumbering numeric keys. Use `array_only` or `collect_only` to return the selected data as a typed array or collection.
 
+## Request facade {#request-facade}
+
+Route callbacks without a request argument can use `openrust::support::facades::Request` directly. The facade borrows the original request: input, uploads, authentication and Session operations share its state without eagerly consuming or copying the body.
+
+```rust
+use openrust::{http::HttpError, support::facades::{Request, Route}};
+use serde_json::json;
+
+Route::post("/profile", || async {
+    let name = Request::input(Some("name")).await?;
+    Request::merge(json!({"verified": true})).await?;
+    Ok::<_, HttpError>(json!({"name": name}))
+})?;
+```
+
+Register a controller action without a request argument using `ControllerDispatcher::without_request(Controller::show)`; it still returns `HttpFuture<'_, Result<T, HttpError>>`. The action and its services can use the facade directly. A handler accepting `&mut http::Request` already borrows the request exclusively. Use the instance, or lend it to a facade-based service with `request.with_container(async { /* call service */ }).await`. Completion and cancellation restore the request. Inside `RequestHandle::with_mut` or `with_async`, use the request passed to the callback instead of borrowing the facade again.
+
+| Capability | Example entry points |
+| --- | --- |
+| Metadata and URLs | `method`, `uri`, `path`, `header`, `full_url`, `get_port` |
+| Input and uploads | `input`, `all`, `only`, `file`, `all_files`, `merge`, `replace` |
+| Typed input | `integer`, `string`, `r#enum`, `date`, `interval`, `clamp` |
+| Content negotiation | `accepts`, `prefers`, `get_format`, `get_preferred_format` |
+| Session and flash | `session`, `old`, `flash`, `flash_only`, `flush` |
+| Users and routes | `user`, `route`, `route_parameter`, `set_user_resolver`, `set_route_resolver` |
+| Validation and signatures | `validate`, `validate_with_bag`, `has_valid_signature` |
+| Extensions | `r#macro`, `mixin`, `has_macro`, `flush_macros`, `call` |
+
+`session(|store| ...)` and `get_session(|store| ...)` access the Store within one protected borrow; references cannot escape. `route()` returns an owned `ResolvedRoute` containing its name, metadata, parameters and model bindings. Use `route_parameter(name)` for a named parameter or model. `UserResolver` and `RouteResolver` are typed, request-local callbacks. A user resolver receives the mutable request and optional guard and returns an asynchronous `HttpFuture<AuthResult<...>>`, so it can await application lookups. `set_json` accepts only an object or array and preserves the previous input when validation fails. Conditional input callbacks return `None` for an unselected branch and release their internal borrow before invoking application code.
+
+`instance()` and `Facade::get_facade_root()` return a `RequestHandle` supporting `with`, `with_mut` and `with_async`. A handle can be reused across lending boundaries within the same HTTP request, including constructor injection, but is accessible only while that request is lent. It becomes invalid when the HTTP request ends. The container's `request` name and `RequestHandle` type resolve the current handle without caching it across requests. `Facade::swap(Arc::new(RequestHandle::from_request(request)))` replaces the current borrowed request for explicit reconstruction or tests, without replacing other requests' container bindings.
+
+`get_payload()` reads the form or JSON payload without query parameters; `get_content()` returns bounded raw bytes. `uri()` returns a full `support::Uri`; use the request instance's `uri()` for the original transport URI. Request locale setters use BCP 47 independently of `App::set_locale`; custom formats are request-local as well. `dump` prints selected data; `dd` ends the current response through an HTTP exception instead of terminating the server.
+
+### Native server configuration and construction {#request-facade-native-boundaries}
+
+Process-wide PHP settings are represented by explicit Rust configuration rather than mutable static state shared by concurrent requests.
+
+| Original mechanism | OpenRust entry point |
+| --- | --- |
+| Capture globals, global factories and writing globals | Pass the server's explicit `http::Request<Body>` to `Request::capture`, `create` or `create_from_base`. Custom factories are ordinary functions or closures; PHP globals are neither read nor modified |
+| Construct from a framework request | `create_from` transfers ownership of the framework request, preserving parsed input, uploads and Session |
+| Duplicate or reinitialize | `duplicate().await` exports an independent `http::Request<Bytes>` transport snapshot; `initialize(native_request)` replaces the current borrowed request. A snapshot retains the original body, excludes later input overrides, Session, route models and middleware state, and is not a complete framework-request clone. Use the handle when the original framework state is required |
+| Global trusted proxy/host setters and getters | Own the policy values in `bootstrap/app.rs` and configure `trust_proxies`/`trust_hosts` through `with_middleware`, or use the existing `trustedproxy` configuration; no process-global Request switches |
+| Method override settings | Construct and validate `MethodOverride::new(parameter, allowed)` outside the assembly callback, then call `middleware.method_override(policy)`: `None` permits targets under the existing safety rules, an empty list disables all overrides, and `parameter=false` disables only `_method`. The allowlist also applies to the override header. GET, HEAD, CONNECT and TRACE cannot be allowed |
+
+`get_http_method_parameter_override()` and `get_allowed_http_method_override()` expose the effective per-application policy, applied before routing. On a native server without CGI, `get_script_name()` is empty and the base path comes from the trusted proxy prefix. `server(key)` exposes explicit transport metadata: `REMOTE_ADDR` is the original connection address; use `ip()` for the client address.
+
 ## Client IP addresses {#request-ip-address}
 
 Use `request.ip()` for the first resolved client address and `request.ips()` for the address chain. A direct connection uses the transport peer, when available. With trusted proxies, the chain omits trusted hops and starts with the nearest untrusted address. If every hop is trusted, it contains the first trusted address instead. See [trusted proxy configuration](#configuring-trusted-proxies).
+
+The IP facade is also available in controllers and services running inside the current HTTP request:
+
+```rust
+use openrust::support::facades::Request;
+
+let ip = Request::ip()?;   // Option<std::net::IpAddr>
+let ips = Request::ips()?; // Vec<std::net::IpAddr>
+```
+
+`Request::get_client_ip()` and `Request::get_client_ips()` expose the equivalent IP entry points; the request instance provides the same aliases. They use the connection information already resolved by the HTTP kernel and its trusted proxy policy. An HTTP request without transport address information returns `None` / an empty list. Outside the current HTTP request, the facade returns `BindingResolutionError::FacadeNotSet`; independently spawned tasks do not inherit this context. Pass the required address explicitly to background work. See the [Request facade](#request-facade) for other operations and borrowing boundaries.
 
 ## Content Negotiation {#content-negotiation}
 

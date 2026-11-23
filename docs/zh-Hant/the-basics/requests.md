@@ -73,9 +73,68 @@ OpenRust 成功讀取本文後會保留原始位元組，供後續讀取。預�
 
 用 `request.only(&["user.name", "document"]).await?` 從一般輸入和上傳檔案中選取欄位。缺少的路徑會略過，明確的 null 和型別化檔案會保留。`request.except(&["document"]).await?` 移除欄位並保留其餘數字鍵。用 `array_only` 或 `collect_only` 將選取欄位讀為型別化陣列或集合。
 
+## Request 門面 {#request-facade}
+
+無請求參數的路由回呼可直接使用 `openrust::support::facades::Request`。門面借用目前的原始請求，讀寫同一份輸入、上傳、使用者與 Session，不會提前消費或複製請求本文。
+
+```rust
+use openrust::{http::HttpError, support::facades::{Request, Route}};
+use serde_json::json;
+
+Route::post("/profile", || async {
+    let name = Request::input(Some("name")).await?;
+    Request::merge(json!({"verified": true})).await?;
+    Ok::<_, HttpError>(json!({"name": name}))
+})?;
+```
+
+不需要請求參數的控制器動作以 `ControllerDispatcher::without_request(Controller::show)` 註冊，回傳型別仍為 `HttpFuture<'_, Result<T, HttpError>>`；動作及其服務可直接使用門面。明確接收 `&mut http::Request` 的處理器已獨佔借用請求，可使用實例；呼叫使用門面的服務前，以 `request.with_container(async { /* 呼叫服務 */ }).await` 借出請求，完成或取消後自動還原。在 `RequestHandle::with_mut`／`with_async` 回呼內，使用收到的請求，不要再次借用門面。
+
+| 功能 | 入口範例 |
+| --- | --- |
+| 中繼資料與 URL | `method`、`uri`、`path`、`header`、`full_url`、`get_port` |
+| 輸入與上傳 | `input`、`all`、`only`、`file`、`all_files`、`merge`、`replace` |
+| 型別化輸入 | `integer`、`string`、`r#enum`、`date`、`interval`、`clamp` |
+| 內容協商 | `accepts`、`prefers`、`get_format`、`get_preferred_format` |
+| 工作階段與快閃 | `session`、`old`、`flash`、`flash_only`、`flush` |
+| 使用者與路由 | `user`、`route`、`route_parameter`、`set_user_resolver`、`set_route_resolver` |
+| 驗證與簽章 | `validate`、`validate_with_bag`、`has_valid_signature` |
+| 擴充 | `r#macro`、`mixin`、`has_macro`、`flush_macros`、`call` |
+
+`session(|store| ...)`／`get_session(|store| ...)` 在一次安全借用內存取 Store，引用不得離開回呼。`route()` 回傳可擁有的 `ResolvedRoute`，包含名稱、中繼資料、參數及模型繫結；具名參數或模型用 `route_parameter(name)`。`UserResolver`／`RouteResolver` 為明確型別的請求級回呼。使用者解析器接收可變請求與可選 Guard，回傳非同步 `HttpFuture<AuthResult<...>>`，可等待業務查詢。`set_json` 僅接受物件或陣列，驗證失敗時保留原輸入。條件輸入回呼在分支未選中時回傳 `None`，並先釋放內部借用再執行業務回呼。
+
+`instance()` 及 `Facade::get_facade_root()` 回傳 `RequestHandle`，以 `with`、`with_mut`、`with_async` 存取實例；句柄可在同一 HTTP 請求的多次借用之間重用，包括建構注入，但僅在請求被借出時可存取；HTTP 請求結束後失效。容器的 `request` 名稱與 `RequestHandle` 型別也解析到目前句柄，不跨請求快取。`Facade::swap(Arc::new(RequestHandle::from_request(request)))` 替換目前借用的請求，供明確重建或測試使用，不會改動其他請求的容器繫結。
+
+`get_payload()` 讀取表單或 JSON 載荷，不混入 URL 查詢參數；`get_content()` 回傳受大小限制的原始位元組。`uri()` 回傳完整的 `support::Uri`，傳輸層原始 URI 則由請求實例的 `uri()` 讀取。請求語言設定使用 BCP 47，獨立於 `App::set_locale`；格式擴充也按請求隔離。`dump` 輸出選定資料；`dd` 透過 HTTP 例外結束目前回應，不退出伺服器程序。
+
+### 原生服務的設定與建構邊界 {#request-facade-native-boundaries}
+
+PHP 程序全域設定不複製成並行請求共用的可變靜態狀態，對應入口如下：
+
+| 原機制 | OpenRust 入口 |
+| --- | --- |
+| 全域變數擷取、全域工廠及回寫全域變數 | 伺服器明確提供 `http::Request<Body>` 給 `Request::capture`／`create`／`create_from_base`；自訂工廠使用一般函式或閉包，不讀寫 PHP 全域變數 |
+| 從框架請求建構 | `create_from` 轉移框架請求所有權，保留輸入快取、上傳及 Session |
+| 複製／重新初始化 | `duplicate().await` 匯出獨立的 `http::Request<Bytes>` 傳輸快照；`initialize(native_request)` 替換目前借用的請求。快照保留原始本文，不複製後續輸入覆寫、Session、路由模型或中介軟體狀態，不能視為完整框架請求複本；需要原狀態時使用句柄 |
+| 可信代理及主機的程序級設定與讀取 | 在 `bootstrap/app.rs` 的 `with_middleware` 中持有並設定 `trust_proxies`／`trust_hosts`，或使用既有 `trustedproxy` 設定；不新增全域 Request 靜態開關 |
+| 方法覆寫設定 | 在裝配回呼外以 `MethodOverride::new(parameter, allowed)` 建構並檢查策略，再呼叫 `middleware.method_override(policy)`；`None` 允許現有安全規則下的目標方法，空清單關閉全部覆寫。`parameter=false` 只關閉 `_method`，允許清單也限制覆寫標頭。GET、HEAD、CONNECT、TRACE 不可加入允許清單 |
+
+`get_http_method_parameter_override()` 與 `get_allowed_http_method_override()` 讀取目前應用的有效策略，在路由比對前套用，不會跨應用洩漏。沒有 CGI 入口的原生服務中，`get_script_name()` 為空字串，基礎路徑來自可信代理前綴。`server(key)` 回傳明確的傳輸中繼資料，`REMOTE_ADDR` 保留原始連線地址，客戶端地址使用 `ip()`。
+
 ## 用戶端 IP 位址 {#request-ip-address}
 
 用 `request.ip()` 讀取第一個解析出的用戶端位址，用 `request.ips()` 讀取位址鏈。直接連線時使用傳輸層提供的對端位址。設定受信任代理後，位址鏈會略過受信任節點，從最近的未受信任位址開始。若所有節點都受信任，則回傳鏈中的第一個受信任位址。見[受信任代理設定](#configuring-trusted-proxies)。
+
+在目前 HTTP 請求內的控制器和服務中，也可以透過 IP 門面讀取：
+
+```rust
+use openrust::support::facades::Request;
+
+let ip = Request::ip()?;   // Option<std::net::IpAddr>
+let ips = Request::ips()?; // Vec<std::net::IpAddr>
+```
+
+`Request::get_client_ip()` 和 `Request::get_client_ips()` 提供對應的 IP 入口，請求實例也提供這兩個別名。它們讀取 HTTP 核心依受信任代理原則解析的連線資訊。HTTP 請求缺少傳輸位址時回傳 `None`／空清單；不在目前 HTTP 請求內時，門面回傳 `BindingResolutionError::FacadeNotSet`。獨立啟動的工作不會繼承此上下文，背景工作需要的位址應明確傳入。其他入口與借用邊界見 [Request 門面](#request-facade)。
 
 ## 內容協商 {#content-negotiation}
 

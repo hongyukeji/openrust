@@ -73,9 +73,68 @@ OpenRust 成功读取正文后保留原始字节，供后续读取。默认上�
 
 用 `request.only(&["user.name", "document"]).await?` 从普通输入和上传文件中选取字段。缺失路径会被省略，显式 null 和类型化文件会保留。`request.except(&["document"]).await?` 移除字段并保留剩余数字键。用 `array_only` 或 `collect_only` 将选中字段读为类型化数组或集合。
 
+## Request 门面 {#request-facade}
+
+无请求参数的路由回调可直接使用 `openrust::support::facades::Request`。门面借用当前的原始请求，读取和修改同一份输入、上传、用户与 Session，不会提前消费或复制请求体。
+
+```rust
+use openrust::{http::HttpError, support::facades::{Request, Route}};
+use serde_json::json;
+
+Route::post("/profile", || async {
+    let name = Request::input(Some("name")).await?;
+    Request::merge(json!({"verified": true})).await?;
+    Ok::<_, HttpError>(json!({"name": name}))
+})?;
+```
+
+控制器动作不需要请求参数时，用 `ControllerDispatcher::without_request(Controller::show)` 注册；其返回类型仍是 `HttpFuture<'_, Result<T, HttpError>>`。动作及其调用的服务可直接使用门面。显式接收 `&mut http::Request` 的处理器已独占借用请求，可以直接使用实例；需要调用使用门面的服务时，先用 `request.with_container(async { /* 调用服务 */ }).await` 借出请求，结束或取消后自动恢复。不要在同一次 `RequestHandle::with_mut`／`with_async` 访问中再借用门面，使用回调收到的请求。
+
+| 功能 | 入口示例 |
+| --- | --- |
+| 元数据与 URL | `method`、`uri`、`path`、`header`、`full_url`、`get_port` |
+| 输入与上传 | `input`、`all`、`only`、`file`、`all_files`、`merge`、`replace` |
+| 类型化输入 | `integer`、`string`、`r#enum`、`date`、`interval`、`clamp` |
+| 内容协商 | `accepts`、`prefers`、`get_format`、`get_preferred_format` |
+| 会话与闪存 | `session`、`old`、`flash`、`flash_only`、`flush` |
+| 用户与路由 | `user`、`route`、`route_parameter`、`set_user_resolver`、`set_route_resolver` |
+| 验证与签名 | `validate`、`validate_with_bag`、`has_valid_signature` |
+| 扩展 | `r#macro`、`mixin`、`has_macro`、`flush_macros`、`call` |
+
+`session(|store| ...)`／`get_session(|store| ...)` 在一次安全借用内访问 Store；不要把引用带出回调。`route()` 返回可拥有的 `ResolvedRoute`，包含名称、元数据、参数和模型绑定；按名称读取参数或模型用 `route_parameter(name)`。`UserResolver` 和 `RouteResolver` 是显式类型的请求级回调。用户解析器接收可变请求及可选 Guard，返回异步 `HttpFuture<AuthResult<...>>`，可等待业务查询。`set_json` 只接受对象或数组，校验失败时保留原输入。`when_has`、`when_filled`、`when_missing`、`when_enum` 在分支未选中时返回 `None`，并在执行业务回调前释放内部请求借用。
+
+`instance()` 和通用 `Facade::get_facade_root()` 返回 `RequestHandle`。用 `with`、`with_mut`、`with_async` 在受保护的借用内访问实例；句柄可在同一 HTTP 请求的多次借用之间复用，包括构造注入，但仅在请求被借出时可访问；HTTP 请求结束后失效。容器的 `request` 名称和 `RequestHandle` 类型也解析到当前句柄，不缓存跨请求状态。`Facade::swap(Arc::new(RequestHandle::from_request(request)))` 替换当前借用的请求，适用于显式重建和测试，不修改其他请求的容器绑定。
+
+`get_payload()` 读取原始表单或 JSON 载荷，不混入 URL 查询参数；`get_content()` 返回有大小限制的原始字节。`uri()` 返回完整地址的 `support::Uri`，传输层的原始 URI 仍通过请求实例的 `uri()` 读取。请求语言设置使用 BCP 47，独立于 `App::set_locale` 的应用翻译语言；格式扩展也按请求隔离。`dump` 输出选定数据；`dd` 通过 HTTP 异常终止当前响应，不退出服务进程。
+
+### 原生服务的配置与构造边界 {#request-facade-native-boundaries}
+
+PHP 进程全局设置不复制成多请求共享的可变静态状态。对应的显式入口如下：
+
+| 原机制 | OpenRust 入口 |
+| --- | --- |
+| 全局变量捕获、全局工厂、回写全局变量 | 服务器显式提供 `http::Request<Body>`，交给 `Request::capture`／`create`／`create_from_base`；自定义工厂使用普通函数或闭包，不读取或修改 PHP 全局变量 |
+| 从框架请求构造 | `create_from` 转移 `http::Request` 的所有权，保留输入缓存、上传和 Session |
+| 复制／重新初始化 | `duplicate().await` 导出独立 `http::Request<Bytes>` 传输快照；`initialize(native_request)` 替换当前借用的请求。快照保留原始请求体，不复制后续输入覆盖、会话、路由模型或中间件状态；需要原框架请求的状态时使用句柄，不把快照当作完整框架请求克隆 |
+| 可信代理和主机的进程级设置及读取 | 在 `bootstrap/app.rs` 的 `with_middleware` 中持有并配置 `trust_proxies`／`trust_hosts`，或使用已有 `trustedproxy` 配置；不添加全局 Request 静态开关 |
+| 方法覆写开关和允许列表 | 在装配闭包外用 `MethodOverride::new(parameter, allowed)` 构造并检查策略，再调用 `middleware.method_override(policy)`；`None` 允许现有安全规则下的目标方法，空列表关闭所有覆写。`parameter=false` 只关闭 `_method` 参数，允许列表仍约束覆写请求头；GET、HEAD、CONNECT、TRACE 不可加入允许列表 |
+
+`get_http_method_parameter_override()` 和 `get_allowed_http_method_override()` 可读取当前应用的有效覆写策略。策略在每次请求路由匹配前应用，不会串到其他应用。没有 CGI 脚本入口的原生服务器中，`get_script_name()` 返回空字符串，基础路径来自可信代理前缀。`server(key)` 返回显式传输元数据，`REMOTE_ADDR` 保留原始连接地址；客户端地址用 `ip()`。
+
 ## 客户端 IP 地址 {#request-ip-address}
 
 用 `request.ip()` 读取第一个解析出的客户端地址，用 `request.ips()` 读取地址链。直连时使用传输层提供的对端地址。配置可信代理后，地址链会过滤可信节点，从最近的非可信地址开始。若所有节点均可信，则返回链中的第一个可信地址。见[可信代理配置](#configuring-trusted-proxies)。
+
+在当前 HTTP 请求内的控制器和服务中，也可以通过 IP 门面读取：
+
+```rust
+use openrust::support::facades::Request;
+
+let ip = Request::ip()?;   // Option<std::net::IpAddr>
+let ips = Request::ips()?; // Vec<std::net::IpAddr>
+```
+
+`Request::get_client_ip()` 和 `Request::get_client_ips()` 提供对应的 IP 入口，请求实例也提供这两个别名。它们读取 HTTP 内核按可信代理策略解析的连接信息。HTTP 请求缺少传输地址时返回 `None`／空列表；不在当前 HTTP 请求内时，门面返回 `BindingResolutionError::FacadeNotSet`。独立启动的任务不会继承此上下文，后台任务需要的地址应显式传递。其他入口与借用边界见 [Request 门面](#request-facade)。
 
 ## 内容协商 {#content-negotiation}
 

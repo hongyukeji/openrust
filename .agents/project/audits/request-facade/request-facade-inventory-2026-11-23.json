@@ -1,0 +1,995 @@
+{
+  "baseline": "Laravel framework v13.40.0",
+  "source": "https://raw.githubusercontent.com/laravel/framework/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/Facades/Request.php",
+  "sha256": "cc52b904cf24c8884e799d83d7a3cd5601de54736e99bf1403c200d9c3666313",
+  "scope": "完整 Request 静态声明核对：176个运行时入口、6个所有权/传输构造适配、10个PHP全局/启动策略边界裁决；不声明PHP全局语义或完整请求克隆的字面等价",
+  "entries": [
+    {
+      "upstream": "capture",
+      "status": "显式所有权／传输类型适配；保留签名或行为差异",
+      "rust": "openrust::support::facades::Request::capture",
+      "reason": "Rust 显式传输输入或所有权转移；initialize 替换当前安全借用的请求"
+    },
+    {
+      "upstream": "instance",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::instance"
+    },
+    {
+      "upstream": "method",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::method"
+    },
+    {
+      "upstream": "uri",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::uri"
+    },
+    {
+      "upstream": "root",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::root"
+    },
+    {
+      "upstream": "url",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::url"
+    },
+    {
+      "upstream": "fullUrl",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::full_url"
+    },
+    {
+      "upstream": "fullUrlWithQuery",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::full_url_with_query"
+    },
+    {
+      "upstream": "fullUrlWithoutQuery",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::full_url_without_query"
+    },
+    {
+      "upstream": "path",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::path"
+    },
+    {
+      "upstream": "decodedPath",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::decoded_path"
+    },
+    {
+      "upstream": "segment",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::segment"
+    },
+    {
+      "upstream": "segments",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::segments"
+    },
+    {
+      "upstream": "is",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::is"
+    },
+    {
+      "upstream": "routeIs",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::route_is"
+    },
+    {
+      "upstream": "fullUrlIs",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::full_url_is"
+    },
+    {
+      "upstream": "host",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::host"
+    },
+    {
+      "upstream": "httpHost",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::http_host"
+    },
+    {
+      "upstream": "schemeAndHttpHost",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::scheme_and_http_host"
+    },
+    {
+      "upstream": "ajax",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::ajax"
+    },
+    {
+      "upstream": "pjax",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::pjax"
+    },
+    {
+      "upstream": "prefetch",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::prefetch"
+    },
+    {
+      "upstream": "secure",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::secure"
+    },
+    {
+      "upstream": "ip",
+      "rust": "openrust::support::facades::Request::ip",
+      "status": "已实现；功能组行为验收"
+    },
+    {
+      "upstream": "ips",
+      "rust": "openrust::support::facades::Request::ips",
+      "status": "已实现；功能组行为验收"
+    },
+    {
+      "upstream": "userAgent",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::user_agent"
+    },
+    {
+      "upstream": "getAcceptableContentTypes",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::get_acceptable_content_types"
+    },
+    {
+      "upstream": "merge",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::merge"
+    },
+    {
+      "upstream": "mergeIfMissing",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::merge_if_missing"
+    },
+    {
+      "upstream": "replace",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::replace"
+    },
+    {
+      "upstream": "json",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::json"
+    },
+    {
+      "upstream": "createFrom",
+      "status": "显式所有权／传输类型适配；保留签名或行为差异",
+      "rust": "openrust::support::facades::Request::create_from",
+      "reason": "Rust 显式传输输入或所有权转移；initialize 替换当前安全借用的请求"
+    },
+    {
+      "upstream": "createFromBase",
+      "status": "显式所有权／传输类型适配；保留签名或行为差异",
+      "rust": "openrust::support::facades::Request::create_from_base",
+      "reason": "Rust 显式传输输入或所有权转移；initialize 替换当前安全借用的请求"
+    },
+    {
+      "upstream": "duplicate",
+      "status": "显式所有权／传输类型适配；保留签名或行为差异",
+      "rust": "openrust::support::facades::Request::duplicate",
+      "reason": "导出原始传输快照，非完整框架对象克隆；不复制后续输入覆盖、Session、模型和中间件状态"
+    },
+    {
+      "upstream": "hasSession",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::has_session"
+    },
+    {
+      "upstream": "getSession",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::get_session"
+    },
+    {
+      "upstream": "session",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::session"
+    },
+    {
+      "upstream": "setLaravelSession",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::set_laravel_session"
+    },
+    {
+      "upstream": "setRequestLocale",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::set_request_locale"
+    },
+    {
+      "upstream": "setDefaultRequestLocale",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::set_default_request_locale"
+    },
+    {
+      "upstream": "user",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::user"
+    },
+    {
+      "upstream": "route",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::route"
+    },
+    {
+      "upstream": "fingerprint",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::fingerprint"
+    },
+    {
+      "upstream": "setJson",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::set_json",
+      "typed_contract": "只接受对象或数组；非法值返回HttpError且保留原输入"
+    },
+    {
+      "upstream": "getUserResolver",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::get_user_resolver",
+      "typed_contract": "UserResolver接收可变请求及可选Guard，异步HttpFuture<AuthResult<...>>"
+    },
+    {
+      "upstream": "setUserResolver",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::set_user_resolver",
+      "typed_contract": "UserResolver接收可变请求及可选Guard，异步HttpFuture<AuthResult<...>>"
+    },
+    {
+      "upstream": "getRouteResolver",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::get_route_resolver"
+    },
+    {
+      "upstream": "setRouteResolver",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::set_route_resolver"
+    },
+    {
+      "upstream": "toArray",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::to_array"
+    },
+    {
+      "upstream": "initialize",
+      "status": "显式所有权／传输类型适配；保留签名或行为差异",
+      "rust": "openrust::support::facades::Request::initialize",
+      "reason": "Rust 显式传输输入或所有权转移；initialize 替换当前安全借用的请求"
+    },
+    {
+      "upstream": "createFromGlobals",
+      "status": "原生应用／传输边界适配；无同名静态空方法",
+      "native_entry": "Request::capture(native_request)",
+      "reason": "原生服务器显式提供输入；Rust 无 PHP 全局请求变量"
+    },
+    {
+      "upstream": "create",
+      "status": "显式所有权／传输类型适配；保留签名或行为差异",
+      "rust": "openrust::support::facades::Request::create",
+      "reason": "Rust 显式传输输入或所有权转移；initialize 替换当前安全借用的请求"
+    },
+    {
+      "upstream": "setFactory",
+      "status": "原生应用／传输边界适配；无同名静态空方法",
+      "native_entry": "传输入口的普通函数/闭包",
+      "reason": "工厂由调用方持有，不安装进程级可变工厂"
+    },
+    {
+      "upstream": "overrideGlobals",
+      "status": "原生应用／传输边界适配；无同名静态空方法",
+      "native_entry": "显式传递 http::Request<Body>",
+      "reason": "Rust 无 PHP 进程全局数组，不增加无效果的空方法"
+    },
+    {
+      "upstream": "setTrustedProxies",
+      "status": "原生应用／传输边界适配；无同名静态空方法",
+      "native_entry": "foundation::configuration::Middleware::trust_proxies",
+      "reason": "策略在应用启动时配置，按应用隔离"
+    },
+    {
+      "upstream": "getTrustedProxies",
+      "status": "原生应用／传输边界适配；无同名静态空方法",
+      "native_entry": "启动时持有的代理策略值／trustedproxy.proxies 配置",
+      "reason": "不提供读取进程全局状态的静态接口；显式策略由应用持有"
+    },
+    {
+      "upstream": "getTrustedHeaderSet",
+      "status": "原生应用／传输边界适配；无同名静态空方法",
+      "native_entry": "启动时传入 trust_proxies 的 TrustedProxyHeaders 标志",
+      "reason": "由应用持有显式标志，不在并行请求间共享可变静态值"
+    },
+    {
+      "upstream": "setTrustedHosts",
+      "status": "原生应用／传输边界适配；无同名静态空方法",
+      "native_entry": "foundation::configuration::Middleware::trust_hosts",
+      "reason": "按应用配置主机策略"
+    },
+    {
+      "upstream": "getTrustedHosts",
+      "status": "原生应用／传输边界适配；无同名静态空方法",
+      "native_entry": "启动时传入 trust_hosts 的主机策略",
+      "reason": "应用保留配置值；不维护全局可信主机缓存"
+    },
+    {
+      "upstream": "normalizeQueryString",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::normalize_query_string"
+    },
+    {
+      "upstream": "enableHttpMethodParameterOverride",
+      "status": "原生应用／传输边界适配；无同名静态空方法",
+      "native_entry": "foundation::configuration::Middleware::method_override(MethodOverride::new(true, allowed)?)",
+      "reason": "应用级开关；覆写请求头与参数分别按有效策略处理"
+    },
+    {
+      "upstream": "getHttpMethodParameterOverride",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::get_http_method_parameter_override"
+    },
+    {
+      "upstream": "setAllowedHttpMethodOverride",
+      "status": "原生应用／传输边界适配；无同名静态空方法",
+      "native_entry": "http::MethodOverride::new(parameter, allowed)",
+      "reason": "None／空列表／允许列表；拒绝 GET HEAD CONNECT TRACE"
+    },
+    {
+      "upstream": "getAllowedHttpMethodOverride",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::get_allowed_http_method_override"
+    },
+    {
+      "upstream": "hasPreviousSession",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::has_previous_session"
+    },
+    {
+      "upstream": "setSession",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::set_session"
+    },
+    {
+      "upstream": "getClientIps",
+      "rust": "openrust::support::facades::Request::get_client_ips",
+      "status": "已实现；功能组行为验收"
+    },
+    {
+      "upstream": "getClientIp",
+      "rust": "openrust::support::facades::Request::get_client_ip",
+      "status": "已实现；功能组行为验收"
+    },
+    {
+      "upstream": "getScriptName",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::get_script_name"
+    },
+    {
+      "upstream": "getPathInfo",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::get_path_info"
+    },
+    {
+      "upstream": "getBasePath",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::get_base_path"
+    },
+    {
+      "upstream": "getBaseUrl",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::get_base_url"
+    },
+    {
+      "upstream": "getScheme",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::get_scheme"
+    },
+    {
+      "upstream": "getPort",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::get_port"
+    },
+    {
+      "upstream": "getUser",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::get_user"
+    },
+    {
+      "upstream": "getPassword",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::get_password"
+    },
+    {
+      "upstream": "getUserInfo",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::get_user_info"
+    },
+    {
+      "upstream": "getHttpHost",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::get_http_host"
+    },
+    {
+      "upstream": "getRequestUri",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::get_request_uri"
+    },
+    {
+      "upstream": "getSchemeAndHttpHost",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::get_scheme_and_http_host"
+    },
+    {
+      "upstream": "getUri",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::get_uri"
+    },
+    {
+      "upstream": "getUriForPath",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::get_uri_for_path"
+    },
+    {
+      "upstream": "getRelativeUriForPath",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::get_relative_uri_for_path"
+    },
+    {
+      "upstream": "getQueryString",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::get_query_string"
+    },
+    {
+      "upstream": "isSecure",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::is_secure"
+    },
+    {
+      "upstream": "getHost",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::get_host"
+    },
+    {
+      "upstream": "setMethod",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::set_method"
+    },
+    {
+      "upstream": "getMethod",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::get_method"
+    },
+    {
+      "upstream": "getRealMethod",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::get_real_method"
+    },
+    {
+      "upstream": "getMimeType",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::get_mime_type"
+    },
+    {
+      "upstream": "getMimeTypes",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::get_mime_types"
+    },
+    {
+      "upstream": "getFormat",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::get_format"
+    },
+    {
+      "upstream": "setFormat",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::set_format"
+    },
+    {
+      "upstream": "getRequestFormat",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::get_request_format"
+    },
+    {
+      "upstream": "setRequestFormat",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::set_request_format"
+    },
+    {
+      "upstream": "getContentTypeFormat",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::get_content_type_format"
+    },
+    {
+      "upstream": "setDefaultLocale",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::set_default_locale"
+    },
+    {
+      "upstream": "getDefaultLocale",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::get_default_locale"
+    },
+    {
+      "upstream": "setLocale",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::set_locale"
+    },
+    {
+      "upstream": "getLocale",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::get_locale"
+    },
+    {
+      "upstream": "isMethod",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::is_method"
+    },
+    {
+      "upstream": "isMethodSafe",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::is_method_safe"
+    },
+    {
+      "upstream": "isMethodIdempotent",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::is_method_idempotent"
+    },
+    {
+      "upstream": "isMethodCacheable",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::is_method_cacheable"
+    },
+    {
+      "upstream": "getProtocolVersion",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::get_protocol_version"
+    },
+    {
+      "upstream": "getContent",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::get_content"
+    },
+    {
+      "upstream": "getPayload",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::get_payload"
+    },
+    {
+      "upstream": "getETags",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::get_e_tags"
+    },
+    {
+      "upstream": "isNoCache",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::is_no_cache"
+    },
+    {
+      "upstream": "getPreferredFormat",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::get_preferred_format"
+    },
+    {
+      "upstream": "getPreferredLanguage",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::get_preferred_language"
+    },
+    {
+      "upstream": "getLanguages",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::get_languages"
+    },
+    {
+      "upstream": "getCharsets",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::get_charsets"
+    },
+    {
+      "upstream": "getEncodings",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::get_encodings"
+    },
+    {
+      "upstream": "isXmlHttpRequest",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::is_xml_http_request"
+    },
+    {
+      "upstream": "preferSafeContent",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::prefer_safe_content"
+    },
+    {
+      "upstream": "isFromTrustedProxy",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::is_from_trusted_proxy"
+    },
+    {
+      "upstream": "filterPrecognitiveRules",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::filter_precognitive_rules"
+    },
+    {
+      "upstream": "isAttemptingPrecognition",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::is_attempting_precognition"
+    },
+    {
+      "upstream": "isPrecognitive",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::is_precognitive"
+    },
+    {
+      "upstream": "isJson",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::is_json"
+    },
+    {
+      "upstream": "expectsJson",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::expects_json"
+    },
+    {
+      "upstream": "wantsJson",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::wants_json"
+    },
+    {
+      "upstream": "wantsMarkdown",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::wants_markdown"
+    },
+    {
+      "upstream": "accepts",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::accepts"
+    },
+    {
+      "upstream": "prefers",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::prefers"
+    },
+    {
+      "upstream": "acceptsAnyContentType",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::accepts_any_content_type"
+    },
+    {
+      "upstream": "acceptsJson",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::accepts_json"
+    },
+    {
+      "upstream": "acceptsMarkdown",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::accepts_markdown"
+    },
+    {
+      "upstream": "acceptsHtml",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::accepts_html"
+    },
+    {
+      "upstream": "matchesType",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::matches_type"
+    },
+    {
+      "upstream": "format",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::format"
+    },
+    {
+      "upstream": "old",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::old"
+    },
+    {
+      "upstream": "flash",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::flash"
+    },
+    {
+      "upstream": "flashOnly",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::flash_only"
+    },
+    {
+      "upstream": "flashExcept",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::flash_except"
+    },
+    {
+      "upstream": "flush",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::flush"
+    },
+    {
+      "upstream": "server",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::server"
+    },
+    {
+      "upstream": "hasHeader",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::has_header"
+    },
+    {
+      "upstream": "header",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::header",
+      "native_overload": "header(&str)读取首值，headers()返回完整HeaderMap；缺键用Option表达"
+    },
+    {
+      "upstream": "bearerToken",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::bearer_token"
+    },
+    {
+      "upstream": "keys",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::keys"
+    },
+    {
+      "upstream": "all",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::all"
+    },
+    {
+      "upstream": "input",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::input"
+    },
+    {
+      "upstream": "fluent",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::fluent"
+    },
+    {
+      "upstream": "query",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::query"
+    },
+    {
+      "upstream": "post",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::post"
+    },
+    {
+      "upstream": "hasCookie",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::has_cookie"
+    },
+    {
+      "upstream": "cookie",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::cookie"
+    },
+    {
+      "upstream": "allFiles",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::all_files"
+    },
+    {
+      "upstream": "hasFile",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::has_file"
+    },
+    {
+      "upstream": "file",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::file"
+    },
+    {
+      "upstream": "image",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::image"
+    },
+    {
+      "upstream": "dump",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::dump"
+    },
+    {
+      "upstream": "dd",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::dd"
+    },
+    {
+      "upstream": "exists",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::exists"
+    },
+    {
+      "upstream": "has",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::has"
+    },
+    {
+      "upstream": "hasAny",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::has_any"
+    },
+    {
+      "upstream": "whenHas",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::when_has"
+    },
+    {
+      "upstream": "filled",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::filled"
+    },
+    {
+      "upstream": "isNotFilled",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::is_not_filled"
+    },
+    {
+      "upstream": "anyFilled",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::any_filled"
+    },
+    {
+      "upstream": "whenFilled",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::when_filled"
+    },
+    {
+      "upstream": "whenEnum",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::when_enum"
+    },
+    {
+      "upstream": "missing",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::missing"
+    },
+    {
+      "upstream": "whenMissing",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::when_missing"
+    },
+    {
+      "upstream": "str",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::str"
+    },
+    {
+      "upstream": "string",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::string"
+    },
+    {
+      "upstream": "boolean",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::boolean"
+    },
+    {
+      "upstream": "integer",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::integer"
+    },
+    {
+      "upstream": "float",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::float"
+    },
+    {
+      "upstream": "clamp",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::clamp"
+    },
+    {
+      "upstream": "date",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::date"
+    },
+    {
+      "upstream": "interval",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::interval"
+    },
+    {
+      "upstream": "enum",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::r#enum"
+    },
+    {
+      "upstream": "enums",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::enums"
+    },
+    {
+      "upstream": "array",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::array"
+    },
+    {
+      "upstream": "collect",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::collect"
+    },
+    {
+      "upstream": "only",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::only"
+    },
+    {
+      "upstream": "except",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::except"
+    },
+    {
+      "upstream": "when",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::when"
+    },
+    {
+      "upstream": "unless",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::unless"
+    },
+    {
+      "upstream": "macro",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::r#macro"
+    },
+    {
+      "upstream": "mixin",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::mixin"
+    },
+    {
+      "upstream": "hasMacro",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::has_macro"
+    },
+    {
+      "upstream": "flushMacros",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::flush_macros"
+    },
+    {
+      "upstream": "validate",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::validate"
+    },
+    {
+      "upstream": "validateWithBag",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::validate_with_bag"
+    },
+    {
+      "upstream": "hasValidSignature",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::has_valid_signature"
+    },
+    {
+      "upstream": "hasValidRelativeSignature",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::has_valid_relative_signature"
+    },
+    {
+      "upstream": "hasValidSignatureWhileIgnoring",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::has_valid_signature_while_ignoring"
+    },
+    {
+      "upstream": "hasValidRelativeSignatureWhileIgnoring",
+      "status": "已实现；功能组行为验收",
+      "rust": "openrust::support::facades::Request::has_valid_relative_signature_while_ignoring"
+    }
+  ],
+  "facade_base_controls": "复用现有Facade与容器request绑定；瞬态RequestHandle、异步根解析、清除、当前请求替换；不将请求替身写为跨请求容器单例",
+  "implementation": "vendor/openrust/framework/src/support/facades/request.rs",
+  "verification_suites": [
+    "vendor/openrust/framework/tests/request_facade.rs",
+    "vendor/openrust/framework/tests/request_facade_full.rs"
+  ],
+  "verification_policy": "薄转发按输入/协议/上传/Session/路由/宏/验证/签名/生命周期分组验收；声明命中不代表每一参数组合已验证，具体结果及范围见README.md"
+}

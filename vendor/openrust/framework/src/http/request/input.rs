@@ -72,6 +72,50 @@ impl Payload {
 }
 
 impl Request {
+    /// 原始载荷不合并 URL 查询参数；空表单回退到 JSON 请求体。
+    pub async fn get_payload(&mut self) -> Result<Value, HttpError> {
+        if let Some(fields) = &self.form_input
+            && (fields.as_object().is_some_and(|fields| !fields.is_empty())
+                || fields.as_array().is_some_and(|fields| !fields.is_empty()))
+        {
+            return Ok(fields.clone());
+        }
+        let media = self
+            .headers()
+            .get(::http::header::CONTENT_TYPE)
+            .and_then(|value| value.to_str().ok())
+            .unwrap_or_default()
+            .split(';')
+            .next()
+            .unwrap_or_default();
+        if matches!(
+            media,
+            "application/x-www-form-urlencoded" | "multipart/form-data"
+        ) {
+            let payload = self.payload().await?;
+            if payload
+                .fields
+                .as_object()
+                .is_some_and(|fields| !fields.is_empty())
+                || payload
+                    .fields
+                    .as_array()
+                    .is_some_and(|fields| !fields.is_empty())
+            {
+                return Ok(payload.fields.clone());
+            }
+        }
+        let bytes = self.body_bytes().await?;
+        if bytes.is_empty() {
+            return Ok(Value::Array(Vec::new()));
+        }
+        let value: Value = serde_json::from_slice(&bytes).map_err(|_| HttpError::InvalidRequest)?;
+        if !value.is_object() && !value.is_array() {
+            return Err(HttpError::InvalidRequest);
+        }
+        Ok(value)
+    }
+
     /// Returns already-decoded input for diagnostics without polling the request body.
     #[allow(non_snake_case, reason = "Matches the request input naming")]
     pub fn input_snapshot(&self) -> Option<Value> {
@@ -87,7 +131,14 @@ impl Request {
         Some(union(fields.clone(), query))
     }
     pub(crate) async fn apply_method_override(&mut self) -> Result<(), HttpError> {
-        if self.method() != Method::POST {
+        let policy = self
+            .extensions()
+            .get::<crate::http::MethodOverride>()
+            .cloned()
+            .unwrap_or_default();
+        if self.method() != Method::POST
+            || policy.allowed().is_some_and(|methods| methods.is_empty())
+        {
             return Ok(());
         }
 
@@ -100,6 +151,9 @@ impl Request {
         let method = if let Some(header) = header {
             header.to_ascii_uppercase()
         } else {
+            if !policy.parameter {
+                return Ok(());
+            }
             let media = self
                 .headers()
                 .get(::http::header::CONTENT_TYPE)
@@ -131,6 +185,12 @@ impl Request {
             method.as_str(),
             "GET" | "HEAD" | "CONNECT" | "TRACE" | "POST"
         ) {
+            return Ok(());
+        }
+        if policy
+            .allowed()
+            .is_some_and(|methods| !methods.iter().any(|allowed| allowed.as_str() == method))
+        {
             return Ok(());
         }
         if method.is_empty() || !method.bytes().all(|byte| byte.is_ascii_uppercase()) {

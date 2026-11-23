@@ -298,6 +298,10 @@ impl http::Kernel for Kernel {
                     .extensions
                     .remove::<crate::http::middleware::PrivateLocaleResponse>();
                 request.matched_route = false;
+                request
+                    .parts_mut()
+                    .extensions
+                    .insert(self.middleware.method_override.clone());
                 request.route_name = None;
                 request
                     .parts_mut()
@@ -316,18 +320,35 @@ impl http::Kernel for Kernel {
                     Err(error) => Err(error),
                 };
                 if let Err(error) = origin {
-                    let response = self
-                        .application
-                        .shared
-                        .exceptions
-                        .render_http(request, &error)
-                        .await;
-                    let head = request.method() == Method::HEAD;
-                    let response = self
-                        .request_handled(request, response, started_at, request_started_at, head)
-                        .await;
-                    request.api_prefix = previous_api_prefix;
-                    return response;
+                    return crate::http::request_context::scope(
+                        self.application.container_handle(),
+                        request.uri().clone(),
+                        request.headers().get(::http::header::HOST).cloned(),
+                        request.get_base_url().to_owned(),
+                        request.attributes().clone(),
+                        request.ips().to_vec(),
+                        async {
+                            let response = self
+                                .application
+                                .shared
+                                .exceptions
+                                .render_http(request, &error)
+                                .await;
+                            let head = request.method() == Method::HEAD;
+                            let response = self
+                                .request_handled(
+                                    request,
+                                    response,
+                                    started_at,
+                                    request_started_at,
+                                    head,
+                                )
+                                .await;
+                            request.api_prefix = previous_api_prefix;
+                            response
+                        },
+                    )
+                    .await;
                 }
                 let previous_exceptions = request
                     .exceptions
@@ -364,6 +385,7 @@ impl http::Kernel for Kernel {
                     request.headers().get(::http::header::HOST).cloned(),
                     request.get_base_url().to_owned(),
                     attributes,
+                    request.ips().to_vec(),
                     crate::view::middleware::request_scope(
                         crate::cookie::middleware::request_scope(async {
                             let response = match self

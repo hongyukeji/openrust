@@ -11,11 +11,16 @@ mod error;
 mod http_response_exception;
 mod json_formatter;
 mod jsonp_response;
+mod method_override;
 pub mod middleware;
 mod next;
+pub use method_override::MethodOverride;
 mod proxy;
 mod redirect_response;
 mod request;
+mod request_macros;
+pub use request_macros::RequestMacro;
+pub(crate) use request_macros::{RequestMacros, RequestServiceProvider};
 pub mod resources;
 mod response;
 mod response_factory;
@@ -37,7 +42,10 @@ pub(crate) use proxy::{ProxyPolicy, ProxyRequest};
 pub use proxy::{RequestSecurity, TrustedProxyHeaders};
 pub use redirect_response::RedirectResponse;
 pub(crate) use request::context as request_context;
-pub use request::{Request, RequestAttributes, RequestField, RequestValue};
+pub use request::{
+    Request, RequestAttributes, RequestField, RequestValue, ResolvedRoute, RouteResolver,
+    UserResolver,
+};
 pub(crate) use request::{parse_query, parse_uri_query};
 pub use response::Response;
 pub(crate) use response::ResponseKind;

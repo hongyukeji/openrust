@@ -19,13 +19,23 @@ pub struct RequestAttributes(Arc<Mutex<HashMap<String, ParameterValue>>>);
 pub(crate) struct RequestIdentity(Weak<()>);
 
 impl RequestIdentity {
+    pub(crate) fn same_scope(&self, other: &Self) -> bool {
+        self.0.ptr_eq(&other.0)
+    }
     pub(crate) fn matches(&self, request: &Request) -> bool {
         with_context(|context| {
-            Arc::ptr_eq(&context.attributes.0, &request.attributes().0)
-                && context
-                    .identity
-                    .get()
-                    .is_some_and(|identity| self.0.as_ptr() == Arc::as_ptr(identity))
+            Arc::ptr_eq(
+                &context
+                    .metadata
+                    .lock()
+                    .expect("请求元数据锁已损坏")
+                    .attributes
+                    .0,
+                &request.attributes().0,
+            ) && context
+                .identity
+                .get()
+                .is_some_and(|identity| self.0.as_ptr() == Arc::as_ptr(identity))
         })
         .unwrap_or(false)
     }
@@ -71,12 +81,16 @@ struct RouteValues {
     models: RouteModels,
 }
 
-struct RequestContext {
-    container: Arc<Container>,
+struct Metadata {
     uri: crate::http::Uri,
     host: Option<::http::HeaderValue>,
     base_url: String,
+    client_ips: Vec<std::net::IpAddr>,
     attributes: RequestAttributes,
+}
+struct RequestContext {
+    container: Arc<Container>,
+    metadata: Mutex<Metadata>,
     identity: OnceLock<Arc<()>>,
     session_cache: Mutex<Option<crate::session::CacheAttributes>>,
     route: Mutex<RouteValues>,
@@ -101,6 +115,7 @@ pub(super) async fn resolving<T>(request: &mut Request, future: impl Future<Outp
                 .source
                 .try_lock()
                 .expect("request lease escaped resolution");
+            refresh_metadata(&request);
             std::mem::swap(self.destination, &mut request);
         }
     }
@@ -122,6 +137,11 @@ pub(super) async fn resolving<T>(request: &mut Request, future: impl Future<Outp
     value
 }
 
+// 请求借用只在所属任务和应用中有效；不把活动请求存入全局容器。
+pub(crate) fn current_request() -> Option<Arc<tokio::sync::Mutex<Request>>> {
+    with_context(|_| RESOLVING_REQUEST.try_with(Arc::clone).ok()).flatten()
+}
+
 pub(crate) fn borrow_for_resolution(
     container: &Container,
 ) -> Option<tokio::sync::OwnedMutexGuard<Request>> {
@@ -131,7 +151,16 @@ pub(crate) fn borrow_for_resolution(
             .ok()?
             .try_lock_owned()
             .ok()?;
-        Arc::ptr_eq(&context.attributes.0, &lease.attributes().0).then_some(lease)
+        Arc::ptr_eq(
+            &context
+                .metadata
+                .lock()
+                .expect("请求元数据锁已损坏")
+                .attributes
+                .0,
+            &lease.attributes().0,
+        )
+        .then_some(lease)
     })
 }
 
@@ -149,16 +178,20 @@ pub(crate) async fn scope<F: Future>(
     host: Option<::http::HeaderValue>,
     base_url: String,
     attributes: RequestAttributes,
+    client_ips: Vec<std::net::IpAddr>,
     future: F,
 ) -> F::Output {
     CURRENT
         .scope(
             RequestContext {
                 container,
-                uri,
-                host,
-                base_url,
-                attributes,
+                metadata: Mutex::new(Metadata {
+                    uri,
+                    host,
+                    base_url,
+                    client_ips,
+                    attributes,
+                }),
                 identity: OnceLock::new(),
                 session_cache: Mutex::default(),
                 route: Mutex::default(),
@@ -168,20 +201,92 @@ pub(crate) async fn scope<F: Future>(
         .await
 }
 
+pub(crate) fn with_client_ips<T>(get: impl FnOnce(&[std::net::IpAddr]) -> T) -> Option<T> {
+    with_metadata(|metadata| get(&metadata.client_ips))
+}
+
 pub(crate) fn with_uri<T>(get: impl FnOnce(&crate::http::Uri) -> T) -> Option<T> {
-    with_context(|context| get(&context.uri))
+    if let Some(request) = current_request().and_then(|request| request.try_lock_owned().ok()) {
+        return Some(get(request.uri()));
+    }
+    with_metadata(|metadata| get(&metadata.uri))
 }
 
 pub(crate) fn with_attributes<T>(get: impl FnOnce(&RequestAttributes) -> T) -> Option<T> {
-    with_context(|context| get(&context.attributes))
+    if let Some(request) = current_request().and_then(|request| request.try_lock_owned().ok()) {
+        return Some(get(request.attributes()));
+    }
+    with_metadata(|metadata| get(&metadata.attributes))
 }
 
 pub(crate) fn with_url_uri() -> Option<crate::http::Uri> {
-    with_context(|context| crate::routing::url_uri(&context.uri, context.host.as_ref()))
+    if let Some(request) = current_request().and_then(|request| request.try_lock_owned().ok()) {
+        return Some(crate::routing::url_uri(
+            request.uri(),
+            request.headers().get(http::header::HOST),
+        ));
+    }
+    with_metadata(|metadata| crate::routing::url_uri(&metadata.uri, metadata.host.as_ref()))
 }
 
 pub(crate) fn base_url() -> Option<String> {
-    with_context(|context| context.base_url.clone())
+    if let Some(request) = current_request().and_then(|request| request.try_lock_owned().ok()) {
+        return Some(request.get_base_url().to_owned());
+    }
+    with_metadata(|metadata| metadata.base_url.clone())
+}
+
+fn with_metadata<T>(get: impl FnOnce(&Metadata) -> T) -> Option<T> {
+    with_context(|context| get(&context.metadata.lock().expect("请求元数据锁已损坏")))
+}
+
+/// 请求替换及一次独占借用结束后，同步现有消费者使用的快照。
+pub(crate) fn refresh_metadata(request: &Request) {
+    let retired = with_context(|context| {
+        let previous = std::mem::replace(
+            &mut *context.metadata.lock().expect("请求元数据锁已损坏"),
+            Metadata {
+                uri: request.uri().clone(),
+                host: request.headers().get(http::header::HOST).cloned(),
+                base_url: request.get_base_url().to_owned(),
+                client_ips: request.ips().to_vec(),
+                attributes: request.attributes().clone(),
+            },
+        );
+        let values = if let Some(route) = request.custom_resolved_route() {
+            RouteValues {
+                parameters: route
+                    .parameters
+                    .iter()
+                    .map(|(name, value)| (name.clone(), value.clone()))
+                    .collect::<Vec<_>>()
+                    .into(),
+                models: route
+                    .models
+                    .iter()
+                    .map(|(name, value)| (name.clone(), value.clone()))
+                    .collect(),
+            }
+        } else {
+            RouteValues {
+                parameters: request.route_parameters.clone(),
+                models: request.route_models.clone(),
+            }
+        };
+        let route = std::mem::replace(
+            &mut *context.route.lock().expect("request route lock poisoned"),
+            values,
+        );
+        *context
+            .session_cache
+            .lock()
+            .expect("request session cache poisoned") = request
+            .session()
+            .ok()
+            .map(|session| session.cache_attributes().clone());
+        (previous, route)
+    });
+    drop(retired);
 }
 
 fn with_context<T>(get: impl FnOnce(&RequestContext) -> T) -> Option<T> {
@@ -215,12 +320,27 @@ fn read_context<T>(
 }
 
 pub(crate) fn attribute(container: &Container, name: &str) -> Option<ParameterValue> {
-    read_context(container, |context| context.attributes.get(name))
+    read_context(container, |context| {
+        context
+            .metadata
+            .lock()
+            .expect("请求元数据锁已损坏")
+            .attributes
+            .get(name)
+    })
 }
 
 pub(crate) fn set_session_cache(request: &Request, cache: Option<crate::session::CacheAttributes>) {
     with_context(|context| {
-        if Arc::ptr_eq(&context.attributes.0, &request.attributes().0) {
+        if Arc::ptr_eq(
+            &context
+                .metadata
+                .lock()
+                .expect("请求元数据锁已损坏")
+                .attributes
+                .0,
+            &request.attributes().0,
+        ) {
             *context
                 .session_cache
                 .lock()
@@ -240,6 +360,16 @@ pub(crate) fn session_cache(container: &Container) -> Option<crate::session::Cac
 }
 
 pub(crate) fn route_parameter(container: &Container, name: &str) -> Option<ParameterValue> {
+    if let Some(request) = borrow_for_resolution(container)
+        && let Some(route) = request.custom_resolved_route()
+    {
+        return route.models.get(name).cloned().or_else(|| {
+            route
+                .parameters
+                .get(name)
+                .map(|value| ParameterValue::new(value.clone()))
+        });
+    }
     read_context(container, |context| {
         let route = context.route.lock().expect("request route lock poisoned");
         route.models.get(name).cloned().or_else(|| {
@@ -254,7 +384,15 @@ pub(crate) fn route_parameter(container: &Container, name: &str) -> Option<Param
 
 fn update(attributes: &RequestAttributes, set: impl FnOnce(&mut RouteValues)) {
     let _ = CURRENT.try_with(|context| {
-        if Arc::ptr_eq(&context.attributes.0, &attributes.0) {
+        if Arc::ptr_eq(
+            &context
+                .metadata
+                .lock()
+                .expect("请求元数据锁已损坏")
+                .attributes
+                .0,
+            &attributes.0,
+        ) {
             set(&mut context.route.lock().expect("request route lock poisoned"));
         }
     });

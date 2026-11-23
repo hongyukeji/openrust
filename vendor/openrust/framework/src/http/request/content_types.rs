@@ -123,7 +123,7 @@ fn type_wildcard(range: &str, content_type: &str) -> bool {
         .is_some_and(|group| group == content_type.split('/').next().unwrap_or_default())
 }
 
-fn parse_accept(headers: &HeaderMap) -> Vec<String> {
+pub(super) fn parse_accept(headers: &HeaderMap) -> Vec<String> {
     let Some(raw) = headers.get(ACCEPT).and_then(|value| value.to_str().ok()) else {
         return Vec::new();
     };
@@ -284,7 +284,7 @@ fn matches_type(actual: &str, requested: &str) -> bool {
         })
 }
 
-const FORMATS: &[(&str, &[&str])] = &[
+pub(super) const FORMATS: &[(&str, &[&str])] = &[
     ("html", &["text/html", "application/xhtml+xml"]),
     ("txt", &["text/plain"]),
     (
@@ -323,11 +323,15 @@ fn mime_for_format(format: &str) -> Option<&'static str> {
         .map(|(_, types)| types[0])
 }
 
-fn format_for_mime(mime: &str) -> Option<&'static str> {
+pub(super) fn format_for_mime(mime: &str) -> Option<&'static str> {
     let canonical = strip_params(mime);
     if let Some((format, _)) = FORMATS.iter().find(|(_, types)| types.contains(&canonical)) {
         return Some(format);
     }
+    format_for_suffix(canonical)
+}
+
+pub(super) fn format_for_suffix(canonical: &str) -> Option<&'static str> {
     let suffix = canonical.strip_prefix("application/")?.rsplit_once('+')?.1;
     Some(match suffix {
         "json" => "json",

@@ -242,7 +242,7 @@ impl Request {
         if let Some(value) = self.all().await?.get(key).cloned() {
             return Ok(Some(RequestField::Value(value)));
         }
-        if let Some(model) = self.route_models.get(key) {
+        if let Some(model) = self.route_binding_value(key) {
             return Ok(Some(RequestField::RouteModel(model.clone())));
         }
         Ok(self

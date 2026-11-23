@@ -73,7 +73,10 @@ where
         &'a self,
         request: &'a mut Request,
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
-        Box::pin(async { (self.0)().await.respond(request).await })
+        Box::pin(async {
+            let output = request.with_container(async { (self.0)().await }).await;
+            output.respond(request).await
+        })
     }
 }
 

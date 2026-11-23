@@ -21,6 +21,7 @@ mod flash_data;
 mod input;
 mod input_value;
 mod languages;
+mod metadata;
 mod native;
 mod precognition;
 pub(crate) mod query;
@@ -29,6 +30,29 @@ mod url;
 mod variables;
 pub use context::RequestAttributes;
 pub use input_value::{RequestField, RequestValue};
+
+type UserCallback = dyn for<'a> Fn(
+        &'a mut Request,
+        Option<&'a str>,
+    ) -> super::HttpFuture<
+        'a,
+        crate::auth::AuthResult<Option<Arc<dyn crate::contracts::auth::Authenticatable>>>,
+    > + Send
+    + Sync;
+/// 请求级用户解析器，可替换当前请求的默认 Guard 解析。
+#[derive(Clone)]
+pub struct UserResolver(pub Arc<UserCallback>);
+/// 解析器返回的路由信息、参数与模型绑定。
+#[derive(Clone, Default)]
+pub struct ResolvedRoute {
+    pub name: Option<String>,
+    pub metadata: Option<crate::routing::RouteMetadata>,
+    pub parameters: std::collections::BTreeMap<String, String>,
+    pub models: std::collections::BTreeMap<String, ParameterValue>,
+}
+/// 请求级路由解析器；首次读取后缓存当前路由对象。
+#[derive(Clone)]
+pub struct RouteResolver(pub Arc<dyn Fn() -> ResolvedRoute + Send + Sync>);
 
 /// An incoming HTTP request with owned metadata and body.
 pub struct Request {
@@ -62,7 +86,7 @@ pub struct Request {
 }
 
 impl Request {
-    /// Resolves constructor or method dependencies that need this HTTP request.
+    /// 在不持有请求引用的异步操作中借出当前请求，完成或取消后恢复原实例。
     #[allow(non_snake_case, reason = "Matches the container assembly API")]
     pub async fn with_container<T>(&mut self, resolve: impl std::future::Future<Output = T>) -> T {
         context::resolving(self, resolve).await
@@ -184,6 +208,9 @@ impl Request {
         &mut self,
         guard: Option<&str>,
     ) -> crate::auth::AuthResult<Option<Arc<dyn crate::contracts::auth::Authenticatable>>> {
+        if let Some(resolver) = self.get_user_resolver() {
+            return (resolver.0)(self, guard).await;
+        }
         crate::support::facades::Auth::manager()?
             .user_for_guard(self, guard)
             .await
@@ -191,9 +218,7 @@ impl Request {
 
     pub fn fingerprint(&self) -> Result<String, super::HttpError> {
         let route = self
-            .parts
-            .extensions
-            .get::<crate::routing::RouteMetadata>()
+            .route_metadata()
             .ok_or_else(|| super::HttpError::Internal {
                 source: std::io::Error::other("无法生成请求指纹：尚未匹配路由").into(),
             })?;
@@ -348,6 +373,14 @@ impl Request {
         self.ips().first().copied()
     }
 
+    pub fn get_client_ip(&self) -> Option<std::net::IpAddr> {
+        self.ip()
+    }
+
+    pub fn get_client_ips(&self) -> &[std::net::IpAddr] {
+        self.ips()
+    }
+
     pub fn ips(&self) -> &[std::net::IpAddr] {
         self.proxy.ips.as_deref().unwrap_or_else(|| {
             self.parts
@@ -407,7 +440,12 @@ impl Request {
     /// Matches the resolved route name against any supplied wildcard pattern.
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn route_is(&self, patterns: &[&str]) -> bool {
-        self.route_name.as_deref().is_some_and(|name| {
+        let name = if let Some(route) = self.custom_resolved_route() {
+            route.name.as_deref()
+        } else {
+            self.route_name.as_deref()
+        };
+        name.is_some_and(|name| {
             patterns
                 .iter()
                 .any(|pattern| matches_pattern(name, pattern))
@@ -473,6 +511,9 @@ impl Request {
     }
 
     pub fn route(&self, name: &str) -> Option<&str> {
+        if self.get_route_resolver().is_some() {
+            return self.resolved_route_value(name);
+        }
         self.route_parameters
             .iter()
             .find(|(key, _)| key == name)
@@ -484,7 +525,14 @@ impl Request {
     }
 
     pub fn route_model<T: std::any::Any>(&self, name: &str) -> Option<&T> {
-        self.route_models.get(name)?.downcast_ref()
+        self.route_binding_value(name)?.downcast_ref()
+    }
+
+    pub(crate) fn route_binding_value(&self, name: &str) -> Option<&ParameterValue> {
+        if let Some(route) = self.custom_resolved_route() {
+            return route.models.get(name);
+        }
+        self.route_models.get(name)
     }
 
     pub(crate) fn set_route_parameters(&mut self, parameters: Vec<(String, String)>) {

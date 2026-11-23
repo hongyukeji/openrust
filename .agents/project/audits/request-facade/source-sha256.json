@@ -1,0 +1,30 @@
+{
+  "parent": "6c879c658fc5818da377155bd34fd8a175c0eb4f",
+  "files": {
+    "vendor/openrust/framework/src/foundation/application.rs": "24a827039ec1b2206ff5530cebb74f0ee22acce71dedb84e19e7a539ecb02318",
+    "vendor/openrust/framework/src/foundation/configuration/middleware.rs": "2f098472ab8b0c10dc2a605d695e78db375c58607d50228d104bd8f1ea05bb7d",
+    "vendor/openrust/framework/src/foundation/http.rs": "f701b1498e6400170b7a1e68719cf5c2b1aebb38fca220b8eef92a5a523c8775",
+    "vendor/openrust/framework/src/http/mod.rs": "114bfa41967399e87b744c1bfe16786656aba47037f1db0ca9ef28319c0f655a",
+    "vendor/openrust/framework/src/http/proxy.rs": "aeea2fa8d132fd9c245cb7e7d703b71cd17aa3b2286e9486ae49a5a28e687723",
+    "vendor/openrust/framework/src/http/method_override.rs": "59e3aed7b4a0bccd4bdd6c3b282f75d3fd2f18387bfc18ac028b8b9d2f039ce3",
+    "vendor/openrust/framework/src/http/request.rs": "a86ded629db4bed5f829c743f176a0582fc38aea166249c437054f51463a5a15",
+    "vendor/openrust/framework/src/http/request/context.rs": "0710d02b499661537f4903a6991ae74b785bf6a3d86f44f55d388fd6b62d630a",
+    "vendor/openrust/framework/src/http/request/input.rs": "a789ac2fb1f029501a75abd501fe2dc3e148695f5889fece242e752082a32c9c",
+    "vendor/openrust/framework/src/http/request/input_value.rs": "0ec0d3e23eb8e6657415f5c8fc650363fb0888b735b1d448ac85d56774907623",
+    "vendor/openrust/framework/src/http/request/content_types.rs": "c95e18b91966fffedf6ec74782359b187a388a4b463cd8c47afb58a878ddafa2",
+    "vendor/openrust/framework/src/http/request/url.rs": "e88b4ebb4e0e72fabca85a4b94710fd9d858f7476312c1907494b2ad4cbaecab",
+    "vendor/openrust/framework/src/http/request/metadata.rs": "e55c75002a7a5eda01520e921cdc9314e156e559f4ae61ee5e1da0097391411a",
+    "vendor/openrust/framework/src/http/request_macros.rs": "98c84d0212a465a53fa7bfd420e0c93a92c2ab2f8311a6fccd11229ff37202d6",
+    "vendor/openrust/framework/src/routing/controller_dispatcher.rs": "2b5b18ad88e9cecdc949040efafa97993bf34f0636d18426a24a60a39a20291e",
+    "vendor/openrust/framework/src/routing/router.rs": "dd11f63d957efd734edfe42fd0671a8197c4f219f4dd8cf3ebf5cb428d49ae66",
+    "vendor/openrust/framework/src/routing/model_response.rs": "b7f044aa71751a8853daecdd3056d95e313a3b3e96061ffef51ca8725c9c2ad5",
+    "vendor/openrust/framework/src/routing/response_output.rs": "01d645db36f5699b55b8653490fb61a588acfd0d6c08c81bc305d050538c6ae2",
+    "vendor/openrust/framework/src/support/facades.rs": "ef20bdba67590d7091575138be260e5b491b631ecd984b231b7a506c5d9bc4e7",
+    "vendor/openrust/framework/src/support/facades/request.rs": "f1be77bf3c2ec5aaf7dd949dbaa1c3ecb690d7a7c1ecbe1f15a38224019ddc1e",
+    "vendor/openrust/framework/tests/request_facade.rs": "5fdd2a0fa0271531a7ec904165cd020e012a3354ec8814bfd76830a6ef94ca43",
+    "vendor/openrust/framework/tests/request_facade_full.rs": "ff02643d9700827af2af7a457746e838cc89bd96a1fbb67ee8b394eaa383c85a",
+    "docs/en/the-basics/requests.md": "c2780f8fcfe446c572353c6718a7440656634eafb695ac09a9d3e8bf393d5e9e",
+    "docs/zh-Hans/the-basics/requests.md": "e2abc99e5ce291a4bc18e9e2c3a95ca615ff6dda11e612df4d687efd448ebc63",
+    "docs/zh-Hant/the-basics/requests.md": "73783b755eb5216aaa0bf66d3efeb5a777725d50c81adc158578b82b933f4fa2"
+  }
+}

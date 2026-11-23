@@ -32,6 +32,7 @@ impl TrustedProxyHeaders {
 
 #[derive(Default)]
 pub(crate) struct ProxyRequest {
+    pub(crate) trusted: bool,
     pub(crate) uri: Option<Uri>,
     pub(crate) secure: Option<bool>,
     pub(crate) ips: Option<Vec<IpAddr>>,
@@ -143,7 +144,10 @@ impl ProxyPolicy {
             .get::<ConnectInfo<SocketAddr>>()
             .map(|info| info.0.ip().to_canonical());
         let trusted = peer.filter(|&peer| self.trusted(peer, peer));
-        let mut effective = ProxyRequest::default();
+        let mut effective = ProxyRequest {
+            trusted: trusted.is_some(),
+            ..Default::default()
+        };
         if let Some(peer) = peer {
             let _ = effective.peer.set(peer);
         }

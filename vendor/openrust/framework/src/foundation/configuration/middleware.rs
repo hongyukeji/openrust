@@ -24,6 +24,7 @@ pub struct Middleware {
     pub(crate) prepended: usize,
     pub(crate) maintenance_exceptions: Vec<String>,
     pub(crate) registry: MiddlewareRegistry,
+    pub(crate) method_override: crate::http::MethodOverride,
     pub(crate) trusted_proxies: Option<crate::http::ProxyPolicy>,
     pub(crate) trusted_hosts: Option<crate::http::TrustedHosts>,
     pub(crate) cors_skip_callbacks: Vec<CorsSkipCallback>,
@@ -47,6 +48,7 @@ impl Default for Middleware {
             maintenance_exceptions: Vec::new(),
             registry: MiddlewareRegistry::default(),
             trusted_proxies: None,
+            method_override: crate::http::MethodOverride::default(),
             trusted_hosts: None,
             cors_skip_callbacks: Vec::new(),
             trim_strings: TrimStrings::default(),
@@ -174,6 +176,12 @@ impl Middleware {
         except: impl Fn(&Request) -> bool + Send + Sync + 'static,
     ) -> &mut Self {
         self.empty_strings_to_null.skip_when(except);
+        self
+    }
+
+    /// 配置本应用的请求参数覆写开关及允许的目标方法；空列表关闭所有覆写。
+    pub fn method_override(&mut self, policy: crate::http::MethodOverride) -> &mut Self {
+        self.method_override = policy;
         self
     }
 

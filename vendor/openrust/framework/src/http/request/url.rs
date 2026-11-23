@@ -12,6 +12,9 @@ mod query;
 
 #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Request {
+    pub fn normalize_query_string(query: &str) -> Result<String, HttpError> {
+        query::canonical(query)
+    }
     /// Returns the effective host, excluding the port.
     pub fn host(&self) -> Result<String, HttpError> {
         Ok(host_name(&self.effective_authority()?))

@@ -36,6 +36,22 @@ pub(super) type FormAction<C, F, T = Response> = for<'a> fn(
     -> HttpFuture<'a, Result<T, HttpError>>;
 
 impl<C: Sync + 'static, T: Send + 'static> ControllerDispatcher<C, T> {
+    /// 不注入可变请求的控制器动作自动借出当前请求，供门面与服务使用。
+    pub fn without_request(
+        action: for<'a> fn(&'a C) -> HttpFuture<'a, Result<T, HttpError>>,
+    ) -> Self {
+        Self {
+            action: Box::new(move |controller, request| {
+                Box::pin(async move {
+                    request
+                        .with_container(async { action(controller).await })
+                        .await
+                })
+            }),
+            form_request: false,
+        }
+    }
+
     pub fn with_form_request<F: FormRequest + Default + 'static>(
         action: FormAction<C, F, T>,
     ) -> Self {
