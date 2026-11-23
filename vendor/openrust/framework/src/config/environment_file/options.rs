@@ -1,4 +1,4 @@
-/// 新增变量的位置。锚点按变量名匹配，不按行号或变量值匹配。
+/// 新增变量的位置。锚点按完整变量名匹配，支持 * 通配，不匹配注释或变量值。
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub enum EnvironmentPosition {
     Start,
@@ -25,9 +25,11 @@ impl EnvironmentWriteOptions {
         self.position = position;
         self
     }
+    /// 位于第一个匹配变量前；精确键名或仅含 * 的通配模式均可。
     pub fn before(self, key: impl Into<String>) -> Self {
         self.position(EnvironmentPosition::Before(key.into()))
     }
+    /// 位于最后一个匹配变量后；移动时通配模式会排除被移动变量自身。
     pub fn after(self, key: impl Into<String>) -> Self {
         self.position(EnvironmentPosition::After(key.into()))
     }

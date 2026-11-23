@@ -103,7 +103,7 @@ let changed = editor.save()?;
 use openrust::config::{EnvironmentDocument, EnvironmentWriteOptions};
 
 let options = EnvironmentWriteOptions::new()
-    .after("DB_PASSWORD")
+    .after("DB_*")
     .blank_lines(1);
 file.set_with_options("SMS_DRIVER", "log", &options)?;
 ```
@@ -111,6 +111,10 @@ file.set_with_options("SMS_DRIVER", "log", &options)?;
 使用 `before(key)`、`after(key)`、`at_start()` 或 `at_end()` 指定位置。`blank_lines(1)` 在前后各留一行空行；`blank_lines_before(n)`、`blank_lines_after(n)` 分别控制两侧。零表示没有额外空行，声明之间必要的换行仍然存在。未指定的间距保持原样；显式数量只整理紧邻的空白行，不删除注释。文件首尾也可显式保留指定数量的空行。继续保留 LF／CRLF 和 UTF-8 BOM。
 
 已有变量默认原位更新，显式空行设置仍然生效；需要重新定位时加上 `.move_existing(true)`。新增和显式移动才解析位置锚点：找不到锚点或锚点重复时拒绝修改，相对于自身定位也会报错。移动会保留声明的 `export` 和行尾注释，独立注释留在原位置。重复执行不会积累空行。移动声明可能影响变量引用的展开顺序。表达式使用 `set_expression_with_options`，多次编辑可放在同一文件编辑会话中，最后统一保存。
+
+锚点还支持 `*` 通配零个或多个字符，按完整键名匹配并区分大小写。例如 `after("DB_*")` 放在文件中最后一个匹配声明后，`before("DB_*")` 放在第一个匹配声明前。支持前缀、后缀及多个星号；点号按字面匹配，`DB.*` 可匹配 `DB.host`。它不是正则表达式，不支持 `?` 或字符组 `[]`。注释、变量值及多行值中的文本都不会成为锚点。
+
+显式移动时，通配匹配会排除被移动变量自身，重复操作不会改变位置或累积空行。没有其他匹配项时返回 `MissingAnchor`，不修改文档；匹配到同一个键的重复定义时返回 `DuplicateKey`，多个不同键则正常作为一组。已有变量仍默认原位更新，只有 `move_existing(true)` 才移动。
 
 Windows 已知替换窗口内的瞬态缺失会等待写入者，最长 100 ms；锁仍被占用则返回 `Busy`，真正缺失的文件仍报错。
 

@@ -284,6 +284,49 @@ fn blank_prefix_end(text: &str) -> usize {
     }
     end
 }
+// 沿用字符串匹配的整键、区分大小写及仅 * 通配语义；独立文档不依赖应用服务。
+// 匹配到多项时返回首尾跨度，供 before 取第一项、after 取最后一项。
+fn anchor_span(text: &str, anchor: &str, moving: &str) -> Result<Range<usize>, Error> {
+    if anchor == moving {
+        return Err(Error::InvalidPosition);
+    }
+    if !anchor.contains('*') {
+        return unique(text, anchor)?.ok_or_else(|| Error::MissingAnchor { key: anchor.into() });
+    }
+    if anchor.len() > 8 * 1024 * 1024 {
+        return Err(Error::TooLarge);
+    }
+    key(&anchor.replace('*', "A")).map_err(|_| Error::InvalidKey { key: anchor.into() })?;
+    let pattern = anchor
+        .split('*')
+        .map(regex::escape)
+        .collect::<Vec<_>>()
+        .join(".*");
+    let matcher = regex::RegexBuilder::new(&format!(r"\A{pattern}\z"))
+        .dot_matches_new_line(true)
+        .build()
+        .map_err(|_| Error::TooLarge)?;
+    let document = parse(text)?;
+    let mut keys = std::collections::BTreeSet::new();
+    let mut matched: Option<Range<usize>> = None;
+    for entry in document.entries() {
+        // 移动已有变量时排除自身，否则它会不断成为自己的首项或末项。
+        if entry.key() == moving || !matcher.is_match(entry.key()) {
+            continue;
+        }
+        if !keys.insert(entry.key()) {
+            return Err(Error::DuplicateKey {
+                key: entry.key().into(),
+            });
+        }
+        let span = entry.line_span();
+        match &mut matched {
+            Some(range) => range.end = span.end,
+            None => matched = Some(span),
+        }
+    }
+    matched.ok_or_else(|| Error::MissingAnchor { key: anchor.into() })
+}
 // 已在锚点旁时直接整理原位置的间距，避免移动操作反复遗留自己的分隔空行。
 fn is_positioned(
     text: &str,
@@ -299,12 +342,7 @@ fn is_positioned(
             .is_empty()),
         Position::End => Ok(text[span.end..].trim().is_empty()),
         Position::Before(anchor) | Position::After(anchor) => {
-            if anchor == name {
-                return Err(Error::InvalidPosition);
-            }
-            let other = unique(text, anchor)?.ok_or_else(|| Error::MissingAnchor {
-                key: anchor.clone(),
-            })?;
+            let other = anchor_span(text, anchor, name)?;
             if matches!(position, Position::Before(_)) {
                 Ok(span.end <= other.start && text[span.end..other.start].trim().is_empty())
             } else {
@@ -366,12 +404,7 @@ pub(super) fn set_with_options(
             Position::Start => bom_len(&source),
             Position::End => source.len(),
             Position::Before(anchor) | Position::After(anchor) => {
-                if anchor == name {
-                    return Err(Error::InvalidPosition);
-                }
-                let span = unique(&source, anchor)?.ok_or_else(|| Error::MissingAnchor {
-                    key: anchor.clone(),
-                })?;
+                let span = anchor_span(&source, anchor, name)?;
                 if matches!(options.position, Position::Before(_)) {
                     span.start.max(bom_len(&source))
                 } else {

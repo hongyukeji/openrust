@@ -694,3 +694,186 @@ fn windows_transient_missing_target_respects_the_writer_lock_and_timeout() {
     assert!(matches!(result, Err(Error::Busy)));
     assert_eq!(file.get("KEY").unwrap().as_deref(), Some("original"));
 }
+
+#[test]
+fn wildcard_anchors_use_first_and_last_matching_declarations() {
+    use openrust::config::{EnvironmentDocument as Document, EnvironmentWriteOptions as Options};
+    let source = "# DB_COMMENT=ignored\nDB_HOST=one\nOTHER=DB_FAKE\nDB_PORT=3306\nTAIL=end\n";
+    let mut after = Document::parse(source).unwrap();
+    after
+        .set_with_options(
+            "SMS_DRIVER",
+            "log",
+            &Options::new().after("DB_*").blank_lines(1),
+        )
+        .unwrap();
+    assert_eq!(
+        after.content(),
+        "# DB_COMMENT=ignored\nDB_HOST=one\nOTHER=DB_FAKE\nDB_PORT=3306\n\nSMS_DRIVER=log\n\nTAIL=end\n"
+    );
+    let mut before = Document::parse(source).unwrap();
+    before
+        .set_with_options("HEAD", "new", &Options::new().before("DB_*"))
+        .unwrap();
+    assert!(
+        before
+            .content()
+            .starts_with("# DB_COMMENT=ignored\nHEAD=new\nDB_HOST=one\n")
+    );
+    let mut multiline = Document::parse(
+        "DB_HOST=one\nDB_PORT=3306\nNOTE=\"line\nDB_FAKE=inside\nend\"\nTAIL=end\n",
+    )
+    .unwrap();
+    multiline
+        .set_with_options("MARK", "yes", &Options::new().after("DB_*"))
+        .unwrap();
+    assert!(
+        multiline
+            .content()
+            .contains("DB_PORT=3306\nMARK=yes\nNOTE=\"line")
+    );
+    let mut dotted =
+        Document::parse("DB.host=one\nDB.port=two\nDBXhost=other\nTAIL=end\n").unwrap();
+    dotted
+        .set_with_options("MARK", "yes", &Options::new().after("DB.*"))
+        .unwrap();
+    assert!(
+        dotted
+            .content()
+            .contains("DB.port=two\nMARK=yes\nDBXhost=other\n")
+    );
+}
+#[test]
+fn wildcard_moves_exclude_the_target_and_remain_idempotent() {
+    use openrust::config::{EnvironmentDocument as Document, EnvironmentWriteOptions as Options};
+    for position in 0..2 {
+        let mut doc = Document::parse("DB_NEW=old\nDB_HOST=one\nDB_PORT=two\nTAIL=end\n").unwrap();
+        let options = if position == 0 {
+            Options::new().after("DB_*")
+        } else {
+            Options::new().before("DB_*")
+        }
+        .blank_lines(1)
+        .move_existing(true);
+        doc.set_with_options("DB_NEW", "new", &options).unwrap();
+        let once = doc.content().to_owned();
+        doc.set_with_options("DB_NEW", "new", &options).unwrap();
+        assert_eq!(doc.content(), once);
+        if position == 0 {
+            assert!(once.find("DB_PORT").unwrap() < once.find("DB_NEW").unwrap());
+        } else {
+            assert!(once.find("DB_NEW").unwrap() < once.find("DB_HOST").unwrap());
+        }
+    }
+    let mut doc = Document::parse("A=1\nB=2\nC=3\n").unwrap();
+    let options = Options::new().after("*").move_existing(true);
+    doc.set_with_options("B", "2", &options).unwrap();
+    assert_eq!(doc.content(), "A=1\nC=3\nB=2\n");
+    doc.set_with_options("B", "2", &options).unwrap();
+    assert_eq!(doc.content(), "A=1\nC=3\nB=2\n");
+}
+#[test]
+fn invalid_unmatched_and_duplicate_wildcard_anchors_are_atomic() {
+    use openrust::config::{EnvironmentDocument as Document, EnvironmentWriteOptions as Options};
+    for pattern in ["db_*", "NO_*", "DB_*_UNKNOWN"] {
+        let mut doc = Document::parse("DB_HOST=one\n").unwrap();
+        assert!(matches!(
+            doc.set_with_options("MARK", "secret", &Options::new().after(pattern)),
+            Err(Error::MissingAnchor { .. })
+        ));
+        assert_eq!(doc.content(), "DB_HOST=one\n");
+    }
+    let mut doc = Document::parse("DB_HOST=one\nDB_HOST=two\n").unwrap();
+    assert!(matches!(
+        doc.set_with_options("MARK", "secret", &Options::new().after("DB_*")),
+        Err(Error::DuplicateKey { .. })
+    ));
+    assert_eq!(doc.content(), "DB_HOST=one\nDB_HOST=two\n");
+    let mut unrelated = Document::parse("OTHER=one\nOTHER=two\nDB_HOST=one\n").unwrap();
+    unrelated
+        .set_with_options("MARK", "yes", &Options::new().after("DB_*"))
+        .unwrap();
+    assert!(unrelated.content().ends_with("DB_HOST=one\nMARK=yes\n"));
+    let mut only_self = Document::parse("DB_ONLY=one\n").unwrap();
+    assert!(matches!(
+        only_self.set_with_options(
+            "DB_ONLY",
+            "secret",
+            &Options::new().after("DB_*").move_existing(true)
+        ),
+        Err(Error::MissingAnchor { .. })
+    ));
+    for pattern in ["DB_?*", "DB_[HP]*", "DB_*\nBAD", "1*"] {
+        assert!(matches!(
+            only_self.set_with_options("MARK", "secret", &Options::new().after(pattern)),
+            Err(Error::InvalidKey { .. })
+        ));
+        assert_eq!(only_self.content(), "DB_ONLY=one\n");
+    }
+}
+#[test]
+fn wildcard_file_and_session_expression_calls_preserve_crlf_and_bom() {
+    use openrust::config::EnvironmentWriteOptions as Options;
+    let (_dir, file) = fixture(
+        "\u{feff}DB_HOST=\"one\nDB_FAKE=inside\"\r\nexport DB_PORT=3306 # note\r\nTAIL=end",
+    );
+    let options = Options::new().after("DB_*").blank_lines(1);
+    file.set_with_options("DB_DATABASE", "application", &options)
+        .unwrap();
+    assert!(text(&file).contains("# note\r\n\r\nDB_DATABASE=application\r\n\r\nTAIL=end"));
+    assert!(
+        !file
+            .set_with_options("DB_DATABASE", "application", &options)
+            .unwrap()
+    );
+    let mut edit = file.edit().unwrap();
+    edit.set_expression_with_options("COPY", "${DB_PORT}", &Options::new().after("DB_*"))
+        .unwrap();
+    edit.save().unwrap();
+    assert_eq!(file.get("COPY").unwrap().as_deref(), Some("3306"));
+    file.set_expression_with_options(
+        "COPY",
+        "${DB_PORT}",
+        &Options::new().before("DB_*").move_existing(true),
+    )
+    .unwrap();
+    assert!(text(&file).starts_with("\u{feff}COPY=\"${DB_PORT}\"\r\nDB_HOST="));
+}
+#[test]
+fn wildcard_matching_is_whole_key_case_sensitive_and_accepts_multiple_stars() {
+    use openrust::config::{EnvironmentDocument as Document, EnvironmentWriteOptions as Options};
+    for (pattern, last) in [
+        ("DB_*", "DB_PORT"),
+        ("DB_**", "DB_PORT"),
+        ("*_HOST", "REDIS_HOST"),
+        ("D*_*T", "DB_PORT"),
+    ] {
+        let mut doc = Document::parse(
+            "DB_HOST=one\nDB_PORT=two\nREDIS_HOST=three\nXDB_HOST=four\nTAIL=end\n",
+        )
+        .unwrap();
+        doc.set_with_options("MARK", "yes", &Options::new().after(pattern))
+            .unwrap();
+        // *_HOST 也匹配 XDB_HOST；精确检查最后声明而非子串。
+        let expected = if pattern == "*_HOST" {
+            "XDB_HOST"
+        } else {
+            last
+        };
+        assert!(doc.content().contains(&format!(
+            "{expected}={value}\nMARK=yes\n",
+            value = match expected {
+                "DB_PORT" => "two",
+                "XDB_HOST" => "four",
+                _ => "three",
+            }
+        )));
+    }
+    let mut doc = Document::parse("DB_=empty_suffix\nDb_HOST=mixed\nTAIL=end\n").unwrap();
+    doc.set_with_options("MARK", "yes", &Options::new().after("DB_*"))
+        .unwrap();
+    assert!(
+        doc.content()
+            .starts_with("DB_=empty_suffix\nMARK=yes\nDb_HOST=mixed")
+    );
+}

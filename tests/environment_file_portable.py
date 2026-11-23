@@ -3,6 +3,7 @@ import argparse
 from pathlib import Path
 import shutil
 import subprocess
+import tomllib
 
 
 def main():
@@ -12,6 +13,8 @@ def main():
     root = Path(__file__).resolve().parents[1]
     stage = root / 'target/tmp/environment-file/portable'
     source = root / 'vendor/openrust/framework'
+    packages = tomllib.loads((root / 'Cargo.lock').read_text())['package']
+    regex_version = next(item['version'] for item in packages if item['name'] == 'regex')
     (stage / 'src/environment_file').mkdir(parents=True, exist_ok=True)
     (stage / 'tests').mkdir(exist_ok=True)
     # 直接编译交付源码；不替换文件锁、解析器或操作系统实现。
@@ -30,13 +33,14 @@ name = "openrust"
 [dependencies]
 adotenv = { version = "=1.5.4", default-features = false }
 dotenvy = "=0.15.7"
+regex = "=REGEX_VERSION"
 zeroize = "=1.9.0"
 tempfile = "=3.27.0"
 [target.'cfg(unix)'.dependencies]
 rustix = { version = "=1.1.6", features = ["fs"] }
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "=0.61.2", features = ["Win32_Storage_FileSystem", "Win32_Security"] }
-''')
+'''.replace('REGEX_VERSION', regex_version))
     print(stage, flush=True)
     if not args.prepare_only:
         subprocess.run(['python3', '-B', str(root / 'tests/build_guard.py'),

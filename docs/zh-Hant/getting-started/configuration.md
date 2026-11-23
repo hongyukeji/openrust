@@ -103,7 +103,7 @@ let changed = editor.save()?;
 use openrust::config::{EnvironmentDocument, EnvironmentWriteOptions};
 
 let options = EnvironmentWriteOptions::new()
-    .after("DB_PASSWORD")
+    .after("DB_*")
     .blank_lines(1);
 file.set_with_options("SMS_DRIVER", "log", &options)?;
 ```
@@ -111,6 +111,10 @@ file.set_with_options("SMS_DRIVER", "log", &options)?;
 使用 `before(key)`、`after(key)`、`at_start()` 或 `at_end()` 指定位置。`blank_lines(1)` 在前後各留一行空行；`blank_lines_before(n)`、`blank_lines_after(n)` 分別控制兩側。零表示沒有額外空行，宣告之間必要的換行仍然存在。未指定的間距保持原樣；明確數量只整理緊鄰的空白行，不刪除註解。檔案首尾也可明確保留指定數量的空行。繼續保留 LF／CRLF 和 UTF-8 BOM。
 
 既有變數預設原位更新，明確空行設定仍然生效；需要重新定位時加上 `.move_existing(true)`。新增和明確移動才解析位置錨點：找不到錨點或錨點重複時拒絕修改，相對於自身定位也會報錯。移動會保留宣告的 `export` 和行尾註解，獨立註解留在原位置。重複執行不會累積空行。移動宣告可能影響變數參照的展開順序。運算式使用 `set_expression_with_options`，多次編輯可放在同一檔案編輯工作階段中，最後統一儲存。
+
+錨點還支援 `*` 萬用字元，匹配零個或多個字元，按完整鍵名匹配並區分大小寫。例如 `after("DB_*")` 放在檔案中最後一個匹配宣告後，`before("DB_*")` 放在第一個匹配宣告前。支援前綴、後綴及多個星號；句點按字面匹配，`DB.*` 可匹配 `DB.host`。它不是正規表示式，不支援 `?` 或字元群組 `[]`。註解、變數值及多行值中的文字都不會成為錨點。
+
+明確移動時，萬用字元匹配會排除被移動變數自身，重複操作不會改變位置或累積空行。沒有其他匹配項時傳回 `MissingAnchor`，不修改文件；匹配到同一個鍵的重複定義時傳回 `DuplicateKey`，多個不同鍵則正常作為一組。既有變數仍預設原位更新，只有 `move_existing(true)` 才移動。
 
 Windows 已知替換窗口內的暫時缺失會等待寫入者，最長 100 ms；鎖仍被佔用則傳回 `Busy`，真正缺失的檔案仍報錯。
 

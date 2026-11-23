@@ -138,7 +138,7 @@ fn real_artisan_selected_file_and_config_cache_require_explicit_refresh() {
             "MAIL_PORT",
             "2527",
             &openrust::config::EnvironmentWriteOptions::new()
-                .after("APP_NAME")
+                .after("APP_*")
                 .blank_lines(1),
         )
         .unwrap();

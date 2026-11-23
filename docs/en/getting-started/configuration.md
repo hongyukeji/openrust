@@ -103,7 +103,7 @@ After editing production configuration, explicitly rebuild the configuration cac
 use openrust::config::{EnvironmentDocument, EnvironmentWriteOptions};
 
 let options = EnvironmentWriteOptions::new()
-    .after("DB_PASSWORD")
+    .after("DB_*")
     .blank_lines(1);
 file.set_with_options("SMS_DRIVER", "log", &options)?;
 ```
@@ -111,6 +111,10 @@ file.set_with_options("SMS_DRIVER", "log", &options)?;
 Use `before(key)`, `after(key)`, `at_start()` or `at_end()`. `blank_lines(1)` puts one empty line on each side; `blank_lines_before(n)` and `blank_lines_after(n)` control them separately. Zero means no additional empty line; the line break separating assignments still exists. Unspecified spacing preserves existing whitespace. Explicit counts normalize only adjacent blank lines, leaving comments untouched. File boundaries can have explicitly requested leading or trailing blank lines. LF/CRLF and the UTF-8 BOM are retained.
 
 Existing variables are updated in place, with explicit spacing still applied. Add `.move_existing(true)` to move their declarations too. Position anchors are checked for insertion and explicit moves: missing or duplicate anchors fail without changing the document; positioning a variable relative to itself fails. Moves retain `export` and inline comments, while standalone comments stay in their original position. The operation is idempotent, so repeating it does not accumulate empty lines. Moving declarations can change variable-expansion order. Use `set_expression_with_options` for an explicit expression, or perform several edits in a file editing session before saving once.
+
+Anchors also accept `*` for zero or more characters, matching the whole key with case sensitivity. For example, `after("DB_*")` inserts after the last matching declaration in file order; `before("DB_*")` inserts before the first. Prefix, suffix and multiple-star patterns are supported. Dots are literal: `DB.*` matches names such as `DB.host`. These are not regular expressions; `?` and character classes (`[]`) are not supported. Comments, values and text inside multiline values are not anchors.
+
+When explicitly moving a variable, wildcard matching excludes that variable itself, so repeated moves remain stable. If nothing else matches, the operation returns `MissingAnchor` without a change. Duplicate definitions of a matched key return `DuplicateKey`; multiple different matched keys are a normal group. Existing variables still update in place unless `move_existing(true)` is enabled.
 
 During a known Windows replacement window, file reads wait up to 100 ms for the writer; a still-held lock returns `Busy`. A genuinely missing file still fails.
 
