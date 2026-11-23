@@ -172,3 +172,16 @@ HTTP代码生成曾触32GB停线，守卫安全终止且持锁清理全部项目
 - 清理范围仅本任务已结束的生成项目/测试运行目录与初始二进制副本；最终API导出、审计证据及可复用编译缓存保留。用户模型记录/交接变动和原Unicode/Zend删除暂存不夹带；历史验收原貌保留。没有推送或发布。
 
 证据：target/tmp/rust-naming/N-06/下allow-removals、macro-allow-removals、symbols、native-identifiers、windows-external-field-references、documentation-old-calls、comments-only-proof、alignment-proof、source-sha256，以及runtime/core/cache/Artisan/Telescope/PG/SQLite、http-cli-results、generated-consumer、policy-release、clippy-final、clippy-features-final、docs-final各日志。N-01至N-06仅闭合本次命名迁移；全框架功能、真实外部供应商、跨平台发布矩阵及远端CI不因此宣称完成。
+
+## 本地提交索引
+
+| 单元 | 提交 |
+| --- | --- |
+| N-01 | `f4c755e962d50a607c02d2751fa25b3654b9f6a3` |
+| N-02 | `27c8802cdd94e8d48b6365ba51abccace132bba6` |
+| N-03 | `6c879c658fc5818da377155bd34fd8a175c0eb4f` |
+| N-04 | `f171e1a3b897472fc3ae5932482f4f7af5e3c19a` |
+| N-05 | `e84eb735d2f8dcc57c5dcad8e79addd282a19d2e` |
+| N-06 | `4ea3aaa37b873eeede04f9df9ac443e21d3e8b19` |
+
+N-05验收发现的独立安装接线修复为`e10a554c0d1a3a7fbaab9e834b4628849185ca71`。以上均已核对属于当前master历史；未推送。

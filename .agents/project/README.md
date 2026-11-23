@@ -10,7 +10,7 @@
 - 应用代码放在根应用的对应目录，框架源码放在 `vendor/openrust/framework/`。测试代码单独放在所属应用或 crate 的 `tests/` 目录。见[代码与测试目录](conventions.md#代码与测试目录)。
 - `docs/` 面向应用开发者，保留用法和实际支持限制；计划、进度、代理交接与验收证据归入本目录对应主题。见[文档规范](conventions.md#文档规范)与[文档站维护指南](guides/documentation.md)。
 
-- Rust 标识符按原生命名统一，机制与行为仍按固定基线验收；旧大小写保留要求已被替代。待实施范围、顺序与边界见[命名统一计划](plans/rust-naming-unification.md)。
+- Rust 标识符按原生命名统一，机制与行为仍按固定基线验收；旧大小写保留要求已被替代。迁移范围、顺序与验收边界见[命名统一计划](plans/rust-naming-unification.md)。
 
 - 已授权任务完成并通过相关测试／检查后默认单独本地提交，不推送；当次任务的明确例外优先。见[Git 操作](conventions.md#git-操作)。
 
