@@ -81,3 +81,13 @@ python3 -B tests/build_guard.py --workflow settings-sync -- \
 SQLite 无 Redis 整包30项通过、专属 Redis 故障项跳过1项；MySQL8.4＋专属 Redis8 整包31项通过，独立进程 harness 均通过（包含既有 HTTP、Artisan Worker、Redis 暂停恢复和通知去重回归，不另算功能数）。补充 Provider 发布默认值断言后单独复验；三语内容检查与 VitePress 构建通过。日志 sqlite.log、mysql-redis.log、provider.log、clippy.log、docs-final.log 保留。后续检查及资源清理读数附于下方。
 
 末轮 Provider 专项通过；settings 包 all-targets 严格 Clippy、范围 rustfmt、三语最终构建和 git diff --check 均通过。确认本批 Cargo／文档产物无人占用后持锁直接清理，保留锁 inode、日志与源码。净释放 5,693,894,656 字节（约 5.69 GB），剩余 62,952,591,360 字节（约 62.95 GB）；本批数据库与 Redis 容器已回收，数据卷未删除，详细读数保留在 cleanup.json。
+
+## 三语教程完整性检查（2026-11-24）
+
+代码已分别由 e12d076cd、b6e1e0a98 本地提交。本轮只补三语使用教程与本条记录，不修改运行时实现，不夹带并行异常改动。修正仅单次开启 Cargo feature 却在下一次 Artisan 命令丢失扩展的说明；明确默认 feature 的持续启用、Windows 入口和生产迁移确认。新增完整 SiteSettings 类型、模块声明与 AppServiceProvider::boot 注册；读写示例统一 title 字段并给出预期结果，增加事务／默认恢复、完整配置键表、0关闭与显式刷新、逐节点部署步骤和故障定位表。保留作用域、加密、锁、冲突、自定义仓储和应用消费者边界。
+
+逐项对照当前 Cargo feature、包发现、AppServiceProvider、config/mod.rs、SettingsGroup、SettingsServiceProvider、Settings<T> 与 SettingsManager 实际接口检查。教程不提前向默认应用添加业务类型或 Provider。既有运行时验收不重复执行，不将 VitePress 构建当作新增 Rust 示例的编译验收。
+
+三语已有侧栏入口均指向 packages/settings.md；内容／相对链接／命令入口检查及隔离 VitePress 构建通过。HTTP 实际请求三语设置页均200，并核对导航链接与定义、注册、配置、事务、集群及显式刷新等内容已渲染。结果与源码指纹保留于 target/tmp/settings-tutorial/pages.json，构建日志为 build.log；没有启动持久预览服务，临时 HTTP 服务已在 finally 关闭。本轮为教程内容检查，不复跑整个站点浏览器交互或数据库验收。
+
+确认无人占用后直接删除本轮隔离 dist，表观清理 70,176,768 字节；文件系统可用空间 63,028,355,072 → 63,098,945,536 字节，净变化 70,590,464 字节，原始读数存于 cleanup.json。没有生成新 Cargo 编译产物；源码、日志、共享 npm 依赖、数据库及数据卷保留。

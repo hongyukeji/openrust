@@ -1,14 +1,25 @@
 # 資料庫設定（擴充）
 
-`openrust-settings` 將型別化應用設定存入資料庫，可用於網站資訊、服務設定及業務策略等群組。命名參考 Spatie框架Settings，重用 OpenRust 的資料庫、加密、遷移與容器作用域。
+`openrust-settings` 將型別化應用設定存入資料庫，可用於網站資訊、服務設定及業務策略等群組。重用 OpenRust 的資料庫、加密、遷移與容器作用域。
 
 ## 啟用與遷移
 
-透過 `settings` Cargo feature 啟用選用套件。套件探索登記自身 Provider 與預設資料表遷移，不註冊應用業務設定群組：
+使用本倉庫應用骨架時，在 `Cargo.toml` 的既有預設 feature 清單加入 `settings`（保留其他預設項目）。骨架已宣告 `settings = ["dep:openrust-settings"]`：
+
+```toml
+[features]
+default = ["settings"]
+```
+
+這樣後續 `./artisan`、應用建置與 Worker 都會啟用此套件。單次 `cargo run --features settings` 不會儲存 feature 選擇；若繼續按需啟用，每次建置／執行都必須帶上 `--features settings`。
+
+套件探索登記自身 Provider 與預設資料表遷移，不註冊應用業務設定群組：
 
 ```sh
-cargo run --features settings -- artisan migrate
+./artisan migrate
 ```
+
+macOS／Linux 使用 `./artisan`；Windows CMD／PowerShell 使用 `.\artisan.bat`。正式環境自動部署遵循既有遷移確認機制，例如 `./artisan migrate --force`，執行前確認目標資料庫。
 
 套件本身提供預設設定，預設應用不包含 `config/settings.rs`。需要自訂時執行 `./artisan vendor:publish --tag=settings-config`，在 `config/mod.rs` 的模組宣告與設定映射中分別加入 `mod settings;` 與 `("settings".to_owned(), settings::load(env)?),`，然後重新建置。修改資料表或連線時保留自己的對應遷移。
 
@@ -20,16 +31,80 @@ cargo run --features settings -- artisan migrate
 
 為衍生 `Clone`、`Serialize`、`Deserialize` 的結構實作 `SettingsGroup`。`group()` 宣告唯一群組名稱，`defaults(config)` 回傳完整預設物件，`validate()` 驗證業務限制，`encrypted()` 宣告敏感的頂層屬性。序列化欄位集合須穩定，不要依值省略欄位。群組與屬性名稱使用不帶限定詞的 ASCII 識別字，最多 128 位元組；屬性名稱前綴 `__settings_` 保留供內部使用。
 
-在請求或工作作用域中，從應用／容器非同步解析 `Settings<YourSettings>`。受信任應用程式碼可這樣操作：
+### 定義型別並註冊
+
+建立 `app/settings.rs`，寫入完整的設定群組定義：
+
+```rust
+use openrust::contracts::config::Repository;
+use openrust_settings::{SettingsGroup, SettingsResult};
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Serialize, Deserialize)]
+pub(crate) struct SiteSettings {
+    pub title: String,
+    pub registration_enabled: bool,
+}
+
+impl SettingsGroup for SiteSettings {
+    fn group() -> &'static str { "site" }
+
+    fn defaults(config: &dyn Repository) -> SettingsResult<Self> {
+        Ok(Self {
+            title: config.get("app.name")
+                .and_then(|value| value.as_str().map(str::to_owned))
+                .unwrap_or_else(|| "My Site".into()),
+            registration_enabled: false,
+        })
+    }
+}
+```
+
+在 `app/mod.rs` 加入模組宣告，保留既有模組：
+
+```rust
+pub(crate) mod settings;
+```
+
+在 `app/providers/app_service_provider.rs` 既有的 `impl ServiceProvider for AppServiceProvider` 中，合併所需匯入並將以下邏輯加入 `boot`，保留原有啟動邏輯。此時所有 Provider 已完成註冊，套件的設定群組註冊器可用：
 
 ```rust,ignore
+use openrust::{
+    foundation::Application,
+    http::HttpFuture,
+    support::ProviderResult,
+};
+use openrust_settings::SettingsServiceProvider;
+use crate::app::settings::SiteSettings;
+
+fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
+    Box::pin(async move {
+        SettingsServiceProvider::register_settings::<SiteSettings>(app).await?;
+        Ok(())
+    })
+}
+```
+
+這裡只登記延遲的作用域綁定，不在啟動時查詢設定表。不要再往 `bootstrap/providers.rs` 重複登記 `SettingsServiceProvider`，也不要將解析出的 `Settings<SiteSettings>` 長期保存在單例中。新增 Rust 檔案後重新建置；原始碼 Artisan 指令碼會自動重建。
+
+### 讀取、更新與還原預設值
+
+下例的 `app` 是應用整合程式碼持有的已啟動 `Application`，在既有 HTTP 請求或佇列工作作用域內執行：
+
+```rust,ignore
+use openrust_settings::Settings;
+use crate::app::settings::SiteSettings;
+
 let settings = app.make::<Settings<SiteSettings>>().await?;
 let current = settings.get().await;
 settings.fill(serde_json::json!({"title": "我的網站"})).await?;
 settings.save().await?;
+assert_eq!(settings.get().await.title, "我的網站");
 settings.reset("title").await?;
 settings.save().await?;
 ```
+
+首次讀取尚無覆寫值的群組時，`current.title` 來自 `app.name`，缺少時為 `My Site`。儲存後標題變為範例值；`reset("title")` 刪除覆寫值並還原該預設值，不刪除群組與並行版本錨點。
 
 `get()` 回傳型別化副本，透過 `fill` 修改後明確 `save`。`fill` 拒絕未宣告欄位與錯誤型別，完整候選值驗證成功後才接受修改。巢狀物件與陣列整項取代；後台須明確合併允許修改的巢狀欄位。`reset` 刪除資料庫覆寫並使用宣告的預設值。未提交欄位保持原值；型別允許時，`null`、空字串、零與 `false` 各自保留。`refresh()` 捨棄本機編輯並重新載入。
 
@@ -56,6 +131,21 @@ impl SettingsGroup for DeliverySettings {
 
 `save()` 成功提交後才更新實例的持久快照。`save_in(&mut transaction)` 在呼叫端交易內使用儲存點，不發布新的持久快照；傳入目標資料庫的交易，外層提交後呼叫 `refresh`。外層回滾後仍可重試待提交編輯。取消操作時，交易擁有者須回滾或釋放交易。
 
+例如，設定儲存庫使用預設連線時，在相同資料庫交易內儲存；設定了其他連線時，應選擇對應連線：
+
+```rust,ignore
+use openrust::database::DatabaseManager;
+
+let database = app.make::<DatabaseManager>().await?;
+let mut transaction = database.connection(None)?.begin_transaction().await?;
+settings.fill(serde_json::json!({"registration_enabled": true})).await?;
+settings.save_in(&mut transaction).await?;
+transaction.commit().await?;
+drop(transaction);
+settings.refresh().await?;
+assert!(settings.get().await.registration_enabled);
+```
+
 每個群組透過處理程序內的版本快照供既有請求／工作作用域重用。使用 `SettingsServiceProvider` 時，下個作用域在核對後看見新值（預設六十秒），不再每次請求查詢完整屬性。既有作用域及尚未儲存的編輯保留原快照；`refresh()` 可略過間隔並捨棄本機編輯。長時間命令、排程輪次與串流連線須明確定義重新整理邊界；多個群組不保證全域相同快照。資料庫故障及損壞資料在檢查時明確失敗，只有缺少的覆寫值回退至預設值。
 
 預設儲存庫每組限制 256 個屬性、1 MiB 持久 JSON，內部少量中繼資料另計入限制。無需共用快取即可使用；靜態 `Config` 契約維持，動態設定不會寫入 `config:cache`。
@@ -63,6 +153,21 @@ impl SettingsGroup for DeliverySettings {
 ## 單機與叢集
 
 單台伺服器與多個應用／Worker 處理程序使用相同的 `Settings<T>` 介面、Provider 與設定。各節點共用權威設定資料庫及資料表，不需要叢集開關、Redis 或額外守護命令。首次實際讀取啟動輕量的處理程序內檢查器；僅註冊設定群組不查詢設定表。
+
+### 設定參考
+
+| 設定鍵 | 預設值 | 用途 |
+| --- | --- | --- |
+| `repository` | `database` | 內建持久化儲存庫 |
+| `repositories.database.connection` | `null` | 使用應用預設資料庫連線 |
+| `repositories.database.table` | `settings` | 設定表；自訂名稱須搭配遷移 |
+| `namespace` | `null` | 根據環境與資料庫／資料表推導穩定的快取及通知身分 |
+| `refresh_interval` | `60` | 資料庫版本檢查間隔，單位秒；`0` 關閉自動檢查 |
+| `cache.enabled` | `true` | 是否使用快取加速；關閉快取不等於關閉資料庫檢查 |
+| `cache.store` | `null` | 使用既有預設 Cache 儲存，必要時指定已設定的儲存名稱 |
+| `cache.ttl` | `3600` | 快照／提示有效期，單位秒（1～604800），不是重新整理間隔 |
+
+只有覆寫預設值時才需要發布並登記 `config/settings.rs`。這些是本應用的設定項目，不是另一套分散式設定服務。修改後重新建置；部署使用設定快取時，也要重新產生 `config:cache`。
 
 發布的 `config/settings.rs` 包含以下選用設定：
 
@@ -83,6 +188,33 @@ impl SettingsGroup for DeliverySettings {
 資料庫提交是權威結果，快取逾時或處理器失敗不會將已提交的儲存偽裝成回滾。快取操作有逾時限制，故障期間暫時略過快取，`cache_failures()` 提供處理程序故障計數。資料庫故障使已檢查狀態失效，新載入明確失敗直到復原；既有作用域的值仍可用。新處理程序直接讀取最新提交狀態，無需重播通知。所有更新須透過儲存庫寫入介面更新版本；直接 SQL 修改而不更改版本時，須明確 `refresh()`。
 
 `save_in` 僅在外層交易提交後發布提示，回滾不發布。提交與提示之間崩潰，由下次資料庫檢查復原。每個處理器按本處理程序觀察到的版本去重，失敗處理器重試；連續更新的中間版本可能合併。處理器須冪等，處理程序重新啟動不提供業務事件的持久或恰好一次投遞保證。
+
+### 關閉自動重新整理
+
+在已發布設定的 `load` 回傳值中修改：
+
+```rust,ignore
+"refresh_interval": 0,
+```
+
+修改編譯期設定後重新啟動／部署各處理程序。節點首次使用設定群組仍會讀取資料，之後持續重用快照，不進行背景檢查或讀取時自動到期。即使使用 Redis，也不再自動接收其他節點的設定變更；處理器自動重試也停止。需要時在明確的邊界主動呼叫：
+
+```rust,ignore
+settings.refresh().await?; // 捨棄尚未儲存的編輯，立即讀取資料來源。
+manager.poll().await?;     // 檢查活動群組，並重試待處理的處理器。
+```
+
+`manager.notify(&notification).await?` 也會核實中繼資料提示並執行待處理的處理器。`poll`／`notify` 更新管理器供後續作用域使用的快照，不改變已解析出的 `Settings<T>`。本處理程序儲存仍會發布並更新本機管理器；`save_in` 外層提交後，編輯實例須明確重新整理。
+
+### 部署共用設定
+
+1. 各應用／Worker 處理程序啟用相同擴充，註冊一致的設定群組結構。
+2. 同一應用的節點使用相同設定資料庫／資料表、命名空間及適用的加密金鑰；首次讀取前執行遷移。
+3. 保留預設 60 秒或設定其他正數間隔。既有共用 Cache／Redis 可加速提示，沒有共用快取也沿用相同資料庫核對機制。
+4. 在**每個處理程序**首次實際讀取設定群組前登記使用端失效處理器。尚未使用的群組沒有需要重新整理的快取使用端，僅註冊不啟動該群組的輪詢。
+5. 正常啟動應用，佇列使用 `./artisan queue:work`，無需額外設定守護處理程序。節點 A 儲存後，B 的新作用域在核對後讀到新值；B 的舊作用域保留原值，直到明確重新整理。
+
+獨立應用共用基礎設施時，除了分離快取命名空間，也須分離設定表／連線；不要為了匹配另一應用的命名空間而複製其設定憑證或金鑰。
 
 ### 重新整理應用使用端
 
@@ -123,3 +255,15 @@ manager.forget_handler("site", handler).await;
 設定包裝物件不可序列化，偵錯輸出不包含屬性值。`get()` 回傳的型別化資料供受信任內部使用，HTTP、日誌與佇列載荷須使用明確的公開或遮罩投影。後台授權、驗證、保留未修改憑證的表單更新及持久稽核由應用提供。
 
 本擴充不註冊後台路由，也不自動動態改寫簡訊、郵件或儲存管理器。這些使用端須透過明確的配接重建快取中的服務實例。執行中的操作保留原快照；歷史上傳記錄須保留磁碟識別。資料庫翻譯詞條繼續由[翻譯載入器](../digging-deeper/localization.md)管理。
+
+## 常見問題
+
+| 現象 | 檢查項目 |
+| --- | --- |
+| 找不到 `settings-config` 發布資源 | 確認目前命令／建置啟用了擴充，不是只有上一次命令啟用 feature |
+| 找不到設定表 | 在設定的連線上遷移；自訂資料表／連線須登記自己的對應遷移 |
+| 註冊或綁定失敗 | 套件註冊後只登記一次唯一群組名稱，檢查未宣告屬性與錯誤值型別 |
+| 其他節點仍讀取舊值 | 檢查間隔是否為 `0`、資料庫／資料表／命名空間是否一致、設定快取是否更新，以及該節點是否使用過設定群組；建立新作用域或明確重新整理 |
+| 處理器持續待處理 | 查看本處理程序 `status()`，確認冪等性與擷取相依服務；關閉自動檢查後須主動 `poll()`／`notify()` |
+| `Conflict`／`Locked` | 重新整理後再處理編輯，或在授權後明確解除鎖定；不要盲目重試或覆寫 |
+| 解密或資料庫錯誤 | 還原正確金鑰、連線與資料；此類錯誤不會無聲回退預設值 |
