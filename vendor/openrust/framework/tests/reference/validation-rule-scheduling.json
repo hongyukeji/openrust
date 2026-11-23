@@ -1,0 +1,110 @@
+[
+  {
+    "kind": "ordinary",
+    "input": [],
+    "nullable": false,
+    "sometimes": false,
+    "passes": true,
+    "errors": []
+  },
+  {
+    "kind": "ordinary",
+    "input": {
+      "title": ""
+    },
+    "nullable": false,
+    "sometimes": false,
+    "passes": true,
+    "errors": []
+  },
+  {
+    "kind": "ordinary",
+    "input": {
+      "title": "  "
+    },
+    "nullable": false,
+    "sometimes": false,
+    "passes": true,
+    "errors": []
+  },
+  {
+    "kind": "ordinary",
+    "input": {
+      "title": null
+    },
+    "nullable": false,
+    "sometimes": false,
+    "passes": false,
+    "errors": {
+      "title": [
+        "The title is invalid."
+      ]
+    }
+  },
+  {
+    "kind": "ordinary",
+    "input": {
+      "title": null
+    },
+    "nullable": true,
+    "sometimes": false,
+    "passes": true,
+    "errors": []
+  },
+  {
+    "kind": "implicit",
+    "input": [],
+    "nullable": false,
+    "sometimes": false,
+    "passes": false,
+    "errors": {
+      "title": [
+        "The title is required by this rule."
+      ]
+    }
+  },
+  {
+    "kind": "implicit",
+    "input": {
+      "title": ""
+    },
+    "nullable": false,
+    "sometimes": false,
+    "passes": false,
+    "errors": {
+      "title": [
+        "The title is required by this rule."
+      ]
+    }
+  },
+  {
+    "kind": "implicit",
+    "input": {
+      "title": null
+    },
+    "nullable": true,
+    "sometimes": false,
+    "passes": false,
+    "errors": {
+      "title": [
+        "The title is required by this rule."
+      ]
+    }
+  },
+  {
+    "kind": "implicit",
+    "input": [],
+    "nullable": false,
+    "sometimes": true,
+    "passes": true,
+    "errors": []
+  },
+  {
+    "kind": "allow",
+    "input": [],
+    "nullable": false,
+    "sometimes": false,
+    "passes": true,
+    "errors": []
+  }
+]

@@ -393,3 +393,72 @@ fn store_strict(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
     <span>—</span>
 @enderror
 ```
+
+## 欄位層級閉包 {#using-closures}
+
+直接向 `Rule::custom` 傳入同步閉包，無需應用程式層級註冊。參數為目前規則上下文、已還原跳脫的欄位名稱和 `Option<&Value>`，傳回 `RuleFailure` 清單。執行錯誤進入既有 HTTP 例外管線；規則物件保留既有非同步 `ValidationRule::validate` 契約。
+
+```rust
+use openrust::{
+    http::{HttpError, HttpFuture, Request, Response, StatusCode},
+    validation::{Rule, RuleContext, RuleFailure, RuleSet, ValidationResult},
+};
+use serde_json::Value;
+
+fn store_callback(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let rule = Rule::custom(|_: &RuleContext<'_>, attribute: &str, value: Option<&Value>| -> ValidationResult<_> {
+            Ok(if value.and_then(Value::as_str) == Some("foo") {
+                vec![RuleFailure::new(format!("The {attribute} is invalid."))]
+            } else {
+                Vec::new()
+            })
+        });
+        let rules = RuleSet::new().field("title", [Rule::required(), Rule::string(), rule])?;
+        let data = request.validate(rules).await?;
+        Response::json(StatusCode::CREATED, data.into_value())
+    })
+}
+```
+
+## 隱式規則物件 {#implicit-rules}
+
+覆寫 `ValidationRule::is_implicit()`，在欄位缺失、為空或 null 時亦執行，包括 nullable 欄位；`sometimes` 仍跳過缺失欄位。旗標本身不會拒絕輸入，是否傳回失敗由規則決定。普通閉包跳過缺失欄位、原始空字串和 nullable null；正常 HTTP 的空字串轉 null 發生在請求驗證前。`RuleContext::data` 借用本驗證器輸入，不向共用規則物件複製狀態。失敗訊息的翻譯鍵使用驗證器目前的翻譯器；本介面不提供逐條失敗的首選語言參數或 ValidatorAware setter。
+
+```rust
+use openrust::{
+    contracts::validation::ValidationRule,
+    http::{HttpError, HttpFuture, Request, Response, StatusCode},
+    validation::{Rule, RuleContext, RuleFailure, RuleSet, ValidationFuture, ValidationResult},
+};
+use serde_json::Value;
+
+struct RequiredTitle;
+
+impl ValidationRule for RequiredTitle {
+    fn is_implicit(&self) -> bool { true }
+
+    fn validate<'a>(
+        &'a self,
+        _context: &'a RuleContext<'_>,
+        _attribute: &'a str,
+        value: Option<&'a Value>,
+    ) -> ValidationFuture<'a, ValidationResult<Vec<RuleFailure>>> {
+        Box::pin(async move {
+            Ok(if value.is_none_or(|v| v.is_null() || v.as_str().is_some_and(|s| s.trim().is_empty())) {
+                vec![RuleFailure::new("validation.required")]
+            } else {
+                Vec::new()
+            })
+        })
+    }
+}
+
+fn store_implicit(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let rules = RuleSet::new().field("title", [Rule::bail(), Rule::custom(RequiredTitle), Rule::string()])?;
+        let data = request.validate(rules).await?;
+        Response::json(StatusCode::CREATED, data.into_value())
+    })
+}
+```

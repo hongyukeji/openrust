@@ -298886,6 +298886,25 @@
         "email扩展模式"
       ],
       "evidence": ".agents/project/audits/docs-tutorials/README.md"
+    },
+    {
+      "date": "2026-11-24",
+      "kind": "documentation_tutorial_rule_callbacks_and_implicit_objects",
+      "status": "字段闭包、对象隐式调度和列明消费者已验收；整章继续",
+      "finding": "Rule::custom只接受显式Trait对象；缺对象隐式标志，且自定义规则拿到转义字段名",
+      "implementation": "同步Fn直接实现ValidationRule，默认is_implicit=false；隐式绕过missing/nullable/空串跳过；Cow还原字段名，保留原错误/验证管线",
+      "consumers": [
+        "framework/tests/validation_rule_tutorial.rs",
+        "framework/tests/reference/validation-rule-scheduling.json",
+        "tests/request_tutorial_docs.py"
+      ],
+      "actual_results": "固定PHP10组调度；18目标89项0忽略，真实MySQL8.4.13；补强隐式后续规则再2通过；三语18段消费者/严格Clippy/fmt/构建浏览器通过",
+      "remaining": [
+        "make:rule生成器",
+        "可变DataAware/ValidatorAware setter与逐失败首选语言",
+        "fluent builders/anyOf/forEach和email扩展模式"
+      ],
+      "evidence": ".agents/project/audits/docs-tutorials/README.md"
     }
   ]
 }

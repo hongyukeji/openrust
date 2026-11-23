@@ -393,3 +393,72 @@ A named bag also works with `@error` and its `@else` fallback:
     <span>—</span>
 @enderror
 ```
+
+## Field-specific closures {#using-closures}
+
+Pass a synchronous closure directly to `Rule::custom`; no application-wide registration is needed. It receives the current rule context, the unescaped attribute name and `Option<&Value>`; return a list of `RuleFailure` values. An execution error propagates through the normal HTTP error pipeline. Rule objects keep the existing async `ValidationRule::validate` contract.
+
+```rust
+use openrust::{
+    http::{HttpError, HttpFuture, Request, Response, StatusCode},
+    validation::{Rule, RuleContext, RuleFailure, RuleSet, ValidationResult},
+};
+use serde_json::Value;
+
+fn store_callback(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let rule = Rule::custom(|_: &RuleContext<'_>, attribute: &str, value: Option<&Value>| -> ValidationResult<_> {
+            Ok(if value.and_then(Value::as_str) == Some("foo") {
+                vec![RuleFailure::new(format!("The {attribute} is invalid."))]
+            } else {
+                Vec::new()
+            })
+        });
+        let rules = RuleSet::new().field("title", [Rule::required(), Rule::string(), rule])?;
+        let data = request.validate(rules).await?;
+        Response::json(StatusCode::CREATED, data.into_value())
+    })
+}
+```
+
+## Implicit rule objects {#implicit-rules}
+
+Override `ValidationRule::is_implicit()` to run when a field is missing, empty or null, including nullable fields. `sometimes` still skips an absent field. The flag does not reject input by itself: return a failure when required. Ordinary callbacks skip absent fields, raw empty strings and nullable nulls; normal HTTP empty-string-to-null processing occurs before request validation. `RuleContext::data` exposes the input used by this validator without copying it into shared rule state. Failure translation keys use the validator’s current translator; per-failure preferred locale parameters and ValidatorAware setters are not provided by this interface.
+
+```rust
+use openrust::{
+    contracts::validation::ValidationRule,
+    http::{HttpError, HttpFuture, Request, Response, StatusCode},
+    validation::{Rule, RuleContext, RuleFailure, RuleSet, ValidationFuture, ValidationResult},
+};
+use serde_json::Value;
+
+struct RequiredTitle;
+
+impl ValidationRule for RequiredTitle {
+    fn is_implicit(&self) -> bool { true }
+
+    fn validate<'a>(
+        &'a self,
+        _context: &'a RuleContext<'_>,
+        _attribute: &'a str,
+        value: Option<&'a Value>,
+    ) -> ValidationFuture<'a, ValidationResult<Vec<RuleFailure>>> {
+        Box::pin(async move {
+            Ok(if value.is_none_or(|v| v.is_null() || v.as_str().is_some_and(|s| s.trim().is_empty())) {
+                vec![RuleFailure::new("validation.required")]
+            } else {
+                Vec::new()
+            })
+        })
+    }
+}
+
+fn store_implicit(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let rules = RuleSet::new().field("title", [Rule::bail(), Rule::custom(RequiredTitle), Rule::string()])?;
+        let data = request.validate(rules).await?;
+        Response::json(StatusCode::CREATED, data.into_value())
+    })
+}
+```

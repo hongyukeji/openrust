@@ -195,3 +195,5 @@ API 相关扩展自 2026-11-19 起纳入第一代。OIDC RP 与双应用 SSO 分
 2026-11-24 Validation第五组：未知字段拒绝的表单／应用策略、嵌套与通配符、正文/查询/文件边界已接通；实测修复Blade @error/@else的500。独立最终22目标121项（MySQL8.4.13、三语十二段提取）通过，严格Clippy/fmt/三语构建浏览器通过。整章未关闭：make:request仍为planned命令，Closure／Implicit对象／Rule builders与email扩展模式列为明确接续项，见[当前逐节边界](../audits/docs-tutorials/README.md)。
 
 2026-11-24 Validation第六组：make:request已从真实CLI占位失败补成正式生成器，含默认拒绝、命名空间/force/模板发布与保护。三语6条实际Artisan命令生成相同代码，typed动作真实HTTP403/422/201通过；5项CLI回归及严格Clippy/fmt/三语构建通过。第五组make:request缺口关闭，其余规则对象／builder接续。
+
+2026-11-24 Validation第七组：Rule::custom支持字段级闭包，对象is_implicit控制缺失/nullable/空值调度；修正字面点字段名，复用原管线。固定PHP10组调度与真实HTTP、MySQL8.4.13等89项通过，三语18段提取及严格Clippy/fmt/构建浏览器通过。make:rule和其余对象setter/首选语言/builder等继续逐入口收尾。

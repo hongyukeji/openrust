@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, sync::Arc};
+use std::{borrow::Cow, collections::BTreeMap, sync::Arc};
 
 use crate::{
     contracts::validation::Validator as Contract, support::MessageBag, translation::Translator,
@@ -870,6 +870,15 @@ impl Validator {
         numeric: bool,
     ) -> ValidationResult<Vec<RuleFailure>> {
         let (pattern, attribute) = attribute;
+        if let Kind::Custom(rule) = rule
+            && rule.is_implicit()
+        {
+            let context = RuleContext { data: &self.data };
+            return rule
+                .validate(&context, &custom_rule_attribute(attribute), value)
+                .await;
+        }
+
         if let Kind::Password(password) = rule {
             return Ok(password.failures(value, nullable));
         }
@@ -1394,7 +1403,9 @@ impl Validator {
             }
             (Kind::Custom(rule), Some(value)) => {
                 let context = RuleContext { data: &self.data };
-                return rule.validate(&context, attribute, Some(value)).await;
+                return rule
+                    .validate(&context, &custom_rule_attribute(attribute), Some(value))
+                    .await;
             }
             _ => None,
         };
@@ -1611,6 +1622,14 @@ fn scalar_size(
             .map(|(key, bound)| ((*key).into(), bound.to_string())),
     );
     Ok(vec![failure])
+}
+
+fn custom_rule_attribute(attribute: &str) -> Cow<'_, str> {
+    if attribute.contains('\\') {
+        Cow::Owned(unescape(attribute))
+    } else {
+        Cow::Borrowed(attribute)
+    }
 }
 
 pub(super) fn unescape(attribute: &str) -> String {

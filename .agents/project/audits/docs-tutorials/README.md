@@ -150,3 +150,19 @@ URL第二组最终补验：清理后实际重编译，request_docs_generated三�
 三语新章节creating-form-requests已同步路径、显式模块声明、默认拒绝、退出码和stub覆盖。第五组表中make:request缺口由本组关闭；每字段Closure／Implicit对象、make:rule与fluent builders等仍按专用入口接续，email扩展模式仍非已完成。源码／日志位于同一项目target/tmp下，独立测试应用已自动清理，生成消费者夹具和热缓存供后续验收复用；不推送。
 
 第六组最终文档复验发现既有check_scope把所有带support-status的页面限定为恰好3个h2，已扩展的已提交Vite页面含6个h2而失败；这不是生成器或页面内容空缺。检查改为逐项要求唯一的support-status／available-entry-points／scope三个h2锚点，继续保留实际HTTP200、非空正文、原生引用、三语覆盖和浏览器错误断言。完整两种挂载／三语导航复验及普通浏览器、无API导出参考页均退出0，见request-generator-browser-rechecked.log；首次失败保留，不计通过。未修改Vite功能或其在途字体实现。
+
+## 第七组：字段闭包、隐式对象与原始字段名
+
+固定ValidationRuleParser／InvokableValidationRule将一次性Closure包装为规则，隐式对象的public implicit标志控制present／nullable检查；固定Validator在调用自定义规则前还原占位字段名。v0.x已有for<'a> Fn(Field<'a>)式同步自定义规则，但没有当前对象隐式标志；提取其借用／Send+Sync模式，沿用当前ValidationRule、RuleFailure和原验证器，不恢复旧RuleError协议。
+
+- 为同步Fn(&RuleContext,&str,Option<&Value>)->ValidationResult<Vec<RuleFailure>>实现ValidationRule，直接供Rule::custom使用；不注册全局规则名，原异步规则对象签名保留。
+- ValidationRule新增默认false的is_implicit钩子；隐式对象在缺失、空字符串或nullable null时进入原validate，sometimes仍能跳过缺失字段。标志不自动制造required错误；对象可以明确通过。隐式对象失败不自动等同builtin required的停止行为，非bail时后续规则仍执行。
+- 对自定义规则统一传递还原后的字段名，字面author\.name在规则内看到author.name。普通名称用Cow借用，仅有转义时分配字符串；不声称有基准性能提升。
+
+固定PHP实际执行十组普通／隐式／nullable／sometimes／明确通过组合，保存validation-rule-scheduling.json并通过真实TCP回放。一次初始夹具直接读request.json，混入已执行的HTTP空串转null，导致与裸Validator输入不一致；改为读取原始body_bytes提供同样JSON给手动Validator，不修改生产HTTP归一化。正式请求入口仍使用原输入处理，三语直接提取的request.validate示例同时覆盖正常HTTP归一化。
+
+最终基于e61dc0279的独立组合：18目标89项通过、0忽略，包含真实MySQL8.4.13的presence、typed FormRequest、文件和验证器生命周期；新增2项实际TCP验证字段闭包、其他输入Data读取、字面点、bail、执行错误500后恢复、普通／隐式调度和具名类型。补强隐式失败后第二条规则继续执行的断言，再2项通过；未将其算为两个额外功能。三语十八段正式Rust代码直接提取为3组HTTP Kernel消费者，覆盖闭包422、合法201与隐式缺失拒绝。workspace/all-targets严格Clippy及最终专项严格检查／fmt、三语构建与两种挂载全导航／浏览器／无API导出检查退出0。证据rule-all-accepted.log、rule-implicit-chain.log、rule-clippy.log、rule-chain-clippy.log、rule-fmt-final.log、rule-docs-build.log、rule-browser.log；磁盘守卫清理后正常复用缓存，没有改动正式Cargo配置或其他在途代码。
+
+本组只关闭直接闭包与对象隐式标志、列明原始字段名和只读Data消费者。DataAware/ValidatorAware的可变setter、逐失败首选语言参数、make:rule、fluent builders与其他规则仍需逐类型处理，不能用只读RuleContext或extend_implicit冒充整个类型已齐。三语说明准确标明当前接口不提供的参数；Validation整章继续，未推送。
+
+第七组暂存核对后统一了普通／隐式两个调用分支的Cow路径，随后真实字段与三语消费者5项、专项严格Clippy和全范围fmt再通过；rule-frozen-{tests,clippy}.log及rule-fmt-frozen.log为最后补验。源码与候选逐字一致，未提高递归上限或添加lint豁免。
