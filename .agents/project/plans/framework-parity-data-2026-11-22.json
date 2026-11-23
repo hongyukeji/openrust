@@ -298809,6 +298809,23 @@
         "APP_URL显式优先及previous同源限制为项目现有差异"
       ],
       "evidence": ".agents/project/audits/docs-tutorials/README.md"
+    },
+    {
+      "date": "2026-11-24",
+      "kind": "documentation_tutorial_validation_messages_attributes",
+      "status": "本组公开接线及教程已验收，整章未关闭",
+      "finding": "Factory已有消息/属性参数，但Request/Facade/FormRequest未暴露完整入口",
+      "implementation": "validate_with、validate_with_bag_and_options、Validator.make_with及FormRequest.messages/attributes；原方法保留空映射默认，复用原工厂",
+      "consumers": [
+        "framework/tests/validation_options_tutorial.rs",
+        "tests/request_tutorial_docs.py"
+      ],
+      "actual_results": "32项0忽略，真实TCP JSON422/Web302具名flash/Precognition204；三语九段提取为3组消费者；workspace严格Clippy/fmt/三语构建通过",
+      "remaining": [
+        "FormRequest未知字段拒绝教程",
+        "email扩展模式及完整规则逐例核对"
+      ],
+      "evidence": ".agents/project/audits/docs-tutorials/README.md"
     }
   ]
 }

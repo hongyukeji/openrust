@@ -33,7 +33,12 @@ pub trait FormRequest: Send + Sync {
             } else {
                 rules
             };
-            let mut validator = crate::support::facades::Validator::make(data, rules)?;
+            let mut validator = crate::support::facades::Validator::make_with(
+                data,
+                rules,
+                self.messages(),
+                self.attributes(),
+            )?;
             validator.stop_on_first_failure(self.stop_on_first_failure());
             self.with_validator(&mut validator)?;
             for callback in self.after() {
@@ -57,6 +62,16 @@ pub trait FormRequest: Send + Sync {
             self.passed_validation(request, &validated)?;
             Ok(validated)
         })
+    }
+
+    /// 当前表单的验证消息，支持字段与规则组合键。
+    fn messages(&self) -> std::collections::BTreeMap<String, String> {
+        Default::default()
+    }
+
+    /// 当前表单的字段显示名。
+    fn attributes(&self) -> std::collections::BTreeMap<String, String> {
+        Default::default()
     }
 
     fn stop_on_first_failure(&self) -> bool {

@@ -313,3 +313,27 @@ Register a message callback using `Validator::replacer`. It receives the selecte
 On one validator, use `add_extension`, `add_implicit_extension`, `add_dependent_extension` and `add_replacer`. Their plural forms accept `(String, Arc<callback>)` entries. These changes invalidate cached validation results and require revalidation.
 
 The default factory policy is `exclude_unvalidated_array_keys()`: when a parent has an unparameterized `array` or `list` rule and nested rules, validated output contains only the validated child keys. `include_unvalidated_array_keys()` includes all parent keys for subsequently created validators; `exclude_unvalidated_array_keys()` restores the default. `array:name,email` already restricts allowed keys and does not use this pruning policy. The public `exclude_unvalidated_array_keys` boolean can be changed on one validator; subsequent `validated()` and `safe()` calls use that policy immediately.
+
+## Custom messages and field labels {#custom-validation-messages}
+
+Use `validate_with(rules, messages, attributes)` for the optional message and attribute maps. Use `validate_with_bag_and_options(bag, rules, messages, attributes)` for a named bag. The Request facade exposes the same entries; existing `validate` and `validate_with_bag` calls keep their defaults. Rust represents PHP’s optional arguments with explicit additional methods.
+
+```rust
+use std::collections::BTreeMap;
+use openrust::{
+    http::{HttpError, HttpFuture, Request, Response, StatusCode},
+    validation::RuleSet,
+};
+
+fn store_with_messages(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let rules = RuleSet::parse([("title", "required|string|min:3")])?;
+        let messages = BTreeMap::from([("title.required".into(), "Please provide :attribute.".into())]);
+        let attributes = BTreeMap::from([("title".into(), "article title".into())]);
+        let data = request.validate_with(rules, messages, attributes).await?;
+        Response::json(StatusCode::CREATED, data.into_value())
+    })
+}
+```
+
+For manually constructed validators, call `Validator::make_with(data, rules, messages, attributes)`. A Form Request can override `messages()` and `attributes()`, both returning `BTreeMap<String, String>`. All entries use the same application factory and preserve JSON 422, Web redirects/error bags and Precognition. These maps apply only to that validator and do not change shared translations.

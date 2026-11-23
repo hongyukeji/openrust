@@ -883,6 +883,31 @@ impl Request {
         let mut request = root.borrow()?;
         request.validate_with_bag(bag, rules).await
     }
+    /// 为本次请求指定验证消息与字段显示名。
+    pub async fn validate_with(
+        rules: crate::validation::RuleSet,
+        messages: std::collections::BTreeMap<String, String>,
+        attributes: std::collections::BTreeMap<String, String>,
+    ) -> Result<crate::validation::ValidatedInput, HttpError> {
+        let root = Self::instance()?;
+        let mut request = root.borrow()?;
+        request.validate_with(rules, messages, attributes).await
+    }
+
+    /// 具名错误包和自定义文案委托同一个请求实例。
+    pub async fn validate_with_bag_and_options(
+        bag: &str,
+        rules: crate::validation::RuleSet,
+        messages: std::collections::BTreeMap<String, String>,
+        attributes: std::collections::BTreeMap<String, String>,
+    ) -> Result<crate::validation::ValidatedInput, HttpError> {
+        let root = Self::instance()?;
+        let mut request = root.borrow()?;
+        request
+            .validate_with_bag_and_options(bag, rules, messages, attributes)
+            .await
+    }
+
     pub fn has_valid_signature(absolute: bool) -> Result<bool, HttpError> {
         Self::has_valid_signature_while_ignoring(&[], absolute)
     }

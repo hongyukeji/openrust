@@ -15,11 +15,21 @@ impl Facade for Validator {
 
 impl Validator {
     pub fn make(data: Data, rules: RuleSet) -> ValidationResult<super::Validator> {
+        Self::make_with(data, rules, Default::default(), Default::default())
+    }
+
+    /// 使用本次验证专属的消息和字段显示名，不修改应用默认翻译。
+    pub fn make_with(
+        data: Data,
+        rules: RuleSet,
+        messages: std::collections::BTreeMap<String, String>,
+        attributes: std::collections::BTreeMap<String, String>,
+    ) -> ValidationResult<super::Validator> {
         Self::get_facade_root()
             .map_err(|source| ValidationError::Execution {
                 source: Box::new(source),
             })?
-            .make(data, rules, Default::default(), Default::default())
+            .make(data, rules, messages, attributes)
     }
 }
 

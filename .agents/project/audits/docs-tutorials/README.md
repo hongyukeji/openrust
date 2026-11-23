@@ -64,3 +64,18 @@
 验收：request_signature_tutorial5、urls6、uri_helpers2，共13项通过。严格workspace/all-targets Clippy的首次32GB停线中断不计通过；安全清理恢复后重跑退出0，见url-clippy-resumed.log。fmt与三语站点构建通过。清理只涉及构建profiles，源码／日志／依赖／数据保留；守卫触线后实测可用约94GB。后续最终消费者补验结果写入本记录，不混入Validation尚未验收源码。
 
 URL第二组最终补验：清理后实际重编译，request_docs_generated三语3项、签名5项、urls6项、uri2项，共16项全部通过；见url-accepted.log。url-fmt.log和url-docs-build.log退出0，最终8份源码／三语正文与隔离验收字节一致，SHA见url-source-sha.json。
+
+## 第三组：验证消息与字段显示名贯通开发者入口
+
+基于a746dffed及本组独立差异，不包含进行中的优先级、Vite、异常或模板修改。固定FoundationServiceProvider的validate宏将可选参数转交Factory::make；固定FormRequest::createDefaultValidator将messages()/attributes()传给同一Factory。v0.x验证实现未提供可复用的对应FormRequest钩子；现有Factory已支持两个映射，因此只补必要的公开接线，不复制验证器。
+
+- Request::validate_with(rules,messages,attributes)、validate_with_bag_and_options(bag,rules,messages,attributes)，Request门面同名转发。
+- Validator::make_with(data,rules,messages,attributes)，原make(data,rules)继续传默认空映射。
+- FormRequest增加默认返回空映射的messages()/attributes()钩子，创建原验证器时传入，之后with_validator、after、授权、预验证及错误包管线保持原顺序。
+- Rust无可选函数参数，原validate/validate_with_bag调用保持，额外参数使用明确方法；两个BTreeMap只属于当前验证器，不修改共享语言资源、应用Factory或其他请求。没有新增进程全局状态。
+
+实际TCP覆盖实例、门面（含具名）、手动Validator与FormRequest的required/min消息占位和字段显示名、成功字段过滤；具名请求与表单走Web 302，携带真实会话cookie读取flash，确认article错误包保存自定义消息。五种预验证路径均为204+成功响应头，失败为422自定义消息，验证位于实际中间件而非被跳过的路由动作。新增三语正式示例由tests/request_tutorial_docs.py直接提取，累计九段，三组消费者真实编译并执行422和201断言。
+
+最终组合32项通过（request_facade_full17、request_signature_tutorial5、request_validation_tutorial2、validation_options_tutorial3、validation_web2、三语提取3），0忽略。工作区严格Clippy之前用独立来源运行，未带优先级等在途实现；workspace/all-targets -D warnings、fmt和三语站点构建退出0。证据target/tmp/docs-chapters-20261124/validation-{final-v2,clippy,fmt,docs-build,doc-extraction}.log；首次夹具缺少Session trait导入编译失败已修正，未算作框架缺陷或通过证据。
+
+本组只关闭可选消息／属性参数和FormRequest对应钩子；完整Validation章仍须逐项核对，包括固定文档的未知字段拒绝和现有明确未实现的email扩展模式，不以本组32项回归关闭整章。

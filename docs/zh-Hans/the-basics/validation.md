@@ -313,3 +313,27 @@ Validator::extend("upper_code", |_, value, _, _| {
 单个验证器可使用 `add_extension`、`add_implicit_extension`、`add_dependent_extension` 和 `add_replacer`；对应复数方法接受 `(String, Arc<回调>)`。这些修改会清除已有验证结果，需要再次验证。
 
 工厂默认 `exclude_unvalidated_array_keys()`：父字段声明无参数 `array` 或 `list` 且有子字段规则时，只返回经过验证的子键。用 `include_unvalidated_array_keys()` 将之后创建的验证器切换为包含父字段全部键；调用 `exclude_unvalidated_array_keys()` 恢复默认。`array:name,email` 已显式限制允许键，不采用该裁剪策略。单个验证器的 `exclude_unvalidated_array_keys` 布尔字段可独立调整，`validated()` 和 `safe()` 随即采用新策略。
+
+## 自定义消息与字段显示名 {#custom-validation-messages}
+
+需要可选的消息和字段显示名时使用 `validate_with(rules, messages, attributes)`；具名错误包使用 `validate_with_bag_and_options(bag, rules, messages, attributes)`。Request 门面提供同样的入口；原有 `validate` 和 `validate_with_bag` 默认行为不变。Rust 用额外方法表达 PHP 的可选参数。
+
+```rust
+use std::collections::BTreeMap;
+use openrust::{
+    http::{HttpError, HttpFuture, Request, Response, StatusCode},
+    validation::RuleSet,
+};
+
+fn store_with_messages(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let rules = RuleSet::parse([("title", "required|string|min:3")])?;
+        let messages = BTreeMap::from([("title.required".into(), "Please provide :attribute.".into())]);
+        let attributes = BTreeMap::from([("title".into(), "article title".into())]);
+        let data = request.validate_with(rules, messages, attributes).await?;
+        Response::json(StatusCode::CREATED, data.into_value())
+    })
+}
+```
+
+手动创建验证器时调用 `Validator::make_with(data, rules, messages, attributes)`。Form Request 可覆盖 `messages()` 和 `attributes()`，两者返回 `BTreeMap<String, String>`。这些入口复用应用验证工厂，保留 JSON 422、Web 重定向／错误包和 Precognition；文案只影响本次验证器，不修改共享翻译。
