@@ -1,3 +1,5 @@
+mod responses;
+
 use std::{
     collections::HashMap,
     future::Future,
@@ -33,6 +35,7 @@ impl ResponseMacro {
 /// Stores the response macros for one application.
 #[derive(Default)]
 pub struct ResponseFactory {
+    owner: std::sync::Weak<crate::container::Container>,
     macros: RwLock<HashMap<String, ResponseMacro>>,
 }
 
@@ -110,8 +113,17 @@ pub(crate) struct ResponseServiceProvider;
 impl ServiceProvider for ResponseServiceProvider {
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
-            app.container()
-                .singleton::<ResponseFactory, _>(|_| Ok(Arc::new(ResponseFactory::default())))?;
+            let owner = Arc::downgrade(&app.container_handle());
+            app.container().singleton::<ResponseFactory, _>(move |_| {
+                Ok(Arc::new(ResponseFactory {
+                    owner: owner.clone(),
+                    ..ResponseFactory::default()
+                }))
+            })?;
+            app.container().alias(
+                crate::container::ServiceKey::typed::<ResponseFactory>(),
+                "response",
+            )?;
             Ok(())
         })
     }

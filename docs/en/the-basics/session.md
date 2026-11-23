@@ -125,3 +125,22 @@ The default is `Str::slug(APP_NAME) + "-session"`: `My App` becomes `my-app-sess
 ## Inspecting session configuration
 
 `SessionManager::should_block()` reads `session.block`; `block_driver()` reads `session.block_store`. `default_route_block_lock_seconds()` and `default_route_block_wait_seconds()` return the configured lock and wait durations, each defaulting to 10 seconds. `get_session_config()` returns the configuration snapshot used when assembling this manager, including custom keys. Changes to the configuration repository after assembly do not update this snapshot.
+
+## Session facade {#session-facade}
+
+Import `support::facades::Session` to access the session already loaded for the current HTTP request. Reads, writes, flash data, old input, CSRF tokens, and ID rotation use the same Store as `StartSession`; middleware still persists it at the end of the request. Calls without an active request or configured session return an error instead of creating an empty session.
+
+```rust
+use openrust::{
+    http::HttpError,
+    support::facades::{Route, Session},
+};
+
+Route::get("/visits", || async {
+    let visits = Session::increment("visits", 1)?;
+    Session::flash("message", serde_json::json!("Saved"))?;
+    Ok::<_, HttpError>(visits)
+})?;
+```
+
+`get` returns `Option<Value>`. `get_or` applies its default only to a missing key; an explicit `null` remains `null`. `all`, `only`, and `except` return owned copies rather than references escaping the request borrow. `regenerate`, `migrate`, `invalidate`, `start`, and `save` are asynchronous. Handlers borrowing `&mut Request` should use that instance or lend it safely through `request.with_container(async { ... }).await` before calling the facade.

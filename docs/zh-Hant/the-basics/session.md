@@ -125,3 +125,22 @@ impl ServiceProvider for AppSessionProvider {
 ## 讀取工作階段設定
 
 `SessionManager::should_block()` 讀取 `session.block`，`block_driver()` 讀取 `session.block_store`。`default_route_block_lock_seconds()` 和 `default_route_block_wait_seconds()` 傳回鎖持有與等待時長，均預設 10 秒。`get_session_config()` 傳回建立管理器時使用的設定快照，保留自訂鍵；建立後修改設定儲存庫不會更新該快照。
+
+## 工作階段門面 {#session-facade}
+
+匯入 `support::facades::Session` 可直接操作目前 HTTP 請求已載入的工作階段。讀寫、快閃資料、舊輸入、CSRF 權杖與 ID 輪換共用 `StartSession` 的 Store；中介軟體仍負責請求結束後的持久化。沒有活動請求或未設定 Session 時回傳錯誤，不建立空工作階段。
+
+```rust
+use openrust::{
+    http::HttpError,
+    support::facades::{Route, Session},
+};
+
+Route::get("/visits", || async {
+    let visits = Session::increment("visits", 1)?;
+    Session::flash("message", serde_json::json!("Saved"))?;
+    Ok::<_, HttpError>(visits)
+})?;
+```
+
+`get` 回傳 `Option<Value>`；`get_or` 只對缺少的鍵使用預設值，明確的 `null` 仍回傳 `null`。`all`、`only`、`except` 回傳副本，避免將參考帶出請求借用。`regenerate`、`migrate`、`invalidate`、`start` 和 `save` 是非同步方法。持有 `&mut Request` 時，直接使用請求實例，或透過 `request.with_container(async { ... }).await` 安全借出後呼叫門面。

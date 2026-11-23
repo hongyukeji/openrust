@@ -279,3 +279,26 @@ Response::call("caps", vec!["hello".into()]).await
 ```
 
 `has_macro` 检查当前工厂。`mixin` 接收显式列出的 `ResponseMacro` 和替换开关。`flush_macros` 清空当前应用的注册表。每个应用使用自己的响应工厂。
+
+## 响应门面 {#response-facade}
+
+在应用作用域中导入 `support::facades::Response`。它委托给同一应用的 `http::ResponseFactory`，也可以通过容器的 `response` 名称解析该工厂。响应值类型仍是 `http::Response`。
+
+```rust
+use openrust::{
+    http::{HeaderMap, StatusCode},
+    support::facades::{Response, Route},
+};
+
+Route::get("/status", || async {
+    Response::json(
+        serde_json::json!({"status": "ready"}),
+        StatusCode::OK,
+        HeaderMap::new(),
+    )
+})?;
+```
+
+`make` 接受可转换为响应的字符串或结构化数据；`no_content`、`json`、`jsonp`、`markdown` 接受显式状态和响应头。`stream` 使用 Rust 异步流，`stream_json` 使用 `StreamedJson`，`event_stream` 默认追加 `</stream>`；用 `event_stream_with_end(..., None)` 关闭结束事件。文件与流式下载使用 `file`、`download` 和 `stream_download`。
+
+`view` 渲染当前请求上的视图，`view_first` 选择第一个存在的视图。持有 `&mut Request` 的处理器用 `view_for_request`，或先用 `request.with_container(async { ... }).await` 借出请求。`redirect_to`、`redirect_to_route` 和 `redirect_to_action` 复用应用路由与 URL 生成器；`redirect_guest` 和 `redirect_to_intended` 修改当前请求的 Session。

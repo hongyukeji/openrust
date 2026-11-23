@@ -279,3 +279,26 @@ Response::call("caps", vec!["hello".into()]).await
 ```
 
 `has_macro` checks the current factory. `mixin` takes explicitly listed `ResponseMacro` values and a replacement flag. `flush_macros` clears the current application's registry. Each application has its own factory.
+
+## Response facade {#response-facade}
+
+Import `support::facades::Response` inside an application scope. It delegates to the same application's `http::ResponseFactory`, also available through the container name `response`. Returned values remain `http::Response`.
+
+```rust
+use openrust::{
+    http::{HeaderMap, StatusCode},
+    support::facades::{Response, Route},
+};
+
+Route::get("/status", || async {
+    Response::json(
+        serde_json::json!({"status": "ready"}),
+        StatusCode::OK,
+        HeaderMap::new(),
+    )
+})?;
+```
+
+`make` accepts strings or structured response values. `no_content`, `json`, `jsonp`, and `markdown` take an explicit status and headers. `stream` accepts a Rust asynchronous stream; `stream_json` accepts `StreamedJson`. `event_stream` appends `</stream>` by default; `event_stream_with_end(..., None)` disables the final event. Use `file`, `download`, and `stream_download` for files and streamed downloads.
+
+`view` renders with the current request; `view_first` chooses the first existing view. A handler borrowing `&mut Request` can use `view_for_request`, or lend the request through `request.with_container(async { ... }).await`. `redirect_to`, `redirect_to_route`, and `redirect_to_action` reuse the application routes and URL generator. `redirect_guest` and `redirect_to_intended` modify the current request's Session.

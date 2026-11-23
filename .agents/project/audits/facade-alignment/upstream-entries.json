@@ -1,0 +1,844 @@
+{
+  "baseline": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "purpose": "固定基线入口核对清单；仅注解和显式静态声明，实际目标还须追踪继承、trait、动态转发和底层公开类型。pending 不代表已实现或已验收。",
+  "types": [
+    {
+      "type": "App",
+      "source": "src/Illuminate/Support/Facades/App.php",
+      "public_entries": [
+        "configure", "inferBasePath", "version", "bootstrapWith", "afterLoadingEnvironment",
+        "beforeBootstrapping", "afterBootstrapping", "hasBeenBootstrapped", "setBasePath", "path",
+        "useAppPath", "basePath", "bootstrapPath", "getBootstrapProvidersPath", "useBootstrapPath",
+        "configPath", "useConfigPath", "databasePath", "useDatabasePath", "langPath", "useLangPath",
+        "publicPath", "usePublicPath", "storagePath", "useStoragePath", "resourcePath", "viewPath",
+        "joinPaths", "environmentPath", "useEnvironmentPath", "loadEnvironmentFrom", "environmentFile",
+        "environmentFilePath", "environment", "isLocal", "isProduction", "detectEnvironment",
+        "runningInConsole", "runningConsoleCommand", "runningUnitTests", "hasDebugModeEnabled",
+        "registered", "registerConfiguredProviders", "register", "getProvider", "getProviders",
+        "resolveProvider", "loadDeferredProviders", "loadDeferredProvider", "registerDeferredProvider",
+        "make", "bound", "isBooted", "boot", "booting", "booted", "handle", "handleRequest",
+        "handleCommand", "shouldMergeFrameworkConfiguration", "dontMergeFrameworkConfiguration",
+        "shouldSkipMiddleware", "getCachedServicesPath", "getCachedPackagesPath", "configurationIsCached",
+        "getCachedConfigPath", "routesAreCached", "getCachedRoutesPath", "eventsAreCached",
+        "getCachedEventsPath", "addAbsoluteCachePathPrefix", "maintenanceMode", "isDownForMaintenance",
+        "abort", "terminating", "terminate", "getLoadedProviders", "providerIsLoaded",
+        "getDeferredServices", "setDeferredServices", "isDeferredService", "addDeferredServices",
+        "removeDeferredServices", "provideFacades", "getLocale", "currentLocale", "getFallbackLocale",
+        "setLocale", "setFallbackLocale", "isLocale", "registerCoreContainerAliases", "flush",
+        "getNamespace", "when", "whenHasAttribute", "has", "isShared", "isAlias", "bind",
+        "hasMethodBinding", "bindMethod", "callMethodBinding", "addContextualBinding", "bindIf",
+        "singleton", "singletonIf", "scoped", "scopedIf", "extend", "instance", "tag", "tagged", "alias",
+        "rebinding", "refresh", "wrap", "call", "factory", "makeWith", "get", "build",
+        "resolveFromAttribute", "beforeResolving", "resolving", "afterResolving", "afterResolvingAttribute",
+        "fireAfterResolvingAttributeCallbacks", "currentlyResolving", "getBindings", "getAlias",
+        "forgetExtenders", "forgetInstance", "forgetInstances", "forgetScopedInstances",
+        "resolveEnvironmentUsing", "currentEnvironmentIs", "getInstance", "setInstance", "macro", "mixin",
+        "hasMacro", "flushMacros"
+      ],
+      "review": "partial",
+      "tested_entries": {
+        "configure": {"test": "app_facade_resolves_and_modifies_the_real_application_container", "status": "verified-paths"},
+        "get": {"test": "app_facade_resolves_and_modifies_the_real_application_container", "status": "verified-paths"},
+        "make": {"test": "app_facade_resolves_and_modifies_the_real_application_container", "status": "verified-paths"},
+        "bind": {"test": "app_facade_resolves_and_modifies_the_real_application_container", "status": "verified-paths"},
+        "singleton": {"test": "app_facade_resolves_and_modifies_the_real_application_container", "status": "verified-paths"},
+        "singletonIf": {"test": "app_facade_resolves_and_modifies_the_real_application_container", "status": "verified-paths"},
+        "scopedIf": {"test": "app_facade_scoped_bindings_are_isolated_and_can_be_forgotten", "status": "verified-paths"},
+        "has": {"test": "app_facade_resolves_and_modifies_the_real_application_container", "status": "verified-paths"},
+        "bound": {"test": "app_facade_resolves_and_modifies_the_real_application_container", "status": "verified-paths"},
+        "isAlias": {"test": "app_facade_resolves_and_modifies_the_real_application_container", "status": "verified-paths"},
+        "isShared": {"test": "app_facade_resolves_and_modifies_the_real_application_container", "status": "verified-paths"},
+        "getAlias": {"test": "app_facade_resolves_and_modifies_the_real_application_container", "status": "verified-paths"},
+        "instance": {"test": "app_facade_resolves_and_modifies_the_real_application_container", "status": "verified-paths"},
+        "forgetInstance": {"test": "app_facade_resolves_and_modifies_the_real_application_container", "status": "verified-paths"},
+        "forgetScopedInstances": {"test": "app_facade_scoped_bindings_are_isolated_and_can_be_forgotten", "status": "verified-paths"},
+        "beforeResolving": {"test": "app_facade_resolves_and_modifies_the_real_application_container", "status": "verified-paths"},
+        "extend": {"test": "app_facade_resolves_and_modifies_the_real_application_container", "status": "verified-paths"},
+        "forgetExtenders": {"test": "app_facade_resolves_and_modifies_the_real_application_container", "status": "verified-paths"},
+        "tag": {"test": "app_facade_resolves_and_modifies_the_real_application_container", "status": "verified-paths"},
+        "tagged": {"test": "app_facade_resolves_and_modifies_the_real_application_container", "status": "verified-paths"},
+        "factory": {"test": "app_facade_resolves_and_modifies_the_real_application_container", "status": "verified-paths"},
+        "call": {"test": "app_facade_resolves_and_modifies_the_real_application_container", "status": "verified-paths"},
+        "hasMethodBinding": {"test": "app_facade_resolves_and_modifies_the_real_application_container", "status": "verified-paths"},
+        "bindMethod": {"test": "app_facade_resolves_and_modifies_the_real_application_container", "status": "verified-paths"},
+        "callMethodBinding": {"test": "app_facade_resolves_and_modifies_the_real_application_container", "status": "verified-paths"},
+        "basePath": {"test": "app_facade_resolves_and_modifies_the_real_application_container", "status": "verified-paths"},
+        "publicPath": {"test": "app_facade_resolves_and_modifies_the_real_application_container", "status": "verified-paths"},
+        "storagePath": {"test": "app_facade_resolves_and_modifies_the_real_application_container", "status": "verified-paths"},
+        "environment": {"test": "app_facade_resolves_and_modifies_the_real_application_container", "status": "verified-paths"},
+        "isLocal": {"test": "app_facade_resolves_and_modifies_the_real_application_container", "status": "verified-paths"},
+        "isProduction": {"test": "app_facade_resolves_and_modifies_the_real_application_container", "status": "verified-paths"},
+        "isBooted": {"test": "app_facade_resolves_and_modifies_the_real_application_container", "status": "verified-paths"},
+        "runningUnitTests": {"test": "app_facade_resolves_and_modifies_the_real_application_container", "status": "verified-paths"},
+        "configurationIsCached": {"test": "app_facade_resolves_and_modifies_the_real_application_container", "status": "verified-paths"},
+        "routesAreCached": {"test": "app_facade_resolves_and_modifies_the_real_application_container", "status": "verified-paths"},
+        "currentlyResolving": {"test": "app_facade_resolves_and_modifies_the_real_application_container", "status": "verified-paths"}
+      },
+      "qualification": "只记录已执行的用例路径；完整参数、默认值、所有继承委托及剩余入口仍逐项待核，不据此关闭所属门面。"
+    },
+    {
+      "type": "Artisan",
+      "source": "src/Illuminate/Support/Facades/Artisan.php",
+      "public_entries": [
+        "handle", "terminate", "whenCommandLifecycleIsLongerThan", "commandStartedAt",
+        "resolveConsoleSchedule", "command", "registerCommand", "call", "queue", "findCommand", "all",
+        "output", "bootstrap", "bootstrapWithoutBootingProviders", "setArtisan", "addCommands",
+        "addCommandPaths", "addCommandRoutePaths"
+      ],
+      "review": "pending"
+    },
+    {
+      "type": "Auth",
+      "source": "src/Illuminate/Support/Facades/Auth.php",
+      "public_entries": [
+        "guard", "createSessionDriver", "createTokenDriver", "getDefaultDriver", "shouldUse",
+        "setDefaultDriver", "viaRequest", "userResolver", "resolveUsersUsing", "extend", "provider",
+        "hasResolvedGuards", "forgetGuards", "setApplication", "createUserProvider",
+        "getDefaultUserProvider", "check", "guest", "user", "id", "validate", "hasUser", "setUser",
+        "attempt", "once", "login", "loginUsingId", "onceUsingId", "viaRemember", "logout", "basic",
+        "onceBasic", "attemptWhen", "hashPasswordForCookie", "logoutCurrentDevice", "logoutOtherDevices",
+        "attempting", "getLastAttempted", "getName", "getRecallerName", "setRememberDuration",
+        "getCookieJar", "setCookieJar", "getDispatcher", "setDispatcher", "getSession", "getUser",
+        "getRequest", "setRequest", "getTimebox", "authenticate", "forgetUser", "getProvider",
+        "setProvider", "macro", "mixin", "hasMacro", "flushMacros", "routes"
+      ],
+      "review": "pending"
+    },
+    {
+      "type": "Blade",
+      "source": "src/Illuminate/Support/Facades/Blade.php",
+      "public_entries": [
+        "compile", "getPath", "setPath", "compileString", "render", "renderComponent", "stripParentheses",
+        "extend", "getExtensions", "if", "check", "component", "components", "getClassComponentAliases",
+        "anonymousComponentPath", "anonymousComponentNamespace", "componentNamespace",
+        "getAnonymousComponentPaths", "getAnonymousComponentNamespaces", "getClassComponentNamespaces",
+        "aliasComponent", "include", "aliasInclude", "bindDirective", "directive", "getCustomDirectives",
+        "prepareStringsForCompilationUsing", "precompiler", "getCompiledPath", "usingEchoFormat",
+        "setEchoFormat", "withDoubleEncoding", "withoutDoubleEncoding", "withoutComponentTags", "isExpired",
+        "newComponentHash", "compileClassComponentOpening", "compileEndComponentClass",
+        "sanitizeComponentAttribute", "compileEndOnce", "stringable", "compileEchos", "applyEchoHandler"
+      ],
+      "review": "pending"
+    },
+    {
+      "type": "Broadcast",
+      "source": "src/Illuminate/Support/Facades/Broadcast.php",
+      "public_entries": [
+        "routes", "userRoutes", "channelRoutes", "socket", "on", "private", "presence", "event", "queue",
+        "connection", "driver", "pusher", "ably", "getDefaultDriver", "setDefaultDriver", "purge", "extend",
+        "getApplication", "setApplication", "forgetDrivers", "mercure", "resolveConnectionFromQueueRoute",
+        "resolveQueueFromQueueRoute", "auth", "validAuthenticationResponse", "broadcast",
+        "resolveAuthenticatedUser", "resolveAuthenticatedUserUsing", "channel", "getChannels"
+      ],
+      "review": "pending"
+    },
+    {
+      "type": "Bus",
+      "source": "src/Illuminate/Support/Facades/Bus.php",
+      "public_entries": [
+        "dispatch", "dispatchSync", "dispatchNow", "bulk", "findBatch", "batch", "chain",
+        "hasCommandHandler", "getCommandHandler", "dispatchToQueue", "dispatchAfterResponse", "pipeThrough",
+        "map", "withDispatchingAfterResponses", "withoutDispatchingAfterResponses",
+        "resolveConnectionFromQueueRoute", "resolveQueueFromQueueRoute", "except", "assertDispatched",
+        "assertDispatchedOnce", "assertDispatchedTimes", "assertNotDispatched", "assertNothingDispatched",
+        "assertDispatchedSync", "assertDispatchedSyncTimes", "assertNotDispatchedSync",
+        "assertDispatchedAfterResponse", "assertDispatchedAfterResponseTimes",
+        "assertNotDispatchedAfterResponse", "assertChained", "assertNothingChained",
+        "assertDispatchedWithoutChain", "chainedBatch", "assertBatched", "assertBatchCount",
+        "assertNothingBatched", "assertNothingPlaced", "dispatched", "dispatchedSync",
+        "dispatchedAfterResponse", "batched", "hasDispatched", "hasDispatchedSync",
+        "hasDispatchedAfterResponse", "dispatchFakeBatch", "recordPendingBatch", "serializeAndRestore",
+        "dispatchedBatches", "fake", "dispatchChain"
+      ],
+      "review": "pending"
+    },
+    {
+      "type": "Cache",
+      "source": "src/Illuminate/Support/Facades/Cache.php",
+      "public_entries": [
+        "store", "driver", "memo", "resolve", "build", "repository", "refreshEventDispatcher",
+        "getDefaultDriver", "setDefaultDriver", "forgetDriver", "purge", "extend", "setApplication",
+        "handleUnserializableClassUsing", "has", "missing", "get", "many", "getMultiple", "pull", "string",
+        "integer", "float", "boolean", "array", "put", "set", "putMany", "setMultiple", "add", "increment",
+        "decrement", "forever", "remember", "rememberWithWarmth", "sear", "rememberForever", "flexible",
+        "touch", "withoutOverlapping", "funnel", "forget", "delete", "deleteMultiple", "clear",
+        "flushLocks", "tags", "getName", "supportsTags", "supportsFlushingLocks", "getDefaultCacheTime",
+        "setDefaultCacheTime", "getStore", "setStore", "getEventDispatcher", "setEventDispatcher", "macro",
+        "mixin", "hasMacro", "flushMacros", "macroCall", "flush", "getPrefix", "lock", "restoreLock", "spy"
+      ],
+      "review": "pending"
+    },
+    {
+      "type": "Cloud",
+      "source": "src/Illuminate/Support/Facades/Cloud.php",
+      "public_entries": [
+        "hosted", "usesManagedQueues", "queue", "isManagedQueue", "macro", "mixin", "hasMacro",
+        "flushMacros"
+      ],
+      "review": "pending"
+    },
+    {
+      "type": "Concurrency",
+      "source": "src/Illuminate/Support/Facades/Concurrency.php",
+      "public_entries": [
+        "driver", "createProcessDriver", "createForkDriver", "createSyncDriver", "getDefaultInstance",
+        "setDefaultInstance", "getInstanceConfig", "instance", "forgetInstance", "purge", "extend",
+        "setApplication", "run", "defer"
+      ],
+      "review": "pending"
+    },
+    {
+      "type": "Config",
+      "source": "src/Illuminate/Support/Facades/Config.php",
+      "public_entries": [
+        "has", "get", "getMany", "string", "integer", "float", "boolean", "array", "collection", "set",
+        "prepend", "push", "all", "macro", "mixin", "hasMacro", "flushMacros"
+      ],
+      "review": "pending"
+    },
+    {
+      "type": "Context",
+      "source": "src/Illuminate/Support/Facades/Context.php",
+      "public_entries": [
+        "has", "missing", "hasHidden", "missingHidden", "all", "allHidden", "get", "getHidden", "pull",
+        "pullHidden", "only", "onlyHidden", "except", "exceptHidden", "add", "addHidden", "remember",
+        "rememberHidden", "forget", "forgetHidden", "addIf", "addHiddenIf", "push", "pop", "pushHidden",
+        "popHidden", "increment", "decrement", "stackContains", "hiddenStackContains", "scope", "isEmpty",
+        "dehydrating", "hydrated", "handleUnserializeExceptionsUsing", "flush", "when", "unless", "macro",
+        "mixin", "hasMacro", "flushMacros", "restoreModel"
+      ],
+      "review": "pending"
+    },
+    {
+      "type": "Cookie",
+      "source": "src/Illuminate/Support/Facades/Cookie.php",
+      "public_entries": [
+        "make", "forever", "forget", "hasQueued", "queued", "queue", "expire", "unqueue",
+        "setDefaultPathAndDomain", "getQueuedCookies", "flushQueuedCookies", "macro", "mixin", "hasMacro",
+        "flushMacros", "has", "get"
+      ],
+      "review": "pending"
+    },
+    {
+      "type": "Crypt",
+      "source": "src/Illuminate/Support/Facades/Crypt.php",
+      "public_entries": [
+        "supported", "generateKey", "encrypt", "encryptString", "decrypt", "decryptString",
+        "appearsEncrypted", "getKey", "getAllKeys", "getPreviousKeys", "previousKeys"
+      ],
+      "review": "pending"
+    },
+    {
+      "type": "DB",
+      "source": "src/Illuminate/Support/Facades/DB.php",
+      "public_entries": [
+        "connection", "build", "calculateDynamicConnectionName", "connectUsing", "purge", "disconnect",
+        "reconnect", "usingConnection", "getDefaultConnection", "setDefaultConnection", "supportedDrivers",
+        "availableDrivers", "extend", "forgetExtension", "getConnections", "setReconnector",
+        "setApplication", "macro", "mixin", "hasMacro", "flushMacros", "macroCall",
+        "useDefaultQueryGrammar", "useDefaultSchemaGrammar", "useDefaultPostProcessor", "getSchemaBuilder",
+        "table", "query", "selectOne", "scalar", "selectFromWriteConnection", "select", "selectResultSets",
+        "cursor", "insert", "update", "delete", "statement", "affectingStatement", "unprepared",
+        "threadCount", "pretend", "withoutPretending", "bindValues", "prepareBindings", "logQuery",
+        "whenQueryingForLongerThan", "allowQueryDurationHandlersToRunAgain", "totalQueryDuration",
+        "resetTotalQueryDuration", "reconnectIfMissingConnection", "beforeStartingTransaction",
+        "beforeExecuting", "listen", "raw", "escape", "hasModifiedRecords", "recordsHaveBeenModified",
+        "setRecordModificationState", "forgetRecordModificationState", "useWriteConnectionWhenReading",
+        "usingWritePdo", "getPdo", "getRawPdo", "getReadPdo", "getRawReadPdo", "getDirectPdo",
+        "getRawDirectPdo", "setPdo", "setReadPdo", "setReadPdoConfig", "setDirectPdo", "setDirectPdoConfig",
+        "getDirectPdoConfig", "hasDirectConnection", "getName", "getNameWithReadWriteType", "getConfig",
+        "getDriverName", "getDriverTitle", "getQueryGrammar", "setQueryGrammar", "getSchemaGrammar",
+        "setSchemaGrammar", "getPostProcessor", "setPostProcessor", "getEventDispatcher",
+        "setEventDispatcher", "unsetEventDispatcher", "setTransactionManager", "unsetTransactionManager",
+        "pretending", "getQueryLog", "getRawQueryLog", "flushQueryLog", "enableQueryLog", "disableQueryLog",
+        "logging", "getDatabaseName", "setDatabaseName", "setReadWriteType", "getTablePrefix",
+        "setTablePrefix", "withoutTablePrefix", "getServerVersion", "getLastCommitId", "mergeCommitIds",
+        "hasCommitId", "resolverFor", "getResolver", "transaction", "beginTransaction", "commit",
+        "rollBack", "transactionLevel", "afterCommit", "afterRollBack", "prohibitDestructiveCommands"
+      ],
+      "review": "pending"
+    },
+    {
+      "type": "Date",
+      "source": "src/Illuminate/Support/Facades/Date.php",
+      "public_entries": [
+        "use", "useDefault", "useCallable", "useClass", "useFactory", "canBeCreatedFromFormat", "create",
+        "createFromDate", "createFromFormat", "createFromIsoFormat", "createFromLocaleFormat",
+        "createFromLocaleIsoFormat", "createFromTime", "createFromTimeString", "createFromTimestamp",
+        "createFromTimestampMs", "createFromTimestampMsUTC", "createFromTimestampUTC", "createMidnightDate",
+        "createSafe", "createStrict", "disableHumanDiffOption", "enableHumanDiffOption",
+        "executeWithLocale", "fromSerialized", "getAvailableLocales", "getAvailableLocalesInfo", "getDays",
+        "getFallbackLocale", "getFormatsToIsoReplacements", "getHumanDiffOptions", "getIsoUnits",
+        "getLastErrors", "getLocale", "getMidDayAt", "getTimeFormatByPrecision",
+        "getTranslationMessageWith", "getTestNow", "getTranslator", "getWeekEndsAt", "getWeekStartsAt",
+        "getWeekendDays", "hasFormat", "hasFormatWithModifiers", "hasMacro", "hasRelativeKeywords",
+        "hasTestNow", "instance", "isImmutable", "isModifiableUnit", "isMutable", "isStrictModeEnabled",
+        "localeHasDiffOneDayWords", "localeHasDiffSyntax", "localeHasDiffTwoDayWords",
+        "localeHasPeriodSyntax", "localeHasShortUnits", "macro", "make", "mixin", "now", "parse",
+        "parseFromLocale", "pluralUnit", "rawCreateFromFormat", "rawParse", "resetMonthsOverflow",
+        "resetToStringFormat", "resetYearsOverflow", "serializeUsing", "setFallbackLocale",
+        "setHumanDiffOptions", "setLocale", "setMidDayAt", "setTestNow", "setTestNowAndTimezone",
+        "setToStringFormat", "setTranslator", "setWeekEndsAt", "setWeekStartsAt", "setWeekendDays",
+        "shouldOverflowMonths", "shouldOverflowYears", "singularUnit", "sleep", "today", "tomorrow",
+        "translateTimeString", "translateWith", "useMonthsOverflow", "useStrictMode", "useYearsOverflow",
+        "withTestNow", "withTimeZone", "yesterday"
+      ],
+      "review": "pending"
+    },
+    {
+      "type": "Event",
+      "source": "src/Illuminate/Support/Facades/Event.php",
+      "public_entries": [
+        "listen", "hasListeners", "hasWildcardListeners", "push", "flush", "subscribe", "until", "dispatch",
+        "getListeners", "makeListener", "createClassListener", "forget", "forgetPushed", "setQueueResolver",
+        "setTransactionManagerResolver", "defer", "getRawListeners", "macro", "mixin", "hasMacro",
+        "flushMacros", "resolveConnectionFromQueueRoute", "resolveQueueFromQueueRoute", "except",
+        "assertListening", "assertDispatched", "assertDispatchedOnce", "assertDispatchedTimes",
+        "assertNotDispatched", "assertNothingDispatched", "dispatched", "hasDispatched", "dispatchedEvents",
+        "fake", "fakeExcept", "fakeFor", "fakeExceptFor"
+      ],
+      "review": "pending"
+    },
+    {
+      "type": "Exceptions",
+      "source": "src/Illuminate/Support/Facades/Exceptions.php",
+      "public_entries": [
+        "register", "reportable", "renderable", "map", "dontReport", "dontReportWhen", "ignore",
+        "dontRetry", "dontRetryWhen", "shouldStopRetries", "dontFlash", "level", "report", "isReporting",
+        "shouldReport", "throttleUsing", "stopIgnoring", "contextForException", "buildContextForException",
+        "buildContextUsing", "render", "respondUsing", "shouldRenderJsonWhen", "dontReportDuplicates",
+        "handler", "assertReported", "assertReportedCount", "assertNotReported", "assertNothingReported",
+        "renderForConsole", "throwOnReport", "throwFirstReported", "reported", "setHandler", "fake"
+      ],
+      "review": "pending"
+    },
+    {
+      "type": "Facade",
+      "source": "src/Illuminate/Support/Facades/Facade.php",
+      "public_entries": [
+        "resolved", "spy", "partialMock", "shouldReceive", "expects", "swap", "isFake", "getFacadeRoot",
+        "clearResolvedInstance", "clearResolvedInstances", "defaultAliases", "getFacadeApplication",
+        "setFacadeApplication", "__callStatic"
+      ],
+      "review": "pending"
+    },
+    {
+      "type": "File",
+      "source": "src/Illuminate/Support/Facades/File.php",
+      "public_entries": [
+        "exists", "missing", "get", "json", "sharedGet", "getRequire", "requireOnce", "lines", "hash",
+        "put", "replace", "replaceInFile", "prepend", "append", "chmod", "delete", "move", "copy", "link",
+        "relativeLink", "name", "basename", "dirname", "extension", "guessExtension", "type", "mimeType",
+        "size", "lastModified", "isDirectory", "isEmptyDirectory", "isReadable", "isWritable",
+        "hasSameHash", "isFile", "glob", "files", "allFiles", "directories", "allDirectories",
+        "ensureDirectoryExists", "makeDirectory", "moveDirectory", "copyDirectory", "deleteDirectory",
+        "deleteDirectories", "cleanDirectory", "when", "unless", "macro", "mixin", "hasMacro", "flushMacros"
+      ],
+      "review": "pending"
+    },
+    {
+      "type": "Gate",
+      "source": "src/Illuminate/Support/Facades/Gate.php",
+      "public_entries": [
+        "has", "allowIf", "denyIf", "define", "resource", "policy", "before", "after", "allows", "denies",
+        "check", "any", "none", "authorize", "inspect", "raw", "getPolicyFor", "guessPolicyNamesUsing",
+        "resolvePolicy", "forUser", "abilities", "policies", "defaultDenialResponse", "setContainer",
+        "denyWithStatus", "denyAsNotFound"
+      ],
+      "review": "pending"
+    },
+    {
+      "type": "Hash",
+      "source": "src/Illuminate/Support/Facades/Hash.php",
+      "public_entries": [
+        "createBcryptDriver", "createArgonDriver", "createArgon2idDriver", "info", "make", "check",
+        "needsRehash", "isHashed", "getDefaultDriver", "driver", "extend", "getDrivers", "getContainer",
+        "setContainer", "forgetDrivers"
+      ],
+      "review": "pending"
+    },
+    {
+      "type": "Http",
+      "source": "src/Illuminate/Support/Facades/Http.php",
+      "public_entries": [
+        "globalMiddleware", "globalRequestMiddleware", "globalResponseMiddleware", "globalOptions",
+        "withoutGlobalConfiguration", "response", "psr7Response", "failedRequest", "failedConnection",
+        "sequence", "preventingStrayRequests", "allowStrayRequests", "record", "recordRequestResponsePair",
+        "assertSent", "assertSentInOrder", "assertNotSent", "assertNothingSent", "assertSentCount",
+        "assertSequencesAreEmpty", "recorded", "createPendingRequest", "getDispatcher",
+        "getGlobalMiddleware", "macro", "mixin", "hasMacro", "flushMacros", "macroCall", "baseUrl",
+        "withBody", "asJson", "asForm", "attach", "asMultipart", "bodyFormat", "withQueryParameters",
+        "contentType", "acceptJson", "accept", "withHeaders", "withHeader", "replaceHeaders",
+        "withBasicAuth", "withDigestAuth", "withNtlmAuth", "withToken", "withUserAgent",
+        "withUrlParameters", "withCookies", "maxRedirects", "withoutRedirecting", "withoutVerifying",
+        "sink", "timeout", "connectTimeout", "retry", "withOptions", "withMiddleware",
+        "withRequestMiddleware", "withResponseMiddleware", "withAttributes", "beforeSending",
+        "afterResponse", "throw", "throwIf", "throwUnless", "dump", "dd", "get", "head", "query", "post",
+        "patch", "put", "delete", "pool", "batch", "send", "buildClient", "createClient",
+        "buildHandlerStack", "pushHandlers", "buildBeforeSendingHandler", "buildRecorderHandler",
+        "buildStubHandler", "runBeforeSendingCallbacks", "mergeOptions", "stub", "isAllowedRequestUrl",
+        "async", "getPromise", "truncateExceptionsAt", "dontTruncateExceptions", "setClient", "setHandler",
+        "getOptions", "when", "unless", "fake", "fakeSequence", "preventStrayRequests", "stubUrl"
+      ],
+      "review": "pending"
+    },
+    {
+      "type": "Image",
+      "source": "src/Illuminate/Support/Facades/Image.php",
+      "public_entries": [
+        "fromBytes", "fromStream", "fromBase64", "fromPath", "fromStorage", "fromUpload", "fromUrl",
+        "transformUsing", "getDefaultDriver", "driver", "extend", "getDrivers", "getContainer",
+        "setContainer", "forgetDrivers"
+      ],
+      "review": "pending"
+    },
+    {
+      "type": "Lang",
+      "source": "src/Illuminate/Support/Facades/Lang.php",
+      "public_entries": [
+        "hasForLocale", "has", "get", "string", "array", "choice", "addLines", "load",
+        "handleMissingKeysUsing", "addNamespace", "addPath", "addJsonPath", "parseKey",
+        "determineLocalesUsing", "getSelector", "setSelector", "getLoader", "locale", "getLocale",
+        "setLocale", "getFallback", "setFallback", "setLoaded", "stringable", "setParsedKey",
+        "flushParsedKeys", "macro", "mixin", "hasMacro", "flushMacros"
+      ],
+      "review": "pending"
+    },
+    {
+      "type": "Log",
+      "source": "src/Illuminate/Support/Facades/Log.php",
+      "public_entries": [
+        "build", "stack", "channel", "driver", "shareContext", "sharedContext", "withoutContext",
+        "flushSharedContext", "getDefaultDriver", "setDefaultDriver", "extend", "forgetChannel",
+        "getChannels", "emergency", "alert", "critical", "error", "warning", "notice", "info", "debug",
+        "log", "setApplication", "write", "withContext", "listen", "getLogger", "getEventDispatcher",
+        "setEventDispatcher", "when", "unless"
+      ],
+      "review": "pending"
+    },
+    {
+      "type": "Mail",
+      "source": "src/Illuminate/Support/Facades/Mail.php",
+      "public_entries": [
+        "mailer", "driver", "build", "createSymfonyTransport", "getDefaultDriver", "setDefaultDriver",
+        "purge", "extend", "getApplication", "setApplication", "forgetMailers", "alwaysFrom",
+        "alwaysReplyTo", "alwaysReturnPath", "alwaysTo", "to", "cc", "bcc", "html", "raw", "plain",
+        "render", "send", "sendNow", "queue", "onQueue", "queueOn", "later", "laterOn",
+        "getSymfonyTransport", "getViewFactory", "setSymfonyTransport", "setQueue", "macro", "mixin",
+        "hasMacro", "flushMacros", "assertSent", "assertSentTimes", "assertSentOnce", "assertNotOutgoing",
+        "assertNotSent", "assertNothingOutgoing", "assertNothingSent", "assertQueued", "assertQueuedTimes",
+        "assertQueuedOnce", "assertNotQueued", "assertNothingQueued", "assertSentCount",
+        "assertQueuedCount", "assertOutgoingCount", "sent", "hasSent", "queued", "hasQueued", "fake"
+      ],
+      "review": "pending"
+    },
+    {
+      "type": "MaintenanceMode",
+      "source": "src/Illuminate/Support/Facades/MaintenanceMode.php",
+      "public_entries": [
+        "getDefaultDriver", "driver", "extend", "getDrivers", "getContainer", "setContainer",
+        "forgetDrivers"
+      ],
+      "review": "pending"
+    },
+    {
+      "type": "Notification",
+      "source": "src/Illuminate/Support/Facades/Notification.php",
+      "public_entries": [
+        "send", "sendNow", "channel", "driver", "getDefaultDriver", "deliversVia", "deliverVia", "locale",
+        "extend", "getDrivers", "getContainer", "setContainer", "forgetDrivers", "macro", "mixin",
+        "hasMacro", "flushMacros", "resolveConnectionFromQueueRoute", "resolveQueueFromQueueRoute",
+        "assertSentOnDemand", "assertSentTo", "assertSentOnDemandTimes", "assertSentOnDemandOnce",
+        "assertSentToTimes", "assertSentToOnce", "assertNotSentTo", "assertNothingSent",
+        "assertNothingSentTo", "assertSentTimes", "assertCount", "sent", "hasSent", "serializeAndRestore",
+        "sentNotifications", "fake", "routes", "route"
+      ],
+      "review": "pending"
+    },
+    {
+      "type": "ParallelTesting",
+      "source": "src/Illuminate/Support/Facades/ParallelTesting.php",
+      "public_entries": [
+        "resolveOptionsUsing", "resolveTokenUsing", "setUpProcess", "setUpTestCase",
+        "setUpTestDatabaseBeforeMigrating", "setUpTestDatabase", "tearDownProcess", "tearDownTestCase",
+        "callSetUpProcessCallbacks", "callSetUpTestCaseCallbacks",
+        "callSetUpTestDatabaseBeforeMigratingCallbacks", "callSetUpTestDatabaseCallbacks",
+        "callTearDownProcessCallbacks", "callTearDownTestCaseCallbacks", "option", "token"
+      ],
+      "review": "pending"
+    },
+    {
+      "type": "Password",
+      "source": "src/Illuminate/Support/Facades/Password.php",
+      "public_entries": [
+        "broker", "getDefaultDriver", "setDefaultDriver", "sendResetLink", "reset", "getUser",
+        "createToken", "deleteToken", "tokenExists", "getRepository", "getTimebox"
+      ],
+      "review": "pending"
+    },
+    {
+      "type": "Pipeline",
+      "source": "src/Illuminate/Support/Facades/Pipeline.php",
+      "public_entries": [
+        "send", "through", "pipe", "via", "then", "thenReturn", "finally", "withinTransaction",
+        "setContainer", "when", "unless", "macro", "mixin", "hasMacro", "flushMacros"
+      ],
+      "review": "pending"
+    },
+    {
+      "type": "Process",
+      "source": "src/Illuminate/Support/Facades/Process.php",
+      "public_entries": [
+        "command", "path", "timeout", "idleTimeout", "forever", "env", "input", "quietly", "tty", "options",
+        "run", "start", "supportsTty", "withFakeHandlers", "when", "unless", "result", "describe",
+        "sequence", "isRecording", "recordIfRecording", "record", "preventStrayProcesses",
+        "preventingStrayProcesses", "assertRan", "assertRanTimes", "assertRanInOrder", "assertNotRan",
+        "assertDidntRun", "assertNothingRan", "pool", "pipe", "concurrently", "newPendingProcess", "macro",
+        "mixin", "hasMacro", "flushMacros", "macroCall", "fake"
+      ],
+      "review": "pending"
+    },
+    {
+      "type": "Queue",
+      "source": "src/Illuminate/Support/Facades/Queue.php",
+      "public_entries": [
+        "before", "after", "exceptionOccurred", "looping", "failing", "starting", "stopping",
+        "whenJobRunsLongerThan", "route", "forward", "connected", "connection", "pause", "pauseFor",
+        "pauseAll", "resume", "resumeAll", "isPaused", "getPausedQueues", "withoutInterruptionPolling",
+        "extend", "addConnector", "getDefaultDriver", "setDefaultDriver", "getName", "getApplication",
+        "setApplication", "createPayloadUsing", "resolveConnectionFromQueueRoute",
+        "resolveQueueFromQueueRoute", "size", "pendingSize", "delayedSize", "reservedSize",
+        "creationTimeOfOldestPendingJob", "push", "pushOn", "pushRaw", "later", "laterOn", "bulk", "pop",
+        "getConnectionName", "setConnectionName", "getJobTries", "getJobBackoff", "getJobExpiration",
+        "getConfig", "setConfig", "getContainer", "setContainer", "except", "assertPushed",
+        "assertPushedTimes", "assertPushedOnce", "assertPushedOn", "assertPushedWithChain",
+        "assertPushedWithoutChain", "assertClosurePushed", "assertClosureNotPushed", "assertNotPushed",
+        "assertCount", "assertNothingPushed", "pushed", "pushedRaw", "listenersPushed", "hasPushed",
+        "totalSize", "totalPendingSize", "totalDelayedSize", "totalReservedSize", "pendingJobs",
+        "delayedJobs", "reservedJobs", "allPendingJobs", "allDelayedJobs", "allReservedJobs",
+        "shouldFakeJob", "reserve", "pushedJobs", "rawPushes", "serializeAndRestore",
+        "releaseUniqueJobLocks", "clearReserved", "beforePushing", "afterPushing", "popUsing", "fake",
+        "fakeExcept", "fakeFor", "fakeExceptFor"
+      ],
+      "review": "pending"
+    },
+    {
+      "type": "RateLimiter",
+      "source": "src/Illuminate/Support/Facades/RateLimiter.php",
+      "public_entries": [
+        "for", "limiter", "attempt", "tooManyAttempts", "hit", "increment", "decrement", "attempts",
+        "resetAttempts", "remaining", "retriesLeft", "clear", "availableIn", "cleanRateLimiterKey", "macro",
+        "mixin", "hasMacro", "flushMacros"
+      ],
+      "review": "pending"
+    },
+    {
+      "type": "Redirect",
+      "source": "src/Illuminate/Support/Facades/Redirect.php",
+      "public_entries": [
+        "back", "refresh", "guest", "intended", "to", "away", "secure", "route", "signedRoute",
+        "temporarySignedRoute", "action", "getUrlGenerator", "setSession", "getIntendedUrl",
+        "setIntendedUrl", "macro", "mixin", "hasMacro", "flushMacros"
+      ],
+      "review": "pending"
+    },
+    {
+      "type": "Redis",
+      "source": "src/Illuminate/Support/Facades/Redis.php",
+      "public_entries": [
+        "connection", "resolve", "connections", "enableEvents", "disableEvents", "setDriver", "purge",
+        "extend", "createSubscription", "funnel", "throttle", "client", "subscribe", "psubscribe",
+        "command", "listen", "listenForFailures", "isCluster", "getName", "setName", "getEventDispatcher",
+        "setEventDispatcher", "unsetEventDispatcher", "hasHashTag", "macro", "mixin", "hasMacro",
+        "flushMacros", "macroCall", "_compress", "_uncompress", "_prefix", "_serialize", "_unserialize",
+        "_pack", "_unpack", "acl", "append", "auth", "bgSave", "bgrewriteaof", "waitaof", "bitcount",
+        "bitop", "bitpos", "blPop", "brPop", "brpoplpush", "bzPopMax", "bzPopMin", "bzmpop", "zmpop",
+        "blmpop", "lmpop", "clearLastError", "close", "config", "connect", "copy", "dbSize", "debug",
+        "decr", "decrBy", "del", "delifeq", "discard", "dump", "echo", "eval", "eval_ro", "evalsha",
+        "evalsha_ro", "exec", "exists", "expire", "expireAt", "failover", "expiretime", "pexpiretime",
+        "fcall", "fcall_ro", "flushAll", "flushDB", "function", "geoadd", "geodist", "geohash", "geopos",
+        "georadius", "georadius_ro", "georadiusbymember", "georadiusbymember_ro", "geosearch",
+        "geosearchstore", "get", "getWithMeta", "getAuth", "getBit", "getEx", "getDBNum", "getDel",
+        "getHost", "getLastError", "getMode", "getOption", "getPersistentID", "getPort", "serverName",
+        "serverVersion", "getRange", "lcs", "getReadTimeout", "getset", "getTimeout", "getTransferredBytes",
+        "clearTransferredBytes", "hDel", "hExists", "hGet", "hGetAll", "hGetWithMeta", "hIncrBy",
+        "hIncrByFloat", "hKeys", "hLen", "hMget", "hgetex", "hsetex", "hgetdel", "hMset", "hRandField",
+        "hSet", "hSetNx", "hStrLen", "hVals", "hexpire", "hpexpire", "hexpireat", "hpexpireat", "httl",
+        "hpttl", "hexpiretime", "hpexpiretime", "hpersist", "hscan", "expiremember", "expirememberat",
+        "incr", "incrBy", "incrByFloat", "info", "isConnected", "keys", "lInsert", "lLen", "lMove",
+        "blmove", "lPop", "lPos", "lPush", "rPush", "lPushx", "rPushx", "lSet", "lastSave", "lindex",
+        "lrange", "lrem", "ltrim", "mget", "migrate", "move", "mset", "msetnx", "multi", "object",
+        "pconnect", "persist", "pexpire", "pexpireAt", "pfadd", "pfcount", "pfmerge", "ping", "pipeline",
+        "psetex", "pttl", "publish", "pubsub", "punsubscribe", "rPop", "randomKey", "rawcommand", "rename",
+        "renameNx", "reset", "restore", "role", "rpoplpush", "sAdd", "sAddArray", "sDiff", "sDiffStore",
+        "sInter", "sintercard", "sInterStore", "sMembers", "sMisMember", "sMove", "sPop", "sRandMember",
+        "sUnion", "sUnionStore", "save", "scan", "scard", "script", "select", "set", "setBit", "setRange",
+        "setOption", "setex", "setnx", "sismember", "replicaof", "touch", "slowlog", "sort", "sort_ro",
+        "srem", "sscan", "ssubscribe", "strlen", "sunsubscribe", "swapdb", "time", "ttl", "type", "unlink",
+        "unsubscribe", "unwatch", "watch", "wait", "xack", "xadd", "xautoclaim", "xclaim", "xdel", "xgroup",
+        "xinfo", "xlen", "xpending", "xrange", "xread", "xreadgroup", "xrevrange", "vadd", "vsim", "vcard",
+        "vdim", "vinfo", "vismember", "vemb", "vrandmember", "vrange", "vrem", "vsetattr", "vgetattr",
+        "vlinks", "xtrim", "zAdd", "zCard", "zCount", "zIncrBy", "zLexCount", "zMscore", "zPopMax",
+        "zPopMin", "zRange", "zRangeByLex", "zRangeByScore", "zrangestore", "zRandMember", "zRank", "zRem",
+        "zRemRangeByLex", "zRemRangeByRank", "zRemRangeByScore", "zRevRange", "zRevRangeByLex",
+        "zRevRangeByScore", "zRevRank", "zScore", "zdiff", "zdiffstore", "zinter", "zintercard",
+        "zinterstore", "zscan", "zunion", "zunionstore"
+      ],
+      "review": "pending"
+    },
+    {
+      "type": "Request",
+      "source": "src/Illuminate/Support/Facades/Request.php",
+      "public_entries": [
+        "capture", "instance", "method", "uri", "root", "url", "fullUrl", "fullUrlWithQuery",
+        "fullUrlWithoutQuery", "path", "decodedPath", "segment", "segments", "is", "routeIs", "fullUrlIs",
+        "host", "httpHost", "schemeAndHttpHost", "ajax", "pjax", "prefetch", "secure", "ip", "ips",
+        "userAgent", "getAcceptableContentTypes", "merge", "mergeIfMissing", "replace", "json",
+        "createFrom", "createFromBase", "duplicate", "hasSession", "getSession", "session",
+        "setLaravelSession", "setRequestLocale", "setDefaultRequestLocale", "user", "route", "fingerprint",
+        "setJson", "getUserResolver", "setUserResolver", "getRouteResolver", "setRouteResolver", "toArray",
+        "initialize", "createFromGlobals", "create", "setFactory", "overrideGlobals", "setTrustedProxies",
+        "getTrustedProxies", "getTrustedHeaderSet", "setTrustedHosts", "getTrustedHosts",
+        "normalizeQueryString", "enableHttpMethodParameterOverride", "getHttpMethodParameterOverride",
+        "setAllowedHttpMethodOverride", "getAllowedHttpMethodOverride", "hasPreviousSession", "setSession",
+        "getClientIps", "getClientIp", "getScriptName", "getPathInfo", "getBasePath", "getBaseUrl",
+        "getScheme", "getPort", "getUser", "getPassword", "getUserInfo", "getHttpHost", "getRequestUri",
+        "getSchemeAndHttpHost", "getUri", "getUriForPath", "getRelativeUriForPath", "getQueryString",
+        "isSecure", "getHost", "setMethod", "getMethod", "getRealMethod", "getMimeType", "getMimeTypes",
+        "getFormat", "setFormat", "getRequestFormat", "setRequestFormat", "getContentTypeFormat",
+        "setDefaultLocale", "getDefaultLocale", "setLocale", "getLocale", "isMethod", "isMethodSafe",
+        "isMethodIdempotent", "isMethodCacheable", "getProtocolVersion", "getContent", "getPayload",
+        "getETags", "isNoCache", "getPreferredFormat", "getPreferredLanguage", "getLanguages",
+        "getCharsets", "getEncodings", "isXmlHttpRequest", "preferSafeContent", "isFromTrustedProxy",
+        "filterPrecognitiveRules", "isAttemptingPrecognition", "isPrecognitive", "isJson", "expectsJson",
+        "wantsJson", "wantsMarkdown", "accepts", "prefers", "acceptsAnyContentType", "acceptsJson",
+        "acceptsMarkdown", "acceptsHtml", "matchesType", "format", "old", "flash", "flashOnly",
+        "flashExcept", "flush", "server", "hasHeader", "header", "bearerToken", "keys", "all", "input",
+        "fluent", "query", "post", "hasCookie", "cookie", "allFiles", "hasFile", "file", "image", "dump",
+        "dd", "exists", "has", "hasAny", "whenHas", "filled", "isNotFilled", "anyFilled", "whenFilled",
+        "whenEnum", "missing", "whenMissing", "str", "string", "boolean", "integer", "float", "clamp",
+        "date", "interval", "enum", "enums", "array", "collect", "only", "except", "when", "unless",
+        "macro", "mixin", "hasMacro", "flushMacros", "validate", "validateWithBag", "hasValidSignature",
+        "hasValidRelativeSignature", "hasValidSignatureWhileIgnoring",
+        "hasValidRelativeSignatureWhileIgnoring"
+      ],
+      "review": "pending"
+    },
+    {
+      "type": "Response",
+      "source": "src/Illuminate/Support/Facades/Response.php",
+      "public_entries": [
+        "make", "noContent", "view", "json", "jsonp", "markdown", "eventStream", "stream", "streamJson",
+        "streamDownload", "download", "file", "redirectTo", "redirectToRoute", "redirectToAction",
+        "redirectGuest", "redirectToIntended", "macro", "mixin", "hasMacro", "flushMacros"
+      ],
+      "review": "partial",
+      "tested_entries": {
+        "make": {"test": "response_facade_builds_real_content_and_validates_jsonp", "status": "verified-paths"},
+        "noContent": {"test": "response_facade_builds_real_content_and_validates_jsonp", "status": "verified-paths"},
+        "jsonp": {"test": "response_facade_builds_real_content_and_validates_jsonp", "status": "partial-options-pending"},
+        "markdown": {"test": "response_facade_builds_real_content_and_validates_jsonp", "status": "verified-paths"},
+        "view": {"test": "response_facade_renders_current_application_views_and_direct_factory", "status": "verified-paths"},
+        "stream": {"test": "response_facade_streams_json_events_and_downloads", "status": "verified-paths"},
+        "streamDownload": {"test": "response_facade_streams_json_events_and_downloads", "status": "verified-paths"},
+        "download": {"test": "response_facade_streams_json_events_and_downloads", "status": "verified-paths"},
+        "file": {"test": "response_facade_streams_json_events_and_downloads", "status": "verified-paths"},
+        "eventStream": {"test": "response_facade_streams_json_events_and_downloads", "status": "verified-paths"},
+        "redirectTo": {"test": "response_facade_redirects_and_intended_url_share_the_live_session", "status": "verified-paths"},
+        "redirectToRoute": {"test": "response_facade_redirects_and_intended_url_share_the_live_session", "status": "verified-paths"},
+        "redirectToAction": {"test": "response_facade_redirects_and_intended_url_share_the_live_session", "status": "verified-paths"},
+        "redirectGuest": {"test": "response_facade_redirects_and_intended_url_share_the_live_session", "status": "verified-paths"},
+        "redirectToIntended": {"test": "response_facade_redirects_and_intended_url_share_the_live_session", "status": "verified-paths"}
+      },
+      "qualification": "只记录已执行的用例路径；完整参数、默认值、所有继承委托及剩余入口仍逐项待核，不据此关闭所属门面。"
+    },
+    {
+      "type": "Route",
+      "source": "src/Illuminate/Support/Facades/Route.php",
+      "public_entries": [
+        "get", "post", "put", "patch", "delete", "options", "query", "any", "fallback", "redirect",
+        "permanentRedirect", "view", "match", "resources", "softDeletableResources", "resource",
+        "apiResources", "apiResource", "singletons", "singleton", "apiSingletons", "apiSingleton", "group",
+        "mergeWithLastGroup", "getLastGroupPrefix", "addRoute", "newRoute", "respondWithRoute", "dispatch",
+        "dispatchToRoute", "gatherRouteMiddleware", "resolveMiddleware", "prepareResponse", "toResponse",
+        "substituteBindings", "substituteImplicitBindings", "substituteImplicitBindingsUsing", "matched",
+        "getMiddleware", "aliasMiddleware", "hasMiddlewareGroup", "getMiddlewareGroups", "middlewareGroup",
+        "prependMiddlewareToGroup", "pushMiddlewareToGroup", "removeMiddlewareFromGroup",
+        "flushMiddlewareGroups", "bind", "model", "getBindingCallback", "getPatterns", "pattern",
+        "patterns", "hasGroupStack", "getGroupStack", "input", "getCurrentRequest", "getCurrentRoute",
+        "current", "has", "currentRouteName", "is", "currentRouteNamed", "currentRouteAction", "uses",
+        "currentRouteUses", "singularResourceParameters", "resourceParameters", "resourceVerbs",
+        "getRoutes", "setRoutes", "setCompiledRoutes", "uniqueMiddleware", "setContainer", "macro", "mixin",
+        "hasMacro", "flushMacros", "macroCall", "tap", "attribute", "metadata", "whereAlpha",
+        "whereAlphaNumeric", "whereNumber", "whereUlid", "whereUuid", "whereIn", "as", "can", "controller",
+        "domain", "middleware", "missing", "name", "namespace", "prefix", "scopeBindings", "where",
+        "withoutMiddleware", "withoutScopedBindings"
+      ],
+      "review": "pending"
+    },
+    {
+      "type": "Schedule",
+      "source": "src/Illuminate/Support/Facades/Schedule.php",
+      "public_entries": [
+        "call", "command", "job", "exec", "group", "compileArrayInput", "serverShouldRun", "dueEvents",
+        "events", "eventsForEnvironments", "useCache", "withoutInterruptionPolling",
+        "hasBeenInterruptedSince", "alwaysOnOneServer", "whenTaskRunsLongerThan", "macro", "mixin",
+        "hasMacro", "flushMacros", "macroCall", "withoutOverlapping", "mergeAttributes", "user",
+        "environments", "evenInMaintenanceMode", "evenWhenPaused", "onOneServer", "runInBackground", "when",
+        "skip", "name", "description", "withAttributes", "cron", "between", "unlessBetween", "everySecond",
+        "everyTwoSeconds", "everyFiveSeconds", "everyTenSeconds", "everyFifteenSeconds",
+        "everyTwentySeconds", "everyThirtySeconds", "everyMinute", "everyTwoMinutes", "everyThreeMinutes",
+        "everyFourMinutes", "everyFiveMinutes", "everyTenMinutes", "everyFifteenMinutes",
+        "everyThirtyMinutes", "hourly", "hourlyAt", "everyOddHour", "everyTwoHours", "everyThreeHours",
+        "everyFourHours", "everySixHours", "daily", "at", "dailyAt", "twiceDaily", "twiceDailyAt",
+        "weekdays", "weekends", "mondays", "tuesdays", "wednesdays", "thursdays", "fridays", "saturdays",
+        "sundays", "weekly", "weeklyOn", "monthly", "monthlyOn", "twiceMonthly", "lastDayOfMonth",
+        "daysOfMonth", "quarterly", "quarterlyOn", "yearly", "yearlyOn", "days", "timezone"
+      ],
+      "review": "pending"
+    },
+    {
+      "type": "Schema",
+      "source": "src/Illuminate/Support/Facades/Schema.php",
+      "public_entries": [
+        "defaultStringLength", "defaultTimePrecision", "defaultMorphKeyType", "morphUsingUuids",
+        "morphUsingUlids", "createDatabase", "dropDatabaseIfExists", "getSchemas", "hasTable", "hasView",
+        "getTables", "getTableListing", "getViews", "getTypes", "hasColumn", "hasColumns",
+        "whenTableHasColumn", "whenTableDoesntHaveColumn", "whenTableHasIndex", "whenTableDoesntHaveIndex",
+        "getColumnType", "getColumnListing", "getColumn", "getColumns", "getIndexes", "getIndexListing",
+        "hasIndex", "hasForeignKey", "getForeignKeys", "table", "create", "drop", "dropIfExists",
+        "dropColumns", "dropAllTables", "dropAllViews", "dropAllTypes", "rename",
+        "enableForeignKeyConstraints", "disableForeignKeyConstraints", "withoutForeignKeyConstraints",
+        "ensureVectorExtensionExists", "ensureExtensionExists", "getCurrentSchemaListing",
+        "getCurrentSchemaName", "parseSchemaAndTable", "getConnection", "blueprintResolver", "macro",
+        "mixin", "hasMacro", "flushMacros", "connection"
+      ],
+      "review": "pending"
+    },
+    {
+      "type": "Session",
+      "source": "src/Illuminate/Support/Facades/Session.php",
+      "public_entries": [
+        "shouldBlock", "blockDriver", "defaultRouteBlockLockSeconds", "defaultRouteBlockWaitSeconds",
+        "getSessionConfig", "getDefaultDriver", "setDefaultDriver", "driver", "extend", "getDrivers",
+        "getContainer", "setContainer", "forgetDrivers", "start", "save", "ageFlashData", "all", "only",
+        "except", "exists", "missing", "has", "hasAny", "get", "pull", "hasOldInput", "getOldInput",
+        "replace", "put", "remember", "push", "increment", "decrement", "flash", "now", "reflash", "keep",
+        "flashInput", "cache", "remove", "forget", "flush", "invalidate", "regenerate", "migrate",
+        "isStarted", "getName", "setName", "id", "getId", "setId", "isValidId", "setExists", "token",
+        "regenerateToken", "hasPreviousUri", "previousUri", "previousUrl", "setPreviousUrl",
+        "previousRoute", "setPreviousRoute", "passwordConfirmed", "getHandler", "setHandler",
+        "handlerNeedsRequest", "setRequestOnHandler", "macro", "mixin", "hasMacro", "flushMacros"
+      ],
+      "review": "partial",
+      "tested_entries": {
+        "get": {"test": "session_facade_mutates_the_request_store_and_persists_across_requests", "status": "verified-paths"},
+        "put": {"test": "session_facade_mutates_the_request_store_and_persists_across_requests", "status": "verified-paths"},
+        "flash": {"test": "session_facade_mutates_the_request_store_and_persists_across_requests", "status": "verified-paths"},
+        "now": {"test": "session_facade_mutates_the_request_store_and_persists_across_requests", "status": "verified-paths"},
+        "ageFlashData": {"test": "session_facade_mutates_the_request_store_and_persists_across_requests", "status": "verified-paths"},
+        "flashInput": {"test": "session_facade_mutates_the_request_store_and_persists_across_requests", "status": "verified-paths"},
+        "hasOldInput": {"test": "session_facade_mutates_the_request_store_and_persists_across_requests", "status": "verified-paths"},
+        "exists": {"test": "session_facade_mutates_the_request_store_and_persists_across_requests", "status": "verified-paths"},
+        "hasAny": {"test": "session_facade_mutates_the_request_store_and_persists_across_requests", "status": "verified-paths"},
+        "remember": {"test": "session_facade_mutates_the_request_store_and_persists_across_requests", "status": "verified-paths"},
+        "pull": {"test": "session_facade_mutates_the_request_store_and_persists_across_requests", "status": "verified-paths"},
+        "missing": {"test": "session_facade_mutates_the_request_store_and_persists_across_requests", "status": "verified-paths"},
+        "push": {"test": "session_facade_mutates_the_request_store_and_persists_across_requests", "status": "verified-paths"},
+        "increment": {"test": "session_facade_mutates_the_request_store_and_persists_across_requests", "status": "verified-paths"},
+        "decrement": {"test": "session_facade_mutates_the_request_store_and_persists_across_requests", "status": "verified-paths"},
+        "previousUri": {"test": "session_facade_mutates_the_request_store_and_persists_across_requests", "status": "verified-paths"},
+        "previousRoute": {"test": "session_facade_mutates_the_request_store_and_persists_across_requests", "status": "verified-paths"},
+        "setPreviousUrl": {"test": "session_facade_mutates_the_request_store_and_persists_across_requests", "status": "verified-paths"},
+        "setPreviousRoute": {"test": "session_facade_mutates_the_request_store_and_persists_across_requests", "status": "verified-paths"},
+        "passwordConfirmed": {"test": "session_facade_mutates_the_request_store_and_persists_across_requests", "status": "verified-paths"},
+        "getId": {"test": "session_facade_mutates_the_request_store_and_persists_across_requests", "status": "verified-paths"},
+        "id": {"test": "session_facade_mutates_the_request_store_and_persists_across_requests", "status": "verified-paths"},
+        "isValidId": {"test": "session_facade_mutates_the_request_store_and_persists_across_requests", "status": "verified-paths"},
+        "regenerate": {"test": "session_facade_mutates_the_request_store_and_persists_across_requests", "status": "verified-paths"},
+        "cache": {"test": "session_facade_cache_uses_the_same_request_repository_and_payload", "status": "verified-paths"}
+      },
+      "qualification": "只记录已执行的用例路径；完整参数、默认值、所有继承委托及剩余入口仍逐项待核，不据此关闭所属门面。"
+    },
+    {
+      "type": "Storage",
+      "source": "src/Illuminate/Support/Facades/Storage.php",
+      "public_entries": [
+        "drive", "disk", "cloud", "build", "createLocalDriver", "createFtpDriver", "createSftpDriver",
+        "createS3Driver", "createReadThroughDriver", "createScopedDriver", "set", "getDefaultDriver",
+        "getDefaultCloudDriver", "forgetDisk", "purge", "extend", "setApplication", "path", "exists", "get",
+        "readStream", "put", "putFile", "putFileAs", "writeStream", "getVisibility", "setVisibility",
+        "prepend", "append", "delete", "copy", "move", "size", "lastModified", "files", "allFiles",
+        "directories", "allDirectories", "makeDirectory", "deleteDirectory", "assertExists", "assertCount",
+        "assertMissing", "assertDirectoryEmpty", "assertEmpty", "missing", "fileExists", "fileMissing",
+        "directoryExists", "directoryMissing", "json", "response", "serve", "download", "image",
+        "copyToDisk", "moveToDisk", "checksum", "mimeType", "url", "providesTemporaryUrls",
+        "providesTemporaryUploadUrls", "temporaryUrl", "temporaryUploadUrl", "getDriver", "getAdapter",
+        "getConfig", "serveUsing", "buildTemporaryUrlsUsing", "buildTemporaryUploadUrlsUsing", "when",
+        "unless", "macro", "mixin", "hasMacro", "flushMacros", "macroCall", "has", "read", "listContents",
+        "fileSize", "visibility", "write", "createDirectory", "fake", "persistentFake"
+      ],
+      "review": "pending"
+    },
+    {
+      "type": "URL",
+      "source": "src/Illuminate/Support/Facades/URL.php",
+      "public_entries": [
+        "full", "current", "previous", "previousPath", "to", "query", "secure", "asset", "secureAsset",
+        "assetFrom", "formatScheme", "signedRoute", "temporarySignedRoute", "hasValidSignature",
+        "hasValidRelativeSignature", "hasCorrectSignature", "signatureHasNotExpired", "route", "toRoute",
+        "action", "formatParameters", "formatRoot", "format", "isValidUrl", "defaults",
+        "getDefaultParameters", "forceScheme", "forceHttps", "useOrigin", "useAssetOrigin",
+        "formatHostUsing", "formatPathUsing", "pathFormatter", "getRequest", "setRequest", "setRoutes",
+        "setSessionResolver", "setKeyResolver", "withKeyResolver", "resolveMissingNamedRoutesUsing",
+        "getRootControllerNamespace", "setRootControllerNamespace", "macro", "mixin", "hasMacro",
+        "flushMacros"
+      ],
+      "review": "pending"
+    },
+    {
+      "type": "Validator",
+      "source": "src/Illuminate/Support/Facades/Validator.php",
+      "public_entries": [
+        "make", "validate", "extend", "extendImplicit", "extendDependent", "replacer",
+        "includeUnvalidatedArrayKeys", "excludeUnvalidatedArrayKeys", "fakeDnsLookups", "resolver",
+        "getTranslator", "getPresenceVerifier", "setPresenceVerifier", "getContainer", "setContainer"
+      ],
+      "review": "pending"
+    },
+    {
+      "type": "View",
+      "source": "src/Illuminate/Support/Facades/View.php",
+      "public_entries": [
+        "file", "make", "first", "renderWhen", "renderUnless", "renderEach", "exists", "getEngineFromPath",
+        "share", "incrementRender", "decrementRender", "doneRendering", "hasRenderedOnce",
+        "markAsRenderedOnce", "addLocation", "prependLocation", "addNamespace", "prependNamespace",
+        "replaceNamespace", "addExtension", "flushState", "flushStateIfDoneRendering", "getExtensions",
+        "getEngineResolver", "getFinder", "setFinder", "flushFinderCache", "getDispatcher", "setDispatcher",
+        "getContainer", "setContainer", "shared", "getShared", "macro", "mixin", "hasMacro", "flushMacros",
+        "startComponent", "startComponentFirst", "renderComponent", "getConsumableComponentData", "slot",
+        "endSlot", "creator", "composers", "composer", "callComposer", "callCreator", "startFragment",
+        "stopFragment", "getFragment", "getFragments", "flushFragments", "startSection", "inject",
+        "yieldSection", "stopSection", "appendSection", "yieldContent", "parentPlaceholder", "hasSection",
+        "sectionMissing", "getSection", "getSections", "flushSections", "addLoop", "incrementLoopIndices",
+        "popLoop", "getLastLoop", "getLoopStack", "startPush", "stopPush", "startPrepend", "stopPrepend",
+        "yieldPushContent", "isStackEmpty", "flushStacks", "startTranslation", "renderTranslation"
+      ],
+      "review": "pending"
+    },
+    {
+      "type": "Vite",
+      "source": "src/Illuminate/Support/Facades/Vite.php",
+      "public_entries": [
+        "preloadedAssets", "cspNonce", "useCspNonce", "useIntegrityKey", "withEntryPoints",
+        "mergeEntryPoints", "useManifestFilename", "createAssetPathsUsing", "hotFile", "useHotFile",
+        "useBuildDirectory", "useScriptTagAttributes", "useStyleTagAttributes", "usePreloadTagAttributes",
+        "prefetch", "useWaterfallPrefetching", "useAggressivePrefetching", "usePrefetchStrategy",
+        "reactRefresh", "devServerUrl", "asset", "content", "manifestHash", "fonts",
+        "useFontsManifestFilename", "isRunningHot", "toHtml", "flush", "macro", "mixin", "hasMacro",
+        "flushMacros"
+      ],
+      "review": "pending"
+    }
+  ]
+}

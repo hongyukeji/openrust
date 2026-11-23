@@ -7,6 +7,7 @@ mod cookie_session_handler;
 mod database_session_handler;
 mod encrypted_store;
 mod facade;
+mod facade_store;
 mod file_session_handler;
 pub mod middleware;
 mod null_session_handler;

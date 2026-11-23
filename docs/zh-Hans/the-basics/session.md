@@ -125,3 +125,22 @@ impl ServiceProvider for AppSessionProvider {
 ## 读取会话配置
 
 `SessionManager::should_block()` 读取 `session.block`，`block_driver()` 读取 `session.block_store`。`default_route_block_lock_seconds()` 和 `default_route_block_wait_seconds()` 返回锁持有与等待时长，均默认 10 秒。`get_session_config()` 返回创建管理器时使用的配置快照，保留自定义键；创建后修改配置仓库不会更新该快照。
+
+## 会话门面 {#session-facade}
+
+导入 `support::facades::Session` 可直接操作当前 HTTP 请求已经加载的会话。读写、闪存、旧输入、CSRF 令牌和 ID 轮换共用 `StartSession` 的 Store；中间件仍负责请求结束后的持久化。没有活动请求或未配置 Session 时返回错误，不创建空会话。
+
+```rust
+use openrust::{
+    http::HttpError,
+    support::facades::{Route, Session},
+};
+
+Route::get("/visits", || async {
+    let visits = Session::increment("visits", 1)?;
+    Session::flash("message", serde_json::json!("Saved"))?;
+    Ok::<_, HttpError>(visits)
+})?;
+```
+
+`get` 返回 `Option<Value>`；`get_or` 只对缺失键使用默认值，显式 `null` 仍返回 `null`。`all`、`only`、`except` 返回副本，避免将引用带出请求借用。`regenerate`、`migrate`、`invalidate`、`start` 和 `save` 是异步方法。持有 `&mut Request` 时，直接使用请求实例，或通过 `request.with_container(async { ... }).await` 安全借出后调用门面。

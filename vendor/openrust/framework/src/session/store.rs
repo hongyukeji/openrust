@@ -141,6 +141,20 @@ impl Store {
         self.put(PASSWORD_CONFIRMED_AT, unix_seconds().into())
     }
 
+    /// 只在当前请求保留该值，保存时按旧闪存清除。
+    pub fn now(&mut self, key: &str, value: Value) -> SessionResult<()> {
+        self.put(key, value)?;
+        let mut old = self.flash_keys("_flash.old");
+        old.push(key.to_owned());
+        self.set_flash("_flash.old", old);
+        Ok(())
+    }
+
+    /// 与保存操作使用同一老化规则，可显式推进闪存生命周期。
+    pub fn age_flash_data(&mut self) {
+        age_attributes(&mut self.attributes);
+    }
+
     fn flash_keys(&self, key: &str) -> Vec<String> {
         flash_keys(&self.attributes, key)
     }
@@ -210,16 +224,7 @@ impl Session for Store {
     fn save(&mut self) -> SessionFuture<'_, SessionResult<()>> {
         Box::pin(async move {
             let mut attributes = self.attributes.clone();
-            for key in flash_keys(&attributes, "_flash.old") {
-                remove(&mut attributes, &key);
-            }
-            let new = flash_keys(&attributes, "_flash.new");
-            insert(
-                &mut attributes,
-                "_flash.old",
-                Value::Array(new.into_iter().map(Value::String).collect()),
-            );
-            insert(&mut attributes, "_flash.new", Value::Array(Vec::new()));
+            age_attributes(&mut attributes);
             let cache = {
                 let cache = self.cache.lock().expect("session cache poisoned");
                 (!cache.is_empty()).then(|| Value::Object(cache.clone().into_iter().collect()))
@@ -438,4 +443,17 @@ fn random_id() -> SessionResult<String> {
         }
     }
     Ok(id)
+}
+
+fn age_attributes(attributes: &mut Attributes) {
+    for key in flash_keys(attributes, "_flash.old") {
+        remove(attributes, &key);
+    }
+    let new = flash_keys(attributes, "_flash.new");
+    insert(
+        attributes,
+        "_flash.old",
+        Value::Array(new.into_iter().map(Value::String).collect()),
+    );
+    insert(attributes, "_flash.new", Value::Array(Vec::new()));
 }

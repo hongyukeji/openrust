@@ -172,6 +172,23 @@ impl From<String> for UrlValue<'_> {
     }
 }
 
+macro_rules! integer_url_values {
+    ($($integer:ty),+ $(,)?) => {$(
+        impl From<$integer> for UrlValue<'_> {
+            fn from(value: $integer) -> Self {
+                Self::Number(value.into())
+            }
+        }
+    )+};
+}
+integer_url_values!(i8, i16, i32, i64, isize, u8, u16, u32, u64, usize);
+
+impl From<bool> for UrlValue<'_> {
+    fn from(value: bool) -> Self {
+        Self::Bool(value)
+    }
+}
+
 impl UrlValue<'_> {
     pub(super) fn scalar(&self) -> UrlResult<Option<String>> {
         Ok(match self {

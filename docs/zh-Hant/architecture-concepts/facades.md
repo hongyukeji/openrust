@@ -36,3 +36,22 @@ impl Messages {
 暫停的門面 Future 屬於原應用執行情境，移入另一請求、命令或應用繼續 poll 會回傳 `FacadeNotSet`。生命週期結束會清空快取；保留的容器解析不能重新開啟已關閉作用域（`ScopeClosed`）。銷毀工作時還原仍存活的原情境，原情境關閉後遮蔽環境門面。應用明確保留的服務與 Future 仍由應用持有。參閱[非同步工廠](container.md#非同步工廠)與[延遲服務提供者](providers.md#延遲服務提供者)。
 
 `make_with` 進行一次明確建構，不取代單獨快取的門面根物件；需要該結果時直接透過應用或容器解析。參閱[參數覆寫](container.md#參數覆寫)。
+
+## 應用程式門面 {#application-facade}
+
+`App` 存取目前應用程式及其容器。`bind`、`singleton`、`scoped` 及對應的 `_if`、`_named` 註冊方法委託給同一容器，不建立第二份註冊表。`make`、`get` 和 `make_with` 使用非同步介面，保留延遲 Provider 與非同步工廠的解析行為。
+
+```rust
+use std::sync::Arc;
+use openrust::support::facades::App;
+
+struct Greeting(String);
+
+App::singleton::<Greeting, _>(|_| Ok(Arc::new(Greeting("Hello".into()))))?;
+let greeting = App::make::<Greeting>().await?;
+assert_eq!(greeting.0, "Hello");
+```
+
+用 `base_path`、`public_path`、`storage_path`、`lang_path` 和 `join_paths` 取得應用程式路徑。`environment` 回傳目前環境或比對指定模式；`is_local`、`is_production` 和 `running_unit_tests` 查詢相同的環境狀態。`get_bindings` 回傳獨立快照。解析掛鉤、擴充器、別名及實例清除沿用容器既有的生命週期。
+
+請求感知用法見[回應門面](../the-basics/responses.md#response-facade)及[工作階段門面](../the-basics/session.md#session-facade)。

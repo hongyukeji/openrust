@@ -36,3 +36,22 @@ Use `get_facade_root_async().await` for an unloaded deferred provider or an asyn
 A pending facade future belongs to its originating application execution. Polling it in another request, command or application returns `FacadeNotSet`. Lifecycle completion clears the cache; a retained container resolution cannot reopen that closed scope (`ScopeClosed`). Dropping work restores its live origin for cleanup and masks ambient facades after the origin closes. Services and futures explicitly retained by application code remain owned by that code. See [asynchronous factories](container.md#asynchronous-factories) and [deferred providers](providers.md#deferred-providers).
 
 `make_with` creates an explicit construction and does not replace a separately cached facade root. Resolve that result directly through the application or container. See [parameter overrides](container.md#parameter-overrides).
+
+## Application facade {#application-facade}
+
+`App` accesses the current application and its container. Registration methods such as `bind`, `singleton`, `scoped`, and their `_if` or `_named` variants delegate to that container; they do not create a second registry. `make`, `get`, and `make_with` are asynchronous so deferred providers and asynchronous factories remain usable.
+
+```rust
+use std::sync::Arc;
+use openrust::support::facades::App;
+
+struct Greeting(String);
+
+App::singleton::<Greeting, _>(|_| Ok(Arc::new(Greeting("Hello".into()))))?;
+let greeting = App::make::<Greeting>().await?;
+assert_eq!(greeting.0, "Hello");
+```
+
+Use `base_path`, `public_path`, `storage_path`, `lang_path`, and `join_paths` for application paths. `environment` returns the current environment or matches supplied patterns; `is_local`, `is_production`, and `running_unit_tests` query the same environment. `get_bindings` returns an owned snapshot. Resolution hooks, extenders, aliases, and instance removal use the existing container lifecycle.
+
+[Response facade](../the-basics/responses.md#response-facade) and [Session facade](../the-basics/session.md#session-facade) show request-aware usage.
