@@ -283,3 +283,14 @@ python3 -B tests/build_guard.py --workflow facade-alignment --target-dir target/
 - `exception-context/oracle.log` 固定PHP原类执行验证phase1->phase2、后回调看见累积值、默认userId覆盖异常字段、原异常对象引用及register空操作；`tests-second.log` 新5项通过，连同既有异常消费者、错误转换29与真实日志15，共85项实际本机测试通过（另4项无外部环境早返回不计后端验收）。真实HTTP、结构化文件日志、Fake原处理器、回调重入及透明包装仅调用一次均已验收。首次测试漏导入Facade已修正，失败日志保留。
 
 - 本批全workspace/all-targets严格Clippy、格式、三语站点构建及上下文章节6项浏览器检查通过：`exception-context/clippy.log/fmt.log/docs.log/browser.log`。
+
+### Exceptions：类型映射与真实 JSON 策略（2026-11-24）
+
+- 新增正式map::<来源,目标>，同来源覆盖保持顺序、首个命中停止、不递归映射；map_optional按Rust枚举变体筛选，None保留原异常并继续；显式inner_exception适配Rust Error未定义的getInnerException，优先解包共享原实例。动态PHP类名构造在Rust用类型和构造回调表达，非法错误类型由编译器拒绝，不另造类名注册系统。
+- 报告前映射，原始should_report不映射；HTTP报告与渲染分别映射，Fake记录原始报告但渲染照常映射。新增Mapped语义让映射后只按新根匹配报告/忽略/渲染规则，真实previous仍可诊断，避免误触发旧异常规则。映射到HttpError保留状态与处理路径，原生DumpAndDie不被映射。
+- JSON策略原先对非HttpError用合成Application exception占位，现将should_render_json_when的第二参改为实际Exception，可检查映射后的真实业务类型。根应用/模板中只按Request判断的现有闭包保持原写法；全workspace/all-targets实际编译检查其消费者。
+- `exception-map/oracle.log` 固定PHP原类确认覆盖后UnexpectedValueException、保留previous、内层异常优先和非法动态参数报错。`tests-final.log`：11项映射专项及其他异常消费者共52项实际本机测试通过（另6项无后端环境早返回不计外部验收）；覆盖回调重入、替身、HTTP状态/钩子、来源规则隔离、真实JSON参数、内层错误实际指针和可选映射。
+- `exception-map/workers.log`：独立MySQL8.4.13和Redis8.10.3各1项真实Artisan queue:work通过；任务错误在原处理器映射为WorkerMapped，再进入新类型报告器，保留原始任务Failure源值42，不被未选中替身截获。临时容器与测试表已清理。旧未受影响的队列所有权/重抛证据沿用，不混算新覆盖。
+- 初始HTTP映射接线漏入渲染已被专项测试发现并修复；JSON回调签名遗漏亦已修复，保留全部失败日志。该批没有把懒认证、withoutExceptionHandling、完整全局限流回调、共享Facade基类或其余门面计为闭合。
+
+- 最终源码再次实跑两后端Worker（`workers-final.log`）通过；workspace/all-targets严格Clippy、fmt、三语构建与6项浏览器检查均通过（`clippy.log/fmt.log/docs.log/browser.log`）。临时容器已清理，保留增量缓存和全部验收证据。

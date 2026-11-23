@@ -287,7 +287,13 @@ impl openrust::contracts::queue::JobHandler for FailedJob {
         })
     }
 }
-async fn worker_fake(driver: &str, url: Option<String>, redis: Option<u16>, rethrow: bool) {
+async fn worker_fake(
+    driver: &str,
+    url: Option<String>,
+    redis: Option<u16>,
+    rethrow: bool,
+    mapping: bool,
+) {
     use openrust::{
         contracts::container::Container as _,
         database::DatabaseManager,
@@ -331,7 +337,36 @@ async fn worker_fake(driver: &str, url: Option<String>, redis: Option<u16>, reth
             .await
             .unwrap();
     }
-    let fake = app.fake_exceptions(&[]).await.unwrap();
+    let mapped_reports = Arc::new(AtomicUsize::new(0));
+    if mapping {
+        App::set_facade_application(Some(app.app()), async {
+            Exceptions::map::<QueueError, WorkerMapped>(|error| WorkerMapped(error.clone()))
+                .unwrap();
+            let reports = mapped_reports.clone();
+            Exceptions::reportable::<WorkerMapped>(move |error| {
+                assert_eq!(
+                    *Exception::Error(error)
+                        .downcast_ref::<Failure>()
+                        .unwrap()
+                        .0
+                        .lock()
+                        .unwrap(),
+                    42
+                );
+                reports.fetch_add(1, Ordering::SeqCst);
+                openrust::foundation::configuration::ReportDecision::Stop
+            })
+            .unwrap();
+        })
+        .await;
+    }
+    let selection = if mapping {
+        vec![ExceptionType::of::<std::io::Error>()]
+    } else {
+        vec![]
+    };
+    let fake = app.fake_exceptions(&selection).await.unwrap();
+
     App::set_facade_application(Some(app.app()), async {
         Queue::register("fake-failure", Arc::new(FailedJob)).unwrap();
         Queue::without_interruption_polling().unwrap();
@@ -376,14 +411,19 @@ async fn worker_fake(driver: &str, url: Option<String>, redis: Option<u16>, reth
     } else {
         app.artisan(args).await.assert_exit_code(0);
     }
-    fake.assert_reported::<QueueError>();
-    fake.assert_reported_count(1);
-    let reports = fake.reported();
-    let exception = Exception::Error(&reports[0]);
-    let failure = exception
-        .downcast_ref::<Failure>()
-        .expect("Worker 保留任务原始错误");
-    assert_eq!(*failure.0.lock().unwrap(), 42);
+    if mapping {
+        fake.assert_nothing_reported();
+        assert_eq!(mapped_reports.load(Ordering::SeqCst), 1);
+    } else {
+        fake.assert_reported::<QueueError>();
+        fake.assert_reported_count(1);
+        let reports = fake.reported();
+        let exception = Exception::Error(&reports[0]);
+        let failure = exception
+            .downcast_ref::<Failure>()
+            .expect("Worker 保留任务原始错误");
+        assert_eq!(*failure.0.lock().unwrap(), 42);
+    }
     if driver == "database" {
         app.app()
             .container()
@@ -400,7 +440,7 @@ async fn worker_fake(driver: &str, url: Option<String>, redis: Option<u16>, reth
 #[tokio::test]
 async fn mysql_artisan_worker_records_original_job_error() {
     match std::env::var("OPENRUST_TEST_MYSQL_URL") {
-        Ok(url) => worker_fake("database", Some(url), None, false).await,
+        Ok(url) => worker_fake("database", Some(url), None, false, false).await,
         Err(_) => assert!(
             std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none(),
             "缺少 MySQL 验收夹具"
@@ -410,7 +450,7 @@ async fn mysql_artisan_worker_records_original_job_error() {
 #[tokio::test]
 async fn redis_artisan_worker_records_original_job_error() {
     match std::env::var("OPENRUST_TEST_REDIS_PORT") {
-        Ok(port) => worker_fake("redis", None, Some(port.parse().unwrap()), false).await,
+        Ok(port) => worker_fake("redis", None, Some(port.parse().unwrap()), false, false).await,
         Err(_) => assert!(
             std::env::var_os("OPENRUST_REQUIRE_QUEUE_REDIS").is_none(),
             "缺少 Redis 验收夹具"
@@ -540,7 +580,7 @@ async fn infallible_artisan_compatibility_path_panics_only_for_explicit_throw_mo
 #[tokio::test]
 async fn mysql_artisan_worker_propagates_original_job_error_in_throw_mode() {
     match std::env::var("OPENRUST_TEST_MYSQL_URL") {
-        Ok(url) => worker_fake("database", Some(url), None, true).await,
+        Ok(url) => worker_fake("database", Some(url), None, true, false).await,
         Err(_) => assert!(
             std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none(),
             "缺少 MySQL 验收夹具"
@@ -550,7 +590,7 @@ async fn mysql_artisan_worker_propagates_original_job_error_in_throw_mode() {
 #[tokio::test]
 async fn redis_artisan_worker_propagates_original_job_error_in_throw_mode() {
     match std::env::var("OPENRUST_TEST_REDIS_PORT") {
-        Ok(port) => worker_fake("redis", None, Some(port.parse().unwrap()), true).await,
+        Ok(port) => worker_fake("redis", None, Some(port.parse().unwrap()), true, false).await,
         Err(_) => assert!(
             std::env::var_os("OPENRUST_REQUIRE_QUEUE_REDIS").is_none(),
             "缺少 Redis 验收夹具"
@@ -572,4 +612,37 @@ async fn concurrent_http_calls_keep_throw_signals_and_report_lists_application_l
         .assert_status(StatusCode::INTERNAL_SERVER_ERROR);
     first_fake.assert_reported_count(1);
     second_fake.assert_reported_count(1);
+}
+
+#[derive(Debug)]
+struct WorkerMapped(openrust::queue::QueueError);
+impl std::fmt::Display for WorkerMapped {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("worker-mapped")
+    }
+}
+impl std::error::Error for WorkerMapped {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&self.0)
+    }
+}
+#[tokio::test]
+async fn mysql_artisan_worker_uses_mapped_reporting_rules() {
+    match std::env::var("OPENRUST_TEST_MYSQL_URL") {
+        Ok(url) => worker_fake("database", Some(url), None, false, true).await,
+        Err(_) => assert!(
+            std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none(),
+            "缺少 MySQL 验收夹具"
+        ),
+    }
+}
+#[tokio::test]
+async fn redis_artisan_worker_uses_mapped_reporting_rules() {
+    match std::env::var("OPENRUST_TEST_REDIS_PORT") {
+        Ok(port) => worker_fake("redis", None, Some(port.parse().unwrap()), false, true).await,
+        Err(_) => assert!(
+            std::env::var_os("OPENRUST_REQUIRE_QUEUE_REDIS").is_none(),
+            "缺少 Redis 验收夹具"
+        ),
+    }
 }

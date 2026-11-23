@@ -54,7 +54,11 @@ impl Handler {
         if matches!(error, HttpError::DumpAndDie(_)) {
             return error.bare_response();
         }
-        let exception = Exception::Http(error);
+        let original = Exception::Http(error);
+        let mapped = self
+            .configuration()
+            .and_then(|config| config.map_exception(&original));
+        let exception = mapped.as_ref().map(Exception::Mapped).unwrap_or(original);
         if self.should_report(&exception).await && !self.duplicate(&exception, true) {
             let _ = self.write_report(&exception, Some(request)).await;
         }
@@ -62,6 +66,28 @@ impl Handler {
     }
 
     async fn render_http_response_only(
+        &self,
+        request: &mut Request,
+        error: &HttpError,
+    ) -> Response {
+        if matches!(error, HttpError::DumpAndDie(_)) {
+            return error.bare_response();
+        }
+        let original = Exception::Http(error);
+        if let Some(mapped) = self
+            .configuration()
+            .and_then(|config| config.map_exception(&original))
+        {
+            let exception = Exception::Mapped(&mapped);
+            if let Some(error) = exception.downcast_ref::<HttpError>() {
+                return self.render_http_unmapped_response(request, error).await;
+            }
+            return self.render_unmapped(request, &exception);
+        }
+        self.render_http_unmapped_response(request, error).await
+    }
+
+    async fn render_http_unmapped_response(
         &self,
         request: &mut Request,
         error: &HttpError,
@@ -82,7 +108,7 @@ impl Handler {
         {
             response
         } else {
-            let json = self.renders_json(request, Some(error));
+            let json = self.renders_json(request, &exception);
             let redirect = match error {
                 HttpError::Validation(validation) if !json => {
                     super::validation_redirect::response(request, validation, config).await
@@ -94,10 +120,27 @@ impl Handler {
         self.respond(response, &exception, request)
     }
 
-    fn renders_json(&self, request: &Request, error: Option<&HttpError>) -> bool {
+    fn render_unmapped(&self, request: &Request, exception: &Exception<'_>) -> Response {
+        let response = self
+            .configuration()
+            .as_ref()
+            .and_then(|config| config.render_using(exception, request))
+            .or_else(|| {
+                exception
+                    .downcast_ref::<HttpResponseException>()
+                    .and_then(HttpResponseException::take_response)
+            })
+            .unwrap_or_else(|| {
+                let json = self.renders_json(request, exception);
+                self.render_default(request, exception, json)
+            });
+        self.respond(response, exception, request)
+    }
+
+    fn renders_json(&self, request: &Request, exception: &Exception<'_>) -> bool {
         self.configuration().as_ref().map_or_else(
             || request.expects_json(),
-            |config| config.renders_json(request, error),
+            |config| config.renders_json(request, exception),
         )
     }
 
@@ -384,6 +427,11 @@ impl ExceptionHandler for Handler {
 
     fn report<'a>(&'a self, exception: &'a Exception<'_>) -> HttpFuture<'a, LogResult<()>> {
         Box::pin(async move {
+            let mapped = self
+                .configuration()
+                .and_then(|config| config.map_exception(exception));
+            let exception = mapped.as_ref().map(Exception::Mapped).unwrap_or(*exception);
+            let exception = &exception;
             if !self.should_report(exception).await || self.duplicate(exception, true) {
                 return Ok(());
             }
@@ -392,20 +440,11 @@ impl ExceptionHandler for Handler {
     }
 
     fn render(&self, request: &Request, exception: &Exception<'_>) -> Response {
-        let response = self
+        let mapped = self
             .configuration()
-            .as_ref()
-            .and_then(|config| config.render_using(exception, request))
-            .or_else(|| {
-                exception
-                    .downcast_ref::<HttpResponseException>()
-                    .and_then(HttpResponseException::take_response)
-            })
-            .unwrap_or_else(|| {
-                let json = self.renders_json(request, exception.downcast_ref::<HttpError>());
-                self.render_default(request, exception, json)
-            });
-        self.respond(response, exception, request)
+            .and_then(|config| config.map_exception(exception));
+        let exception = mapped.as_ref().map(Exception::Mapped).unwrap_or(*exception);
+        self.render_unmapped(request, &exception)
     }
 
     fn render_for_console(&self, output: &mut Output, exception: &Exception<'_>) {

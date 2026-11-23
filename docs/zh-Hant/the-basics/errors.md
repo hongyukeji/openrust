@@ -232,3 +232,26 @@ async fn check_reports(app: &mut TestApp) -> Result<(), Box<dyn std::error::Erro
 `build_context_for_exception(&exception)` 傳回例外專屬欄位。`context_for_exception(&exception)` 傳回 `ExceptionContext`：`fields` 保存合併欄位，`exception` 保留原始例外借用，不將錯誤物件偽裝成 JSON 值。預設上下文在例外欄位後合併目前預設 Guard 已解析的使用者 ID，因此其 `userId` 優先；假值識別碼會被省略。此處僅讀取請求快取身分，不額外觸發認證或資料庫查詢；尚未解析身分的惰性認證行為仍待進一步對齊。
 
 實際日誌處理器使用同一個上下文建構器。`SharedException` 傳輸包裝不會在 JSON 日誌中多出一層原因，也不會讓原錯誤的上下文回呼執行兩次；真實來源錯誤仍保留在例外鏈中。其他應用或請求讀取、報告上下文時不會重用此前已認證身分。
+
+### 例外映射 {#exception-mapping}
+
+`Exceptions::map::<來源型別, 目標型別>(callback)` 註冊型別轉換，啟動設定對應 `exceptions.map::<來源型別, 目標型別>(callback)`。僅套用首個匹配映射；同一來源型別重新註冊會覆蓋回呼並保留原順序，結果不會遞迴映射。Rust 型別與建構回呼取代動態類別名稱字串，來源／目標型別無效時由編譯器拒絕。
+
+對 Rust 列舉，可用 `map_optional::<E, 目標型別>(callback)` 選擇變體：匹配時傳回 `Some(mapped)`，不匹配時傳回 `None`，保留原錯誤並繼續檢查後續映射。如此僅修改某種狀態時，不必轉換所有 `HttpError` 變體。
+
+```rust
+use openrust::{contracts::container::BindingResolutionError, support::facades::Exceptions};
+
+fn configure_mapping() -> Result<(), BindingResolutionError> {
+    Exceptions::map::<std::num::ParseIntError, _>(|error| {
+        std::io::Error::new(std::io::ErrorKind::InvalidInput, error.clone())
+    })?;
+    Ok(())
+}
+```
+
+實際報告在忽略規則、報告回呼與日誌之前套用映射。渲染單獨套用映射，因此一次 HTTP 失敗可能在報告、渲染階段各呼叫一次。`should_report` 查詢傳入的例外，不先執行映射；選中的替身記錄原始例外，渲染仍委派原處理器套用映射。
+
+映射後的根型別決定報告、渲染與忽略規則；保留的來源錯誤僅作為診斷鏈，不再誤觸發舊型別的規則。映射為 `HttpError` 時保留其狀態與回應處理。`should_render_json_when` 現在接收真實 `Exception`，包括映射後的業務例外；需要按型別判斷時使用 `downcast_ref::<E>()`，不會用合成 HTTP 錯誤取代業務錯誤。
+
+包裝錯誤具有可選內層例外時，可用 `inner_exception::<包裝型別>(callback)` 傳回 `Option<SharedException>`，明確接入 Rust `Error` 未定義的內層錯誤方法。存在內層錯誤時優先於普通映射，直接傳回且不再次映射；`None` 繼續匹配。複製共享內層句柄可保留原始實例。

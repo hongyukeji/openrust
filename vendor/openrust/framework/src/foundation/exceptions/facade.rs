@@ -29,6 +29,38 @@ impl Exceptions {
     ) -> Result<T, crate::contracts::debug::SharedException> {
         crate::testing::exception_handler_fake::catch_reported(future).await
     }
+    pub fn map<E, M>(
+        callback: impl Fn(&E) -> M + Send + Sync + 'static,
+    ) -> Result<(), BindingResolutionError>
+    where
+        E: Error + 'static,
+        M: Error + Send + Sync + 'static,
+    {
+        Self::configure(|configuration| {
+            configuration.map(callback);
+        })
+    }
+    pub fn map_optional<E, M>(
+        callback: impl Fn(&E) -> Option<M> + Send + Sync + 'static,
+    ) -> Result<(), BindingResolutionError>
+    where
+        E: Error + 'static,
+        M: Error + Send + Sync + 'static,
+    {
+        Self::configure(|configuration| {
+            configuration.map_optional(callback);
+        })
+    }
+    pub fn inner_exception<E: Error + 'static>(
+        callback: impl Fn(&E) -> Option<crate::contracts::debug::SharedException>
+        + Send
+        + Sync
+        + 'static,
+    ) -> Result<(), BindingResolutionError> {
+        Self::configure(|configuration| {
+            configuration.inner_exception(callback);
+        })
+    }
     pub fn register() -> Result<(), BindingResolutionError> {
         Self::get_facade_root()?.register()
     }
@@ -217,7 +249,7 @@ impl Exceptions {
         })
     }
     pub fn should_render_json_when(
-        callback: impl Fn(&Request, &crate::http::HttpError) -> bool + Send + Sync + 'static,
+        callback: impl Fn(&Request, &Exception<'_>) -> bool + Send + Sync + 'static,
     ) -> Result<(), BindingResolutionError> {
         Self::configure(|configuration| {
             configuration.should_render_json_when(callback);

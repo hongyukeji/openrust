@@ -990,9 +990,9 @@
           "evidence": "framework/tests/exceptions_facade.rs (10 current cases), existing exception_reporting(7) and exception_rendering(5); exceptions-config/test-fifth.log; PHP isReporting oracle"
         },
         "map": {
-          "local": "map",
-          "status": "pending",
-          "evidence": "not implemented/verified through this facade; bootstrap configuration or underlying method alone is not facade parity"
+          "local": "map::<E,M>(Fn(&E)->M); map_optional for enum branches; inner_exception::<E> for optional shared inner method",
+          "status": "verified-native-mapping-paths",
+          "evidence": "fixed PHP original mapException oracle + exception_map_facade11; mapped rules, replacement order, no recursion, inner priority/object pointer, nullable fallback, HTTP/Fake/JSON and native dump control; real MySQL8.4/Redis8 mapped Worker"
         },
         "dontReport": {
           "local": "dont_report::<E>()",
@@ -1085,9 +1085,9 @@
           "evidence": "framework/tests/exceptions_facade.rs (10 current cases), existing exception_reporting(7) and exception_rendering(5); exceptions-config/test-fifth.log; PHP isReporting oracle"
         },
         "shouldRenderJsonWhen": {
-          "local": "should_render_json_when(Fn(&Request,&HttpError)->bool)",
+          "local": "should_render_json_when(Fn(&Request,&Exception)->bool), receives actual mapped domain error instead of synthetic HttpError",
           "status": "verified-current-native-paths",
-          "evidence": "framework/tests/exceptions_facade.rs (10 current cases), existing exception_reporting(7) and exception_rendering(5); exceptions-config/test-fifth.log; PHP isReporting oracle"
+          "evidence": "exception_map_facade actual HTTP mapped domain callback sees Mapped but neither previous Original nor invented HttpError; existing render/HTTP fixtures compile and run"
         },
         "dontReportDuplicates": {
           "local": "dont_report_duplicates()",
@@ -1157,11 +1157,10 @@
         "extensions": "new render_http contract hook has default report+render; concrete Handler overrides with existing request logging context, validation redirects and report throttling; downstream custom handlers remain source compatible"
       },
       "remaining": [
-        "map and original inner-exception mapping remain to implement and verify",
         "global catch-all throttleUsing callback/default grouping vs native typed policy; full result/chain defaults",
         "isReporting borrowed zero-sized Rust value identity cannot imply PHP object identity; owned facade report uses Arc-backed identity; review remaining direct borrowed contract consumers during owned-error/fake work",
         "borrowed opaque exception retention requires explicit SharedException ownership; custom callers and full request/task/Worker failure restoration plus inherited base mocks/spy remain to audit",
-        "withoutExceptionHandling handler mode, remaining dynamic Handler/config forwarding and map contracts still require closure",
+        "withoutExceptionHandling handler mode, remaining dynamic Handler/config forwarding contracts still require closure",
         "contextForException currently reads resolved default-guard identity; upstream lazy Auth::id resolution must still be addressed/validated; typed context methods use explicit registered callbacks because Rust Error does not define context()"
       ],
       "runtime_configuration": {
@@ -1201,6 +1200,14 @@
         "callbacks": "typed exception_context + ordered with_context callbacks see accumulated fields; last callback key wins; default current resolved userId merges last; fake delegates original custom handler",
         "actual_consumers": "real Handler write_report uses same fields; shared transport unwrapped in JSON snapshot so typed callback executes once and does not add a fake cause",
         "limits": "lazy unresolved authentication remains partial; do not count full Exceptions closed"
+      },
+      "mapping_native": {
+        "registration": "typed closure constructs actual target, same E replaces in place, first match only, result not remapped; invalid types rejected by Rust bounds, no dynamic class-name registry",
+        "ordering": "explicit inner_exception E adapter runs before ordinary maps; Some shared original returned directly, None continues; source typed pointer retained",
+        "rules": "Mapped exception marker restricts rule matching to mapped root, preserving real previous as diagnostic data; native original transport wrappers still match underlying source for initial typed mapping",
+        "consumers": "report maps before ignore/report callbacks; HTTP report and render map separately; mapped HttpError preserves status/response/validation path; Fake records original and delegates render; raw should_report does not map",
+        "JSON": "policy receives actual Exception including mapped domain, synthetic fallback HTTP error removed; default API/request-only closures remain unchanged",
+        "scope": "per Handler configuration with snapshot before callbacks; reentry/replacement and applications isolated; no mapper/registry credentials in queue payload"
       }
     },
     {

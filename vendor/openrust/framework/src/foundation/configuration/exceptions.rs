@@ -2,17 +2,24 @@ use std::{any::TypeId, error::Error, sync::Arc};
 
 use crate::{
     cache::rate_limiting::Limit,
-    contracts::debug::Exception,
-    http::{HttpError, Request, Response},
+    contracts::debug::{Exception, SharedException},
+    http::{Request, Response},
     log::{Level, LogContext},
     support::Lottery,
 };
 
-type JsonPolicy = dyn Fn(&Request, &HttpError) -> bool + Send + Sync;
+type JsonPolicy = dyn Fn(&Request, &Exception<'_>) -> bool + Send + Sync;
 type Throttle = dyn Fn(&Exception<'_>) -> Option<(ReportThrottle, &'static str)> + Send + Sync;
 type Reporter = dyn Fn(&Exception<'_>) -> ReportDecision + Send + Sync;
 type Renderer = dyn Fn(&Exception<'_>, &Request) -> Option<Response> + Send + Sync;
 type Responder = dyn Fn(Response, &Exception<'_>, &Request) -> Response + Send + Sync;
+
+type Mapper = dyn Fn(&Exception<'_>) -> Option<SharedException> + Send + Sync;
+#[derive(Clone)]
+struct Mapping {
+    kind: TypeId,
+    callback: Arc<Mapper>,
+}
 
 type Matcher = dyn Fn(&Exception<'_>) -> bool + Send + Sync;
 type Context = dyn Fn(&Exception<'_>, &LogContext) -> LogContext + Send + Sync;
@@ -59,6 +66,8 @@ pub enum ReportThrottle {
 #[derive(Clone, Default)]
 pub struct Exceptions {
     json_policy: Option<Arc<JsonPolicy>>,
+    mappings: Vec<Mapping>,
+    inner_exceptions: Vec<Mapping>,
     reporters: Vec<Arc<Reporter>>,
     throttles: Vec<Arc<Throttle>>,
     ignored: Vec<Rule>,
@@ -76,6 +85,71 @@ pub struct Exceptions {
 }
 
 impl Exceptions {
+    /// 同类型重新注册覆盖原回调并保留其顺序；只应用首个匹配映射。
+    pub fn map<E, M>(&mut self, callback: impl Fn(&E) -> M + Send + Sync + 'static) -> &mut Self
+    where
+        E: Error + 'static,
+        M: Error + Send + Sync + 'static,
+    {
+        self.map_optional(move |error| Some(callback(error)))
+    }
+    /// 可选映射用于枚举变体；None 保留原错误并继续检查其余映射。
+    pub fn map_optional<E, M>(
+        &mut self,
+        callback: impl Fn(&E) -> Option<M> + Send + Sync + 'static,
+    ) -> &mut Self
+    where
+        E: Error + 'static,
+        M: Error + Send + Sync + 'static,
+    {
+        let mapping = Mapping {
+            kind: TypeId::of::<E>(),
+            callback: Arc::new(move |exception| {
+                exception
+                    .downcast_ref::<E>()
+                    .and_then(&callback)
+                    .map(SharedException::new)
+            }),
+        };
+        match self
+            .mappings
+            .iter_mut()
+            .find(|entry| entry.kind == mapping.kind)
+        {
+            Some(entry) => *entry = mapping,
+            None => self.mappings.push(mapping),
+        }
+        self
+    }
+    /// 为 Rust 错误显式接入可选的 getInnerException 等价入口，优先于普通映射。
+    pub fn inner_exception<E: Error + 'static>(
+        &mut self,
+        callback: impl Fn(&E) -> Option<SharedException> + Send + Sync + 'static,
+    ) -> &mut Self {
+        let mapping = Mapping {
+            kind: TypeId::of::<E>(),
+            callback: Arc::new(move |exception| exception.downcast_ref::<E>().and_then(&callback)),
+        };
+        match self
+            .inner_exceptions
+            .iter_mut()
+            .find(|entry| entry.kind == mapping.kind)
+        {
+            Some(entry) => *entry = mapping,
+            None => self.inner_exceptions.push(mapping),
+        }
+        self
+    }
+    pub(crate) fn map_exception(&self, exception: &Exception<'_>) -> Option<SharedException> {
+        if matches!(exception, Exception::Mapped(_)) {
+            return None;
+        }
+        self.inner_exceptions
+            .iter()
+            .chain(&self.mappings)
+            .find_map(|entry| (entry.callback)(exception))
+    }
+
     /// Registers a report callback for an exception type or one of its sources.
     pub fn report<E: Error + 'static>(
         &mut self,
@@ -331,23 +405,17 @@ impl Exceptions {
     /// Overrides the default request-based JSON decision.
     pub fn should_render_json_when(
         &mut self,
-        policy: impl Fn(&Request, &HttpError) -> bool + Send + Sync + 'static,
+        policy: impl Fn(&Request, &Exception<'_>) -> bool + Send + Sync + 'static,
     ) -> &mut Self {
         self.json_policy = Some(Arc::new(policy));
         self
     }
 
-    pub(crate) fn renders_json(&self, request: &Request, error: Option<&HttpError>) -> bool {
-        match (&self.json_policy, error) {
-            (Some(policy), Some(error)) => policy(request, error),
-            (Some(policy), None) => {
-                let fallback = HttpError::Internal {
-                    source: Box::new(std::io::Error::other("Application exception")),
-                };
-                policy(request, &fallback)
-            }
-            (None, _) => request.expects_json(),
-        }
+    pub(crate) fn renders_json(&self, request: &Request, exception: &Exception<'_>) -> bool {
+        self.json_policy.as_ref().map_or_else(
+            || request.expects_json(),
+            |policy| policy(request, exception),
+        )
     }
 
     pub(crate) fn should_continue_reporting(&self, exception: &Exception<'_>) -> bool {

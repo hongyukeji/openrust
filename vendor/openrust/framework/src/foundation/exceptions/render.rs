@@ -102,10 +102,10 @@ fn error_page(request: &Request, status: StatusCode, message: &str) -> Option<St
 }
 
 fn debug_sources(exception: &Exception<'_>) -> Vec<String> {
-    let original = exception.error();
+    let original = exception.root_error();
     let mut current = match exception {
         Exception::Http(_) => original.source(),
-        Exception::Error(_) => Some(original),
+        Exception::Error(_) | Exception::Mapped(_) => Some(original),
     };
     let mut sources = Vec::new();
     while let Some(error) = current {

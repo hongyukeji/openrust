@@ -232,3 +232,26 @@ For another async entry point, wrap its future in `Exceptions::catch_reported(fu
 `build_context_for_exception(&exception)` returns exception-specific fields. `context_for_exception(&exception)` returns an `ExceptionContext`: `fields` contains the merged fields and `exception` retains the original borrowed error, rather than a JSON imitation of an error object. The default context merges the currently resolved default-guard user ID after the error fields, so its `userId` wins; false-like IDs are omitted. It reads cached request identity without starting a new authentication/database lookup. Lazy authentication that has not resolved an identity still requires further alignment.
 
 The actual log handler uses the same context builder. `SharedException` transport wrappers do not appear as extra causes in JSON logs, and do not invoke the original error's context callback twice. Genuine source errors remain in the exception chain. Reading or reporting context in another application/request does not reuse a prior authenticated identity.
+
+### Exception mapping {#exception-mapping}
+
+`Exceptions::map::<Source, Target>(callback)` registers a typed transformation. The equivalent startup configuration is `exceptions.map::<Source, Target>(callback)`. The first matching mapping wins; replacing the same source type preserves its position. A result is not recursively remapped. Rust types and a constructor callback replace dynamic class-name strings, so invalid source/target types are compile-time errors.
+
+For Rust enums, `map_optional::<E, Target>(callback)` can select individual variants: return `Some(mapped)` for a match or `None` to leave an unmatched error unchanged and try later mappings. This avoids transforming every `HttpError` variant when only one status should change.
+
+```rust
+use openrust::{contracts::container::BindingResolutionError, support::facades::Exceptions};
+
+fn configure_mapping() -> Result<(), BindingResolutionError> {
+    Exceptions::map::<std::num::ParseIntError, _>(|error| {
+        std::io::Error::new(std::io::ErrorKind::InvalidInput, error.clone())
+    })?;
+    Ok(())
+}
+```
+
+Actual reporting maps before ignore rules, report callbacks and logging. Rendering performs its own mapping, so an HTTP failure may invoke the mapper once for reporting and once for rendering. `should_report` queries the supplied error without applying a map. A selected fake records the original error, while rendering still delegates to the original handler's mapping.
+
+The mapped root controls report/render/ignore rules: a retained source error remains diagnostic data and does not accidentally select its old policy. A mapping to `HttpError` keeps its status and response handling. `should_render_json_when` now receives the actual `Exception`, including mapped domain errors; use `downcast_ref::<E>()` when the policy depends on its type. There is no synthetic HTTP exception in place of a business error.
+
+For a wrapper with an optional inner exception, register `inner_exception::<Wrapper>(callback)` returning `Option<SharedException>`. This explicitly adapts an inner-error method that is not part of Rust's `Error` trait. A nonempty inner error takes priority over normal maps and is returned without remapping; `None` continues matching. Clone the shared inner handle to preserve its original instance.

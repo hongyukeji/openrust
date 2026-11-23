@@ -45,6 +45,8 @@ impl Error for SharedException {
 #[derive(Clone, Copy)]
 pub enum Exception<'a> {
     Http(&'a HttpError),
+    /// 映射后的业务错误按根类型匹配，来源只保留为诊断链。
+    Mapped(&'a SharedException),
     Error(&'a (dyn Error + Send + Sync + 'static)),
 }
 
@@ -52,6 +54,7 @@ impl Exception<'_> {
     pub(crate) fn error(&self) -> &(dyn Error + 'static) {
         match self {
             Self::Http(error) => *error,
+            Self::Mapped(error) => *error,
             Self::Error(error) => *error,
         }
     }
@@ -64,8 +67,11 @@ impl Exception<'_> {
         error
     }
 
-    /// Finds the first matching error in the exception and its source chain.
+    /// 查找原始错误及来源；映射后只匹配新根，来源继续保留为诊断链。
     pub fn downcast_ref<E: Error + 'static>(&self) -> Option<&E> {
+        if matches!(self, Self::Mapped(_)) {
+            return self.root_error().downcast_ref::<E>();
+        }
         let mut current = Some(self.error());
         while let Some(error) = current {
             if let Some(matched) = error.downcast_ref::<E>() {
